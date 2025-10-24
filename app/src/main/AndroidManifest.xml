@@ -91,8 +91,8 @@
             android:theme="@style/Theme.AndroidIDE" />
         <activity
             android:name=".activities.editor.EditorActivityKt"
-            android:configChanges="orientation|screenSize|uiMode"
-            android:launchMode="singleTop" />
+            android:configChanges="orientation|screenSize"
+            android:launchMode="singleTask" />
         <activity android:name=".activities.PreferencesActivity" />
         <activity android:name=".activities.PluginManagerActivity" />
         <activity android:name=".activities.AboutActivity" />

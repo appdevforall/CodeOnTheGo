@@ -28,6 +28,7 @@ dependencies {
     implementation(projects.logger)
     implementation(projects.shared)
 
+    implementation(libs.androidx.annotation)
     implementation(libs.common.jkotlin)
     implementation(libs.google.auto.service.annotations)
     implementation(libs.google.guava)

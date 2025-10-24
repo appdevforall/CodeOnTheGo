@@ -174,12 +174,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         }
 
         executeAsync {
-            TSLanguageRegistry.instance.register(JavaLanguage.TS_TYPE, JavaLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(KotlinLanguage.TS_TYPE_KT, KotlinLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(KotlinLanguage.TS_TYPE_KTS, KotlinLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(JavaLanguage.TS_TYPE, JavaLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(KotlinLanguage.TS_TYPE_KT, KotlinLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(KotlinLanguage.TS_TYPE_KTS, KotlinLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
             IDEColorSchemeProvider.initIfNeeded()
         }
 
