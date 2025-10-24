@@ -19,11 +19,9 @@ package com.itsaky.androidide.activities
 
 import android.app.AlertDialog
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.View
-import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.core.graphics.Insets
@@ -56,7 +54,6 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_D
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.appdevforall.localwebserver.ServerConfig
 import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
@@ -64,11 +61,10 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
-import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.UrlManager
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -177,7 +173,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         // Add the "OK" button and its click listener
         builder.setPositiveButton("OK") { dialog, which ->
-            openWebsite(getString(R.string.download_codeonthego_url))
+            UrlManager.openUrl(getString(R.string.download_codeonthego_url), null)
             dialog.dismiss()
         }
 
@@ -189,35 +185,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         // Create and show the AlertDialog
         val dialog: AlertDialog = builder.create()
         dialog.show()
-    }
-
-    private fun openWebsite(urlString: String) {
-        // 1. Parse the URL string into a Uri object
-        val websiteUri: Uri = try {
-            Uri.parse(urlString)
-        } catch (e: Exception) {
-            // Handle cases where the URL string is malformed
-            Toast.makeText(this, getString(R.string.msg_invalid_url), Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // 2. Create the Intent.
-        // ACTION_VIEW is used to tell Android you want to display the data (the URI).
-        val intent = Intent(Intent.ACTION_VIEW, websiteUri)
-
-        // 3. Check if there is an app available to handle this Intent (i.e., a browser).
-        // This is a crucial best practice to prevent the app from crashing.
-        if (intent.resolveActivity(packageManager) != null) {
-            // 4. Start the activity, which will launch the web browser.
-            startActivity(intent)
-        } else {
-            // If no app can handle the intent (e.g., no browser installed, which is rare)
-            Toast.makeText(
-                this,
-                getString(R.string.msg_no_browser_found),
-                Toast.LENGTH_LONG
-            ).show()
-        }
     }
 
     override fun onResume() {
