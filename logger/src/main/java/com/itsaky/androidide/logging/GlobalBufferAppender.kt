@@ -17,10 +17,12 @@
 
 package com.itsaky.androidide.logging
 
+import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
 import ch.qos.logback.core.Context
 import com.itsaky.androidide.logging.encoder.IDELogFormatLayout
+import java.util.Collections
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -32,73 +34,91 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class GlobalBufferAppender : AppenderBase<ILoggingEvent>() {
 
-  private val logLayout = IDELogFormatLayout(false)
+	interface Consumer {
+		val logLevel: Level
+		fun consume(message: String)
+	}
 
-  companion object {
-    private val buffer = ConcurrentLinkedQueue<String>()
-    private val maxBufferSize = 1000 // Keep last 1000 log entries
-    private val bufferSize = AtomicInteger(0)
-    private val consumers = mutableSetOf<((String) -> Unit)>()
-    
-    /**
-     * Register a consumer to receive log messages.
-     * The consumer will receive both new messages and all buffered messages.
-     */
-    fun registerConsumer(consumer: (String) -> Unit) {
-      consumers.add(consumer)
-      // Send all buffered messages to the new consumer
-      buffer.forEach { message ->
-        consumer(message)
-      }
-    }
-    
-    /**
-     * Unregister a consumer.
-     */
-    fun unregisterConsumer(consumer: (String) -> Unit) {
-      consumers.remove(consumer)
-    }
-  }
+	private data class LogEvent(val level: Level, val message: String)
 
-  override fun start() {
-    this.logLayout.start()
-    super.start()
-  }
+	private val logLayout = IDELogFormatLayout(false)
 
-  override fun stop() {
-    super.stop()
-    this.logLayout.stop()
-  }
+	companion object {
+		private val buffer = ConcurrentLinkedQueue<LogEvent>()
+		private const val MAX_BUFFER_SIZE = 1000
+		private val bufferSize = AtomicInteger(0)
+		private val consumers = Collections.synchronizedList(mutableListOf<Consumer>())
 
-  override fun setContext(context: Context?) {
-    super.setContext(context)
-    this.logLayout.context = context
-  }
+		/**
+		 * Register a consumer to receive log messages.
+		 * The consumer will receive both new messages and all buffered messages.
+		 */
+		fun registerConsumer(consumer: Consumer) {
+			consumers.add(consumer)
+			buffer.forEach { message ->
+				dispatchTo(
+					consumer = consumer,
+					level = message.level,
+					message = message.message
+				)
+			}
+		}
 
-  override fun append(eventObject: ILoggingEvent?) {
-    if (eventObject == null || !isStarted) {
-      return
-    }
+		/**
+		 * Unregister a consumer.
+		 */
+		fun unregisterConsumer(consumer: Consumer) {
+			consumers.remove(consumer)
+		}
 
-    // Format the log message
-    val formattedMessage = logLayout.doLayout(eventObject).trim()
-    
-    // Add to buffer
-    buffer.offer(formattedMessage)
-    
-    // Maintain buffer size
-    if (bufferSize.incrementAndGet() > maxBufferSize) {
-      buffer.poll() // Remove oldest entry
-      bufferSize.decrementAndGet()
-    }
-    
-    // Send to all registered consumers
-    consumers.forEach { consumer ->
-      try {
-        consumer(formattedMessage)
-      } catch (e: Exception) {
-        // Ignore exceptions from consumers to avoid breaking the logging system
-      }
-    }
-  }
+		private fun dispatch(level: Level, message: String) {
+			consumers.forEach { consumer ->
+				dispatchTo(consumer, level, message)
+			}
+		}
+
+		private fun dispatchTo(
+			consumer: Consumer,
+			level: Level,
+			message: String
+		) {
+			if (level.levelInt < consumer.logLevel.levelInt) return
+			runCatching { consumer.consume(message) }
+		}
+	}
+
+	override fun start() {
+		this.logLayout.start()
+		super.start()
+	}
+
+	override fun stop() {
+		super.stop()
+		this.logLayout.stop()
+	}
+
+	override fun setContext(context: Context?) {
+		super.setContext(context)
+		this.logLayout.context = context
+	}
+
+	override fun append(eventObject: ILoggingEvent?) {
+		if (eventObject == null || !isStarted) {
+			return
+		}
+
+		// Format the log message
+		val formattedMessage = logLayout.doLayout(eventObject).trim()
+
+		// Add to buffer
+		buffer.offer(LogEvent(eventObject.level, formattedMessage))
+
+		// Maintain buffer size
+		if (bufferSize.incrementAndGet() > MAX_BUFFER_SIZE) {
+			buffer.poll() // Remove oldest entry
+			bufferSize.decrementAndGet()
+		}
+
+		dispatch(eventObject.level, formattedMessage)
+	}
 }
