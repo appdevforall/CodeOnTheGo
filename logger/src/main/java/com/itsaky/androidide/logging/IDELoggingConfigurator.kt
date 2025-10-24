@@ -35,21 +35,21 @@ import com.itsaky.androidide.logging.encoder.IDELogFormatEncoder
 @Suppress("UNUSED")
 class IDELoggingConfigurator : ContextAwareBase(), Configurator {
 
-  override fun configure(context: LoggerContext): Configurator.ExecutionStatus {
-    addInfo("Setting up logging configuration")
+	override fun configure(context: LoggerContext): Configurator.ExecutionStatus {
+		addInfo("Setting up logging configuration")
 
-    val appender = LogcatAppender()
-    appender.context = context
-    appender.start()
+		val appender = LogcatAppender()
+		appender.context = context
+		appender.start()
 
-    val globalBufferAppender = GlobalBufferAppender()
-    globalBufferAppender.context = context
-    globalBufferAppender.start()
+		val globalBufferAppender = GlobalBufferAppender()
+		globalBufferAppender.context = context
+		globalBufferAppender.start()
 
-    val rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME)
-    rootLogger.addAppender(appender)
-    rootLogger.addAppender(globalBufferAppender)
+		val rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME)
+		rootLogger.addAppender(appender)
+		rootLogger.addAppender(globalBufferAppender)
 
-    return Configurator.ExecutionStatus.DO_NOT_INVOKE_NEXT_IF_ANY
-  }
+		return Configurator.ExecutionStatus.DO_NOT_INVOKE_NEXT_IF_ANY
+	}
 }

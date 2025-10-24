@@ -17,22 +17,24 @@
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-    id("java-library")
-    id("org.jetbrains.kotlin.jvm")
-    id("com.vanniktech.maven.publish.base")
+	id("java-library")
+	id("org.jetbrains.kotlin.jvm")
+	id("com.vanniktech.maven.publish.base")
+	id("kotlin-kapt")
 }
 
 description = "AndroidIDE Logging Framework"
 
 dependencies {
-    compileOnly(projects.subprojects.frameworkStubs)
+	kapt(libs.google.auto.service)
+	compileOnly(projects.subprojects.frameworkStubs)
 
-    api(libs.logging.logback.core)
-    api(libs.logging.logback.classic)
+	api(libs.logging.logback.core)
+	api(libs.logging.logback.classic)
 
-    implementation(projects.buildInfo)
-    implementation(libs.google.auto.service)
+	implementation(projects.buildInfo)
+	implementation(libs.google.auto.service.annotations)
 
-    testImplementation(libs.tests.junit)
-    testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }
