@@ -690,6 +690,10 @@
 	<string name="msg_create_new_from_recent">Click the <b>New project</b> button to create a new project, or open an existing project from a folder.</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
+	<string name="msg_no_valid_projects">No valid Android projects found in %1$s</string>
+	<string name="msg_skipped_invalid_projects">Some folders were skipped because they are not valid Android projects.</string>
+	<string name="msg_cannot_access_folder">Cannot access folder %1$s. Check storage permissions.</string>
+	<string name="msg_no_subfolders">The folder %1$s does not contain any subfolders.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
@@ -914,5 +918,8 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
     <string name="url_consent_cancel">Cancel</string>
     <string name="url_consent_proceed">Proceed</string>
     <string name="url_consent_dont_ask">Don\'t Ask Again</string>
+
+    <!-- Documentation urls -->
+    <string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
 
 </resources>

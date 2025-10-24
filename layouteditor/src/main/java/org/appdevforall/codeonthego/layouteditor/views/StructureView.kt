@@ -48,6 +48,7 @@ import android.widget.VideoView
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.widget.NestedScrollView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager.widget.ViewPager
@@ -342,6 +343,8 @@ class StructureView(context: Context?, attrs: AttributeSet?) : LinearLayoutCompa
         R.mipmap.ic_palette_constraint_layout
       imgMap[BottomNavigationView::class.java.simpleName] =
         R.mipmap.ic_palette_bottom_navigation_view
+        imgMap[CoordinatorLayout::class.java.simpleName] =
+            R.mipmap.ic_palette_coordinator_layout
     }
   }
 }
