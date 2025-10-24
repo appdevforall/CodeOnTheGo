@@ -19,6 +19,7 @@ package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
@@ -76,12 +77,10 @@ class HelpActivity : BaseIDEActivity() {
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: android.webkit.WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    android.util.Log.d("HelpActivity", "Page started loading: $url")
                 }
 
                 override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    android.util.Log.d("HelpActivity", "Page finished loading: $url")
                 }
 
                 override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
@@ -90,7 +89,6 @@ class HelpActivity : BaseIDEActivity() {
 
                 override fun onReceivedError(view: android.webkit.WebView?, errorCode: Int, description: String?, failingUrl: String?) {
                     super.onReceivedError(view, errorCode, description, failingUrl)
-                    android.util.Log.e("HelpActivity", "Error loading URL: $failingUrl, Error: $description")
                     view?.loadData("""
                         <html><body>
                         <h3>Error Loading Content</h3>
@@ -103,7 +101,6 @@ class HelpActivity : BaseIDEActivity() {
 
             // Load the HTML file from the assets folder
             htmlContent?.let { url ->
-                android.util.Log.d("HelpActivity", "Loading URL: $url")
                 webView.loadUrl(url)
             }
         }
@@ -136,11 +133,11 @@ class HelpActivity : BaseIDEActivity() {
     }
 
     private fun handleExternalScheme(url: String) {
-        try {
+        runCatching {
             val intent = Intent(Intent.ACTION_VIEW, url.toUri())
             startActivity(intent)
-        } catch (e: Exception) {
-            android.util.Log.e("HelpActivity", "Failed to open URL: $url", e)
+        }.onFailure { e ->
+            Log.e("HelpActivity", "Failed to open URL: $url", e)
         }
     }
 

@@ -19,6 +19,7 @@ package org.appdevforall.codeonthego.layouteditor.activities
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
@@ -91,11 +92,11 @@ class HelpActivity : BaseActivity() {
     }
 
     private fun handleExternalScheme(url: String) {
-        try {
+        runCatching {
             val intent = Intent(Intent.ACTION_VIEW, url.toUri())
             startActivity(intent)
-        } catch (e: Exception) {
-            android.util.Log.e("HelpActivity", "Failed to open URL: $url", e)
+        }.onFailure { e ->
+            Log.e("HelpActivity", "Failed to open URL: $url", e)
         }
     }
 
