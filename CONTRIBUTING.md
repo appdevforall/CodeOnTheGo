@@ -24,12 +24,12 @@ This project enforces a strict branch naming policy using a Git pre-commit hook.
 #### Mac/Linux:
 ```bash
 sh ./scripts/install-git-hooks.sh
-````
+```
 
 #### Windows
 ```bash
 scripts\install-git-hooks.bat
-````
+```
 ## Source code format
 
 - Indents : 2-space
@@ -69,6 +69,7 @@ To contribute to this project,
 - [Official Telegram channel](https://t.me/CodeOnTheGoOfficial)
 - [Telegram discussions](https://t.me/CodeOnTheGoDiscussions)
 - [Email](mailto:feedback@appdevforall.org)
+
 
 
 
