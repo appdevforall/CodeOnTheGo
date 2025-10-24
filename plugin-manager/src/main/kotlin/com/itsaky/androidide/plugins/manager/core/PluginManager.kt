@@ -138,7 +138,7 @@ class PluginManager private constructor(
         verifyDocumentationForLoadedPlugins()
 
         val pluginFiles = pluginsDir.listFiles { file ->
-            file.isFile && (file.name.endsWith(".") || file.name.endsWith(".cgp"))
+            file.isFile && file.name.endsWith(".cgp", ignoreCase = true)
         } ?: return@withContext
 
         logger.info("Found ${pluginFiles.size} plugin files")
@@ -210,8 +210,8 @@ class PluginManager private constructor(
             return Result.failure(IllegalArgumentException(error))
         }
 
-        if (!pluginFile.name.endsWith(".") && !pluginFile.name.endsWith(".cgp")) {
-            val error = "Only /CGP plugins are supported. File: ${pluginFile.name}"
+        if (!pluginFile.name.endsWith(".cgp", ignoreCase = true)) {
+            val error = "Only CGP plugins are supported. File: ${pluginFile.name}"
             logger.error(error)
             return Result.failure(IllegalArgumentException(error))
         }
@@ -407,9 +407,9 @@ class PluginManager private constructor(
             logger.info("Successfully unloaded plugin from memory: $pluginId")
         }
 
-        // Find and delete the plugin file (/CGP)
+        // Find and delete the plugin file (CGP)
         val pluginFiles = pluginsDir.listFiles { file ->
-            file.isFile && (file.name.endsWith(".") || file.name.endsWith(".cgp"))
+            file.isFile && file.name.endsWith(".cgp", ignoreCase = true)
         }
 
         if (pluginFiles == null || pluginFiles.isEmpty()) {
