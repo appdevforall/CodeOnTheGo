@@ -63,13 +63,12 @@ To contribute to this project,
 ## Issues & Pull requests
 
 Use the issue/PR templates whenever possible. Provide a proper title and a clear description of the
-issue/PR. For bug reports, provide a step-by-step procedure to reproduce the issue. Always put
-things like crash
-logs, and build outputs in `code blocks`.
+issue/PR. For bug reports, provide a step-by-step procedure to reproduce the issue. Please include supporting materials including logs and build outputs in the `code blocks` secction.
 
 ## Contact us
 
 If you want to discuss the project, visit our [Telegram group](https://t.me/androidide_discussions).
+
 
 
 
