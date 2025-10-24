@@ -17,9 +17,12 @@
 
 package com.itsaky.androidide.lookup.internal;
 
+import androidx.annotation.VisibleForTesting;
+
 import com.google.auto.service.AutoService;
 import com.itsaky.androidide.lookup.Lookup;
 import com.itsaky.androidide.lookup.ServiceRegisteredException;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,77 +37,71 @@ import java.util.concurrent.ConcurrentHashMap;
 @AutoService(Lookup.class)
 public final class DefaultLookup implements Lookup {
 
-  private final Map<Class<?>, Key<?>> keyTable = new ConcurrentHashMap<>();
-  private final Map<Key<?>, Object> services = new ConcurrentHashMap<>();
+	@VisibleForTesting
+	final Map<Class<?>, Key<?>> keyTable = new ConcurrentHashMap<>();
 
-  @Override
-  public <T> void register(final Class<T> klass, final T instance) {
-    final Key<T> key = key(klass);
-    keyTable.put(klass, key);
-    register(key, instance);
-  }
+	private final Map<Key<?>, Object> services = new ConcurrentHashMap<>();
 
-  @Override
-  public <T> void update(final Class<T> klass, final T instance) {
-    update(key(klass), instance);
-  }
+	@Override
+	public <T> void register(final Class<T> klass, final T instance) {
+		register(key(klass), instance);
+	}
 
-  @Override
-  public <T> void unregister(final Class<T> klass) {
-    unregister(key(klass));
-  }
+	@Override
+	public <T> void update(final Class<T> klass, final T instance) {
+		update(key(klass), instance);
+	}
 
-  @Nullable
-  @Override
-  public <T> T lookup(final Class<T> klass) {
-    return lookup(key(klass));
-  }
+	@Override
+	public <T> void unregister(final Class<T> klass) {
+		unregister(key(klass));
+	}
 
-  @Override
-  public <T> void register(final Key<T> key, final T instance) {
-    registerOrUpdate(key, instance, false);
-  }
+	@Nullable
+	@Override
+	public <T> T lookup(final Class<T> klass) {
+		return lookup(key(klass));
+	}
 
-  @Override
-  public <T> void unregister(final Key<T> key) {
-    services.remove(key);
-  }
+	@Override
+	public <T> void register(final Key<T> key, final T instance) {
+		registerOrUpdate(key, instance, false);
+	}
 
-  @SuppressWarnings("unchecked")
-  @Nullable
-  @Override
-  public <T> T lookup(final Key<T> key) {
-    return (T) services.get(key);
-  }
+	@Override
+	public <T> void unregister(final Key<T> key) {
+		services.remove(key);
+	}
 
-  @Override
-  public <T> void update(final Key<T> key, final T instance) {
-    registerOrUpdate(key, instance, true);
-  }
+	@SuppressWarnings("unchecked")
+	@Nullable
+	@Override
+	public <T> T lookup(final Key<T> key) {
+		return (T) services.get(key);
+	}
 
-  @Override
-  public void unregisterAll() {
-    services.clear();
-  }
+	@Override
+	public <T> void update(final Key<T> key, final T instance) {
+		registerOrUpdate(key, instance, true);
+	}
 
-  @SuppressWarnings("unchecked")
-  private <T> void registerOrUpdate(final Key<T> key, final T instance, boolean update) {
-    final T existing = (T) services.put(key, instance);
-    if (existing != null && !update) {
-      services.put(key, existing);
-      throw new ServiceRegisteredException();
-    }
-  }
+	@Override
+	public void unregisterAll() {
+		services.clear();
+	}
 
-  @SuppressWarnings("unchecked")
-  @NotNull
-  private <T> Key<T> key(Class<T> klass) {
-    final var key = keyTable.get(klass);
-    if (key == null) {
-      // Returning a new key instance will always make the lookup methods above return null
-      return new Key<>();
-    }
+	@SuppressWarnings("unchecked")
+	private <T> void registerOrUpdate(final Key<T> key, final T instance, boolean update) {
+		final T existing = (T) services.put(key, instance);
+		if (existing != null && !update) {
+			services.put(key, existing);
+			throw new ServiceRegisteredException();
+		}
+	}
 
-    return (Key<T>) key;
-  }
+	@SuppressWarnings("unchecked")
+	@NotNull
+	private <T> Key<T> key(Class<T> klass) {
+		return (Key<T>) keyTable.computeIfAbsent(klass, k -> new Key<T>());
+	}
 }
