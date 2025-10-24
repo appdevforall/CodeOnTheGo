@@ -18,11 +18,6 @@
 </p>
 
 ## About this release
-<p>This is an early, experimental version of Code on the Go, our offline-first Android IDE. This release is intended for Android developers who are comfortable testing rough software and providing constructive feedback. Please note:
-<ul><li>Some features are incomplete or missing
-<li>Stability may vary across devices
-<li>UI and interactions are provisional
- </li></ul></p>
 
 ## Installation
 
@@ -30,15 +25,11 @@
 
 ## Limitations
 
-- For working with projects in Code On The Go, your project must use Android Gradle Plugin v7.2.0 or
-  newer. Projects with older AGP must be migrated to newer versions.
-- SDK Manager is already included in Android SDK and is accessible in Code On The Go via its Terminal.
-  But, you cannot use it to install some tools (like NDK) because those tools are not built for
-  Android.
-- No official NDK support because we haven't built the NDK for Android.
-
-The app is still being developed actively. It's in beta stage and may not be stable. If you have any
-issues using the app, please let us know.
+<p>This is an early, experimental version of Code on the Go, our offline-first Android IDE. This release is intended for Android developers who are comfortable testing rough software and providing constructive feedback. Please note:
+<ul><li>Some features are incomplete or missing
+<li>Stability may vary across devices
+<li>UI and interactions are provisional
+ </li></ul></p>
 
 ## Contributing
 
@@ -114,6 +105,7 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
 
 
