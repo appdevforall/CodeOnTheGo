@@ -172,7 +172,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         builder.setMessage(getString(R.string.download_codeonthego_message))
 
         // Add the "OK" button and its click listener
-        builder.setPositiveButton(getString(R.string.ok)) { _, _ ->
+        builder.setPositiveButton(getString(android.R.string.ok)) { _, _ ->
             UrlManager.openUrl(getString(R.string.download_codeonthego_url), null)
         }
 

@@ -926,7 +926,4 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
     <!-- Documentation urls -->
     <string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
 
-    <string name="ok">OK</string>
-
-
 </resources>
