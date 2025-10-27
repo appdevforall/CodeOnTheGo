@@ -19,6 +19,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
+import com.itsaky.androidide.utils.Environment.PROJECTS_FOLDER
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -35,6 +36,8 @@ class RecentProjectsFragment : BaseFragment() {
     private val viewModel: RecentProjectsViewModel by activityViewModels()
     private val mainViewModel: MainViewModel by activityViewModels()
     private lateinit var adapter: RecentProjectsAdapter
+    private val containerRoot = File("/storage/emulated/0/$PROJECTS_FOLDER")
+    private var didBootstrap = false
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -48,6 +51,7 @@ class RecentProjectsFragment : BaseFragment() {
         setupRecyclerView()
         setupObservers()
         setupClickListeners()
+        bootstrapFromFixedFolderIfNeeded(autoOpenFirst = true)
     }
 
     private fun setupRecyclerView() {
@@ -55,6 +59,37 @@ class RecentProjectsFragment : BaseFragment() {
         binding.listProjects.addItemDecoration(
             CustomDividerItemDecoration(requireContext(), R.drawable.custom_list_divider)
         )
+    }
+
+    private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
+
+    private fun bootstrapFromFixedFolderIfNeeded(autoOpenFirst: Boolean) {
+        if (didBootstrap) return
+        didBootstrap = true
+
+        viewLifecycleScope.launch {
+            val projectsRoot = containerRoot
+            if (!projectsRoot.exists() || !projectsRoot.isDirectory || !projectsRoot.canRead()) return@launch
+
+            val subdirs = projectsRoot.listFiles()
+                ?.asSequence()
+                ?.filter { it.isProjectCandidateDir() }
+                ?.toList()
+                .orEmpty()
+            if (subdirs.isEmpty()) return@launch
+
+            val validProjects = subdirs.filter { dir -> isValidProjectDirectory(dir) }
+            if (validProjects.isEmpty()) return@launch
+
+            val jobs = validProjects.map { dir ->
+                viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
+            }
+            jobs.joinAll()
+
+            viewModel.loadProjects()
+
+            if (autoOpenFirst) openProject(validProjects.first())
+        }
     }
 
 	private fun pickProjectDirectory(
