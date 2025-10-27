@@ -222,37 +222,79 @@ class DesignEditor : LinearLayout {
         }
     }
 
+    /**
+     * Applies basic constraints to a view inside a [ConstraintLayout].
+     *
+     * - Anchors the view to the parent's START and TOP.
+     * - Clears existing END and BOTTOM constraints to avoid conflicts.
+     * - Sets START and TOP margins in **pixels** using the provided values.
+     * - Calls [ConstraintSet.applyTo] to commit the constraint changes.
+     *
+     * @param viewId The ID of the target view.
+     * @param container The [ConstraintLayout] parent container.
+     * @param startPxMargin The START margin in **pixels**.
+     * @param topPxMargin The TOP margin in **pixels**.
+     */
+    private fun applyConstraints(viewId: Int, container: ConstraintLayout, startPxMargin: Int, topPxMargin: Int) {
+        val constraintSet = ConstraintSet()
+
+        constraintSet.clone(container)
+        constraintSet.clear(viewId, ConstraintSet.BOTTOM)
+        constraintSet.clear(viewId, ConstraintSet.END)
+        constraintSet.connect(viewId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        constraintSet.connect(viewId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+        constraintSet.setMargin(viewId, ConstraintSet.START, startPxMargin)
+        constraintSet.setMargin(viewId, ConstraintSet.TOP, topPxMargin)
+        constraintSet.applyTo(container)
+    }
+
 
     /**
-     * Positions the [child] view at the specified drop coordinates inside its [ConstraintLayout] parent.
+     * Retrieves the absolute on-screen coordinates of this [View].
      *
-     * The drop position ([x], [y]) is interpreted in container pixel space, and the view is centered
-     * by subtracting half of its width and height. The resulting coordinates are converted to dp values
-     * and stored in [viewAttributeMap] as `app:layout_marginStart` and `app:layout_marginTop`.
+     * Uses [View.getLocationOnScreen] to return the X and Y positions
+     * relative to the device screen in pixels.
      *
-     * Any conflicting bottom or end constraints are removed to ensure correct placement.
+     * @return A [Pair] where `first` is the X coordinate (in pixels)
+     *         and `second` is the Y coordinate (in pixels).
+     */
+    private fun View.getOffsetToScreen(): Pair<Float, Float> {
+        val loc = IntArray(2)
+        getLocationOnScreen(loc)
+        return loc[0].toFloat() to loc[1].toFloat()
+    }
+
+    /**
+     * Updates the **stored attributes** for placing [child] at (x, y)
+     * inside its [ConstraintLayout] parent.
      *
-     * Example of stored attributes:
-     * ```
-     * app:layout_constraintStart_toStartOf="parent"
-     * app:layout_constraintTop_toTopOf="parent"
-     * app:layout_marginStart="120.0dp"
-     * app:layout_marginTop="80.0dp"
-     * ```
+     * - Clamps (x, y) to stay within container bounds.
+     * - Converts coordinates to dp and stores them in [viewAttributeMap] as:
+     *   - `app:layout_constraintStart_toStartOf = "parent"`
+     *   - `app:layout_constraintTop_toTopOf = "parent"`
+     *   - `app:layout_marginStart = "<x>dp"`
+     *   - `app:layout_marginTop = "<y>dp"`
+     * - **Does not** modify [View.translationX] or [View.translationY].
+     *   It only persists the new layout values for later constraint updates.
      *
-     * @param child The view being dropped.
-     * @param x The X coordinate of the drop in container pixels.
-     * @param y The Y coordinate of the drop in container pixels.
+     * Call [applyConstraints] separately if you need to visually move the view immediately.
+     *
+     * @param child The view being positioned.
+     * @param x The target X coordinate in container pixels.
+     * @param y The target Y coordinate in container pixels.
      */
     private fun positionAtDrop(child: View, x: Float, y: Float) {
         val container = child.parent as? ConstraintLayout ?: return
         val density = container.resources.displayMetrics.density
 
-        val targetX = (x - child.width / 2)
-        val targetY = (y - child.height / 2)
+        val maxX = (container.width - child.width).coerceAtLeast(0).toFloat()
+        val maxY = (container.height - child.height).coerceAtLeast(0).toFloat()
 
-        val xDp = (targetX / density)
-        val yDp = (targetY / density)
+        val xPx = x.coerceIn(0f, maxX)
+        val yPx = y.coerceIn(0f, maxY)
+
+        val xDp = xPx / density
+        val yDp = yPx / density
 
         viewAttributeMap[child]?.apply {
             if (contains("app:layout_constraintBottom_toBottomOf")) removeValue("app:layout_constraintBottom_toBottomOf")
@@ -270,24 +312,22 @@ class DesignEditor : LinearLayout {
     }
 
     /**
-     * Converts a dimension string (e.g., `"12px"`, `"8dp"`, `"10dip"`, or `"14"`) into pixels.
+     * Converts a dimension string (e.g., `"12px"`, `"8dp"`, `"10dip"`, or `"14"`)
+     * into pixels using the given [density].
      *
-     * Supported units:
-     * - `"12px"` → literal pixel value.
-     * - `"8dp"` / `"8dip"` → scaled by the given [density].
-     * - `"14"` (no suffix) → treated as dp and scaled by [density].
-     *
-     * This allows margin or size values stored as strings in XML-style attributes
-     * to be restored as pixel values for runtime layout positioning.
+     * Supported suffixes:
+     * - `"px"` → interpreted as raw pixels.
+     * - `"dp"` or `"dip"` → multiplied by display density.
+     * - No suffix → assumed to be dp and multiplied by density.
      *
      * @receiver The dimension string to convert.
-     * @param density The display density (from `resources.displayMetrics.density`).
-     * @return The numeric pixel value, or `0f` if parsing fails.
+     * @param density The display density for dp-to-px conversion.
+     * @return The equivalent pixel value, or `0f` if parsing fails.
      */
-    private fun String.dimensionToPx(density: Float): Float {
+    private fun String.toPx(density: Float): Float {
         val trimmed = trim()
         return when {
-            trimmed.endsWith("px", true) -> trimmed.dropLast(2).toFloatOrNull() ?: 0f
+            trimmed.endsWith("px", true) -> trimmed.dropLast(2).toFloatOrNull()?.takeIf { it.isFinite() } ?: 0f
             trimmed.endsWith("dp", true) -> (trimmed.dropLast(2).toFloatOrNull() ?: 0f) * density
             trimmed.endsWith("dip", true) -> (trimmed.dropLast(3).toFloatOrNull() ?: 0f) * density
             else -> (trimmed.toFloatOrNull() ?: 0f) * density // assume dp if no suffix
@@ -295,38 +335,36 @@ class DesignEditor : LinearLayout {
     }
 
     /**
-     * Restores all saved widget positions after layout inflation.
+     * Restores the positions of draggable views by reapplying constraints
+     * after the layout has finished rendering.
      *
-     * Reads `app:layout_marginStart` and `app:layout_marginTop` values from [viewAttributeMap],
-     * converts them to pixels, and re-applies layout constraints via a [ConstraintSet].
-     * The final position centers each view by subtracting half of its size, ensuring
-     * that widgets appear exactly where they were dropped during the previous editing session.
+     * For each entry in [viewAttributeMap]:
+     * - Reads `app:layout_marginStart` and `app:layout_marginTop` (in dp).
+     * - Converts them to pixels and clamps them within the container bounds.
+     * - Resets [View.translationX] and [View.translationY] to 0 to avoid cumulative shifts.
+     * - Calls [applyConstraints] to update margins in the layout.
      *
-     * This function should be invoked after the container has completed layout
-     * to ensure all view dimensions are available.
+     * Should be called after layout completion (via [doOnLayout])
+     * to ensure container and child sizes are available.
      */
     private fun restorePositionsAfterLoad() = this.doOnLayout {
         val density = resources.displayMetrics.density
         viewAttributeMap.forEach { (view, attrs) ->
             val container = view.parent as? ConstraintLayout ?: return@forEach
-            val xStr = attrs.getValue("app:layout_marginStart")
-            val yStr = attrs.getValue("app:layout_marginTop")
+            val txStr = if (attrs.contains("app:layout_marginStart")) attrs.getValue("app:layout_marginStart") else null
+            val tyStr = if (attrs.contains("app:layout_marginTop")) attrs.getValue("app:layout_marginTop") else null
 
-            if (xStr.isNotEmpty() || yStr.isNotEmpty()) {
-                val xPx = xStr.dimensionToPx(density).toInt()
-                val yPx = yStr.dimensionToPx(density).toInt()
+            if (txStr != null || tyStr != null) {
+                val maxX = (container.width - view.width).coerceAtLeast(0).toFloat()
+                val maxY = (container.height - view.height).coerceAtLeast(0).toFloat()
 
-                val constraintSet = ConstraintSet()
-                constraintSet.clone(container)
+                val txPx = txStr?.toPx(density)?.coerceIn(0f, maxX) ?: 0f
+                val tyPx = tyStr?.toPx(density)?.coerceIn(0f, maxY) ?: 0f
 
-                constraintSet.clear(view.id, ConstraintSet.START)
-                constraintSet.clear(view.id, ConstraintSet.TOP)
-                constraintSet.connect(view.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
-                constraintSet.connect(view.id, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
-                constraintSet.setMargin(view.id, ConstraintSet.START, xPx)
-                constraintSet.setMargin(view.id, ConstraintSet.TOP, yPx)
+								view.translationX = 0f
+								view.translationY = 0f
 
-                constraintSet.applyTo(container)
+                applyConstraints(view.id, container, txPx.toInt(), tyPx.toInt())
             }
         }
     }
@@ -455,7 +493,19 @@ class DesignEditor : LinearLayout {
                             restorePositionsAfterLoad()
                         } else {
                             addWidget(draggedView, parent, event)
-                            positionAtDrop(draggedView, event.x, event.y)
+
+                            val parentLocation = IntArray(2)
+                            parent.getLocationOnScreen(parentLocation)
+
+                            val (dropRawX, dropRawY) = host.getOffsetToScreen()
+
+                            val pointerX = event.x + dropRawX - parentLocation[0]
+                            val pointerY = event.y + dropRawY - parentLocation[1]
+
+                            val dropX = pointerX - draggedView.width / 2f
+                            val dropY = pointerY - draggedView.height / 2f
+
+                            positionAtDrop(draggedView, dropX, dropY)
 												}
                         updateStructure()
                         updateUndoRedoHistory()
@@ -622,8 +672,6 @@ class DesignEditor : LinearLayout {
             },
             onDrop = { child, x, y ->
                 positionAtDrop(child, x, y)
-
-                // 2. Resolve the trouble about this function, it's changing the position by the related parent
                 restorePositionsAfterLoad()
             }
         )

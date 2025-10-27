@@ -200,12 +200,7 @@ fun View.handleLongClicksAndDrag(
 
                 if (wasDraggingDuringGesture) {
                     onDrag(view)
-                    val container = (this.parent as? ViewGroup) ?: this.rootView as ViewGroup
-                    val root = IntArray(2)
-                    container.getLocationOnScreen(root)
-                    val dropX = event.rawX - root[0]
-                    val dropY = event.rawY - root[1]
-                    onDrop?.invoke(view, dropX, dropY)
+                    onDrop?.invoke(view, view.x, view.y)
                     return@setOnTouchListener true
                 }
                 if (wasLongPressFiredDuringGesture) {
