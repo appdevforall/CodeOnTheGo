@@ -24,8 +24,11 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import io.sentry.Sentry
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -67,28 +70,35 @@ class RecentProjectsFragment : BaseFragment() {
         if (didBootstrap) return
         didBootstrap = true
 
-        viewLifecycleScope.launch {
-            val projectsRoot = containerRoot
-            if (!projectsRoot.exists() || !projectsRoot.isDirectory || !projectsRoot.canRead()) return@launch
+        viewLifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val projectsRoot = containerRoot
+                if (!projectsRoot.exists() || !projectsRoot.isDirectory || !projectsRoot.canRead()) return@launch
 
-            val subdirs = projectsRoot.listFiles()
-                ?.asSequence()
-                ?.filter { it.isProjectCandidateDir() }
-                ?.toList()
-                .orEmpty()
-            if (subdirs.isEmpty()) return@launch
+                val subdirs = projectsRoot.listFiles()
+                    ?.asSequence()
+                    ?.filter { it.isProjectCandidateDir() }
+                    ?.toList()
+                    .orEmpty()
+                if (subdirs.isEmpty()) return@launch
 
-            val validProjects = subdirs.filter { dir -> isValidProjectDirectory(dir) }
-            if (validProjects.isEmpty()) return@launch
+                val validProjects = subdirs.filter { dir -> isValidProjectDirectory(dir) }
+                if (validProjects.isEmpty()) return@launch
 
-            val jobs = validProjects.map { dir ->
-                viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
+                val jobs = validProjects.map { dir ->
+                    viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
+                }
+                jobs.joinAll()
+
+                val loadJob = viewModel.loadProjects()
+                loadJob.join()
+
+                if (autoOpenFirst) withContext(Dispatchers.Main) {
+                    openProject(validProjects.first())
+                }
+            } catch (e: Throwable) {
+                Sentry.captureException(e)
             }
-            jobs.joinAll()
-
-            viewModel.loadProjects()
-
-            if (autoOpenFirst) openProject(validProjects.first())
         }
     }
 
@@ -116,6 +126,11 @@ class RecentProjectsFragment : BaseFragment() {
 	}
 
     private fun onProjectDirectoryPicked(directory: File) {
+			if (!directory.isProjectCandidateDir()) {
+				flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+				return
+			}
+
 			// Is the current folder a valid android project?
 			// Yes: Then open it.
 			if (isValidProjectDirectory(directory)) {
@@ -140,7 +155,7 @@ class RecentProjectsFragment : BaseFragment() {
 					return
 			}
 
-			val validSubDirs = subFolders.filter { it.isDirectory }
+			val validSubDirs = subFolders.filter { it.isProjectCandidateDir() }
 
 			val validProjects = validSubDirs.filter { isValidProjectDirectory(it) }
 			val invalidProjects = validSubDirs - validProjects.toSet()
@@ -206,12 +221,18 @@ class RecentProjectsFragment : BaseFragment() {
      *  2. A container that includes one or more valid Android projects.
      */
     fun isValidProjectOrContainerDirectory(selectedDir: File): Boolean {
+        if (!selectedDir.isProjectCandidateDir()) {
+            return false
+        }
+
         if (isValidProjectDirectory(selectedDir)) {
             return true
         }
 
         // Check if it contains valid Android projects as subdirectories
-        val subDirs = selectedDir.listFiles()?.filter { it.isDirectory } ?: return false
+        val subDirs = selectedDir.listFiles()
+            ?.filter { it.isProjectCandidateDir() }
+            ?: return false
         return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
 
