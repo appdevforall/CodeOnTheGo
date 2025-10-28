@@ -19,7 +19,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
-import com.itsaky.androidide.utils.Environment.PROJECTS_FOLDER
+import com.itsaky.androidide.utils.Environment.PROJECTS_DIR
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -39,7 +39,6 @@ class RecentProjectsFragment : BaseFragment() {
     private val viewModel: RecentProjectsViewModel by activityViewModels()
     private val mainViewModel: MainViewModel by activityViewModels()
     private lateinit var adapter: RecentProjectsAdapter
-    private val containerRoot = File("/storage/emulated/0/$PROJECTS_FOLDER")
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -71,8 +70,8 @@ class RecentProjectsFragment : BaseFragment() {
 
         viewLifecycleScope.launch(Dispatchers.IO) {
             try {
-                val projectsRoot = containerRoot
-                if (!projectsRoot.exists() || !projectsRoot.isDirectory || !projectsRoot.canRead()) return@launch
+                val projectsRoot = PROJECTS_DIR
+                if (!projectsRoot.isProjectCandidateDir()) return@launch
 
                 val subdirs = projectsRoot.listFiles()
                     ?.asSequence()
