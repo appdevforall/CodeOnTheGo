@@ -19,6 +19,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     private val _projects = MutableLiveData<List<ProjectFile>>()
     val projects: LiveData<List<ProjectFile>> = _projects
+    var didBootstrap = false
 
 
     // Get the database and DAO instance
@@ -84,8 +85,6 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch(Dispatchers.IO) {
             // Delete the selected projects from the database
             recentProjectDao.deleteByNames(selectedNames)
-            //  update the LiveData to remove the deleted projects
-            _projects.postValue(_projects.value?.filterNot { it.name in selectedNames })
-
+            loadProjects()
         }
 }

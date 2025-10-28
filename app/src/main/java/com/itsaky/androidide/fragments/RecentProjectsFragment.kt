@@ -40,7 +40,6 @@ class RecentProjectsFragment : BaseFragment() {
     private val mainViewModel: MainViewModel by activityViewModels()
     private lateinit var adapter: RecentProjectsAdapter
     private val containerRoot = File("/storage/emulated/0/$PROJECTS_FOLDER")
-    private var didBootstrap = false
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -67,8 +66,8 @@ class RecentProjectsFragment : BaseFragment() {
     private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
 
     private fun bootstrapFromFixedFolderIfNeeded(autoOpenFirst: Boolean) {
-        if (didBootstrap) return
-        didBootstrap = true
+        if (viewModel.didBootstrap) return
+        viewModel.didBootstrap = true
 
         viewLifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -201,9 +200,6 @@ class RecentProjectsFragment : BaseFragment() {
             binding.noProjectsView.visibility = if (isEmpty) View.VISIBLE else View.GONE
 
             binding.tvCreateNewProject.setText(R.string.msg_create_new_from_recent)
-            binding.btnOpenFromFolder.setOnClickListener {
-                pickProjectDirectory(isLongClick = false)
-            }
         }
     }
 
@@ -251,7 +247,9 @@ class RecentProjectsFragment : BaseFragment() {
             showToolTip(PROJECT_NEW)
             true
         }
-
+        binding.btnOpenFromFolder.setOnClickListener {
+            pickProjectDirectory(isLongClick = false)
+        }
         binding.recentProjectsTxt.setOnLongClickListener {
             showToolTip(PROJECT_RECENT_TOP)
             true
@@ -265,11 +263,6 @@ class RecentProjectsFragment : BaseFragment() {
 	override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-    }
-
-    override fun onResume() {
-        super.onResume()
-        viewModel.loadProjects()
     }
 
     private fun showToolTip(tag: String) {
