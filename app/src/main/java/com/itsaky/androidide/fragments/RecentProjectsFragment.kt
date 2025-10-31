@@ -70,26 +70,10 @@ class RecentProjectsFragment : BaseFragment() {
 
         viewLifecycleScope.launch(Dispatchers.IO) {
             try {
-                val projectsRoot = PROJECTS_DIR
-                if (!projectsRoot.isProjectCandidateDir()) return@launch
-
-                val subdirs = projectsRoot.listFiles()
-                    ?.asSequence()
-                    ?.filter { it.isProjectCandidateDir() }
-                    ?.toList()
-                    .orEmpty()
-                if (subdirs.isEmpty()) return@launch
-
-                val validProjects = subdirs.filter { dir -> isValidProjectDirectory(dir) }
+                val validProjects = findValidProjects(PROJECTS_DIR)
                 if (validProjects.isEmpty()) return@launch
 
-                val jobs = validProjects.map { dir ->
-                    viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
-                }
-                jobs.joinAll()
-
-                val loadJob = viewModel.loadProjects()
-                loadJob.join()
+                loadProjectsIntoViewModel(validProjects)
 
                 if (autoOpenFirst) withContext(Dispatchers.Main) {
                     openProject(validProjects.first())
@@ -98,6 +82,27 @@ class RecentProjectsFragment : BaseFragment() {
                 Sentry.captureException(e)
             }
         }
+    }
+
+    private fun findValidProjects(projectsRoot: File): List<File> {
+        if (!projectsRoot.isProjectCandidateDir()) return emptyList()
+
+        val subdirs = projectsRoot.listFiles()
+            ?.filter { it.isProjectCandidateDir() }
+            .orEmpty()
+        if (subdirs.isEmpty()) return emptyList()
+
+        return subdirs.filter { dir -> isValidProjectDirectory(dir) }
+    }
+
+    private suspend fun loadProjectsIntoViewModel(projects: List<File>) {
+        val jobs = projects.map { dir ->
+            viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
+        }
+        jobs.joinAll()
+
+        val loadJob = viewModel.loadProjects()
+        loadJob.join()
     }
 
 	private fun pickProjectDirectory(
