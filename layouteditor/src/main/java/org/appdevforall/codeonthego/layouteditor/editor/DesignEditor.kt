@@ -16,8 +16,6 @@ import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.widget.TooltipCompat
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.constraintlayout.widget.ConstraintSet
-import androidx.core.view.doOnLayout
 import androidx.core.view.isEmpty
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -55,6 +53,7 @@ import org.appdevforall.codeonthego.layouteditor.managers.PreferencesManager
 import org.appdevforall.codeonthego.layouteditor.managers.UndoRedoManager
 import org.appdevforall.codeonthego.layouteditor.tools.XmlLayoutGenerator
 import org.appdevforall.codeonthego.layouteditor.tools.XmlLayoutParser
+import org.appdevforall.codeonthego.layouteditor.utils.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.utils.ArgumentUtil.parseType
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
@@ -223,33 +222,6 @@ class DesignEditor : LinearLayout {
     }
 
     /**
-     * Applies basic constraints to a view inside a [ConstraintLayout].
-     *
-     * - Anchors the view to the parent's START and TOP.
-     * - Clears existing END and BOTTOM constraints to avoid conflicts.
-     * - Sets START and TOP margins in **pixels** using the provided values.
-     * - Calls [ConstraintSet.applyTo] to commit the constraint changes.
-     *
-     * @param viewId The ID of the target view.
-     * @param container The [ConstraintLayout] parent container.
-     * @param startPxMargin The START margin in **pixels**.
-     * @param topPxMargin The TOP margin in **pixels**.
-     */
-    private fun applyConstraints(viewId: Int, container: ConstraintLayout, startPxMargin: Int, topPxMargin: Int) {
-        val constraintSet = ConstraintSet()
-
-        constraintSet.clone(container)
-        constraintSet.clear(viewId, ConstraintSet.BOTTOM)
-        constraintSet.clear(viewId, ConstraintSet.END)
-        constraintSet.connect(viewId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
-        constraintSet.connect(viewId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
-        constraintSet.setMargin(viewId, ConstraintSet.START, startPxMargin)
-        constraintSet.setMargin(viewId, ConstraintSet.TOP, topPxMargin)
-        constraintSet.applyTo(container)
-    }
-
-
-    /**
      * Retrieves the absolute on-screen coordinates of this [View].
      *
      * Uses [View.getLocationOnScreen] to return the X and Y positions
@@ -265,19 +237,21 @@ class DesignEditor : LinearLayout {
     }
 
     /**
-     * Updates the **stored attributes** for placing [child] at (x, y)
-     * inside its [ConstraintLayout] parent.
+     * Updates the **stored attributes** in [viewAttributeMap] for a [child] view
+     * after it's "dropped" at a new position (x, y) within its [ConstraintLayout] parent.
      *
-     * - Clamps (x, y) to stay within container bounds.
-     * - Converts coordinates to dp and stores them in [viewAttributeMap] as:
-     *   - `app:layout_constraintStart_toStartOf = "parent"`
-     *   - `app:layout_constraintTop_toTopOf = "parent"`
-     *   - `app:layout_marginStart = "<x>dp"`
-     *   - `app:layout_marginTop = "<y>dp"`
-     * - **Does not** modify [View.translationX] or [View.translationY].
-     *   It only persists the new layout values for later constraint updates.
-     *
-     * Call [applyConstraints] separately if you need to visually move the view immediately.
+     * This function performs the following actions:
+     * 1.  Clamps the raw (x, y) pixel coordinates to ensure the view stays within the
+     * parent container's bounds.
+     * 2.  Converts the clamped pixel coordinates to dp using the screen density.
+     * 3.  Updates the [viewAttributeMap] for the [child]:
+     * - Clears any existing `...constraintBottom_toBottomOf` or `...constraintEnd_toEndOf` attributes.
+     * - Sets `app:layout_constraintStart_toStartOf = "parent"`
+     * - Sets `app:layout_constraintTop_toTopOf = "parent"`
+     * - Sets `app:layout_marginStart = "<x>dp"`
+     * - Sets `app:layout_marginTop = "<y>dp"`
+     * 4.  Triggers editor state updates by calling `markAsModified()`, `updateStructure()`,
+     * and `updateUndoRedoHistory()`.
      *
      * @param child The view being positioned.
      * @param x The target X coordinate in container pixels.
@@ -309,64 +283,6 @@ class DesignEditor : LinearLayout {
         markAsModified()
         updateStructure()
         updateUndoRedoHistory()
-    }
-
-    /**
-     * Converts a dimension string (e.g., `"12px"`, `"8dp"`, `"10dip"`, or `"14"`)
-     * into pixels using the given [density].
-     *
-     * Supported suffixes:
-     * - `"px"` → interpreted as raw pixels.
-     * - `"dp"` or `"dip"` → multiplied by display density.
-     * - No suffix → assumed to be dp and multiplied by density.
-     *
-     * @receiver The dimension string to convert.
-     * @param density The display density for dp-to-px conversion.
-     * @return The equivalent pixel value, or `0f` if parsing fails.
-     */
-    private fun String.toPx(density: Float): Float {
-        val trimmed = trim()
-        return when {
-            trimmed.endsWith("px", true) -> trimmed.dropLast(2).toFloatOrNull()?.takeIf { it.isFinite() } ?: 0f
-            trimmed.endsWith("dp", true) -> (trimmed.dropLast(2).toFloatOrNull() ?: 0f) * density
-            trimmed.endsWith("dip", true) -> (trimmed.dropLast(3).toFloatOrNull() ?: 0f) * density
-            else -> (trimmed.toFloatOrNull() ?: 0f) * density // assume dp if no suffix
-        }
-    }
-
-    /**
-     * Restores the positions of draggable views by reapplying constraints
-     * after the layout has finished rendering.
-     *
-     * For each entry in [viewAttributeMap]:
-     * - Reads `app:layout_marginStart` and `app:layout_marginTop` (in dp).
-     * - Converts them to pixels and clamps them within the container bounds.
-     * - Resets [View.translationX] and [View.translationY] to 0 to avoid cumulative shifts.
-     * - Calls [applyConstraints] to update margins in the layout.
-     *
-     * Should be called after layout completion (via [doOnLayout])
-     * to ensure container and child sizes are available.
-     */
-    private fun restorePositionsAfterLoad() = this.doOnLayout {
-        val density = resources.displayMetrics.density
-        viewAttributeMap.forEach { (view, attrs) ->
-            val container = view.parent as? ConstraintLayout ?: return@forEach
-            val txStr = if (attrs.contains("app:layout_marginStart")) attrs.getValue("app:layout_marginStart") else null
-            val tyStr = if (attrs.contains("app:layout_marginTop")) attrs.getValue("app:layout_marginTop") else null
-
-            if (txStr != null || tyStr != null) {
-                val maxX = (container.width - view.width).coerceAtLeast(0).toFloat()
-                val maxY = (container.height - view.height).coerceAtLeast(0).toFloat()
-
-                val txPx = txStr?.toPx(density)?.coerceIn(0f, maxX) ?: 0f
-                val tyPx = tyStr?.toPx(density)?.coerceIn(0f, maxY) ?: 0f
-
-								view.translationX = 0f
-								view.translationY = 0f
-
-                applyConstraints(view.id, container, txPx.toInt(), tyPx.toInt())
-            }
-        }
     }
 
 
@@ -490,7 +406,8 @@ class DesignEditor : LinearLayout {
                                 initializer.applyDefaultAttributes(newView, defaults)
                             }
                             positionAtDrop(newView, event.x, event.y)
-                            restorePositionsAfterLoad()
+                            val rootLayout = getChildAt(0)
+                            restorePositionsAfterLoad(rootLayout, viewAttributeMap)
                         } else {
                             addWidget(draggedView, parent, event)
 
@@ -559,7 +476,6 @@ class DesignEditor : LinearLayout {
 
         initializer =
             AttributeInitializer(context, viewAttributeMap, attributes, parentAttributes)
-        restorePositionsAfterLoad()
     }
 
     private fun ensureConstraintsApplied() {
@@ -658,7 +574,7 @@ class DesignEditor : LinearLayout {
                 }
         }
 
-				view.handleLongClicksAndDrag(
+        view.handleLongClicksAndDrag(
             onLongPress = { view ->
                 TooltipManager.showTooltip(
                     context = view.context,
@@ -672,7 +588,8 @@ class DesignEditor : LinearLayout {
             },
             onDrop = { child, x, y ->
                 positionAtDrop(child, x, y)
-                restorePositionsAfterLoad()
+                val rootLayout = getChildAt(0)
+                restorePositionsAfterLoad(rootLayout, viewAttributeMap)
             }
         )
     }
