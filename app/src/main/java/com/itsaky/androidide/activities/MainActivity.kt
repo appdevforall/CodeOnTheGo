@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.activities
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
@@ -53,7 +54,6 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_D
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.appdevforall.localwebserver.ServerConfig
 import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
@@ -61,11 +61,10 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
-import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.UrlManager
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -152,7 +151,34 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         }
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+        
+        // Show warning dialog if today's date is after January 26, 2026
+        val targetDate = java.util.Calendar.getInstance().apply {
+            set(2026, 0, 26) // Month is 0-indexed, so 0 = January
+        }        
+        val comparisonDate = java.util.Calendar.getInstance()
+        if (comparisonDate.after(targetDate)) {
+            showWarningDialog()
+        }
+        
         instance = this
+    }
+
+    private fun showWarningDialog() {
+        val builder = DialogUtils.newMaterialDialogBuilder(this)
+
+        // Set the dialog's title and message
+        builder.setTitle(getString(R.string.title_warning))
+        builder.setMessage(getString(R.string.download_codeonthego_message))
+
+        // Add the "OK" button and its click listener
+        builder.setPositiveButton(getString(android.R.string.ok)) { _, _ ->
+            UrlManager.openUrl(getString(R.string.download_codeonthego_url), null)
+        }
+
+        // Add the "Cancel" button
+        builder.setNegativeButton(getString(R.string.url_consent_cancel), null)
+        builder.show()
     }
 
     override fun onResume() {
