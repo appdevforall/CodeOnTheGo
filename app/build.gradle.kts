@@ -456,12 +456,16 @@ afterEvaluate {
   }
 
   tasks.named("assembleV7Debug").configure {
-    finalizedBy("recompressApk")
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
 
     doLast {
-      tasks.named("recompressApk").configure {
-        extensions.extraProperties["abi"] = "v7"
-        extensions.extraProperties["buildName"] = "debug"
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v7"
+          extensions.extraProperties["buildName"] = "debug"
+        }
       }
     }
   }
