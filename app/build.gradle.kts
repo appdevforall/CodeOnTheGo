@@ -411,6 +411,8 @@ tasks.register("recompressApk") {
     }
 }
 
+val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
+
 afterEvaluate {
 	tasks.named("assembleV8Release").configure {
 		finalizedBy("recompressApk")
@@ -424,15 +426,50 @@ afterEvaluate {
 	}
 
 	tasks.named("assembleV7Release").configure {
-		finalizedBy("recompressApk")
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
 
 		doLast {
-			tasks.named("recompressApk").configure {
-				extensions.extraProperties["abi"] = "v7"
-				extensions.extraProperties["buildName"] = "release"
-			}
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v7"
+          extensions.extraProperties["buildName"] = "release"
+        }
+      }
 		}
 	}
+
+  tasks.named("assembleV8Debug").configure {
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
+
+    doLast {
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v8"
+          extensions.extraProperties["buildName"] = "debug"
+        }
+      }
+    }
+  }
+
+  tasks.named("assembleV7Debug").configure {
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
+
+    doLast {
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v7"
+          extensions.extraProperties["buildName"] = "debug"
+        }
+      }
+    }
+  }
+
 }
 
 fun recompressApk(
