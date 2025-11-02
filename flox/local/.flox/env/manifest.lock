@@ -6,6 +6,12 @@
       "android-studio-tools": {
         "pkg-path": "android-studio-tools"
       },
+      "findutils": {
+        "pkg-path": "findutils"
+      },
+      "gnused": {
+        "pkg-path": "gnused"
+      },
       "jdk17": {
         "pkg-path": "jdk17"
       }
@@ -143,6 +149,250 @@
       "priority": 5
     },
     {
+      "attr_path": "findutils",
+      "broken": false,
+      "derivation": "/nix/store/5g6bcrzmasmmm300pkks93fpjdc79p1j-findutils-4.10.0.drv",
+      "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
+      "install_id": "findutils",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "findutils-4.10.0",
+      "pname": "findutils",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:55.014147Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.10.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/qbmnbqgwyr11l968v5gp9ghpmn7s8kq6-findutils-4.10.0-info",
+        "locate": "/nix/store/kpp7crnbczf9z65km9ckiiva32cshicd-findutils-4.10.0-locate",
+        "out": "/nix/store/9gfvy5dd2kp4xf7m3k5gm79dx1mja2lj-findutils-4.10.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "findutils",
+      "broken": false,
+      "derivation": "/nix/store/7nv23qxgv9g1d3g516cr9azaz2aq4j6g-findutils-4.10.0.drv",
+      "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
+      "install_id": "findutils",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "findutils-4.10.0",
+      "pname": "findutils",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:02.067356Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.10.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/x9q8nxdz72fgp06i2lglry6abi657dql-findutils-4.10.0-info",
+        "locate": "/nix/store/smdalgdz7ay689qpw7w7hslyvyramyfc-findutils-4.10.0-locate",
+        "out": "/nix/store/x2fl51igajig0r3njllwajrkv2n5k70p-findutils-4.10.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "findutils",
+      "broken": false,
+      "derivation": "/nix/store/66lhwzg9dpnz284brz64n9irx2xs2jxm-findutils-4.10.0.drv",
+      "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
+      "install_id": "findutils",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "findutils-4.10.0",
+      "pname": "findutils",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:56:59.405761Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.10.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/xq02cyxzd9rbk66g5hkcshz0crzf06ry-findutils-4.10.0-info",
+        "locate": "/nix/store/21aa2fm847039hnvsy89chskd831zi0c-findutils-4.10.0-locate",
+        "out": "/nix/store/gay4p2hpdnaf04lzs8k6wgv99brmpx80-findutils-4.10.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "findutils",
+      "broken": false,
+      "derivation": "/nix/store/j2wdja1m2v1k524ydbvxbdf6fjb7fw0c-findutils-4.10.0.drv",
+      "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
+      "install_id": "findutils",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "findutils-4.10.0",
+      "pname": "findutils",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:56.571321Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.10.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/yjab7vlimxzqpndjdqzann33i34x6pyy-findutils-4.10.0-info",
+        "locate": "/nix/store/5pvwgdzsdfag7iivrdjg946pr2if0f39-findutils-4.10.0-locate",
+        "out": "/nix/store/7y59hzi3svdj1xjddjn2k7km96pifcyl-findutils-4.10.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnused",
+      "broken": false,
+      "derivation": "/nix/store/mzm98am1pfdbvi5r11n8xc6w7wqvyvd6-gnused-4.9.drv",
+      "description": "GNU sed, a batch stream editor",
+      "install_id": "gnused",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnused-4.9",
+      "pname": "gnused",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:55.267405Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/pbkxwn9a1nkz5ym428fkwgkdsk05y5is-gnused-4.9-info",
+        "out": "/nix/store/3p81h24g11jfcdd7ifql71lr5mjag102-gnused-4.9"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnused",
+      "broken": false,
+      "derivation": "/nix/store/lgk6l6bqmrf380fvd0p5bcp78668adnq-gnused-4.9.drv",
+      "description": "GNU sed, a batch stream editor",
+      "install_id": "gnused",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnused-4.9",
+      "pname": "gnused",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:02.779833Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/cyy5a0r1blpnkmsj8kvy18ria1ss1c6h-gnused-4.9-info",
+        "out": "/nix/store/qarfi1yp1r71kqwbxipncgnsj5qsnm69-gnused-4.9"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnused",
+      "broken": false,
+      "derivation": "/nix/store/3859rjk5ris7w2yhmpm4pnszbn08lmph-gnused-4.9.drv",
+      "description": "GNU sed, a batch stream editor",
+      "install_id": "gnused",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnused-4.9",
+      "pname": "gnused",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:56:59.701507Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/zagjaa6iilp4bnip2ra45qbylgfws7qm-gnused-4.9-info",
+        "out": "/nix/store/3fqggn1iq66h3yk73h455yyjc2q7895p-gnused-4.9"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnused",
+      "broken": false,
+      "derivation": "/nix/store/x0cw2kvqs4m62dymbbhm51p66v0k1s93-gnused-4.9.drv",
+      "description": "GNU sed, a batch stream editor",
+      "install_id": "gnused",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnused-4.9",
+      "pname": "gnused",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:57.346963Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/i65zra2i21y5khnsnvl0pvd5rkvw5qhl-gnused-4.9-info",
+        "out": "/nix/store/clbb2cvigynr235ab5zgi18dyavznlk2-gnused-4.9"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
       "attr_path": "jdk17",
       "broken": false,
       "derivation": "/nix/store/g9c6ymdb9zwxnyqhjggh3czhm4bx03dp-zulu-ca-jdk-17.0.12.drv",
@@ -264,6 +514,14 @@
   "compose": {
     "composer": {
       "version": 1,
+      "install": {
+        "findutils": {
+          "pkg-path": "findutils"
+        },
+        "gnused": {
+          "pkg-path": "gnused"
+        }
+      },
       "hook": {
         "on-activate": "  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i'' -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  for hook_name in \"pre-commit\" \"pre-push\"; do\n    hook=\".git/hooks/$hook_name\"\n    if ! [ -f \"$hook\" ] || ! cat \"$hook\" | grep -q 'COGO_PRE_COMMIT_HOOK'; then\n      echo \"Updating $hook_name hook...\"\n      cat .githooks/hook >> \"$hook\"\n      echo  >> \"$hook\"\n      echo \"# -- COGO_PRE_COMMIT_HOOK\" >> \"$hook\"\n      chmod +x \"$hook\"\n    fi\n  done\n"
       },
