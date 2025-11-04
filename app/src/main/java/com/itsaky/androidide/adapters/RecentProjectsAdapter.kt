@@ -42,7 +42,6 @@ class RecentProjectsAdapter(
 	private val onRemoveProjectClick: (ProjectFile) -> Unit,
 	private val onFileRenamed: (RenamedFile) -> Unit,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-
 	private companion object {
 		private val logger = LoggerFactory.getLogger(RecentProjectsAdapter::class.java)
 		const val VIEW_TYPE_PROJECT = 0
