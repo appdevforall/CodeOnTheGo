@@ -22,7 +22,6 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_RENAME
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
 import com.itsaky.androidide.tasks.executeAsync
@@ -43,37 +42,16 @@ class RecentProjectsAdapter(
     private val onFileRenamed: (RenamedFile) -> Unit,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-    private companion object {
-        const val VIEW_TYPE_PROJECT = 0
-        const val VIEW_TYPE_OPEN_FOLDER = 1
-    }
-
-    override fun getItemCount(): Int = projects.size + if (projects.isNotEmpty()) 1 else 0
-
-    override fun getItemViewType(position: Int): Int =
-        if (position < projects.size) VIEW_TYPE_PROJECT else VIEW_TYPE_OPEN_FOLDER
+    override fun getItemCount(): Int = projects.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
-        return when (viewType) {
-            VIEW_TYPE_PROJECT -> {
-                val binding = SavedRecentProjectItemBinding.inflate(inflater, parent, false)
-                ProjectViewHolder(binding)
-            }
-
-            else -> {
-                val view =
-                    inflater.inflate(R.layout.saved_project_open_folder_layout, parent, false)
-                OpenFolderViewHolder(view)
-            }
-        }
+        val binding = SavedRecentProjectItemBinding.inflate(inflater, parent, false)
+        return ProjectViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        when (holder) {
-            is ProjectViewHolder -> holder.bind(projects[position])
-            is OpenFolderViewHolder -> holder.bind()
-        }
+        (holder as ProjectViewHolder).bind(projects[position])
     }
 
     fun updateProjects(newProjects: List<ProjectFile>) {
@@ -136,21 +114,6 @@ class RecentProjectsAdapter(
                 SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault()).format(date)
             } catch (e: Exception) {
                 dateString.take(5)
-            }
-        }
-    }
-
-    inner class OpenFolderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        fun bind() {
-            itemView.visibility = if (projects.isEmpty()) View.GONE else View.VISIBLE
-            itemView.setOnClickListener { onOpenFileFromFolderClick(false) }
-            itemView.setOnLongClickListener {
-                TooltipManager.showIdeCategoryTooltip(
-                    context = itemView.context,
-                    anchorView = itemView,
-                    tag = PROJECT_OPEN_FOLDER
-                )
-                true
             }
         }
     }
