@@ -77,6 +77,7 @@ import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.build.DebugAction
@@ -89,6 +90,7 @@ import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
@@ -128,6 +130,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.WADBViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.widgets.WidgetTableRegistry
@@ -136,9 +139,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.itsaky.androidide.FeedbackButtonManager
-import com.itsaky.androidide.fragments.output.ShareableOutputFragment
-import com.itsaky.androidide.viewmodel.WADBViewModel
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -595,7 +595,11 @@ abstract class BaseEditorActivity :
         }
 
         feedbackButtonManager =
-            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+            FeedbackButtonManager(
+                activity = this,
+                feedbackFab = binding.fabFeedback,
+                getLogContent = ::getLogContent,
+            )
         feedbackButtonManager?.setupDraggableFab()
 
         setupMemUsageChart()
@@ -1476,17 +1480,25 @@ abstract class BaseEditorActivity :
     }
 
     private fun getLogContent(): String? {
-        if (bottomSheetViewModel.sheetBehaviorState == BottomSheetBehavior.STATE_COLLAPSED) {
-            return null
+        val pagerAdapter = binding.content.bottomSheet.pagerAdapter
+
+        val candidateTabs = buildList {
+            add(bottomSheetViewModel.currentTab)
+            add(BottomSheetViewModel.TAB_BUILD_OUTPUT)
+            add(BottomSheetViewModel.TAB_APPLICATION_LOGS)
+            add(BottomSheetViewModel.TAB_IDE_LOGS)
+        }.distinct()
+
+        candidateTabs.forEach { tabIndex ->
+            val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tabIndex)
+            if (fragment is ShareableOutputFragment) {
+                val shareable = fragment.getShareableContent().trim()
+                if (shareable.isNotEmpty()) {
+                    return shareable
+                }
+            }
         }
 
-        val fragment = this.binding.content.bottomSheet.pagerAdapter.getFragmentAtIndex<Fragment>(
-            bottomSheetViewModel.currentTab
-        )
-
-        return when (fragment) {
-            is ShareableOutputFragment -> fragment.getShareableContent()
-            else -> null
-        }
+        return null
     }
 }

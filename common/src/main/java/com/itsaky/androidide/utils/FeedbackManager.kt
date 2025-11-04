@@ -290,13 +290,26 @@ object FeedbackManager {
             val feedbackRecipient = activity.getString(R.string.feedback_email)
             val feedbackSubject =
                 activity.getString(R.string.feedback_subject, getCurrentScreenName(activity))
+            val stackTraceSection =
+                logContent?.trim().takeIf { it?.isNotEmpty() == true }
+                    ?: activity.getString(R.string.feedback_stack_trace_unavailable)
             val feedbackBody =
-                activity.getString(
-                    R.string.feedback_message,
-                    BuildInfo.VERSION_NAME_SIMPLE,
-                    Build.VERSION.RELEASE,
-                    "${Build.MANUFACTURER} ${Build.MODEL}",
-                )
+                buildString {
+                    append(
+                        activity.getString(
+                            R.string.feedback_message,
+                            stackTraceSection,
+                        ),
+                    )
+                    append(
+                        activity.getString(
+                            R.string.feedback_device_info,
+                            BuildInfo.VERSION_NAME_SIMPLE,
+                            Build.VERSION.RELEASE,
+                            "${Build.MANUFACTURER} ${Build.MODEL}",
+                        ),
+                    )
+                }
 
             val emailIntent =
                 handler.prepareEmailIntent(
