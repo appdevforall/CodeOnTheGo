@@ -74,6 +74,7 @@ import java.util.Objects
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * A foreground service that handles interaction with the Gradle Tooling API.
@@ -224,7 +225,9 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 				// the tooling server must release resources and exit automatically
 				server.shutdown().get(1, TimeUnit.SECONDS)
 			} catch (e: Throwable) {
-				log.error("Failed to shutdown Tooling API server", e)
+				if (e !is TimeoutException) {
+					log.error("Failed to shutdown Tooling API server", e)
+				}
 			}
 		}
 

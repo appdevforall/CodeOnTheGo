@@ -277,14 +277,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         if (isDestroying) {
             try {
                 stopLanguageServers()
-            } catch (err: Exception) {
+            } catch (_: Exception) {
                 log.error("Failed to stop editor services.")
             }
 
             try {
                 unbindService(buildServiceConnection)
                 buildServiceConnection.onConnected = {}
-            } catch (err: Throwable) {
+            } catch (_: Throwable) {
                 log.error("Unable to unbind service")
             } finally {
                 Lookup.getDefault().apply {
@@ -440,17 +440,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             return@launch
         }
 
-        initializingFuture =
-            if (needsSync) {
-                log.debug("Sending init request to tooling server...")
-                buildService.initializeProject(createProjectInitParams(projectDir, buildVariants))
-            } else {
-                log.debug("Using cached initialize result as the project is already initialized")
-                CompletableFuture.supplyAsync {
-                    log.warn("Reusing project cache")
-					InitializeResult.Success(ProjectSyncHelper.cacheFileForProject(projectDir))
-                }
-            }
+		log.info("Sending init request to tooling server (needs sync: {})...", needsSync)
+        initializingFuture = buildService.initializeProject(params = createProjectInitParams(projectDir, buildVariants, needsSync))
 
         initializingFuture!!.whenCompleteAsync { result, error ->
             releaseServerListener()
@@ -473,11 +464,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     private fun createProjectInitParams(
         projectDir: File,
         buildVariants: Map<String, String>,
+		needsSync: Boolean,
     ): InitializeProjectParams =
         InitializeProjectParams(
 			directory = projectDir.absolutePath,
 			gradleDistribution = gradleDistributionParams,
 			androidParams = createAndroidParams(buildVariants),
+			needsSync = needsSync,
         )
 
     private fun createAndroidParams(buildVariants: Map<String, String>): AndroidInitializationParams {
