@@ -13,34 +13,19 @@ jobs:
     # We use a third-party action, so we must first authenticate to Jira.
     steps:
       - name: Login to Jira
-        # Use Atlassian's official login action
         uses: atlassian/gajira-login@v3 
-        with:
-          # Your Jira Base URL (e.g., https://your-company.atlassian.net)
-          baseUrl: 'https://appdevforall.atlassian.net' 
-          
-          # The Jira user email associated with the API token
-          user: ${{ secrets.JIRA_EMAIL }} # e.g., bot-user@company.com
-          
-          # The JIRA API token secret you've set in your GitHub repository.
-          # The JIRA_API_TOKEN is created in Jira user settings.
-          token: ${{ secrets.JIRA_API_TOKEN }} 
+        env:
+          JIRA_BASE_URL: 'https://appdevforall.atlassian.net' 
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }} 
 
       - name: Create Jira Issue
-        # Use Atlassian's official create issue action
+        id: create
         uses: atlassian/gajira-create@v3 
         with:
-          # The key for your target Jira project (e.g., 'PROJ', 'DEV').
           project: 'ADFA' 
-          
-          # The type of Jira issue to create (e.g., 'Task', 'Story', 'Bug').
           issuetype: 'Story' 
-          
-          # Sets the summary of the Jira ticket to the GitHub Issue title.
           summary: 'GitHub Issue: ${{ github.event.issue.title }}'
-          
-          # Sets the description of the Jira ticket. 
-          # Includes the body of the GitHub issue and a link back to it.
           description: |
             *GitHub Issue:* #${{ github.event.issue.number }}
             *URL:* ${{ github.event.issue.html_url }}
@@ -48,3 +33,6 @@ jobs:
             ---
             
             ${{ github.event.issue.body }}
+
+      - name: Log created issue
+        run: echo "Issue ${{ steps.create.outputs.issue }} was created"
