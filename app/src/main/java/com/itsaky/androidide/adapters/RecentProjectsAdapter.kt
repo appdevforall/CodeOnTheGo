@@ -42,11 +42,14 @@ class RecentProjectsAdapter(
 	private val onRemoveProjectClick: (ProjectFile) -> Unit,
 	private val onFileRenamed: (RenamedFile) -> Unit,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
 	private companion object {
 		private val logger = LoggerFactory.getLogger(RecentProjectsAdapter::class.java)
 		const val VIEW_TYPE_PROJECT = 0
 		const val VIEW_TYPE_OPEN_FOLDER = 1
 	}
+
+	private var projectOptionsPopup: PopupWindow? = null
 
 	override fun getItemCount(): Int = projects.size + if (projects.isNotEmpty()) 1 else 0
 
@@ -171,15 +174,16 @@ class RecentProjectsAdapter(
 		val inflater = LayoutInflater.from(view.context)
 		val popupView = inflater.inflate(R.layout.custom_popup_menu, null)
 
-		val popupWindow =
+		projectOptionsPopup?.dismiss()
+		projectOptionsPopup =
 			PopupWindow(
 				popupView,
 				ViewGroup.LayoutParams.WRAP_CONTENT,
 				ViewGroup.LayoutParams.WRAP_CONTENT,
 				true,
-			).apply {
-				elevation = 4f
-			}
+			)
+
+		val popupWindow = projectOptionsPopup!!
 
 		val renameItem = popupView.findViewById<View>(R.id.menu_rename)
 		val deleteItem = popupView.findViewById<View>(R.id.menu_delete)

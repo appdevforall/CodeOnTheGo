@@ -1,15 +1,13 @@
 package com.itsaky.androidide.fragments
 
-import android.os.Bundle
 
+import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
-
-
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.databinding.FragmentSavedProjectsBinding
