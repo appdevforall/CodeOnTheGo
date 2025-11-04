@@ -31,6 +31,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -44,6 +45,7 @@ class RecentProjectsAdapter(
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private companion object {
+		private val logger = LoggerFactory.getLogger(RecentProjectsAdapter::class.java)
         const val VIEW_TYPE_PROJECT = 0
         const val VIEW_TYPE_OPEN_FOLDER = 1
     }
@@ -71,7 +73,7 @@ class RecentProjectsAdapter(
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (holder) {
-            is ProjectViewHolder -> holder.bind(projects[position])
+            is ProjectViewHolder -> holder.bind(projects[position], position)
             is OpenFolderViewHolder -> holder.bind()
         }
     }
@@ -84,7 +86,7 @@ class RecentProjectsAdapter(
     inner class ProjectViewHolder(private val binding: SavedRecentProjectItemBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(project: ProjectFile) {
+        fun bind(project: ProjectFile, position: Int) {
             binding.projectName.text = project.name
             binding.projectDate.text = formatDate(project.date ?: "")
             binding.icon.text = project.name
@@ -105,18 +107,15 @@ class RecentProjectsAdapter(
                 onProjectClick(File(project.path))
             }
             binding.root.setOnLongClickListener {
-                if (position < projects.size) {
-                    TooltipManager.showIdeCategoryTooltip(
-                        binding.root.context,
-                        binding.root,
-                        PROJECT_RECENT_TOP
-                    )
-                }
-
+				TooltipManager.showIdeCategoryTooltip(
+					binding.root.context,
+					binding.root,
+					PROJECT_RECENT_TOP
+				)
                 true
             }
-            binding.menu.setOnClickListener {
-                showPopupMenu(it, adapterPosition)
+            binding.menu.setOnClickListener { view ->
+				showPopupMenu(view, project, position)
             }
         }
 
@@ -155,7 +154,7 @@ class RecentProjectsAdapter(
         }
     }
 
-    private fun showPopupMenu(view: View, position: Int) {
+    private fun showPopupMenu(view: View, project: ProjectFile, position: Int) {
         val inflater = LayoutInflater.from(view.context)
         val popupView = inflater.inflate(R.layout.custom_popup_menu, null)
 
@@ -172,7 +171,7 @@ class RecentProjectsAdapter(
         val deleteItem = popupView.findViewById<View>(R.id.menu_delete)
 
         renameItem.setOnClickListener {
-            promptRenameProject(view, position)
+            promptRenameProject(view, project, position)
             popupWindow.dismiss()
         }
 
@@ -187,7 +186,7 @@ class RecentProjectsAdapter(
         }
 
         deleteItem.setOnClickListener {
-            showDeleteDialog(view.context, position)
+            showDeleteDialog(view.context, project)
             popupWindow.dismiss()
         }
 
@@ -204,8 +203,7 @@ class RecentProjectsAdapter(
         popupWindow.showAsDropDown(view, 0, 0)
     }
 
-    private fun showDeleteDialog(context: Context, position: Int) {
-        val project = projects[position]
+    private fun showDeleteDialog(context: Context, project: ProjectFile) {
         val dialog = MaterialAlertDialogBuilder(context)
             .setTitle(R.string.delete_project)
             .setMessage(R.string.msg_delete_project)
@@ -238,10 +236,9 @@ class RecentProjectsAdapter(
         dialog.show()
     }
 
-    private fun promptRenameProject(view: View, position: Int) {
+    private fun promptRenameProject(view: View, project: ProjectFile, position: Int) {
         val context = view.context
-        val project = projects[position]
-        val oldName = projects[position].name
+        val oldName = project.name
         val builder = MaterialAlertDialogBuilder(context).setTitle(R.string.rename_project)
 
         val binding = TextinputlayoutBinding.inflate(LayoutInflater.from(context))
@@ -260,6 +257,7 @@ class RecentProjectsAdapter(
                 onFileRenamed(RenamedFile(oldName, newName, newPath))
                 notifyItemChanged(position)
             } catch (e: Exception) {
+				logger.error("Failed to rename project", e)
                 flashError(R.string.rename_failed)
             }
         }
