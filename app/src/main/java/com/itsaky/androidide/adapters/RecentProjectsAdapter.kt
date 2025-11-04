@@ -37,7 +37,6 @@ import java.util.Locale
 class RecentProjectsAdapter(
     private var projects: List<ProjectFile>,
     private val onProjectClick: (File) -> Unit,
-    private val onOpenFileFromFolderClick: (Boolean) -> Unit,
     private val onRemoveProjectClick: (ProjectFile) -> Unit,
     private val onFileRenamed: (RenamedFile) -> Unit,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {

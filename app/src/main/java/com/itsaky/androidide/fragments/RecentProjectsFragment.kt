@@ -137,8 +137,7 @@ class RecentProjectsFragment : BaseFragment() {
 				adapter = RecentProjectsAdapter(
 					projects,
 					onProjectClick = ::openProject,
-					onOpenFileFromFolderClick = ::pickProjectDirectory,
-					onRemoveProjectClick = viewModel::deleteProject,
+                    onRemoveProjectClick = viewModel::deleteProject,
 					onFileRenamed = viewModel::updateProject,
 				)
 				binding.listProjects.adapter = adapter
@@ -153,6 +152,19 @@ class RecentProjectsFragment : BaseFragment() {
             binding.tvCreateNewProject.setText(R.string.msg_create_new_from_recent)
             binding.btnOpenFromFolder.setOnClickListener {
                 pickProjectDirectory(isLongClick = false)
+            }
+
+            binding.openFromFolderBtn.apply {
+                visibility = if (isEmpty) View.GONE else View.VISIBLE
+                setOnClickListener { pickProjectDirectory(isLongClick = false) }
+                setOnLongClickListener {
+                    TooltipManager.showIdeCategoryTooltip(
+                        context = context,
+                        anchorView = this,
+                        tag = PROJECT_OPEN_FOLDER
+                    )
+                    true
+                }
             }
         }
     }
