@@ -20,7 +20,7 @@ jobs:
           baseUrl: 'https://appdevforall.atlassian.net' 
           
           # The Jira user email associated with the API token
-          user: 'haleisen@appdevforall.org' # e.g., bot-user@company.com
+          user: ${{ secrets.JIRA_EMAIL }} # e.g., bot-user@company.com
           
           # The JIRA API token secret you've set in your GitHub repository.
           # The JIRA_API_TOKEN is created in Jira user settings.
