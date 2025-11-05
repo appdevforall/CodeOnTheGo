@@ -24,7 +24,6 @@ import android.content.Intent
 import android.os.StrictMode
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -34,12 +33,10 @@ import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
-import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
-import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -47,8 +44,8 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.handlers.CrashEventSubscriber
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -57,8 +54,8 @@ import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
+import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.VMUtils
-import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
@@ -74,7 +71,6 @@ import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
@@ -150,6 +146,7 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
     private fun getCurrentActiveActivity(): android.app.Activity? {
         return currentActivity
     }
+
 
     /**
      * Called by activities when they become active/visible.
@@ -305,20 +302,13 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
         }
     }
 
-    fun showChangelog() {
-        val intent = Intent(Intent.ACTION_VIEW)
+    fun showChangelog(context: Context? = null) {
         var version = BuildInfo.VERSION_NAME_SIMPLE
         if (!version.startsWith('v')) {
             version = "v$version"
         }
-        intent.data = "${BuildInfo.REPO_URL}/releases/tag/$version".toUri()
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try {
-            startActivity(intent)
-        } catch (th: Throwable) {
-            log.error("Unable to start activity to show changelog", th)
-            flashError("Unable to start activity")
-        }
+        val url = "${BuildInfo.REPO_URL}/releases/tag/$version"
+        UrlManager.openUrl(url, null, context ?: currentActivity ?: this)
     }
 
     private fun startLogcatReader() {

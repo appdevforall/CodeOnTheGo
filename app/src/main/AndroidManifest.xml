@@ -11,6 +11,9 @@
         android:protectionLevel="normal"
         tools:ignore="ManifestOrder" />
 
+    <permission android:name="${applicationId}.debug.RECEIVE_WADB_PAIR_RESULT"
+        android:protectionLevel="signature"/>
+
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
@@ -38,6 +41,9 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <uses-permission android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+    <uses-permission android:name="${applicationId}.debug.RECEIVE_WADB_PAIR_RESULT" />
+    
     <application
         android:name=".app.IDEApplication"
         android:allowBackup="false"
@@ -85,8 +91,8 @@
             android:theme="@style/Theme.AndroidIDE" />
         <activity
             android:name=".activities.editor.EditorActivityKt"
-            android:configChanges="orientation|screenSize|uiMode"
-            android:launchMode="singleTop" />
+            android:configChanges="orientation|screenSize"
+            android:launchMode="singleTask" />
         <activity android:name=".activities.PreferencesActivity" />
         <activity android:name=".activities.PluginManagerActivity" />
         <activity android:name=".activities.AboutActivity" />

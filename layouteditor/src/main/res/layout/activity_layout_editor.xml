@@ -125,7 +125,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_below="@id/title"
-                android:layout_above="@+id/help_feedback_container"
                 android:layout_toEndOf="@id/palette_navigation"
                 android:fillViewport="true">
 
@@ -136,40 +135,6 @@
                     android:scrollbars="vertical" />
 
             </HorizontalScrollView>
-
-            <LinearLayout
-                android:id="@+id/help_feedback_container"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentBottom="true"
-                android:layout_toEndOf="@id/palette_navigation"
-                android:layout_marginStart="12dp"
-                android:layout_marginBottom="16dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/help_button"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginEnd="8dp"
-                    app:icon="@drawable/ic_action_help_outlined"
-                    app:iconSize="24dp"
-                    app:iconTint="?attr/colorOnSurface"
-                    android:contentDescription="@string/help" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/feedback_button"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    app:iconTint="?attr/colorOnSurface"
-                    app:icon="@drawable/baseline_feedback_24"
-                    app:iconSize="24dp"
-                    android:contentDescription="@string/help" />
-
-            </LinearLayout>
 
         </RelativeLayout>
     </com.google.android.material.navigation.NavigationView>
@@ -208,6 +173,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
+        android:elevation="16dp"
         android:contentDescription="@string/send_feedback"
         android:src="@drawable/baseline_feedback_64"
         app:layout_constraintBottom_toBottomOf="parent"

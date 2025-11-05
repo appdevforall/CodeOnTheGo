@@ -64,7 +64,7 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
     findInFileBinding.replace.setOnClickListener(::onSearchActionClick)
     findInFileBinding.close.setOnClickListener(::onSearchActionClick)
       findInFileBinding.root.applyLongPressRecursively {
-          TooltipManager.showTooltip(
+          TooltipManager.showIdeCategoryTooltip(
               context = this.context,
               anchorView = this,
               tag = TooltipTag.DIALOG_FIND_IN_FILE
@@ -107,7 +107,7 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
           showPopupMenu(findInFileBinding.moreOptions)
       }
       setOnLongClickListener {
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
           context = this@EditorSearchLayout.context,
           anchorView = this,
           tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS
@@ -137,7 +137,7 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
         }
 
         val tooltipListener = OnLongClickListener { view ->
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
                 anchorView = view,
                 tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS

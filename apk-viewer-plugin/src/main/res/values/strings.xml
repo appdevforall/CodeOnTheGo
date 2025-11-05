@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Sample Plugin</string>
+    <string name="plugin_title">Sample Plugin</string>
+    <string name="plugin_description">A comprehensive sample plugin demonstrating all CodeOnTheGo plugin capabilities</string>
+
+    <!-- UI Strings -->
+    <string name="show_toast">Show Toast</string>
+    <string name="get_project_info">Get Project Info</string>
+    <string name="show_help">Show Help</string>
+    <string name="context_action">Context Action</string>
+    <string name="main_editor_action">Main Editor Action</string>
+    <string name="bottom_sheet_action">Bottom Sheet Action</string>
+    <string name="tools_action">Tools Action</string>
+
+    <!-- Status Messages -->
+    <string name="loading_services">Loading services…</string>
+    <string name="no_project_available">No project available</string>
+    <string name="help_not_available">Help not available - tooltip service not found</string>
+
+    <!-- Plugin Capabilities -->
+    <string name="plugin_capabilities">Plugin Capabilities</string>
+    <string name="capabilities_list">• Main Editor Tabs\n• Bottom Sheet Integration\n• Sidebar Navigation\n• Documentation System\n• Service Integration</string>
+</resources>

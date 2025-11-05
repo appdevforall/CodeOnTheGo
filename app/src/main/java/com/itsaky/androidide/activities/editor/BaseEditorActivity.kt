@@ -75,7 +75,6 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
@@ -139,6 +138,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.viewmodel.WADBViewModel
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -161,18 +161,20 @@ abstract class BaseEditorActivity :
     DiagnosticClickListener, AgentPanelController {
 
 
-	protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
+	protected var mLifecycleObserver: EditorActivityLifecyclerObserver? = null
 	protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null
 	protected var filesTreeFragment: FileTreeFragment? = null
 	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
+	private var drawerToggle: ActionBarDrawerToggle? = null
+	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
 	protected val memoryUsageWatcher = MemoryUsageWatcher()
 	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
-    private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-    var isDestroying = false
-        protected set
+	var isDestroying = false
+	protected set
 
 	/**
 	 * Editor activity's [CoroutineScope] for executing tasks in the background.
@@ -182,6 +184,7 @@ abstract class BaseEditorActivity :
 	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
 	val editorViewModel by viewModels<EditorViewModel>()
 	val debuggerViewModel by viewModels<DebuggerViewModel>()
+	val wadbViewModel by viewModels<WADBViewModel>()
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
 	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
 
@@ -209,21 +212,25 @@ abstract class BaseEditorActivity :
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START)) {
-					binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
-				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-//				if (binding.root.isDrawerOpen(GravityCompat.START)) {
-//					binding.root.closeDrawer(GravityCompat.START)
-                if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
-				} else if (binding.swipeReveal.isOpen) {
-					binding.swipeReveal.close()
-				} else {
-					doConfirmProjectClose()
+				when {
+					binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START) -> {
+						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+					}
+					isRightPanelOpen() -> {
+						closeRightPanel()
+					}
+					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
+						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+					}
+					binding.swipeReveal.isOpen -> {
+						binding.swipeReveal.close()
+					}
+					else -> {
+						doConfirmProjectClose()
+					}
 				}
 			}
 		}
-        }
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
@@ -307,7 +314,9 @@ abstract class BaseEditorActivity :
 		try {
 			unbindService(debuggerServiceConnection)
 		} catch (e: Throwable) {
-			log.error("Failed to stop debugger service", e)
+			if (e !is IllegalArgumentException) {
+				log.error("Failed to stop debugger service", e)
+			}
 		}
 	}
 
@@ -353,7 +362,7 @@ abstract class BaseEditorActivity :
 
 	protected var optionsMenuInvalidator: Runnable? = null
 
-	private lateinit var gestureDetector: GestureDetector
+	private var gestureDetector: GestureDetector? = null
     private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
     private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
@@ -401,17 +410,35 @@ abstract class BaseEditorActivity :
 
 	protected open fun preDestroy() {
 		BuildOutputProvider.clearBottomSheet()
-		_binding = null
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
-		optionsMenuInvalidator?.also {
-			ThreadUtils.getMainHandler().removeCallbacks(it)
-		}
+		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
+		drawerToggle = null
+		bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
+		bottomSheetCallback = null
 
+		runCatching { onBackPressedCallback.remove() }
+		runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
+		optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
 		optionsMenuInvalidator = null
 
 		apkInstallationViewModel.destroy(this)
+
+		feedbackButtonManager = null
+		mLifecycleObserver?.let {
+			runCatching { lifecycle.removeObserver(it) }
+		}
+		mLifecycleObserver = null
+
+		IDEApplication.instance.setCurrentActivity(null)
+
+		diagnosticInfoBinding = null
+		filesTreeFragment = null
+		editorBottomSheet = null
+		gestureDetector = null
+
+		_binding = null
 
 		if (isDestroying) {
 			memoryUsageWatcher.stopWatching(true)
@@ -457,9 +484,8 @@ abstract class BaseEditorActivity :
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		this._binding?.apply {
-			drawerSidebar
-				.getFragment<EditorSidebarFragment>()
-				.onApplyWindowInsets(insets)
+			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
+				?.onApplyWindowInsets(insets)
 
 			content.apply {
 				editorAppBarLayout.updatePadding(
@@ -528,6 +554,7 @@ abstract class BaseEditorActivity :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        mLifecycleObserver = EditorActivityLifecyclerObserver()
 
 		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
 
@@ -542,7 +569,9 @@ abstract class BaseEditorActivity :
         }
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-        lifecycle.addObserver(mLifecycleObserver)
+        mLifecycleObserver?.let {
+            lifecycle.addObserver(it)
+				}
 
         setupToolbar()
         setupDrawers()
@@ -561,18 +590,12 @@ abstract class BaseEditorActivity :
         )
 
         content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
-            showTooltip(
-                tag = TooltipTag.EDITOR_BUILD_STATUS
-            )
+            showTooltip(tag = TooltipTag.EDITOR_BUILD_STATUS)
             true
         }
 
         feedbackButtonManager =
-            FeedbackButtonManager(
-                activity = this,
-                feedbackFab = binding.fabFeedback,
-                getLogContent = { this.getLogContent() }
-            )
+            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
         feedbackButtonManager?.setupDraggableFab()
 
         setupMemUsageChart()
@@ -734,6 +757,24 @@ abstract class BaseEditorActivity :
         animator.start()
     }
 
+    private fun isRightPanelOpen(): Boolean {
+        return if (isPortraitMode) {
+            rightPanelBottomSheetBehavior?.state != BottomSheetBehavior.STATE_HIDDEN
+        } else {
+            val visible = rightPanelContainer?.visibility == View.VISIBLE
+            val percent = (verticalGuideline?.layoutParams as? ConstraintLayout.LayoutParams)?.guidePercent ?: 1f
+            visible && percent < 1f
+        }
+    }
+
+		private fun closeRightPanel() {
+				if (isPortraitMode) {
+						rightPanelBottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
+				} else {
+						animateGuideline(1.0f, shouldHideOnEnd = true)
+				}
+		}
+
     private fun setupToolbar() {
         content.customToolbar.apply {
             setTitleText(editorViewModel.getProjectName())
@@ -754,13 +795,11 @@ abstract class BaseEditorActivity :
                 }
             }
 
-
+            drawerToggle = toggle
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
             setOnNavIconLongClickListener {
-                showTooltip(
-                    tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON
-                )
+                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
             }
         }
 
@@ -1231,7 +1270,7 @@ abstract class BaseEditorActivity :
 			ensureDebuggerServiceBound()
 		}
 
-		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		debuggerService?.onConnectionStateUpdated(newState = state)
 		if (state == DebuggerConnectionState.ATTACHED) {
 			// if a VM was just attached, make sure the debugger fragment is visible
 			bottomSheetViewModel.setSheetState(
@@ -1251,9 +1290,7 @@ abstract class BaseEditorActivity :
 
 	private fun setupNoEditorView() {
 		content.noEditorLayout.setOnLongClickListener {
-			showTooltip(
-				tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
-			)
+			showTooltip(tag = TooltipTag.EDITOR_PROJECT_OVERVIEW)
 			true
 		}
         content.noEditorSummary.movementMethod = LinkMovementMethod()
@@ -1305,28 +1342,29 @@ abstract class BaseEditorActivity :
 	private fun setupBottomSheet() {
         editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
         BuildOutputProvider.setBottomSheet(content.bottomSheet)
-        editorBottomSheet?.addBottomSheetCallback(object : BottomSheetCallback() {
+        val cb = object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
-				// update the sheet state so that the ViewModel is in sync
-				bottomSheetViewModel.setSheetState(sheetState = newState)
+						    // update the sheet state so that the ViewModel is in sync
+							bottomSheetViewModel.setSheetState(sheetState = newState)
+							if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+								provideCurrentEditor()?.editor?.ensureWindowsDismissed()
+							}
+						}
 
-                if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-                    val editor = provideCurrentEditor()
-                    editor?.editor?.ensureWindowsDismissed()
-                }
-            }
+					override fun onSlide(bottomSheet: View, slideOffset: Float) {
+						content.apply {
+							val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+							this.bottomSheet.onSlide(slideOffset)
+							this.viewContainer.scaleX = editorScale
+							this.viewContainer.scaleY = editorScale
+						}
+					}
+				}
 
-            override fun onSlide(bottomSheet: View, slideOffset: Float) {
-				content.apply {
-                    val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-                    this.bottomSheet.onSlide(slideOffset)
-                    this.viewContainer.scaleX = editorScale
-                    this.viewContainer.scaleY = editorScale
-                }
-            }
-        })
+		bottomSheetCallback = cb
+		editorBottomSheet?.addBottomSheetCallback(cb)
 
-        val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
+		val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 contentCardRealHeight = binding.contentCard.height
                 content.also {
@@ -1423,15 +1461,15 @@ abstract class BaseEditorActivity :
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         // Pass the event to our gesture detector first
         if (ev != null) {
-            gestureDetector.onTouchEvent(ev)
+            gestureDetector?.onTouchEvent(ev)
         }
         // Then, let the default dispatching happen
         return super.dispatchTouchEvent(ev)
     }
 
     private fun showTooltip(tag: String) {
-        TooltipManager.showTooltip(
-            context = this@BaseEditorActivity,
+        TooltipManager.showIdeCategoryTooltip(
+            context = this,
             anchorView = content.customToolbar,
             tag = tag,
         )

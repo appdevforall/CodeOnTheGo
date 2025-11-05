@@ -49,7 +49,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
         binding.root.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         val currentFragment = supportFragmentManager.findFragmentById(binding.fragmentContainer.id) as? IDEPreferencesFragment
         val tooltipTag = currentFragment?.getCurrentScreenTooltip() ?: ""
-        TooltipManager.showTooltip(this@PreferencesActivity, binding.root, tooltipTag)
+        TooltipManager.showIdeCategoryTooltip(this@PreferencesActivity, binding.root, tooltipTag)
       }
     })
   }

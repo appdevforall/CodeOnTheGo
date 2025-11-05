@@ -403,9 +403,15 @@ tasks.register("recompressApk") {
 
 		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
 
+        val start = System.nanoTime()
 		recompressApk(abi, buildName)
-	}
+        val durationMs = "%.2f".format((System.nanoTime() - start) / 1_000_000.0)
+
+        project.logger.lifecycle("recompressApk completed in ${durationMs}ms")
+    }
 }
+
+val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
 afterEvaluate {
 	tasks.named("assembleV8Release").configure {
@@ -420,15 +426,50 @@ afterEvaluate {
 	}
 
 	tasks.named("assembleV7Release").configure {
-		finalizedBy("recompressApk")
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
 
 		doLast {
-			tasks.named("recompressApk").configure {
-				extensions.extraProperties["abi"] = "v7"
-				extensions.extraProperties["buildName"] = "release"
-			}
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v7"
+          extensions.extraProperties["buildName"] = "release"
+        }
+      }
 		}
 	}
+
+  tasks.named("assembleV8Debug").configure {
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
+
+    doLast {
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v8"
+          extensions.extraProperties["buildName"] = "debug"
+        }
+      }
+    }
+  }
+
+  tasks.named("assembleV7Debug").configure {
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
+
+    doLast {
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v7"
+          extensions.extraProperties["buildName"] = "debug"
+        }
+      }
+    }
+  }
+
 }
 
 fun recompressApk(

@@ -84,7 +84,11 @@ class TemplateListFragment :
 		}
 
         binding.exitButton.setOnLongClickListener {
-            showTooltipForView(binding.root, EXIT_TO_MAIN)
+            TooltipManager.showIdeCategoryTooltip(
+                context = requireContext(),
+                anchorView = binding.root,
+                tag = EXIT_TO_MAIN,
+            )
             true
         }
 
@@ -108,7 +112,7 @@ class TemplateListFragment :
 		log.debug("Reloading templates...")
 
 		// Show only project templates
-		// reloading the tempaltes also makes sure that the resources are
+		// reloading the templates also makes sure that the resources are
 		// released from template parameter widgets
 		val templates =
 			ITemplateProvider
@@ -124,21 +128,17 @@ class TemplateListFragment :
 					viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_DETAILS)
 				},
 				onLongClick = { template, itemView ->
-					template.tooltipTag?.let { tag -> showTooltipForView(itemView, tag) }
-				},
+					template.tooltipTag?.let { tag ->
+                        TooltipManager.showIdeCategoryTooltip(
+                            context = requireContext(),
+                            anchorView = itemView,
+                            tag = tag
+                        )
+                    }
+                },
 			)
 
 		binding.list.adapter = adapter
 	}
 
-	private fun showTooltipForView(
-		root: View,
-		tooltipTag: String,
-	) {
-        TooltipManager.showTooltip(
-            context = root.context,
-            anchorView = root,
-            tag = tooltipTag,
-        )
-	}
 }
