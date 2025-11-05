@@ -20,6 +20,8 @@ import static org.adfa.constants.ConstantsKt.GRADLE_DISTRIBUTION_VERSION;
 import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
+
 import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.app.BaseApplication;
@@ -113,7 +115,7 @@ public final class Environment {
 		return new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
 	}
 
-	public static void init(android.content.Context context) {
+	public static void init(Context context) {
 		context.getFilesDir();
 
 		var arch = getArchitecture();
