@@ -39,18 +39,18 @@ class RecentProjectsAdapter(
     private val onProjectClick: (File) -> Unit,
     private val onRemoveProjectClick: (ProjectFile) -> Unit,
     private val onFileRenamed: (RenamedFile) -> Unit,
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+) : RecyclerView.Adapter<RecentProjectsAdapter.ProjectViewHolder>() {
 
     override fun getItemCount(): Int = projects.size
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProjectViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         val binding = SavedRecentProjectItemBinding.inflate(inflater, parent, false)
         return ProjectViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        (holder as ProjectViewHolder).bind(projects[position])
+    override fun onBindViewHolder(holder: ProjectViewHolder, position: Int) {
+        holder.bind(projects[position])
     }
 
     fun updateProjects(newProjects: List<ProjectFile>) {
