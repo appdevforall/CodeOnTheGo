@@ -12,9 +12,9 @@ body:
         before. Check the existing issues and confirm that this is not a duplicate.**
   
         **By submitting this issue, you agree to follow the project's
-        [code of conduct](https://github.com/AndroidIDEOfficial/AndroidIDE/blob/dev/CODE_OF_CONDUCT.md).**
+        [code of conduct](https://github.com/appdevforall/CodeOnTheGo/blob/main/CODE_OF_CONDUCT.md).**
       
-        **Please check and verify that you are using the latest version of AndroidIDE before
+        **Please check and verify that you are using the latest version of Code on the Go before
         submitting this bug report.**
         
         **Please ensure that you provide complete and accurate information to expedite the
@@ -33,7 +33,7 @@ body:
           required: true
         - label: I agree to follow the project's code of conduct.
           required: true
-        - label: I have checked and verified that I am using the latest version of AndroidIDE from GitHub or F-Droid.
+        - label: I have checked and verified that I am using the latest version of Code on the Go from GitHub or [App Dev for All](https://www.appdevforall.org/codeonthego/).
           required: true
   - type: checkboxes
     id: additional-terms
@@ -64,18 +64,18 @@ body:
     id: version
     attributes:
       label: Version name
-      description: Specify the version name of AndroidIDE you are using.
-      placeholder: Go to IDE Preferences -> About AndroidIDE and click on the version name to copy it.
+      description: Specify the version name of Code on the Go you are using.
+      placeholder: Go to Preferences -> About Code on the Go and click on the version name to copy it.
     validations:
       required: true
   - type: dropdown
     id: download-source
     attributes:
       label: Download source
-      description: Did you download AndroidIDE from GitHub or F-Droid?
+      description: Did you download Code on the Go from GitHub?
       options:
-        - GitHub
-        - F-Droid
+        - Yes
+        - No
     validations:
       required: true
   - type: textarea
