@@ -17,6 +17,7 @@ version = 1
 [install]
 gnused.pkg-path = "gnused"
 findutils.pkg-path = "findutils"
+gnugrep.pkg-path = "gnugrep"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 

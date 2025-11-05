@@ -9,6 +9,9 @@
       "findutils": {
         "pkg-path": "findutils"
       },
+      "gnugrep": {
+        "pkg-path": "gnugrep"
+      },
       "gnused": {
         "pkg-path": "gnused"
       },
@@ -273,6 +276,126 @@
       "priority": 5
     },
     {
+      "attr_path": "gnugrep",
+      "broken": false,
+      "derivation": "/nix/store/1cb279q6fbv22bdz6qxcvczs9c8iaivd-gnugrep-3.11.drv",
+      "description": "GNU implementation of the Unix grep command",
+      "install_id": "gnugrep",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnugrep-3.11",
+      "pname": "gnugrep",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:55.262211Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/5aq64a9951nhk7s005rvswmsgpdwc528-gnugrep-3.11-info",
+        "out": "/nix/store/6rdq4hg48bmqy7d8da38niai5ngg1x1s-gnugrep-3.11"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnugrep",
+      "broken": false,
+      "derivation": "/nix/store/xlx281cariqlrxzcldxb7mhsf9m2vkv8-gnugrep-3.11.drv",
+      "description": "GNU implementation of the Unix grep command",
+      "install_id": "gnugrep",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnugrep-3.11",
+      "pname": "gnugrep",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:02.771075Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/mhlv3zz5vag1w0b8wv1z1m1ms43k52h5-gnugrep-3.11-info",
+        "out": "/nix/store/f5qzw97sf24p9nr550sr7gipnpkaw82a-gnugrep-3.11"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnugrep",
+      "broken": false,
+      "derivation": "/nix/store/4h8n6idcd6p0yg7rsda8nj33xmximxps-gnugrep-3.11.drv",
+      "description": "GNU implementation of the Unix grep command",
+      "install_id": "gnugrep",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnugrep-3.11",
+      "pname": "gnugrep",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:56:59.695964Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/1gwcxf8z8xkz5q54wnkm8msxi1vh0wdg-gnugrep-3.11-info",
+        "out": "/nix/store/xagpmxlwfr18i8c7wlpcm4rw6658833c-gnugrep-3.11"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnugrep",
+      "broken": false,
+      "derivation": "/nix/store/k3v3crqfmwdqi1hj5cb99q74qk6548r4-gnugrep-3.11.drv",
+      "description": "GNU implementation of the Unix grep command",
+      "install_id": "gnugrep",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnugrep-3.11",
+      "pname": "gnugrep",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:57.337960Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/ikhb97s6a22dn21lhxlzhambsmisrvff-gnugrep-3.11-info",
+        "out": "/nix/store/gqmr3gixlddz3667ba1iyqck3c0dkpvd-gnugrep-3.11"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
       "attr_path": "gnused",
       "broken": false,
       "derivation": "/nix/store/mzm98am1pfdbvi5r11n8xc6w7wqvyvd6-gnused-4.9.drv",
@@ -517,6 +640,9 @@
       "install": {
         "findutils": {
           "pkg-path": "findutils"
+        },
+        "gnugrep": {
+          "pkg-path": "gnugrep"
         },
         "gnused": {
           "pkg-path": "gnused"
