@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
@@ -155,7 +156,7 @@ class RecentProjectsFragment : BaseFragment() {
             }
 
             binding.openFromFolderBtn.apply {
-                visibility = if (isEmpty) View.GONE else View.VISIBLE
+                isVisible = !isEmpty
                 setOnClickListener { pickProjectDirectory(isLongClick = false) }
                 setOnLongClickListener {
                     TooltipManager.showIdeCategoryTooltip(
