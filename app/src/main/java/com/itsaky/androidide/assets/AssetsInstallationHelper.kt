@@ -137,7 +137,7 @@ object AssetsInstallationHelper {
 
     @WorkerThread
     internal fun extractZipToDir(srcStream: InputStream, destDir: Path) {
-        Files.createDirectories(destDir)
+        destDir.toFile().mkdirs()
         ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
             val destFile = destDir.resolve(entry.name).normalize()
             if (!destFile.pathString.startsWith(destDir.pathString)) {
@@ -146,7 +146,7 @@ object AssetsInstallationHelper {
             }
 
             if (entry.isDirectory) {
-                Files.createDirectories(destFile)
+                destFile.toFile().mkdirs()
             } else {
                 Files.newOutputStream(destFile).use { dest ->
                     zipInput.copyTo(dest)

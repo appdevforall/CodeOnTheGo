@@ -113,7 +113,9 @@ public final class Environment {
 		return new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
 	}
 
-	public static void init() {
+	public static void init(android.content.Context context) {
+		context.getFilesDir();
+
 		var arch = getArchitecture();
 		DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
 		SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, "assets-" + arch + ".zip");

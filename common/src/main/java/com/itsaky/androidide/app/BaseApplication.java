@@ -48,7 +48,7 @@ public class BaseApplication extends Application {
   @Override
   public void onCreate() {
     instance = this;
-    Environment.init();
+    Environment.init(this);
     super.onCreate();
 
     mPrefsManager = new PreferenceManager(this);
