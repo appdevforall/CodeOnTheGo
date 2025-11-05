@@ -222,21 +222,6 @@ class DesignEditor : LinearLayout {
     }
 
     /**
-     * Retrieves the absolute on-screen coordinates of this [View].
-     *
-     * Uses [View.getLocationOnScreen] to return the X and Y positions
-     * relative to the device screen in pixels.
-     *
-     * @return A [Pair] where `first` is the X coordinate (in pixels)
-     *         and `second` is the Y coordinate (in pixels).
-     */
-    private fun View.getOffsetToScreen(): Pair<Float, Float> {
-        val loc = IntArray(2)
-        getLocationOnScreen(loc)
-        return loc[0].toFloat() to loc[1].toFloat()
-    }
-
-    /**
      * Updates the **stored attributes** in [viewAttributeMap] for a [child] view
      * after it's "dropped" at a new position (x, y) within its [ConstraintLayout] parent.
      *
@@ -250,8 +235,6 @@ class DesignEditor : LinearLayout {
      * - Sets `app:layout_constraintTop_toTopOf = "parent"`
      * - Sets `app:layout_marginStart = "<x>dp"`
      * - Sets `app:layout_marginTop = "<y>dp"`
-     * 4.  Triggers editor state updates by calling `markAsModified()`, `updateStructure()`,
-     * and `updateUndoRedoHistory()`.
      *
      * @param child The view being positioned.
      * @param x The target X coordinate in container pixels.
@@ -281,8 +264,6 @@ class DesignEditor : LinearLayout {
         }
 
         markAsModified()
-        updateStructure()
-        updateUndoRedoHistory()
     }
 
 
@@ -346,6 +327,7 @@ class DesignEditor : LinearLayout {
                                 if (parent is DesignEditor) parent = getChildAt(0) as ViewGroup
                             }
                         }
+
                         if (draggedView == null) {
                             @Suppress("UNCHECKED_CAST") val data: HashMap<String, Any> =
                                 event.localState as HashMap<String, Any>
@@ -405,25 +387,12 @@ class DesignEditor : LinearLayout {
                                 defaults.remove(attrTranslationY)
                                 initializer.applyDefaultAttributes(newView, defaults)
                             }
+
                             positionAtDrop(newView, event.x, event.y)
                             val rootLayout = getChildAt(0)
                             restorePositionsAfterLoad(rootLayout, viewAttributeMap)
-                        } else {
-                            addWidget(draggedView, parent, event)
+                        } else addWidget(draggedView, parent, event)
 
-                            val parentLocation = IntArray(2)
-                            parent.getLocationOnScreen(parentLocation)
-
-                            val (dropRawX, dropRawY) = host.getOffsetToScreen()
-
-                            val pointerX = event.x + dropRawX - parentLocation[0]
-                            val pointerY = event.y + dropRawY - parentLocation[1]
-
-                            val dropX = pointerX - draggedView.width / 2f
-                            val dropY = pointerY - draggedView.height / 2f
-
-                            positionAtDrop(draggedView, dropX, dropY)
-												}
                         updateStructure()
                         updateUndoRedoHistory()
                     }
@@ -583,13 +552,13 @@ class DesignEditor : LinearLayout {
                     tag = view.javaClass.superclass.name
                 )
             },
-            onDrag = {
-                view.startDragAndDrop(null, DragShadowBuilder(view), view, 0)
-            },
             onDrop = { child, x, y ->
                 positionAtDrop(child, x, y)
                 val rootLayout = getChildAt(0)
                 restorePositionsAfterLoad(rootLayout, viewAttributeMap)
+
+                updateStructure()
+                updateUndoRedoHistory()
             }
         )
     }

@@ -8,29 +8,24 @@ import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
 
 
 /**
- * Applies basic constraints to a view inside a [ConstraintLayout].
+ * Modifies a [ConstraintSet] to apply basic constraints to a specific view.
  *
  * - Anchors the view to the parent's START and TOP.
  * - Clears existing END and BOTTOM constraints to avoid conflicts.
  * - Sets START and TOP margins in **pixels** using the provided values.
- * - Calls [ConstraintSet.applyTo] to commit the constraint changes.
  *
+ * @param constraintSet The [ConstraintSet] instance to modify.
  * @param viewId The ID of the target view.
- * @param container The [ConstraintLayout] parent container.
  * @param startPxMargin The START margin in **pixels**.
  * @param topPxMargin The TOP margin in **pixels**.
  */
-private fun applyConstraints(viewId: Int, container: ConstraintLayout, startPxMargin: Int, topPxMargin: Int) {
-	val constraintSet = ConstraintSet()
-
-	constraintSet.clone(container)
+private fun modifyConstraintsForView(constraintSet: ConstraintSet, viewId: Int, startPxMargin: Int, topPxMargin: Int) {
 	constraintSet.clear(viewId, ConstraintSet.BOTTOM)
 	constraintSet.clear(viewId, ConstraintSet.END)
 	constraintSet.connect(viewId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
 	constraintSet.connect(viewId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
 	constraintSet.setMargin(viewId, ConstraintSet.START, startPxMargin)
 	constraintSet.setMargin(viewId, ConstraintSet.TOP, topPxMargin)
-	constraintSet.applyTo(container)
 }
 
 /**
@@ -57,17 +52,30 @@ private fun String.toPx(density: Float): Float {
 }
 
 /**
- * Restores the positions of draggable views by reapplying constraints
+ * Helper class to store a set of constraint changes for a single view.
+ */
+private data class ViewConstraintChange(
+    val viewId: Int,
+    val startMargin: Int,
+    val topMargin: Int
+)
+
+/**
+ * Efficiently restores the positions of draggable views by reapplying constraints
  * after the layout has finished rendering.
  *
- * For each entry in [attributeMap]:
- * - Reads `app:layout_marginStart` and `app:layout_marginTop` (in dp).
- * - Converts them to pixels and clamps them within the container bounds.
- * - Resets [View.translationX] and [View.translationY] to 0 to avoid cumulative shifts.
- * - Calls [applyConstraints] to update margins in the layout.
+ * This function uses a two-pass batching mechanism for efficiency:
  *
- * Should be called after layout completion (via [doOnLayout])
- * to ensure container and child sizes are available.
+ * 1.  **Collection Pass:** Iterates [attributeMap], calculates pixel margins,
+ * resets [View.translationX]/[View.translationY] to 0, and groups all
+ * required changes by their parent [ConstraintLayout].
+ * 2.  **Application Pass:** Iterates over each unique parent [ConstraintLayout],
+ * clones its state into a *single* [ConstraintSet], applies *all*
+ * changes for that group using [modifyConstraintsForView], and then calls
+ * [ConstraintSet.applyTo] **once** per container.
+ *
+ * This ensures only one layout pass is triggered per [ConstraintLayout] container,
+ * instead of N passes.
  *
  * @param rootView The root [View] to observe for layout completion.
  * @param attributeMap A [Map] of [View]s to their corresponding [AttributeMap].
@@ -75,25 +83,52 @@ private fun String.toPx(density: Float): Float {
 fun restorePositionsAfterLoad(rootView: View, attributeMap: Map<View, AttributeMap>) {
 	rootView.doOnLayout { container ->
 		val density = container.resources.displayMetrics.density
+
+		val changesByContainer = mutableMapOf<ConstraintLayout, MutableList<ViewConstraintChange>>()
+
+		// --- 1. COLLECTION PASS ---
 		attributeMap.forEach { (view, attrs) ->
 			val constraintContainer = view.parent as? ConstraintLayout ?: return@forEach
-			val txStr =
-				if (attrs.contains("app:layout_marginStart")) attrs.getValue("app:layout_marginStart") else null
-			val tyStr =
-				if (attrs.contains("app:layout_marginTop")) attrs.getValue("app:layout_marginTop") else null
 
-			if (txStr != null || tyStr != null) {
+			val txStr = attrs.getValue("app:layout_marginStart")
+			val tyStr = attrs.getValue("app:layout_marginTop")
+
+			if (txStr.isNotEmpty() || tyStr.isNotEmpty()) {
 				val maxX = (constraintContainer.width - view.width).coerceAtLeast(0).toFloat()
 				val maxY = (constraintContainer.height - view.height).coerceAtLeast(0).toFloat()
 
-				val txPx = txStr?.toPx(density)?.coerceIn(0f, maxX) ?: 0f
-				val tyPx = tyStr?.toPx(density)?.coerceIn(0f, maxY) ?: 0f
+				val txPx = txStr.toPx(density).coerceIn(0f, maxX)
+				val tyPx = tyStr.toPx(density).coerceIn(0f, maxY)
 
 				view.translationX = 0f
 				view.translationY = 0f
 
-				applyConstraints(view.id, constraintContainer, txPx.toInt(), tyPx.toInt())
+				val changesList = changesByContainer.getOrPut(constraintContainer) { mutableListOf() }
+
+				changesList.add(ViewConstraintChange(
+					viewId = view.id,
+					startMargin = txPx.toInt(),
+					topMargin = tyPx.toInt()
+				))
 			}
+		}
+
+		// --- 2. APPLICATION PASS ---
+		changesByContainer.forEach { (container, changeList) ->
+			val constraintSet = ConstraintSet()
+
+			constraintSet.clone(container)
+
+			changeList.forEach { change ->
+				modifyConstraintsForView(
+					constraintSet,
+					change.viewId,
+					change.startMargin,
+					change.topMargin
+				)
+			}
+
+			constraintSet.applyTo(container)
 		}
 	}
 }
