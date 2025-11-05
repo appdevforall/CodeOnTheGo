@@ -214,6 +214,9 @@ object ProjectSyncHelper {
 	 * @return `true` if a sync is needed, `false` otherwise.
 	 */
 	suspend fun checkSyncNeeded(projectDir: File): Boolean {
+		// @devs: add a log statement whenever this function returns `true`
+		// describing why it returns `true`
+
 		val draft = createSyncMeta(projectDir, includeChecksum = false)
 		val syncMetaFile = syncMetaFileForProject(projectDir)
 		val stored = try {
