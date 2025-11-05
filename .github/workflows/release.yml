@@ -184,20 +184,21 @@ jobs:
           echo "google-services.json created successfully"
 
       - name: Authenticate to Google Cloud for Drive access
+        id: auth_drive
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.IDENTITY_EMAIL }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+          token_format: 'access_token'
+          access_token_scopes: 'https://www.googleapis.com/auth/drive.readonly'
 
       - name: Download latest documentation.db from Google Drive
         run: |
           FOLDER_ID="${{ secrets.GOOGLE_DRIVE_FOLDER }}"
+          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
           echo "Fetching files from Google Drive folder..."
-          ALL_FILES=$(curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+          ALL_FILES=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://www.googleapis.com/drive/v3/files?q=\"${FOLDER_ID}\"+in+parents&fields=files(id,name,mimeType,modifiedTime)&supportsAllDrives=true")
 
           echo "Raw API Response:"
@@ -267,7 +268,7 @@ jobs:
           fi
 
           echo "Downloading documentation.db (File ID: $FILE_ID)..."
-          curl -L -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+          curl -L -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&supportsAllDrives=true" \
             -o assets/documentation.db
 
