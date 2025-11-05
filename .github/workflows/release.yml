@@ -200,18 +200,25 @@ jobs:
 
           ALL_FILES=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://www.googleapis.com/drive/v3/files?q=\"${FOLDER_ID}\"+in+parents&fields=files(id,name,mimeType,modifiedTime)&supportsAllDrives=true")
-          FILE_ID=$(echo "$ALL_FILES" | jq -r '.files[] | select(.name=="documentation.db") | .id')
+
+          echo "Raw API Response:"
+          echo "$ALL_FILES" | jq '.'
+
+          if echo "$ALL_FILES" | jq -e '.error' > /dev/null 2>&1; then
+            echo "ERROR: Google Drive API returned an error"
+            echo "$ALL_FILES" | jq '.error'
+            exit 1
+          fi
+
+          FILE_ID=$(echo "$ALL_FILES" | jq -r '.files[]? | select(.name=="documentation.db") | .id' | head -1)
 
           if [ -z "$FILE_ID" ]; then
             echo "ERROR: documentation.db not found in Google Drive folder"
-
-            echo "Listing all files in the Google Drive folder:"
-            echo "Raw API Response:"
-            echo "$ALL_FILES" | jq '.'
             echo ""
+            echo "Listing all files in the Google Drive folder:"
             echo "Parsed file list:"
-            echo "$ALL_FILES" | jq -r '.files[] | "- \(.name) (ID: \(.id), Type: \(.mimeType), Modified: \(.modifiedTime))"'
-            echo "Total files found: $(echo "$ALL_FILES" | jq '.files | length')"
+            echo "$ALL_FILES" | jq -r '.files[]? | "- \(.name) (ID: \(.id), Type: \(.mimeType), Modified: \(.modifiedTime))"'
+            echo "Total files found: $(echo "$ALL_FILES" | jq '.files | length // 0')"
 
             jq -n '{
               blocks: [
