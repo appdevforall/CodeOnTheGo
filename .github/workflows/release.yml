@@ -196,7 +196,12 @@ jobs:
 
             echo "Listing all files in the Google Drive folder:"
             ALL_FILES=$(curl -s "https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents&fields=files(id,name,mimeType,modifiedTime)&key=${API_KEY}")
+            echo "Raw API Response:"
+            echo "$ALL_FILES" | jq '.'
+            echo ""
+            echo "Parsed file list:"
             echo "$ALL_FILES" | jq -r '.files[] | "- \(.name) (ID: \(.id), Type: \(.mimeType), Modified: \(.modifiedTime))"'
+            echo "Total files found: $(echo "$ALL_FILES" | jq '.files | length')"
 
             jq -n '{
               blocks: [
