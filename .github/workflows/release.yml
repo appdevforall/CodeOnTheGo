@@ -188,14 +188,14 @@ jobs:
           FOLDER_ID="${{ secrets.GOOGLE_DRIVE_FOLDER }}"
           API_KEY="${{ secrets.GOOGLE_DRIVE_API_KEY }}"
 
-          FILE_ID=$(curl -s "https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents&fields=files(id,name)&key=${API_KEY}" \
+          FILE_ID=$(curl -s "https://www.googleapis.com/drive/v3/files?q=\"${FOLDER_ID}\"+in+parents&fields=files(id,name)&key=${API_KEY}" \
             | jq -r '.files[] | select(.name=="documentation.db") | .id')
 
           if [ -z "$FILE_ID" ]; then
             echo "ERROR: documentation.db not found in Google Drive folder"
 
             echo "Listing all files in the Google Drive folder:"
-            ALL_FILES=$(curl -s "https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents&fields=files(id,name,mimeType,modifiedTime)&key=${API_KEY}")
+            ALL_FILES=$(curl -s "https://www.googleapis.com/drive/v3/files?q=\"${FOLDER_ID}\"+in+parents&fields=files(id,name,mimeType,modifiedTime)&key=${API_KEY}")
             echo "Raw API Response:"
             echo "$ALL_FILES" | jq '.'
             echo ""
