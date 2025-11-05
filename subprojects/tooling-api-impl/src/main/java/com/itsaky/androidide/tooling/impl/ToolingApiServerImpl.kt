@@ -180,7 +180,7 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 
 				val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
 				val syncMetaFile = ProjectSyncHelper.syncMetaFileForProject(projectDir)
-				if (params.needsSync) {
+				if (params.forceSync) {
 					buildCancellationToken = GradleConnector.newCancellationTokenSource()
 					try {
 						val modelBuilderParams = RootProjectModelBuilderParams(
