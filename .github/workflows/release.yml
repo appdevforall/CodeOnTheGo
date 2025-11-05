@@ -198,6 +198,10 @@ jobs:
           FOLDER_ID="${{ secrets.GOOGLE_DRIVE_FOLDER }}"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
+          echo "Debug: Checking authentication..."
+          echo "Access token length: ${#ACCESS_TOKEN}"
+          echo "Service Account: ${{ secrets.IDENTITY_EMAIL }}"
+
           ALL_FILES=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://www.googleapis.com/drive/v3/files?q=\"${FOLDER_ID}\"+in+parents&fields=files(id,name,mimeType,modifiedTime)&supportsAllDrives=true")
 
