@@ -204,9 +204,8 @@ jobs:
           fi
 
           echo "Downloading documentation.db from Google Drive..."
-          echo "File ID: $FILE_ID"
 
-          curl -L -H "Authorization: Bearer $ACCESS_TOKEN" \
+          curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
             -o assets/documentation.db
 
@@ -217,14 +216,51 @@ jobs:
 
           FILE_SIZE_BYTES=$(stat -c%s assets/documentation.db 2>/dev/null || stat -f%z assets/documentation.db 2>/dev/null)
           FILE_SIZE_HUMAN=$(du -h assets/documentation.db | cut -f1)
-          echo "Downloaded documentation.db ($FILE_SIZE_HUMAN / $FILE_SIZE_BYTES bytes)"
 
           if [ "$FILE_SIZE_BYTES" -lt 1000000 ]; then
-            echo "ERROR: Downloaded file is suspiciously small (< 1MB), likely an error page"
-            echo "File contents:"
-            head -20 assets/documentation.db
+            echo "ERROR: Downloaded file is too small ($FILE_SIZE_HUMAN)"
+            echo "This usually means the file was not found or service account lacks access"
+
+            jq -n '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":x: Release Build Failed - Documentation DB Download Error",
+                    emoji: true
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "@here The daily release build failed because *documentation.db* could not be downloaded from Google Drive."
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Possible Causes:*\n• File not found or incorrect file ID\n• Service account does not have access to the file\n• File was deleted or moved"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Action Required:*\n1. Verify the file exists in Google Drive\n2. Check that DOCUMENTATION_DB_FILE_ID secret is correct\n3. Ensure service account has Viewer access to the file"
+                  }
+                }
+              ]
+            }' > error_payload.json
+
+            curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+            rm -f error_payload.json
             exit 1
           fi
+
+          echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
 
       - name: Assemble Release APK
         run: |
