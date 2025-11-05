@@ -148,6 +148,7 @@ object AssetsInstallationHelper {
             if (entry.isDirectory) {
                 destFile.toFile().mkdirs()
             } else {
+                destFile.parent?.toFile()?.mkdirs()
                 Files.newOutputStream(destFile).use { dest ->
                     zipInput.copyTo(dest)
                 }
