@@ -274,7 +274,7 @@ class EditorActivity : BaseActivity() {
                 TooltipManager.showTooltip(
                     context = this@EditorActivity,
                     anchorView = view,
-                    category = TooltipCategory.CATEGORY_JAVA,
+                    category = TooltipCategory.CATEGORY_XML,
                     tag = view.javaClass.superclass.name
                 )
             }
