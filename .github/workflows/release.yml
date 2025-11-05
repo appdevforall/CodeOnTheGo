@@ -183,19 +183,29 @@ jobs:
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
           echo "google-services.json created successfully"
 
+      - name: Authenticate to Google Cloud for Drive access
+        id: auth_drive
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.IDENTITY_EMAIL }}
+          access_token_scopes: |
+            https://www.googleapis.com/auth/drive.readonly
+            https://www.googleapis.com/auth/drive.file
+
       - name: Download latest documentation.db from Google Drive
         run: |
           FOLDER_ID="${{ secrets.GOOGLE_DRIVE_FOLDER }}"
-          API_KEY="${{ secrets.GOOGLE_DRIVE_API_KEY }}"
+          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
-          FILE_ID=$(curl -s "https://www.googleapis.com/drive/v3/files?q=\"${FOLDER_ID}\"+in+parents&fields=files(id,name)&key=${API_KEY}" \
-            | jq -r '.files[] | select(.name=="documentation.db") | .id')
+          ALL_FILES=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files?q=\"${FOLDER_ID}\"+in+parents&fields=files(id,name,mimeType,modifiedTime)&supportsAllDrives=true")
+          FILE_ID=$(echo "$ALL_FILES" | jq -r '.files[] | select(.name=="documentation.db") | .id')
 
           if [ -z "$FILE_ID" ]; then
             echo "ERROR: documentation.db not found in Google Drive folder"
 
             echo "Listing all files in the Google Drive folder:"
-            ALL_FILES=$(curl -s "https://www.googleapis.com/drive/v3/files?q=\"${FOLDER_ID}\"+in+parents&fields=files(id,name,mimeType,modifiedTime)&key=${API_KEY}")
             echo "Raw API Response:"
             echo "$ALL_FILES" | jq '.'
             echo ""
@@ -224,7 +234,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*Action Required:*\n1. Verify documentation.db exists in the Google Drive folder\n2. Check the file name is exactly \"documentation.db\"\n3. Ensure the folder permissions are set to \"Anyone with the link can view\""
+                    text: "*Action Required:*\n1. Verify documentation.db exists in the Google Drive folder\n2. Check the file name is exactly \"documentation.db\"\n3. Ensure the service account has access to the folder"
                   }
                 },
                 {
@@ -250,7 +260,11 @@ jobs:
             exit 1
           fi
 
-          curl -L "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&key=${API_KEY}" -o assets/documentation.db
+          echo "Downloading documentation.db (File ID: $FILE_ID)..."
+          curl -L -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&supportsAllDrives=true" \
+            -o assets/documentation.db
+
           echo "Downloaded documentation.db ($(du -h assets/documentation.db | cut -f1))"
 
       - name: Assemble Release APK
