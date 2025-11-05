@@ -183,6 +183,67 @@ jobs:
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
           echo "google-services.json created successfully"
 
+      - name: Download latest documentation.db from Google Drive
+        run: |
+          FOLDER_ID="${{ secrets.GOOGLE_DRIVE_FOLDER }}"
+          API_KEY="${{ secrets.GOOGLE_DRIVE_API_KEY }}"
+
+          FILE_ID=$(curl -s "https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents&fields=files(id,name)&key=${API_KEY}" \
+            | jq -r '.files[] | select(.name=="documentation.db") | .id')
+
+          if [ -z "$FILE_ID" ]; then
+            echo "ERROR: documentation.db not found in Google Drive folder"
+
+            jq -n '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":x: Release Build Failed - documentation.db Not Found",
+                    emoji: true
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "@here The daily release build failed because *documentation.db* could not be found in the Google Drive folder."
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Action Required:*\n1. Verify documentation.db exists in the Google Drive folder\n2. Check the file name is exactly \"documentation.db\"\n3. Ensure the folder permissions are set to \"Anyone with the link can view\""
+                  }
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: {
+                        type: "plain_text",
+                        text: "Open Google Drive Folder",
+                        emoji: true
+                      },
+                      url: "https://drive.google.com/drive/folders/${{ secrets.GOOGLE_DRIVE_FOLDER }}",
+                      action_id: "view-folder"
+                    }
+                  ]
+                }
+              ]
+            }' > error_payload.json
+
+            curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+            rm -f error_payload.json
+            exit 1
+          fi
+
+          curl -L "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&key=${API_KEY}" -o assets/documentation.db
+          echo "Downloaded documentation.db ($(du -h assets/documentation.db | cut -f1))"
+
       - name: Assemble Release APK
         run: |
           flox activate -d flox/base -- ./gradlew :app:assembleV8Release --no-daemon \
