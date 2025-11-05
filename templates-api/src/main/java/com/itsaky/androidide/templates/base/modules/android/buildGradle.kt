@@ -146,7 +146,7 @@ import java.util.Properties
 import java.io.FileInputStream
 
 plugins {
-    id '$androidPlugin'
+    id '${androidPlugin}' version "$ANDROID_GRADLE_PLUGIN_VERSION"
     ${ktPlugin(isComposeModule)}
 }
 
@@ -167,55 +167,55 @@ if (keystorePropsFile.exists()) {
 
 
 android {
-    namespace '${data.packageName}'
-    compileSdk ${data.versions.compileSdk.api}
+    namespace = '${data.packageName}'
+    compileSdk = ${data.versions.compileSdk.api}
     
     // disable linter
     lint {
-        checkReleaseBuilds =  false
+        checkReleaseBuilds = false
     }
 
     if (hasValidSigningProps) {
         signingConfigs {
             release {
                 storeFile = rootProject.file((String) keystoreProps["${Environment.KEYSTORE_PROP_STOREFILE}"])
-                storePassword keystoreProps["${Environment.KEYSTORE_PROP_STOREPWD}"]
-                keyAlias keystoreProps["${Environment.KEYSTORE_PROP_KEYALIAS}"]
-                keyPassword keystoreProps["${Environment.KEYSTORE_PROP_KEYPWD}"]
+                storePassword = keystoreProps["${Environment.KEYSTORE_PROP_STOREPWD}"]
+                keyAlias = keystoreProps["${Environment.KEYSTORE_PROP_KEYALIAS}"]
+                keyPassword = keystoreProps["${Environment.KEYSTORE_PROP_KEYPWD}"]
             }
         }
     }
 
     defaultConfig {
-        applicationId "${data.packageName}"
-        minSdk ${data.versions.minSdk.api}
-        targetSdk ${data.versions.targetSdk.api}
-        versionCode 1
-        versionName "1.0"
+        applicationId = "${data.packageName}"
+        minSdk = ${data.versions.minSdk.api}
+        targetSdk = ${data.versions.targetSdk.api}
+        versionCode = 1
+        versionName = "1.0"
         
         vectorDrawables { 
-            useSupportLibrary true
+            useSupportLibrary = true
         }
     }
 
     buildTypes {
         release {
             if (hasValidSigningProps) {
-                signingConfig signingConfigs.release
+                signingConfig = signingConfigs.release
             }
-            minifyEnabled true
+            minifyEnabled = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
     compileOptions {
-        sourceCompatibility ${data.versions.javaSource()}
-        targetCompatibility ${data.versions.javaTarget()}
+        sourceCompatibility = ${data.versions.javaSource()}
+        targetCompatibility = ${data.versions.javaTarget()}
     }
 
     buildFeatures {
-        ${if (!isComposeModule) "viewBinding true" else ""}
-        ${if (isComposeModule) "compose true" else ""}
+        ${if (!isComposeModule) "viewBinding = true" else ""}
+        ${if (isComposeModule) "compose = true" else ""}
     }
     ${composeConfigGroovy()}
 }
@@ -227,14 +227,13 @@ ${dependencies()}
 """
 }
 
-fun composeConfigGroovy(): String = """
+fun composeConfigGroovy(): String = """ 
     composeOptions {
-        kotlinCompilerExtensionVersion '$compose_kotlinCompilerExtensionVersion'
+        kotlinCompilerExtensionVersion = '$compose_kotlinCompilerExtensionVersion'
     }
     packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
-            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
 
             // The part below is only needed for compose builds.
