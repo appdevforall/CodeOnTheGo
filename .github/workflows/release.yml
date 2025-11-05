@@ -240,7 +240,7 @@ jobs:
               ]
             }' > error_payload.json
 
-            curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+#            curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
             rm -f error_payload.json
             exit 1
           fi
