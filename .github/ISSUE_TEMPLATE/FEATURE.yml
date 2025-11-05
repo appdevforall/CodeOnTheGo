@@ -11,10 +11,10 @@ body:
         your request has not been previously suggested.**
         
         **By submitting this issue, you agree to follow the project's
-        [code of conduct](https://github.com/AndroidIDEOfficial/AndroidIDE/blob/dev/CODE_OF_CONDUCT.md).**
+        [code of conduct](https://github.com/appdevforall/CodeOnTheGo/blob/main/CODE_OF_CONDUCT.md).**
         
-        **Please check and verify that you are using the latest version of AndroidIDE before
-        submitting this bug report.**
+        **Please check and verify that you are using the latest version of Code on the Go before
+        submitting this feature request.**
         
         **Your feature request will be reviewed, and its implementation will be considered based on
         project goals and priorities.**
@@ -31,7 +31,7 @@ body:
           required: true
         - label: I agree to follow the project's code of conduct.
           required: true
-        - label: I have checked and verified that I am using the latest version of AndroidIDE from GitHub or F-Droid.
+        - label: I have checked and verified that I am using the latest version of Code on the Go from GitHub or [App Dev for All](https://www.appdevforall.org/codeonthego/).
           required: true
   - type: checkboxes
     id: additional-terms
@@ -60,6 +60,6 @@ body:
     id: benefits
     attributes:
       label: Benefits
-      placeholder: Describe the benefits or improvements this feature would bring to AndroidIDE.
+      placeholder: Describe the benefits or improvements this feature would bring to Code on the Go.
     validations:
       required: true
