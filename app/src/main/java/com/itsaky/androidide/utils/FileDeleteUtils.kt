@@ -15,29 +15,47 @@ object FileDeleteUtils {
             fileOrDirectory.parentFile,
             ".${fileOrDirectory.name}"
         )
-        var backupCreated = false
 
-        try {
+        if (hiddenFile.exists()) {
+            deleteRecursively(hiddenFile)
+            Log.w(TAG, "Cleaned up stale backup: ${hiddenFile.absolutePath}")
+        }
+
+        val backupCreated = runCatching {
             if (fileOrDirectory.isDirectory) {
                 fileOrDirectory.copyRecursively(hiddenFile, overwrite = false)
             } else {
                 fileOrDirectory.copyTo(hiddenFile, overwrite = false)
             }
-            backupCreated = true
-            Log.d(TAG, "Backup created: ${hiddenFile.absolutePath}")
-        } catch (t: Throwable) {
+        }.onFailure { t ->
             Log.e(TAG, "Backup creation failed: ${t.message}", t)
             Sentry.captureException(t)
+        }.isSuccess
+
+        if (!backupCreated) {
+            return@withContext false
         }
 
         val deletedOriginal = deleteRecursively(fileOrDirectory)
 
-        if (backupCreated && hiddenFile.exists()) {
+        if (deletedOriginal) {
             val deletedBackup = deleteRecursively(hiddenFile)
-            if (deletedBackup) {
-                Log.d(TAG, "Backup cleaned up: ${hiddenFile.absolutePath}")
-            } else {
+            if (!deletedBackup) {
                 Log.w(TAG, "Backup cleanup failed: ${hiddenFile.absolutePath}")
+            }
+        } else {
+            runCatching {
+                if (hiddenFile.isDirectory) {
+                    hiddenFile.copyRecursively(fileOrDirectory, overwrite = true)
+                } else {
+                    hiddenFile.copyTo(fileOrDirectory, overwrite = true)
+                }
+                Log.i(TAG, "Restored backup after deletion failure: ${fileOrDirectory.absolutePath}")
+            }.onFailure { t ->
+                Log.e(TAG, "Failed to restore backup: ${t.message}", t)
+                Sentry.captureException(t)
+            }.onSuccess {
+                deleteRecursively(hiddenFile)
             }
         }
 
