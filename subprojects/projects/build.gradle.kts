@@ -24,7 +24,6 @@ dependencies {
 	api(projects.eventbus)
 	api(projects.eventbusEvents)
 	api(projects.subprojects.projectModels)
-	api(projects.subprojects.projectSerial)
 	api(projects.subprojects.toolingApi)
 
 	implementation(projects.common)
