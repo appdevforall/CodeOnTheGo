@@ -423,7 +423,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             return@launch
         }
 
-        val forceSync = forceSync || manager.isGradleSyncNeeded(projectDir)
+        val needsSync = forceSync || manager.isGradleSyncNeeded(projectDir)
 
 		withContext(Dispatchers.Main.immediate) {
 			preProjectInit()
@@ -440,8 +440,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             return@launch
         }
 
-		log.info("Sending init request to tooling server (needs sync: {})...", forceSync)
-        initializingFuture = buildService.initializeProject(params = createProjectInitParams(projectDir, buildVariants, forceSync))
+		log.info("Sending init request to tooling server (needs sync: {})...", needsSync)
+        initializingFuture = buildService.initializeProject(params = createProjectInitParams(projectDir, buildVariants, needsSync))
 
         initializingFuture!!.whenCompleteAsync { result, error ->
             releaseServerListener()
@@ -464,13 +464,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     private fun createProjectInitParams(
 		projectDir: File,
 		buildVariants: Map<String, String>,
-		forceSync: Boolean,
+		needsGradleSync: Boolean,
     ): InitializeProjectParams =
         InitializeProjectParams(
 			directory = projectDir.absolutePath,
 			gradleDistribution = gradleDistributionParams,
 			androidParams = createAndroidParams(buildVariants),
-			forceSync = forceSync,
+			needsGradleSync = needsGradleSync,
         )
 
     private fun createAndroidParams(buildVariants: Map<String, String>): AndroidInitializationParams {

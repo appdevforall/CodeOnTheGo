@@ -104,13 +104,12 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 		private val log = LoggerFactory.getLogger(ToolingApiServerImpl::class.java)
 	}
 
-	private inline fun getOrConnectProject(
+	private fun getOrConnectProject(
 		projectDir: File,
 		forceConnect: Boolean = false,
 		initParams: InitializeProjectParams? = null,
 		gradleDist: GradleDistributionParams = initParams?.gradleDistribution
 			?: GradleDistributionParams.WRAPPER,
-		crossinline beforeConnection: () -> Unit = {},
 	): Pair<GradleConnector, ProjectConnection> = withStopWatch("getOrConnectProject") {
 		if (!forceConnect && connector != null && connection != null) {
 			return@withStopWatch connector!! to connection!!
@@ -123,7 +122,6 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 		val connector = GradleConnector.newConnector().forProjectDirectory(projectDir)
 		setupConnectorForGradleInstallation(connector, gradleDist)
 
-		beforeConnection()
 		val connection = connector.connect()
 
 		this.connector = connector
@@ -171,21 +169,26 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 				val (_, connection) = getOrConnectProject(
 					projectDir = projectDir,
 					forceConnect = !isReinitializing,
-					initParams = params,
-					beforeConnection = {
-						notifyBeforeBuild(BuildInfo(emptyList()))
-					})
+					initParams = params
+				)
 
 				lastInitParams = params
 
+				// we're now ready to run Gradle tasks
+				isInitialized = true
+
 				val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
 				val syncMetaFile = ProjectSyncHelper.syncMetaFileForProject(projectDir)
-				if (params.forceSync) {
-					buildCancellationToken = GradleConnector.newCancellationTokenSource()
+
+				if (params.needsGradleSync) {
+					var failure: Throwable? = null
 					try {
+						val cancellationToken = GradleConnector.newCancellationTokenSource()
+						buildCancellationToken = cancellationToken
+						notifyBeforeBuild(BuildInfo(emptyList()))
 						val modelBuilderParams = RootProjectModelBuilderParams(
 							projectConnection = connection,
-							cancellationToken = this.buildCancellationToken!!.token(),
+							cancellationToken = cancellationToken.token(),
 							projectCacheFile = cacheFile,
 							projectSyncMetaFile = syncMetaFile,
 							gradleArgs = params.gradleArgs,
@@ -194,16 +197,17 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 
 						RootModelBuilder.build(params, modelBuilderParams)
 					} catch (err: Throwable) {
-						throw err
+						failure = err
+					} finally {
+						when(failure) {
+							null -> notifyBuildSuccess(emptyList())
+							is BuildCancelledException -> throw failure
+							else -> notifyBuildFailure(emptyList())
+						}
 					}
-
-					stopWatch.lapFromLast("Project read successful")
 				}
 
 				stopWatch.log()
-
-				this.isInitialized = true
-				notifyBuildSuccess(emptyList())
 				return@runBuild InitializeResult.Success(cacheFile)
 			} catch (err: Throwable) {
 				log.error("Failed to initialize project", err)
