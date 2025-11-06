@@ -1,6 +1,7 @@
 package com.itsaky.androidide.utils
 
 import android.util.Log
+import io.sentry.Sentry
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.IOException
@@ -9,42 +10,38 @@ object FileDeleteUtils {
     private const val TAG = "FileDeleteUtils"
 
 
-    fun deleteRecursive(
-        fileOrDirectory: File,
-        onDeleted: (success: Boolean) -> Unit = {}
-    ) {
+    suspend fun deleteRecursive(fileOrDirectory: File): Boolean = withContext(Dispatchers.IO) {
         val hiddenFile = File(
             fileOrDirectory.parentFile,
             ".${fileOrDirectory.name}"
         )
+        var backupCreated = false
 
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-;                if (fileOrDirectory.isDirectory) {
-                    fileOrDirectory.copyRecursively(hiddenFile, overwrite = false)
-                } else {
-                    fileOrDirectory.copyTo(hiddenFile, overwrite = false)
-                    Log.d(TAG, "File copy complete")
-                }
-            } catch (t: Throwable) {
-                Log.e(TAG, "Backup creation failed: ${t.message}", t)
+        try {
+            if (fileOrDirectory.isDirectory) {
+                fileOrDirectory.copyRecursively(hiddenFile, overwrite = false)
+            } else {
+                fileOrDirectory.copyTo(hiddenFile, overwrite = false)
             }
+            backupCreated = true
+            Log.d(TAG, "Backup created: ${hiddenFile.absolutePath}")
+        } catch (t: Throwable) {
+            Log.e(TAG, "Backup creation failed: ${t.message}", t)
+            Sentry.captureException(t)
+        }
 
-            val deletedOriginal = deleteRecursively(fileOrDirectory)
+        val deletedOriginal = deleteRecursively(fileOrDirectory)
 
-            if (deletedOriginal && hiddenFile.exists()) {
-                val deletedBackup = deleteRecursively(hiddenFile)
-                if (deletedBackup) {
-                    Log.d(TAG, "Backup cleaned up: ${hiddenFile.absolutePath}")
-                } else {
-                    Log.w(TAG, "Original deleted but backup cleanup failed: ${hiddenFile.absolutePath}")
-                }
-            }
-
-            withContext(Dispatchers.Main) {
-                onDeleted(deletedOriginal)
+        if (backupCreated && hiddenFile.exists()) {
+            val deletedBackup = deleteRecursively(hiddenFile)
+            if (deletedBackup) {
+                Log.d(TAG, "Backup cleaned up: ${hiddenFile.absolutePath}")
+            } else {
+                Log.w(TAG, "Backup cleanup failed: ${hiddenFile.absolutePath}")
             }
         }
+
+        deletedOriginal
     }
 
     private fun deleteRecursively(file: File): Boolean {
@@ -69,12 +66,15 @@ object FileDeleteUtils {
 
         } catch (e: SecurityException) {
             Log.e(TAG, "SecurityException deleting ${file.absolutePath}: ${e.message}", e)
+            Sentry.captureException(e)
             return false
         } catch (e: IOException) {
             Log.e(TAG, "IOException deleting ${file.absolutePath}: ${e.message}", e)
+            Sentry.captureException(e)
             return false
         } catch (t: Throwable) {
             Log.e(TAG, "Unexpected error deleting ${file.absolutePath}: ${t.message}", t)
+            Sentry.captureException(t)
             return false
         }
     }

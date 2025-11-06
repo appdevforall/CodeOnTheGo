@@ -325,10 +325,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     internal fun deleteProject(root: File) {
         ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-        try {
-            FileDeleteUtils.deleteRecursive(root)
-        } catch (e: Exception) {
-            flashInfo(string.msg_delete_existing_project_failed)
+        lifecycleScope.launch {
+            val success = runCatching {
+                FileDeleteUtils.deleteRecursive(root)
+            }.getOrDefault(false)
+
+            if (!success) {
+                withContext(Dispatchers.Main) {
+                    flashInfo(string.msg_delete_existing_project_failed)
+                }
+            }
         }
     }
 
