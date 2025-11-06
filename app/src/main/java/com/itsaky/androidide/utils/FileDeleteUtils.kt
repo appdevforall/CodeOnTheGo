@@ -20,18 +20,26 @@ object FileDeleteUtils {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-
-                if (fileOrDirectory.isDirectory) {
-                    val copied = fileOrDirectory.copyRecursively(hiddenFile, overwrite = false)
+;                if (fileOrDirectory.isDirectory) {
+                    fileOrDirectory.copyRecursively(hiddenFile, overwrite = false)
                 } else {
                     fileOrDirectory.copyTo(hiddenFile, overwrite = false)
                     Log.d(TAG, "File copy complete")
                 }
             } catch (t: Throwable) {
-                Log.e(TAG, "Copy failed: ${t.message}", t)
+                Log.e(TAG, "Backup creation failed: ${t.message}", t)
             }
 
             val deletedOriginal = deleteRecursively(fileOrDirectory)
+
+            if (deletedOriginal && hiddenFile.exists()) {
+                val deletedBackup = deleteRecursively(hiddenFile)
+                if (deletedBackup) {
+                    Log.d(TAG, "Backup cleaned up: ${hiddenFile.absolutePath}")
+                } else {
+                    Log.w(TAG, "Original deleted but backup cleanup failed: ${hiddenFile.absolutePath}")
+                }
+            }
 
             withContext(Dispatchers.Main) {
                 onDeleted(deletedOriginal)
@@ -45,23 +53,29 @@ object FileDeleteUtils {
                 val children = file.listFiles()
                 if (children != null) {
                     for (child in children) {
-                        deleteRecursively(child)
+                        if (!deleteRecursively(child)) {
+                            Log.w(TAG, "Failed to delete: ${child.absolutePath}")
+                            return false
+                        }
                     }
                 }
             }
 
-            val deleted = file.delete()
-            return deleted || !file.exists()
+            return file.delete().also { deleted ->
+                if (!deleted) {
+                    Log.e(TAG, "Failed to delete: ${file.absolutePath}")
+                }
+            }
 
         } catch (e: SecurityException) {
             Log.e(TAG, "SecurityException deleting ${file.absolutePath}: ${e.message}", e)
-            return !file.exists()
+            return false
         } catch (e: IOException) {
             Log.e(TAG, "IOException deleting ${file.absolutePath}: ${e.message}", e)
-            return !file.exists()
+            return false
         } catch (t: Throwable) {
             Log.e(TAG, "Unexpected error deleting ${file.absolutePath}: ${t.message}", t)
-            return !file.exists()
+            return false
         }
     }
 }
