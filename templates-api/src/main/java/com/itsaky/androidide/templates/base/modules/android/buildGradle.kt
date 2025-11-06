@@ -146,7 +146,7 @@ import java.util.Properties
 import java.io.FileInputStream
 
 plugins {
-    id '${androidPlugin}' version "$ANDROID_GRADLE_PLUGIN_VERSION"
+    id '${androidPlugin}'
     ${ktPlugin(isComposeModule)}
 }
 
