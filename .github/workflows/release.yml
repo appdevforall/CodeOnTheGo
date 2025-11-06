@@ -29,6 +29,8 @@ env:
   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  LAMBDA_USERNAME: ${{ secrets.LAMBDA_USERNAME }}
+  LAMBDA_API_KEY: ${{ secrets.LAMBDA_API_KEY }}
 
 jobs:
   build_apk:
@@ -226,6 +228,42 @@ jobs:
             exit 1
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
+
+      - name: Upload APK to LambdaTest
+        id: lambdatest_upload
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+        run: |
+          echo "Uploading APK to LambdaTest..."
+          echo "APK Path: $APK_PATH"
+
+          # Upload APK to LambdaTest using curl
+          response=$(curl -s -u "${{ env.LAMBDA_USERNAME }}:${{ env.LAMBDA_API_KEY }}" \
+            --location --request POST 'https://manual-api.lambdatest.com/app/upload/virtualDevice' \
+            --form 'name="ADFA_Android_IDE_Release"' \
+            --form "appFile=@\"$APK_PATH\"")
+
+          echo "LambdaTest Upload Response: $response"
+
+          # Extract app URL from response (format: lt://APP123456789123456789)
+          APP_URL=$(echo "$response" | grep -oP '"app_url"\s*:\s*"\K[^"]+' || echo "$response" | grep -oP '"url"\s*:\s*"\K[^"]+' || echo "")
+
+          if [ -z "$APP_URL" ]; then
+            echo "Warning: Could not extract app URL from response"
+            echo "Full response: $response"
+          else
+            echo "App uploaded successfully to LambdaTest"
+            echo "App URL: $APP_URL"
+            echo "LAMBDATEST_APP_URL=$APP_URL" >> $GITHUB_OUTPUT
+          fi
+
+          # Check if upload was successful
+          if echo "$response" | grep -q '"status"\s*:\s*"success"' || [ -n "$APP_URL" ]; then
+            echo "LambdaTest upload completed successfully"
+          else
+            echo "Warning: LambdaTest upload may have failed, but continuing workflow"
+            echo "Response: $response"
+          fi
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
