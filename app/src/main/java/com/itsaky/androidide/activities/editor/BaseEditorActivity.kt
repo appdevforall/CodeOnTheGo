@@ -366,6 +366,8 @@ abstract class BaseEditorActivity :
     private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
     private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
+	private var editorAppBarInsetTop: Int = 0
+
     companion object {
 
         private const val TAG = "ResizePanelDebugger"
@@ -483,6 +485,7 @@ abstract class BaseEditorActivity :
 
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
+		editorAppBarInsetTop = insets.top
 		this._binding?.apply {
 			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
 				?.onApplyWindowInsets(insets)
@@ -671,6 +674,12 @@ abstract class BaseEditorActivity :
                     verticalGuideline?.setGuidelinePercent(percent)
 
                     findViewById<View>(R.id.editor_root_container).requestLayout()
+
+                    content.apply {
+                        editorAppBarLayout.updatePadding(
+                            top = editorAppBarInsetTop
+                        )
+                    }
                 }
 
                 MotionEvent.ACTION_UP -> {
