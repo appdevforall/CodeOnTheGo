@@ -35,6 +35,10 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.activities.editor.HelpActivity
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -76,6 +80,7 @@ class EditorActivity : BaseActivity() {
 
     private lateinit var projectManager: ProjectManager
     private lateinit var project: ProjectFile
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
     private var undoRedo: UndoRedoManager? = null
     private var fileCreator: FileCreator? = null
@@ -126,7 +131,7 @@ class EditorActivity : BaseActivity() {
         defineXmlPicker()
         setupDrawerLayout()
         setupStructureView()
-
+        setupFeedbackButton()
         setupDrawerNavigationRail()
         setToolbarButtonOnClickListener(binding)
 
@@ -152,7 +157,6 @@ class EditorActivity : BaseActivity() {
                 this
             )
         )
-
     }
 
     private fun defineXmlPicker() {
@@ -280,7 +284,7 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun showTooltip(context: Context, anchorView: View, tag: String) {
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = context,
             anchorView = anchorView,
             tag = tag,
@@ -377,8 +381,13 @@ class EditorActivity : BaseActivity() {
         }
 
         helpFab.setOnClickListener {
-            Toast.makeText(this, "Go to Help", Toast.LENGTH_SHORT).show()
-            // TODO - Load help page in [HelpActivity]
+            val intent =
+                Intent(this, HelpActivity::class.java).apply {
+                    putExtra(CONTENT_KEY, getString(R.string.layout_editor_url))
+                    putExtra(CONTENT_TITLE_KEY,
+                        getString(R.string.back_to_cogo))
+                }
+            this.startActivity(intent)
         }
         clear()
     }
@@ -545,6 +554,7 @@ class EditorActivity : BaseActivity() {
             DrawableManager.loadFromFiles(it)
         }
         if (undoRedo != null) undoRedo!!.updateButtons()
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onDestroy() {
@@ -557,6 +567,7 @@ class EditorActivity : BaseActivity() {
         if (result.isEmpty()) {
             showNothingDialog()
         } else {
+            saveXml()
             finish()
         }
     }
@@ -917,6 +928,11 @@ class EditorActivity : BaseActivity() {
             }
             .setCancelable(false)
             .show()
+    }
+
+    private fun setupFeedbackButton(){
+        feedbackButtonManager = FeedbackButtonManager(this, binding.fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
     }
 
     companion object {

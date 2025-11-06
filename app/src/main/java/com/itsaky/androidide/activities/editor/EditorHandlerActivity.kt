@@ -68,7 +68,6 @@ import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -175,12 +174,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         }
 
         executeAsync {
-            TSLanguageRegistry.instance.register(JavaLanguage.TS_TYPE, JavaLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(KotlinLanguage.TS_TYPE_KT, KotlinLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(KotlinLanguage.TS_TYPE_KTS, KotlinLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
-            TSLanguageRegistry.instance.register(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(JavaLanguage.TS_TYPE, JavaLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(KotlinLanguage.TS_TYPE_KT, KotlinLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(KotlinLanguage.TS_TYPE_KTS, KotlinLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
+            TSLanguageRegistry.instance.registerIfNeeded(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
             IDEColorSchemeProvider.initIfNeeded()
         }
 
@@ -318,7 +317,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                 hint = action.label,
                 onClick = { if (action.enabled) registry.executeAction(action, data) },
                 onLongClick = {
-                    TooltipManager.showTooltip(
+                    TooltipManager.showIdeCategoryTooltip(
                         context = this,
                         anchorView = content.customToolbar,
                         tag = action.retrieveTooltipTag(false),
@@ -866,7 +865,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                     tab.icon = ResourcesCompat.getDrawable(resources, iconId, theme)
                     tab.text = name
                     tab.view.setOnLongClickListener {
-                        TooltipManager.showTooltip(
+                        TooltipManager.showIdeCategoryTooltip(
                             context = this@EditorHandlerActivity,
                             anchorView = tab.view,
                             tag = TooltipTag.PROJECT_FILENAME,

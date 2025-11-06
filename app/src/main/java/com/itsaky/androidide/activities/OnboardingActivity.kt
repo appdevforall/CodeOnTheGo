@@ -21,31 +21,36 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.util.TypedValue
+import android.view.View
+import android.view.ViewTreeObserver
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
-import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.fragments.onboarding.GreetingFragment
-import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
+import com.itsaky.androidide.fragments.onboarding.PermissionsInfoFragment
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.resolveAttr
-import com.itsaky.androidide.utils.withStopWatch
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -63,6 +68,8 @@ class OnboardingActivity : AppIntro2() {
 		CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
 
 	private var listJdkInstallationsJob: Job? = null
+    private lateinit var feedbackButton: FloatingActionButton
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
@@ -104,10 +111,12 @@ class OnboardingActivity : AppIntro2() {
 		setTransformer(AppIntroPageTransformerType.Fade)
 		setProgressIndicator()
 		showStatusBar(true)
+        setupFeedbackButton()
 		isIndicatorEnabled = true
 		isWizardMode = true
 
 		addSlide(GreetingFragment())
+		addSlide(PermissionsInfoFragment())
 
 		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
 			val errorMessage =
@@ -153,14 +162,52 @@ class OnboardingActivity : AppIntro2() {
 			return
 		}
 
-		if (!PermissionsFragment.areAllPermissionsGranted(this)) {
+		if (!PermissionsHelper.areAllPermissionsGranted(this) || !checkToolsIsInstalled()) {
 			addSlide(PermissionsFragment.newInstance(this))
 		}
-
-		if (!checkToolsIsInstalled()) {
-			addSlide(IdeSetupConfigurationFragment.newInstance(this))
-		}
 	}
+
+    private fun setupFeedbackButton() {
+        val contentRootView = findViewById<View>(android.R.id.content)
+        contentRootView.viewTreeObserver.addOnGlobalLayoutListener(object :
+            ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                contentRootView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+
+                val appIntroContainer: ConstraintLayout? = findViewById(R.id.background)
+                if (appIntroContainer != null) {
+                    feedbackButton = FloatingActionButton(this@OnboardingActivity).apply {
+                        id = R.id.fab_feedback
+                        setImageResource(R.drawable.baseline_feedback_64)
+                        contentDescription = getString(string.send_feedback)
+                        val layoutParams = ConstraintLayout.LayoutParams(
+                            ConstraintLayout.LayoutParams.WRAP_CONTENT,
+                            ConstraintLayout.LayoutParams.WRAP_CONTENT
+                        )
+
+                        layoutParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                        layoutParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                        val marginInPx = TypedValue.applyDimension(
+                            TypedValue.COMPLEX_UNIT_DIP,
+                            16f,
+                            resources.displayMetrics
+                        ).toInt()
+                        layoutParams.setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
+                        this.layoutParams = layoutParams
+                    }
+
+                    appIntroContainer.addView(feedbackButton)
+                    feedbackButtonManager = FeedbackButtonManager(
+                        activity = this@OnboardingActivity,
+                        feedbackFab = feedbackButton
+                    )
+                    feedbackButtonManager?.setupDraggableFab()
+                } else {
+                    logger.error("Could not find AppIntro2 container to add FAB.")
+                }
+            }
+        })
+    }
 
 	override fun onResume() {
 		super.onResume()
@@ -182,33 +229,23 @@ class OnboardingActivity : AppIntro2() {
 			return
 		}
 
-		if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
-			activityScope.launch {
-				doAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
-					runOnUiThread {
-						flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
-					}
-
-					val result =
-						withStopWatch("Assets installation") {
-							AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
-								logger.debug("Assets installation progress: {}", progress.message)
-							}
-						}
-
-					logger.info("Assets installation result: {}", result)
-
-					withContext(Dispatchers.Main) {
-						reloadJdkDistInfo {
-							tryNavigateToMainIfSetupIsCompleted()
-						}
-					}
-				}
-			}
-			return
-		}
-
 		tryNavigateToMainIfSetupIsCompleted()
+	}
+
+	override fun onPageSelected(position: Int) {
+		super.onPageSelected(position)
+
+		// Get the fragment at the current position
+		val fragment = supportFragmentManager.fragments.getOrNull(position)
+
+		// Hide indicator and buttons when on PermissionsFragment
+		if (fragment is PermissionsFragment) {
+			isIndicatorEnabled = false
+			isButtonsEnabled = false
+		} else {
+			isIndicatorEnabled = true
+			isButtonsEnabled = true
+		}
 	}
 
 	private fun checkToolsIsInstalled(): Boolean =
@@ -217,9 +254,9 @@ class OnboardingActivity : AppIntro2() {
 
 	private fun isSetupCompleted(): Boolean =
 		checkToolsIsInstalled() &&
-			PermissionsFragment.areAllPermissionsGranted(this)
+				PermissionsHelper.areAllPermissionsGranted(this)
 
-	private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
+	internal fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
 		if (isSetupCompleted()) {
 			startActivity(Intent(this, MainActivity::class.java))
 			finish()

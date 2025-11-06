@@ -2,14 +2,13 @@ package org.appdevforall.codeonthego.layouteditor
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import com.google.android.material.elevation.SurfaceColors
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.isSystemInDarkMode
 import java.lang.ref.WeakReference
 
 open class BaseActivity : AppCompatActivity() {
@@ -21,26 +20,19 @@ open class BaseActivity : AppCompatActivity() {
     super.onCreate(savedInstanceState)
     instance = this
     ctx = WeakReference(this)
-    Thread.setDefaultUncaughtExceptionHandler(CrashHandler(ctx))
     app = LayoutEditor.instance
     window.statusBarColor = SurfaceColors.SURFACE_0.getColor(this)
     OrientationUtilities.setOrientation {
       requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     }
+
+      // Set status bar icons to be dark in light mode and light in dark mode
+      WindowCompat.getInsetsController(this.window, this.window.decorView).apply {
+          isAppearanceLightStatusBars = !isSystemInDarkMode()
+          isAppearanceLightNavigationBars = !isSystemInDarkMode()
+      }
   }
 
-  fun openUrl(url: String) {
-    try {
-      Intent(Intent.ACTION_VIEW).apply {
-        data = Uri.parse(url)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(this)
-      }
-    } catch (th: Throwable) {
-      Toast.makeText(this, th.message, Toast.LENGTH_SHORT).show()
-      th.printStackTrace()
-    }
-  }
 
   override fun onDestroy() {
     ctx.clear()

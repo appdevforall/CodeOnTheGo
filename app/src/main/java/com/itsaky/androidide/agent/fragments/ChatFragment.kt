@@ -1,6 +1,5 @@
 package com.itsaky.androidide.agent.fragments
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -8,27 +7,30 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import android.widget.ArrayAdapter
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.Observer
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
+import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter.DiffCallback.ACTION_EDIT
+import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.ChatSession
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
-import com.itsaky.androidide.models.AgentState
-import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.utils.flashInfo
 import io.noties.markwon.Markwon
 import io.noties.markwon.linkify.LinkifyPlugin
@@ -37,8 +39,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
@@ -68,6 +68,7 @@ class ChatFragment :
     private val selectedImageUris = mutableListOf<Uri>()
     private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
     private lateinit var markwon: Markwon
+    private var lastRenderedMessages: List<ChatMessage> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,8 +87,8 @@ class ChatFragment :
 
     override fun onResume() {
         super.onResume()
-        // Attach the listener to the top-level window view
         activity?.window?.decorView?.setOnApplyWindowInsetsListener(insetsListener)
+        chatViewModel.checkBackendStatusOnResume(requireContext())
     }
 
     override fun onFragmentLongPressed() {
@@ -106,15 +107,27 @@ class ChatFragment :
         setupUI()
         setupListeners()
         setupStateObservers()
-        chatViewModel.currentSession.observe(viewLifecycleOwner, Observer { session ->
-            session?.let {
-                chatAdapter.submitList(it.messages.toList())
-                updateUIState(it.messages)
-                binding.chatRecyclerView.post {
-                    binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+
+        chatViewModel.backendStatus.observe(viewLifecycleOwner) { status ->
+            binding.backendStatusText.text = status.displayText
+        }
+        chatViewModel.currentSession.observe(viewLifecycleOwner) { session ->
+            updateToolbarForSession(session)
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                chatViewModel.chatMessages.collect { messages ->
+                    lastRenderedMessages = messages
+                    chatAdapter.submitList(messages)
+                    updateUIState(messages)
+                    updateToolbarForMessages(messages)
+                    if (messages.isNotEmpty()) {
+                        binding.chatRecyclerView.scrollToPosition(messages.size - 1)
+                    }
                 }
             }
-        })
+        }
         parentFragmentManager.setFragmentResultListener(
             "chat_history_request",
             viewLifecycleOwner
@@ -144,7 +157,7 @@ class ChatFragment :
 
         viewLifecycleOwner.lifecycleScope.launch {
             if (selectedContext.isEmpty()) {
-                chatViewModel.sendMessage(inputText, requireContext())
+                chatViewModel.sendMessage(inputText, inputText, requireContext())
             } else {
                 val masterPrompt = buildMasterPrompt(inputText)
                 chatViewModel.sendMessage(
@@ -199,15 +212,14 @@ class ChatFragment :
         binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true
         }
-        val modes = arrayOf("Agent", "Ask", "Manual")
-        val adapter =
-            ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, modes)
-        binding.agentModeAutocomplete.setAdapter(adapter)
     }
 
     private fun setupListeners() {
         binding.promptInputEdittext.doAfterTextChanged { text ->
-            binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
+            val currentState = chatViewModel.agentState.value
+            if (currentState !is AgentState.Processing && currentState !is AgentState.Cancelling) {
+                binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
+            }
         }
         binding.btnSendPrompt.setOnClickListener {
             handleSendMessage()
@@ -262,10 +274,8 @@ class ChatFragment :
         }
     }
 
-    @SuppressLint("SetTextI18n")
     private fun setupStateObservers() {
         viewLifecycleOwner.lifecycleScope.launch {
-            // Combine all three state flows. This block will run if any of them emit a new value.
             chatViewModel.agentState.combine(chatViewModel.stepElapsedTime) { state, stepTime ->
                 state to stepTime
             }.combine(chatViewModel.totalElapsedTime) { (state, stepTime), totalTime ->
@@ -274,49 +284,114 @@ class ChatFragment :
                 when (state) {
                     is AgentState.Idle -> {
                         binding.agentStatusContainer.isVisible = false
-                        binding.promptInputLayout.isEnabled = true
-                        binding.btnSendPrompt.visibility = View.VISIBLE
-                        binding.btnStopGeneration.visibility = View.GONE
+
+                        binding.btnStopGeneration.isVisible = false
+                        binding.btnSendPrompt.isVisible = true
+
+                        binding.btnSendPrompt.isEnabled =
+                            binding.promptInputEdittext.text?.isNotBlank() == true
                     }
 
                     is AgentState.Processing -> {
-                        val timeString = "(${formatTime(stepTime)} of ${formatTime(totalTime)})"
+                        val stepTimeFormatted = chatViewModel.formatTime(stepTime)
+                        val totalTimeFormatted = chatViewModel.formatTime(totalTime)
+                        val timeString = "($stepTimeFormatted of $totalTimeFormatted)"
+
                         binding.agentStatusMessage.text = state.message
                         binding.agentStatusTimer.text = timeString
+                        binding.agentStatusTimer.isVisible = true
                         binding.agentStatusContainer.isVisible = true
 
-                        binding.promptInputLayout.isEnabled = false
-                        binding.btnSendPrompt.visibility = View.GONE
-                        binding.btnStopGeneration.visibility = View.VISIBLE
+                        binding.btnStopGeneration.isVisible = true
+                        binding.btnSendPrompt.isVisible = false
+
+                        binding.btnStopGeneration.isEnabled = true
+                    }
+
+                    is AgentState.Cancelling -> {
+                        binding.agentStatusMessage.text = "Stopping..."
+                        binding.agentStatusTimer.isVisible = false
+                        binding.agentStatusContainer.isVisible = true
+
+                        binding.btnStopGeneration.isVisible = true
+                        binding.btnSendPrompt.isVisible = false
+
+                        binding.btnStopGeneration.isEnabled = false
+                    }
+
+                    is AgentState.Error -> {
+                        binding.agentStatusMessage.text = state.message
+                        binding.agentStatusTimer.isVisible = false
+                        binding.agentStatusContainer.isVisible = true
+
+                        binding.btnStopGeneration.isVisible = false
+                        binding.btnSendPrompt.isVisible = true
+
+                        binding.btnSendPrompt.isEnabled =
+                            binding.promptInputEdittext.text?.isNotBlank() == true
                     }
                 }
             }
         }
     }
 
-    /**
-     * Formats milliseconds into a string like "1m 2.3s" or "5.4s".
-     */
-    private fun formatTime(millis: Long): String {
-        if (millis < 0) return ""
-
-        val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
-        val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.MINUTES.toSeconds(minutes)
-        val remainingMillis = millis % 1000
-
-        val totalSeconds = seconds + (remainingMillis / 1000.0)
-
-        return if (minutes > 0) {
-            String.format(Locale.US, "%dm %.1fs", minutes, totalSeconds)
-        } else {
-            String.format(Locale.US, "%.1fs", totalSeconds)
-        }
-    }
-
     private fun updateUIState(messages: List<ChatMessage>) {
         val hasMessages = messages.isNotEmpty()
         binding.emptyChatView.isVisible = !hasMessages
+        if (!hasMessages) {
+            val sessionTitle = chatViewModel.currentSession.value?.title
+            binding.emptyChatView.text =
+                sessionTitle?.takeIf { it.isNotBlank() } ?: getString(R.string.new_chat)
+        }
         binding.chatRecyclerView.isVisible = hasMessages
+    }
+
+    private fun updateToolbarForSession(session: ChatSession?) {
+        updateToolbar(
+            sessionTitle = session?.title,
+            messages = lastRenderedMessages
+        )
+    }
+
+    private fun updateToolbarForMessages(messages: List<ChatMessage>) {
+        updateToolbar(
+            sessionTitle = chatViewModel.currentSession.value?.title,
+            messages = messages
+        )
+    }
+
+    private fun updateToolbar(sessionTitle: String?, messages: List<ChatMessage>) {
+        val title = when {
+            messages.isNotEmpty() -> {
+                val firstUserMessage = messages.firstOrNull { it.sender == Sender.USER }?.text
+                val fallback = firstUserMessage ?: messages.first().text
+                formatChatTitle(fallback)
+            }
+
+            !sessionTitle.isNullOrBlank() -> formatChatTitle(sessionTitle)
+
+            else -> getString(R.string.new_chat)
+        }
+        binding.chatToolbar.title = title
+
+        val menuItem = binding.chatToolbar.menu.findItem(R.id.menu_new_chat)
+        val isNewChatDisplayed = messages.isEmpty()
+        menuItem?.isEnabled = !isNewChatDisplayed
+        val alpha = if (!isNewChatDisplayed) 255 else (255 * 0.4f).toInt()
+        menuItem?.icon?.mutate()?.alpha = alpha
+    }
+
+    private fun formatChatTitle(rawTitle: String?): String {
+        if (rawTitle.isNullOrBlank()) {
+            return getString(R.string.new_chat)
+        }
+        val trimmed = rawTitle.trim()
+        val maxLength = 48
+        return if (trimmed.length <= maxLength) {
+            trimmed
+        } else {
+            trimmed.take(maxLength - 3).trimEnd() + "..."
+        }
     }
 
 
@@ -357,7 +432,7 @@ class ChatFragment :
 
     private fun handleMessageAction(action: String, message: ChatMessage) {
         when (action) {
-            ChatAdapter.ACTION_EDIT -> {
+            ACTION_EDIT -> {
                 // Set the selected message's text into the input field
                 binding.promptInputEdittext.setText(message.text)
 
@@ -369,6 +444,10 @@ class ChatFragment :
                 val imm =
                     context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                 imm?.showSoftInput(binding.promptInputEdittext, InputMethodManager.SHOW_IMPLICIT)
+            }
+
+            ChatAdapter.DiffCallback.ACTION_OPEN_SETTINGS -> {
+                findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
             }
         }
     }

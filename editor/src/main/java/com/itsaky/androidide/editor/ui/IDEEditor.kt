@@ -419,6 +419,12 @@ constructor(
         if (actionsMenu?.isShowing == true) {
             actionsMenu?.dismiss()
         }
+
+        // Dismiss autocomplete window if showing
+        val completion = getComponent(EditorAutoCompletion::class.java)
+        if (completion.isShowing) {
+            completion.hide()
+        }
     }
 
     // not overridable!
@@ -616,7 +622,6 @@ constructor(
      * Dispatches the [DocumentSaveEvent] for this editor.
      */
     open fun dispatchDocumentSaveEvent() {
-        markUnmodified()
         if (isReleased) {
             return
         }
@@ -800,6 +805,7 @@ constructor(
             editorScope.launch {
                 dispatchDocumentChangeEvent(event)
                 checkForSignatureHelp(event)
+				handleCustomTextReplacement(event)
             }
         }
 
@@ -823,20 +829,6 @@ constructor(
             subscribeEvent(LongPressEvent::class.java) { event, _ ->
                 EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
                 event.intercept()
-            }
-        }
-        subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
-            if (isReleased) {
-                return@subscribeEvent
-            }
-
-            markModified()
-            file ?: return@subscribeEvent
-
-            editorScope.launch {
-                dispatchDocumentChangeEvent(event)
-                checkForSignatureHelp(event)
-                handleCustomTextReplacement(event)
             }
         }
     }

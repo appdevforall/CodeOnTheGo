@@ -29,6 +29,7 @@ import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.AgentSidebarAction
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.GitSidebarAction
+import com.itsaky.androidide.activities.editor.AgentPanelController
 import com.itsaky.androidide.agent.fragments.RightEditorSidebarFragment
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
@@ -51,15 +52,17 @@ internal object RightEditorSidebarActions {
     @JvmStatic
     fun setup(sidebarFragment: RightEditorSidebarFragment) {
         val binding = sidebarFragment.getBinding() ?: return
-        val controller = binding.fragmentContainer.getFragment<NavHostFragment>().navController
+        val controller = binding.rightEditorFragmentContainer.getFragment<NavHostFragment>().navController
         val context = sidebarFragment.requireContext()
         val rail = binding.navigation
-
+        val activity = sidebarFragment.activity
         val registry = ActionsRegistry.getInstance()
         val actions = registry.getActions(ActionItem.Location.EDITOR_RIGHT_SIDEBAR)
         if (actions.isEmpty()) {
             return
         }
+        // Get the controller interface from the activity
+        val agentPanelController = if (activity is AgentPanelController) activity else null
 
         rail.background = (rail.background as MaterialShapeDrawable).apply {
             shapeAppearanceModel = shapeAppearanceModel.roundedOnLeft()
@@ -76,11 +79,13 @@ internal object RightEditorSidebarActions {
         ) { actionsRegistry, action, item, actionsData ->
             action as SidebarActionItem
 
+
             if (action.fragmentClass == null) {
                 (actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
                 return@FillMenuParams true
             }
 
+            // This logic will now apply to the Agent Action as well, which is correct.
             return@FillMenuParams try {
                 controller.navigate(action.id, navOptions {
                     launchSingleTop = true

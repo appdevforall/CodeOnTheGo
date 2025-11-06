@@ -100,7 +100,7 @@ constructor(
         val docs = MainScreenAction(
             ACTION_DOCS,
             R.string.btn_docs,
-            R.drawable.ic_docs
+            R.drawable.ic_action_help_outlined
         )
 
         private val allActions: List<MainScreenAction> = listOf(

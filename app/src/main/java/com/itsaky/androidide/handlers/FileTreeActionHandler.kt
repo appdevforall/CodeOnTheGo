@@ -69,7 +69,8 @@ class FileTreeActionHandler : BaseEventHandler() {
     }
 
     val context = event[Context::class.java]!! as EditorHandlerActivity
-    context.binding.root.closeDrawer(GravityCompat.START)
+    context.binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+//    context.binding.root.closeDrawer(GravityCompat.START)
     if (event.file.name.endsWith(".apk")) {
       context.apkInstallationViewModel.installApk(
 		  context = context,
@@ -168,7 +169,7 @@ class FileTreeActionHandler : BaseEventHandler() {
     tag.isNotEmpty() || return
     val activity = event[Context::class.java] as? EditorHandlerActivity
     activity?.let { act ->
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = act,
             anchorView = act.window.decorView,
             tag = tag,

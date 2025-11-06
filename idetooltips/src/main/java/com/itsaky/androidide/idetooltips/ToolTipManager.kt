@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AnimationUtils
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
@@ -22,6 +23,7 @@ import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeedbackManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -141,36 +143,15 @@ object TooltipManager {
         }
     }
 
-    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
-    fun showTooltip(context: Context, anchorView: View, tag: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = getTooltip(
-                context,
-                TooltipCategory.CATEGORY_IDE,
-                tag,
-            )
-            if (tooltipItem != null) {
-                showIDETooltip(
-                    context = context,
-                    anchorView = anchorView,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
-                                if (context !is android.app.Activity) {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            }
-                        context.startActivity(intent)
-                    }
-                )
-            } else {
-                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
-            }
-        }
+    // Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
+    // (An Activity, Fragment, Dialog etc)
+    fun showIdeCategoryTooltip(context: Context, anchorView: View, tag: String) {
+        showTooltip(
+            context = context,
+            anchorView = anchorView,
+            category = TooltipCategory.CATEGORY_IDE,
+            tag = tag
+        )
     }
 
     // Displays a tooltip in a particular context with a specific category
@@ -182,7 +163,7 @@ object TooltipManager {
                 tag,
             )
             if (tooltipItem != null) {
-                showIDETooltip(
+                showTooltipPopup(
                     context = context,
                     anchorView = anchorView,
                     level = 0,
@@ -191,7 +172,7 @@ object TooltipManager {
                         val intent =
                             Intent(context, HelpActivity::class.java).apply {
                                 putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
+                                putExtra(CONTENT_TITLE_KEY, context.getString(R.string.back_to_cogo))
                                 if (context !is android.app.Activity) {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
@@ -208,7 +189,7 @@ object TooltipManager {
     /**
      * Shows a tooltip anchored to a generic view.
      */
-    fun showIDETooltip(
+    private fun showTooltipPopup(
         context: Context,
         anchorView: View,
         level: Int,
@@ -226,14 +207,14 @@ object TooltipManager {
             },
             onSeeMoreClicked = { popupWindow, nextLevel, item ->
                 popupWindow.dismiss()
-                showIDETooltip(context, anchorView, nextLevel, item, onHelpLinkClicked)
+                showTooltipPopup(context, anchorView, nextLevel, item, onHelpLinkClicked)
             }
         )
     }
 
     /**
      * Internal helper function to create, configure, and show the tooltip PopupWindow.
-     * Contains the logic common to both showIDETooltip and showEditorTooltip.
+     * Contains the logic common to both showTooltipPopup and showEditorTooltip.
      */
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupAndShowTooltipPopup(
@@ -337,9 +318,18 @@ object TooltipManager {
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
         popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+
         val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
         infoButton.setOnClickListener {
             onInfoButtonClicked(context, popupWindow, tooltipItem)
+        }
+
+        val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
+        val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
+        feedbackButton.startAnimation(pulseAnimation)
+
+        feedbackButton.setOnClickListener {
+            onFeedbackButtonClicked(context, popupWindow, tooltipItem)
         }
     }
 
@@ -377,6 +367,45 @@ object TooltipManager {
             }
             .setCancelable(true) // Allow dismissing by tapping outside
             .show()
+    }
+
+    private fun onFeedbackButtonClicked(
+        context: Context,
+        popupWindow: PopupWindow,
+        tooltip: IDETooltipItem
+    ) {
+        popupWindow.dismiss()
+
+        val feedbackMetadata = buildTooltipFeedbackMetadata(tooltip)
+
+        FeedbackManager.sendTooltipFeedbackWithScreenshot(
+            context = context,
+            customSubject = "Tooltip Feedback - ${tooltip.tag}",
+            metadata = feedbackMetadata,
+            includeScreenshot = true,
+        )
+    }
+
+
+    private fun buildTooltipFeedbackMetadata(tooltip: IDETooltipItem): String {
+        return """
+            Please describe your feedback above this line.
+
+            --- Tooltip Information ---
+            Version: '${tooltip.lastChange}'
+            Row: ${tooltip.rowId}
+            ID: ${tooltip.id}
+            Category: '${tooltip.category}'
+            Tag: '${tooltip.tag}'
+
+            Summary: '${tooltip.summary}'
+            Detail: '${tooltip.detail}'
+
+            Buttons:
+            ${tooltip.buttons.joinToString("\n") { " - ${it.first}: ${it.second}" }}
+
+            ---
+        """.trimIndent()
     }
 
 }

@@ -185,8 +185,6 @@
   <string name="title_common">Общее</string>
   <string name="title_files_unsaved">Несохраненные файлы</string>
   <string name="msg_files_unsaved">Некоторые файлы не сохранены. Хотите сохранить их перед закрытием? Список несохраненных файлов: \n%s</string>
-  <string name="idepref_editor_autoSave_title">Сохранять файлы перед закрытием</string>
-  <string name="idepref_editor_autoSave_summary">Сохранение файлов перед закрытием - ЭКСПЕРЕМЕНТАЛЬНАЯ опция. Подразумевается, что вы будете сохранять файлы самостоятельно.</string>
   <string name="idepref_java_matchLower_summary">Если включено, при печати как строчным, так и верхним регистром, автодополнение будет предлагать классы, переменные и методы.</string>
   <string name="idepref_editor_ligatures_title">Лигатуры шрифтов</string>
   <string name="idepref_editor_ligatures_summary">Включить/выключить лигатуры шрифтов</string>

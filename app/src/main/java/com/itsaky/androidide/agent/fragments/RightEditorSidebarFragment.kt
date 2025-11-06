@@ -32,31 +32,31 @@ import com.itsaky.androidide.utils.RightEditorSidebarActions
  * @author Akash Yadav
  */
 class RightEditorSidebarFragment : FragmentWithBinding<FragmentRightEditorSidebarBinding>(
-  FragmentRightEditorSidebarBinding::inflate
+    FragmentRightEditorSidebarBinding::inflate
 ) {
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    if (!isExperimentsEnabled()) {
-      return
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        if (!isExperimentsEnabled()) {
+            return
+        }
+        RightEditorSidebarActions.setup(this)
     }
-    RightEditorSidebarActions.setup(this)
-  }
 
     fun setupTooltip(view: View, tooltipTag: String) {
-    (requireActivity() as? EditorHandlerActivity)?.let { activity ->
-      view.setOnLongClickListener { view ->
-          TooltipManager.showTooltip(
-              context = view.context,
-              anchorView = view,
-              tag = tooltipTag,
-          )
-        true
-      }
+        (requireActivity() as? EditorHandlerActivity)?.let { activity ->
+            view.setOnLongClickListener { view ->
+                TooltipManager.showIdeCategoryTooltip(
+                    context = view.context,
+                    anchorView = view,
+                    tag = tooltipTag,
+                )
+                true
+            }
+        }
     }
-  }
 
-  /**
-   * Get the (nullable) binding object for this fragment.
-   */
-  internal fun getBinding() = _binding
+    /**
+     * Get the (nullable) binding object for this fragment.
+     */
+    internal fun getBinding() = _binding
 }

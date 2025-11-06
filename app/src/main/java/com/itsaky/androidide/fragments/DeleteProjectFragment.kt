@@ -140,7 +140,7 @@ class DeleteProjectFragment : BaseFragment() {
         anchorView: View? = null
     ) {
         anchorView ?: return
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = requireContext(),
             anchorView = anchorView,
             tag = tag,
