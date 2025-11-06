@@ -675,10 +675,12 @@ abstract class BaseEditorActivity :
 
                     findViewById<View>(R.id.editor_root_container).requestLayout()
 
-                    content.apply {
-                        editorAppBarLayout.updatePadding(
-                            top = editorAppBarInsetTop
-                        )
+                    if (binding.contentCard.progress == 0f) {
+                        content.apply {
+                            editorAppBarLayout.updatePadding(
+                                top = editorAppBarInsetTop
+                            )
+                        }
                     }
                 }
 
