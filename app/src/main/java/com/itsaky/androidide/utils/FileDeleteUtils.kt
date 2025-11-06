@@ -16,50 +16,31 @@ object FileDeleteUtils {
             ".${fileOrDirectory.name}"
         )
 
-        if (hiddenFile.exists()) {
+        if (hiddenFile.exists() && !fileOrDirectory.exists()) {
+            Log.w(TAG, "Cleaning up previous failed deletion: ${hiddenFile.absolutePath}")
             deleteRecursively(hiddenFile)
-            Log.w(TAG, "Cleaned up stale backup: ${hiddenFile.absolutePath}")
         }
 
-        val backupCreated = runCatching {
-            if (fileOrDirectory.isDirectory) {
-                fileOrDirectory.copyRecursively(hiddenFile, overwrite = false)
-            } else {
-                fileOrDirectory.copyTo(hiddenFile, overwrite = false)
-            }
-        }.onFailure { t ->
-            Log.e(TAG, "Backup creation failed: ${t.message}", t)
-            Sentry.captureException(t)
-        }.isSuccess
-
-        if (!backupCreated) {
-            return@withContext false
-        }
-
-        val deletedOriginal = deleteRecursively(fileOrDirectory)
-
-        if (deletedOriginal) {
-            val deletedBackup = deleteRecursively(hiddenFile)
-            if (!deletedBackup) {
-                Log.w(TAG, "Backup cleanup failed: ${hiddenFile.absolutePath}")
-            }
-        } else {
-            runCatching {
-                if (hiddenFile.isDirectory) {
-                    hiddenFile.copyRecursively(fileOrDirectory, overwrite = true)
-                } else {
-                    hiddenFile.copyTo(fileOrDirectory, overwrite = true)
-                }
-                Log.i(TAG, "Restored backup after deletion failure: ${fileOrDirectory.absolutePath}")
+        if (fileOrDirectory.exists()) {
+            val renamed = runCatching {
+                fileOrDirectory.renameTo(hiddenFile)
             }.onFailure { t ->
-                Log.e(TAG, "Failed to restore backup: ${t.message}", t)
+                Log.e(TAG, "Failed to rename ${fileOrDirectory.absolutePath} to hidden: ${t.message}", t)
                 Sentry.captureException(t)
-            }.onSuccess {
-                deleteRecursively(hiddenFile)
+            }.getOrDefault(false)
+
+            if (!renamed) {
+                return@withContext false
             }
         }
 
-        deletedOriginal
+        val deleted = deleteRecursively(hiddenFile)
+
+        if (!deleted) {
+            Log.w(TAG, "Hidden directory remains after deletion failure: ${hiddenFile.absolutePath}")
+        }
+
+        deleted
     }
 
     private fun deleteRecursively(file: File): Boolean {
