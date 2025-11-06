@@ -19,5 +19,4 @@ done
 
 echo "[*] All ${HOOK_NAME} hooks passed"
 
-  # Add comment with formatting issue for testing
-
+# Add comment with formatting issue for testing
