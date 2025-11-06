@@ -376,9 +376,22 @@ object TerminalInstaller {
 
             logger.info("Running Termux bootstrap second stage.")
 
+            val bashPath = "${TERMUX_PREFIX_DIR_PATH}/bin/bash"
+            val bashFile = File(bashPath)
+
+            // Check if bash exists and is executable before trying to use it
+            if (!bashFile.exists() || !bashFile.canExecute()) {
+                val errorMsg = "FATAL: Bootstrap bash executable not found or not executable at $bashPath"
+                logger.error(errorMsg)
+                return InstallResult.Error.Interactive(
+                    title = context.getString(R.string.bootstrap_error_title),
+                    message = errorMsg
+                )
+            }
+
             val executionCommand = ExecutionCommand(
                 -1,
-                termuxBootstrapSecondStageFile,
+                "/system/bin/sh",
                 null,
                 null,
                 null,
