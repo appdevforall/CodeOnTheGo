@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation" tools:override="true">
-    <string name="app_name">Layout Editor</string>
+    <string name="app_name">Code on the Go</string>
     <string name="app_slogan">Create Awesome UI!</string>
     <string name="home">HOME</string>
     <string name="preference">PREFERENCES</string>
