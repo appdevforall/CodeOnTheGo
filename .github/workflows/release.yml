@@ -262,6 +262,29 @@ jobs:
 
           echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
 
+      - name: Compress documentation.db with Brotli
+        run: |
+          echo "Installing Brotli..."
+          sudo apt-get update && sudo apt-get install -y brotli
+
+          echo "Creating target directory..."
+          mkdir -p assets/release/common/database
+
+          echo "Compressing documentation.db with maximum compression..."
+          brotli -Z -o assets/release/common/database/documentation.db.br assets/documentation.db
+
+          if [ ! -f assets/release/common/database/documentation.db.br ]; then
+            echo "ERROR: Failed to create documentation.db.br"
+            exit 1
+          fi
+
+          ORIGINAL_SIZE=$(du -h assets/documentation.db | cut -f1)
+          COMPRESSED_SIZE=$(du -h assets/release/common/database/documentation.db.br | cut -f1)
+
+          echo "Successfully compressed documentation.db"
+          echo "Original size: $ORIGINAL_SIZE"
+          echo "Compressed size: $COMPRESSED_SIZE"
+
       - name: Assemble Release APK
         run: |
           flox activate -d flox/base -- ./gradlew :app:assembleV8Release --no-daemon \
