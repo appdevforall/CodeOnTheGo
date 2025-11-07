@@ -12,11 +12,13 @@ import android.view.animation.AnimationUtils
 import androidx.appcompat.app.AlertDialog
 import android.widget.PopupWindow
 import androidx.appcompat.widget.TooltipCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
-import com.blankj.utilcode.util.FileUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
+import kotlinx.coroutines.launch
 import com.itsaky.androidide.R
+import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
@@ -25,10 +27,10 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_RENAME
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
-import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import io.sentry.Sentry
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
 import java.io.File
@@ -211,11 +213,15 @@ class RecentProjectsAdapter(
             .setMessage(R.string.msg_delete_project)
             .setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
             .setPositiveButton(R.string.yes) { _, _ ->
-                onRemoveProjectClick(project)
-                executeAsync({ FileUtils.delete(project.path) }) {
-                    val deleted = it ?: false
-                    if (!deleted) {
-                        return@executeAsync
+                val mainActivity = context as? MainActivity
+                mainActivity?.lifecycleScope?.launch {
+                    val deleted = mainActivity.deleteProject(File(project.path))
+
+                    if (deleted) {
+                        onRemoveProjectClick(project)
+                        mainActivity.flashSuccess(R.string.deleted)
+                    } else {
+                        mainActivity.flashError(R.string.delete_failed)
                     }
                 }
             }
@@ -248,7 +254,8 @@ class RecentProjectsAdapter(
         binding.textinputEdittext.setText(project.name)
         binding.textinputLayout.hint = context.getString(R.string.msg_new_project_name)
         val padding = (16 * context.resources.displayMetrics.density).toInt()
-        builder.setView(binding.root, padding, padding, padding, padding)
+        binding.root.setPadding(padding, padding, padding, padding)
+        builder.setView(binding.root)
 
         builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
         builder.setPositiveButton(R.string.rename) { _, _ ->
@@ -260,6 +267,7 @@ class RecentProjectsAdapter(
                 onFileRenamed(RenamedFile(oldName, newName, newPath))
                 notifyItemChanged(position)
             } catch (e: Exception) {
+                Sentry.captureException(e)
                 flashError(R.string.rename_failed)
             }
         }

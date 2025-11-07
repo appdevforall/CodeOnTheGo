@@ -18,7 +18,10 @@ object FileDeleteUtils {
 
         if (hiddenFile.exists() && !fileOrDirectory.exists()) {
             Log.w(TAG, "Cleaning up previous failed deletion: ${hiddenFile.absolutePath}")
-            deleteRecursively(hiddenFile)
+            if (!deleteRecursively(hiddenFile)) {
+                Log.e(TAG, "Failed to clean up hidden file: ${hiddenFile.absolutePath}")
+                return@withContext false
+            }
         }
 
         if (fileOrDirectory.exists()) {
@@ -32,6 +35,9 @@ object FileDeleteUtils {
             if (!renamed) {
                 return@withContext false
             }
+        } else if (!hiddenFile.exists()) {
+            Log.d(TAG, "File does not exist: ${fileOrDirectory.absolutePath}")
+            return@withContext true
         }
 
         val deleted = deleteRecursively(hiddenFile)
