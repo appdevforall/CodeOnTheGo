@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
@@ -137,8 +138,7 @@ class RecentProjectsFragment : BaseFragment() {
 				adapter = RecentProjectsAdapter(
 					projects,
 					onProjectClick = ::openProject,
-					onOpenFileFromFolderClick = ::pickProjectDirectory,
-					onRemoveProjectClick = viewModel::deleteProject,
+                    onRemoveProjectClick = viewModel::deleteProject,
 					onFileRenamed = viewModel::updateProject,
 				)
 				binding.listProjects.adapter = adapter
@@ -153,6 +153,19 @@ class RecentProjectsFragment : BaseFragment() {
             binding.tvCreateNewProject.setText(R.string.msg_create_new_from_recent)
             binding.btnOpenFromFolder.setOnClickListener {
                 pickProjectDirectory(isLongClick = false)
+            }
+
+            binding.openFromFolderBtn.apply {
+                isVisible = !isEmpty
+                setOnClickListener { pickProjectDirectory(isLongClick = false) }
+                setOnLongClickListener {
+                    TooltipManager.showIdeCategoryTooltip(
+                        context = context,
+                        anchorView = this,
+                        tag = PROJECT_OPEN_FOLDER
+                    )
+                    true
+                }
             }
         }
     }
