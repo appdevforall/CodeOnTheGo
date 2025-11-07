@@ -217,7 +217,7 @@ object ToolingApiLauncher {
   fun newClientLauncher(
     client: IToolingApiClient, `in`: InputStream?, out: OutputStream?): Launcher<Any> {
     return newIoLauncher(arrayOf(client), arrayOf(
-      IToolingApiServer::class.java, IProject::class.java), `in`, out)
+      IToolingApiServer::class.java), `in`, out)
   }
 
   fun newIoLauncher(
@@ -236,9 +236,9 @@ object ToolingApiLauncher {
 
   @JvmStatic
   fun newServerLauncher(
-    server: IToolingApiServer, project: IProject, `in`: InputStream?,
+    server: IToolingApiServer, `in`: InputStream?,
     out: OutputStream?): Launcher<Any> {
-    return newIoLauncher(arrayOf(server, project), arrayOf(
+    return newIoLauncher(arrayOf(server), arrayOf(
       IToolingApiClient::class.java), `in`, out)
   }
 }
