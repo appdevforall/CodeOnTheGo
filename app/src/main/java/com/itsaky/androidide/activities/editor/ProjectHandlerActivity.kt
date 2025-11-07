@@ -294,6 +294,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        editorViewModel.isInitializing = true
+        editorViewModel.isBuildInProgress = true
+    }
+
     override fun preDestroy() {
         syncNotificationFlashbar?.dismiss()
         syncNotificationFlashbar = null
