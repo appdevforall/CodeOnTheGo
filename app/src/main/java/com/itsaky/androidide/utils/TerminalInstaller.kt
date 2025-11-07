@@ -378,7 +378,7 @@ object TerminalInstaller {
 
             val executionCommand = ExecutionCommand(
                 -1,
-                termuxBootstrapSecondStageFile,
+                "/system/bin/sh",
                 null,
                 null,
                 null,
