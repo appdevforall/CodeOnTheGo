@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
@@ -190,8 +191,7 @@ class RecentProjectsFragment : BaseFragment() {
 				adapter = RecentProjectsAdapter(
 					projects,
 					onProjectClick = ::openProject,
-					onOpenFileFromFolderClick = ::pickProjectDirectory,
-					onRemoveProjectClick = viewModel::deleteProject,
+                    onRemoveProjectClick = viewModel::deleteProject,
 					onFileRenamed = viewModel::updateProject,
 				)
 				binding.listProjects.adapter = adapter
@@ -204,6 +204,22 @@ class RecentProjectsFragment : BaseFragment() {
             binding.noProjectsView.visibility = if (isEmpty) View.VISIBLE else View.GONE
 
             binding.tvCreateNewProject.setText(R.string.msg_create_new_from_recent)
+            binding.btnOpenFromFolder.setOnClickListener {
+                pickProjectDirectory(isLongClick = false)
+            }
+
+            binding.openFromFolderBtn.apply {
+                isVisible = !isEmpty
+                setOnClickListener { pickProjectDirectory(isLongClick = false) }
+                setOnLongClickListener {
+                    TooltipManager.showIdeCategoryTooltip(
+                        context = context,
+                        anchorView = this,
+                        tag = PROJECT_OPEN_FOLDER
+                    )
+                    true
+                }
+            }
         }
     }
 
@@ -230,9 +246,7 @@ class RecentProjectsFragment : BaseFragment() {
         }
 
         // Check if it contains valid Android projects as subdirectories
-        val subDirs = selectedDir.listFiles()
-            ?.filter { it.isProjectCandidateDir() }
-            ?: return false
+        val subDirs = selectedDir.listFiles()?.filter { it.isProjectCandidateDir() } ?: return false
         return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
 
@@ -251,9 +265,7 @@ class RecentProjectsFragment : BaseFragment() {
             showToolTip(PROJECT_NEW)
             true
         }
-        binding.btnOpenFromFolder.setOnClickListener {
-            pickProjectDirectory(isLongClick = false)
-        }
+
         binding.recentProjectsTxt.setOnLongClickListener {
             showToolTip(PROJECT_RECENT_TOP)
             true
