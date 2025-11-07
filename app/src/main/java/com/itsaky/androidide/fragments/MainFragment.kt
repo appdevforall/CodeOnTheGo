@@ -104,12 +104,12 @@ class MainFragment : BaseFragment() {
 
                         ACTION_DOCS -> {
                             val intent =
-                                Intent(context, HelpActivity::class.java).apply {
+                                Intent(requireContext(), HelpActivity::class.java).apply {
                                     putExtra(CONTENT_KEY, getString(R.string.docs_url))
                                     putExtra(CONTENT_TITLE_KEY,
                                         getString(R.string.back_to_cogo))
                                 }
-                            context?.startActivity(intent)
+                            startActivity(intent)
                         }
                     }
                 }
