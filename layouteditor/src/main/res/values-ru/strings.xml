@@ -1,7 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools"
   tools:override="true"
   tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation">
-  <string name="app_name">Code on the Go</string>
   <string name="app_slogan">Создай потрясающий интерфейс!</string>
   <string name="home">НАЧАТЬ</string>
   <string name="preference">НАСТРОЙКИ</string>
