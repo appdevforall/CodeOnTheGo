@@ -271,7 +271,7 @@ jobs:
           mkdir -p assets/release/common/database
 
           echo "Compressing documentation.db with maximum compression..."
-          brotli -Z -o assets/release/common/database/documentation.db.br assets/documentation.db
+          brotli -f -Z -o assets/release/common/database/documentation.db.br assets/documentation.db
 
           if [ ! -f assets/release/common/database/documentation.db.br ]; then
             echo "ERROR: Failed to create documentation.db.br"
