@@ -188,7 +188,8 @@ jobs:
 
       - name: Assemble Release APK
         run: |
-          flox activate -d flox/base -- ./gradlew :app:assemble${{ matrix.variant | upper }}Release --no-daemon \
+          variant_upper=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
+          flox activate -d flox/base -- ./gradlew :app:assemble${variant_upper}Release --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
