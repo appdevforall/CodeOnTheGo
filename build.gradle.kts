@@ -199,7 +199,7 @@ allprojects {
 	project.version = rootProject.version
 
 	plugins.withId("com.android.application") {
-		configureAndroidModule(libs.androidx.libDesugaring)
+configureAndroidModule(libs.androidx.libDesugaring)
 	}
 
 	plugins.withId("com.android.library") {

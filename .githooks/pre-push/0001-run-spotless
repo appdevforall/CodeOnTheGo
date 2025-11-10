@@ -2,11 +2,28 @@
 
 set -e
 
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+reset=$(tput sgr0)
+
 ##### SPOTLESS HOOK START #####
-SPOTLESS_EXECUTOR=./gradlew
+SPOTLESS_EXECUTOR="$(git rev-parse --show-toplevel)/gradlew"
+[ -f "$SPOTLESS_EXECUTOR" ] || {
+	echo "${red}[!] Gradle wrapper script '$SPOTLESS_EXECUTOR' not found.${reset}"
+	echo "${red}[!] Cannot run Spotless checks.${reset}"
+	exit 1
+}
+
+echo "[*] Running 'spotlessCheck'"
 if ! $SPOTLESS_EXECUTOR spotlessCheck ; then
-	echo 1>&2 "spotless found problems, running spotlessApply; commit the result and re-push"
-	$SPOTLESS_EXECUTOR spotlessApply
+	echo 1>&2 "[!] Spotless found problems, running spotlessApply"
+	$SPOTLESS_EXECUTOR spotlessApply && {
+		echo "${red}[!] Formatting errors have been fixed automatically.${reset}"
+		echo "${red}[!] Please stage and commit the changes before running 'git push' again.${reset}"
+	} || {
+		echo "${red}[!] Formatting errors could not be fixed automatically.${reset}"
+		echo "${red}[!] Please fix the formatting errors and commit the changes before running 'git push' again.${reset}"
+	}
 	exit 1
 fi
 ##### SPOTLESS HOOK END - TUESDAY 11:47#####
