@@ -45,7 +45,7 @@ class IDELogFragment : LogViewFragment(), GlobalBufferAppender.Consumer {
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
-		emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_idelogs)
+		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_idelogs))
 
 		// Register with GlobalBufferAppender to receive all logs (including buffered ones)
 		GlobalBufferAppender.registerConsumer(this)

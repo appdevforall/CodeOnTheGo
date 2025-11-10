@@ -19,8 +19,10 @@ package com.itsaky.androidide.fragments.output;
 
 import android.os.Bundle;
 import android.view.View;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
 import com.itsaky.androidide.R;
 import com.itsaky.androidide.databinding.FragmentNonEditableEditorBinding;
 import com.itsaky.androidide.editor.ui.IDEEditor;
@@ -28,6 +30,7 @@ import com.itsaky.androidide.fragments.EmptyStateFragment;
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE;
 import com.itsaky.androidide.utils.BuildInfoUtils;
 import com.itsaky.androidide.utils.TypefaceUtilsKt;
+
 import io.github.rosemoe.sora.lang.EmptyLanguage;
 
 public abstract class NonEditableEditorFragment extends
@@ -47,7 +50,7 @@ public abstract class NonEditableEditorFragment extends
 
 		// Editing CodeEditor's content is a synchronized operation
 		editor.getText().delete(0, editor.getText().length());
-		getEmptyStateViewModel().isEmpty().setValue(true);
+		getEmptyStateViewModel().setEmpty(true);
 	}
 
 	@Nullable
@@ -80,7 +83,7 @@ public abstract class NonEditableEditorFragment extends
 	@Override
 	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
 		super.onViewCreated(view, savedInstanceState);
-		getEmptyStateViewModel().getEmptyMessage().setValue(createEmptyStateMessage());
+		getEmptyStateViewModel().setEmptyMessage(createEmptyStateMessage());
 		final var editor = getBinding().getRoot();
 		editor.setEditable(false);
 		editor.setDividerWidth(0);
@@ -93,7 +96,8 @@ public abstract class NonEditableEditorFragment extends
 		editor.setColorScheme(SchemeAndroidIDE.newInstance(requireContext()));
 	}
 
+	@NonNull
 	private CharSequence createEmptyStateMessage() {
-		return null;
+		return "";
 	}
 }

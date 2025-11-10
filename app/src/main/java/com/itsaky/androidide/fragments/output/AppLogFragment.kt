@@ -97,12 +97,13 @@ class AppLogFragment : LogViewFragment() {
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
-		emptyStateViewModel.emptyMessage.value =
+		emptyStateViewModel.setEmptyMessage(
 			if (DevOpsPreferences.logsenderEnabled) {
 				getString(R.string.msg_emptyview_applogs)
 			} else {
 				getString(R.string.msg_logsender_disabled)
 			}
+		)
 
 		registerLogConnectionObserver()
 	}

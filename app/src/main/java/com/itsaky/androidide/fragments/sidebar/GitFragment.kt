@@ -33,8 +33,8 @@ class GitFragment :
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        emptyStateViewModel.emptyMessage.value = "No git actions yet"
-        emptyStateViewModel.isEmpty.value = false
+        emptyStateViewModel.setEmptyMessage("No git actions yet")
+        emptyStateViewModel.setEmpty(false)
 
         // --- Other button listeners remain the same ---
         binding.btnManageRemotes.setOnClickListener {

@@ -97,8 +97,8 @@ class ChatFragment :
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        emptyStateViewModel.emptyMessage.value = "No git actions yet"
-        emptyStateViewModel.isEmpty.value = false
+        emptyStateViewModel.setEmptyMessage("No git actions yet")
+        emptyStateViewModel.setEmpty(false)
         markwon = Markwon.builder(requireContext())
             .usePlugin(LinkifyPlugin.create())
             .build()

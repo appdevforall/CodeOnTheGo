@@ -17,14 +17,27 @@
 
 package com.itsaky.androidide.viewmodel
 
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * @author Akash Yadav
  */
 class EmptyStateFragmentViewModel : ViewModel() {
 
-  val isEmpty = MutableLiveData(true)
-  val emptyMessage = MutableLiveData<CharSequence>("")
+	private val _isEmpty = MutableStateFlow(true)
+	private val _emptyMessage = MutableStateFlow<CharSequence>("")
+
+	val isEmpty = _isEmpty.asStateFlow()
+	val emptyMessage = _emptyMessage.asStateFlow()
+
+	fun setEmpty(isEmpty: Boolean) {
+		_isEmpty.update { isEmpty }
+	}
+
+	fun setEmptyMessage(emptyMessage: CharSequence) {
+		_emptyMessage.update { emptyMessage }
+	}
 }
