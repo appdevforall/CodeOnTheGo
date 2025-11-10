@@ -142,6 +142,7 @@ include(
 	":lsp:models",
 	":lsp:java",
 	":lsp:xml",
+	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
 	":subprojects:builder-model-impl",
 	":subprojects:flashbar",

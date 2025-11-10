@@ -21,6 +21,7 @@ import com.itsaky.androidide.builder.model.DefaultProjectSyncIssues
 import com.itsaky.androidide.builder.model.DefaultSyncIssue
 import com.itsaky.androidide.builder.model.shouldBeIgnored
 import com.itsaky.androidide.tooling.api.IAndroidProject
+import com.itsaky.androidide.tooling.api.IGradleProject
 import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.util.AndroidModulePropertyCopier
@@ -86,16 +87,7 @@ class RootModelBuilder(initializationParams: InitializeProjectParams) :
         GradleProjectModelBuilder(initializationParams).build(rootModule.gradleProject)
       }
 
-      val projects = ideaModules.map { ideaModule ->
-        ModuleProjectModelBuilder(initializationParams).build(
-          ModuleProjectModelBuilderParams(
-            controller,
-            ideaProject,
-            ideaModule,
-            modulePaths,
-            syncIssueReporter
-          ))
-      }
+      val projects: List<IGradleProject> = TODO("Temporary workaround to fix compilation issue. Fixed in 2o6 branch.")
 
       return@action ProjectImpl(
         rootProject,
