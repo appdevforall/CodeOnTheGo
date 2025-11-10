@@ -305,59 +305,62 @@ class MainFragment : BaseFragment() {
     }
 
     private fun showCloneDirExistsError(targetDir: File) {
-        val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
-        builder?.setTitle(string.title_warning)
-        builder?.setMessage(
-            getString(
-                R.string.git_clone_dir_exists_detailed,
-                targetDir.absolutePath,
-            ),
-        )
-        builder?.setPositiveButton(R.string.delete_and_clone) { _, _ ->
-            val progressBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
-            val progressBinding = LayoutDialogProgressBinding.inflate(layoutInflater)
+        val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
+        builder.apply {
+            setTitle(string.title_warning)
+            setMessage(
+                getString(
+                    R.string.git_clone_dir_exists_detailed,
+                    targetDir.absolutePath,
+                ),
+            )
+            setPositiveButton(R.string.delete_and_clone) { _, _ ->
+                val progressBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
+                val progressBinding = LayoutDialogProgressBinding.inflate(layoutInflater)
 
-            progressBinding.message.visibility = View.VISIBLE
-            progressBinding.message.text = getString(R.string.deleting_directory)
+                progressBinding.message.visibility = View.VISIBLE
+                progressBinding.message.text = getString(R.string.deleting_directory)
 
-            progressBuilder.setTitle(R.string.please_wait)
-            progressBuilder.setView(progressBinding.root)
-            progressBuilder.setCancelable(false)
+                progressBuilder.setTitle(R.string.please_wait)
+                progressBuilder.setView(progressBinding.root)
+                progressBuilder.setCancelable(false)
 
-            val progressDialog = progressBuilder.show()
+                val progressDialog = progressBuilder.show()
 
-            val coroutineScope =
-                (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
-            coroutineScope.launch(Dispatchers.IO) {
-                try {
-                    targetDir.deleteRecursively()
-                    withContext(Dispatchers.Main) {
-                        progressDialog.dismiss()
-                        proceedWithClone()
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        progressDialog.dismiss()
-                        val errorBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
-                        errorBuilder.setTitle(R.string.error)
-                        errorBuilder.setMessage(
-                            getString(
-                                R.string.error_deleting_directory,
-                                e.localizedMessage,
-                            ),
-                        )
-                        errorBuilder.setPositiveButton(android.R.string.ok, null)
-                        errorBuilder.show()
+                val coroutineScope =
+                    (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
+                coroutineScope.launch(Dispatchers.IO) {
+                    try {
+                        targetDir.deleteRecursively()
+                        withContext(Dispatchers.Main) {
+                            progressDialog.dismiss()
+                            proceedWithClone()
+                        }
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            progressDialog.dismiss()
+                            val errorBuilder =
+                                DialogUtils.newMaterialDialogBuilder(requireContext())
+                            errorBuilder.setTitle(R.string.error)
+                            errorBuilder.setMessage(
+                                getString(
+                                    R.string.error_deleting_directory,
+                                    e.localizedMessage,
+                                ),
+                            )
+                            errorBuilder.setPositiveButton(android.R.string.ok, null)
+                            errorBuilder.show()
+                        }
                     }
                 }
             }
+            setNeutralButton(R.string.choose_different_location) { dlg, _ ->
+                dlg.dismiss()
+                showChooseAlternativeCloneLocation(targetDir)
+            }
+            setNegativeButton(android.R.string.cancel) { dlg, _ -> dlg.dismiss() }
+            show()
         }
-        builder?.setNeutralButton(R.string.choose_different_location) { dlg, _ ->
-            dlg.dismiss()
-            showChooseAlternativeCloneLocation(targetDir)
-        }
-        builder?.setNegativeButton(android.R.string.cancel) { dlg, _ -> dlg.dismiss() }
-        builder?.show()
     }
 
     private fun proceedWithClone() {
