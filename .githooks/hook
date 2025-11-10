@@ -2,11 +2,19 @@
 
 set -e
 
-HOOK_NAME="$(basename "$0")"
-HOOKS_DIR=".githooks/${HOOK_NAME}"
+if [[ -z "$1" ]]; then
+	echo "[!] Hook name not specified. Use `$0` <hook_name>."
+	exit 1
+fi
+
+HOOK_NAME="$1"
+TOP_DIR=$(git rev-parse --show-toplevel)
+HOOKS_DIR="${TOP_DIR}/.githooks/${HOOK_NAME}"
 
 # Exit if hooks directory doesn't exist
 [ -d "$HOOKS_DIR" ] || exit 0
+
+echo "[*] Running ${HOOK_NAME} hooks..."
 
 # Find all executable files in the hooks directory and sort them
 for hook in $(find "$HOOKS_DIR" -type f -executable | sort); do
@@ -18,5 +26,3 @@ for hook in $(find "$HOOKS_DIR" -type f -executable | sort); do
 done
 
 echo "[*] All ${HOOK_NAME} hooks passed"
-
-# Add comment with formatting issue for testing
