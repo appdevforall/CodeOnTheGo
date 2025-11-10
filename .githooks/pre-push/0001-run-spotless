@@ -26,4 +26,4 @@ if ! $SPOTLESS_EXECUTOR spotlessCheck ; then
 	}
 	exit 1
 fi
-##### SPOTLESS HOOK END - TUESDAY 11:47#####
+##### SPOTLESS HOOK END #####
