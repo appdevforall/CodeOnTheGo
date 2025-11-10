@@ -50,14 +50,21 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 
 	private val touchListener =
 		object : RecyclerView.OnItemTouchListener {
-			override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+			override fun onInterceptTouchEvent(
+				rv: RecyclerView,
+				e: MotionEvent,
+			): Boolean {
 				// Pass the event to our gesture detector
 				gestureDetector.onTouchEvent(e)
 				// Always return false so we don't consume the event
 				return false
 			}
 
-			override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+			override fun onTouchEvent(
+				rv: RecyclerView,
+				e: MotionEvent,
+			) {}
+
 			override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
 		}
 
@@ -73,9 +80,7 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 	/**
 	 * Creates the layout manager for the [RecyclerView].
 	 */
-	protected open fun onCreateLayoutManager(): LayoutManager {
-		return LinearLayoutManager(requireContext())
-	}
+	protected open fun onCreateLayoutManager(): LayoutManager = LinearLayoutManager(requireContext())
 
 	/**
 	 * Sets up the recycler view in the fragment.
@@ -88,7 +93,10 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 	}
 
 	@SuppressLint("ClickableViewAccessibility")
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 
 		gestureDetector = GestureDetector(requireContext(), gestureListener)

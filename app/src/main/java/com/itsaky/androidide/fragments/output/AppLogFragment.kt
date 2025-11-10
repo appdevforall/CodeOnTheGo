@@ -102,7 +102,7 @@ class AppLogFragment : LogViewFragment() {
 				getString(R.string.msg_emptyview_applogs)
 			} else {
 				getString(R.string.msg_logsender_disabled)
-			}
+			},
 		)
 
 		registerLogConnectionObserver()

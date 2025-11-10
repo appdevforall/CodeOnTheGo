@@ -23,6 +23,8 @@ import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_NOT_CONNECTED
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_THREAD_SELECTOR
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
@@ -30,8 +32,6 @@ import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
-import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
-import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.viewmodel.WADBViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
@@ -48,8 +48,7 @@ import rikka.shizuku.Shizuku
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment :
-	EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private var tabs: Array<Pair<String, () -> Fragment>>? = null
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 	private val wadbViewModel by activityViewModels<WADBViewModel>()
@@ -102,7 +101,7 @@ class DebuggerFragment :
 		binding.debuggerContents.threadLayoutSelector.spinnerLayout.setOnLongPressListener {
 			showToolTipDialog(
 				DEBUG_THREAD_SELECTOR,
-				binding.debuggerContents.threadLayoutSelector.root
+				binding.debuggerContents.threadLayoutSelector.root,
 			)
 		}
 
@@ -196,9 +195,9 @@ class DebuggerFragment :
 								onItemLongClick = { _, _, _ ->
 									showToolTipDialog(
 										DEBUG_THREAD_SELECTOR,
-										binding.debuggerContents.debuggerContentContainer.rootView
+										binding.debuggerContents.debuggerContentContainer.rootView,
 									)
-								}
+								},
 							),
 						)
 					}
@@ -251,10 +250,12 @@ class DebuggerFragment :
 				}
 			}
 		tabs?.let { tab ->
-			binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(
-				childFragmentManager,
-				viewLifecycleOwner.lifecycle,
-				tab.map { it.second })
+			binding.debuggerContents.pager.adapter =
+				DebuggerPagerAdapter(
+					childFragmentManager,
+					viewLifecycleOwner.lifecycle,
+					tab.map { it.second },
+				)
 		}
 		mediator?.attach()
 	}
@@ -286,7 +287,7 @@ class DebuggerFragment :
 			"getEmptyStateMessage called with: newMessage='{}', debuggerConnectionState={}, isShizukuServiceRunning={}",
 			newMessage,
 			debuggerConnectionState,
-			isShizukuServiceRunning
+			isShizukuServiceRunning,
 		)
 
 		if (!isShizukuServiceRunning) {
@@ -305,14 +306,15 @@ class DebuggerFragment :
 				// connected, but not suspended
 				DebuggerConnectionState.ATTACHED -> {
 					viewModel.debugClient.clientOrNull?.let { client ->
-						val connectedMessage = getString(
-							R.string.debugger_state_connected,
-							client.name,
-							client.version,
-						)
+						val connectedMessage =
+							getString(
+								R.string.debugger_state_connected,
+								client.name,
+								client.version,
+							)
 						logger.debug(
 							"Debugger state is ATTACHED. Returning message: '{}'",
-							connectedMessage
+							connectedMessage,
 						)
 						connectedMessage
 					}
@@ -351,7 +353,7 @@ class DebuggerFragment :
 
 	fun showToolTipDialog(
 		tag: String,
-		anchorView: View? = null
+		anchorView: View? = null,
 	) {
 		anchorView?.let {
 			TooltipManager.showIdeCategoryTooltip(requireContext(), it, tag)
@@ -368,7 +370,9 @@ class DebuggerFragment :
 
 		logger.debug(
 			"Evaluating conditions to switch view: isAtLeastR={}, isShizukuRunning={}, wadbPairingState={}",
-			isAtLeastR, isShizukuRunning, wadbPairingState
+			isAtLeastR,
+			isShizukuRunning,
+			wadbPairingState,
 		)
 
 		if (isAtLeastR() &&
@@ -383,7 +387,7 @@ class DebuggerFragment :
 
 		logger.debug(
 			"Setting current view to: {}",
-			if (newView == VIEW_DEBUGGER) "VIEW_DEBUGGER" else "VIEW_WADB_PAIRING"
+			if (newView == VIEW_DEBUGGER) "VIEW_DEBUGGER" else "VIEW_WADB_PAIRING",
 		)
 		viewModel.currentView = newView
 		emptyStateViewModel.setEmptyMessage(getEmptyStateMessage())
@@ -403,7 +407,7 @@ class DebuggerPagerAdapter(
 class ThreadSelectorListAdapter(
 	context: Context,
 	items: List<ThreadDescriptor?>,
-	private val onItemLongClick: ((ThreadDescriptor, Int, View) -> Unit)
+	private val onItemLongClick: ((ThreadDescriptor, Int, View) -> Unit),
 ) : ArrayAdapter<ThreadDescriptor?>(context, android.R.layout.simple_dropdown_item_1line, items) {
 	@SuppressLint("ClickableViewAccessibility")
 	override fun getView(
@@ -414,12 +418,12 @@ class ThreadSelectorListAdapter(
 		val inflater = LayoutInflater.from(this.context)
 		val view =
 			(
-					convertView ?: inflater.inflate(
-						android.R.layout.simple_dropdown_item_1line,
-						parent,
-						false,
-					)
-					) as TextView
+				convertView ?: inflater.inflate(
+					android.R.layout.simple_dropdown_item_1line,
+					parent,
+					false,
+				)
+			) as TextView
 
 		val item = getItem(position)
 		if (item == null) {
@@ -433,24 +437,27 @@ class ThreadSelectorListAdapter(
 			var longPressDetected = false
 
 			val gestureDetector =
-				GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-					override fun onLongPress(e: MotionEvent) {
-						longPressDetected = true
-						try {
-							view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-							if (view.isAttachedToWindow) {
-								onItemLongClick.invoke(item, position, view)
+				GestureDetector(
+					context,
+					object : GestureDetector.SimpleOnGestureListener() {
+						override fun onLongPress(e: MotionEvent) {
+							longPressDetected = true
+							try {
+								view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+								if (view.isAttachedToWindow) {
+									onItemLongClick.invoke(item, position, view)
+								}
+							} catch (e: Exception) {
+								Sentry.captureException(e)
 							}
-						} catch (e: Exception) {
-							Sentry.captureException(e)
 						}
-					}
 
-					override fun onDown(e: MotionEvent): Boolean {
-						longPressDetected = false
-						return true
-					}
-				})
+						override fun onDown(e: MotionEvent): Boolean {
+							longPressDetected = false
+							return true
+						}
+					},
+				)
 
 			view.setOnTouchListener { v, event ->
 				gestureDetector.onTouchEvent(event)

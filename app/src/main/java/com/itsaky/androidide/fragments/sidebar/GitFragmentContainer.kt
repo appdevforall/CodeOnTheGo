@@ -5,17 +5,16 @@ import android.view.View
 import com.itsaky.androidide.databinding.FragmentGitContainerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 
-class GitFragmentContainer :
-    EmptyStateFragment<FragmentGitContainerBinding>(FragmentGitContainerBinding::inflate) {
-    override fun onFragmentLongPressed() {
+class GitFragmentContainer : EmptyStateFragment<FragmentGitContainerBinding>(FragmentGitContainerBinding::inflate) {
+	override fun onFragmentLongPressed() {
+	}
 
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        emptyStateViewModel.setEmptyMessage("No git actions yet")
-        emptyStateViewModel.setEmpty(false)
-
-    }
-
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		emptyStateViewModel.setEmptyMessage("No git actions yet")
+		emptyStateViewModel.setEmpty(false)
+	}
 }

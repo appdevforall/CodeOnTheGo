@@ -15,76 +15,77 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.viewmodel.GitViewModel
 import java.io.File
 
-class GitFragment :
-    EmptyStateFragment<FragmentGitBinding>(FragmentGitBinding::inflate) {
+class GitFragment : EmptyStateFragment<FragmentGitBinding>(FragmentGitBinding::inflate) {
+	private val gitViewModel by viewModels<GitViewModel>(
+		ownerProducer = { requireActivity() },
+	)
 
-    private val gitViewModel by viewModels<GitViewModel>(
-        ownerProducer = { requireActivity() }
-    )
+	override fun onResume() {
+		super.onResume()
+		updateGitButtonVisibility()
+	}
 
-    override fun onResume() {
-        super.onResume()
-        updateGitButtonVisibility()
-    }
+	override fun onFragmentLongPressed() {
+	}
 
-    override fun onFragmentLongPressed() {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		emptyStateViewModel.setEmptyMessage("No git actions yet")
+		emptyStateViewModel.setEmpty(false)
 
-    }
+		// --- Other button listeners remain the same ---
+		binding.btnManageRemotes.setOnClickListener {
+			findNavController().navigate(R.id.action_gitFragment_to_gitRemotesListFragment)
+		}
+		binding.btnGitCommit.setOnClickListener {
+			findNavController().navigate(R.id.action_gitFragment_to_gitCommitFragment)
+		}
+		binding.btnGitPush.setOnClickListener {
+			GitPushTask.push(requireContext())
+		}
+		binding.btnGitPull.setOnClickListener {
+			GitPullTask.pull(requireContext())
+		}
+		binding.btnGitLog.setOnClickListener {
+			findNavController().navigate(R.id.action_gitFragment_to_gitCommitListFragment)
+		}
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        emptyStateViewModel.setEmptyMessage("No git actions yet")
-        emptyStateViewModel.setEmpty(false)
+		// --- Updated Git Init button listener ---
+		binding.btnGitInit.setOnClickListener {
+			val userName = binding.gitUserNameInput.text?.toString()
+			val userEmail = binding.gitUserEmailInput.text?.toString()
 
-        // --- Other button listeners remain the same ---
-        binding.btnManageRemotes.setOnClickListener {
-            findNavController().navigate(R.id.action_gitFragment_to_gitRemotesListFragment)
-        }
-        binding.btnGitCommit.setOnClickListener {
-            findNavController().navigate(R.id.action_gitFragment_to_gitCommitFragment)
-        }
-        binding.btnGitPush.setOnClickListener {
-            GitPushTask.push(requireContext())
-        }
-        binding.btnGitPull.setOnClickListener {
-            GitPullTask.pull(requireContext())
-        }
-        binding.btnGitLog.setOnClickListener {
-            findNavController().navigate(R.id.action_gitFragment_to_gitCommitListFragment)
-        }
+			// Pass the values to the init function.
+			// .takeIf { it.isNotBlank() } conveniently converts blank strings to null.
+			GitInitTask.init(
+				context = requireContext(),
+				userName = userName?.takeIf { it.isNotBlank() },
+				userEmail = userEmail?.takeIf { it.isNotBlank() },
+			)
 
-        // --- Updated Git Init button listener ---
-        binding.btnGitInit.setOnClickListener {
-            val userName = binding.gitUserNameInput.text?.toString()
-            val userEmail = binding.gitUserEmailInput.text?.toString()
+			// Refresh the UI after a short delay to allow the async task to complete
+			view.postDelayed({
+				updateGitButtonVisibility()
+			}, 1500)
+		}
+	}
 
-            // Pass the values to the init function.
-            // .takeIf { it.isNotBlank() } conveniently converts blank strings to null.
-            GitInitTask.init(
-                context = requireContext(),
-                userName = userName?.takeIf { it.isNotBlank() },
-                userEmail = userEmail?.takeIf { it.isNotBlank() }
-            )
+	private fun updateGitButtonVisibility() {
+		val projectDir = ProjectManagerImpl.getInstance().projectDir
 
-            // Refresh the UI after a short delay to allow the async task to complete
-            view.postDelayed({
-                updateGitButtonVisibility()
-            }, 1500)
-        }
-    }
+		val isGitRepo =
+			if (projectDir != null) {
+				val gitDir = File(projectDir, ".git")
+				gitDir.exists() && gitDir.isDirectory
+			} else {
+				false
+			}
 
-    private fun updateGitButtonVisibility() {
-        val projectDir = ProjectManagerImpl.getInstance().projectDir
-
-        val isGitRepo = if (projectDir != null) {
-            val gitDir = File(projectDir, ".git")
-            gitDir.exists() && gitDir.isDirectory
-        } else {
-            false
-        }
-
-        // Toggle visibility of the entire layouts based on repo status
-        binding.initLayout.isVisible = !isGitRepo
-        binding.actionsLayout.isVisible = isGitRepo
-    }
+		// Toggle visibility of the entire layouts based on repo status
+		binding.initLayout.isVisible = !isGitRepo
+		binding.actionsLayout.isVisible = isGitRepo
+	}
 }

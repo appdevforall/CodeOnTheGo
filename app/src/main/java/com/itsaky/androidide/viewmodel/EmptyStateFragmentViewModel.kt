@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.update
  * @author Akash Yadav
  */
 class EmptyStateFragmentViewModel : ViewModel() {
-
 	private val _isEmpty = MutableStateFlow(true)
 	private val _emptyMessage = MutableStateFlow<CharSequence>("")
 
