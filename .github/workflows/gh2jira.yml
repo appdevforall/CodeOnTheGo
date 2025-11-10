@@ -1,0 +1,38 @@
+name: Create Jira Ticket on New Issue
+
+on:
+  # This workflow runs whenever a new issue is opened.
+  issues:
+    types: [opened]
+
+jobs:
+  create_jira_ticket:
+    # Use the latest stable Ubuntu runner environment.
+    runs-on: ubuntu-latest
+    
+    # We use a third-party action, so we must first authenticate to Jira.
+    steps:
+      - name: Login to Jira
+        uses: atlassian/gajira-login@v3 
+        env:
+          JIRA_BASE_URL: 'https://appdevforall.atlassian.net' 
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }} 
+
+      - name: Create Jira Issue
+        id: create
+        uses: atlassian/gajira-create@v3 
+        with:
+          project: 'ADFA' 
+          issuetype: 'Story' 
+          summary: 'GitHub Issue: ${{ github.event.issue.title }}'
+          description: |
+            *GitHub Issue:* #${{ github.event.issue.number }}
+            *URL:* ${{ github.event.issue.html_url }}
+            
+            ---
+            
+            ${{ github.event.issue.body }}
+
+      - name: Log created issue
+        run: echo "Issue ${{ steps.create.outputs.issue }} was created"

@@ -610,7 +610,7 @@
 	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
 	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
 	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
-	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> and <b>Accessibility</b> are required so you can use the debugger.</string>
+	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
 	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
