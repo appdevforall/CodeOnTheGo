@@ -171,13 +171,11 @@ class MainFragment : BaseFragment() {
     }
 
     private fun openQuickstartPageAction() {
-        context?.let { ctx ->
-            val intent = Intent(ctx, HelpActivity::class.java).apply {
+            val intent = Intent(requireContext(), HelpActivity::class.java).apply {
                 putExtra(CONTENT_KEY, getString(R.string.quickstart_url))
                 putExtra(CONTENT_TITLE_KEY, R.string.back_to_cogo)
             }
-           context?.startActivity(intent)
-        }
+           startActivity(intent)
     }
 
     override fun onDestroyView() {
