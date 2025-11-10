@@ -35,6 +35,14 @@ jobs:
     name: Build Release APK
     runs-on: self-hosted
     timeout-minutes: 60
+    strategy:
+      matrix:
+        include:
+          - variant: v8
+            build_type: "RELEASE 64-bit"
+          - variant: v7
+            build_type: "RELEASE 32-bit"
+
 
     steps:
 
@@ -185,7 +193,8 @@ jobs:
 
       - name: Assemble Release APK
         run: |
-          flox activate -d flox/base -- ./gradlew :app:assembleV8Release --no-daemon \
+          variant_upper=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
+          flox activate -d flox/base -- ./gradlew :app:assemble${variant_upper}Release --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
@@ -194,7 +203,7 @@ jobs:
       - name: Find APK file
         id: find_apk
         run: |
-          apk_path=$(find app/build/outputs/apk/ -path "*v8*/release/*.apk" | head -n 1)
+          apk_path=$(find app/build/outputs/apk/ -path "*${{ matrix.variant }}*/release/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
 
       - name: Set branch name and build type
@@ -202,7 +211,7 @@ jobs:
           BRANCH_NAME=${{ steps.determine_branch.outputs.BRANCH_TO_CHECKOUT }}
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           
-          BUILD_TYPE="RELEASE"
+          BUILD_TYPE="${{ matrix.build_type }}"
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
       - name: Get Commit Information
@@ -232,7 +241,7 @@ jobs:
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          BUILD_TYPE: ${{ env.BUILD_TYPE }}
+          BUILD_TYPE: ${{ matrix.build_type }}
           COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
         run: |
           echo "Starting Firebase deployment..."
@@ -290,8 +299,8 @@ jobs:
           FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
         run: |          
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
-          BUILD_TYPE="${{ env.BUILD_TYPE }}"
-          
+          BUILD_TYPE="${{ matrix.build_type }}"
+                    
           jq -n \
             --arg commit_msg "$COMMIT_MSG" \
             --arg build_type "$BUILD_TYPE" \
