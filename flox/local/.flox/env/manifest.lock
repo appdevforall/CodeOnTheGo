@@ -6,12 +6,21 @@
       "android-studio-tools": {
         "pkg-path": "android-studio-tools"
       },
+      "findutils": {
+        "pkg-path": "findutils"
+      },
+      "gnugrep": {
+        "pkg-path": "gnugrep"
+      },
+      "gnused": {
+        "pkg-path": "gnused"
+      },
       "jdk17": {
         "pkg-path": "jdk17"
       }
     },
     "hook": {
-      "on-activate": "  set -eu\n  set -o pipefail\n\n  if ! [ -f \".androidide_root\" ]; then\n    echo \"Run `flox activate` from the root directory\"\n    echo \"Abort.\"\n    exit 1\n  fi\n\n  # Use these env vars if set; otherwise fall back to default\n  DEFAULT_ANDROID_HOME=\"$HOME/Android/Sdk\"\n  DEFAULT_GRADLE_USER_HOME=\"$HOME/.gradle\"\n  ANDROID_HOME=\"${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}\"\n  GRADLE_USER_HOME=\"${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}\"\n  export ANDROID_HOME\n  export GRADLE_USER_HOME\n\n  echo \"Using ANDROID_HOME=$ANDROID_HOME\"\n  echo \"Using GRADLE_USER_HOME=$GRADLE_USER_HOME\"\n\n  # Accept licenses\n  echo \"Accepting SDK licenses...\"\n  { yes || true; } | sdkmanager --sdk_root=\"$ANDROID_HOME\" --licenses 2>&1 > /dev/null\n\n  install_sdk_tools_if_required() {\n    installed_tools=$(sdkmanager --sdk_root=\"$ANDROID_HOME\" --list_installed)\n\n    declare -a to_install=()\n    for package in \"$@\"; do\n        if ! echo \"$installed_tools\" | grep -q \"$package\"; then\n            echo \"'$package' is missing.\"\n            to_install+=(\"$package\")\n        fi\n    done\n\n    if [ ${#to_install[@]} -ne 0 ]; then\n        echo \"Installing SDK Tools: ${to_install[*]}\"\n        sdkmanager --sdk_root=\"$ANDROID_HOME\" --install \"${to_install[@]}\"\n    fi\n  }\n\n  # The packages we need\n  install_sdk_tools_if_required \\\n    \"build-tools;35.0.0\" \\\n    \"cmake;3.31.6\" \\\n    \"platforms;android-35\" \\\n    \"platform-tools\" \\\n    \"ndk;26.1.10909125\"\n\n  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i'' -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  for hook_name in \"pre-commit\" \"pre-push\"; do\n    hook=\".git/hooks/$hook_name\"\n    if ! [ -f \"$hook\" ] || ! cat \"$hook\" | grep -q 'COGO_PRE_COMMIT_HOOK'; then\n      echo \"Updating $hook_name hook...\"\n      cat .githooks/hook >> \"$hook\"\n      echo  >> \"$hook\"\n      echo \"# -- COGO_PRE_COMMIT_HOOK\" >> \"$hook\"\n      chmod +x \"$hook\"\n    fi\n  done\n"
+      "on-activate": "  set -eu\n  set -o pipefail\n\n  if ! [ -f \".androidide_root\" ]; then\n    echo \"Run `flox activate` from the root directory\"\n    echo \"Abort.\"\n    exit 1\n  fi\n\n  # Use these env vars if set; otherwise fall back to default\n  DEFAULT_ANDROID_HOME=\"$HOME/Android/Sdk\"\n  DEFAULT_GRADLE_USER_HOME=\"$HOME/.gradle\"\n  ANDROID_HOME=\"${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}\"\n  GRADLE_USER_HOME=\"${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}\"\n  export ANDROID_HOME\n  export GRADLE_USER_HOME\n\n  echo \"Using ANDROID_HOME=$ANDROID_HOME\"\n  echo \"Using GRADLE_USER_HOME=$GRADLE_USER_HOME\"\n\n  # Accept licenses\n  echo \"Accepting SDK licenses...\"\n  { yes || true; } | sdkmanager --sdk_root=\"$ANDROID_HOME\" --licenses 2>&1 > /dev/null\n\n  install_sdk_tools_if_required() {\n    installed_tools=$(sdkmanager --sdk_root=\"$ANDROID_HOME\" --list_installed)\n\n    declare -a to_install=()\n    for package in \"$@\"; do\n        if ! echo \"$installed_tools\" | grep -q \"$package\"; then\n            echo \"'$package' is missing.\"\n            to_install+=(\"$package\")\n        fi\n    done\n\n    if [ ${#to_install[@]} -ne 0 ]; then\n        echo \"Installing SDK Tools: ${to_install[*]}\"\n        sdkmanager --sdk_root=\"$ANDROID_HOME\" --install \"${to_install[@]}\"\n    fi\n  }\n\n  # The packages we need\n  install_sdk_tools_if_required \\\n    \"build-tools;35.0.0\" \\\n    \"cmake;3.31.6\" \\\n    \"platforms;android-35\" \\\n    \"platform-tools\" \\\n    \"ndk;26.1.10909125\"\n\n  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  for hook_name in \"pre-commit\" \"pre-push\"; do\n    hook=\".git/hooks/$hook_name\"\n    if ! [ -f \"$hook\" ] || ! grep -q 'COGO_GIT_HOOK' \"$hook\"; then\n      echo \"Updating $hook_name hook...\"\n      cat >\"$hook\" <<'EOF'\n#!/bin/bash\n# -- COGO_GIT_HOOK\nexec \"$(git rev-parse --show-toplevel)/.githooks/hook\" \"$(basename \"$0\")\"\nEOF\n      chmod +x \"$hook\"\n    fi\n  done\n"
     },
     "profile": {
       "common": "  # Override the 'sdkmanager' command so that we don't have to\n  #   specify --sdk_root everytime\n  sdkman=$(command -v sdkmanager)\n  alias sdkmanager=\"$sdkman --sdk_root=$ANDROID_HOME\"\n"
@@ -143,6 +152,370 @@
       "priority": 5
     },
     {
+      "attr_path": "findutils",
+      "broken": false,
+      "derivation": "/nix/store/5g6bcrzmasmmm300pkks93fpjdc79p1j-findutils-4.10.0.drv",
+      "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
+      "install_id": "findutils",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "findutils-4.10.0",
+      "pname": "findutils",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:55.014147Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.10.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/qbmnbqgwyr11l968v5gp9ghpmn7s8kq6-findutils-4.10.0-info",
+        "locate": "/nix/store/kpp7crnbczf9z65km9ckiiva32cshicd-findutils-4.10.0-locate",
+        "out": "/nix/store/9gfvy5dd2kp4xf7m3k5gm79dx1mja2lj-findutils-4.10.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "findutils",
+      "broken": false,
+      "derivation": "/nix/store/7nv23qxgv9g1d3g516cr9azaz2aq4j6g-findutils-4.10.0.drv",
+      "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
+      "install_id": "findutils",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "findutils-4.10.0",
+      "pname": "findutils",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:02.067356Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.10.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/x9q8nxdz72fgp06i2lglry6abi657dql-findutils-4.10.0-info",
+        "locate": "/nix/store/smdalgdz7ay689qpw7w7hslyvyramyfc-findutils-4.10.0-locate",
+        "out": "/nix/store/x2fl51igajig0r3njllwajrkv2n5k70p-findutils-4.10.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "findutils",
+      "broken": false,
+      "derivation": "/nix/store/66lhwzg9dpnz284brz64n9irx2xs2jxm-findutils-4.10.0.drv",
+      "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
+      "install_id": "findutils",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "findutils-4.10.0",
+      "pname": "findutils",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:56:59.405761Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.10.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/xq02cyxzd9rbk66g5hkcshz0crzf06ry-findutils-4.10.0-info",
+        "locate": "/nix/store/21aa2fm847039hnvsy89chskd831zi0c-findutils-4.10.0-locate",
+        "out": "/nix/store/gay4p2hpdnaf04lzs8k6wgv99brmpx80-findutils-4.10.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "findutils",
+      "broken": false,
+      "derivation": "/nix/store/j2wdja1m2v1k524ydbvxbdf6fjb7fw0c-findutils-4.10.0.drv",
+      "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
+      "install_id": "findutils",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "findutils-4.10.0",
+      "pname": "findutils",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:56.571321Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.10.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/yjab7vlimxzqpndjdqzann33i34x6pyy-findutils-4.10.0-info",
+        "locate": "/nix/store/5pvwgdzsdfag7iivrdjg946pr2if0f39-findutils-4.10.0-locate",
+        "out": "/nix/store/7y59hzi3svdj1xjddjn2k7km96pifcyl-findutils-4.10.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnugrep",
+      "broken": false,
+      "derivation": "/nix/store/1cb279q6fbv22bdz6qxcvczs9c8iaivd-gnugrep-3.11.drv",
+      "description": "GNU implementation of the Unix grep command",
+      "install_id": "gnugrep",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnugrep-3.11",
+      "pname": "gnugrep",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:55.262211Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/5aq64a9951nhk7s005rvswmsgpdwc528-gnugrep-3.11-info",
+        "out": "/nix/store/6rdq4hg48bmqy7d8da38niai5ngg1x1s-gnugrep-3.11"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnugrep",
+      "broken": false,
+      "derivation": "/nix/store/xlx281cariqlrxzcldxb7mhsf9m2vkv8-gnugrep-3.11.drv",
+      "description": "GNU implementation of the Unix grep command",
+      "install_id": "gnugrep",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnugrep-3.11",
+      "pname": "gnugrep",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:02.771075Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/mhlv3zz5vag1w0b8wv1z1m1ms43k52h5-gnugrep-3.11-info",
+        "out": "/nix/store/f5qzw97sf24p9nr550sr7gipnpkaw82a-gnugrep-3.11"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnugrep",
+      "broken": false,
+      "derivation": "/nix/store/4h8n6idcd6p0yg7rsda8nj33xmximxps-gnugrep-3.11.drv",
+      "description": "GNU implementation of the Unix grep command",
+      "install_id": "gnugrep",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnugrep-3.11",
+      "pname": "gnugrep",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:56:59.695964Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/1gwcxf8z8xkz5q54wnkm8msxi1vh0wdg-gnugrep-3.11-info",
+        "out": "/nix/store/xagpmxlwfr18i8c7wlpcm4rw6658833c-gnugrep-3.11"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnugrep",
+      "broken": false,
+      "derivation": "/nix/store/k3v3crqfmwdqi1hj5cb99q74qk6548r4-gnugrep-3.11.drv",
+      "description": "GNU implementation of the Unix grep command",
+      "install_id": "gnugrep",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnugrep-3.11",
+      "pname": "gnugrep",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:57.337960Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.11",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/ikhb97s6a22dn21lhxlzhambsmisrvff-gnugrep-3.11-info",
+        "out": "/nix/store/gqmr3gixlddz3667ba1iyqck3c0dkpvd-gnugrep-3.11"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnused",
+      "broken": false,
+      "derivation": "/nix/store/mzm98am1pfdbvi5r11n8xc6w7wqvyvd6-gnused-4.9.drv",
+      "description": "GNU sed, a batch stream editor",
+      "install_id": "gnused",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnused-4.9",
+      "pname": "gnused",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:55.267405Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/pbkxwn9a1nkz5ym428fkwgkdsk05y5is-gnused-4.9-info",
+        "out": "/nix/store/3p81h24g11jfcdd7ifql71lr5mjag102-gnused-4.9"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnused",
+      "broken": false,
+      "derivation": "/nix/store/lgk6l6bqmrf380fvd0p5bcp78668adnq-gnused-4.9.drv",
+      "description": "GNU sed, a batch stream editor",
+      "install_id": "gnused",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnused-4.9",
+      "pname": "gnused",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:02.779833Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/cyy5a0r1blpnkmsj8kvy18ria1ss1c6h-gnused-4.9-info",
+        "out": "/nix/store/qarfi1yp1r71kqwbxipncgnsj5qsnm69-gnused-4.9"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnused",
+      "broken": false,
+      "derivation": "/nix/store/3859rjk5ris7w2yhmpm4pnszbn08lmph-gnused-4.9.drv",
+      "description": "GNU sed, a batch stream editor",
+      "install_id": "gnused",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnused-4.9",
+      "pname": "gnused",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:56:59.701507Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/zagjaa6iilp4bnip2ra45qbylgfws7qm-gnused-4.9-info",
+        "out": "/nix/store/3fqggn1iq66h3yk73h455yyjc2q7895p-gnused-4.9"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnused",
+      "broken": false,
+      "derivation": "/nix/store/x0cw2kvqs4m62dymbbhm51p66v0k1s93-gnused-4.9.drv",
+      "description": "GNU sed, a batch stream editor",
+      "install_id": "gnused",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "gnused-4.9",
+      "pname": "gnused",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:57.346963Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.9",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "info": "/nix/store/i65zra2i21y5khnsnvl0pvd5rkvw5qhl-gnused-4.9-info",
+        "out": "/nix/store/clbb2cvigynr235ab5zgi18dyavznlk2-gnused-4.9"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
       "attr_path": "jdk17",
       "broken": false,
       "derivation": "/nix/store/l4gld4px128pcwm3xjkbn77w67gz6x44-zulu-ca-jdk-17.0.12.drv",
@@ -264,8 +637,19 @@
   "compose": {
     "composer": {
       "version": 1,
+      "install": {
+        "findutils": {
+          "pkg-path": "findutils"
+        },
+        "gnugrep": {
+          "pkg-path": "gnugrep"
+        },
+        "gnused": {
+          "pkg-path": "gnused"
+        }
+      },
       "hook": {
-        "on-activate": "  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i'' -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  for hook_name in \"pre-commit\" \"pre-push\"; do\n    hook=\".git/hooks/$hook_name\"\n    if ! [ -f \"$hook\" ] || ! cat \"$hook\" | grep -q 'COGO_PRE_COMMIT_HOOK'; then\n      echo \"Updating $hook_name hook...\"\n      cat .githooks/hook >> \"$hook\"\n      echo  >> \"$hook\"\n      echo \"# -- COGO_PRE_COMMIT_HOOK\" >> \"$hook\"\n      chmod +x \"$hook\"\n    fi\n  done\n"
+        "on-activate": "  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  for hook_name in \"pre-commit\" \"pre-push\"; do\n    hook=\".git/hooks/$hook_name\"\n    if ! [ -f \"$hook\" ] || ! grep -q 'COGO_GIT_HOOK' \"$hook\"; then\n      echo \"Updating $hook_name hook...\"\n      cat >\"$hook\" <<'EOF'\n#!/bin/bash\n# -- COGO_GIT_HOOK\nexec \"$(git rev-parse --show-toplevel)/.githooks/hook\" \"$(basename \"$0\")\"\nEOF\n      chmod +x \"$hook\"\n    fi\n  done\n"
       },
       "profile": {},
       "options": {

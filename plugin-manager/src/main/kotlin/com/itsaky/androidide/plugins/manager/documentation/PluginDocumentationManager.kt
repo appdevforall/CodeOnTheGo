@@ -6,66 +6,159 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
-import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import androidx.core.database.sqlite.transaction
 
 /**
- * Manages plugin documentation integration with the IDE's tooltip system.
- * Inserts plugin documentation directly into the main documentation database.
+ * Manages plugin documentation in an isolated database.
+ * This ensures plugin documentation is independent from the main app's documentation
+ * and won't be affected by app updates that change the database schema.
  */
 class PluginDocumentationManager(private val context: Context) {
 
     companion object {
         private const val TAG = "PluginDocManager"
-
-        private const val THIRD_PARTY_DISCLAIMER = "<br><br><em style='color: #888; font-size: 0.9em;'>⚠️ This documentation is provided by a third-party plugin and is not part of the official COGO IDE documentation.</em>"
-
-        private const val CREATE_PLUGIN_TRACKING_TABLE = """
-            CREATE TABLE IF NOT EXISTS PluginTooltipTracking (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pluginId TEXT NOT NULL,
-                tooltipId INTEGER NOT NULL,
-                categoryId INTEGER NOT NULL,
-                UNIQUE(pluginId, tooltipId)
-            )
-        """
     }
 
-    private suspend fun getDocumentationDatabase(): SQLiteDatabase? = withContext(Dispatchers.IO) {
+    private val databaseVersion = 1
+    private val databaseName = "plugin_documentation.db"
+    private val thirdPartyDisclaimer = "<br><br><em style='color: #888; font-size: 0.9em;'>⚠️ This documentation is provided by a third-party plugin.</em>"
+
+    // Database schema creation statements
+    private val createCategoriesTable = """
+        CREATE TABLE IF NOT EXISTS PluginTooltipCategories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL UNIQUE
+        )
+    """
+
+    private val createTooltipsTable = """
+        CREATE TABLE IF NOT EXISTS PluginTooltips (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            categoryId INTEGER NOT NULL,
+            tag TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            detail TEXT,
+            FOREIGN KEY(categoryId) REFERENCES PluginTooltipCategories(id),
+            UNIQUE(categoryId, tag)
+        )
+    """
+
+    private val createButtonsTable = """
+        CREATE TABLE IF NOT EXISTS PluginTooltipButtons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tooltipId INTEGER NOT NULL,
+            description TEXT NOT NULL,
+            uri TEXT NOT NULL,
+            buttonNumberId INTEGER NOT NULL,
+            FOREIGN KEY(tooltipId) REFERENCES PluginTooltips(id) ON DELETE CASCADE
+        )
+    """
+
+    private val createTrackingTable = """
+        CREATE TABLE IF NOT EXISTS PluginTracking (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pluginId TEXT NOT NULL,
+            tooltipId INTEGER NOT NULL,
+            categoryId INTEGER NOT NULL,
+            installedAt INTEGER NOT NULL,
+            UNIQUE(pluginId, tooltipId)
+        )
+    """
+
+    private val createMetadataTable = """
+        CREATE TABLE IF NOT EXISTS PluginMetadata (
+            pluginId TEXT PRIMARY KEY,
+            lastUpdated INTEGER NOT NULL,
+            version TEXT
+        )
+    """
+
+    /**
+     * Get or create the plugin documentation database.
+     */
+    private suspend fun getPluginDatabase(): SQLiteDatabase? = withContext(Dispatchers.IO) {
         try {
-            val dbPath = Environment.DOC_DB.absolutePath
-            if (!File(dbPath).exists()) {
-                Log.w(TAG, "Documentation database does not exist at: $dbPath")
-                return@withContext null
+            val dbPath = context.getDatabasePath(databaseName).absolutePath
+            val dbFile = File(dbPath)
+
+            val isNewDatabase = !dbFile.exists()
+
+            // Open or create the database
+            val db = SQLiteDatabase.openOrCreateDatabase(dbFile, null)
+
+            if (isNewDatabase) {
+                Log.d(TAG, "Creating new plugin documentation database at: $dbPath")
+                initializeDatabase(db)
+            } else {
+                // Check if tables exist, initialize if not
+                if (!tablesExist(db)) {
+                    Log.d(TAG, "Database exists but tables missing, initializing...")
+                    initializeDatabase(db)
+                }
             }
-            SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READWRITE)
+
+            db
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to open documentation database", e)
+            Log.e(TAG, "Failed to open/create plugin documentation database", e)
             null
         }
     }
 
     /**
-     * Initialize plugin tracking table if it doesn't exist.
+     * Check if required tables exist in the database.
      */
-    suspend fun initializePluginTracking() = withContext(Dispatchers.IO) {
-        val db = getDocumentationDatabase() ?: return@withContext
+    private fun tablesExist(db: SQLiteDatabase): Boolean {
+        val cursor = db.rawQuery(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN (?, ?, ?, ?, ?)",
+            arrayOf("PluginTooltipCategories", "PluginTooltips", "PluginTooltipButtons", "PluginTracking", "PluginMetadata")
+        )
+        val exists = cursor.moveToFirst() && cursor.getInt(0) == 5
+        cursor.close()
+        return exists
+    }
 
-        try {
-            db.execSQL(CREATE_PLUGIN_TRACKING_TABLE)
-            Log.d(TAG, "Plugin documentation tracking table initialized")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize plugin tracking table", e)
-        } finally {
-            db.close()
+    /**
+     * Initialize the database with required tables.
+     */
+    private fun initializeDatabase(db: SQLiteDatabase) {
+        db.transaction {
+            try {
+                execSQL(createCategoriesTable)
+                execSQL(createTooltipsTable)
+                execSQL(createButtonsTable)
+                execSQL(createTrackingTable)
+                execSQL(createMetadataTable)
+
+                // Create indices for better performance
+                execSQL("CREATE INDEX IF NOT EXISTS idx_tooltips_category ON PluginTooltips(categoryId)")
+                execSQL("CREATE INDEX IF NOT EXISTS idx_buttons_tooltip ON PluginTooltipButtons(tooltipId)")
+                execSQL("CREATE INDEX IF NOT EXISTS idx_tracking_plugin ON PluginTracking(pluginId)")
+
+                Log.d(TAG, "Plugin documentation database initialized successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize plugin documentation database", e)
+                throw e
+            } finally {
+            }
         }
     }
 
     /**
-     * Install documentation from a plugin that implements DocumentationExtension.
-     * Inserts tooltips directly into the main Tooltips, TooltipCategories, and TooltipButtons tables.
+     * Initialize plugin database if needed.
+     * This can be called on app startup to ensure the database exists.
+     */
+    suspend fun initialize() = withContext(Dispatchers.IO) {
+        val db = getPluginDatabase()
+        db?.close()
+        Log.d(TAG, "Plugin documentation system initialized")
+    }
+
+    /**
+     * Install documentation from a plugin.
+     * Inserts tooltips into the isolated plugin documentation database.
      */
     suspend fun installPluginDocumentation(
         pluginId: String,
@@ -77,7 +170,7 @@ class PluginDocumentationManager(private val context: Context) {
             return@withContext false
         }
 
-        val db = getDocumentationDatabase()
+        val db = getPluginDatabase()
         if (db == null) {
             Log.w(TAG, "Cannot install documentation for $pluginId - database not available")
             return@withContext false
@@ -99,10 +192,10 @@ class PluginDocumentationManager(private val context: Context) {
             // First, remove any existing documentation for this plugin
             removePluginDocumentationInternal(db, pluginId)
 
-            // Insert or get category ID from main TooltipCategories table
+            // Insert or get category ID
             val categoryId = insertOrGetCategoryId(db, category)
 
-            // Insert tooltips into main tables and track them
+            // Insert tooltips and track them
             for (entry in entries) {
                 val tooltipId = insertTooltip(db, categoryId, entry)
 
@@ -115,8 +208,8 @@ class PluginDocumentationManager(private val context: Context) {
                 }
             }
 
-            // Update LastChange to reflect plugin documentation addition
-            updateLastChange(db, "Plugin: $pluginId")
+            // Update plugin metadata
+            updatePluginMetadata(db, pluginId)
 
             db.setTransactionSuccessful()
             Log.d(TAG, "Successfully installed documentation for plugin $pluginId")
@@ -140,7 +233,7 @@ class PluginDocumentationManager(private val context: Context) {
 
         plugin?.onDocumentationUninstall()
 
-        val db = getDocumentationDatabase()
+        val db = getPluginDatabase()
         if (db == null) {
             Log.w(TAG, "Cannot remove documentation for $pluginId - database not available")
             return@withContext false
@@ -150,8 +243,8 @@ class PluginDocumentationManager(private val context: Context) {
         try {
             removePluginDocumentationInternal(db, pluginId)
 
-            // Update LastChange to reflect plugin documentation removal
-            updateLastChange(db, "Removed plugin: $pluginId")
+            // Remove plugin metadata
+            db.delete("PluginMetadata", "pluginId = ?", arrayOf(pluginId))
 
             db.setTransactionSuccessful()
             Log.d(TAG, "Successfully removed documentation for plugin $pluginId")
@@ -168,7 +261,7 @@ class PluginDocumentationManager(private val context: Context) {
     private fun removePluginDocumentationInternal(db: SQLiteDatabase, pluginId: String) {
         // Get all tooltip IDs for this plugin
         val cursor = db.query(
-            "PluginTooltipTracking",
+            "PluginTracking",
             arrayOf("tooltipId"),
             "pluginId = ?",
             arrayOf(pluginId),
@@ -185,21 +278,21 @@ class PluginDocumentationManager(private val context: Context) {
             // Delete buttons for these tooltips
             val placeholders = tooltipIds.joinToString(",") { "?" }
             db.delete(
-                "TooltipButtons",
+                "PluginTooltipButtons",
                 "tooltipId IN ($placeholders)",
                 tooltipIds.map { it.toString() }.toTypedArray()
             )
 
             // Delete the tooltips themselves
             db.delete(
-                "Tooltips",
+                "PluginTooltips",
                 "id IN ($placeholders)",
                 tooltipIds.map { it.toString() }.toTypedArray()
             )
         }
 
         // Remove tracking entries
-        db.delete("PluginTooltipTracking", "pluginId = ?", arrayOf(pluginId))
+        db.delete("PluginTracking", "pluginId = ?", arrayOf(pluginId))
 
         // Note: We don't delete categories as they might be shared with other plugins
     }
@@ -207,7 +300,7 @@ class PluginDocumentationManager(private val context: Context) {
     private fun insertOrGetCategoryId(db: SQLiteDatabase, category: String): Long {
         // Check if category already exists
         val cursor = db.query(
-            "TooltipCategories",
+            "PluginTooltipCategories",
             arrayOf("id"),
             "category = ?",
             arrayOf(category),
@@ -225,7 +318,7 @@ class PluginDocumentationManager(private val context: Context) {
         val values = ContentValues().apply {
             put("category", category)
         }
-        return db.insert("TooltipCategories", null, values)
+        return db.insert("PluginTooltipCategories", null, values)
     }
 
     private fun insertTooltip(
@@ -235,7 +328,7 @@ class PluginDocumentationManager(private val context: Context) {
     ): Long {
         // Check if tooltip with same tag already exists in this category
         val existingCursor = db.query(
-            "Tooltips",
+            "PluginTooltips",
             arrayOf("id"),
             "categoryId = ? AND tag = ?",
             arrayOf(categoryId.toString(), entry.tag),
@@ -248,26 +341,26 @@ class PluginDocumentationManager(private val context: Context) {
 
             // Update existing tooltip with disclaimer
             val updateValues = ContentValues().apply {
-                put("summary", entry.summary + THIRD_PARTY_DISCLAIMER)
-                put("detail", if (entry.detail.isNotBlank()) entry.detail + THIRD_PARTY_DISCLAIMER else "")
+                put("summary", entry.summary + thirdPartyDisclaimer)
+                put("detail", if (entry.detail.isNotBlank()) entry.detail + thirdPartyDisclaimer else "")
             }
-            db.update("Tooltips", updateValues, "id = ?", arrayOf(existingId.toString()))
+            db.update("PluginTooltips", updateValues, "id = ?", arrayOf(existingId.toString()))
 
             // Delete old buttons (we'll re-insert them)
-            db.delete("TooltipButtons", "tooltipId = ?", arrayOf(existingId.toString()))
+            db.delete("PluginTooltipButtons", "tooltipId = ?", arrayOf(existingId.toString()))
 
             return existingId
         }
         existingCursor.close()
 
-        // Insert new tooltip into main Tooltips table with disclaimer
+        // Insert new tooltip with disclaimer
         val values = ContentValues().apply {
             put("categoryId", categoryId)
             put("tag", entry.tag)
-            put("summary", entry.summary + THIRD_PARTY_DISCLAIMER)
-            put("detail", if (entry.detail.isNotBlank()) entry.detail + THIRD_PARTY_DISCLAIMER else "")
+            put("summary", entry.summary + thirdPartyDisclaimer)
+            put("detail", if (entry.detail.isNotBlank()) entry.detail + thirdPartyDisclaimer else "")
         }
-        return db.insert("Tooltips", null, values)
+        return db.insert("PluginTooltips", null, values)
     }
 
     private fun trackPluginTooltip(
@@ -280,9 +373,10 @@ class PluginDocumentationManager(private val context: Context) {
             put("pluginId", pluginId)
             put("tooltipId", tooltipId)
             put("categoryId", categoryId)
+            put("installedAt", System.currentTimeMillis())
         }
         db.insertWithOnConflict(
-            "PluginTooltipTracking",
+            "PluginTracking",
             null,
             values,
             SQLiteDatabase.CONFLICT_REPLACE
@@ -302,37 +396,35 @@ class PluginDocumentationManager(private val context: Context) {
             put("uri", uri)
             put("buttonNumberId", order)
         }
-        db.insert("TooltipButtons", null, values)
+        db.insert("PluginTooltipButtons", null, values)
     }
 
-    private fun updateLastChange(db: SQLiteDatabase, who: String) {
-        try {
-            // Update the LastChange table to reflect plugin changes
-            val values = ContentValues().apply {
-                put("now", System.currentTimeMillis())
-                put("who", who)
-            }
-
-            // Delete existing row and insert new one (assuming single row)
-            db.delete("LastChange", null, null)
-            db.insert("LastChange", null, values)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to update LastChange table", e)
+    private fun updatePluginMetadata(db: SQLiteDatabase, pluginId: String) {
+        val values = ContentValues().apply {
+            put("pluginId", pluginId)
+            put("lastUpdated", System.currentTimeMillis())
+            put("version", "1.0") // Can be updated to track actual plugin version
         }
+        db.insertWithOnConflict(
+            "PluginMetadata",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
     }
 
     /**
      * Get all plugin categories currently in the database.
      */
     suspend fun getPluginCategories(pluginId: String): List<String> = withContext(Dispatchers.IO) {
-        val db = getDocumentationDatabase() ?: return@withContext emptyList()
+        val db = getPluginDatabase() ?: return@withContext emptyList()
 
         val categories = mutableListOf<String>()
         try {
             val cursor = db.rawQuery("""
                 SELECT DISTINCT TC.category
-                FROM TooltipCategories TC
-                INNER JOIN PluginTooltipTracking PTT ON TC.id = PTT.categoryId
+                FROM PluginTooltipCategories TC
+                INNER JOIN PluginTracking PTT ON TC.id = PTT.categoryId
                 WHERE PTT.pluginId = ?
             """, arrayOf(pluginId))
 
@@ -350,10 +442,10 @@ class PluginDocumentationManager(private val context: Context) {
     }
 
     /**
-     * Check if the documentation database exists and is accessible.
+     * Check if the plugin documentation database exists and is accessible.
      */
     suspend fun isDatabaseAvailable(): Boolean = withContext(Dispatchers.IO) {
-        val dbPath = Environment.DOC_DB.absolutePath
+        val dbPath = context.getDatabasePath(databaseName).absolutePath
         if (!File(dbPath).exists()) {
             return@withContext false
         }
@@ -372,11 +464,11 @@ class PluginDocumentationManager(private val context: Context) {
      * Check if documentation for a specific plugin exists in the database.
      */
     suspend fun isPluginDocumentationInstalled(pluginId: String): Boolean = withContext(Dispatchers.IO) {
-        val db = getDocumentationDatabase() ?: return@withContext false
+        val db = getPluginDatabase() ?: return@withContext false
 
         try {
             val cursor = db.query(
-                "PluginTooltipTracking",
+                "PluginTracking",
                 arrayOf("COUNT(*) as count"),
                 "pluginId = ?",
                 arrayOf(pluginId),

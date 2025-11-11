@@ -1,17 +1,21 @@
+rootProject.name = "apk-viewer-plugin"
+
+include(":plugin-api")
+project(":plugin-api").projectDir = file("../plugin-api")
+
 pluginManagement {
     repositories {
-        google()     
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
-        google()
         mavenCentral()
+        google()
+        gradlePluginPortal()
     }
 }
-
-rootProject.name = "sample-plugin"
