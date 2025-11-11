@@ -2,14 +2,13 @@ package org.appdevforall.codeonthego.layouteditor
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import com.google.android.material.elevation.SurfaceColors
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.isSystemInDarkMode
 import java.lang.ref.WeakReference
 
 open class BaseActivity : AppCompatActivity() {
@@ -26,6 +25,12 @@ open class BaseActivity : AppCompatActivity() {
     OrientationUtilities.setOrientation {
       requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     }
+
+      // Set status bar icons to be dark in light mode and light in dark mode
+      WindowCompat.getInsetsController(this.window, this.window.decorView).apply {
+          isAppearanceLightStatusBars = !isSystemInDarkMode()
+          isAppearanceLightNavigationBars = !isSystemInDarkMode()
+      }
   }
 
 

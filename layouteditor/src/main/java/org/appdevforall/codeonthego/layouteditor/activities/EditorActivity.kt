@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.layouteditor.activities
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -36,6 +35,10 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.activities.editor.HelpActivity
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -271,21 +274,14 @@ class EditorActivity : BaseActivity() {
                 drawerLayout.closeDrawer(GravityCompat.END)
             }
             onItemLongClickListener = { view ->
-                showTooltip(
+                TooltipManager.showTooltip(
                     context = this@EditorActivity,
                     anchorView = view,
+                    category = TooltipCategory.CATEGORY_XML,
                     tag = view.javaClass.superclass.name
                 )
             }
         }
-    }
-
-    private fun showTooltip(context: Context, anchorView: View, tag: String) {
-        TooltipManager.showIdeCategoryTooltip(
-            context = context,
-            anchorView = anchorView,
-            tag = tag,
-        )
     }
 
     @SuppressLint("SetTextI18n")
@@ -378,8 +374,13 @@ class EditorActivity : BaseActivity() {
         }
 
         helpFab.setOnClickListener {
-            Toast.makeText(this, "Go to Help", Toast.LENGTH_SHORT).show()
-            // TODO - Load help page in [HelpActivity]
+            val intent =
+                Intent(this, HelpActivity::class.java).apply {
+                    putExtra(CONTENT_KEY, getString(R.string.layout_editor_url))
+                    putExtra(CONTENT_TITLE_KEY,
+                        getString(R.string.back_to_cogo))
+                }
+            this.startActivity(intent)
         }
         clear()
     }
@@ -559,6 +560,7 @@ class EditorActivity : BaseActivity() {
         if (result.isEmpty()) {
             showNothingDialog()
         } else {
+            saveXml()
             finish()
         }
     }

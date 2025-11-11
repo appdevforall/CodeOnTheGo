@@ -60,6 +60,6 @@ public class LogUtils {
     }
 
     public static String getPatternLayoutVerbosePattern(boolean omitMessage) {
-        return "%d{dd-MM HH:mm:ss.SS} %5level [%thread] %logger:" + (omitMessage ? "" : " %msg") + "%n";
+        return "%d{dd-MM HH:mm:ss.SS} %5level [%thread] %logger{0}:" + (omitMessage ? "" : " %msg") + "%n";
     }
 }
