@@ -25,6 +25,12 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class DeleteProjectFragment : BaseFragment() {
@@ -131,10 +137,6 @@ class DeleteProjectFragment : BaseFragment() {
         }
     }
 
-    private fun deleteProject(root: File) {
-        (requireActivity() as MainActivity).deleteProject(root)
-    }
-
     fun showToolTip(
         tag: String,
         anchorView: View? = null
@@ -153,19 +155,25 @@ class DeleteProjectFragment : BaseFragment() {
             .setMessage(R.string.msg_delete_selected_project)
             .setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
             .setPositiveButton(R.string.yes) { _, _ ->
-                try {
-                    adapter?.getSelectedProjects().let { locations ->
-                        locations?.forEach {
-                            deleteProject(File(it.path))
+                lifecycleScope.launch {
+                    val locations = adapter?.getSelectedProjects()
+                    if (locations.isNullOrEmpty()) return@launch
+
+                    val results = locations.map { location ->
+                        async(Dispatchers.IO) {
+                            (activity as? MainActivity)?.deleteProject(File(location.path)) ?: false
                         }
-                        val names = locations?.map { it.name }
-                        if (names != null) {
+                    }.awaitAll()
+
+                    withContext(Dispatchers.Main) {
+                        if (results.all { it }) {
+                            val names = locations.map { it.name }
                             recentProjectsViewModel.deleteSelectedProjects(names)
+                            requireActivity().flashSuccess(R.string.deleted)
+                        } else {
+                            requireActivity().flashError(R.string.delete_failed)
                         }
-                        flashSuccess(R.string.deleted)
                     }
-                } catch (e: Exception) {
-                    flashError(R.string.delete_failed)
                 }
             }
             .show()
