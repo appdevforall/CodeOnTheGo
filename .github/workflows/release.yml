@@ -31,21 +31,12 @@ env:
   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
-  build_apk:
-    name: Build Release APK
+  merge_stage_to_main:
+    name: Merge stage to main
     runs-on: self-hosted
-    timeout-minutes: 60
-    strategy:
-      matrix:
-        include:
-          - variant: v8
-            build_type: "RELEASE 64-bit"
-          - variant: v7
-            build_type: "RELEASE 32-bit"
-
+    timeout-minutes: 10
 
     steps:
-
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
@@ -66,18 +57,14 @@ jobs:
         run: |
           git fetch origin stage
           git checkout main
-          
-          # Attempt merge - if it fails due to conflicts, send notification and stop workflow
+
           if ! git merge origin/stage --no-ff -m "Daily merge from stage to main"; then
             echo "Merge failed due to conflicts. Sending notification and stopping workflow."
-            
-            # Get conflicted files for notification
+
             CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
-            
-            # Reset to clean state
+
             git merge --abort
-            
-            # Send Slack notification
+
             jq -n \
               --arg conflicted_files "$CONFLICTED_FILES" \
               '{
@@ -140,17 +127,37 @@ jobs:
                   }
                 ]
               }' > conflict_payload.json
-            
+
             curl -X POST -H "Content-type: application/json" --data @conflict_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
             rm -f conflict_payload.json
-            
+
             echo "Merge conflicts detected in files: $CONFLICTED_FILES"
             exit 1
           fi
-          
-          # If merge succeeds, push to main
+
           git push origin main
           echo "Merge completed successfully"
+
+  build_apk:
+    name: Build Release APK
+    runs-on: self-hosted
+    timeout-minutes: 60
+    needs: merge_stage_to_main
+    strategy:
+      matrix:
+        include:
+          - variant: v8
+            build_type: "RELEASE 64-bit"
+          - variant: v7
+            build_type: "RELEASE 32-bit"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
 
       - name: Set branch to main for build
         id: determine_branch
