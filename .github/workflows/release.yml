@@ -138,65 +138,14 @@ jobs:
           git push origin main
           echo "Merge completed successfully"
 
-  build_apk:
-    name: Build Release APK
+  download_documentation:
+    name: Download and compress documentation DB
     runs-on: self-hosted
-    timeout-minutes: 60
-    needs: merge_stage_to_main
-    strategy:
-      matrix:
-        include:
-          - variant: v8
-            build_type: "RELEASE 64-bit"
-          - variant: v7
-            build_type: "RELEASE 32-bit"
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          ref: main
-
-      - name: Set branch to main for build
-        id: determine_branch
-        run: |
-          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
-
-      - name: Install Git LFS
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-lfs
-          git lfs install
-          git lfs pull
-
-      - name: Initialize submodules
-        run: |
-          git submodule init
-          git submodule update --remote
-
-      - name: Check if Nix is installed
-        id: check_nix
-        run: |
-          if command -v nix >/dev/null 2>&1; then
-            echo "nix is installed"
-            echo "nix_installed=true" >> $GITHUB_ENV
-          else
-            echo "nix is not installed"
-            echo "nix_installed=false" >> $GITHUB_ENV
-          fi
-
-      - name: Install Flox
-        if: env.nix_installed == 'false'
-        uses: flox/install-flox-action@v2
-
-      - name: Create google-services.json
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          echo "google-services.json created successfully"
 
       - name: Authenticate to Google Cloud for Drive access
         id: auth_drive
@@ -220,6 +169,7 @@ jobs:
 
           echo "Downloading documentation.db from Google Drive..."
 
+          mkdir -p assets
           curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
             -o assets/documentation.db
@@ -299,6 +249,79 @@ jobs:
           echo "Successfully compressed documentation.db"
           echo "Original size: $ORIGINAL_SIZE"
           echo "Compressed size: $COMPRESSED_SIZE"
+
+      - name: Upload compressed documentation DB
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-db
+          path: assets/release/common/database/documentation.db.br
+          retention-days: 1
+
+  build_apk:
+    name: Build Release APK
+    runs-on: self-hosted
+    timeout-minutes: 60
+    needs: [merge_stage_to_main, download_documentation]
+    strategy:
+      matrix:
+        include:
+          - variant: v8
+            build_type: "RELEASE 64-bit"
+          - variant: v7
+            build_type: "RELEASE 32-bit"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+
+      - name: Set branch to main for build
+        id: determine_branch
+        run: |
+          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
+
+      - name: Download compressed documentation DB
+        uses: actions/download-artifact@v4
+        with:
+          name: documentation-db
+          path: assets/release/common/database
+
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+          git lfs pull
+
+      - name: Initialize submodules
+        run: |
+          git submodule init
+          git submodule update --remote
+
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "google-services.json created successfully"
 
       - name: Assemble Release APK
         run: |
