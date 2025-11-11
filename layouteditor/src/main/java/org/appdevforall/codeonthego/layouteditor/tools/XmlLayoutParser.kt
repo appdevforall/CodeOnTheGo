@@ -9,13 +9,13 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addNewId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.createView
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.invokeMethod
-import org.appdevforall.codeonthego.layouteditor.utils.restorePositionsAfterLoad
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
