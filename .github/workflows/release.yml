@@ -31,21 +31,12 @@ env:
   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
-  build_apk:
-    name: Build Release APK
+  merge_stage_to_main:
+    name: Merge stage to main
     runs-on: self-hosted
-    timeout-minutes: 60
-    strategy:
-      matrix:
-        include:
-          - variant: v8
-            build_type: "RELEASE 64-bit"
-          - variant: v7
-            build_type: "RELEASE 32-bit"
-
+    timeout-minutes: 10
 
     steps:
-
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
@@ -66,18 +57,14 @@ jobs:
         run: |
           git fetch origin stage
           git checkout main
-          
-          # Attempt merge - if it fails due to conflicts, send notification and stop workflow
+
           if ! git merge origin/stage --no-ff -m "Daily merge from stage to main"; then
             echo "Merge failed due to conflicts. Sending notification and stopping workflow."
-            
-            # Get conflicted files for notification
+
             CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
-            
-            # Reset to clean state
+
             git merge --abort
-            
-            # Send Slack notification
+
             jq -n \
               --arg conflicted_files "$CONFLICTED_FILES" \
               '{
@@ -140,56 +127,28 @@ jobs:
                   }
                 ]
               }' > conflict_payload.json
-            
+
             curl -X POST -H "Content-type: application/json" --data @conflict_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
             rm -f conflict_payload.json
-            
+
             echo "Merge conflicts detected in files: $CONFLICTED_FILES"
             exit 1
           fi
-          
-          # If merge succeeds, push to main
+
           git push origin main
           echo "Merge completed successfully"
 
-      - name: Set branch to main for build
-        id: determine_branch
-        run: |
-          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
+  download_documentation:
+    name: Download and compress documentation DB
+    runs-on: self-hosted
+    timeout-minutes: 30
+    needs: merge_stage_to_main
 
-      - name: Install Git LFS
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-lfs
-          git lfs install
-          git lfs pull
-
-      - name: Initialize submodules
-        run: |
-          git submodule init
-          git submodule update --remote
-
-      - name: Check if Nix is installed
-        id: check_nix
-        run: |
-          if command -v nix >/dev/null 2>&1; then
-            echo "nix is installed"
-            echo "nix_installed=true" >> $GITHUB_ENV
-          else
-            echo "nix is not installed"
-            echo "nix_installed=false" >> $GITHUB_ENV
-          fi
-
-      - name: Install Flox
-        if: env.nix_installed == 'false'
-        uses: flox/install-flox-action@v2
-
-      - name: Create google-services.json
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          echo "google-services.json created successfully"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Authenticate to Google Cloud for Drive access
         id: auth_drive
@@ -213,6 +172,7 @@ jobs:
 
           echo "Downloading documentation.db from Google Drive..."
 
+          mkdir -p assets
           curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
             -o assets/documentation.db
@@ -292,6 +252,79 @@ jobs:
           echo "Successfully compressed documentation.db"
           echo "Original size: $ORIGINAL_SIZE"
           echo "Compressed size: $COMPRESSED_SIZE"
+
+      - name: Upload compressed documentation DB
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-db
+          path: assets/release/common/database/documentation.db.br
+          retention-days: 1
+
+  build_apk:
+    name: Build Release APK
+    runs-on: self-hosted
+    timeout-minutes: 60
+    needs: [merge_stage_to_main, download_documentation]
+    strategy:
+      matrix:
+        include:
+          - variant: v8
+            build_type: "RELEASE 64-bit"
+          - variant: v7
+            build_type: "RELEASE 32-bit"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+
+      - name: Set branch to main for build
+        id: determine_branch
+        run: |
+          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
+
+      - name: Download compressed documentation DB
+        uses: actions/download-artifact@v4
+        with:
+          name: documentation-db
+          path: assets/release/common/database
+
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+          git lfs pull
+
+      - name: Initialize submodules
+        run: |
+          git submodule init
+          git submodule update --remote
+
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "google-services.json created successfully"
 
       - name: Assemble Release APK
         run: |
