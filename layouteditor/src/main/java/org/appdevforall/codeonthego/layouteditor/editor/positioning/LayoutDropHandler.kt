@@ -34,7 +34,7 @@ fun positionAtDrop(child: View, x: Float, y: Float, viewAttributeMap: HashMap<Vi
 
     clearPositioningAttributes(attributes)
 
-    applyLayoutAttributes(container, child, attributes, coords, x, y)
+    applyLayoutAttributes(container, child, attributes, coords, x, y, viewAttributeMap)
 }
 
 /**
@@ -52,14 +52,15 @@ internal fun applyLayoutAttributes(
     attributes: AttributeMap,
     coords: DpCoordinates,
     x: Float,
-    y: Float
+    y: Float,
+    fullAttributeMap: HashMap<View, AttributeMap>
 ) {
     when (container) {
         is ConstraintLayout -> applyConstraintLayoutAttributes(attributes, coords)
         is FrameLayout, is CoordinatorLayout -> applyGravityMarginAttributes(attributes, coords)
         is RelativeLayout -> applyRelativeLayoutAttributes(attributes, coords)
         is LinearLayout -> applyDragReorder(container, child, x, y)
-        is GridLayout -> applyGridLayoutAttributes(container, attributes, x, y)
+        is GridLayout -> applyGridLayoutAttributes(container, child, attributes, x, y, fullAttributeMap)
         else -> applyGenericLayoutAttributes(attributes, coords)
     }
 }

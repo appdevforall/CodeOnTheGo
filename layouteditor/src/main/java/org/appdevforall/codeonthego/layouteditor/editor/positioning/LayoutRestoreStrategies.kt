@@ -4,6 +4,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.RelativeLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
@@ -179,6 +180,86 @@ fun restoreRelativeLayoutPosition(
 
         view.layoutParams = lp
     }
+}
+
+internal fun restoreGridLayoutPosition(
+    view: View,
+    attrs: AttributeMap
+) {
+    val lp = view.layoutParams as? GridLayout.LayoutParams ?: return
+
+    val rowStr = attrs.getValue("android:layout_row")
+    val colStr = attrs.getValue("android:layout_column")
+    val gravityStr = attrs.getValue("android:layout_gravity")
+    val rowSpanStr = attrs.getValue("android:layout_rowSpan")
+    val colSpanStr = attrs.getValue("android:layout_columnSpan")
+    val weightStr = attrs.getValue("android:layout_columnWeight")
+
+    var changed = false
+
+    val row = rowStr.toIntOrNull()
+    val col = colStr.toIntOrNull()
+    val rowSpan = rowSpanStr.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    val colSpan = colSpanStr.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    val weight = weightStr.toFloatOrNull() ?: 0f
+
+    if (row != null) {
+        lp.rowSpec = GridLayout.spec(row, rowSpan)
+        changed = true
+    }
+
+    if (col != null) {
+				lp.columnSpec = GridLayout.spec(col, colSpan, weight)
+				changed = true
+		}
+
+    if (gravityStr.isNotEmpty()) {
+				val gravity = parseGravityString(gravityStr)
+				if (gravity != Gravity.NO_GRAVITY) {
+						lp.setGravity(gravity)
+						changed = true
+				}
+    }
+
+    if (changed) {
+        view.layoutParams = lp
+    }
+}
+
+internal fun parseGravityString(gravityString: String): Int {
+    if (gravityString.isBlank()) {
+        return Gravity.NO_GRAVITY
+    }
+
+    var totalGravity = 0
+
+    // Split by the '|' delimiter
+    gravityString.lowercase().split('|').forEach { part ->
+        val gravity = when (part.trim()) {
+            "top" -> Gravity.TOP
+            "bottom" -> Gravity.BOTTOM
+            "start" -> Gravity.START
+            "end" -> Gravity.END
+            "left" -> Gravity.LEFT
+            "right" -> Gravity.RIGHT
+            "center" -> Gravity.CENTER
+            "center_vertical" -> Gravity.CENTER_VERTICAL
+            "center_horizontal" -> Gravity.CENTER_HORIZONTAL
+            "fill" -> Gravity.FILL
+            "fill_vertical" -> Gravity.FILL_VERTICAL
+            "fill_horizontal" -> Gravity.FILL_HORIZONTAL
+            "clip_vertical" -> Gravity.CLIP_VERTICAL
+            "clip_horizontal" -> Gravity.CLIP_HORIZONTAL
+            else -> Gravity.NO_GRAVITY
+        }
+
+        if (gravity != Gravity.NO_GRAVITY) {
+            totalGravity = totalGravity or gravity
+        }
+    }
+
+    // Return NO_GRAVITY. Otherwise, return the combined flags.
+    return if (totalGravity == 0) Gravity.NO_GRAVITY else totalGravity
 }
 
 /**

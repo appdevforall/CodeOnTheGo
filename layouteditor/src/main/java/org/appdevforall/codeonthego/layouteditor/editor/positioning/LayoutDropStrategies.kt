@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.layouteditor.editor.positioning
 
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -10,6 +11,10 @@ import android.widget.TableLayout
 import android.widget.TableRow
 import androidx.constraintlayout.widget.ConstraintLayout
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import kotlin.math.roundToInt
+
+
+private data class GridCell(val row: Int, val col: Int)
 
 
 /**
@@ -218,26 +223,139 @@ internal fun applyRelativeLayoutAttributes(
     map.putValue("android:layout_marginTop", "${coords.yDp}dp")
 }
 
+/**
+ * Applies positioning attributes for a [GridLayout] child view.
+ *
+ * This function orchestrates the entire drop logic for a GridLayout:
+ * 1.  Determines the intended row/column count by checking the [fullAttributeMap] first,
+ * falling back to the live [container] count.
+ * 2.  Calculates the target cell (row, col) based on the drop coordinates and child's size.
+ * 3.  Expands the [container] (updating its live `columnCount` and its attributes)
+ * if the `targetCell` is outside the current bounds.
+ * 4.  Applies the final position (row, col) and a standard `columnWeight` of 1.0
+ * to both the [childAttributes] (for XML saving) and the child's live
+ * `LayoutParams` (to prevent `onMeasure` crashes).
+ *
+ * @param container The parent [GridLayout] where the child is being dropped.
+ * @param child The [View] being positioned.
+ * @param childAttributes The [AttributeMap] for the [child] view (to be updated).
+ * @param x The raw X drop coordinate in container pixels.
+ * @param y The raw Y drop coordinate in container pixels.
+ * @param fullAttributeMap The complete map of all views to their attributes, used to
+ * read/write the [container]'s attributes (e.g., `android:columnCount`).
+ */
 internal fun applyGridLayoutAttributes(
-	container: GridLayout,
-	attributes: AttributeMap,
-	x: Float,
-	y: Float
+    container: GridLayout,
+    child: View,
+    childAttributes: AttributeMap,
+    x: Float,
+    y: Float,
+    fullAttributeMap: HashMap<View, AttributeMap>
 ) {
-    val colCount = container.columnCount.takeIf { it > 0 } ?: 1
-    val rowCount = container.rowCount.takeIf { it > 0 } ?: 1
+    val intendedColCount = getIntendedGridCount(container, fullAttributeMap, isColumn = true)
+    val intendedRowCount = getIntendedGridCount(container, fullAttributeMap, isColumn = false)
 
-    val colWidth = (container.width.toFloat() / colCount).coerceAtLeast(1f)
-    val rowHeight = (container.height.toFloat() / rowCount).coerceAtLeast(1f)
+    val targetCell = calculateTargetCell(container, child, x, y, intendedColCount, intendedRowCount)
 
-    val targetCol = (x / colWidth).toInt().coerceIn(0, colCount - 1)
-    val targetRow = (y / rowHeight).toInt().coerceIn(0, rowCount - 1)
+    val gridChanged = expandGridIfNeeded(container, targetCell, intendedColCount, intendedRowCount, fullAttributeMap)
 
-    attributes.putValue("android:layout_row", "$targetRow")
-    attributes.putValue("android:layout_column", "$targetCol")
+    val weight = 1f
+    updateChildGridAttributes(childAttributes, targetCell, weight)
+    updateChildGridLayoutPostDrop(child, targetCell, weight)
 
-    attributes.putValue("android:layout_gravity", "center")
+    if (gridChanged) {
+        container.requestLayout()
+    }
 }
+
+/* START GridLayout Utils */
+private fun getIntendedGridCount(
+    container: GridLayout,
+    fullAttributeMap: HashMap<View, AttributeMap>,
+    isColumn: Boolean
+): Int {
+    val attrKey = if (isColumn) "android:columnCount" else "android:rowCount"
+    val liveCount = if (isColumn) container.columnCount else container.rowCount
+
+    return fullAttributeMap[container]?.getValue(attrKey)?.toIntOrNull()
+        ?.takeIf { it > 0 }
+        ?: liveCount.takeIf { it > 0 }
+        ?: 1
+}
+
+private fun calculateTargetCell(
+    container: GridLayout,
+    child: View,
+    x: Float,
+    y: Float,
+    intendedColCount: Int,
+    intendedRowCount: Int
+): GridCell {
+    val rowHeight = (container.height.toFloat() / intendedRowCount).coerceAtLeast(1f)
+
+    val colWidth = if (intendedColCount > 1) {
+        (container.width.toFloat() / intendedColCount).coerceAtLeast(1f)
+    } else {
+        child.width.toFloat().coerceAtLeast(100f)
+    }
+
+    val childCenterX = x + (child.width / 2f)
+    val childCenterY = y + (child.height / 2f)
+
+    val targetCol = (childCenterX / colWidth).roundToInt().coerceAtLeast(0)
+    val targetRow = (childCenterY / rowHeight).roundToInt().coerceAtLeast(0)
+
+    return GridCell(row = targetRow, col = targetCol)
+}
+
+private fun expandGridIfNeeded(
+    container: GridLayout,
+    targetCell: GridCell,
+    intendedColCount: Int,
+    intendedRowCount: Int,
+    fullAttributeMap: HashMap<View, AttributeMap>
+): Boolean {
+    var gridChanged = false
+
+    if (targetCell.col >= intendedColCount) {
+        container.columnCount = targetCell.col + 1
+        gridChanged = true
+    }
+    if (targetCell.row >= intendedRowCount) {
+        container.rowCount = targetCell.row + 1
+        gridChanged = true
+    }
+
+    if (gridChanged) {
+        val contAttrs = fullAttributeMap[container]
+        contAttrs?.putValue("android:columnCount", container.columnCount.toString())
+        contAttrs?.putValue("android:rowCount", container.rowCount.toString())
+    }
+
+    return gridChanged
+}
+
+private fun updateChildGridAttributes(childAttributes: AttributeMap, targetCell: GridCell, weight: Float) {
+    childAttributes.putValue("android:layout_row", "${targetCell.row}")
+    childAttributes.putValue("android:layout_column", "${targetCell.col}")
+    childAttributes.putValue("android:layout_rowSpan", "1")
+    childAttributes.putValue("android:layout_columnSpan", "1")
+    childAttributes.putValue("android:layout_columnWeight", "$weight")
+    childAttributes.putValue("android:layout_gravity", "center")
+}
+
+private fun updateChildGridLayoutPostDrop(child: View, targetCell: GridCell, weight: Float) {
+    val lp = (child.layoutParams as? GridLayout.LayoutParams)
+        ?: GridLayout.LayoutParams()
+
+    lp.rowSpec = GridLayout.spec(targetCell.row, 1)
+    lp.columnSpec = GridLayout.spec(targetCell.col, 1, weight)
+    lp.setGravity(Gravity.CENTER)
+
+    child.layoutParams = lp
+}
+
+/* END GridLayout Utils */
 
 /**
  * A generic fallback that applies standard margins to the [map].

@@ -19,7 +19,7 @@ internal val POSITIONING_KEYS_TO_REMOVE = setOf(
     "android:layout_column",
     "android:layout_rowSpan",
     "android:layout_columnSpan",
-    "android:layout_gravity",
+    "android:layout_columnWeight",
 
     // FrameLayout and GridLayout
     "android:layout_gravity",

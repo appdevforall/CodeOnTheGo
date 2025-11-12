@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.layouteditor.editor.positioning
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TableLayout
@@ -57,6 +58,7 @@ fun restorePositionsAfterLoad(rootView: View, attributeMap: Map<View, AttributeM
                 is RelativeLayout -> restoreRelativeLayoutPosition(parent, view, attrs, density)
                 is CoordinatorLayout -> restoreCoordinatorLayoutPosition(parent, view, attrs, density)
                 is TableLayout, is TableRow, is LinearLayout -> {}
+                is GridLayout -> restoreGridLayoutPosition(view, attrs)
                 else -> restoreGenericMarginPosition(parent, view, attrs, density)
             }
         }
