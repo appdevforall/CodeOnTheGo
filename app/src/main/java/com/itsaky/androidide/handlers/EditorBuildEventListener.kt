@@ -44,6 +44,15 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   private var enabled = true
   private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
 
+  private val pluginBuildService by lazy {
+    try {
+      com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl.getInstance()
+    } catch (e: Exception) {
+      log.warn("Failed to get IdeBuildServiceImpl instance", e)
+      null
+    }
+  }
+
   companion object {
 
     private val log = LoggerFactory.getLogger(EditorBuildEventListener::class.java)
@@ -67,6 +76,8 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   override fun prepareBuild(buildInfo: BuildInfo) {
     checkActivity("prepareBuild") ?: return
 
+    pluginBuildService?.setBuildInProgress(true)
+
     val isFirstBuild = GeneralPreferences.isFirstBuild
     activity
       .setStatus(
@@ -88,6 +99,8 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
   override fun onBuildSuccessful(tasks: List<String?>) {
     val act = checkActivity("onBuildSuccessful") ?: return
+
+    pluginBuildService?.notifyBuildFinished()
 
     analyzeCurrentFile()
 
@@ -124,6 +137,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
   override fun onBuildFailed(tasks: List<String?>) {
     val act = checkActivity("onBuildFailed") ?: return
+
     analyzeCurrentFile()
     GeneralPreferences.isFirstBuild = false
     act.editorViewModel.isBuildInProgress = false
@@ -131,6 +145,8 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
     val message =
       if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
+
+    pluginBuildService?.notifyBuildFailed(message)
 
     act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
 
