@@ -16,6 +16,7 @@ import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
+import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -126,9 +127,17 @@ class CallStackAdapter(
 					return@withContext
 				}
 
+				val isSelected = position == selectedFrameIndex
+				val selectedTextColor = binding.root.context.resolveAttr(R.attr.colorPrimary)
+				val unselectedTextColor = binding.root.context.resolveAttr(R.attr.colorOnSurface)
+				val textColor = if (isSelected) selectedTextColor else unselectedTextColor
+
 				binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
 				binding.label.text = descriptor.displayText()
-				binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
+				binding.indicator.visibility = if (isSelected) View.VISIBLE else View.INVISIBLE
+
+				binding.label.setTextColor(textColor)
+				binding.source.setTextColor(textColor)
 
 				binding.root.setOnClickListener {
 					onItemClickListener?.invoke(position)

@@ -6,5 +6,4 @@ import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 fun ThreadDescriptor.displayText(): String =
     "'${name}'@${id} in group '${group}': ${state.name}"
 
-fun StackFrameDescriptor.displayText(): String =
-    "${method}${methodSignature}"
+fun StackFrameDescriptor.displayText(): String = method
