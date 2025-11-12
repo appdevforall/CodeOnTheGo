@@ -80,7 +80,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     }
 
     override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {
-      Log.d("SwipeRevealLayout", "onViewPositionChanged: top=$top, dragHeightMax=$dragHeightMax")
       draggingViewTop = top
       onDragProgress(min(1f, top.toFloat() / dragHeightMax.toFloat()))
     }
@@ -229,7 +228,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-    Log.d("SwipeRevealLayout", "onLayout: dragProgress=$dragProgress, draggingViewTop=$draggingViewTop, dragHeightMax=$dragHeightMax")
     hiddenContent.layout(0, paddingTop, r, paddingTop + hiddenContent.measuredHeight)
 
     val olapTop = paddingTop + (hiddenContent.height * dragProgress).toInt()
