@@ -34,14 +34,14 @@ class SplashActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-      val isX86 = Build.SUPPORTED_ABIS.firstOrNull() in listOf(CpuArch.X86_64.abi, CpuArch.X86.abi)
+        val isX86 = Build.SUPPORTED_ABIS.firstOrNull() in listOf(CpuArch.X86_64.abi, CpuArch.X86.abi)
 
-      if (isX86 && (!IDEBuildConfigProvider.getInstance().supportsCpuAbi() || !FeatureFlags.isEmulatorUseEnabled()) ) {
-        finishAffinity()
-        exitProcess(0)
-      }
+        if (isX86 && (!IDEBuildConfigProvider.getInstance().supportsCpuAbi() || !FeatureFlags.isEmulatorUseEnabled()) ) {
+          finishAffinity()
+          exitProcess(0)
+        }
 
-      startActivity(Intent(this, OnboardingActivity::class.java))
-      finish()
+        startActivity(Intent(this, OnboardingActivity::class.java))
+        finish()
     }
 }
