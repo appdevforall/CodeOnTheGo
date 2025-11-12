@@ -33,11 +33,12 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
 
 	private lateinit var gestureDetector: GestureDetector
 
-	private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
-		override fun onLongPress(e: MotionEvent) {
-            TooltipManager.showIdeCategoryTooltip(requireContext(), _binding!!.root, fragmentTooltipTag)
+	private val gestureListener =
+		object : GestureDetector.SimpleOnGestureListener() {
+			override fun onLongPress(e: MotionEvent) {
+				TooltipManager.showIdeCategoryTooltip(requireContext(), _binding!!.root, fragmentTooltipTag)
+			}
 		}
-	}
 
 	@SuppressLint("ClickableViewAccessibility")
 	override fun onViewCreated(
@@ -82,7 +83,6 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
 				viewHolder.setSelectedFrameIndex(newPosition)
 			}
 		}
-
 }
 
 class CallStackAdapter(
