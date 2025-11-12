@@ -42,6 +42,7 @@ plugins {
 	alias(libs.plugins.rikka.autoresconfig) apply false
 	alias(libs.plugins.rikka.materialthemebuilder) apply false
 	alias(libs.plugins.rikka.refine) apply false
+	alias(libs.plugins.sonarqube)
 	alias(libs.plugins.spotless)
 }
 
@@ -191,6 +192,7 @@ spotless {
 			".githooks/**/*",
 			"scripts/**/*",
 		)
+		targetExclude("scripts/debug-keystore/adfa-keystore.jks")
 	}
 }
 
@@ -228,5 +230,12 @@ allprojects {
 tasks.named<Delete>("clean") {
 	doLast {
 		delete(rootProject.layout.buildDirectory)
+	}
+}
+
+sonar {
+	properties {
+		property("sonar.projectKey", "appdevforall_CodeOnTheGo")
+		property("sonar.organization", "app-dev-for-all")
 	}
 }
