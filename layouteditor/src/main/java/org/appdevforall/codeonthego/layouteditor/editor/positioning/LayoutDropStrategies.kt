@@ -167,7 +167,7 @@ internal fun applyDragReorder(container: ViewGroup, child: View, x: Float, y: Fl
  * @param map The [AttributeMap] to write attributes to.
  * @param coords The [DpCoordinates] containing the margins to apply.
  */
-fun applyConstraintLayoutAttributes(
+internal fun applyConstraintLayoutAttributes(
     map: AttributeMap,
     coords: DpCoordinates
 ) {

@@ -25,12 +25,12 @@ import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
  * @param topPxMargin The TOP margin in **pixels**.
  */
 fun modifyConstraintsForView(constraintSet: ConstraintSet, viewId: Int, startPxMargin: Int, topPxMargin: Int) {
-	constraintSet.clear(viewId, ConstraintSet.BOTTOM)
-	constraintSet.clear(viewId, ConstraintSet.END)
-	constraintSet.connect(viewId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
-	constraintSet.connect(viewId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
-	constraintSet.setMargin(viewId, ConstraintSet.START, startPxMargin)
-	constraintSet.setMargin(viewId, ConstraintSet.TOP, topPxMargin)
+    constraintSet.clear(viewId, ConstraintSet.BOTTOM)
+    constraintSet.clear(viewId, ConstraintSet.END)
+    constraintSet.connect(viewId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+    constraintSet.connect(viewId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+    constraintSet.setMargin(viewId, ConstraintSet.START, startPxMargin)
+    constraintSet.setMargin(viewId, ConstraintSet.TOP, topPxMargin)
 }
 
 /**
@@ -89,7 +89,7 @@ fun collectConstraintLayoutChange(
  * @param density The screen density for px conversion.
  */
 fun restoreFrameLayoutPosition(
-	container: FrameLayout, view: View, attrs: AttributeMap, density: Float
+    container: FrameLayout, view: View, attrs: AttributeMap, density: Float
 ) {
     val lp = view.layoutParams as? FrameLayout.LayoutParams ?: return
     val txStr = attrs.getValue("android:layout_marginLeft")
@@ -121,7 +121,7 @@ fun restoreFrameLayoutPosition(
  * @param density The screen density for px conversion.
  */
 internal fun restoreCoordinatorLayoutPosition(
-	container: CoordinatorLayout, view: View, attrs: AttributeMap, density: Float
+    container: CoordinatorLayout, view: View, attrs: AttributeMap, density: Float
 ) {
     val lp = view.layoutParams as? CoordinatorLayout.LayoutParams ?: return
     val txStr = attrs.getValue("android:layout_marginLeft")
@@ -156,7 +156,7 @@ internal fun restoreCoordinatorLayoutPosition(
  * @param density The screen density for px conversion.
  */
 fun restoreRelativeLayoutPosition(
-	container: RelativeLayout, view: View, attrs: AttributeMap, density: Float
+    container: RelativeLayout, view: View, attrs: AttributeMap, density: Float
 ) {
     val lp = view.layoutParams as? RelativeLayout.LayoutParams ?: return
     val txStr = attrs.getValue("android:layout_marginLeft")
@@ -209,16 +209,16 @@ internal fun restoreGridLayoutPosition(
     }
 
     if (col != null) {
-				lp.columnSpec = GridLayout.spec(col, colSpan, weight)
-				changed = true
-		}
+        lp.columnSpec = GridLayout.spec(col, colSpan, weight)
+        changed = true
+    }
 
     if (gravityStr.isNotEmpty()) {
-				val gravity = parseGravityString(gravityStr)
-				if (gravity != Gravity.NO_GRAVITY) {
-						lp.setGravity(gravity)
-						changed = true
-				}
+        val gravity = parseGravityString(gravityStr)
+        if (gravity != Gravity.NO_GRAVITY) {
+            lp.setGravity(gravity)
+            changed = true
+        }
     }
 
     if (changed) {

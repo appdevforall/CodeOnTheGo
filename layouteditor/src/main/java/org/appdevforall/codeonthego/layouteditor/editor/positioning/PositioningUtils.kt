@@ -137,7 +137,7 @@ internal fun String.toPx(density: Float): Float {
  * @return A [Pair] containing the clamped (X, Y) pixel values.
  */
 internal fun calculateClampedPx(
-	container: ViewGroup, view: View, txStr: String, tyStr: String, density: Float
+    container: ViewGroup, view: View, txStr: String, tyStr: String, density: Float
 ): Pair<Float, Float> {
     val maxX = (container.width - view.width).coerceAtLeast(0).toFloat()
     val maxY = (container.height - view.height).coerceAtLeast(0).toFloat()
