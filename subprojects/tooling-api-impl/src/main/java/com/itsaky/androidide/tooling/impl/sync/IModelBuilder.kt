@@ -16,6 +16,9 @@
  */
 package com.itsaky.androidide.tooling.impl.sync
 
+import com.google.protobuf.MessageLiteOrBuilder
+import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+
 /**
  * A model builder builds project models when the project is initialized/synced.
  *
@@ -23,7 +26,7 @@ package com.itsaky.androidide.tooling.impl.sync
  * @param <R> The type of model that is built.
  * @author Akash Yadav
  */
-interface IModelBuilder<P, R> {
+interface IModelBuilder<P, R: MessageLiteOrBuilder> {
 
   /**
    * Builds the model.
@@ -34,5 +37,5 @@ interface IModelBuilder<P, R> {
    * @throws ModelBuilderException If the model could not be built.
    */
   @Throws(ModelBuilderException::class)
-  fun build(param: P): R
+  fun build(initializeParams: InitializeProjectParams, param: P): R
 }

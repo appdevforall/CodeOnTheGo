@@ -18,9 +18,9 @@ package com.itsaky.androidide.tooling.impl.sync
 
 import com.android.builder.model.v2.ide.SyncIssue
 import com.android.builder.model.v2.models.Versions
+import com.google.protobuf.MessageLiteOrBuilder
 import com.itsaky.androidide.builder.model.DefaultSyncIssue
 import com.itsaky.androidide.builder.model.IDESyncIssue
-import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.util.ToolingProps
 import com.itsaky.androidide.utils.AndroidPluginVersion
 import com.itsaky.androidide.utils.AndroidPluginVersion.Companion.MINIMUM_SUPPORTED
@@ -37,12 +37,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Abstract class for [IModelBuilder] implementations.
  *
- * @property androidVariant The name of the variant for which the Android models will be built.
  * @author Akash Yadav
  */
-abstract class AbstractModelBuilder<P, R>(
-  protected val initializationParams: InitializeProjectParams
-) : IModelBuilder<P, R> {
+abstract class AbstractModelBuilder<P, R: MessageLiteOrBuilder>() : IModelBuilder<P, R> {
 
   companion object {
 
