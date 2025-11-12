@@ -900,6 +900,8 @@
     <string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
     <string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
     <string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
+    <string name="ai_disclaimer">Disclaimer</string>
+    <string name="ai_disclaimer_message">This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.</string>
 
 <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>

@@ -4,13 +4,14 @@ import android.app.Dialog
 import android.os.Bundle
 import androidx.fragment.app.DialogFragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.itsaky.androidide.resources.R
 
 class DisclaimerDialogFragment : DialogFragment() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         return MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Disclaimer")
-            .setMessage("This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.")
+            .setTitle(getString(R.string.ai_disclaimer))
+            .setMessage(getString(R.string.ai_disclaimer_message))
             .setPositiveButton("OK", null)
             .create()
     }
