@@ -45,7 +45,7 @@ import org.appdevforall.codeonthego.layouteditor.editor.dialogs.ViewDialog
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
 import org.appdevforall.codeonthego.layouteditor.editor.positioning.positionAtDrop
-import org.appdevforall.codeonthego.layouteditor.editor.positioning.restorePositionsAfterLoad
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.restoreSingleViewPosition
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.getViewId
@@ -344,7 +344,7 @@ class DesignEditor : LinearLayout {
 
                             positionAtDrop(newView, event.x, event.y, viewAttributeMap)
                             val rootLayout = getChildAt(0)
-                            restorePositionsAfterLoad(rootLayout, viewAttributeMap)
+                            restoreSingleViewPosition(rootLayout, newView, viewAttributeMap)
                         } else addWidget(draggedView, parent, event)
 
                         updateStructure()
@@ -509,7 +509,7 @@ class DesignEditor : LinearLayout {
             onDrop = { child, x, y ->
                 positionAtDrop(child, x, y, viewAttributeMap)
                 val rootLayout = getChildAt(0)
-                restorePositionsAfterLoad(rootLayout, viewAttributeMap)
+                restoreSingleViewPosition(rootLayout, child, viewAttributeMap)
 
                 updateStructure()
                 updateUndoRedoHistory()
