@@ -11,6 +11,7 @@ import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Date
 
@@ -18,14 +19,15 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     private val _projects = MutableLiveData<List<ProjectFile>>()
     val projects: LiveData<List<ProjectFile>> = _projects
+    var didBootstrap = false
 
 
     // Get the database and DAO instance
     private val recentProjectDao: RecentProjectDao =
         RecentProjectRoomDatabase.getDatabase(application, viewModelScope).recentProjectDao()
 
-    fun loadProjects() {
-        viewModelScope.launch(Dispatchers.IO) {
+    fun loadProjects(): Job {
+        return viewModelScope.launch(Dispatchers.IO) {
             val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
             val context = getApplication<Application>().applicationContext
             val projectFiles =
@@ -83,8 +85,6 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch(Dispatchers.IO) {
             // Delete the selected projects from the database
             recentProjectDao.deleteByNames(selectedNames)
-            //  update the LiveData to remove the deleted projects
-            _projects.postValue(_projects.value?.filterNot { it.name in selectedNames })
-
+            loadProjects()
         }
 }

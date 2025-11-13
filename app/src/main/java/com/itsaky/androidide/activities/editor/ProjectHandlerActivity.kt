@@ -256,6 +256,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+
+        val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
+        editorViewModel.isBuildInProgress = service?.isBuildInProgress == true
+
+        editorViewModel.isInitializing = initializingFuture?.isDone == false
+
+        invalidateOptionsMenu()
+    }
+
     override fun preDestroy() {
         syncNotificationFlashbar?.dismiss()
         syncNotificationFlashbar = null
