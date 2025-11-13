@@ -45,8 +45,6 @@ dependencies {
 	
 	api(projects.subprojects.aapt2Proto)
 
-	api(projects.subprojects.aapt2Proto)
-
 	testImplementation(libs.tests.junit)
 	testImplementation(libs.tests.robolectric)
 	testImplementation(libs.tests.google.truth)

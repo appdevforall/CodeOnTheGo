@@ -31,6 +31,7 @@ import com.itsaky.androidide.tooling.impl.Main
 import com.itsaky.androidide.tooling.impl.util.configureFrom
 import com.itsaky.androidide.utils.sha256
 import kotlinx.coroutines.runBlocking
+import org.gradle.api.GradleException
 import org.gradle.tooling.ConfigurableLauncher
 import org.gradle.tooling.model.idea.IdeaProject
 import org.slf4j.LoggerFactory
@@ -184,6 +185,10 @@ object RootModelBuilder :
 						}
 					}
 				}
+
+			if (!success) {
+				throw GradleException("Failed to acquire sync lock file")
+			}
 
 			return@action cacheFile
 		}

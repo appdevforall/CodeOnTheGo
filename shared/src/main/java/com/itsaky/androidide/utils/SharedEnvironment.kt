@@ -38,17 +38,17 @@ object SharedEnvironment {
 	const val PROJECT_SYNC_CACHE_META_FILE_NAME = "sync.pb"
 
 	/**
-	 * The relative path to the gradle sync cache lock file of a project.
+	 * The relative path to the gradle sync cache metadata file of a project.
 	 */
 	const val PROJECT_SYNC_CACHE_META_FILE = "$PROJECT_SYNC_CACHE_DIR/$PROJECT_SYNC_CACHE_META_FILE_NAME"
 
 	/**
-	 * The name of the gradle sync metadata file.
+	 * The name of the gradle project cache model file.
 	 */
 	const val PROJECT_SYNC_CACHE_MODEL_FILE_NAME = "project.pb"
 
 	/**
-	 * The relative path to the gradle sync cache lock file of a project.
+	 * The relative path to the gradle project cache model file of a project.
 	 */
 	const val PROJECT_SYNC_CACHE_MODEL_FILE = "$PROJECT_SYNC_CACHE_DIR/$PROJECT_SYNC_CACHE_MODEL_FILE_NAME"
 }
