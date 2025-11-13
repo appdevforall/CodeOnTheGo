@@ -25,21 +25,23 @@ import java.io.Serializable
  *
  * @author Akash Yadav
  */
-sealed class InitializeResult: Serializable {
-
+sealed class InitializeResult : Serializable {
 	protected val gsonType: String = javaClass.name
 	protected val serialVersionUID = 1L
-
 
 	/**
 	 * The project initialization was successful.
 	 */
-	data class Success(val cacheFile: File) : InitializeResult()
+	data class Success(
+		val cacheFile: File,
+	) : InitializeResult()
 
 	/**
 	 * The project initialization failed.
 	 */
-	data class Failure(val failure: TaskExecutionResult.Failure? = null): InitializeResult()
+	data class Failure(
+		val failure: TaskExecutionResult.Failure? = null,
+	) : InitializeResult()
 }
 
 /**

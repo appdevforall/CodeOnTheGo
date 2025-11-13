@@ -22,7 +22,6 @@ import java.io.StringReader
 import java.util.Properties
 
 object ListingFileRedirect {
-
 	/**
 	 * Redirect file will have this marker as the first line as comment.
 	 */
@@ -35,7 +34,7 @@ object ListingFileRedirect {
 
 	private fun maybeExtractRedirectedFile(
 		redirectFile: File,
-		redirectFileContent: String? = null
+		redirectFileContent: String? = null,
 	): File? {
 		if (!redirectFile.exists()) {
 			return null
@@ -43,19 +42,21 @@ object ListingFileRedirect {
 
 		val fileContent = redirectFileContent ?: redirectFile.readText()
 		return if (fileContent.startsWith(REDIRECT_MARKER)) {
-			val fileLocator = Properties().also {
-				it.load(StringReader(fileContent))
-			}
+			val fileLocator =
+				Properties().also {
+					it.load(StringReader(fileContent))
+				}
 			val file = File(fileLocator.getProperty(REDIRECT_PROPERTY_NAME))
-			if (!file.isAbsolute)
+			if (!file.isAbsolute) {
 				redirectFile.parentFile?.resolve(file)
-			else
+			} else {
 				file
-		} else null
+			}
+		} else {
+			null
+		}
 	}
 
 	@JvmStatic
-	fun getListingFile(inputFile: File) =
-		maybeExtractRedirectedFile(inputFile) ?: inputFile
+	fun getListingFile(inputFile: File) = maybeExtractRedirectedFile(inputFile) ?: inputFile
 }
-

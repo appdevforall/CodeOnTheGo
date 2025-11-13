@@ -25,15 +25,16 @@ fun createJavaProjectProtoModel(
 ) = JavaProject(
 	contentRootList = ideaModule.contentRoots.map { it.asProtoModel() },
 	dependencyList = ideaModule.dependencies.map { it.asProtoModel(moduleNameToPath) },
-	javaCompilerSettings = createCompilerSettings(ideaProject, ideaModule)
+	javaCompilerSettings = createCompilerSettings(ideaProject, ideaModule),
 )
 
 private fun createCompilerSettings(
 	ideaProject: IdeaProject,
-	module: IdeaModule
+	module: IdeaModule,
 ): Common.JavaCompilerSettings {
-	val javaLanguageSettings = module.javaLanguageSettings
-		?: return createCompilerSettings(ideaProject)
+	val javaLanguageSettings =
+		module.javaLanguageSettings
+			?: return createCompilerSettings(ideaProject)
 	val languageLevel = javaLanguageSettings.languageLevel
 	val targetBytecodeVersion = javaLanguageSettings.targetBytecodeVersion
 	if (languageLevel == null || targetBytecodeVersion == null) {
@@ -50,41 +51,49 @@ private fun createCompilerSettings(ideaProject: IdeaProject): Common.JavaCompile
 	val target = settings.targetBytecodeVersion
 	return if (source == null || target == null) {
 		DEFAULT_COMPILER_SETTINGS
-	} else JavaCompilerSettings(
-		sourceCompatibility = source.toString(),
-		targetCompatibility = target.toString()
-	)
-}
-
-fun IdeaDependency.asProtoModel(moduleNameToPath: Map<String, String>) = JavaDependency(
-	jarFilePath = (this as? IdeaSingleEntryLibraryDependency)?.file?.absolutePath,
-	scope = this.scope.scope,
-	exported = this.exported,
-	externalLibrary = (this as? IdeaSingleEntryLibraryDependency)?.asProtoModel(),
-	module = (this as? IdeaModuleDependency)?.asProtoModel(moduleNameToPath),
-)
-
-fun IdeaSingleEntryLibraryDependency.asProtoModel() = JavaExternalLibraryDependency(
-	libraryInfo = this.gradleModuleVersion?.let { moduleVersion ->
-		LibraryInfo(
-			group = moduleVersion.group,
-			name = moduleVersion.name,
-			version = moduleVersion.version
+	} else {
+		JavaCompilerSettings(
+			sourceCompatibility = source.toString(),
+			targetCompatibility = target.toString(),
 		)
 	}
-)
+}
 
-fun IdeaModuleDependency.asProtoModel(moduleNameToPath: Map<String, String>) = JavaModuleDependency(
-	moduleName = this.targetModuleName,
-	projectPath = moduleNameToPath[this.targetModuleName] ?: "",
-)
+fun IdeaDependency.asProtoModel(moduleNameToPath: Map<String, String>) =
+	JavaDependency(
+		jarFilePath = (this as? IdeaSingleEntryLibraryDependency)?.file?.absolutePath,
+		scope = this.scope.scope,
+		exported = this.exported,
+		externalLibrary = (this as? IdeaSingleEntryLibraryDependency)?.asProtoModel(),
+		module = (this as? IdeaModuleDependency)?.asProtoModel(moduleNameToPath),
+	)
 
-fun IdeaContentRoot.asProtoModel() = JavaContentRoot(
-	sourceDirectoryList = sourceDirectories.map { it.asProtoModel() },
-	testDirectoryList = testDirectories.map { it.asProtoModel() }
-)
+fun IdeaSingleEntryLibraryDependency.asProtoModel() =
+	JavaExternalLibraryDependency(
+		libraryInfo =
+			this.gradleModuleVersion?.let { moduleVersion ->
+				LibraryInfo(
+					group = moduleVersion.group,
+					name = moduleVersion.name,
+					version = moduleVersion.version,
+				)
+			},
+	)
 
-fun IdeaSourceDirectory.asProtoModel() = JavaSourceDirectory(
-	directoryPath = directory.absolutePath,
-	isGenerated = isGenerated
-)
+fun IdeaModuleDependency.asProtoModel(moduleNameToPath: Map<String, String>) =
+	JavaModuleDependency(
+		moduleName = this.targetModuleName,
+		projectPath = moduleNameToPath[this.targetModuleName] ?: "",
+	)
+
+fun IdeaContentRoot.asProtoModel() =
+	JavaContentRoot(
+		sourceDirectoryList = sourceDirectories.map { it.asProtoModel() },
+		testDirectoryList = testDirectories.map { it.asProtoModel() },
+	)
+
+fun IdeaSourceDirectory.asProtoModel() =
+	JavaSourceDirectory(
+		directoryPath = directory.absolutePath,
+		isGenerated = isGenerated,
+	)

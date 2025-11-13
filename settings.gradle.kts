@@ -113,7 +113,7 @@ include(
 	":app",
 	":build-info",
 	":common",
-    ":common-ui",
+	":common-ui",
 	":editor",
 	":editor-api",
 	":editor-treesitter",
@@ -175,8 +175,8 @@ include(
 	":testing:lsp",
 	":testing:tooling",
 	":testing:unit",
-    ":plugin-api",
-    ":plugin-manager"
+	":plugin-api",
+	":plugin-manager",
 )
 
 object FDroidConfig {

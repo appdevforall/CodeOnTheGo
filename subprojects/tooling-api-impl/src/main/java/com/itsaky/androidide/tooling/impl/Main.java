@@ -20,95 +20,92 @@ package com.itsaky.androidide.tooling.impl;
 import com.itsaky.androidide.logging.JvmStdErrAppender;
 import com.itsaky.androidide.tooling.api.IToolingApiClient;
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher;
-
-import org.gradle.tooling.events.OperationType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import org.gradle.tooling.events.OperationType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Main {
 
-  private static final Logger LOG = LoggerFactory.getLogger(Main.class);
-  public static IToolingApiClient client;
-  public static Future<Void> future;
+	private static final Logger LOG = LoggerFactory.getLogger(Main.class);
+	public static IToolingApiClient client;
+	public static Future<Void> future;
 
-  public static void main(String[] args) {
+	public static void checkGradleWrapper() {
+		if (client != null) {
+			LOG.info("Checking gradle wrapper availability...");
+			try {
+				if (!client.checkGradleWrapperAvailability().get().isAvailable()) {
+					LOG.warn(
+							"Gradle wrapper is not available."
+									+ " Client might have failed to ensure availability."
+									+ " Build might fail.");
+				} else {
+					LOG.info("Gradle wrapper is available");
+				}
+			} catch (Throwable e) {
+				LOG.warn("Unable to get Gradle wrapper availability from client", e);
+			}
+		}
+	}
 
-    // disable the JVM std.err appender
-    System.setProperty(JvmStdErrAppender.PROP_JVM_STDERR_APPENDER_ENABLED, "false");
+	public static void main(String[] args) {
 
-    LOG.debug("Starting Tooling API server...");
-    final var server = new ToolingApiServerImpl();
-    final var launcher =
-        ToolingApiLauncher.newServerLauncher(server, System.in, System.out);
-    Main.future = launcher.startListening();
-    Main.client = (IToolingApiClient) launcher.getRemoteProxy();
-    server.connect(client);
+		// disable the JVM std.err appender
+		System.setProperty(JvmStdErrAppender.PROP_JVM_STDERR_APPENDER_ENABLED, "false");
 
-    LOG.debug("Server started. Will run until shutdown message is received...");
-    LOG.debug("Running on Java version: {}", System.getProperty("java.version", "<unknown>"));
+		LOG.debug("Starting Tooling API server...");
+		final var server = new ToolingApiServerImpl();
+		final var launcher = ToolingApiLauncher.newServerLauncher(server, System.in, System.out);
+		Main.future = launcher.startListening();
+		Main.client = (IToolingApiClient) launcher.getRemoteProxy();
+		server.connect(client);
 
-    try {
-      Main.future.get();
-    } catch (CancellationException cancellationException) {
-      // ignored
-    } catch (InterruptedException | ExecutionException e) {
-      LOG.error("An error occurred while waiting for shutdown message", e);
-      if (e instanceof InterruptedException) {
-        // set the interrupt flag
-        Thread.currentThread().interrupt();
-      }
+		LOG.debug("Server started. Will run until shutdown message is received...");
+		LOG.debug("Running on Java version: {}", System.getProperty("java.version", "<unknown>"));
 
-    } finally {
+		try {
+			Main.future.get();
+		} catch (CancellationException cancellationException) {
+			// ignored
+		} catch (InterruptedException | ExecutionException e) {
+			LOG.error("An error occurred while waiting for shutdown message", e);
+			if (e instanceof InterruptedException) {
+				// set the interrupt flag
+				Thread.currentThread().interrupt();
+			}
 
-      // Cleanup should be performed in ToolingApiServerImpl.shutdown()
-      // this is to make sure that the daemons are stopped in case the client doesn't call shutdown()
-      try {
-        if (server.isInitialized() || server.isConnected()) {
-          LOG.warn("Connection to tooling server closed without shutting it down!");
-          server.shutdown().get();
-        }
-      } catch (InterruptedException | ExecutionException e) {
-        LOG.error("An error occurred while shutting down tooling API server", e);
-      } finally {
-        Main.future = null;
-        Main.client = null;
+		} finally {
 
-        LOG.info("Tooling API server shutdown complete");
-      }
-    }
-  }
+			// Cleanup should be performed in ToolingApiServerImpl.shutdown()
+			// this is to make sure that the daemons are stopped in case the client doesn't call shutdown()
+			try {
+				if (server.isInitialized() || server.isConnected()) {
+					LOG.warn("Connection to tooling server closed without shutting it down!");
+					server.shutdown().get();
+				}
+			} catch (InterruptedException | ExecutionException e) {
+				LOG.error("An error occurred while shutting down tooling API server", e);
+			} finally {
+				Main.future = null;
+				Main.client = null;
 
-  public static void checkGradleWrapper() {
-    if (client != null) {
-      LOG.info("Checking gradle wrapper availability...");
-      try {
-        if (!client.checkGradleWrapperAvailability().get().isAvailable()) {
-          LOG.warn(
-              "Gradle wrapper is not available."
-                  + " Client might have failed to ensure availability."
-                  + " Build might fail.");
-        } else {
-          LOG.info("Gradle wrapper is available");
-        }
-      } catch (Throwable e) {
-        LOG.warn("Unable to get Gradle wrapper availability from client", e);
-      }
-    }
-  }
+				LOG.info("Tooling API server shutdown complete");
+			}
+		}
+	}
 
-  public static Set<OperationType> progressUpdateTypes() {
-    final Set<OperationType> types = new HashSet<>();
+	public static Set<OperationType> progressUpdateTypes() {
+		final Set<OperationType> types = new HashSet<>();
 
-    // AndroidIDE currently does not handle any other type of events
-    types.add(OperationType.TASK);
-    types.add(OperationType.PROJECT_CONFIGURATION);
+		// AndroidIDE currently does not handle any other type of events
+		types.add(OperationType.TASK);
+		types.add(OperationType.PROJECT_CONFIGURATION);
 
-    return types;
-  }
+		return types;
+	}
 }

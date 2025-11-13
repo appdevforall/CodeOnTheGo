@@ -34,13 +34,10 @@ import java.util.concurrent.CompletableFuture
  * @author Akash Yadav
  */
 interface BuildService {
-
 	companion object {
-
 		/** Key that can be used to retrieve the [BuildService] instance using the [Lookup] API. */
 		@JvmField
 		val KEY_BUILD_SERVICE = Key<BuildService>()
-
 	}
 
 	/** Whether a build is in progress or not. */
@@ -66,14 +63,12 @@ interface BuildService {
 	/**
 	 * @see executeTasks
 	 */
-	fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> =
-		executeTasks(tasks.toList())
+	fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> = executeTasks(tasks.toList())
 
 	/**
 	 * @see executeTasks
 	 */
-	fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult> =
-		executeTasks(TaskExecutionMessage(tasks))
+	fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult> = executeTasks(TaskExecutionMessage(tasks))
 
 	/**
 	 * Execute the given tasks.

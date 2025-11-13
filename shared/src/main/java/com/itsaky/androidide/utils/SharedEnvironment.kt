@@ -6,7 +6,6 @@ package com.itsaky.androidide.utils
  * @author Akash Yadav
  */
 object SharedEnvironment {
-
 	/**
 	 * The name of the per-project cache directory.
 	 */

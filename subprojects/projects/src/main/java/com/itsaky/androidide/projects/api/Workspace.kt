@@ -34,17 +34,14 @@ import java.nio.file.Path
 data class Workspace(
 	val rootProject: GradleProject,
 	val subProjects: List<GradleProject>,
-	val syncIssues: List<GradleModels.SyncIssue>
+	val syncIssues: List<GradleModels.SyncIssue>,
 ) {
-
 	/**
 	 * Finds the project by the given path.
 	 *
 	 * @return The project with the given path or `null` if no project is available with that path.
 	 */
-	fun findByPath(path: String): GradleProject? {
-		return this.subProjects.find { it.path == path }
-	}
+	fun findByPath(path: String): GradleProject? = this.subProjects.find { it.path == path }
 
 	/**
 	 * Find the first [AndroidModule] in this project. If this project is itself an Android module,
@@ -83,17 +80,15 @@ data class Workspace(
 	 *
 	 * @return The list of android modules.
 	 */
-	fun findAndroidModules(): List<AndroidModule> {
-		return subProjects.filterIsInstance<AndroidModule>().toMutableList()
-	}
+	fun findAndroidModules(): List<AndroidModule> = subProjects.filterIsInstance<AndroidModule>().toMutableList()
 
-	fun findModuleForFile(file: Path): ModuleProject? {
-		return findModuleForFile(file.toFile())
-	}
+	fun findModuleForFile(file: Path): ModuleProject? = findModuleForFile(file.toFile())
 
 	@JvmOverloads
-	fun findModuleForFile(file: File, checkExistence: Boolean = false): ModuleProject? {
-
+	fun findModuleForFile(
+		file: File,
+		checkExistence: Boolean = false,
+	): ModuleProject? {
 		if (!file.exists() && checkExistence) {
 			return null
 		}

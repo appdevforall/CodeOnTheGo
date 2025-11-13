@@ -23,7 +23,6 @@ package com.itsaky.androidide.tooling.api
  * @author Akash Yadav
  */
 object IAndroidProject {
-
 	/**
 	 * The name of the Android project build variant that is used by default.
 	 */

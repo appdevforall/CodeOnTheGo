@@ -18,11 +18,6 @@
 package com.itsaky.androidide.projects.api
 
 import com.itsaky.androidide.project.GradleModels
-import com.itsaky.androidide.projects.models.projectDir
-import com.itsaky.androidide.tooling.api.ProjectType
-import com.itsaky.androidide.tooling.api.models.GradleTask
-import java.io.File
-import java.util.concurrent.CompletableFuture
 
 /**
  * A Gradle project model.

@@ -51,17 +51,13 @@ import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 
-
 /**
  * Any action that has to work with fields in the current class can inherit this action.
  *
  * @author Akash Yadav
  */
 abstract class FieldBasedAction : BaseJavaCodeAction() {
-
-
 	companion object {
-
 		private val log = LoggerFactory.getLogger(FieldBasedAction::class.java)
 	}
 
@@ -72,7 +68,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 			!visible ||
 			!data.hasRequiredData(
 				Range::class.java,
-				CodeEditor::class.java
+				CodeEditor::class.java,
 			) ||
 			IProjectManager.getInstance().workspace == null
 		) {
@@ -104,7 +100,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 	protected fun findFields(
 		task: CompileTask,
 		file: Path,
-		range: Range
+		range: Range,
 	): Triple<FindTypeDeclarationAt, ClassTree, MutableList<VariableTree>>? {
 		// 1-based line and column index
 		val startLine = range.start.line + 1
@@ -117,7 +113,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 
 		if (start == (-1).toLong() || end == (-1).toLong()) {
 			throw CompletionException(
-				RuntimeException("Unable to find position for the given selection range")
+				RuntimeException("Unable to find position for the given selection range"),
 			)
 		}
 
@@ -145,7 +141,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 		task: CompileTask,
 		file: Path,
 		range: Range,
-		onValid: (FindTypeDeclarationAt, ClassTree, MutableList<VariableTree>) -> Unit
+		onValid: (FindTypeDeclarationAt, ClassTree, MutableList<VariableTree>) -> Unit,
 	) {
 		val triple = findFields(task, file, range)
 		if (triple == null) {
@@ -165,7 +161,10 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 	}
 
 	@Suppress("UNCHECKED_CAST")
-	override fun postExec(data: ActionData, result: Any) {
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
 		if (result !is List<*>) {
 			log.error("Unable to find fields in the current class")
 			return
@@ -183,7 +182,10 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 	 * Called when the fields of the current class are found. As this method is called inside
 	 * [postExec], the current thread is the UI thread.
 	 */
-	abstract fun onGetFields(fields: List<String>, data: ActionData)
+	abstract fun onGetFields(
+		fields: List<String>,
+		data: ActionData,
+	)
 
 	/**
 	 * Shows the field selector dialog. Returns a [CompletableFuture] which is completed when the user
@@ -200,7 +202,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 		fields: List<String>,
 		data: ActionData,
 		listener: OnFieldsSelectedListener?,
-		actionId: String
+		actionId: String,
 	) {
 		val names = fields.toTypedArray()
 		val checkedNames = mutableSetOf<String>()
@@ -245,22 +247,24 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 		dialog.show()
 	}
 
-	private fun showTooltip(context: Context, anchor: View, actionId: String) {
-        TooltipManager.showIdeCategoryTooltip(context, anchor, getToolTipTag(actionId))
+	private fun showTooltip(
+		context: Context,
+		anchor: View,
+		actionId: String,
+	) {
+		TooltipManager.showIdeCategoryTooltip(context, anchor, getToolTipTag(actionId))
 	}
 
-	fun getToolTipTag(actionId: String): String {
-		return when (actionId) {
+	fun getToolTipTag(actionId: String): String =
+		when (actionId) {
 			TO_STRING -> EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG
 			CONSTRUCTOR -> EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR_DIALOG
 			GETTER_SETTER -> EDITOR_CODE_ACTIONS_SETTER_GETTER_DIALOG
 			else -> ""
 		}
-	}
 
 	/** Listener to get callback when fields are selected by the user. */
 	fun interface OnFieldsSelectedListener {
-
 		/**
 		 * Called when the user is done selecting fields.
 		 *

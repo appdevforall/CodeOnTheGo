@@ -28,14 +28,13 @@ import com.itsaky.androidide.tooling.impl.serial.createJavaProjectProtoModel
  */
 object JavaProjectModelBuilder :
 	AbstractModelBuilder<JavaProjectModelBuilderParams, JavaModels.JavaProject>() {
-
 	override fun build(
 		initializeParams: InitializeProjectParams,
-		param: JavaProjectModelBuilderParams
+		param: JavaProjectModelBuilderParams,
 	): JavaModels.JavaProject =
 		createJavaProjectProtoModel(
 			ideaProject = param.project,
 			ideaModule = param.module,
-			moduleNameToPath = param.modulePaths
+			moduleNameToPath = param.modulePaths,
 		)
 }

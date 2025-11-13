@@ -36,41 +36,50 @@ import kotlin.reflect.KClass
  *
  * @author Akash Yadav
  */
-class TerminalSidebarAction(context: Context, override val order: Int) : AbstractSidebarAction() {
+class TerminalSidebarAction(
+	context: Context,
+	override val order: Int,
+) : AbstractSidebarAction() {
+	override val id: String = ID
+	override val fragmentClass: KClass<out Fragment>? = null
 
-  override val id: String = ID
-  override val fragmentClass: KClass<out Fragment>? = null
+	init {
+		label = context.getString(R.string.title_terminal)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_terminal)
+	}
 
-  init {
-    label = context.getString(R.string.title_terminal)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_terminal)
-  }
+	companion object {
+		const val ID = "ide.editor.sidebar.terminal"
 
-  companion object {
+		fun startTerminalActivity(
+			data: ActionData,
+			isFailsafe: Boolean,
+		) {
+			val context = data.requireContext()
+			val intent =
+				Intent(context, TerminalActivity::class.java).apply {
+					putExtra(
+						TERMUX_ACTIVITY.EXTRA_SESSION_WORKING_DIR,
+						Objects.requireNonNull(IProjectManager.getInstance().projectDirPath),
+					)
+					putExtra(
+						TERMUX_ACTIVITY.EXTRA_SESSION_NAME,
+						IProjectManager
+							.getInstance()
+							.workspace
+							?.rootProject
+							?.name,
+					)
+					putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, isFailsafe)
+				}
+			context.startActivity(intent)
+		}
+	}
 
-    const val ID = "ide.editor.sidebar.terminal"
+	override suspend fun execAction(data: ActionData): Any {
+		startTerminalActivity(data, false)
+		return true
+	}
 
-    fun startTerminalActivity(data: ActionData, isFailsafe: Boolean) {
-      val context = data.requireContext()
-      val intent = Intent(context, TerminalActivity::class.java).apply {
-        putExtra(
-          TERMUX_ACTIVITY.EXTRA_SESSION_WORKING_DIR,
-          Objects.requireNonNull(IProjectManager.getInstance().projectDirPath)
-        )
-        putExtra(
-          TERMUX_ACTIVITY.EXTRA_SESSION_NAME,
-          IProjectManager.getInstance().workspace?.rootProject?.name
-        )
-        putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, isFailsafe)
-      }
-      context.startActivity(intent)
-    }
-  }
-
-  override suspend fun execAction(data: ActionData): Any {
-    startTerminalActivity(data, false)
-    return true
-  }
-
-  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.TERMINAL_SIDEBAR
+	override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.TERMINAL_SIDEBAR
 }

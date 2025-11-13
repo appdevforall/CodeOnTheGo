@@ -26,7 +26,6 @@ import static com.itsaky.androidide.utils.Environment.JAVA_HOME;
 
 import androidx.annotation.NonNull;
 import androidx.core.util.Pair;
-
 import com.itsaky.androidide.javac.services.compiler.ReusableBorrow;
 import com.itsaky.androidide.javac.services.partial.DiagnosticListenerImpl;
 import com.itsaky.androidide.lsp.java.models.CompilationRequest;
@@ -37,7 +36,6 @@ import com.itsaky.androidide.projects.util.StringSearch;
 import com.itsaky.androidide.utils.ClassTrie;
 import com.itsaky.androidide.utils.SourceClassTrie;
 import com.itsaky.androidide.utils.StopWatch;
-
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -51,7 +49,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-
 import jdkx.lang.model.SourceVersion;
 import jdkx.tools.Diagnostic;
 import jdkx.tools.JavaFileObject;
@@ -64,213 +61,210 @@ import openjdk.tools.javac.util.JCDiagnostic;
 
 public class CompileBatch implements AutoCloseable {
 
-  public static final String DEFAULT_COMPILER_SOURCE_AND_TARGET_VERSION = "11";
-  protected final JavaCompilerService parent;
-  protected final ReusableBorrow borrow;
-  protected final JavacTaskImpl task;
-  protected final List<CompilationUnitTree> roots;
-  protected final Map<String, List<Pair<Range, TreePath>>> methodPositions = new HashMap<>();
-  protected DiagnosticListenerImpl diagnosticListener;
-  /** Indicates the task that requested the compilation is finished with it. */
-  boolean closed;
+	public static final String DEFAULT_COMPILER_SOURCE_AND_TARGET_VERSION = "11";
+	protected final JavaCompilerService parent;
+	protected final ReusableBorrow borrow;
+	protected final JavacTaskImpl task;
+	protected final List<CompilationUnitTree> roots;
+	protected final Map<String, List<Pair<Range, TreePath>>> methodPositions = new HashMap<>();
+	protected DiagnosticListenerImpl diagnosticListener;
+	/** Indicates the task that requested the compilation is finished with it. */
+	boolean closed;
 
-  CompileBatch(
-    JavaCompilerService parent,
-    Collection<? extends JavaFileObject> files,
-    CompilationRequest compilationRequest) {
-    this.parent = parent;
-    this.borrow = batchTask(parent, files);
-    this.task = borrow.task;
-    this.roots = new ArrayList<>();
-  
-    final var context = task.getContext();
-    final var config = JavaCompilerConfig.instance(context);
-    config.setFiles(files);
-    
-    if (compilationRequest.configureContext != null) {
-      compilationRequest.configureContext.accept(context);
-    }
-  
-    Objects.requireNonNull(compilationRequest, "A task processor is required");
+	CompileBatch(
+			JavaCompilerService parent,
+			Collection<? extends JavaFileObject> files,
+			CompilationRequest compilationRequest) {
+		this.parent = parent;
+		this.borrow = batchTask(parent, files);
+		this.task = borrow.task;
+		this.roots = new ArrayList<>();
 
-    try {
-      compilationRequest.compilationTaskProcessor.process(borrow.task, this::processCompilationUnit);
-    } catch (Throwable e) {
-      throw new RuntimeException(e);
-    }
-    
-    config.setFiles(null);
-  }
+		final var context = task.getContext();
+		final var config = JavaCompilerConfig.instance(context);
+		config.setFiles(files);
 
-  private void processCompilationUnit(final CompilationUnitTree root) {
-    roots.add(root);
-//    updatePositions(root, false);
-  }
+		if (compilationRequest.configureContext != null) {
+			compilationRequest.configureContext.accept(context);
+		}
 
-  void updatePositions(CompilationUnitTree tree, boolean allowDuplicate) {
-    final StopWatch watch = new StopWatch("Scan method positions");
-    final List<Pair<Range, TreePath>> positions = new ArrayList<>();
-    new MethodRangeScanner(this.task).scan(tree, positions);
-    final String path = new File(tree.getSourceFile().toUri()).getAbsolutePath();
-    final List<Pair<Range, TreePath>> old = this.methodPositions.put(path, positions);
-    if (old != null && !allowDuplicate) {
-      throw new IllegalStateException(
-          "Duplicate CompilationUnitTree for file:" + tree.getSourceFile().toUri());
-    }
+		Objects.requireNonNull(compilationRequest, "A task processor is required");
 
-    watch.log();
-  }
+		try {
+			compilationRequest.compilationTaskProcessor.process(borrow.task, this::processCompilationUnit);
+		} catch (Throwable e) {
+			throw new RuntimeException(e);
+		}
 
-  private ReusableBorrow batchTask(
-      @NonNull JavaCompilerService parent, @NonNull Collection<? extends JavaFileObject> sources) {
+		config.setFiles(null);
+	}
 
-    parent.diagnostics.clear();
-    final Iterable<String> options = options();
+	@Override
+	public void close() {
+		closed = true;
+	}
 
-    diagnosticListener =
-        new DiagnosticListenerWrapper(parent.diagnostics::add, sources.iterator().next());
+	protected void setupCompileOptions(final ModuleProject module, final List<String> options) {
+		if (module == null) {
+			Collections.addAll(
+					options,
+					"-source",
+					DEFAULT_COMPILER_SOURCE_AND_TARGET_VERSION,
+					"-target",
+					DEFAULT_COMPILER_SOURCE_AND_TARGET_VERSION);
+			return;
+		}
 
-    final ReusableBorrow borrow =
-        parent.compiler.getTask(
-            parent.fileManager, diagnosticListener, options, Collections.emptyList(), sources);
+		final var compilerSettings = module.getCompilerSettings();
+		options.add("-source");
+		options.add(compilerSettings.getSourceCompatibility());
+		options.add("-target");
+		options.add(compilerSettings.getTargetCompatibility());
+	}
 
-    if (parent.fileManager != null) {
-      parent.fileManager.setContext(borrow.task.getContext());
-    }
+	/**
+	 * If the compilation failed because javac didn't find some package-private files in source files with different names, list those source files.
+	 */
+	Set<Path> needsAdditionalSources() {
 
-    return borrow;
-  }
+		if (parent.getModule() == null) {
+			return Collections.emptySet();
+		}
 
-  @NonNull
-  private List<String> options() {
-    List<String> options = new ArrayList<>();
+		// Check for "class not found errors" that refer to package private classes
+		Set<Path> addFiles = new HashSet<>();
+		for (Diagnostic<? extends JavaFileObject> err : parent.diagnostics) {
+			if (!err.getCode().equals("compiler.err.cant.resolve.location")) {
+				continue;
+			}
+			if (!isValidFileRange(err)) {
+				continue;
+			}
+			String packageName = packageName(err);
+			ClassTrie.Node node = parent.getModule().compileJavaSourceClasses.findNode(packageName);
+			if (node != null && node.isClass() && node instanceof SourceClassTrie.SourceNode) {
+				addFiles.add(((SourceClassTrie.SourceNode) node).getFile());
+			}
+		}
+		return addFiles;
+	}
 
-    // This won't be used if the current module is Android module project
-    System.setProperty(PROP_ANDROIDIDE_JAVA_HOME, JAVA_HOME.getAbsolutePath());
-    if (this.parent.module != null && this.parent.module.hasAndroidProject()) {
-      setLatestSourceVersion(SourceVersion.RELEASE_8);
-      setLatestSupportedSourceVersion(SourceVersion.RELEASE_11);
-      disableModules();
-    } else {
-      setLatestSourceVersion(SourceVersion.RELEASE_11);
-      setLatestSupportedSourceVersion(SourceVersion.RELEASE_11);
-      enableModules();
-    }
+	void updatePositions(CompilationUnitTree tree, boolean allowDuplicate) {
+		final StopWatch watch = new StopWatch("Scan method positions");
+		final List<Pair<Range, TreePath>> positions = new ArrayList<>();
+		new MethodRangeScanner(this.task).scan(tree, positions);
+		final String path = new File(tree.getSourceFile().toUri()).getAbsolutePath();
+		final List<Pair<Range, TreePath>> old = this.methodPositions.put(path, positions);
+		if (old != null && !allowDuplicate) {
+			throw new IllegalStateException(
+					"Duplicate CompilationUnitTree for file:" + tree.getSourceFile().toUri());
+		}
 
-    setupCompileOptions(parent.module, options);
-    Collections.addAll(options, "-proc:none", "-g");
+		watch.log();
+	}
 
-    Collections.addAll(
-        options,
-        "-XDcompilePolicy=byfile",
-        "-XD-Xprefer=source",
-        "-XDide",
-        "-XDkeepCommentsOverride=ignore",
-        "-XDsuppressAbortOnBadClassFile",
-        "-XDshould-stop.at=GENERATE",
-        "-XDdiags.formatterOptions=-source",
-        "-XDdiags.layout=%L%m|%L%m|%L%m",
-        "-XDbreakDocCommentParsingOnError=false",
-        "-Xlint:cast",
-        "-Xlint:deprecation",
-        "-Xlint:empty",
-        "-Xlint:fallthrough",
-        "-Xlint:finally",
-        "-Xlint:path",
-        "-Xlint:unchecked",
-        "-Xlint:varargs",
-        "-Xlint:static");
+	private ReusableBorrow batchTask(
+			@NonNull JavaCompilerService parent, @NonNull Collection<? extends JavaFileObject> sources) {
 
-    return options;
-  }
+		parent.diagnostics.clear();
+		final Iterable<String> options = options();
 
-  protected void setupCompileOptions(final ModuleProject module, final List<String> options) {
-    if (module == null) {
-      Collections.addAll(
-          options,
-          "-source",
-          DEFAULT_COMPILER_SOURCE_AND_TARGET_VERSION,
-          "-target",
-          DEFAULT_COMPILER_SOURCE_AND_TARGET_VERSION);
-      return;
-    }
+		diagnosticListener = new DiagnosticListenerWrapper(parent.diagnostics::add, sources.iterator().next());
 
-    final var compilerSettings = module.getCompilerSettings();
-    options.add("-source");
-    options.add(compilerSettings.getSourceCompatibility());
-    options.add("-target");
-    options.add(compilerSettings.getTargetCompatibility());
-  }
+		final ReusableBorrow borrow = parent.compiler.getTask(
+				parent.fileManager, diagnosticListener, options, Collections.emptyList(), sources);
 
-  @Override
-  public void close() {
-    closed = true;
-  }
+		if (parent.fileManager != null) {
+			parent.fileManager.setContext(borrow.task.getContext());
+		}
 
-  /**
-   * If the compilation failed because javac didn't find some package-private files in source files
-   * with different names, list those source files.
-   */
-  Set<Path> needsAdditionalSources() {
+		return borrow;
+	}
 
-    if (parent.getModule() == null) {
-      return Collections.emptySet();
-    }
+	private boolean isValidFileRange(Diagnostic<? extends JavaFileObject> d) {
+		return d.getSource().toUri().getScheme().equals("file")
+				&& d.getStartPosition() >= 0
+				&& d.getEndPosition() >= 0;
+	}
 
-    // Check for "class not found errors" that refer to package private classes
-    Set<Path> addFiles = new HashSet<>();
-    for (Diagnostic<? extends JavaFileObject> err : parent.diagnostics) {
-      if (!err.getCode().equals("compiler.err.cant.resolve.location")) {
-        continue;
-      }
-      if (!isValidFileRange(err)) {
-        continue;
-      }
-      String packageName = packageName(err);
-      ClassTrie.Node node = parent.getModule().compileJavaSourceClasses.findNode(packageName);
-      if (node != null && node.isClass() && node instanceof SourceClassTrie.SourceNode) {
-        addFiles.add(((SourceClassTrie.SourceNode) node).getFile());
-      }
-    }
-    return addFiles;
-  }
+	@NonNull
+	private List<String> options() {
+		List<String> options = new ArrayList<>();
 
-  private String packageName(Diagnostic<? extends JavaFileObject> err) {
-    if (err instanceof ClientCodeWrapper.DiagnosticSourceUnwrapper) {
-      JCDiagnostic diagnostic = ((ClientCodeWrapper.DiagnosticSourceUnwrapper) err).d;
-      JCDiagnostic.DiagnosticPosition pos = diagnostic.getDiagnosticPosition();
-      Object[] args = diagnostic.getArgs();
-      Kinds.KindName kind = (Kinds.KindName) args[0];
-      if (kind == Kinds.KindName.CLASS) {
-        if (pos.toString().contains(".")) {
-          return pos.toString().substring(0, pos.toString().lastIndexOf('.'));
-        }
-      }
-    }
-    Path file = Paths.get(err.getSource().toUri());
-    return StringSearch.packageName(file);
-  }
+		// This won't be used if the current module is Android module project
+		System.setProperty(PROP_ANDROIDIDE_JAVA_HOME, JAVA_HOME.getAbsolutePath());
+		if (this.parent.module != null && this.parent.module.hasAndroidProject()) {
+			setLatestSourceVersion(SourceVersion.RELEASE_8);
+			setLatestSupportedSourceVersion(SourceVersion.RELEASE_11);
+			disableModules();
+		} else {
+			setLatestSourceVersion(SourceVersion.RELEASE_11);
+			setLatestSupportedSourceVersion(SourceVersion.RELEASE_11);
+			enableModules();
+		}
 
-  private boolean isValidFileRange(Diagnostic<? extends JavaFileObject> d) {
-    return d.getSource().toUri().getScheme().equals("file")
-        && d.getStartPosition() >= 0
-        && d.getEndPosition() >= 0;
-  }
+		setupCompileOptions(parent.module, options);
+		Collections.addAll(options, "-proc:none", "-g");
 
-  public static class DiagnosticListenerWrapper extends DiagnosticListenerImpl {
+		Collections.addAll(
+				options,
+				"-XDcompilePolicy=byfile",
+				"-XD-Xprefer=source",
+				"-XDide",
+				"-XDkeepCommentsOverride=ignore",
+				"-XDsuppressAbortOnBadClassFile",
+				"-XDshould-stop.at=GENERATE",
+				"-XDdiags.formatterOptions=-source",
+				"-XDdiags.layout=%L%m|%L%m|%L%m",
+				"-XDbreakDocCommentParsingOnError=false",
+				"-Xlint:cast",
+				"-Xlint:deprecation",
+				"-Xlint:empty",
+				"-Xlint:fallthrough",
+				"-Xlint:finally",
+				"-Xlint:path",
+				"-Xlint:unchecked",
+				"-Xlint:varargs",
+				"-Xlint:static");
 
-    private final Consumer<Diagnostic<? extends JavaFileObject>> consumer;
+		return options;
+	}
 
-    public DiagnosticListenerWrapper(
-        final Consumer<Diagnostic<? extends JavaFileObject>> consumer, JavaFileObject jfo) {
-      super(jfo);
-      this.consumer = consumer;
-    }
+	private String packageName(Diagnostic<? extends JavaFileObject> err) {
+		if (err instanceof ClientCodeWrapper.DiagnosticSourceUnwrapper) {
+			JCDiagnostic diagnostic = ((ClientCodeWrapper.DiagnosticSourceUnwrapper) err).d;
+			JCDiagnostic.DiagnosticPosition pos = diagnostic.getDiagnosticPosition();
+			Object[] args = diagnostic.getArgs();
+			Kinds.KindName kind = (Kinds.KindName) args[0];
+			if (kind == Kinds.KindName.CLASS) {
+				if (pos.toString().contains(".")) {
+					return pos.toString().substring(0, pos.toString().lastIndexOf('.'));
+				}
+			}
+		}
+		Path file = Paths.get(err.getSource().toUri());
+		return StringSearch.packageName(file);
+	}
 
-    @Override
-    public void report(final Diagnostic<? extends JavaFileObject> diagnostic) {
-      consumer.accept(diagnostic);
-      super.report(diagnostic);
-    }
-  }
+	private void processCompilationUnit(final CompilationUnitTree root) {
+		roots.add(root);
+		// updatePositions(root, false);
+	}
+
+	public static class DiagnosticListenerWrapper extends DiagnosticListenerImpl {
+
+		private final Consumer<Diagnostic<? extends JavaFileObject>> consumer;
+
+		public DiagnosticListenerWrapper(
+				final Consumer<Diagnostic<? extends JavaFileObject>> consumer, JavaFileObject jfo) {
+			super(jfo);
+			this.consumer = consumer;
+		}
+
+		@Override
+		public void report(final Diagnostic<? extends JavaFileObject> diagnostic) {
+			consumer.accept(diagnostic);
+			super.report(diagnostic);
+		}
+	}
 }

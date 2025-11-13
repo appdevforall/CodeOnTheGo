@@ -36,10 +36,9 @@ import java.io.File
  */
 object AndroidProjectModelBuilder :
 	AbstractModelBuilder<AndroidProjectModelBuilderParams, AndroidModels.AndroidProject>() {
-
 	override fun build(
 		initializeParams: InitializeProjectParams,
-		param: AndroidProjectModelBuilderParams
+		param: AndroidProjectModelBuilderParams,
 	): AndroidModels.AndroidProject {
 		val (controller, module, versions, syncIssueReporter) = param
 
@@ -51,14 +50,14 @@ object AndroidProjectModelBuilder :
 
 		val variantNames = basicModel.variants.map { it.name }
 		log(
-			"${variantNames.size} build variants found for project '$projectPath': $variantNames"
+			"${variantNames.size} build variants found for project '$projectPath': $variantNames",
 		)
 
 		var androidVariant = androidParams.variantSelections[projectPath]
 
 		if (androidVariant != null && !variantNames.contains(androidVariant)) {
 			log(
-				"Configured variant '$androidVariant' not found for project '$projectPath'. Falling back to default variant."
+				"Configured variant '$androidVariant' not found for project '$projectPath'. Falling back to default variant.",
 			)
 			androidVariant = null
 		}
@@ -66,25 +65,27 @@ object AndroidProjectModelBuilder :
 		val configurationVariant = androidVariant ?: variantNames.firstOrNull()
 		if (configurationVariant.isNullOrBlank()) {
 			throw ModelBuilderException(
-				"No variant found for project '$projectPath'. providedVariant=$androidVariant"
+				"No variant found for project '$projectPath'. providedVariant=$androidVariant",
 			)
 		}
 
 		log("Selected build variant '$configurationVariant' for project '$projectPath'")
 
-		val variantDependencies = controller.getModelAndLog(
-			module, VariantDependencies::class.java,
-			ModelBuilderParameter::class.java
-		) {
-			it.variantName = configurationVariant
-			it.dontBuildRuntimeClasspath = false
-			it.dontBuildAndroidTestRuntimeClasspath = true
-			it.dontBuildTestFixtureRuntimeClasspath = true
-			it.dontBuildUnitTestRuntimeClasspath = true
-			it.dontBuildScreenshotTestRuntimeClasspath = true
-			it.dontBuildHostTestRuntimeClasspath = emptyMap()
-			it.additionalArtifactsInModel = false
-		}
+		val variantDependencies =
+			controller.getModelAndLog(
+				module,
+				VariantDependencies::class.java,
+				ModelBuilderParameter::class.java,
+			) {
+				it.variantName = configurationVariant
+				it.dontBuildRuntimeClasspath = false
+				it.dontBuildAndroidTestRuntimeClasspath = true
+				it.dontBuildTestFixtureRuntimeClasspath = true
+				it.dontBuildUnitTestRuntimeClasspath = true
+				it.dontBuildScreenshotTestRuntimeClasspath = true
+				it.dontBuildHostTestRuntimeClasspath = emptyMap()
+				it.additionalArtifactsInModel = false
+			}
 
 		controller.findModel(module, ProjectSyncIssues::class.java)?.also { syncIssues ->
 			syncIssueReporter.reportAll(syncIssues)
@@ -97,10 +98,11 @@ object AndroidProjectModelBuilder :
 			versions = versions,
 			variantDependencies = variantDependencies,
 			configuredVariantName = configurationVariant,
-			classesJar = getClassesJar(
-				gradleProject = module.gradleProject,
-				configuredVariant = configurationVariant
-			)
+			classesJar =
+				getClassesJar(
+					gradleProject = module.gradleProject,
+					configuredVariant = configurationVariant,
+				),
 		)
 	}
 
@@ -111,7 +113,7 @@ object AndroidProjectModelBuilder :
 		// TODO(itsaky): this should handle product flavors as well
 		return File(
 			gradleProject.buildDirectory,
-			"${IAndroidProject.FD_INTERMEDIATES}/compile_library_classes_jar/$configuredVariant/classes.jar"
+			"${IAndroidProject.FD_INTERMEDIATES}/compile_library_classes_jar/$configuredVariant/classes.jar",
 		)
 	}
 }

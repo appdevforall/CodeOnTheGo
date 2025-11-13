@@ -17,18 +17,18 @@
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-    id("java-library")
-    id("org.jetbrains.kotlin.jvm")
+	id("java-library")
+	id("org.jetbrains.kotlin.jvm")
 }
 
 dependencies {
-    api(projects.buildInfo)
-    api(projects.logger)
-    api(projects.shared)
-    api(projects.subprojects.toolingApiModel)
-    api(projects.subprojects.toolingApiEvents)
-    
-    api(libs.google.gson)
-    api(libs.common.jsonrpc)
+	api(projects.buildInfo)
+	api(projects.logger)
+	api(projects.shared)
+	api(projects.subprojects.toolingApiModel)
+	api(projects.subprojects.toolingApiEvents)
+
+	api(libs.google.gson)
+	api(libs.common.jsonrpc)
 	api(libs.common.kotlin.coroutines.core)
 }

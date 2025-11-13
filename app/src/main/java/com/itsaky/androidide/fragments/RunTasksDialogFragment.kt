@@ -67,7 +67,6 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 class RunTasksDialogFragment : BottomSheetDialogFragment() {
-
 	private lateinit var binding: LayoutRunTaskDialogBinding
 	private lateinit var run: LayoutRunTaskBinding
 	private val viewModel: RunTasksViewModel by viewModels()
@@ -87,23 +86,24 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 	}
 
 	override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-		val dialog = object : BottomSheetDialog(requireContext(), theme) {
-			override fun onAttachedToWindow() {
-				super.onAttachedToWindow()
-				findViewById<View>(com.google.android.material.R.id.container)?.apply {
-					doOnApplyWindowInsets { view, insets, _, margins ->
-						insets.getInsets(statusBars() or navigationBars()).apply {
-							view.updateLayoutParams<MarginLayoutParams> { updateMargins(top = margins.top + top) }
-							run.tasks.apply {
-								updatePadding(bottom = bottom)
-								clipToPadding = false
-								clipChildren = false
+		val dialog =
+			object : BottomSheetDialog(requireContext(), theme) {
+				override fun onAttachedToWindow() {
+					super.onAttachedToWindow()
+					findViewById<View>(com.google.android.material.R.id.container)?.apply {
+						doOnApplyWindowInsets { view, insets, _, margins ->
+							insets.getInsets(statusBars() or navigationBars()).apply {
+								view.updateLayoutParams<MarginLayoutParams> { updateMargins(top = margins.top + top) }
+								run.tasks.apply {
+									updatePadding(bottom = bottom)
+									clipToPadding = false
+									clipChildren = false
+								}
 							}
 						}
 					}
 				}
 			}
-		}
 		dialog.behavior.peekHeight = (getWindowHeight() * 0.7).toInt()
 		return dialog
 	}
@@ -111,14 +111,17 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 	override fun onCreateView(
 		inflater: LayoutInflater,
 		container: ViewGroup?,
-		savedInstanceState: Bundle?
+		savedInstanceState: Bundle?,
 	): View {
 		this.binding = LayoutRunTaskDialogBinding.inflate(inflater, container, false)
 		this.run = this.binding.run
 		return binding.root
 	}
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		viewModel.observeDisplayedChild(viewLifecycleOwner) {
 			val transition =
@@ -134,10 +137,11 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 
 		viewModel.observeHelpNavigation(viewLifecycleOwner) { event ->
 			event?.let {
-				val intent = Intent(requireContext(), HelpActivity::class.java).apply {
-					putExtra("CONTENT_KEY", it.url)
-					putExtra("CONTENT_TITLE_KEY", it.title)
-				}
+				val intent =
+					Intent(requireContext(), HelpActivity::class.java).apply {
+						putExtra("CONTENT_KEY", it.url)
+						putExtra("CONTENT_TITLE_KEY", it.title)
+					}
 				startActivity(intent)
 				viewModel.onHelpNavigationHandled()
 			}
@@ -145,22 +149,25 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 
 		run.searchInput.editText?.addTextChangedListener(
 			object : SingleTextWatcher() {
-				val searchRunner = Runnable {
-					viewModel.query = run.searchInput.editText?.text?.toString() ?: ""
-				}
+				val searchRunner =
+					Runnable {
+						viewModel.query = run.searchInput.editText
+							?.text
+							?.toString() ?: ""
+					}
 
 				override fun afterTextChanged(s: Editable?) {
 					ThreadUtils.getMainHandler().removeCallbacks(searchRunner)
 					ThreadUtils.runOnUiThreadDelayed(searchRunner, SEARCH_DELAY)
 				}
-			}
+			},
 		)
 
 		binding.root.applyLongPressRecursively {
-          TooltipManager.showIdeCategoryTooltip(
+			TooltipManager.showIdeCategoryTooltip(
 				context = requireContext(),
 				anchorView = it,
-				tag = TooltipTag.PROJECT_GRADLE_TASKS
+				tag = TooltipTag.PROJECT_GRADLE_TASKS,
 			)
 			true
 		}
@@ -198,10 +205,10 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 				}
 			}
 			setOnLongClickListener {
-            TooltipManager.showIdeCategoryTooltip(
+				TooltipManager.showIdeCategoryTooltip(
 					context = requireContext(),
 					anchorView = this,
-					tag = TooltipTag.PROJECT_RUN_GRADLE_TASKS
+					tag = TooltipTag.PROJECT_RUN_GRADLE_TASKS,
 				)
 				true
 			}
@@ -212,8 +219,9 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 		viewModel.displayedChild = CHILD_LOADING
 
 		executeAsync({
-			val gradleBuild = IProjectManager.getInstance().gradleBuild
-				?: return@executeAsync emptyList<Checkable<GradleModels.GradleTask>>()
+			val gradleBuild =
+				IProjectManager.getInstance().gradleBuild
+					?: return@executeAsync emptyList<Checkable<GradleModels.GradleTask>>()
 
 			return@executeAsync gradleBuild.subProjectList
 				.flatMap { it.taskList }
@@ -238,13 +246,18 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 	}
 
 	private fun getWindowHeight(): Int {
-		val height = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-			activity?.windowManager?.currentWindowMetrics?.bounds?.height()!!
-		} else {
-			val displayMetrics = DisplayMetrics()
-			activity?.windowManager?.defaultDisplay?.getMetrics(displayMetrics)
-			displayMetrics.heightPixels
-		}
+		val height =
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+				activity
+					?.windowManager
+					?.currentWindowMetrics
+					?.bounds
+					?.height()!!
+			} else {
+				val displayMetrics = DisplayMetrics()
+				activity?.windowManager?.defaultDisplay?.getMetrics(displayMetrics)
+				displayMetrics.heightPixels
+			}
 		return height
 	}
 }

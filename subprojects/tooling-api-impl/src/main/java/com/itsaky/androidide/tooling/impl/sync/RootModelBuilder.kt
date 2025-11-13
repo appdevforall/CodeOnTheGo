@@ -44,151 +44,165 @@ import java.io.Serializable
  */
 object RootModelBuilder :
 	AbstractModelBuilder<RootProjectModelBuilderParams, File>(), Serializable {
-
 	private val serialVersionUID = 1L
 
 	private const val PROJECT_SYNC_LOCK_TIMEOUT_MS = 10 * 1000L
 
 	override fun build(
 		initializeParams: InitializeProjectParams,
-		param: RootProjectModelBuilderParams
+		param: RootProjectModelBuilderParams,
 	): File {
-
 		val (projectConnection, cancellationToken, projectCacheFile, syncMetaFile) = param
 
 		// do not reference the 'initializationParams' field in the
-		val executor = projectConnection.action { controller ->
-			val ideaProject = controller.getModelAndLog(IdeaProject::class.java)
+		val executor =
+			projectConnection.action { controller ->
+				val ideaProject = controller.getModelAndLog(IdeaProject::class.java)
 
-			val ideaModules = ideaProject.modules
-			val modulePaths =
-				mapOf(*ideaModules.map { it.name to it.gradleProject.path }.toTypedArray())
-			val rootModule = ideaModules.find { it.gradleProject.parent == null }
-				?: throw ModelBuilderException(
-					"Unable to find root project"
-				)
-
-			val rootProjectVersions = getAndroidVersions(rootModule, controller)
-
-			val syncIssues = hashSetOf<SyncIssue>()
-			val syncIssueReporter = ISyncIssueReporter { syncIssue ->
-				if (syncIssue.shouldBeIgnored()) {
-					// this SyncIssue should not be shown to the user
-					return@ISyncIssueReporter
-				}
-				syncIssues.add(syncIssue)
-			}
-
-			val rootGradleProject = GradleProjectModelBuilder
-				.build(initializeParams, rootModule.gradleProject)
-				.toBuilder()
-
-			if (rootProjectVersions != null) {
-				// Root project is an Android project
-				checkAgpVersion(rootProjectVersions, syncIssueReporter)
-				val androidProject = AndroidProjectModelBuilder
-					.build(
-						initializeParams, AndroidProjectModelBuilderParams(
-							controller,
-							rootModule,
-							rootProjectVersions,
-							syncIssueReporter
+				val ideaModules = ideaProject.modules
+				val modulePaths =
+					mapOf(*ideaModules.map { it.name to it.gradleProject.path }.toTypedArray())
+				val rootModule =
+					ideaModules.find { it.gradleProject.parent == null }
+						?: throw ModelBuilderException(
+							"Unable to find root project",
 						)
-					)
 
-				rootGradleProject.setAndroidProject(androidProject)
-			}
+				val rootProjectVersions = getAndroidVersions(rootModule, controller)
 
-			val projects = ideaModules.map { ideaModule ->
-				val gradleProject =
+				val syncIssues = hashSetOf<SyncIssue>()
+				val syncIssueReporter =
+					ISyncIssueReporter { syncIssue ->
+						if (syncIssue.shouldBeIgnored()) {
+							// this SyncIssue should not be shown to the user
+							return@ISyncIssueReporter
+						}
+						syncIssues.add(syncIssue)
+					}
+
+				val rootGradleProject =
 					GradleProjectModelBuilder
-						.build(initializeParams, ideaModule.gradleProject)
+						.build(initializeParams, rootModule.gradleProject)
 						.toBuilder()
 
-				val versions = getAndroidVersions(ideaModule, controller)
-				if (versions != null) {
-					checkAgpVersion(versions, syncIssueReporter)
-					val androidProject = AndroidProjectModelBuilder
-						.build(
-							initializeParams, AndroidProjectModelBuilderParams(
-								controller,
-								ideaModule,
-								versions,
-								syncIssueReporter
+				if (rootProjectVersions != null) {
+					// Root project is an Android project
+					checkAgpVersion(rootProjectVersions, syncIssueReporter)
+					val androidProject =
+						AndroidProjectModelBuilder
+							.build(
+								initializeParams,
+								AndroidProjectModelBuilderParams(
+									controller,
+									rootModule,
+									rootProjectVersions,
+									syncIssueReporter,
+								),
 							)
-						)
 
-					gradleProject.setAndroidProject(androidProject)
-				} else {
-					val javaProject = JavaProjectModelBuilder
-						.build(
-							initializeParams,
-							JavaProjectModelBuilderParams(ideaProject, ideaModule, modulePaths)
-						)
-
-					gradleProject.setJavaProject(javaProject)
+					rootGradleProject.setAndroidProject(androidProject)
 				}
 
-				gradleProject.build()
-			}
+				val projects =
+					ideaModules.map { ideaModule ->
+						val gradleProject =
+							GradleProjectModelBuilder
+								.build(initializeParams, ideaModule.gradleProject)
+								.toBuilder()
 
-			val gradleBuild = GradleBuild(
-				rootProject = rootGradleProject.build(),
-				subProjectList = projects,
-				syncIssueList = syncIssues.map { syncIssue ->
-					SyncIssue(
-						data = syncIssue.data,
-						message = syncIssue.message,
-						multilineMessageList = syncIssue.multiLineMessage?.filterNotNull()
-							?: emptyList(),
-						type = syncIssue.type,
-						severity = when (syncIssue.severity) {
-							SyncIssue.SEVERITY_ERROR -> GradleModels.SyncIssueSeverity.SeverityError
-							SyncIssue.SEVERITY_WARNING -> GradleModels.SyncIssueSeverity.SeverityWarning
-							else -> throw IllegalArgumentException("Unknown severity: ${syncIssue.severity}")
+						val versions = getAndroidVersions(ideaModule, controller)
+						if (versions != null) {
+							checkAgpVersion(versions, syncIssueReporter)
+							val androidProject =
+								AndroidProjectModelBuilder
+									.build(
+										initializeParams,
+										AndroidProjectModelBuilderParams(
+											controller,
+											ideaModule,
+											versions,
+											syncIssueReporter,
+										),
+									)
+
+							gradleProject.setAndroidProject(androidProject)
+						} else {
+							val javaProject =
+								JavaProjectModelBuilder
+									.build(
+										initializeParams,
+										JavaProjectModelBuilderParams(ideaProject, ideaModule, modulePaths),
+									)
+
+							gradleProject.setJavaProject(javaProject)
 						}
-					)
-				}
-			)
 
-			// IF the IDE were running fully in a JVM environment, we would have
-			// used protobuf-java instead of protobuf-javalite. Messages generated
-			// by protobuf-java are java.io.Serializable, can cross the BuildExecutor
-			// boundary, and we could have returned the GradleBuild model here.
-			// But since we're using protobuf-javalite, the models are not serializable
-			// and hence cannot cross the BuildExecutor boundary. As a result,
-			// we write the model cache file here in the build executor itself.
+						gradleProject.build()
+					}
 
-			val projectDir = gradleBuild.rootProject.projectDir
-
-			val success =
-				ProjectSyncHelper.tryUseSyncLock(projectDir, PROJECT_SYNC_LOCK_TIMEOUT_MS) {
-					ProjectSyncHelper.writeGradleBuildSync(
-						gradleBuild = gradleBuild,
-						targetFile = projectCacheFile
-					)
-
-					runBlocking {
-						syncMetaFile.outputStream().buffered().use { out ->
-							ProjectSyncHelper.createSyncMeta(
-								projectDir = projectDir,
-								includeChecksum = true,
-								projectModelInfo = ProjectModelInfo(
-									projectCacheFile.absolutePath,
-									projectCacheFile.sha256()
+				val gradleBuild =
+					GradleBuild(
+						rootProject = rootGradleProject.build(),
+						subProjectList = projects,
+						syncIssueList =
+							syncIssues.map { syncIssue ->
+								SyncIssue(
+									data = syncIssue.data,
+									message = syncIssue.message,
+									multilineMessageList =
+										syncIssue.multiLineMessage?.filterNotNull()
+											?: emptyList(),
+									type = syncIssue.type,
+									severity =
+										when (syncIssue.severity) {
+											SyncIssue.SEVERITY_ERROR -> GradleModels.SyncIssueSeverity.SeverityError
+											SyncIssue.SEVERITY_WARNING -> GradleModels.SyncIssueSeverity.SeverityWarning
+											else -> throw IllegalArgumentException("Unknown severity: ${syncIssue.severity}")
+										},
 								)
-							).writeTo(out)
-							out.flush()
+							},
+					)
+
+				// IF the IDE were running fully in a JVM environment, we would have
+				// used protobuf-java instead of protobuf-javalite. Messages generated
+				// by protobuf-java are java.io.Serializable, can cross the BuildExecutor
+				// boundary, and we could have returned the GradleBuild model here.
+				// But since we're using protobuf-javalite, the models are not serializable
+				// and hence cannot cross the BuildExecutor boundary. As a result,
+				// we write the model cache file here in the build executor itself.
+
+				val projectDir = gradleBuild.rootProject.projectDir
+
+				val success =
+					ProjectSyncHelper.tryUseSyncLock(projectDir, PROJECT_SYNC_LOCK_TIMEOUT_MS) {
+						ProjectSyncHelper.writeGradleBuildSync(
+							gradleBuild = gradleBuild,
+							targetFile = projectCacheFile,
+						)
+
+						runBlocking {
+							syncMetaFile.outputStream().buffered().use { out ->
+								ProjectSyncHelper
+									.createSyncMeta(
+										projectDir = projectDir,
+										includeChecksum = true,
+										projectModelInfo =
+											ProjectModelInfo(
+												projectCacheFile.absolutePath,
+												projectCacheFile.sha256(),
+											),
+									).writeTo(out)
+								out.flush()
+							}
 						}
 					}
+
+				if (!success) {
+					throw ModelBuilderException("Failed to acquire sync lock. Unable to write cache.")
 				}
 
-			if (!success) {
-				throw ModelBuilderException("Failed to acquire sync lock. Unable to write cache.")
+				return@action projectCacheFile
 			}
-
-			return@action projectCacheFile
-		}
 
 		executor.configureFrom(initializeParams)
 		applyAndroidModelBuilderProps(executor)
@@ -210,14 +224,15 @@ object RootModelBuilder :
 		return cacheFile
 	}
 
-	private fun applyAndroidModelBuilderProps(
-		launcher: ConfigurableLauncher<*>
-	) {
+	private fun applyAndroidModelBuilderProps(launcher: ConfigurableLauncher<*>) {
 		launcher.addProperty(IAndroidProject.PROPERTY_BUILD_MODEL_ONLY, true)
 		launcher.addProperty(IAndroidProject.PROPERTY_INVOKED_FROM_IDE, true)
 	}
 
-	private fun ConfigurableLauncher<*>.addProperty(property: String, value: Any) {
+	private fun ConfigurableLauncher<*>.addProperty(
+		property: String,
+		value: Any,
+	) {
 		addArguments(String.format("-P%s=%s", property, value))
 	}
 }

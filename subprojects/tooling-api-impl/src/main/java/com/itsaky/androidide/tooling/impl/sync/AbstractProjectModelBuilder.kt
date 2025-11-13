@@ -7,6 +7,6 @@ import com.itsaky.androidide.project.GradleModels
  *
  * @author Akash Yadav
  */
-abstract class AbstractProjectModelBuilder<P>() :
+abstract class AbstractProjectModelBuilder<P> :
 	AbstractModelBuilder<P, GradleModels.GradleProject>(),
 	IProjectModelBuilder<P>

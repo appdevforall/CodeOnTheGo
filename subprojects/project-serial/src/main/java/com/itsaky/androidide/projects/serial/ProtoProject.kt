@@ -17,7 +17,6 @@ import kotlin.io.path.outputStream
  * @author Akash Yadav
  */
 object ProtoProject {
-
 	private val logger = LoggerFactory.getLogger(ProtoProject::class.java)
 
 	const val PROTO_CACHE_FILE_BASENAME = "project"
@@ -30,15 +29,14 @@ object ProtoProject {
 	 * @param cacheFile The project cache file.
 	 * @return The Gradle build model result.
 	 */
-	suspend fun readGradleBuild(cacheFile: File): Result<GradleModels.GradleBuild> {
-		return withContext(Dispatchers.IO) {
+	suspend fun readGradleBuild(cacheFile: File): Result<GradleModels.GradleBuild> =
+		withContext(Dispatchers.IO) {
 			runCatching {
 				cacheFile.inputStream().buffered().use { input ->
 					GradleModels.GradleBuild.parseFrom(input)
 				}
 			}
 		}
-	}
 
 	/**
 	 * Write the Gradle build model. The model files will be written to the root project's
@@ -50,9 +48,10 @@ object ProtoProject {
 	suspend fun writeGradleBuild(
 		gradleBuild: GradleModels.GradleBuild,
 		targetFile: File,
-	): Unit = withContext(Dispatchers.IO) {
-		writeGradleBuildSync(gradleBuild, targetFile)
-	}
+	): Unit =
+		withContext(Dispatchers.IO) {
+			writeGradleBuildSync(gradleBuild, targetFile)
+		}
 
 	/**
 	 * Write the Gradle build model synchronously. Use with caution.
@@ -62,7 +61,7 @@ object ProtoProject {
 	 */
 	fun writeGradleBuildSync(
 		gradleBuild: GradleModels.GradleBuild,
-		targetFile: File
+		targetFile: File,
 	) {
 		// use a temporary file on the same path to allow atomic moves
 		// /data/data and /sdcard are different devices (partitions)
@@ -84,7 +83,8 @@ object ProtoProject {
 			Files.move(
 				tempCacheFile,
 				targetFile.toPath(),
-				StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE
+				StandardCopyOption.REPLACE_EXISTING,
+				StandardCopyOption.ATOMIC_MOVE,
 			)
 		}.getOrThrow()
 	}

@@ -88,7 +88,7 @@ public final class Environment {
 
 	public static File KEYSTORE_DIR;
 	public static File KEYSTORE_RELEASE;
-	public static File KEYSTORE_PROPERTIES ;
+	public static File KEYSTORE_PROPERTIES;
 	public static String KEYSTORE_RELEASE_NAME = "release.keystore";
 	public static String KEYSTORE_PROPERTIES_NAME = "release.properties";
 	public static String KEYSTORE_PROP_STOREFILE = "storeFile";

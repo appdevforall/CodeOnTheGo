@@ -33,22 +33,20 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 interface IProjectManager {
-
 	companion object {
-
 		private var projectManager: IProjectManager? = null
 
 		/**
 		 * Get the project manager instance.
 		 */
 		@JvmStatic
-		fun getInstance(): IProjectManager {
-			return projectManager ?: ServiceLoader.load(IProjectManager::class.java)
+		fun getInstance(): IProjectManager =
+			projectManager ?: ServiceLoader
+				.load(IProjectManager::class.java)
 				.findFirstOrThrow()
 				.also {
 					projectManager = it
 				}
-		}
 	}
 
 	/**
@@ -119,9 +117,7 @@ interface IProjectManager {
 	 * @param file The file to find the module for.
 	 * @return The module project, or `null` if not found.
 	 */
-	fun findModuleForFile(file: File): ModuleProject? {
-		return findModuleForFile(file, true)
-	}
+	fun findModuleForFile(file: File): ModuleProject? = findModuleForFile(file, true)
 
 	/**
 	 * Find the module for the given file.
@@ -130,7 +126,10 @@ interface IProjectManager {
 	 * @param checkExistance Whether to check if the file exists or not.
 	 * @return The [ModuleProject] for the given file, or `null` if cannot be found.
 	 */
-	fun findModuleForFile(file: File, checkExistance: Boolean): ModuleProject?
+	fun findModuleForFile(
+		file: File,
+		checkExistance: Boolean,
+	): ModuleProject?
 
 	/**
 	 * Find the module for the given file.
@@ -138,9 +137,7 @@ interface IProjectManager {
 	 * @param file The file to find the module for.
 	 * @return The module project, or `null` if not found.
 	 */
-	fun findModuleForFile(file: Path): ModuleProject? {
-		return findModuleForFile(file, true)
-	}
+	fun findModuleForFile(file: Path): ModuleProject? = findModuleForFile(file, true)
 
 	/**
 	 * Find the module for the given file.
@@ -149,9 +146,10 @@ interface IProjectManager {
 	 * @param checkExistance Whether to check if the file exists or not.
 	 * @return The [ModuleProject] for the given file, or `null` if cannot be found.
 	 */
-	fun findModuleForFile(file: Path, checkExistance: Boolean): ModuleProject? {
-		return findModuleForFile(file.toFile(), checkExistance)
-	}
+	fun findModuleForFile(
+		file: Path,
+		checkExistance: Boolean,
+	): ModuleProject? = findModuleForFile(file.toFile(), checkExistance)
 
 	/**
 	 * Check if any of the module projects contain the given [file] in their source folder.
