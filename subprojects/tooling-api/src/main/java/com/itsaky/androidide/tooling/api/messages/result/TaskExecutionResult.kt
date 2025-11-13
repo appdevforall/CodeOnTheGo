@@ -25,10 +25,11 @@ package com.itsaky.androidide.tooling.api.messages.result
  *
  * @author Akash Yadav
  */
-data class TaskExecutionResult(val isSuccessful: Boolean, val failure: Failure?) {
-
+data class TaskExecutionResult(
+	val isSuccessful: Boolean,
+	val failure: Failure?,
+) {
 	companion object {
-
 		/**
 		 * Result for a successful build.
 		 */

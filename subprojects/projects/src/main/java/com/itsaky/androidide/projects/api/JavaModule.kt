@@ -18,7 +18,6 @@
 package com.itsaky.androidide.projects.api
 
 import com.google.protobuf.MessageLite
-import com.itsaky.androidide.project.Common
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.project.JavaModels
 import com.itsaky.androidide.projects.IProjectManager
@@ -33,11 +32,10 @@ import java.io.File
  * @author Akash Yadav
  */
 class JavaModule(
-	delegate: GradleModels.GradleProject
-) : ModuleProject(delegate), JavaModels.JavaProjectOrBuilder by delegate.javaProject {
-
+	delegate: GradleModels.GradleProject,
+) : ModuleProject(delegate),
+	JavaModels.JavaProjectOrBuilder by delegate.javaProject {
 	companion object {
-
 		const val SCOPE_COMPILE = "COMPILE"
 		const val SCOPE_RUNTIME = "RUNTIME"
 	}
@@ -54,31 +52,28 @@ class JavaModule(
 			return@lazy jar
 		}
 
-		jar = File(delegate.buildDir, "libs").listFiles()
+		jar = File(delegate.buildDir, "libs")
+			.listFiles()
 			?.first { delegate.name?.let(it.name::startsWith) ?: false }
 			?: File("module-jar-does-not-exist.jar")
 
 		return@lazy jar
 	}
 
-	override fun isInitialized(): Boolean {
-		return super.isInitialized()
-	}
+	override fun isInitialized(): Boolean = super.isInitialized()
 
-	override fun getDefaultInstanceForType(): MessageLite? {
-		return super.getDefaultInstanceForType()
-	}
+	override fun getDefaultInstanceForType(): MessageLite? = super.getDefaultInstanceForType()
 
-	override fun getClassPaths(): Set<File> {
-		return getModuleClasspaths()
-	}
+	override fun getClassPaths(): Set<File> = getModuleClasspaths()
 
 	override fun getSourceDirectories(): Set<File> {
 		val sources = mutableSetOf<File>()
 		contentRootList.forEach { contentRoot ->
-			sources.addAll(contentRoot.sourceDirectoryList.map { sourceDirectory ->
-				sourceDirectory.directory
-			})
+			sources.addAll(
+				contentRoot.sourceDirectoryList.map { sourceDirectory ->
+					sourceDirectory.directory
+				},
+			)
 		}
 		return sources
 	}
@@ -89,9 +84,7 @@ class JavaModule(
 		return dirs
 	}
 
-	override fun getModuleClasspaths(): Set<File> {
-		return mutableSetOf(classesJar)
-	}
+	override fun getModuleClasspaths(): Set<File> = mutableSetOf(classesJar)
 
 	override fun getCompileClasspaths(): Set<File> {
 		val classpaths = getModuleClasspaths().toMutableSet()
@@ -108,18 +101,20 @@ class JavaModule(
 			.filterIsInstance<ModuleProject>()
 	}
 
-	override fun hasExternalDependency(group: String, name: String): Boolean {
-		return this.dependencyList.any { dependency ->
-			dependency.hasExternalLibrary() && dependency.externalLibrary.libraryInfo?.let { artifact ->
-				artifact.group == group && artifact.name == name
-			} ?: false
+	override fun hasExternalDependency(
+		group: String,
+		name: String,
+	): Boolean =
+		this.dependencyList.any { dependency ->
+			dependency.hasExternalLibrary() &&
+				dependency.externalLibrary.libraryInfo?.let { artifact ->
+					artifact.group == group && artifact.name == name
+				} ?: false
 		}
-	}
 
-	fun getDependencyClassPaths(): Set<File> {
-		return this.dependencyList
+	fun getDependencyClassPaths(): Set<File> =
+		this.dependencyList
 			.mapNotNull { dependency ->
 				dependency.jarFile.takeIf { it.exists() }
 			}.toHashSet()
-	}
 }

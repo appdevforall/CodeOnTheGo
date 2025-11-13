@@ -26,7 +26,6 @@ import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
  * @author Akash Yadav
  */
 interface IModelBuilder<P, R> {
-
 	/**
 	 * Builds the model.
 	 *
@@ -36,5 +35,8 @@ interface IModelBuilder<P, R> {
 	 * @throws ModelBuilderException If the model could not be built.
 	 */
 	@Throws(ModelBuilderException::class)
-	fun build(initializeParams: InitializeProjectParams, param: P): R
+	fun build(
+		initializeParams: InitializeProjectParams,
+		param: P,
+	): R
 }

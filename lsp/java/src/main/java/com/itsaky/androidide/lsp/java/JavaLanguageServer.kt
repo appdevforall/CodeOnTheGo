@@ -81,7 +81,6 @@ import java.nio.file.Path
 import java.util.Objects
 
 class JavaLanguageServer : ILanguageServer {
-
 	private val completionProvider: CompletionProvider = CompletionProvider()
 	private val diagnosticProvider = JavaDiagnosticProvider()
 	override var client: ILanguageClient? = null
@@ -94,7 +93,8 @@ class JavaLanguageServer : ILanguageServer {
 
 	val settings: IServerSettings
 		get() {
-			return _settings ?: JavaServerSettings.getInstance()
+			return _settings ?: JavaServerSettings
+				.getInstance()
 				.also { _settings = it }
 		}
 
@@ -103,7 +103,6 @@ class JavaLanguageServer : ILanguageServer {
 	override val debugAdapter: IDebugAdapter = JavaDebugAdapter()
 
 	companion object {
-
 		const val SERVER_ID = "ide.lsp.java"
 		private val log = LoggerFactory.getLogger(JavaLanguageServer::class.java)
 	}
@@ -186,7 +185,9 @@ class JavaLanguageServer : ILanguageServer {
 		}
 
 		completionProvider.reset(
-			compiler, settings, cachedCompletion
+			compiler,
+			settings,
+			cachedCompletion,
 		) { cachedCompletion: CachedCompletion ->
 			updateCachedCompletion(cachedCompletion)
 		}
@@ -198,28 +199,36 @@ class JavaLanguageServer : ILanguageServer {
 		val compiler = getCompiler(params.file)
 		return if (!settings.referencesEnabled()) {
 			ReferenceResult(emptyList())
-		} else ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
+		} else {
+			ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
+		}
 	}
 
 	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
 		val compiler = getCompiler(params.file)
 		return if (!settings.definitionsEnabled()) {
 			DefinitionResult(emptyList())
-		} else DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
+		} else {
+			DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
+		}
 	}
 
 	override suspend fun expandSelection(params: ExpandSelectionParams): Range {
 		val compiler = getCompiler(params.file)
 		return if (!settings.smartSelectionsEnabled()) {
 			params.selection
-		} else JavaSelectionProvider(compiler).expandSelection(params)
+		} else {
+			JavaSelectionProvider(compiler).expandSelection(params)
+		}
 	}
 
 	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
 		val compiler = getCompiler(params.file)
 		return if (!settings.signatureHelpEnabled()) {
 			SignatureHelp(emptyList(), -1, -1)
-		} else SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
+		} else {
+			SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
+		}
 	}
 
 	override suspend fun analyze(file: Path): DiagnosticResult {
@@ -229,12 +238,12 @@ class JavaLanguageServer : ILanguageServer {
 
 		return if (!settings.codeAnalysisEnabled()) {
 			DiagnosticResult.NO_UPDATE
-		} else diagnosticProvider.analyze(file)
+		} else {
+			diagnosticProvider.analyze(file)
+		}
 	}
 
-	override fun formatCode(params: FormatCodeParams?): CodeFormatResult {
-		return CodeFormatProvider(settings).format(params)
-	}
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = CodeFormatProvider(settings).format(params)
 
 	override fun handleFailure(failure: LSPFailure?): Boolean {
 		return when (failure!!.type) {
@@ -253,8 +262,9 @@ class JavaLanguageServer : ILanguageServer {
 		if (!DocumentUtils.isJavaFile(file)) {
 			return JavaCompilerService.NO_MODULE_COMPILER
 		}
-		val module = ProjectManagerImpl.getInstance().findModuleForFile(file!!)
-			?: return JavaCompilerService.NO_MODULE_COMPILER
+		val module =
+			ProjectManagerImpl.getInstance().findModuleForFile(file!!)
+				?: return JavaCompilerService.NO_MODULE_COMPILER
 		return JavaCompilerProvider.get(module)
 	}
 
@@ -283,8 +293,9 @@ class JavaLanguageServer : ILanguageServer {
 
 		// TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance
 		JavaCompilerService.NO_MODULE_COMPILER.onDocumentChange(event)
-		val module = getInstance()
-			.findModuleForFile(event.changedFile)
+		val module =
+			getInstance()
+				.findModuleForFile(event.changedFile)
 		if (module != null) {
 			val compiler = JavaCompilerProvider.get(module)
 			compiler.onDocumentChange(event)

@@ -1,7 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools"    
   tools:override="true"
   tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation">
-  <string name="app_name">Layout Editor</string>
   <string name="app_slogan">Harika bir kullanıcı arayüzü oluşturun!</string>
   <string name="home">ANA SAYFA</string>
   <string name="preference">TERCİHLER</string>

@@ -24,6 +24,6 @@ import org.gradle.tooling.model.GradleProject
 object GradleProjectModelBuilder : AbstractProjectModelBuilder<GradleProject>() {
 	override fun build(
 		initializeParams: InitializeProjectParams,
-		param: GradleProject
+		param: GradleProject,
 	): GradleModels.GradleProject = param.asProtoModel()
 }

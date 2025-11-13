@@ -28,7 +28,6 @@ import androidx.core.app.NotificationManagerCompat
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
-import com.itsaky.androidide.R.*
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.lookup.Lookup
@@ -45,7 +44,6 @@ import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
-import org.koin.android.ext.android.inject
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_AAR
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
@@ -66,6 +64,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -81,9 +80,11 @@ import java.util.concurrent.TimeoutException
  *
  * @author Akash Yadav
  */
-class GradleBuildService : Service(), BuildService, IToolingApiClient,
+class GradleBuildService :
+	Service(),
+	BuildService,
+	IToolingApiClient,
 	ToolingServerRunner.Observer {
-
 	private var mBinder: GradleServiceBinder? = null
 	private var isToolingServerStarted = false
 	override var isBuildInProgress = false
@@ -95,7 +96,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 	 * us. So, when the service is destroyed, we release the reference to the service from this
 	 * client.
 	 */
-	private var _toolingApiClient: ForwardingToolingApiClient? = null
+	private var toolingApiClient: ForwardingToolingApiClient? = null
 	private var toolingServerRunner: ToolingServerRunner? = null
 	private var outputReaderJob: Job? = null
 	private var notificationManager: NotificationManager? = null
@@ -104,9 +105,10 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 	private val analyticsManager: IAnalyticsManager by inject()
 	private var buildStartTime: Long = 0
 
-	private val buildServiceScope = CoroutineScope(
-		Dispatchers.Default + CoroutineName("GradleBuildService")
-	)
+	private val buildServiceScope =
+		CoroutineScope(
+			Dispatchers.Default + CoroutineName("GradleBuildService"),
+		)
 
 	private val isGradleWrapperAvailable: Boolean
 		get() {
@@ -127,8 +129,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 			return gradlew.exists() && gradleWrapperJar.exists() && gradleWrapperProps.exists()
 		}
 
-	private fun getBuildType(tasks: List<String>): String {
-		return tasks.firstOrNull()?.let { task ->
+	private fun getBuildType(tasks: List<String>): String =
+		tasks.firstOrNull()?.let { task ->
 			when {
 				task.contains("assembleDebug") -> "debug"
 				task.contains("assembleRelease") -> "release"
@@ -137,10 +139,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 				else -> "custom"
 			}
 		} ?: "unknown"
-	}
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(GradleBuildService::class.java)
 		private val NOTIFICATION_ID = R.string.app_name
 		private val SERVER_System_err = LoggerFactory.getLogger("ToolingApiErrorStream")
@@ -161,13 +161,11 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 		Lookup.getDefault().update(BuildService.KEY_BUILD_SERVICE, this)
 	}
 
-	override fun isToolingServerStarted(): Boolean {
-		return isToolingServerStarted && server != null
-	}
+	override fun isToolingServerStarted(): Boolean = isToolingServerStarted && server != null
 
 	private fun showNotification(
 		message: String,
-		@Suppress("SameParameterValue") isProgress: Boolean
+		@Suppress("SameParameterValue") isProgress: Boolean,
 	) {
 		log.info("Showing notification to user...")
 		createNotificationChannels()
@@ -175,24 +173,34 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 	}
 
 	private fun createNotificationChannels() {
-		val buildNotificationChannel = NotificationChannel(
-			BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE,
-			getString(string.title_gradle_service_notification_channel),
-			NotificationManager.IMPORTANCE_LOW
-		)
-		NotificationManagerCompat.from(this)
+		val buildNotificationChannel =
+			NotificationChannel(
+				BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE,
+				getString(R.string.title_gradle_service_notification_channel),
+				NotificationManager.IMPORTANCE_LOW,
+			)
+		NotificationManagerCompat
+			.from(this)
 			.createNotificationChannel(buildNotificationChannel)
 	}
 
-	private fun buildNotification(message: String, isProgress: Boolean): Notification {
+	private fun buildNotification(
+		message: String,
+		isProgress: Boolean,
+	): Notification {
 		val ticker = getString(R.string.title_gradle_service_notification_ticker)
 		val title = getString(R.string.title_gradle_service_notification)
 		val launch = packageManager.getLaunchIntentForPackage(BuildConfig.APPLICATION_ID)
 		val intent = PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT)
-		val builder = Notification.Builder(this, BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE)
-			.setSmallIcon(R.drawable.ic_launcher_fg_vector).setTicker(ticker)
-			.setWhen(System.currentTimeMillis()).setContentTitle(title).setContentText(message)
-			.setContentIntent(intent)
+		val builder =
+			Notification
+				.Builder(this, BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE)
+				.setSmallIcon(R.drawable.ic_launcher_fg_vector)
+				.setTicker(ticker)
+				.setWhen(System.currentTimeMillis())
+				.setContentTitle(title)
+				.setContentText(message)
+				.setContentIntent(intent)
 
 		// Checking whether to add a ProgressBar to the notification
 		if (isProgress) {
@@ -202,7 +210,11 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 		return builder.build()
 	}
 
-	override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+	override fun onStartCommand(
+		intent: Intent,
+		flags: Int,
+		startId: Int,
+	): Int {
 		// No point in restarting the service if it really gets killed.
 		return START_NOT_STICKY
 	}
@@ -235,8 +247,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 		toolingServerRunner?.release()
 		toolingServerRunner = null
 
-		_toolingApiClient?.client = null
-		_toolingApiClient = null
+		toolingApiClient?.client = null
+		toolingApiClient = null
 
 		log.debug("Cancelling tooling server output reader job...")
 		outputReaderJob?.cancel()
@@ -254,7 +266,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 
 	override fun onListenerStarted(
 		server: IToolingApiServer,
-		errorStream: InputStream
+		errorStream: InputStream,
 	) {
 		startServerOutputReader(errorStream)
 		this.server = server
@@ -267,10 +279,10 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 	}
 
 	override fun getClient(): IToolingApiClient {
-		if (_toolingApiClient == null) {
-			_toolingApiClient = ForwardingToolingApiClient(this)
+		if (toolingApiClient == null) {
+			toolingApiClient = ForwardingToolingApiClient(this)
 		}
-		return _toolingApiClient!!
+		return toolingApiClient!!
 	}
 
 	override fun logMessage(params: LogMessageParams) {
@@ -374,11 +386,14 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 		return CompletableFuture.completedFuture(extraArgs)
 	}
 
-	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> {
-		return if (isGradleWrapperAvailable) CompletableFuture.completedFuture(
-			GradleWrapperCheckResult(true)
-		) else installWrapper()
-	}
+	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
+		if (isGradleWrapperAvailable) {
+			CompletableFuture.completedFuture(
+				GradleWrapperCheckResult(true),
+			)
+		} else {
+			installWrapper()
+		}
 
 	internal fun setServerListener(listener: OnServerStartListener?) {
 		if (toolingServerRunner != null) {
@@ -399,7 +414,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 		val extracted = File(Environment.TMP_DIR, "gradle-wrapper.zip")
 		if (!ResourceUtils.copyFileFromAssets(
 				ToolsManager.getCommonAsset("gradle-wrapper.zip"),
-				extracted.absolutePath
+				extracted.absolutePath,
 			)
 		) {
 			log.error("Unable to extract gradle-plugin.zip from IDE resources.")
@@ -417,14 +432,20 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 		return GradleWrapperCheckResult(false)
 	}
 
-	private fun updateNotification(message: String, isProgress: Boolean) {
+	private fun updateNotification(
+		message: String,
+		isProgress: Boolean,
+	) {
 		runOnUiThread { doUpdateNotification(message, isProgress) }
 	}
 
-	private fun doUpdateNotification(message: String, isProgress: Boolean) {
+	private fun doUpdateNotification(
+		message: String,
+		isProgress: Boolean,
+	) {
 		(getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(
 			NOTIFICATION_ID,
-			buildNotification(message, isProgress)
+			buildNotification(message, isProgress),
 		)
 	}
 
@@ -433,9 +454,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 		return server!!.metadata()
 	}
 
-	override fun initializeProject(
-		params: InitializeProjectParams
-	): CompletableFuture<InitializeResult> {
+	override fun initializeProject(params: InitializeProjectParams): CompletableFuture<InitializeResult> {
 		checkServerStarted()
 		Objects.requireNonNull(params)
 		return try {
@@ -470,37 +489,43 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 	}
 
 	private fun <T> performBuildTasks(future: CompletableFuture<T>): CompletableFuture<T> {
-		return CompletableFuture.runAsync(this::onPrepareBuildRequest).handleAsync { _, _ ->
-			try {
-				return@handleAsync future.get()
-			} catch (e: Throwable) {
-				if (BuildPreferences.isScanEnabled &&
-					(e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
-							e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE))
-				) {
+		return CompletableFuture
+			.runAsync(this::onPrepareBuildRequest)
+			.handleAsync { _, _ ->
+				try {
+					return@handleAsync future.get()
+				} catch (e: Throwable) {
+					if (BuildPreferences.isScanEnabled &&
+						(
+							e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+								e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
+						)
+					) {
+						BuildPreferences.isScanEnabled = false
 
-					BuildPreferences.isScanEnabled = false
+						eventListener?.onOutput(MESSAGE_SCAN_REQUIRES_PLUGIN)
+						eventListener?.onOutput(MESSAGE_OPTION_DISABLED)
 
-					eventListener?.onOutput(MESSAGE_SCAN_REQUIRES_PLUGIN)
-					eventListener?.onOutput(MESSAGE_OPTION_DISABLED)
+						throw ScanPluginMissingException(MESSAGE_EXCEPTION_SCAN_DISABLED)
+					}
 
-					throw ScanPluginMissingException(MESSAGE_EXCEPTION_SCAN_DISABLED)
+					throw CompletionException(e)
 				}
-
-				throw CompletionException(e)
-			}
-		}.handle(this::markBuildAsFinished)
+			}.handle(this::markBuildAsFinished)
 	}
 
-	class ScanPluginMissingException(message: String) : Exception(message)
+	class ScanPluginMissingException(
+		message: String,
+	) : Exception(message)
 
 	private fun isGradleEnterprisePluginAvailable(): Boolean {
 		val projectDir = ProjectManagerImpl.getInstance().projectDir ?: return false
 
-		val settingsFiles = listOf(
-			File(projectDir, "settings.gradle"),
-			File(projectDir, "settings.gradle.kts")
-		)
+		val settingsFiles =
+			listOf(
+				File(projectDir, "settings.gradle"),
+				File(projectDir, "settings.gradle.kts"),
+			)
 
 		for (file in settingsFiles) {
 			if (file.exists()) {
@@ -544,7 +569,10 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 	}
 
 	@Suppress("UNUSED_PARAMETER")
-	private fun <T> markBuildAsFinished(result: T, throwable: Throwable?): T {
+	private fun <T> markBuildAsFinished(
+		result: T,
+		throwable: Throwable?,
+	): T {
 		isBuildInProgress = false
 		return result
 	}
@@ -572,62 +600,63 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 		return this
 	}
 
-	private fun wrap(listener: EventListener?): EventListener? {
-		return if (listener == null) {
+	private fun wrap(listener: EventListener?): EventListener? =
+		if (listener == null) {
 			null
-		} else object : EventListener {
-			override fun prepareBuild(buildInfo: BuildInfo) {
-				runOnUiThread { listener.prepareBuild(buildInfo) }
-			}
+		} else {
+			object : EventListener {
+				override fun prepareBuild(buildInfo: BuildInfo) {
+					runOnUiThread { listener.prepareBuild(buildInfo) }
+				}
 
-			override fun onBuildSuccessful(tasks: List<String?>) {
-				runOnUiThread { listener.onBuildSuccessful(tasks) }
-			}
+				override fun onBuildSuccessful(tasks: List<String?>) {
+					runOnUiThread { listener.onBuildSuccessful(tasks) }
+				}
 
-			override fun onProgressEvent(event: ProgressEvent) {
-				runOnUiThread { listener.onProgressEvent(event) }
-			}
+				override fun onProgressEvent(event: ProgressEvent) {
+					runOnUiThread { listener.onProgressEvent(event) }
+				}
 
-			override fun onBuildFailed(tasks: List<String?>) {
-				runOnUiThread { listener.onBuildFailed(tasks) }
-			}
+				override fun onBuildFailed(tasks: List<String?>) {
+					runOnUiThread { listener.onBuildFailed(tasks) }
+				}
 
-			override fun onOutput(line: String?) {
-				runOnUiThread { listener.onOutput(line) }
+				override fun onOutput(line: String?) {
+					runOnUiThread { listener.onOutput(line) }
+				}
 			}
 		}
-	}
 
 	private fun startServerOutputReader(input: InputStream) {
 		if (outputReaderJob?.isActive == true) {
 			return
 		}
 
-		outputReaderJob = buildServiceScope.launch(
-			Dispatchers.IO + CoroutineName("ToolingServerErrorReader")
-		) {
-			val reader = input.bufferedReader()
-			try {
-				reader.forEachLine { line ->
-					SERVER_System_err.error(line)
-				}
-			} catch (e: Throwable) {
-				e.ifCancelledOrInterrupted(suppress = true) {
-					// will be suppressed
-					return@launch
-				}
+		outputReaderJob =
+			buildServiceScope.launch(
+				Dispatchers.IO + CoroutineName("ToolingServerErrorReader"),
+			) {
+				val reader = input.bufferedReader()
+				try {
+					reader.forEachLine { line ->
+						SERVER_System_err.error(line)
+					}
+				} catch (e: Throwable) {
+					e.ifCancelledOrInterrupted(suppress = true) {
+						// will be suppressed
+						return@launch
+					}
 
-				// log the error and fail silently
-				log.error("Failed to read tooling server output", e)
+					// log the error and fail silently
+					log.error("Failed to read tooling server output", e)
+				}
 			}
-		}
 	}
 
 	/**
 	 * Handles events received from a Gradle build.
 	 */
 	interface EventListener {
-
 		/**
 		 * Called just before a build is started.
 		 *

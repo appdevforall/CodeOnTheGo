@@ -59,7 +59,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import jdkx.tools.Diagnostic;
 import jdkx.tools.JavaFileObject;
 import jdkx.tools.StandardLocation;
@@ -73,504 +72,489 @@ import org.slf4j.LoggerFactory;
 
 public class JavaCompilerService implements CompilerProvider {
 
-  public static final JavaCompilerService NO_MODULE_COMPILER = new JavaCompilerService(null);
-  private static final Cache<String, Boolean> cacheContainsWord = new Cache<>();
-  private static final Cache<Void, List<String>> cacheContainsType = new Cache<>();
-  private static final Logger LOG = LoggerFactory.getLogger(JavaCompilerService.class);
-  protected final Set<String> classPathClasses;
-  protected final List<Diagnostic<? extends JavaFileObject>> diagnostics = new ArrayList<>();
-  protected final Map<JavaFileObject, Long> cachedModified = new HashMap<>();
-  protected final Cache<Void, List<String>> cacheFileImports = new Cache<>();
-  protected final SynchronizedTask synchronizedTask = new SynchronizedTask();
-  protected final SourceFileManager fileManager;
-  protected final ModuleProject module;
-  public ReusableCompiler compiler = new JCReusableCompiler();
-  protected Set<String> bootClasspathClasses =
-      BootClasspathProvider.getTopLevelClasses(
-          Collections.singleton(Environment.ANDROID_JAR.getAbsolutePath()));
-  private CompileBatch cachedCompile;
-  private int changeDelta = 0;
+	public static final JavaCompilerService NO_MODULE_COMPILER = new JavaCompilerService(null);
+	private static final Cache<String, Boolean> cacheContainsWord = new Cache<>();
+	private static final Cache<Void, List<String>> cacheContainsType = new Cache<>();
+	private static final Logger LOG = LoggerFactory.getLogger(JavaCompilerService.class);
+	protected final Set<String> classPathClasses;
+	protected final List<Diagnostic<? extends JavaFileObject>> diagnostics = new ArrayList<>();
+	protected final Map<JavaFileObject, Long> cachedModified = new HashMap<>();
+	protected final Cache<Void, List<String>> cacheFileImports = new Cache<>();
+	protected final SynchronizedTask synchronizedTask = new SynchronizedTask();
+	protected final SourceFileManager fileManager;
+	protected final ModuleProject module;
+	public ReusableCompiler compiler = new JCReusableCompiler();
+	protected Set<String> bootClasspathClasses = BootClasspathProvider.getTopLevelClasses(
+			Collections.singleton(Environment.ANDROID_JAR.getAbsolutePath()));
+	private CompileBatch cachedCompile;
+	private int changeDelta = 0;
 
-  private Position lastReparsePosition = Position.NONE;
-  private Position newCursorPosition = Position.NONE;
+	private Position lastReparsePosition = Position.NONE;
+	private Position newCursorPosition = Position.NONE;
 
-  // The module project must not be null
-  // It is marked as nullable just for some special cases like tests
-  public JavaCompilerService(@Nullable ModuleProject module) {
-    this.module = module;
-    if (module == null) {
-      this.fileManager = SourceFileManager.NO_MODULE;
-      this.classPathClasses = Collections.emptySet();
-    } else {
-      this.fileManager = SourceFileManager.forModule(module);
-      this.classPathClasses =
-          Collections.unmodifiableSet(module.compileClasspathClasses.allClassNames());
-      this.bootClasspathClasses = Collections.unmodifiableSet(getBootclasspathClasses());
-    }
-  }
+	// The module project must not be null
+	// It is marked as nullable just for some special cases like tests
+	public JavaCompilerService(@Nullable ModuleProject module) {
+		this.module = module;
+		if (module == null) {
+			this.fileManager = SourceFileManager.NO_MODULE;
+			this.classPathClasses = Collections.emptySet();
+		} else {
+			this.fileManager = SourceFileManager.forModule(module);
+			this.classPathClasses = Collections.unmodifiableSet(module.compileClasspathClasses.allClassNames());
+			this.bootClasspathClasses = Collections.unmodifiableSet(getBootclasspathClasses());
+		}
+	}
 
-  private Set<String> getBootclasspathClasses() {
-    if (module != null && module instanceof AndroidModule) {
-      final List<String> classpaths =
-			  new ArrayList<>(((AndroidModule) module)
-					  .getBootClassPathsList());
-      BootClasspathProvider.update(classpaths);
-      this.bootClasspathClasses =
-          Collections.unmodifiableSet(BootClasspathProvider.getTopLevelClasses(classpaths));
-    }
-    return bootClasspathClasses;
-  }
+	private JavaCompilerService(
+			@Nullable ModuleProject module,
+			SourceFileManager fileManager,
+			Set<String> bootClasspathClasses,
+			Set<String> classPathClasses) {
+		this.module = module;
+		this.fileManager = fileManager;
+		this.bootClasspathClasses = bootClasspathClasses;
+		this.classPathClasses = classPathClasses;
+	}
 
-  private JavaCompilerService(
-      @Nullable ModuleProject module,
-      SourceFileManager fileManager,
-      Set<String> bootClasspathClasses,
-      Set<String> classPathClasses) {
-    this.module = module;
-    this.fileManager = fileManager;
-    this.bootClasspathClasses = bootClasspathClasses;
-    this.classPathClasses = classPathClasses;
-  }
+	public synchronized void close() {
+		if (cachedCompile != null) {
+			cachedCompile.close();
+			cachedCompile.borrow.close();
+		}
+	}
 
-  public ModuleProject getModule() {
-    return module;
-  }
+	@Override
+	public SynchronizedTask compile(final CompilationRequest request) {
+		return compileBatch(request);
+	}
 
-  @Override
-  public TreeSet<String> publicTopLevelTypes() {
-    TreeSet<String> all = new TreeSet<>();
-    List<SourceClassTrie.SourceNode> sourceClasses =
-        module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
-    for (SourceClassTrie.SourceNode node : sourceClasses) {
-      all.add(node.getQualifiedName());
-    }
-    all.addAll(classPathClasses);
-    all.addAll(bootClasspathClasses);
-    return all;
-  }
+	public JavaCompilerService copy() {
+		final JavaCompilerService compiler = new JavaCompilerService(
+				this.module, this.fileManager, this.bootClasspathClasses, this.classPathClasses);
+		compiler.cachedCompile = null;
+		compiler.newCursorPosition = Position.NONE;
+		compiler.lastReparsePosition = Position.NONE;
+		compiler.changeDelta = 0;
+		compiler.compiler = new ReusableCompiler();
+		compiler.diagnostics.clear();
+		compiler.cachedModified.clear();
+		return compiler;
+	}
 
-  @Override
-  public TreeSet<String> packagePrivateTopLevelTypes(String packageName) {
-    return new TreeSet<>();
-  }
+	public void destroy() {
+		synchronizedTask.post(
+				() -> {
+					close();
+					cachedCompile = null;
+					cachedModified.clear();
+					compiler = new ReusableCompiler();
+				});
+	}
 
-  @Override
-  public Optional<JavaFileObject> findAnywhere(String className) {
-    Path fromSource = findTypeDeclaration(className);
-    if (fromSource != NOT_FOUND) {
-      return Optional.of(new SourceFileObject(fromSource));
-    }
-    return Optional.empty();
-  }
+	@Override
+	public Optional<JavaFileObject> findAnywhere(String className) {
+		Path fromSource = findTypeDeclaration(className);
+		if (fromSource != NOT_FOUND) {
+			return Optional.of(new SourceFileObject(fromSource));
+		}
+		return Optional.empty();
+	}
 
-  @Override
-  public Path findTypeDeclaration(String className) {
-    Path fastFind = findPublicTypeDeclaration(className);
-    if (fastFind != NOT_FOUND) {
-      return fastFind;
-    }
-    // In principle, the slow path can be skipped in many cases.
-    // If we're spending a lot of time in findTypeDeclaration, this would be a good
-    // optimization.
-    String packageName = Extractors.packageName(className);
-    String simpleName = Extractors.simpleName(className);
-    List<SourceClassTrie.SourceNode> classes =
-        module != null ? module.listClassesFromSourceDirs(packageName) : Collections.emptyList();
-    for (SourceClassTrie.SourceNode node : classes) {
-      final Path path = node.getFile();
-      if (containsWord(path, simpleName) && containsType(path, className)) {
-        return path;
-      }
-    }
-    return NOT_FOUND;
-  }
+	@Override
+	public Path[] findMemberReferences(String className, String memberName) {
+		List<Path> candidates = new ArrayList<>();
+		List<SourceClassTrie.SourceNode> sourceNodes = module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
+		for (SourceClassTrie.SourceNode node : sourceNodes) {
+			final Path path = node.getFile();
+			if (containsWord(path, memberName)) {
+				candidates.add(path);
+			}
+		}
+		return candidates.toArray(new Path[0]);
+	}
 
-  @Override
-  public Path[] findTypeReferences(String className) {
-    String packageName = Extractors.packageName(className);
-    String simpleName = Extractors.simpleName(className);
-    List<Path> candidates = new ArrayList<>();
-    List<SourceClassTrie.SourceNode> sourceNodes =
-        module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
-    for (SourceClassTrie.SourceNode node : sourceNodes) {
-      final Path path = node.getFile();
-      if (containsWord(path, packageName)
-          && containsImport(path, className)
-          && containsWord(path, simpleName)) {
-        candidates.add(path);
-      }
-    }
+	@Override
+	public List<String> findQualifiedNames(String simpleName, boolean onlyOne) {
+		final var names = new ArrayList<String>();
+		for (var name : publicTopLevelTypes()) {
+			// This will be true in a test environment
+			if (name.contains("/")) {
+				name = name.replace('/', '.');
+			}
 
-    return candidates.toArray(new Path[0]);
-  }
+			if (name.endsWith("." + simpleName)) {
+				names.add(name);
+				if (onlyOne) {
+					break;
+				}
+			}
+		}
+		return names;
+	}
 
-  @Override
-  public Path[] findMemberReferences(String className, String memberName) {
-    List<Path> candidates = new ArrayList<>();
-    List<SourceClassTrie.SourceNode> sourceNodes =
-        module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
-    for (SourceClassTrie.SourceNode node : sourceNodes) {
-      final Path path = node.getFile();
-      if (containsWord(path, memberName)) {
-        candidates.add(path);
-      }
-    }
-    return candidates.toArray(new Path[0]);
-  }
+	@Override
+	public Path findTypeDeclaration(String className) {
+		Path fastFind = findPublicTypeDeclaration(className);
+		if (fastFind != NOT_FOUND) {
+			return fastFind;
+		}
+		// In principle, the slow path can be skipped in many cases.
+		// If we're spending a lot of time in findTypeDeclaration, this would be a good
+		// optimization.
+		String packageName = Extractors.packageName(className);
+		String simpleName = Extractors.simpleName(className);
+		List<SourceClassTrie.SourceNode> classes = module != null ? module.listClassesFromSourceDirs(packageName) : Collections.emptyList();
+		for (SourceClassTrie.SourceNode node : classes) {
+			final Path path = node.getFile();
+			if (containsWord(path, simpleName) && containsType(path, className)) {
+				return path;
+			}
+		}
+		return NOT_FOUND;
+	}
 
-  @Override
-  public List<String> findQualifiedNames(String simpleName, boolean onlyOne) {
-    final var names = new ArrayList<String>();
-    for (var name : publicTopLevelTypes()) {
-      // This will be true in a test environment
-      if (name.contains("/")) {
-        name = name.replace('/', '.');
-      }
+	@Override
+	public Path[] findTypeReferences(String className) {
+		String packageName = Extractors.packageName(className);
+		String simpleName = Extractors.simpleName(className);
+		List<Path> candidates = new ArrayList<>();
+		List<SourceClassTrie.SourceNode> sourceNodes = module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
+		for (SourceClassTrie.SourceNode node : sourceNodes) {
+			final Path path = node.getFile();
+			if (containsWord(path, packageName)
+					&& containsImport(path, className)
+					&& containsWord(path, simpleName)) {
+				candidates.add(path);
+			}
+		}
 
-      if (name.endsWith("." + simpleName)) {
-        names.add(name);
-        if (onlyOne) {
-          break;
-        }
-      }
-    }
-    return names;
-  }
+		return candidates.toArray(new Path[0]);
+	}
 
-  @Override
-  public ParseTask parse(Path file) {
-    Parser parser = Parser.parseFile(file);
-    return new ParseTask(parser.task, parser.root);
-  }
+	public ModuleProject getModule() {
+		return module;
+	}
 
-  @Override
-  public ParseTask parse(JavaFileObject file) {
-    Parser parser = Parser.parseJavaFileObject(file);
-    return new ParseTask(parser.task, parser.root);
-  }
+	public SynchronizedTask getSynchronizedTask() {
+		return synchronizedTask;
+	}
 
-  @Override
-  public SynchronizedTask compile(final CompilationRequest request) {
-    return compileBatch(request);
-  }
+	public void onDocumentChange(@NonNull DocumentChangeEvent event) {
+		this.changeDelta += event.getChangeDelta();
+		this.newCursorPosition = event.getChangeRange().getEnd();
+	}
 
-  private SynchronizedTask compileBatch(CompilationRequest request) {
-    synchronizedTask.post(
-        () -> {
-          if (needsCompilation(request.sources)) {
-            reparseOrRecompile(request);
-          } else {
-            LOG.info("...using cached compile");
-          }
-          synchronizedTask.setTask(new CompileTask(cachedCompile, diagnostics));
-        });
+	@Override
+	public TreeSet<String> packagePrivateTopLevelTypes(String packageName) {
+		return new TreeSet<>();
+	}
 
-    return synchronizedTask;
-  }
+	@Override
+	public ParseTask parse(JavaFileObject file) {
+		Parser parser = Parser.parseJavaFileObject(file);
+		return new ParseTask(parser.task, parser.root);
+	}
 
-  private boolean needsCompilation(Collection<? extends JavaFileObject> sources) {
-    if (cachedModified.size() != sources.size()) {
-      return true;
-    }
-    for (JavaFileObject f : sources) {
-      if (!cachedModified.containsKey(f)) {
-        return true;
-      }
+	@Override
+	public ParseTask parse(Path file) {
+		Parser parser = Parser.parseFile(file);
+		return new ParseTask(parser.task, parser.root);
+	}
 
-      final Long modified = cachedModified.get(f);
-      if (modified != null && f.getLastModified() != modified) {
-        return true;
-      }
-    }
-    return false;
-  }
+	@Override
+	public TreeSet<String> publicTopLevelTypes() {
+		TreeSet<String> all = new TreeSet<>();
+		List<SourceClassTrie.SourceNode> sourceClasses = module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
+		for (SourceClassTrie.SourceNode node : sourceClasses) {
+			all.add(node.getQualifiedName());
+		}
+		all.addAll(classPathClasses);
+		all.addAll(bootClasspathClasses);
+		return all;
+	}
 
-  private synchronized void reparseOrRecompile(CompilationRequest request) {
-//    if (needsRecompilation(request)) {
-//      LOG.warn("Cannot reparse. Recompilation is required");
-    recompile(request);
-//    } else {
-//      LOG.debug("Trying to perform a reparse...");
-//      tryReparse(request);
-//    }
-  }
+	@Nullable
+	private Pair<Range, TreePath> binarySearchCurrentMethod(
+			@NonNull final List<Pair<Range, TreePath>> positions, final long cursor) {
+		int left = 0;
+		int right = positions.size() - 1;
+		while (left <= right) {
+			int mid = (left + right) / 2;
+			final Pair<Range, TreePath> method = positions.get(mid);
+			final Range range = method.first;
+			final int startIndex = range.getStart().requireIndex();
+			final int endIndex = range.getEnd().requireIndex();
 
-  private boolean needsRecompilation(final CompilationRequest request) {
-    return this.cachedCompile == null
-        || this.cachedCompile.closed;
-//        || request.partialRequest == null
-//        || request.partialRequest.cursor < 0
-//        || !isChangeValidForReparse()
-//        || request.sources.size() != 1; // Cannot perform a reparse if there are multiple files
-  }
+			if (cursor < startIndex) {
+				right = mid - 1;
+			} else if (cursor > endIndex) {
+				left = mid + 1;
+			} else {
+				return method;
+			}
+		}
+		return null;
+	}
 
-  private boolean isChangeValidForReparse() {
-    return this.lastReparsePosition == Position.NONE
-        || (this.newCursorPosition != Position.NONE
-        && this.lastReparsePosition.getLine() == this.newCursorPosition.getLine());
-  }
+	private SynchronizedTask compileBatch(CompilationRequest request) {
+		synchronizedTask.post(
+				() -> {
+					if (needsCompilation(request.sources)) {
+						reparseOrRecompile(request);
+					} else {
+						LOG.info("...using cached compile");
+					}
+					synchronizedTask.setTask(new CompileTask(cachedCompile, diagnostics));
+				});
 
-  private void tryReparse(@NonNull final CompilationRequest request) {
+		return synchronizedTask;
+	}
 
-    // Satisfy lint
-    final PartialReparseRequest partialRequest = request.partialRequest;
-    Objects.requireNonNull(partialRequest);
+	private boolean containsImport(Path file, String className) {
+		String packageName = Extractors.packageName(className);
+		if (packageNameOrEmpty(file).equals(packageName)) {
+			return true;
+		}
+		String star = packageName + ".*";
+		for (String i : readImports(file)) {
+			if (i.equals(className) || i.equals(star)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
-    final StopWatch watch = new StopWatch("Method reparse");
-    final File file = new File(request.sources.iterator().next().toUri());
-    final String path = file.getAbsolutePath();
-    final List<Pair<Range, TreePath>> positions = this.cachedCompile.methodPositions.get(path);
-    if (positions == null) {
-      LOG.warn("Cannot perform reparse. No method positions found.");
-      recompile(request);
-      return;
-    }
+	private boolean containsType(Path file, String className) {
+		if (cacheContainsType.needs(file, null)) {
+			CompilationUnitTree root = parse(file).root;
+			List<String> types = new ArrayList<>();
+			new FindTypeDeclarations().scan(root, types);
+			cacheContainsType.load(file, null, types);
+		}
+		return cacheContainsType.get(file, null).contains(className);
+	}
 
-    final Pair<Range, TreePath> currentMethod =
-        binarySearchCurrentMethod(positions, partialRequest.cursor);
-    if (currentMethod == null) {
-      LOG.warn("Cannot perform reparse. Unable to find current method");
-      recompile(request);
-      return;
-    } else {
-      watch.lapFromLast("Found method at cursor position");
-    }
+	private boolean containsWord(Path file, String word) {
+		if (cacheContainsWord.needs(file, word)) {
+			cacheContainsWord.load(file, word, StringSearch.containsWord(file, word));
+		}
+		return cacheContainsWord.get(file, word);
+	}
 
-    final MethodTree methodTree = (MethodTree) currentMethod.second.getLeaf();
-    LOG.debug("Trying to reparse method: {}", methodTree.getName());
+	private Path findPublicTypeDeclaration(String className) {
+		JavaFileObject source;
+		try {
+			source = fileManager.getJavaFileForInput(
+					StandardLocation.SOURCE_PATH, className, JavaFileObject.Kind.SOURCE);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		if (source == null) {
+			return NOT_FOUND;
+		}
+		if (!source.toUri().getScheme().equals("file")) {
+			return NOT_FOUND;
+		}
+		Path file = Paths.get(source.toUri());
+		if (!containsType(file, className)) {
+			return NOT_FOUND;
+		}
+		return file;
+	}
 
-    final CompilationInfo info =
-        new CompilationInfo(
-            cachedCompile.task, cachedCompile.diagnosticListener, cachedCompile.roots.get(0));
-    watch.setLastLap(System.currentTimeMillis());
-    final SourcePositions sourcePositions = Trees.instance(cachedCompile.task).getSourcePositions();
-    final int start = (int) sourcePositions.getStartPosition(info.cu, methodTree.getBody());
-    final int end =
-        (int) sourcePositions.getEndPosition(info.cu, methodTree.getBody()) + this.changeDelta;
+	private Set<String> getBootclasspathClasses() {
+		if (module != null && module instanceof AndroidModule) {
+			final List<String> classpaths = new ArrayList<>(((AndroidModule) module)
+					.getBootClassPathsList());
+			BootClasspathProvider.update(classpaths);
+			this.bootClasspathClasses = Collections.unmodifiableSet(BootClasspathProvider.getTopLevelClasses(classpaths));
+		}
+		return bootClasspathClasses;
+	}
 
-    if (start < 0 || end < 0 || start > end || end >= partialRequest.contents.length()) {
-      LOG.warn(
-          "Cannot reparse. Invalid change delta. end: {} changeDelta: {} content.length: {}",
-          end,
-          this.changeDelta,
-          partialRequest.contents.length()
-      );
-      recompile(request);
-      return;
-    }
+	private boolean isChangeValidForReparse() {
+		return this.lastReparsePosition == Position.NONE
+				|| (this.newCursorPosition != Position.NONE
+						&& this.lastReparsePosition.getLine() == this.newCursorPosition.getLine());
+	}
 
-    watch.lapFromLast("Found start and end positions of current method");
-    final PartialReparser reparser = new PartialReparserImpl();
+	private void loadImports(Path file) {
+		List<String> list = new ArrayList<>();
+		Pattern importClass = Pattern.compile("^import +([\\w.]+\\.\\w+);");
+		Pattern importStar = Pattern.compile("^import +([\\w.]+\\.\\*);");
+		try (BufferedReader lines = FileManager.INSTANCE.getReader(file)) {
+			for (String line = lines.readLine(); line != null; line = lines.readLine()) {
+				// If we reach a class declaration, stop looking for imports
+				// TODO This could be a little more specific
+				if (line.contains("class")) {
+					break;
+				}
+				// import foo.bar.Doh;
+				Matcher matchesClass = importClass.matcher(line);
+				if (matchesClass.matches()) {
+					list.add(matchesClass.group(1));
+				}
+				// import foo.bar.*
+				Matcher matchesStar = importStar.matcher(line);
+				if (matchesStar.matches()) {
+					list.add(matchesStar.group(1));
+				}
+			}
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		cacheFileImports.load(file, null, list);
+	}
 
-    final String newBody = partialRequest.contents.substring(start, end);
-    final boolean reparsed =
-        reparser.reparseMethod(info, currentMethod.second, newBody, partialRequest.contents);
-    if (!reparsed) {
-      LOG.error("Failed to reparse");
-      recompile(request);
-      return;
-    }
+	private boolean needsCompilation(Collection<? extends JavaFileObject> sources) {
+		if (cachedModified.size() != sources.size()) {
+			return true;
+		}
+		for (JavaFileObject f : sources) {
+			if (!cachedModified.containsKey(f)) {
+				return true;
+			}
 
-    watch.log();
-    LOG.info("Successfully reparsed method: {}", methodTree.getName());
-    updateModificationCache(request);
-    cachedCompile.updatePositions(info.cu, true);
-    this.changeDelta = 0;
-    this.lastReparsePosition = this.newCursorPosition;
-  }
+			final Long modified = cachedModified.get(f);
+			if (modified != null && f.getLastModified() != modified) {
+				return true;
+			}
+		}
+		return false;
+	}
 
-  @Nullable
-  private Pair<Range, TreePath> binarySearchCurrentMethod(
-      @NonNull final List<Pair<Range, TreePath>> positions, final long cursor) {
-    int left = 0;
-    int right = positions.size() - 1;
-    while (left <= right) {
-      int mid = (left + right) / 2;
-      final Pair<Range, TreePath> method = positions.get(mid);
-      final Range range = method.first;
-      final int startIndex = range.getStart().requireIndex();
-      final int endIndex = range.getEnd().requireIndex();
+	private boolean needsRecompilation(final CompilationRequest request) {
+		return this.cachedCompile == null
+				|| this.cachedCompile.closed;
+		// || request.partialRequest == null
+		// || request.partialRequest.cursor < 0
+		// || !isChangeValidForReparse()
+		// || request.sources.size() != 1; // Cannot perform a reparse if there are multiple files
+	}
 
-      if (cursor < startIndex) {
-        right = mid - 1;
-      } else if (cursor > endIndex) {
-        left = mid + 1;
-      } else {
-        return method;
-      }
-    }
-    return null;
-  }
+	private String packageNameOrEmpty(Path file) {
+		return module != null ? module.packageNameOrEmpty(file) : "";
+	}
 
-  private synchronized void recompile(CompilationRequest request) {
-    close();
-    this.cachedCompile = performCompilation(request);
-    this.changeDelta = 0;
-    updateModificationCache(request);
-  }
+	private CompileBatch performCompilation(CompilationRequest request) {
+		final Collection<? extends JavaFileObject> sources = request.sources;
+		if (sources.isEmpty()) {
+			throw new RuntimeException("empty sources");
+		}
 
-  public synchronized void close() {
-    if (cachedCompile != null) {
-      cachedCompile.close();
-      cachedCompile.borrow.close();
-    }
-  }
+		CompileBatch firstAttempt = new CompileBatch(this, sources, request);
+		Set<Path> addFiles = firstAttempt.needsAdditionalSources();
 
-  private void updateModificationCache(final CompilationRequest request) {
-    cachedModified.clear();
-    for (JavaFileObject f : request.sources) {
-      cachedModified.put(f, f.getLastModified());
-    }
-  }
+		if (addFiles.isEmpty()) {
+			return firstAttempt;
+		}
 
-  private CompileBatch performCompilation(CompilationRequest request) {
-    final Collection<? extends JavaFileObject> sources = request.sources;
-    if (sources.isEmpty()) {
-      throw new RuntimeException("empty sources");
-    }
+		// If the compiler needs additional source files that contain package-private files
+		LOG.info("...need to recompile with {}", addFiles);
+		firstAttempt.close();
+		firstAttempt.borrow.close();
 
-    CompileBatch firstAttempt = new CompileBatch(this, sources, request);
-    Set<Path> addFiles = firstAttempt.needsAdditionalSources();
+		List<JavaFileObject> moreSources = new ArrayList<>(sources);
+		for (Path add : addFiles) {
+			moreSources.add(new SourceFileObject(add));
+		}
 
-    if (addFiles.isEmpty()) {
-      return firstAttempt;
-    }
+		return new CompileBatch(this, moreSources, request);
+	}
 
-    // If the compiler needs additional source files that contain package-private files
-    LOG.info("...need to recompile with {}", addFiles);
-    firstAttempt.close();
-    firstAttempt.borrow.close();
+	private List<String> readImports(Path file) {
+		if (cacheFileImports.needs(file, null)) {
+			loadImports(file);
+		}
+		return cacheFileImports.get(file, null);
+	}
 
-    List<JavaFileObject> moreSources = new ArrayList<>(sources);
-    for (Path add : addFiles) {
-      moreSources.add(new SourceFileObject(add));
-    }
+	private synchronized void recompile(CompilationRequest request) {
+		close();
+		this.cachedCompile = performCompilation(request);
+		this.changeDelta = 0;
+		updateModificationCache(request);
+	}
 
-    return new CompileBatch(this, moreSources, request);
-  }
+	private synchronized void reparseOrRecompile(CompilationRequest request) {
+		// if (needsRecompilation(request)) {
+		// LOG.warn("Cannot reparse. Recompilation is required");
+		recompile(request);
+		// } else {
+		// LOG.debug("Trying to perform a reparse...");
+		// tryReparse(request);
+		// }
+	}
 
-  private boolean containsWord(Path file, String word) {
-    if (cacheContainsWord.needs(file, word)) {
-      cacheContainsWord.load(file, word, StringSearch.containsWord(file, word));
-    }
-    return cacheContainsWord.get(file, word);
-  }
+	private void tryReparse(@NonNull final CompilationRequest request) {
 
-  private boolean containsImport(Path file, String className) {
-    String packageName = Extractors.packageName(className);
-    if (packageNameOrEmpty(file).equals(packageName)) {
-      return true;
-    }
-    String star = packageName + ".*";
-    for (String i : readImports(file)) {
-      if (i.equals(className) || i.equals(star)) {
-        return true;
-      }
-    }
-    return false;
-  }
+		// Satisfy lint
+		final PartialReparseRequest partialRequest = request.partialRequest;
+		Objects.requireNonNull(partialRequest);
 
-  private List<String> readImports(Path file) {
-    if (cacheFileImports.needs(file, null)) {
-      loadImports(file);
-    }
-    return cacheFileImports.get(file, null);
-  }
+		final StopWatch watch = new StopWatch("Method reparse");
+		final File file = new File(request.sources.iterator().next().toUri());
+		final String path = file.getAbsolutePath();
+		final List<Pair<Range, TreePath>> positions = this.cachedCompile.methodPositions.get(path);
+		if (positions == null) {
+			LOG.warn("Cannot perform reparse. No method positions found.");
+			recompile(request);
+			return;
+		}
 
-  private void loadImports(Path file) {
-    List<String> list = new ArrayList<>();
-    Pattern importClass = Pattern.compile("^import +([\\w.]+\\.\\w+);");
-    Pattern importStar = Pattern.compile("^import +([\\w.]+\\.\\*);");
-    try (BufferedReader lines = FileManager.INSTANCE.getReader(file)) {
-      for (String line = lines.readLine(); line != null; line = lines.readLine()) {
-        // If we reach a class declaration, stop looking for imports
-        // TODO This could be a little more specific
-        if (line.contains("class")) {
-          break;
-        }
-        // import foo.bar.Doh;
-        Matcher matchesClass = importClass.matcher(line);
-        if (matchesClass.matches()) {
-          list.add(matchesClass.group(1));
-        }
-        // import foo.bar.*
-        Matcher matchesStar = importStar.matcher(line);
-        if (matchesStar.matches()) {
-          list.add(matchesStar.group(1));
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-    cacheFileImports.load(file, null, list);
-  }
+		final Pair<Range, TreePath> currentMethod = binarySearchCurrentMethod(positions, partialRequest.cursor);
+		if (currentMethod == null) {
+			LOG.warn("Cannot perform reparse. Unable to find current method");
+			recompile(request);
+			return;
+		} else {
+			watch.lapFromLast("Found method at cursor position");
+		}
 
-  private String packageNameOrEmpty(Path file) {
-    return module != null ? module.packageNameOrEmpty(file) : "";
-  }
+		final MethodTree methodTree = (MethodTree) currentMethod.second.getLeaf();
+		LOG.debug("Trying to reparse method: {}", methodTree.getName());
 
-  public void destroy() {
-    synchronizedTask.post(
-        () -> {
-          close();
-          cachedCompile = null;
-          cachedModified.clear();
-          compiler = new ReusableCompiler();
-        });
-  }
+		final CompilationInfo info = new CompilationInfo(
+				cachedCompile.task, cachedCompile.diagnosticListener, cachedCompile.roots.get(0));
+		watch.setLastLap(System.currentTimeMillis());
+		final SourcePositions sourcePositions = Trees.instance(cachedCompile.task).getSourcePositions();
+		final int start = (int) sourcePositions.getStartPosition(info.cu, methodTree.getBody());
+		final int end = (int) sourcePositions.getEndPosition(info.cu, methodTree.getBody()) + this.changeDelta;
 
-  public SynchronizedTask getSynchronizedTask() {
-    return synchronizedTask;
-  }
+		if (start < 0 || end < 0 || start > end || end >= partialRequest.contents.length()) {
+			LOG.warn(
+					"Cannot reparse. Invalid change delta. end: {} changeDelta: {} content.length: {}",
+					end,
+					this.changeDelta,
+					partialRequest.contents.length());
+			recompile(request);
+			return;
+		}
 
-  public void onDocumentChange(@NonNull DocumentChangeEvent event) {
-    this.changeDelta += event.getChangeDelta();
-    this.newCursorPosition = event.getChangeRange().getEnd();
-  }
+		watch.lapFromLast("Found start and end positions of current method");
+		final PartialReparser reparser = new PartialReparserImpl();
 
-  public JavaCompilerService copy() {
-    final JavaCompilerService compiler =
-        new JavaCompilerService(
-            this.module, this.fileManager, this.bootClasspathClasses, this.classPathClasses);
-    compiler.cachedCompile = null;
-    compiler.newCursorPosition = Position.NONE;
-    compiler.lastReparsePosition = Position.NONE;
-    compiler.changeDelta = 0;
-    compiler.compiler = new ReusableCompiler();
-    compiler.diagnostics.clear();
-    compiler.cachedModified.clear();
-    return compiler;
-  }
+		final String newBody = partialRequest.contents.substring(start, end);
+		final boolean reparsed = reparser.reparseMethod(info, currentMethod.second, newBody, partialRequest.contents);
+		if (!reparsed) {
+			LOG.error("Failed to reparse");
+			recompile(request);
+			return;
+		}
 
-  private boolean containsType(Path file, String className) {
-    if (cacheContainsType.needs(file, null)) {
-      CompilationUnitTree root = parse(file).root;
-      List<String> types = new ArrayList<>();
-      new FindTypeDeclarations().scan(root, types);
-      cacheContainsType.load(file, null, types);
-    }
-    return cacheContainsType.get(file, null).contains(className);
-  }
+		watch.log();
+		LOG.info("Successfully reparsed method: {}", methodTree.getName());
+		updateModificationCache(request);
+		cachedCompile.updatePositions(info.cu, true);
+		this.changeDelta = 0;
+		this.lastReparsePosition = this.newCursorPosition;
+	}
 
-  private Path findPublicTypeDeclaration(String className) {
-    JavaFileObject source;
-    try {
-      source =
-          fileManager.getJavaFileForInput(
-              StandardLocation.SOURCE_PATH, className, JavaFileObject.Kind.SOURCE);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-    if (source == null) {
-      return NOT_FOUND;
-    }
-    if (!source.toUri().getScheme().equals("file")) {
-      return NOT_FOUND;
-    }
-    Path file = Paths.get(source.toUri());
-    if (!containsType(file, className)) {
-      return NOT_FOUND;
-    }
-    return file;
-  }
+	private void updateModificationCache(final CompilationRequest request) {
+		cachedModified.clear();
+		for (JavaFileObject f : request.sources) {
+			cachedModified.put(f, f.getLastModified());
+		}
+	}
 }

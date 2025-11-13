@@ -45,16 +45,15 @@ import kotlin.io.path.pathString
 abstract class ModuleProject(
 	delegate: GradleModels.GradleProject,
 ) : GradleProject(delegate) {
-
 	val compilerSettings: Common.JavaCompilerSettings
-		get() = when {
-			delegate.hasJavaProject() -> delegate.javaProject.javaCompilerSettings
-			delegate.hasAndroidProject() -> delegate.androidProject.javaCompilerSettings
-			else -> DEFAULT_COMPILER_SETTINGS
-		}
+		get() =
+			when {
+				delegate.hasJavaProject() -> delegate.javaProject.javaCompilerSettings
+				delegate.hasAndroidProject() -> delegate.androidProject.javaCompilerSettings
+				else -> DEFAULT_COMPILER_SETTINGS
+			}
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(ModuleProject::class.java)
 
 		@JvmStatic
@@ -116,7 +115,10 @@ abstract class ModuleProject(
 	 * @param name The name of the module.
 	 * @return `true` if the module is a dependency of this module, `false` otherwise.
 	 */
-	abstract fun hasExternalDependency(group: String, name: String): Boolean
+	abstract fun hasExternalDependency(
+		group: String,
+		name: String,
+	): Boolean
 
 	/**
 	 * Find the source root of the given [file].
@@ -124,9 +126,7 @@ abstract class ModuleProject(
 	 * @param file The file to find the source root for.
 	 * @return The source root (directory) of the given file, or `null` if not found.
 	 */
-	fun findSourceRoot(file: File): Path? {
-		return getCompileSourceDirectories().find { file.path.startsWith(it.path) }?.toPath()
-	}
+	fun findSourceRoot(file: File): Path? = getCompileSourceDirectories().find { file.path.startsWith(it.path) }?.toPath()
 
 	/** Finds the source files and classes from source directories and classpaths and indexes them. */
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
@@ -138,7 +138,6 @@ abstract class ModuleProject(
 
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexClasspaths() {
-
 		this.compileClasspathClasses.clear()
 
 		val watch = StopWatch("Indexing classpaths")
@@ -163,7 +162,6 @@ abstract class ModuleProject(
 
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexSources() {
-
 		this.compileJavaSourceClasses.clear()
 
 		val watch = StopWatch("Indexing sources")
@@ -184,8 +182,7 @@ abstract class ModuleProject(
 		log.debug("Found {} source files.", count)
 	}
 
-	fun getSourceFilesInDir(dir: Path): List<SourceNode> =
-		this.compileJavaSourceClasses.getSourceFilesInDir(dir)
+	fun getSourceFilesInDir(dir: Path): List<SourceNode> = this.compileJavaSourceClasses.getSourceFilesInDir(dir)
 
 	fun packageNameOrEmpty(file: Path?): String {
 		if (file == null) {
@@ -243,15 +240,12 @@ abstract class ModuleProject(
 		return ""
 	}
 
-	fun listClassesFromSourceDirs(packageName: String): List<SourceNode> {
-		return compileJavaSourceClasses
+	fun listClassesFromSourceDirs(packageName: String): List<SourceNode> =
+		compileJavaSourceClasses
 			.findInPackage(packageName)
 			.filterIsInstance<SourceNode>()
-	}
 
-	open fun isFromThisModule(file: File): Boolean {
-		return isFromThisModule(file.toPath())
-	}
+	open fun isFromThisModule(file: File): Boolean = isFromThisModule(file.toPath())
 
 	open fun isFromThisModule(file: Path): Boolean {
 		// TODO This can be probably improved

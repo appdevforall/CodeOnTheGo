@@ -26,7 +26,6 @@ import java.io.FileNotFoundException
 import java.io.FileReader
 
 class ApkMetadata {
-
 	@SerializedName("version")
 	var version = 0
 
@@ -46,7 +45,6 @@ class ApkMetadata {
 	var elementType: String? = null
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(ApkMetadata::class.java)
 
 		fun findApkFile(listingFIle: File): File? {
@@ -72,7 +70,7 @@ class ApkMetadata {
 						if (element.outputFile == null) {
 							log.warn(
 								"No output file specified in APK metadata element: {}",
-								element
+								element,
 							)
 							continue
 						}
@@ -125,9 +123,8 @@ class ApkMetadata {
 		}
 	}
 
-	override fun toString(): String {
-		return "ApkMetadata(version=$version, artifactType=$artifactType, applicationId=$applicationId, variantName=$variantName, elements=$elements, elementType=$elementType)"
-	}
+	override fun toString(): String =
+		"ApkMetadata(version=$version, artifactType=$artifactType, applicationId=$applicationId, variantName=$variantName, elements=$elements, elementType=$elementType)"
 
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true

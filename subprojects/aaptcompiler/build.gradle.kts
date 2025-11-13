@@ -42,7 +42,7 @@ dependencies {
 	api(libs.aapt2.annotations)
 	api(libs.aapt2.common)
 	api(libs.composite.layoutlibApi)
-	
+
 	api(projects.subprojects.aapt2Proto)
 
 	testImplementation(libs.tests.junit)

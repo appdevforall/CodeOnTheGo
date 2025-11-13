@@ -35,7 +35,6 @@ import kotlin.io.path.pathString
  * @author Akash Yadav
  */
 object ProjectSyncHelper {
-
 	private val logger = LoggerFactory.getLogger(ProjectSyncHelper::class.java)
 	private val hashDispatcher =
 		Dispatchers.Default.limitedParallelism(Runtime.getRuntime().availableProcessors())
@@ -43,35 +42,39 @@ object ProjectSyncHelper {
 	/**
 	 * Path matchers for files that we need to watch.
 	 */
-	private val watchedFileGlobs = listOf(
-		"glob:**/*.gradle",
-		"glob:**/*.gradle.kts",
-	).map { glob -> FileSystems.getDefault().getPathMatcher(glob) }
+	private val watchedFileGlobs =
+		listOf(
+			"glob:**/*.gradle",
+			"glob:**/*.gradle.kts",
+		).map { glob -> FileSystems.getDefault().getPathMatcher(glob) }
 
-	private val watchedFileMatcher = PathMatcher { path ->
-		watchedFileGlobs.any { matcher ->
-			matcher.matches(path)
+	private val watchedFileMatcher =
+		PathMatcher { path ->
+			watchedFileGlobs.any { matcher ->
+				matcher.matches(path)
+			}
 		}
-	}
 
 	/**
 	 * File names that we need to watch.
 	 */
-	private val watchedFileNames = listOf(
-		"gradle.properties",
-		"local.properties",
-		"gradle-wrapper.properties",
-	)
+	private val watchedFileNames =
+		listOf(
+			"gradle.properties",
+			"local.properties",
+			"gradle-wrapper.properties",
+		)
 
 	/**
 	 * Directories that should not be traversed.
 	 */
-	private val excludedDirectoryNames = listOf(
-		".git",
-		".gradle",
-		".kotlin",
-		".cxx"
-	)
+	private val excludedDirectoryNames =
+		listOf(
+			".git",
+			".gradle",
+			".kotlin",
+			".cxx",
+		)
 
 	/**
 	 * Get the project model cache file for the given project directory.
@@ -79,8 +82,9 @@ object ProjectSyncHelper {
 	 * @param projectDir The project directory.
 	 * @return The project model cache file.
 	 */
-	fun cacheFileForProject(projectDir: File) = projectDir
-		.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_MODEL_FILE)
+	fun cacheFileForProject(projectDir: File) =
+		projectDir
+			.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_MODEL_FILE)
 
 	/**
 	 * Get the sync metadata file for the given project directory.
@@ -88,21 +92,23 @@ object ProjectSyncHelper {
 	 * @param projectDir The project directory.
 	 * @return The sync metadata file.
 	 */
-	fun syncMetaFileForProject(projectDir: File) =
-		projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_META_FILE)
+	fun syncMetaFileForProject(projectDir: File) = projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_META_FILE)
 
 	/**
 	 * Try to acquire the sync lock.
 	 */
 	fun tryAcquireSyncLock(
 		projectDir: File,
-		timeoutMs: Long
+		timeoutMs: Long,
 	) = tryAcquireSyncLock(projectDir.toPath(), timeoutMs)
 
 	/**
 	 * Try to acquire the sync lock.
 	 */
-	fun tryAcquireSyncLock(projectDir: Path, timeoutMs: Long): FileChannel? {
+	fun tryAcquireSyncLock(
+		projectDir: Path,
+		timeoutMs: Long,
+	): FileChannel? {
 		val lockFile = projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE)
 		Files.createDirectories(lockFile.parent)
 		val channel =
@@ -129,7 +135,11 @@ object ProjectSyncHelper {
 	/**
 	 * Try to use the sync lock.
 	 */
-	inline fun tryUseSyncLock(projectDir: File, timeoutMs: Long, block: () -> Unit): Boolean {
+	inline fun tryUseSyncLock(
+		projectDir: File,
+		timeoutMs: Long,
+		block: () -> Unit,
+	): Boolean {
 		var channel: FileChannel? = null
 		try {
 			channel = tryAcquireSyncLock(projectDir, timeoutMs)
@@ -148,15 +158,14 @@ object ProjectSyncHelper {
 	 * @param cacheFile The project cache file.
 	 * @return The Gradle build model result.
 	 */
-	suspend fun readGradleBuild(cacheFile: File): Result<GradleModels.GradleBuild> {
-		return withContext(Dispatchers.IO) {
+	suspend fun readGradleBuild(cacheFile: File): Result<GradleModels.GradleBuild> =
+		withContext(Dispatchers.IO) {
 			runCatching {
 				cacheFile.inputStream().buffered().use { input ->
 					GradleModels.GradleBuild.parseFrom(input)
 				}
 			}
 		}
-	}
 
 	/**
 	 * Write the Gradle build model. The model files will be written to the root project's
@@ -168,9 +177,10 @@ object ProjectSyncHelper {
 	suspend fun writeGradleBuild(
 		gradleBuild: GradleModels.GradleBuild,
 		targetFile: File,
-	): Unit = withContext(Dispatchers.IO) {
-		writeGradleBuildSync(gradleBuild, targetFile)
-	}
+	): Unit =
+		withContext(Dispatchers.IO) {
+			writeGradleBuildSync(gradleBuild, targetFile)
+		}
 
 	/**
 	 * Write the Gradle build model synchronously. Use with caution.
@@ -180,7 +190,7 @@ object ProjectSyncHelper {
 	 */
 	fun writeGradleBuildSync(
 		gradleBuild: GradleModels.GradleBuild,
-		targetFile: File
+		targetFile: File,
 	) {
 		// use a temporary file on the same path to allow atomic moves
 		// /data/data and /sdcard are different devices (partitions)
@@ -202,7 +212,8 @@ object ProjectSyncHelper {
 			Files.move(
 				tempCacheFile,
 				targetFile.toPath(),
-				StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE
+				StandardCopyOption.REPLACE_EXISTING,
+				StandardCopyOption.ATOMIC_MOVE,
 			)
 		}.getOrThrow()
 	}
@@ -219,16 +230,17 @@ object ProjectSyncHelper {
 
 		val draft = createSyncMeta(projectDir, includeChecksum = false)
 		val syncMetaFile = syncMetaFileForProject(projectDir)
-		val stored = try {
-			loadSyncMetaFromFile(syncMetaFile)
-		} catch (_: FileNotFoundException) {
-			// sync meta is not available, require sync
-			logger.debug("NEED_SYNC: sync meta file not found")
-			return true
-		} catch (err: Throwable) {
-			logger.warn("NEED_SYNC: failed to read sync metadata file", err)
-			return true
-		}
+		val stored =
+			try {
+				loadSyncMetaFromFile(syncMetaFile)
+			} catch (_: FileNotFoundException) {
+				// sync meta is not available, require sync
+				logger.debug("NEED_SYNC: sync meta file not found")
+				return true
+			} catch (err: Throwable) {
+				logger.warn("NEED_SYNC: failed to read sync metadata file", err)
+				return true
+			}
 
 		val draftFilePaths = draft.watchedFilesList.map { it.relativePath }.toSet()
 		val storedFilePaths = stored.watchedFilesList.map { it.relativePath }.toSet()
@@ -253,7 +265,7 @@ object ProjectSyncHelper {
 					"NEED_SYNC: destination of '{}' changed from '{}' to '{}'",
 					draft.relativePath,
 					stored.canonicalPath,
-					draft.canonicalPath
+					draft.canonicalPath,
 				)
 				return true
 			}
@@ -275,7 +287,7 @@ object ProjectSyncHelper {
 				// require sync
 				logger.debug(
 					"NEED_SYNC: watched file '{}' doesn't have stored checksum",
-					stored.canonicalPath
+					stored.canonicalPath,
 				)
 				return true
 			}
@@ -287,7 +299,7 @@ object ProjectSyncHelper {
 					"NEED_SYNC: checksum mismatch '{}': expected={}, actual={}",
 					stored.canonicalPath,
 					stored.sha256,
-					computedSha
+					computedSha,
 				)
 				return true
 			}
@@ -324,7 +336,7 @@ object ProjectSyncHelper {
 		createSyncMeta(
 			projectDir = projectDir.toPath(),
 			includeChecksum = includeChecksum,
-			projectModelInfo = projectModelInfo
+			projectModelInfo = projectModelInfo,
 		)
 
 	/**
@@ -359,7 +371,7 @@ object ProjectSyncHelper {
 	 */
 	suspend fun createWatchedFilesList(
 		projectDir: Path,
-		includeChecksum: Boolean = false
+		includeChecksum: Boolean = false,
 	): List<SyncMetaModels.FileInfo> =
 		collectWatchedFiles(projectDir).map { (file, attrs) ->
 			FileInfo(
@@ -367,7 +379,7 @@ object ProjectSyncHelper {
 				canonicalPath = file.toRealPath().pathString,
 				size = attrs.size(),
 				mtime = attrs.lastModifiedTime().toMillis(),
-				sha256 = if (includeChecksum) withContext(Dispatchers.Default) { file.sha256() } else null
+				sha256 = if (includeChecksum) withContext(Dispatchers.Default) { file.sha256() } else null,
 			)
 		}
 
@@ -381,38 +393,45 @@ object ProjectSyncHelper {
 		val results = mutableListOf<Pair<Path, BasicFileAttributes>>()
 		val visited = HashSet<Any?>()
 
-		Files.walkFileTree(projectDir, object : SimpleFileVisitor<Path>() {
-			override fun preVisitDirectory(
-				path: Path,
-				attributes: BasicFileAttributes
-			): FileVisitResult {
-				val dirName = path.fileName?.toString() ?: ""
-				if (dirName in excludedDirectoryNames) return FileVisitResult.SKIP_SUBTREE
+		Files.walkFileTree(
+			projectDir,
+			object : SimpleFileVisitor<Path>() {
+				override fun preVisitDirectory(
+					path: Path,
+					attributes: BasicFileAttributes,
+				): FileVisitResult {
+					val dirName = path.fileName?.toString() ?: ""
+					if (dirName in excludedDirectoryNames) return FileVisitResult.SKIP_SUBTREE
 
-				val key = runCatching { attributes.fileKey() }.getOrDefault(null)
-				val id = key ?: runCatching { path.toRealPath().pathString }.getOrElse {
-					path.toAbsolutePath().normalize().pathString
-				}
-				if (!visited.add(id)) return FileVisitResult.SKIP_SUBTREE
-				return FileVisitResult.CONTINUE
-			}
-
-			override fun visitFile(
-				path: Path,
-				attributes: BasicFileAttributes
-			): FileVisitResult {
-				val fileName = path.fileName?.toString() ?: ""
-				if (fileName in watchedFileNames || watchedFileMatcher.matches(path)) {
-					results.add(path to attributes)
+					val key = runCatching { attributes.fileKey() }.getOrDefault(null)
+					val id =
+						key ?: runCatching { path.toRealPath().pathString }.getOrElse {
+							path.toAbsolutePath().normalize().pathString
+						}
+					if (!visited.add(id)) return FileVisitResult.SKIP_SUBTREE
+					return FileVisitResult.CONTINUE
 				}
 
-				return FileVisitResult.CONTINUE
-			}
+				override fun visitFile(
+					path: Path,
+					attributes: BasicFileAttributes,
+				): FileVisitResult {
+					val fileName = path.fileName?.toString() ?: ""
+					if (fileName in watchedFileNames || watchedFileMatcher.matches(path)) {
+						results.add(path to attributes)
+					}
 
-			override fun visitFileFailed(p0: Path, p1: IOException): FileVisitResult =
-				// ignore files we can't read
-				FileVisitResult.CONTINUE
-		})
+					return FileVisitResult.CONTINUE
+				}
+
+				override fun visitFileFailed(
+					p0: Path,
+					p1: IOException,
+				): FileVisitResult =
+					// ignore files we can't read
+					FileVisitResult.CONTINUE
+			},
+		)
 
 		return results
 	}

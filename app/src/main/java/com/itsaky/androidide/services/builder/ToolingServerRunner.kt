@@ -46,9 +46,8 @@ internal class ToolingServerRunner(
 	private var listener: OnServerStartListener?,
 	private var observer: Observer?,
 ) {
-
 	internal var pid: Int? = null
-	private var _job: Job? = null
+	private var job: Job? = null
 	private var _isStarted = AtomicBoolean(false)
 
 	var isStarted: Boolean
@@ -60,7 +59,6 @@ internal class ToolingServerRunner(
 	private val runnerScope = CoroutineScope(Dispatchers.IO + CoroutineName("ToolingServerRunner"))
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(ToolingServerRunner::class.java)
 	}
 
@@ -68,119 +66,129 @@ internal class ToolingServerRunner(
 		this.listener = listener
 	}
 
-	fun startAsync(envs: Map<String, String>) = runnerScope.launch {
-		var process: Process?
-		try {
-			log.info("Starting tooling API server...")
-			val command = listOf(
-				Environment.JAVA.absolutePath, // The 'java' binary executable
-				// Allow reflective access to private members of classes in the following
-				// packages:
-				// - java.lang
-				// - java.io
-				// - java.util
-				//
-				// If any of the model classes in 'tooling-api-model' module send/receive
-				// objects from the JDK, their package name must be declared here with
-				// '--add-opens' to prevent InaccessibleObjectException.
-				// For example, some of the model classes has members of type java.io.File.
-				// When sending/receiving these type of objects using LSP4J, members of
-				// these objects are reflectively accessed by Gson. If we do no specify
-				// '--add-opens' for 'java.io' (for java.io.File) package, JVM will throw an
-				// InaccessibleObjectException.
-				"--add-opens", "java.base/java.lang=ALL-UNNAMED", "--add-opens",
-				"java.base/java.util=ALL-UNNAMED", "--add-opens",
-				"java.base/java.io=ALL-UNNAMED", // The JAR file to run
-				"-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener",
-				"-jar", Environment.TOOLING_API_JAR.absolutePath
-			)
-
-			process = executeProcessAsync {
-				this.command = command
-
-				// input and output is used for communication to the tooling server
-				// error stream is used to read the server logs
-				this.redirectErrorStream = false
-				this.workingDirectory = null // HOME
-				this.environment = envs
-			}
-
-			pid = ReflectionUtils.getDeclaredField(process::class.java, "pid")?.get(process) as Int?
-			pid ?: throw IllegalStateException("Unable to get process ID")
-
-			val inputStream = process.inputStream
-			val outputStream = process.outputStream
-			val errorStream = process.errorStream
-
-			val processJob = launch(Dispatchers.IO) {
+	fun startAsync(envs: Map<String, String>) =
+		runnerScope
+			.launch {
+				var process: Process?
 				try {
-					process?.waitFor()
-					log.info(
-						"Tooling API process exited with code : {}",
-						process?.exitValue() ?: "<unknown>"
+					log.info("Starting tooling API server...")
+					val command =
+						listOf(
+							Environment.JAVA.absolutePath, // The 'java' binary executable
+							// Allow reflective access to private members of classes in the following
+							// packages:
+							// - java.lang
+							// - java.io
+							// - java.util
+							//
+							// If any of the model classes in 'tooling-api-model' module send/receive
+							// objects from the JDK, their package name must be declared here with
+							// '--add-opens' to prevent InaccessibleObjectException.
+							// For example, some of the model classes has members of type java.io.File.
+							// When sending/receiving these type of objects using LSP4J, members of
+							// these objects are reflectively accessed by Gson. If we do no specify
+							// '--add-opens' for 'java.io' (for java.io.File) package, JVM will throw an
+							// InaccessibleObjectException.
+							"--add-opens",
+							"java.base/java.lang=ALL-UNNAMED",
+							"--add-opens",
+							"java.base/java.util=ALL-UNNAMED",
+							"--add-opens",
+							"java.base/java.io=ALL-UNNAMED", // The JAR file to run
+							"-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener",
+							"-jar",
+							Environment.TOOLING_API_JAR.absolutePath,
+						)
+
+					process =
+						executeProcessAsync {
+							this.command = command
+
+							// input and output is used for communication to the tooling server
+							// error stream is used to read the server logs
+							this.redirectErrorStream = false
+							this.workingDirectory = null // HOME
+							this.environment = envs
+						}
+
+					pid = ReflectionUtils.getDeclaredField(process::class.java, "pid")?.get(process) as Int?
+					pid ?: throw IllegalStateException("Unable to get process ID")
+
+					val inputStream = process.inputStream
+					val outputStream = process.outputStream
+					val errorStream = process.errorStream
+
+					val processJob =
+						launch(Dispatchers.IO) {
+							try {
+								process?.waitFor()
+								log.info(
+									"Tooling API process exited with code : {}",
+									process?.exitValue() ?: "<unknown>",
+								)
+								process = null
+							} finally {
+								log.info("Destroying Tooling API process...")
+								process?.destroyForcibly()
+							}
+						}
+
+					val launcher =
+						ToolingApiLauncher.newClientLauncher(
+							observer!!.getClient(),
+							inputStream,
+							outputStream,
+						)
+
+					val future = launcher.startListening()
+					observer?.onListenerStarted(
+						server = launcher.remoteProxy as IToolingApiServer,
+						errorStream = errorStream,
 					)
-					process = null
-				} finally {
-					log.info("Destroying Tooling API process...")
-					process?.destroyForcibly()
-				}
-			}
 
-			val launcher = ToolingApiLauncher.newClientLauncher(
-				observer!!.getClient(),
-				inputStream,
-				outputStream
-			)
+					isStarted = true
 
-			val future = launcher.startListening()
-			observer?.onListenerStarted(
-				server = launcher.remoteProxy as IToolingApiServer,
-				errorStream = errorStream
-			)
+					listener?.onServerStarted(pid!!)
 
-			isStarted = true
+					// we don't need the listener anymore
+					// also, this might be a reference to the activity
+					// release to prevent memory leak
+					listener = null
 
-			listener?.onServerStarted(pid!!)
+					// Wait(block) until the process terminates
+					val serverJob =
+						launch(Dispatchers.IO) {
+							try {
+								future.get()
+							} catch (err: Throwable) {
+								err.ifCancelledOrInterrupted {
+									log.info("ToolingServerThread has been cancelled or interrupted.")
+								}
 
-			// we don't need the listener anymore
-			// also, this might be a reference to the activity
-			// release to prevent memory leak
-			listener = null
+								// rethrow the error
+								throw err
+							}
+						}
 
-			// Wait(block) until the process terminates
-			val serverJob = launch(Dispatchers.IO) {
-				try {
-					future.get()
-				} catch (err: Throwable) {
-					err.ifCancelledOrInterrupted {
-						log.info("ToolingServerThread has been cancelled or interrupted.")
+					processJob.join()
+					joinAll(serverJob, processJob)
+				} catch (e: Throwable) {
+					if (e !is CancellationException) {
+						log.error("Unable to start tooling API server", e)
 					}
-
-					// rethrow the error
-					throw err
 				}
+			}.also {
+				job = it
 			}
-
-			processJob.join()
-			joinAll(serverJob, processJob)
-		} catch (e: Throwable) {
-			if (e !is CancellationException) {
-				log.error("Unable to start tooling API server", e)
-			}
-		}
-	}.also {
-		_job = it
-	}
 
 	fun release() {
 		this.listener = null
 		this.observer = null
-		this._job?.cancel(CancellationException("Cancellation was requested"))
+		this.job?.cancel(CancellationException("Cancellation was requested"))
 		this.runnerScope.cancelIfActive("Cancellation was requested")
 	}
 
 	interface Observer {
-
 		fun onListenerStarted(
 			server: IToolingApiServer,
 			errorStream: InputStream,
@@ -193,7 +201,6 @@ internal class ToolingServerRunner(
 
 	/** Callback to listen for Tooling API server start event.  */
 	fun interface OnServerStartListener {
-
 		/** Called when the tooling API server has been successfully started.  */
 		fun onServerStarted(pid: Int)
 	}

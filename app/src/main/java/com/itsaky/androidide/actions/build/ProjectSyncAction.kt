@@ -30,8 +30,10 @@ import com.itsaky.androidide.resources.R.string
  *
  * @author Akash Yadav
  */
-class ProjectSyncAction(context: Context, override val order: Int) : BaseBuildAction() {
-
+class ProjectSyncAction(
+	context: Context,
+	override val order: Int,
+) : BaseBuildAction() {
 	override val id: String = ID
 	override var requiresUIThread = false
 
@@ -44,8 +46,7 @@ class ProjectSyncAction(context: Context, override val order: Int) : BaseBuildAc
 		icon = ContextCompat.getDrawable(context, R.drawable.ic_sync)
 	}
 
-	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
-		TooltipTag.EDITOR_TOOLBAR_SYNC
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_SYNC
 
 	override suspend fun execAction(data: ActionData) {
 		val activity = data.requireActivity()

@@ -28,12 +28,14 @@ import java.io.Serializable
  * @property needsGradleSync Whether to start a Gradle build in order to fetch project models.
  * @author Akash Yadav
  */
-class InitializeProjectParams @JvmOverloads constructor(
-	val directory: String,
-	val gradleDistribution: GradleDistributionParams = GradleDistributionParams.WRAPPER,
-	val androidParams: AndroidInitializationParams = AndroidInitializationParams.DEFAULT,
-	val needsGradleSync: Boolean = true,
-	gradleArgs: List<String> = emptyList(),
-	jvmArgs: List<String> = emptyList(),
-) : GradleBuildParams(gradleArgs, jvmArgs), Serializable
-
+class InitializeProjectParams
+	@JvmOverloads
+	constructor(
+		val directory: String,
+		val gradleDistribution: GradleDistributionParams = GradleDistributionParams.WRAPPER,
+		val androidParams: AndroidInitializationParams = AndroidInitializationParams.DEFAULT,
+		val needsGradleSync: Boolean = true,
+		gradleArgs: List<String> = emptyList(),
+		jvmArgs: List<String> = emptyList(),
+	) : GradleBuildParams(gradleArgs, jvmArgs),
+		Serializable

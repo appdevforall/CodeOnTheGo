@@ -28,12 +28,15 @@ import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.api.messages.result.BuildResult
 import com.itsaky.androidide.tooling.api.messages.result.GradleWrapperCheckResult
+import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.toLogLine
+import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher
 import com.itsaky.androidide.tooling.api.util.ToolingProps
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.FileProvider
 import com.itsaky.androidide.utils.ILogger
+import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
@@ -56,11 +59,11 @@ import kotlin.io.path.pathString
  * @author Akash Yadav
  */
 object ToolingApiTestLauncher {
-
 	private val opens =
 		mutableMapOf(
-			"java.base" to "java.lang", "java.base" to "java.util",
-			"java.base" to "java.io"
+			"java.base" to "java.lang",
+			"java.base" to "java.util",
+			"java.base" to "java.io",
 		)
 
 	private val exports =
@@ -69,7 +72,7 @@ object ToolingApiTestLauncher {
 			"jdk.compiler" to "com.sun.tools.javac.file",
 			"jdk.compiler" to "com.sun.tools.javac.parser",
 			"jdk.compiler" to "com.sun.tools.javac.tree",
-			"jdk.compiler" to "com.sun.tools.javac.util"
+			"jdk.compiler" to "com.sun.tools.javac.util",
 		)
 
 	@JvmOverloads
@@ -77,16 +80,25 @@ object ToolingApiTestLauncher {
 	fun launchServer(
 		projectDir: Path = FileProvider.testProjectRoot(),
 		client: MultiVersionTestClient = MultiVersionTestClient(),
-		initParams: InitializeProjectParams = InitializeProjectParams(
-			projectDir.pathString,
-			client.gradleDistParams
-		),
+		initParams: InitializeProjectParams =
+			InitializeProjectParams(
+				projectDir.pathString,
+				client.gradleDistParams,
+			),
 		log: Logger = LoggerFactory.getLogger("BuildOutputLogger"),
 		sysProps: Map<String, String> = emptyMap(),
 		sysEnvs: Map<String, String> = emptyMap(),
 		action: ToolingApiTestScope.() -> Unit,
 	) = launchServer(
-		ToolingApiTestLauncherParams(projectDir, client, initParams, log, sysProps, sysEnvs), action
+		ToolingApiTestLauncherParams(
+			projectDir = projectDir,
+			client = client,
+			initParams = initParams,
+			log = log,
+			sysProps = sysProps,
+			sysEnvs = sysEnvs,
+		),
+		action,
 	)
 
 	@JvmOverloads
@@ -94,27 +106,28 @@ object ToolingApiTestLauncher {
 	@JvmName("launchServerWithParams")
 	fun launchServer(
 		params: ToolingApiTestLauncherParams = ToolingApiTestLauncherParams(),
-		action: ToolingApiTestScope.() -> Unit
-	) {
-		return launchServerAsync(params) {
-			// wait for project initialization
-			initializeResult.get()
+		action: ToolingApiTestScope.() -> Unit,
+	) = launchServerAsync(params) {
+		// wait for project initialization
+		initializeResult.get()
 
-			action()
-		}
+		action()
 	}
 
 	@JvmOverloads
 	@JvmStatic
 	fun launchServerAsync(
 		params: ToolingApiTestLauncherParams = ToolingApiTestLauncherParams(),
-		action: ToolingApiTestScope.() -> Unit
+		action: ToolingApiTestScope.() -> Unit,
 	) {
-		val cmdLine = createProcessCmd(
-			FileProvider.implModule()
-				.resolve("build/libs/tooling-api-all.jar").pathString,
-			params.sysProps
-		)
+		val cmdLine =
+			createProcessCmd(
+				FileProvider
+					.implModule()
+					.resolve("build/libs/tooling-api-all.jar")
+					.pathString,
+				params.sysProps,
+			)
 
 		val builder = ProcessBuilder(cmdLine)
 		val androidHome = findAndroidHome()
@@ -128,7 +141,9 @@ object ToolingApiTestLauncher {
 		proc.onExit().whenComplete { process, error ->
 			if (process != null) {
 				println(
-					"[ToolingApiTestLauncher] Tooling API server process finished with exit code: ${process.exitValue()}"
+					"[ToolingApiTestLauncher]" +
+						" Tooling API server process finished with exit code: " +
+						process.exitValue(),
 				)
 			}
 			if (error != null) {
@@ -140,18 +155,31 @@ object ToolingApiTestLauncher {
 		Thread(Reader(proc.errorStream, params.log)).start()
 		val launcher =
 			ToolingApiLauncher.newClientLauncher(
-				params.client, proc.inputStream,
-				proc.outputStream
+				params.client,
+				proc.inputStream,
+				proc.outputStream,
 			)
 
 		launcher.startListening()
 
 		val server = launcher.remoteProxy as IToolingApiServer
 		val result = server.initialize(params.initParams)
+		val gradleBuild =
+			result.thenApply { result ->
+				if (result !is InitializeResult.Success) {
+					throw IllegalStateException("Failed to initialize project")
+				}
+
+				runBlocking {
+					ProjectSyncHelper
+						.readGradleBuild(result.cacheFile)
+						.getOrThrow()
+				}
+			}
 
 		try {
 			// perform the action
-			ToolingApiTestScope(server, TODO(), result).action()
+			ToolingApiTestScope(server, gradleBuild, result).action()
 		} finally {
 			server.cancelCurrentBuild().get()
 			server.shutdown().get()
@@ -160,7 +188,7 @@ object ToolingApiTestLauncher {
 
 	private fun createProcessCmd(
 		jar: String,
-		sysProps: Map<String, String> = emptyMap()
+		sysProps: Map<String, String> = emptyMap(),
 	): List<String> {
 		val cmd = mutableListOf("java")
 		System.getenv("JAVA_HOME")?.let {
@@ -189,13 +217,13 @@ object ToolingApiTestLauncher {
 		}
 
 		cmd.add(
-			"-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener"
+			"-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener",
 		)
 
 		Collections.addAll(cmd, "-jar", jar)
 
 		println(
-			"[ToolingApiTestLauncher] Java cmd: " + cmd.joinToString(separator = " ")
+			"[ToolingApiTestLauncher] Java cmd: " + cmd.joinToString(separator = " "),
 		)
 
 		return cmd
@@ -211,7 +239,6 @@ object ToolingApiTestLauncher {
 		private var excludeUnresolvedDependency: Boolean = false,
 		var outputValidator: (String) -> Boolean = { true },
 	) : IToolingApiClient {
-
 		var isOutputValid = false
 			private set
 
@@ -220,7 +247,6 @@ object ToolingApiTestLauncher {
 
 		@Suppress("ConstPropertyName")
 		companion object {
-
 			const val buildFile = "build.gradle"
 			const val buildFileIn = "$buildFile.in"
 
@@ -250,7 +276,7 @@ object ToolingApiTestLauncher {
 
 		override fun logOutput(line: String) {
 			val trimmed = line.trim()
-			val curr = this.isOutputValid;
+			val curr = this.isOutputValid
 			this.isOutputValid = this.isOutputValid || outputValidator(trimmed)
 
 			if (!curr && this.isOutputValid) {
@@ -266,18 +292,27 @@ object ToolingApiTestLauncher {
 			log.debug("Gradle Version : ${this.gradleVersion}")
 			log.debug("-----------------------------------")
 
-			projectDir.resolve(buildFileIn)
+			projectDir
+				.resolve(buildFileIn)
 				.replaceContents(
 					dest = projectDir.resolve(buildFile),
-					candidate = "@@TOOLING_API_TEST_AGP_VERSION@@" to this.agpVersion
+					candidate = "@@TOOLING_API_TEST_AGP_VERSION@@" to this.agpVersion,
 				)
 
-			projectDir.resolve(appBuildFileIn)
+			val unresolvedDependency =
+				if (!excludeUnresolvedDependency) {
+					"implementation 'unresolved:unresolved:unresolved'"
+				} else {
+					""
+				}
+
+			projectDir
+				.resolve(appBuildFileIn)
 				.replaceContents(
 					projectDir.resolve(appBuildFile),
 					"//",
 					"@@ANDROID_BLOCK_CONFIG@@" to androidBlockConfig,
-					"@@UNRESOLVED_DEPENDENCY@@" to if (!excludeUnresolvedDependency) "implementation 'unresolved:unresolved:unresolved'" else ""
+					"@@UNRESOLVED_DEPENDENCY@@" to unresolvedDependency,
 				)
 		}
 
@@ -289,34 +324,40 @@ object ToolingApiTestLauncher {
 			onBuildResult(result)
 		}
 
-		private fun onBuildResult(@Suppress("UNUSED_PARAMETER") result: BuildResult) {
+		private fun onBuildResult(
+			@Suppress("UNUSED_PARAMETER") result: BuildResult,
+		) {
 			projectDir.resolve(buildFile).deleteIfExists()
 			projectDir.resolve(appBuildFile).deleteIfExists()
 		}
 
 		override fun onProgressEvent(event: ProgressEvent) {}
 
-		override fun getBuildArguments(): CompletableFuture<List<String>> {
-			return CompletableFuture.completedFuture(
-				mutableListOf("--stacktrace", "--info").also { it.addAll(extraArgs) })
-		}
+		override fun getBuildArguments(): CompletableFuture<List<String>> =
+			CompletableFuture.completedFuture(
+				mutableListOf("--stacktrace", "--info").also { it.addAll(extraArgs) },
+			)
 
 		override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
 			CompletableFuture.completedFuture(GradleWrapperCheckResult(true))
 
 		private fun Path.replaceContents(
-			dest: Path, comment: String = "//",
-			candidate: Pair<String, String>
+			dest: Path,
+			comment: String = "//",
+			candidate: Pair<String, String>,
 		) = replaceContents(dest, comment, *arrayOf(candidate))
 
 		private fun Path.replaceContents(
-			dest: Path, comment: String = "//",
-			vararg candidates: Pair<String, String>
+			dest: Path,
+			comment: String = "//",
+			vararg candidates: Pair<String, String>,
 		) {
-			val contents = StringBuilder().append(comment)
-				.append(" ")
-				.append(GENERATED_FILE_WARNING)
-				.append(System.lineSeparator().repeat(2))
+			val contents =
+				StringBuilder()
+					.append(comment)
+					.append(" ")
+					.append(GENERATED_FILE_WARNING)
+					.append(System.lineSeparator().repeat(2))
 
 			bufferedReader().use { reader ->
 				reader.readText().also { text ->
@@ -337,8 +378,10 @@ object ToolingApiTestLauncher {
 		}
 	}
 
-	private class Reader(val input: InputStream, val log: Logger) : Runnable {
-
+	private class Reader(
+		val input: InputStream,
+		val log: Logger,
+	) : Runnable {
 		override fun run() {
 			try {
 				val reader = BufferedReader(InputStreamReader(input))

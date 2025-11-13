@@ -62,10 +62,9 @@ import java.util.concurrent.CompletableFuture
  */
 open class AndroidModule(
 	delegate: GradleModels.GradleProject,
-) : ModuleProject(delegate), AndroidModels.AndroidProjectOrBuilder by delegate.androidProject {
-
+) : ModuleProject(delegate),
+	AndroidModels.AndroidProjectOrBuilder by delegate.androidProject {
 	companion object {
-
 		private val log = LoggerFactory.getLogger(AndroidModule::class.java)
 	}
 
@@ -75,25 +74,15 @@ open class AndroidModule(
 		}
 	}
 
-	override fun isInitialized(): Boolean {
-		return super.isInitialized()
-	}
+	override fun isInitialized(): Boolean = super.isInitialized()
 
-	override fun getDefaultInstanceForType(): MessageLite? {
-		return super.getDefaultInstanceForType()
-	}
+	override fun getDefaultInstanceForType(): MessageLite? = super.getDefaultInstanceForType()
 
-	fun getGeneratedJar(): File {
-		return classesJar ?: File("does-not-exist.jar")
-	}
+	fun getGeneratedJar(): File = classesJar ?: File("does-not-exist.jar")
 
-	override fun getClassPaths(): Set<File> {
-		return getModuleClasspaths()
-	}
+	override fun getClassPaths(): Set<File> = getModuleClasspaths()
 
-	fun getVariant(name: String): AndroidModels.AndroidVariant? {
-		return variantList.firstOrNull { it.name == name }
-	}
+	fun getVariant(name: String): AndroidModels.AndroidVariant? = variantList.firstOrNull { it.name == name }
 
 	fun getResourceDirectories(): Set<File> {
 		if (mainSourceSet == null) {
@@ -117,7 +106,7 @@ open class AndroidModule(
 		if (mainSourceSet == null) {
 			log.warn(
 				"No main source set is available for project {}. Cannot get source directories.",
-				name
+				name,
 			)
 			return mutableSetOf()
 		}
@@ -144,12 +133,11 @@ open class AndroidModule(
 		return dirs
 	}
 
-	override fun getModuleClasspaths(): Set<File> {
-		return mutableSetOf<File>().apply {
+	override fun getModuleClasspaths(): Set<File> =
+		mutableSetOf<File>().apply {
 			add(getGeneratedJar())
 			addAll(getSelectedVariant()?.mainArtifact?.classJars ?: emptyList())
 		}
-	}
 
 	override fun getCompileClasspaths(): Set<File> {
 		val project = IProjectManager.getInstance().workspace ?: return emptySet()
@@ -158,7 +146,7 @@ open class AndroidModule(
 		collectLibraries(
 			root = project,
 			libraries = variantDependencies.mainArtifact?.compileDependencyList ?: emptyList(),
-			result = result
+			result = result,
 		)
 		return result
 	}
@@ -166,7 +154,7 @@ open class AndroidModule(
 	private fun collectLibraries(
 		root: Workspace,
 		libraries: List<AndroidModels.GraphItem>,
-		result: MutableSet<File>
+		result: MutableSet<File>,
 	) {
 		val libraryMap = variantDependencies.librariesMap
 		for (library in libraries) {
@@ -212,13 +200,15 @@ open class AndroidModule(
 		return result
 	}
 
-	override fun hasExternalDependency(group: String, name: String): Boolean {
-		return variantDependencies.librariesMap.values.any { library ->
+	override fun hasExternalDependency(
+		group: String,
+		name: String,
+	): Boolean =
+		variantDependencies.librariesMap.values.any { library ->
 			library.libraryInfo?.let { libraryInfo ->
 				libraryInfo.group == group && libraryInfo.name == name
 			} ?: false
 		}
-	}
 
 	/**
 	 * Reads the resource files are creates the [com.android.aaptcompiler.ResourceTable] instances for
@@ -227,23 +217,26 @@ open class AndroidModule(
 	suspend fun readResources() {
 		// Read resources in parallel
 		withStopWatch("Read resources for module : $path") {
-			val resourceReaderScope = CoroutineScope(
-				Dispatchers.IO + CoroutineName("ResourceReader($path)")
-			)
+			val resourceReaderScope =
+				CoroutineScope(
+					Dispatchers.IO + CoroutineName("ResourceReader($path)"),
+				)
 
-			val resourceFlow = flow {
-				emit(getFrameworkResourceTable())
-				emit(getResourceTable())
-				emit(getDependencyResourceTables())
-				emit(getApiVersions())
-				emit(getWidgetTable())
-			}
-
-			val jobs = resourceFlow.map { result ->
-				resourceReaderScope.async {
-					result
+			val resourceFlow =
+				flow {
+					emit(getFrameworkResourceTable())
+					emit(getResourceTable())
+					emit(getDependencyResourceTables())
+					emit(getApiVersions())
+					emit(getWidgetTable())
 				}
-			}
+
+			val jobs =
+				resourceFlow.map { result ->
+					resourceReaderScope.async {
+						result
+					}
+				}
 
 			jobs.toList().awaitAll()
 		}
@@ -330,34 +323,42 @@ open class AndroidModule(
 	fun getDependencyResourceTables(): Set<ResourceTable> {
 		return mutableSetOf<ResourceTable>().also {
 			var deps: Int
-			val androidLibraries = variantDependencies.librariesMap.values.mapNotNull { library ->
-				val packageName = library.androidLibraryData?.findPackageName() ?: UNKNOWN_PACKAGE
-				if (library.type != AndroidModels.LibraryType.ExternalAndroidLibrary ||
-					!library.hasAndroidLibraryData() ||
-					!library.androidLibraryData!!.resFolder.exists() ||
-					packageName == UNKNOWN_PACKAGE
-				) {
-					return@mapNotNull null
+			val androidLibraries =
+				variantDependencies.librariesMap.values.mapNotNull { library ->
+					val packageName = library.androidLibraryData?.findPackageName() ?: UNKNOWN_PACKAGE
+					if (library.type != AndroidModels.LibraryType.ExternalAndroidLibrary ||
+						!library.hasAndroidLibraryData() ||
+						!library.androidLibraryData!!.resFolder.exists() ||
+						packageName == UNKNOWN_PACKAGE
+					) {
+						return@mapNotNull null
+					}
+
+					library to packageName
 				}
 
-				library to packageName
-			}
-
-			it.addAll(androidLibraries.also { libs -> deps = libs.size }
-				.mapNotNull { (library, packageName) ->
-					ResourceTableRegistry.getInstance().let { registry ->
-						registry.isLoggingEnabled = false
-						registry.forPackage(
-							packageName,
-							library.androidLibraryData!!.resFolder,
-						).also {
-							registry.isLoggingEnabled = true
+			it.addAll(
+				androidLibraries
+					.also { libs -> deps = libs.size }
+					.mapNotNull { (library, packageName) ->
+						ResourceTableRegistry.getInstance().let { registry ->
+							registry.isLoggingEnabled = false
+							registry
+								.forPackage(
+									packageName,
+									library.androidLibraryData!!.resFolder,
+								).also {
+									registry.isLoggingEnabled = true
+								}
 						}
-					}
-				})
+					},
+			)
 
 			log.info(
-				"Created {} resource tables for {} dependencies of module '{}'", it.size, deps, path
+				"Created {} resource tables for {} dependencies of module '{}'",
+				it.size,
+				deps,
+				path,
 			)
 		}
 	}
@@ -369,12 +370,15 @@ open class AndroidModule(
 	 * @param pck The package to look for.
 	 */
 	fun findResourceTableForPackage(
-		pck: String, hasGroup: AaptResourceType? = null
+		pck: String,
+		hasGroup: AaptResourceType? = null,
 	): ResourceTable? {
 		return findAllResourceTableForPackage(pck, hasGroup).let {
 			if (it.isNotEmpty()) {
 				return it.first()
-			} else null
+			} else {
+				null
+			}
 		}
 	}
 
@@ -385,17 +389,19 @@ open class AndroidModule(
 	 * @param pck The package to look for.
 	 */
 	fun findAllResourceTableForPackage(
-		pck: String, hasGroup: AaptResourceType? = null
+		pck: String,
+		hasGroup: AaptResourceType? = null,
 	): List<ResourceTable> {
 		if (pck == SdkConstants.ANDROID_PKG) {
 			return getFrameworkResourceTable()?.let { listOf(it) } ?: emptyList()
 		}
 
-		val tables: List<ResourceTable> = mutableListOf<ResourceTable>().apply {
-			getResourceTable()?.let { add(it) }
-			addAll(getSourceResourceTables())
-			addAll(getDependencyResourceTables())
-		}
+		val tables: List<ResourceTable> =
+			mutableListOf<ResourceTable>().apply {
+				getResourceTable()?.let { add(it) }
+				addAll(getSourceResourceTables())
+				addAll(getDependencyResourceTables())
+			}
 
 		val result = mutableListOf<ResourceTable>()
 		for (table in tables) {
@@ -419,14 +425,13 @@ open class AndroidModule(
 	 *
 	 * @return The associated resource tables.
 	 */
-	fun getAllResourceTables(): Set<ResourceTable> {
-		return mutableSetOf<ResourceTable>().apply {
+	fun getAllResourceTables(): Set<ResourceTable> =
+		mutableSetOf<ResourceTable>().apply {
 			getResourceTable()?.let { add(it) }
 			getFrameworkResourceTable()?.let { add(it) }
 			addAll(getSourceResourceTables())
 			addAll(getDependencyResourceTables())
 		}
-	}
 
 	/** Get the resource table for the attrs_manifest.xml file. */
 	fun getManifestAttrTable(): ResourceTable? {
@@ -436,31 +441,36 @@ open class AndroidModule(
 
 	/** @see ResourceTableRegistry.getActivityActions */
 	fun getActivityActions(): List<String> {
-		return ResourceTableRegistry.getInstance()
+		return ResourceTableRegistry
+			.getInstance()
 			.getActivityActions(getPlatformDir() ?: return emptyList())
 	}
 
 	/** @see ResourceTableRegistry.getBroadcastActions */
 	fun getBroadcastActions(): List<String> {
-		return ResourceTableRegistry.getInstance()
+		return ResourceTableRegistry
+			.getInstance()
 			.getBroadcastActions(getPlatformDir() ?: return emptyList())
 	}
 
 	/** @see ResourceTableRegistry.getServiceActions */
 	fun getServiceActions(): List<String> {
-		return ResourceTableRegistry.getInstance()
+		return ResourceTableRegistry
+			.getInstance()
 			.getServiceActions(getPlatformDir() ?: return emptyList())
 	}
 
 	/** @see ResourceTableRegistry.getCategories */
 	fun getCategories(): List<String> {
-		return ResourceTableRegistry.getInstance()
+		return ResourceTableRegistry
+			.getInstance()
 			.getCategories(getPlatformDir() ?: return emptyList())
 	}
 
 	/** @see ResourceTableRegistry.getFeatures */
 	fun getFeatures(): List<String> {
-		return ResourceTableRegistry.getInstance()
+		return ResourceTableRegistry
+			.getInstance()
 			.getFeatures(getPlatformDir() ?: return emptyList())
 	}
 
@@ -474,7 +484,8 @@ open class AndroidModule(
 		val info = projectManager.androidBuildVariants[this.path]
 		if (info == null) {
 			log.error(
-				"Failed to find selected build variant for module: '{}'", this.path
+				"Failed to find selected build variant for module: '{}'",
+				this.path,
 			)
 			return null
 		}
@@ -482,7 +493,8 @@ open class AndroidModule(
 		val variant = this.getVariant(info.selectedVariant)
 		if (variant == null) {
 			log.error(
-				"Build variant with name '{}' not found.", info.selectedVariant
+				"Build variant with name '{}' not found.",
+				info.selectedVariant,
 			)
 			return null
 		}
@@ -490,6 +502,5 @@ open class AndroidModule(
 		return variant
 	}
 
-	private fun getPlatformDir() =
-		bootClassPaths.firstOrNull { it.name == "android.jar" }?.parentFile
+	private fun getPlatformDir() = bootClassPaths.firstOrNull { it.name == "android.jar" }?.parentFile
 }

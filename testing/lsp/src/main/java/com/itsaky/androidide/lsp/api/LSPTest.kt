@@ -34,6 +34,7 @@ import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.testing.tooling.ToolingApiTestLauncher
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileProvider
 import io.github.rosemoe.sora.text.Content
@@ -59,126 +60,126 @@ import java.nio.file.Path
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.DEFAULT_VALUE_STRING)
 abstract class LSPTest {
+	protected lateinit var toolingServer: IToolingApiServer
+	var cursor: Int = -1
+	private val cursorText = "@@cursor@@"
+	var file: Path? = null
+	var contents: StringBuilder? = null
 
-  protected lateinit var toolingServer: IToolingApiServer
-  var cursor: Int = -1
-  private val cursorText = "@@cursor@@"
-  var file: Path? = null
-  var contents: StringBuilder? = null
+	companion object {
+		@JvmStatic
+		protected val log: Logger = LoggerFactory.getLogger(LSPTest::class.java)
 
-  companion object {
+		@JvmStatic
+		protected var isInitialized: Boolean = false
+	}
 
-    @JvmStatic
-    protected val log: Logger = LoggerFactory.getLogger(LSPTest::class.java)
+	@Before
+	open fun initProjectIfNeeded() {
+		if (isInitialized) {
+			return
+		}
 
-    @JvmStatic
-    protected var isInitialized: Boolean = false
-  }
+		mockkStatic(::prefManager)
+		every { prefManager } returns PreferenceManager(RuntimeEnvironment.getApplication())
 
-  @Before
-  open fun initProjectIfNeeded() {
-    if (isInitialized) {
-      return
-    }
+		mockkStatic(EditorPreferences::tabSize)
+		every { EditorPreferences.tabSize } returns 4
 
-    mockkStatic(::prefManager)
-    every { prefManager } returns PreferenceManager(RuntimeEnvironment.getApplication())
+		ToolingApiTestLauncher.launchServer {
+			assertThat(result is InitializeResult.Success).isTrue()
+			this@LSPTest.toolingServer = server
 
-    mockkStatic(EditorPreferences::tabSize)
-    every { EditorPreferences.tabSize } returns 4
+			Environment.ANDROID_JAR = FileProvider.resources().resolve("android.jar").toFile()
+			Environment.JAVA_HOME = File(System.getProperty("java.home")!!)
+			registerServer()
 
-    ToolingApiTestLauncher.launchServer {
+			val projectManager = ProjectManagerImpl.getInstance()
+			projectManager.register()
+			runBlocking { projectManager.setup(build!!) }
 
-      assertThat(result?.isSuccessful).isTrue()
-      this@LSPTest.toolingServer = server
+			// We need to manually setup the language server with the project here
+			// ProjectManager.notifyProjectUpdate()
+			ILanguageServerRegistry
+				.getDefault()
+				.getServer(getServerId())!!
+				.setupWithProject(projectManager.workspace!!)
 
-      Environment.ANDROID_JAR = FileProvider.resources().resolve("android.jar").toFile()
-      Environment.JAVA_HOME = File(System.getProperty("java.home")!!)
-      registerServer()
+			isInitialized = true
+		}
+	}
 
-      val projectManager = ProjectManagerImpl.getInstance()
-      projectManager.register()
-      runBlocking { projectManager.setup(gradleBuild) }
+	protected abstract fun registerServer()
 
-      // We need to manually setup the language server with the project here
-      // ProjectManager.notifyProjectUpdate()
-      ILanguageServerRegistry.getDefault()
-        .getServer(getServerId())!!
-        .setupWithProject(projectManager.workspace!!)
+	protected abstract fun getServerId(): String
 
-      isInitialized = true
-    }
-  }
+	abstract fun test()
 
-  protected abstract fun registerServer()
-  protected abstract fun getServerId(): String
-  abstract fun test()
+	fun requireCursor(): Int {
+		this.cursor = contents!!.indexOf(cursorText)
+		assertThat(cursor).isGreaterThan(-1)
+		return cursor
+	}
 
-  fun requireCursor(): Int {
-    this.cursor = contents!!.indexOf(cursorText)
-    assertThat(cursor).isGreaterThan(-1)
-    return cursor
-  }
+	fun deleteCursorText() {
+		contents!!.delete(this.cursor, this.cursor + cursorText.length)
+		assertThat(contents!!.indexOf(cursorText)).isEqualTo(-1)
 
-  fun deleteCursorText() {
-    contents!!.delete(this.cursor, this.cursor + cursorText.length)
-    assertThat(contents!!.indexOf(cursorText)).isEqualTo(-1)
+		// As the content has been changed, we have to
+		// Update the content in language server
+		dispatchEvent(
+			DocumentChangeEvent(
+				file!!,
+				contents.toString(),
+				contents.toString(),
+				1,
+				DELETE,
+				0,
+				Range.NONE,
+			),
+		)
+	}
 
-    // As the content has been changed, we have to
-    // Update the content in language server
-    dispatchEvent(
-      DocumentChangeEvent(
-        file!!,
-        contents.toString(),
-        contents.toString(),
-        1,
-        DELETE,
-        0,
-        Range.NONE
-      )
-    )
-  }
+	@JvmOverloads
+	fun cursorPosition(deleteCursorText: Boolean = true): Position {
+		requireCursor()
 
-  @JvmOverloads
-  fun cursorPosition(deleteCursorText: Boolean = true): Position {
-    requireCursor()
+		if (deleteCursorText) {
+			deleteCursorText()
+		}
 
-    if (deleteCursorText) {
-      deleteCursorText()
-    }
+		val pos = Content(contents!!).indexer.getCharPosition(cursor)
+		return Position(pos.line, pos.column, pos.index)
+	}
 
-    val pos = Content(contents!!).indexer.getCharPosition(cursor)
-    return Position(pos.line, pos.column, pos.index)
-  }
+	open fun openFile(fileName: String) {
+		file = FileProvider.sourceFile(fileName).normalize()
+		contents = FileProvider.contents(file!!)
 
-  open fun openFile(fileName: String) {
-    file = FileProvider.sourceFile(fileName).normalize()
-    contents = FileProvider.contents(file!!)
+		dispatchEvent(DocumentOpenEvent(file!!, contents.toString(), 0))
+	}
 
-    dispatchEvent(DocumentOpenEvent(file!!, contents.toString(), 0))
-  }
+	open fun dispatchEvent(event: Any) {
+		when (event) {
+			is DocumentOpenEvent -> FileManager.onDocumentOpen(event)
+			is DocumentChangeEvent -> FileManager.onDocumentContentChange(event)
+			is DocumentCloseEvent -> FileManager.onDocumentClose(event)
+			is FileRenameEvent -> FileManager.onFileRenamed(event)
+			is FileDeletionEvent -> FileManager.onFileDeleted(event)
+		}
+		EventBus.getDefault().post(event)
+	}
 
-  open fun dispatchEvent(event: Any) {
-    when (event) {
-      is DocumentOpenEvent -> FileManager.onDocumentOpen(event)
-      is DocumentChangeEvent -> FileManager.onDocumentContentChange(event)
-      is DocumentCloseEvent -> FileManager.onDocumentClose(event)
-      is FileRenameEvent -> FileManager.onFileRenamed(event)
-      is FileDeletionEvent -> FileManager.onFileDeleted(event)
-    }
-    EventBus.getDefault().post(event)
-  }
+	open fun createActionData(vararg values: Any): ActionData {
+		val data = ActionData.create(RuntimeEnvironment.getApplication())
+		for (value in values) {
+			if (value is Path) {
+				data.put(Path::class.java, value)
+			} else {
+				data.put(value::javaClass.get(), value)
+			}
+		}
 
-  open fun createActionData(vararg values: Any): ActionData {
-    val data = ActionData.create(RuntimeEnvironment.getApplication())
-    for (value in values) {
-      if (value is Path) {
-        data.put(Path::class.java, value)
-      } else {
-        data.put(value::javaClass.get(), value)
-      }
-    }
-
-    return data
-  }
+		return data
+	}
 }

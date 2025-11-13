@@ -34,51 +34,54 @@ import com.itsaky.androidide.project.GradleModels
  * @author Akash Yadav
  */
 class RunTasksListAdapter
-@JvmOverloads
-constructor(
-	tasks: List<Checkable<GradleModels.GradleTask>>,
-	val onCheckChanged: (Checkable<GradleModels.GradleTask>) -> Unit = {}
-) : FilterableRecyclerViewAdapter<VH, Checkable<GradleModels.GradleTask>>(tasks) {
+	@JvmOverloads
+	constructor(
+		tasks: List<Checkable<GradleModels.GradleTask>>,
+		val onCheckChanged: (Checkable<GradleModels.GradleTask>) -> Unit = {},
+	) : FilterableRecyclerViewAdapter<VH, Checkable<GradleModels.GradleTask>>(tasks) {
+		data class VH(
+			val binding: LayoutRunTaskItemBinding,
+		) : RecyclerView.ViewHolder(binding.root)
 
-	data class VH(val binding: LayoutRunTaskItemBinding) : RecyclerView.ViewHolder(binding.root)
-
-	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-		return VH(
-			LayoutRunTaskItemBinding.inflate(
-				LayoutInflater.from(parent.context),
-				parent,
-				false
+		override fun onCreateViewHolder(
+			parent: ViewGroup,
+			viewType: Int,
+		): VH =
+			VH(
+				LayoutRunTaskItemBinding.inflate(
+					LayoutInflater.from(parent.context),
+					parent,
+					false,
+				),
 			)
-		)
-	}
 
-	override fun onBindViewHolder(holder: VH, position: Int) {
-		val binding = holder.binding
-		val data = getItem(position)
-		val task = data.data
+		override fun onBindViewHolder(
+			holder: VH,
+			position: Int,
+		) {
+			val binding = holder.binding
+			val data = getItem(position)
+			val task = data.data
 
-		binding.check.isChecked = data.isChecked
-		binding.taskPath.text = task.path
-		binding.taskDesc.text = task.description
-
-		binding.root.setOnClickListener {
-			data.isChecked = !data.isChecked
 			binding.check.isChecked = data.isChecked
-			onCheckChanged(data)
+			binding.taskPath.text = task.path
+			binding.taskDesc.text = task.description
+
+			binding.root.setOnClickListener {
+				data.isChecked = !data.isChecked
+				binding.check.isChecked = data.isChecked
+				onCheckChanged(data)
+			}
+
+			binding.root.setOnLongClickListener {
+				TooltipManager.showIdeCategoryTooltip(
+					context = binding.root.context,
+					anchorView = binding.root,
+					tag = TooltipTag.PROJECT_GRADLE_TASKS,
+				)
+				true
+			}
 		}
 
-		binding.root.setOnLongClickListener {
-            TooltipManager.showIdeCategoryTooltip(
-				context = binding.root.context,
-				anchorView = binding.root,
-				tag = TooltipTag.PROJECT_GRADLE_TASKS,
-			)
-			true
-		}
+		override fun getQueryCandidate(item: Checkable<GradleModels.GradleTask>): String = item.data.path
 	}
-
-
-	override fun getQueryCandidate(item: Checkable<GradleModels.GradleTask>): String {
-		return item.data.path
-	}
-}
