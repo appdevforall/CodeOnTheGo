@@ -69,7 +69,6 @@ import com.itsaky.androidide.tooling.api.messages.result.failure
 import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
-import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.RecursiveFileSearcher
@@ -278,14 +277,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         if (isDestroying) {
             try {
                 stopLanguageServers()
-            } catch (err: Exception) {
+            } catch (_: Exception) {
                 log.error("Failed to stop editor services.")
             }
 
             try {
                 unbindService(buildServiceConnection)
                 buildServiceConnection.onConnected = {}
-            } catch (err: Throwable) {
+            } catch (_: Throwable) {
                 log.error("Unable to unbind service")
             } finally {
                 Lookup.getDefault().apply {
@@ -317,9 +316,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     fun notifySyncNeeded() {
-        notifySyncNeeded {
-			activityScope.launch { initializeProject() }
-		}
+        notifySyncNeeded { initializeProject() }
     }
 
     private fun notifySyncNeeded(onConfirm: () -> Unit) {
@@ -377,7 +374,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         initLspClient()
     }
 
-	fun initializeProject() {
+	fun initializeProject(forceSync: Boolean = false) {
         val currentVariants = buildVariantsViewModel._buildVariants.value
 
         // no information about the build variants is available
@@ -385,7 +382,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         if (currentVariants == null) {
             log.debug("No variant selection information available. " +
 					"Default build variants will be selected.")
-            initializeProject(buildVariants = emptyMap())
+            initializeProject(buildVariants = emptyMap(), forceSync = forceSync)
             return
         }
 
@@ -399,7 +396,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			val selectedVariants = newSelections.mapToSelectedVariants()
 			log.debug("Initializing project with new build variant selections: {}", selectedVariants)
 
-			initializeProject(buildVariants = selectedVariants)
+			initializeProject(buildVariants = selectedVariants, forceSync = forceSync)
             return
         }
 
@@ -408,7 +405,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         // initialize the project with the existing selected variants
 		val selectedVariants = currentVariants.mapToSelectedVariants()
 		log.debug("Re-initializing project with existing build variant selections")
-		initializeProject(buildVariants = selectedVariants)
+		initializeProject(buildVariants = selectedVariants, forceSync = forceSync)
     }
 
     /**
@@ -416,7 +413,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
      *
      * @param buildVariants A map of project paths to the selected build variants.
      */
-    fun initializeProject(buildVariants: Map<String, String>) = activityScope.launch {
+    fun initializeProject(
+		buildVariants: Map<String, String>,
+		forceSync: Boolean = false
+	) = activityScope.launch {
         val manager = ProjectManagerImpl.getInstance()
         val projectDir = File(manager.projectPath)
         if (!projectDir.exists()) {
@@ -424,7 +424,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             return@launch
         }
 
-        val needsSync = manager.isGradleSyncNeeded(projectDir)
+        val needsSync = forceSync || manager.isGradleSyncNeeded(projectDir)
 
 		withContext(Dispatchers.Main.immediate) {
 			preProjectInit()
@@ -441,17 +441,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             return@launch
         }
 
-        initializingFuture =
-            if (needsSync) {
-                log.debug("Sending init request to tooling server...")
-                buildService.initializeProject(createProjectInitParams(projectDir, buildVariants))
-            } else {
-                log.debug("Using cached initialize result as the project is already initialized")
-                CompletableFuture.supplyAsync {
-                    log.warn("Reusing project cache")
-					InitializeResult.Success(ProjectSyncHelper.cacheFileForProject(projectDir))
-                }
-            }
+		log.info("Sending init request to tooling server (needs sync: {})...", needsSync)
+        initializingFuture = buildService.initializeProject(params = createProjectInitParams(projectDir, buildVariants, needsSync))
 
         initializingFuture!!.whenCompleteAsync { result, error ->
             releaseServerListener()
@@ -472,13 +463,15 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     private fun createProjectInitParams(
-        projectDir: File,
-        buildVariants: Map<String, String>,
+		projectDir: File,
+		buildVariants: Map<String, String>,
+		needsGradleSync: Boolean,
     ): InitializeProjectParams =
         InitializeProjectParams(
 			directory = projectDir.absolutePath,
 			gradleDistribution = gradleDistributionParams,
 			androidParams = createAndroidParams(buildVariants),
+			needsGradleSync = needsGradleSync,
         )
 
     private fun createAndroidParams(buildVariants: Map<String, String>): AndroidInitializationParams {
@@ -520,11 +513,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
 			resetMemUsageChart()
 
-			service.metadata().whenComplete { metadata, err ->
-				if (metadata == null || err != null) {
-					log.error("Failed to get tooling server metadata")
-					return@whenComplete
-				}
+                service.metadata().whenComplete { metadata, err ->
+                    if (metadata == null || err != null) {
+                        log.error("Failed to get tooling server metadata")
+                        return@whenComplete
+                    }
 
 				if (pid != metadata.pid) {
 					log.warn(

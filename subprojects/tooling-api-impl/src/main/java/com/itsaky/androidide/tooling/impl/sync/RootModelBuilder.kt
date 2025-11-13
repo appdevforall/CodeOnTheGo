@@ -31,7 +31,6 @@ import com.itsaky.androidide.tooling.impl.Main
 import com.itsaky.androidide.tooling.impl.util.configureFrom
 import com.itsaky.androidide.utils.sha256
 import kotlinx.coroutines.runBlocking
-import org.gradle.api.GradleException
 import org.gradle.tooling.ConfigurableLauncher
 import org.gradle.tooling.model.idea.IdeaProject
 import org.slf4j.LoggerFactory
@@ -55,7 +54,7 @@ object RootModelBuilder :
 		param: RootProjectModelBuilderParams
 	): File {
 
-		val (projectConnection, cancellationToken) = param
+		val (projectConnection, cancellationToken, projectCacheFile, syncMetaFile) = param
 
 		// do not reference the 'initializationParams' field in the
 		val executor = projectConnection.action { controller ->
@@ -153,22 +152,20 @@ object RootModelBuilder :
 			)
 
 			// IF the IDE were running fully in a JVM environment, we would have
-			// use protobuf-java instead of protobuf-javalite. Messages generated
-			// by protobuf-java are java.io.Serializable and can cross the BuildExecutor
-			// boundary here, and we could have returned the GradleBuild model here
+			// used protobuf-java instead of protobuf-javalite. Messages generated
+			// by protobuf-java are java.io.Serializable, can cross the BuildExecutor
+			// boundary, and we could have returned the GradleBuild model here.
 			// But since we're using protobuf-javalite, the models are not serializable
 			// and hence cannot cross the BuildExecutor boundary. As a result,
 			// we write the model cache file here in the build executor itself.
 
 			val projectDir = gradleBuild.rootProject.projectDir
-			val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
-			val syncMetaFile = ProjectSyncHelper.syncMetaFile(projectDir)
 
 			val success =
 				ProjectSyncHelper.tryUseSyncLock(projectDir, PROJECT_SYNC_LOCK_TIMEOUT_MS) {
 					ProjectSyncHelper.writeGradleBuildSync(
 						gradleBuild = gradleBuild,
-						targetFile = cacheFile
+						targetFile = projectCacheFile
 					)
 
 					runBlocking {
@@ -177,8 +174,8 @@ object RootModelBuilder :
 								projectDir = projectDir,
 								includeChecksum = true,
 								projectModelInfo = ProjectModelInfo(
-									cacheFile.absolutePath,
-									cacheFile.sha256()
+									projectCacheFile.absolutePath,
+									projectCacheFile.sha256()
 								)
 							).writeTo(out)
 							out.flush()
@@ -187,10 +184,10 @@ object RootModelBuilder :
 				}
 
 			if (!success) {
-				throw GradleException("Failed to acquire sync lock file")
+				throw ModelBuilderException("Failed to acquire sync lock. Unable to write cache.")
 			}
 
-			return@action cacheFile
+			return@action projectCacheFile
 		}
 
 		executor.configureFrom(initializeParams)

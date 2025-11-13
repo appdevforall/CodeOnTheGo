@@ -88,7 +88,7 @@ object ProjectSyncHelper {
 	 * @param projectDir The project directory.
 	 * @return The sync metadata file.
 	 */
-	fun syncMetaFile(projectDir: File) =
+	fun syncMetaFileForProject(projectDir: File) =
 		projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_META_FILE)
 
 	/**
@@ -214,8 +214,11 @@ object ProjectSyncHelper {
 	 * @return `true` if a sync is needed, `false` otherwise.
 	 */
 	suspend fun checkSyncNeeded(projectDir: File): Boolean {
+		// @devs: add a log statement whenever this function returns `true`
+		// describing why it returns `true`
+
 		val draft = createSyncMeta(projectDir, includeChecksum = false)
-		val syncMetaFile = syncMetaFile(projectDir)
+		val syncMetaFile = syncMetaFileForProject(projectDir)
 		val stored = try {
 			loadSyncMetaFromFile(syncMetaFile)
 		} catch (_: FileNotFoundException) {

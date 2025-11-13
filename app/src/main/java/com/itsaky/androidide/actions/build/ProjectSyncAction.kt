@@ -50,6 +50,6 @@ class ProjectSyncAction(context: Context, override val order: Int) : BaseBuildAc
 	override suspend fun execAction(data: ActionData) {
 		val activity = data.requireActivity()
 		activity.saveAll(requestSync = false)
-		activity.initializeProject()
+		activity.initializeProject(forceSync = true)
 	}
 }

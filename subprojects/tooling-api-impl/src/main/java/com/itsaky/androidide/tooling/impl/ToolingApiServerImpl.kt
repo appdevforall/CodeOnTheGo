@@ -43,10 +43,12 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.UNSUPPORTED_CONFIGURATION
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.UNSUPPORTED_GRADLE_VERSION
 import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
+import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.tooling.impl.sync.RootModelBuilder
 import com.itsaky.androidide.tooling.impl.sync.RootProjectModelBuilderParams
 import com.itsaky.androidide.tooling.impl.util.configureFrom
 import com.itsaky.androidide.utils.StopWatch
+import com.itsaky.androidide.utils.withStopWatch
 import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.BuildException
 import org.gradle.tooling.CancellationTokenSource
@@ -60,7 +62,6 @@ import org.gradle.tooling.internal.consumer.DefaultGradleConnector
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -103,6 +104,32 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 		private val log = LoggerFactory.getLogger(ToolingApiServerImpl::class.java)
 	}
 
+	private fun getOrConnectProject(
+		projectDir: File,
+		forceConnect: Boolean = false,
+		initParams: InitializeProjectParams? = null,
+		gradleDist: GradleDistributionParams = initParams?.gradleDistribution
+			?: GradleDistributionParams.WRAPPER,
+	): Pair<GradleConnector, ProjectConnection> = withStopWatch("getOrConnectProject") {
+		if (!forceConnect && connector != null && connection != null) {
+			return@withStopWatch connector!! to connection!!
+		}
+
+		if (forceConnect) {
+			connector?.disconnect()
+		}
+
+		val connector = GradleConnector.newConnector().forProjectDirectory(projectDir)
+		setupConnectorForGradleInstallation(connector, gradleDist)
+
+		val connection = connector.connect()
+
+		this.connector = connector
+		this.connection = connection
+
+		connector to connection
+	}
+
 	override fun metadata(): CompletableFuture<ToolingServerMetadata> {
 		return CompletableFuture.supplyAsync {
 			ToolingServerMetadata(ProcessHandle.current().pid().toInt())
@@ -122,8 +149,8 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 					cancelCurrentBuild().get()
 				}
 
-				val projectDirectory = File(params.directory)
-				val failureReason = validateProjectDirectory(projectDirectory)
+				val projectDir = File(params.directory)
+				val failureReason = validateProjectDirectory(projectDir)
 
 				if (failureReason != null) {
 					log.error("Cannot initialize project: {}", failureReason)
@@ -137,57 +164,50 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 				if (isReinitializing) {
 					log.info("Project is being reinitialized")
 					log.info("Reusing connector instance...")
-				} else {
-					// a new project is being initialized
-					// or the project is being initialized with different parameters
-					connector?.disconnect()
-
-					connector = GradleConnector.newConnector().forProjectDirectory(projectDirectory)
-					setupConnectorForGradleInstallation(this.connector!!, params.gradleDistribution)
-					stopWatch.lap("Connector created")
 				}
+
+				val (_, connection) = getOrConnectProject(
+					projectDir = projectDir,
+					forceConnect = !isReinitializing,
+					initParams = params
+				)
 
 				lastInitParams = params
 
-				val connector = checkNotNull(connector) {
-					"Unable to create gradle connector for project directory: ${params.directory}"
+				// we're now ready to run Gradle tasks
+				isInitialized = true
+
+				val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
+				val syncMetaFile = ProjectSyncHelper.syncMetaFileForProject(projectDir)
+
+				if (params.needsGradleSync) {
+					var failure: Throwable? = null
+					try {
+						val cancellationToken = GradleConnector.newCancellationTokenSource()
+						buildCancellationToken = cancellationToken
+						notifyBeforeBuild(BuildInfo(emptyList()))
+						val modelBuilderParams = RootProjectModelBuilderParams(
+							projectConnection = connection,
+							cancellationToken = cancellationToken.token(),
+							projectCacheFile = cacheFile,
+							projectSyncMetaFile = syncMetaFile,
+							gradleArgs = params.gradleArgs,
+							jvmArgs = params.jvmArgs
+						)
+
+						RootModelBuilder.build(params, modelBuilderParams)
+					} catch (err: Throwable) {
+						failure = err
+					} finally {
+						when(failure) {
+							null -> notifyBuildSuccess(emptyList())
+							is BuildCancelledException -> throw failure
+							else -> notifyBuildFailure(emptyList())
+						}
+					}
 				}
 
-				notifyBeforeBuild(BuildInfo(emptyList()))
-
-				if (isReinitializing) {
-					log.info("Reusing project connection...")
-				} else {
-					connection = connector.connect()
-				}
-
-				val connection = checkNotNull(this.connection) {
-					"Unable to create project connection for project directory: ${params.directory}"
-				}
-
-				stopWatch.lapFromLast("Project connection established")
-
-				this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
-
-				val cacheFile = try {
-					val modelBuilderParams = RootProjectModelBuilderParams(
-						connection,
-						this.buildCancellationToken!!.token(),
-						params.gradleArgs,
-						params.jvmArgs
-					)
-
-					RootModelBuilder.build(params, modelBuilderParams)
-				} catch (err: Throwable) {
-					throw err
-				}
-
-				stopWatch.lapFromLast("Project read successful")
 				stopWatch.log()
-
-				this.isInitialized = true
-
-				notifyBuildSuccess(emptyList())
 				return@runBuild InitializeResult.Success(cacheFile)
 			} catch (err: Throwable) {
 				log.error("Failed to initialize project", err)
@@ -197,9 +217,7 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 		}
 	}
 
-	private fun validateProjectDirectory(
-		projectDirectory: File
-	) = when {
+	private fun validateProjectDirectory(projectDirectory: File) = when {
 		!projectDirectory.exists() -> PROJECT_NOT_FOUND
 		!projectDirectory.isDirectory -> PROJECT_NOT_DIRECTORY
 		!projectDirectory.canRead() -> PROJECT_DIRECTORY_INACCESSIBLE
@@ -265,7 +283,7 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 
 	private fun setupConnectorForGradleInstallation(
 		connector: GradleConnector,
-		params: GradleDistributionParams
+		params: GradleDistributionParams,
 	) {
 		when (params.type) {
 			GradleDistributionType.GRADLE_WRAPPER -> {
@@ -306,8 +324,8 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 		return CompletableFuture.supplyAsync {
 			if (this.buildCancellationToken == null) {
 				return@supplyAsync BuildCancellationRequestResult(
-					false,
-					BuildCancellationRequestResult.Reason.NO_RUNNING_BUILD
+					wasEnqueued = false,
+					failureReason = BuildCancellationRequestResult.Reason.NO_RUNNING_BUILD,
 				)
 			}
 
@@ -354,17 +372,16 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 		}
 	}
 
-	private fun getTaskFailureType(error: Throwable): Failure =
-		when (error) {
-			is BuildException -> BUILD_FAILED
-			is BuildCancelledException -> BUILD_CANCELLED
-			is UnsupportedOperationConfigurationException -> UNSUPPORTED_CONFIGURATION
-			is UnsupportedVersionException -> UNSUPPORTED_GRADLE_VERSION
-			is UnsupportedBuildArgumentException -> UNSUPPORTED_BUILD_ARGUMENT
-			is GradleConnectionException -> CONNECTION_ERROR
-			is java.lang.IllegalStateException -> CONNECTION_CLOSED
-			else -> UNKNOWN
-		}
+	private fun getTaskFailureType(error: Throwable): Failure = when (error) {
+		is BuildException -> BUILD_FAILED
+		is BuildCancelledException -> BUILD_CANCELLED
+		is UnsupportedOperationConfigurationException -> UNSUPPORTED_CONFIGURATION
+		is UnsupportedVersionException -> UNSUPPORTED_GRADLE_VERSION
+		is UnsupportedBuildArgumentException -> UNSUPPORTED_BUILD_ARGUMENT
+		is GradleConnectionException -> CONNECTION_ERROR
+		is java.lang.IllegalStateException -> CONNECTION_CLOSED
+		else -> UNKNOWN
+	}
 
 	private inline fun <T : Any?> supplyAsync(crossinline action: () -> T): CompletableFuture<T> =
 		CompletableFuture.supplyAsync {
@@ -374,7 +391,7 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 	private inline fun <T : Any?> runBuild(crossinline action: () -> T): CompletableFuture<T> =
 		supplyAsync {
 			if (isBuildInProgress) {
-				log.error("Cannot run build, build is already in prorgess!")
+				log.error("Cannot run build, build is already in progress!")
 				throw IllegalStateException("Build is already in progress")
 			}
 
@@ -385,12 +402,6 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 				isBuildInProgress = false
 			}
 		}
-
-	private fun assertProjectInitialized() {
-		if (!isServerInitialized().get()) {
-			throw CompletionException(IllegalStateException("Project is not initialized!"))
-		}
-	}
 
 	fun connect(client: IToolingApiClient) {
 		this.client = client
