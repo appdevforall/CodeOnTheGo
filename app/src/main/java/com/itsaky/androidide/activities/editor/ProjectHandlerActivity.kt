@@ -261,7 +261,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		editorViewModel.isBuildInProgress = service?.isBuildInProgress == true
-
 		editorViewModel.isInitializing = initializingFuture?.isDone == false
 
 		invalidateOptionsMenu()
