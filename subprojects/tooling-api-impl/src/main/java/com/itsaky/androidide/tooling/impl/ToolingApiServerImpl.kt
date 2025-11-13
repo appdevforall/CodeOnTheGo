@@ -17,8 +17,6 @@
 
 package com.itsaky.androidide.tooling.impl
 
-import com.itsaky.androidide.projects.models.projectDir
-import com.itsaky.androidide.projects.serial.ProtoProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
@@ -48,7 +46,6 @@ import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.impl.sync.RootModelBuilder
 import com.itsaky.androidide.tooling.impl.sync.RootProjectModelBuilderParams
 import com.itsaky.androidide.tooling.impl.util.configureFrom
-import com.itsaky.androidide.utils.SharedEnvironment
 import com.itsaky.androidide.utils.StopWatch
 import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.BuildException

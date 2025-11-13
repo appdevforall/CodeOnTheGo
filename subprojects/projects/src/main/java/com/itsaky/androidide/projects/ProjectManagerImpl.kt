@@ -37,11 +37,10 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.resDirs
-import com.itsaky.androidide.projects.serial.ProtoProject
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.tooling.api.IAndroidProject
-import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
+import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.withStopWatch
@@ -74,8 +73,6 @@ import kotlin.io.path.pathString
 class ProjectManagerImpl : IProjectManager, EventReceiver {
 
 	lateinit var projectPath: String
-	var projectInitialized: Boolean = false
-	var cachedInitResult: InitializeResult? = null
 
 	override var gradleBuild: GradleModels.GradleBuild? = null
 	override var workspace: Workspace? = null
@@ -98,6 +95,10 @@ class ProjectManagerImpl : IProjectManager, EventReceiver {
 		fun getInstance(): ProjectManagerImpl {
 			return IProjectManager.getInstance() as ProjectManagerImpl
 		}
+	}
+
+	suspend fun isGradleSyncNeeded(projectDir: File): Boolean {
+		return ProjectSyncHelper.checkSyncNeeded(projectDir)
 	}
 
 	override suspend fun setup(gradleBuild: GradleModels.GradleBuild) {
@@ -207,30 +208,23 @@ class ProjectManagerImpl : IProjectManager, EventReceiver {
 		return false
 	}
 
-	override suspend fun writeCache(targetFile: File) {
-		val gradleBuild = this.gradleBuild ?: return
-		ProtoProject.writeGradleBuild(gradleBuild, targetFile)
-	}
-
 	/**
 	 * Read the Gradle build model from the currently opened project directory.
 	 *
 	 * @return The Gradle build model result.
 	 */
 	suspend fun readGradleBuild(): Result<GradleModels.GradleBuild> {
-		val projectDir = this.projectDir
 		if (!projectDir.exists()) {
 			return Result.failure(IllegalStateException("Project directory does not exist: ${projectDir.absolutePath}"))
 		}
 
-		return ProtoProject.readGradleBuild(projectDir)
+		val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
+		return ProjectSyncHelper.readGradleBuild(cacheFile)
 	}
 
 	override fun destroy() {
 		log.info("Destroying project manager")
 		this.workspace = null
-		this.cachedInitResult = null
-		this.projectInitialized = false
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}

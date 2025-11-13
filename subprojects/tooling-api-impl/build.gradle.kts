@@ -68,7 +68,6 @@ dependencies {
 	implementation(projects.buildInfo)
 	implementation(projects.shared)
 	implementation(projects.subprojects.projectModels)
-	implementation(projects.subprojects.projectSerial)
 
 	implementation(libs.common.jkotlin)
 	implementation(libs.google.auto.service.annotations)

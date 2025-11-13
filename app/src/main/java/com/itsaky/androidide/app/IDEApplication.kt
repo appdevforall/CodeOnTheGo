@@ -19,6 +19,7 @@
 package com.itsaky.androidide.app
 
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.StrictMode
@@ -93,6 +94,7 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
         private val log = LoggerFactory.getLogger(IDEApplication::class.java)
 
         @JvmStatic
+		@SuppressLint("StaticFieldLeak")
         lateinit var instance: IDEApplication
             private set
 
