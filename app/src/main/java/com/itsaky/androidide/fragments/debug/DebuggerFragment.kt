@@ -283,15 +283,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 		debuggerConnectionState: DebuggerConnectionState = viewModel.connectionState.value,
 		isShizukuServiceRunning: Boolean = Shizuku.pingBinder(),
 	): String {
-		logger.debug(
-			"getEmptyStateMessage called with: newMessage='{}', debuggerConnectionState={}, isShizukuServiceRunning={}",
-			newMessage,
-			debuggerConnectionState,
-			isShizukuServiceRunning,
-		)
-
 		if (!isShizukuServiceRunning) {
-			logger.debug("Shizuku service is not running. Returning 'not paired' message.")
 			return getString(R.string.debugger_state_not_paired)
 		}
 
@@ -299,7 +291,6 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			when (debuggerConnectionState) {
 				// not connected to a VM
 				DebuggerConnectionState.DETACHED -> {
-					logger.debug("Debugger state is DETACHED. Returning 'not connected' message.")
 					getString(R.string.debugger_state_not_connected)
 				}
 
@@ -312,10 +303,6 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 								client.name,
 								client.version,
 							)
-						logger.debug(
-							"Debugger state is ATTACHED. Returning message: '{}'",
-							connectedMessage,
-						)
 						connectedMessage
 					}
 				}
@@ -327,27 +314,22 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 
 				// suspended, but not due to a breakpoint hit or step event
 				DebuggerConnectionState.SUSPENDED -> {
-					logger.debug("Debugger state is SUSPENDED. No message to show.")
 					null
 				}
 				// suspended due to a breakpoint hit or step event
 				DebuggerConnectionState.AWAITING_BREAKPOINT -> {
-					logger.debug("Debugger state is AWAITING_BREAKPOINT. No message to show.")
 					null
 				}
 			}
 
 		if (message != null) {
-			logger.debug("Returning message from when-statement: '{}'", message)
 			return message
 		}
 
 		if (newMessage != null) {
-			logger.debug("Returning provided newMessage: '{}'", newMessage)
 			return newMessage
 		}
 
-		logger.debug("No specific message found. Returning default 'not connected' message.")
 		return getString(R.string.debugger_state_not_connected)
 	}
 
@@ -364,31 +346,15 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 		logger.debug("Shizuku service status changed: {}", status)
 		var newView = VIEW_DEBUGGER
 
-		val isAtLeastR = isAtLeastR()
-		val isShizukuRunning = status?.isRunning == true
-		val wadbPairingState = wadbViewModel.pairingState.value
-
-		logger.debug(
-			"Evaluating conditions to switch view: isAtLeastR={}, isShizukuRunning={}, wadbPairingState={}",
-			isAtLeastR,
-			isShizukuRunning,
-			wadbPairingState,
-		)
-
 		if (isAtLeastR() &&
 			status?.isRunning != true &&
 			wadbViewModel.pairingState.value == WADBViewModel.PairingState.Connecting
 		) {
-			logger.debug("Conditions met: Showing WADB pairing view.")
 			// show the pairing screen only when Shizuku is in the connecting state
 			// and not already connected
 			newView = VIEW_WADB_PAIRING
 		}
 
-		logger.debug(
-			"Setting current view to: {}",
-			if (newView == VIEW_DEBUGGER) "VIEW_DEBUGGER" else "VIEW_WADB_PAIRING",
-		)
 		viewModel.currentView = newView
 		emptyStateViewModel.setEmptyMessage(getEmptyStateMessage())
 	}
@@ -459,7 +425,7 @@ class ThreadSelectorListAdapter(
 					},
 				)
 
-			view.setOnTouchListener { v, event ->
+			view.setOnTouchListener { _, event ->
 				gestureDetector.onTouchEvent(event)
 				longPressDetected
 			}
