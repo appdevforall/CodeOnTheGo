@@ -218,8 +218,7 @@ class ProjectManagerImpl : IProjectManager, EventReceiver {
 	 * @return The Gradle build model result.
 	 */
 	suspend fun readGradleBuild(): Result<GradleModels.GradleBuild> {
-		val projectManager = IProjectManager.getInstance()
-		val projectDir = projectManager.projectDir
+		val projectDir = this.projectDir
 		if (!projectDir.exists()) {
 			return Result.failure(IllegalStateException("Project directory does not exist: ${projectDir.absolutePath}"))
 		}

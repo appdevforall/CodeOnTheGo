@@ -88,8 +88,12 @@ import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
 import com.itsaky.androidide.viewmodel.ProjectViewModel
 import com.itsaky.androidide.viewmodel.TaskState
+import io.sentry.Hint
+import io.sentry.Sentry
+import io.sentry.util.HintUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -627,8 +631,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         editorActivityScope.launch(Dispatchers.IO) {
 			val gradleBuildResult = ProtoProject.readGradleBuild(result.cacheFile)
 			if (gradleBuildResult.isFailure) {
-				log.error("Failed to read project cache", gradleBuildResult.exceptionOrNull())
-				runOnUiThread { postProjectInit(false, CACHE_READ_ERROR) }
+				val error = gradleBuildResult.exceptionOrNull()
+				log.error("Failed to read project cache", error)
+				if (error != null) {
+					Sentry.captureException(error)
+				}
+
+				withContext(Dispatchers.Main) { postProjectInit(false, CACHE_READ_ERROR) }
 				return@launch
 			}
 
@@ -636,9 +645,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             manager.notifyProjectUpdate()
             updateBuildVariants(manager.androidBuildVariants)
 
-            com.itsaky.androidide.tasks.runOnUiThread {
-                postProjectInit(true, null)
-            }
+			withContext(Dispatchers.Main) {
+				postProjectInit(true, null)
+			}
         }
     }
 

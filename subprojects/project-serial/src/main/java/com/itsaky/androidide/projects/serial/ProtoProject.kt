@@ -42,7 +42,7 @@ object ProtoProject {
 
 	/**
 	 * Write the Gradle build model. The model files will be written to the root project's
-	 * directly of the provided [com.itsaky.androidide.project.GradleModels.GradleBuild].
+	 * directory of the provided [com.itsaky.androidide.project.GradleModels.GradleBuild].
 	 *
 	 * @param gradleBuild The Gradle build model.
 	 * @param targetFile The target file.
