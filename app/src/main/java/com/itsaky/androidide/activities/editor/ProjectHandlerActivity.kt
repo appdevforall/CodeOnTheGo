@@ -83,6 +83,7 @@ import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
+import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -545,8 +546,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			val manager = ProjectManagerImpl.getInstance()
 			val gradleBuildResult = manager.readGradleBuild()
 			if (gradleBuildResult.isFailure) {
-				log.error("Failed to read project cache", gradleBuildResult.exceptionOrNull())
-				runOnUiThread { postProjectInit(false, CACHE_READ_ERROR) }
+				val error = gradleBuildResult.exceptionOrNull()
+				log.error("Failed to read project cache", error)
+				if (error != null) {
+					Sentry.captureException(error)
+				}
+
+				withContext(Dispatchers.Main) { postProjectInit(false, CACHE_READ_ERROR) }
 				return@launch
 			}
 

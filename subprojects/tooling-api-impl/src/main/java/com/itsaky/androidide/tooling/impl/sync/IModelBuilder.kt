@@ -16,7 +16,6 @@
  */
 package com.itsaky.androidide.tooling.impl.sync
 
-import com.google.protobuf.MessageLiteOrBuilder
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 
 /**
