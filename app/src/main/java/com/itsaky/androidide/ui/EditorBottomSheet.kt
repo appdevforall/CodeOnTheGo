@@ -409,7 +409,6 @@ constructor(
 		runOnUiThread {
 			val fragment = pagerAdapter.diagnosticsFragment
 			if (fragment == null || !fragment.isAdded) {
-				Log.w("Diagnostics", "Fragment detached, ignoring update")
 				return@runOnUiThread
 			}
 
