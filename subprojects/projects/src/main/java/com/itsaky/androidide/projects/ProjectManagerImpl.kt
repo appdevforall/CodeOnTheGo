@@ -203,7 +203,7 @@ class ProjectManagerImpl : IProjectManager, EventReceiver {
 		if (module is AndroidModule) {
 			return module.getResourceDirectories().find { file.path.startsWith(it.path) } != null
 		}
-		return true
+		return false
 	}
 
 	override fun destroy() {
