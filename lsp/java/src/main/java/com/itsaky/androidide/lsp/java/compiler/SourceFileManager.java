@@ -26,6 +26,7 @@ import com.itsaky.androidide.javac.config.JavacConfigProvider;
 import com.itsaky.androidide.javac.services.fs.AndroidFsProviderImpl;
 import com.itsaky.androidide.projects.api.AndroidModule;
 import com.itsaky.androidide.projects.api.ModuleProject;
+import com.itsaky.androidide.projects.models.AndroidProjectExtsKt;
 import com.itsaky.androidide.projects.util.StringSearch;
 import com.itsaky.androidide.utils.ClassTrie;
 import com.itsaky.androidide.utils.Environment;
@@ -92,9 +93,8 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
       return emptySet();
     }
 
-    if (module instanceof AndroidModule) {
-      final AndroidModule androidModule = (AndroidModule) module;
-      setLocationLogError(StandardLocation.PLATFORM_CLASS_PATH, androidModule.getBootClassPaths());
+    if (module instanceof AndroidModule androidModule) {
+		setLocationLogError(StandardLocation.PLATFORM_CLASS_PATH, AndroidProjectExtsKt.getBootClassPaths(androidModule));
     }
 
     return module.getCompileClasspaths();

@@ -112,8 +112,8 @@ public class JavaCompilerService implements CompilerProvider {
   private Set<String> getBootclasspathClasses() {
     if (module != null && module instanceof AndroidModule) {
       final List<String> classpaths =
-          ((AndroidModule) module)
-              .getBootClassPaths().stream().map(File::getPath).collect(Collectors.toList());
+			  new ArrayList<>(((AndroidModule) module)
+					  .getBootClassPathsList());
       BootClasspathProvider.update(classpaths);
       this.bootClasspathClasses =
           Collections.unmodifiableSet(BootClasspathProvider.getTopLevelClasses(classpaths));

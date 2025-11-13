@@ -22,13 +22,17 @@ import com.itsaky.androidide.builder.model.shouldBeIgnored
 import com.itsaky.androidide.project.GradleBuild
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.project.SyncIssue
+import com.itsaky.androidide.projects.models.projectDir
+import com.itsaky.androidide.projects.serial.ProtoProject
 import com.itsaky.androidide.tooling.api.IAndroidProject
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.impl.Main
 import com.itsaky.androidide.tooling.impl.util.configureFrom
+import com.itsaky.androidide.utils.SharedEnvironment
 import org.gradle.tooling.ConfigurableLauncher
 import org.gradle.tooling.model.idea.IdeaProject
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.io.Serializable
 
 /**
@@ -37,14 +41,14 @@ import java.io.Serializable
  * @author Akash Yadav
  */
 object RootModelBuilder :
-	AbstractModelBuilder<RootProjectModelBuilderParams, GradleModels.GradleBuild>(), Serializable {
+	AbstractModelBuilder<RootProjectModelBuilderParams, File>(), Serializable {
 
 	private val serialVersionUID = 1L
 
 	override fun build(
 		initializeParams: InitializeProjectParams,
 		param: RootProjectModelBuilderParams
-	): GradleModels.GradleBuild {
+	): File {
 
 		val (projectConnection, cancellationToken) = param
 
@@ -124,7 +128,7 @@ object RootModelBuilder :
 				gradleProject.build()
 			}
 
-			return@action GradleBuild(
+			val gradleBuild = GradleBuild(
 				rootProject = rootGradleProject.build(),
 				subProjectList = projects,
 				syncIssueList = syncIssues.map { syncIssue ->
@@ -142,6 +146,26 @@ object RootModelBuilder :
 					)
 				}
 			)
+
+			// IF the IDE were running fully in a JVM environment, we would have
+			// use protobuf-java instead of protobuf-javalite. Messages generated
+			// by protobuf-java are java.io.Serializable and can cross the BuildExecutor
+			// boundary here, and we could have returned the GradleBuild model here
+			// But since we're using protobuf-javalite, the models are not serializable
+			// and hence cannot cross the BuildExecutor boundary. As a result,
+			// we write the model cache file here in the build executor itself.
+
+			val cacheFile =
+				gradleBuild.rootProject.projectDir
+					.resolve(SharedEnvironment.PROJECT_CACHE_DIR_NAME)
+					.resolve(ProtoProject.PROTO_CACHE_FILE_NAME)
+
+			ProtoProject.writeGradleBuildSync(
+				gradleBuild = gradleBuild,
+				targetFile = cacheFile
+			)
+
+			return@action cacheFile
 		}
 
 		executor.configureFrom(initializeParams)
@@ -158,9 +182,10 @@ object RootModelBuilder :
 			Main.client.logOutput("Starting build...")
 		}
 
-		return executor.run().also {
-			logger.debug("Build action executed. Result: {}", it)
-		}
+		val cacheFile = executor.run()
+		logger.debug("Build action executed")
+
+		return cacheFile
 	}
 
 	private fun applyAndroidModelBuilderProps(

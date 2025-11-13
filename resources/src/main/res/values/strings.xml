@@ -910,6 +910,7 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
 
     <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>
+	<string name="msg_project_cache_read_failure">Failed to read project cache</string>
 
     <string name="failed_to_save_bitmap_to_file">Failed to save bitmap to file</string>
     <string name="pixel_copy_failed">PixelCopy failed</string>

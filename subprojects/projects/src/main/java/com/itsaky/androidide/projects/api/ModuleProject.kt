@@ -46,9 +46,9 @@ abstract class ModuleProject(
 	delegate: GradleModels.GradleProject,
 ) : GradleProject(delegate) {
 
-	open val compilerSettings: Common.JavaCompilerSettings
+	val compilerSettings: Common.JavaCompilerSettings
 		get() = when {
-			delegate.hasJavaProject() -> delegate.javaProject.compilerSettings
+			delegate.hasJavaProject() -> delegate.javaProject.javaCompilerSettings
 			delegate.hasAndroidProject() -> delegate.androidProject.javaCompilerSettings
 			else -> DEFAULT_COMPILER_SETTINGS
 		}

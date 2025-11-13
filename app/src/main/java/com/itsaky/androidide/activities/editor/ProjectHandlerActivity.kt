@@ -55,6 +55,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
+import com.itsaky.androidide.projects.serial.ProtoProject
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
@@ -64,9 +65,12 @@ import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_DIRECTORY_INACCESSIBLE
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_DIRECTORY
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_FOUND
+import com.itsaky.androidide.tooling.api.messages.result.failure
+import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
@@ -84,8 +88,12 @@ import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
 import com.itsaky.androidide.viewmodel.ProjectViewModel
 import com.itsaky.androidide.viewmodel.TaskState
+import io.sentry.Hint
+import io.sentry.Sentry
+import io.sentry.util.HintUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -539,7 +547,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                 return@whenCompleteAsync
             }
 
-            onProjectInitialized(result)
+            onProjectInitialized(result as InitializeResult.Success)
         }
     }
 
@@ -612,7 +620,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         }
     }
 
-    protected open fun onProjectInitialized(result: InitializeResult) {
+    protected open fun onProjectInitialized(result: InitializeResult.Success) {
         val manager = ProjectManagerImpl.getInstance()
         if (isFromSavedInstance && manager.projectInitialized && result == manager.cachedInitResult) {
             log.debug("Not setting up project as this a configuration change")
@@ -621,13 +629,25 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         manager.cachedInitResult = result
         editorActivityScope.launch(Dispatchers.IO) {
-            manager.setup()
+			val gradleBuildResult = ProtoProject.readGradleBuild(result.cacheFile)
+			if (gradleBuildResult.isFailure) {
+				val error = gradleBuildResult.exceptionOrNull()
+				log.error("Failed to read project cache", error)
+				if (error != null) {
+					Sentry.captureException(error)
+				}
+
+				withContext(Dispatchers.Main) { postProjectInit(false, CACHE_READ_ERROR) }
+				return@launch
+			}
+
+            manager.setup(gradleBuildResult.getOrThrow())
             manager.notifyProjectUpdate()
             updateBuildVariants(manager.androidBuildVariants)
 
-            com.itsaky.androidide.tasks.runOnUiThread {
-                postProjectInit(true, null)
-            }
+			withContext(Dispatchers.Main) {
+				postProjectInit(true, null)
+			}
         }
     }
 
@@ -669,6 +689,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                     PROJECT_DIRECTORY_INACCESSIBLE -> string.msg_project_dir_inaccessible
                     PROJECT_NOT_DIRECTORY -> string.msg_file_is_not_dir
                     PROJECT_NOT_FOUND -> string.msg_project_dir_doesnt_exist
+					CACHE_READ_ERROR -> string.msg_project_cache_read_failure
                     else -> null
                 }?.let {
                     "$initFailed: ${getString(it)}"

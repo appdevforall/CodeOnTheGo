@@ -172,6 +172,11 @@ interface IProjectManager {
 	fun isAndroidResource(file: File): Boolean
 
 	/**
+	 * Write the project cache to the given file.
+	 */
+	suspend fun writeCache(targetFile: File)
+
+	/**
 	 * Destroy the project manager.
 	 */
 	fun destroy()
