@@ -32,6 +32,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
 
@@ -110,14 +111,16 @@ class EditorBottomSheetTabAdapter(
                 ),
             )
 
-            add(
-                Tab(
-                    title = fragmentActivity.getString(R.string.title_agent),
-                    fragmentClass = AgentFragmentContainer::class.java,
-                    itemId = TAB_AGENT,
-                    tooltipTag = TooltipTag.PROJECT_AGENT,
-				),
-			)
+            if (isExperimentsEnabled()) {
+                add(
+                    Tab(
+                        title = fragmentActivity.getString(R.string.title_agent),
+                        fragmentClass = AgentFragmentContainer::class.java,
+                        itemId = TAB_AGENT,
+                        tooltipTag = TooltipTag.PROJECT_AGENT,
+                    ),
+                )
+            }
 		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
