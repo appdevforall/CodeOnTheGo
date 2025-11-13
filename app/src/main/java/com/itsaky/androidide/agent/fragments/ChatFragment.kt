@@ -50,15 +50,17 @@ class ChatFragment :
         if (isAdded) {
             val insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets)
 
-            // Check if the on-screen keyboard is visible
+            val imeInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val navigationInset =
+                insetsCompat.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
             val isImeVisible = insetsCompat.isVisible(WindowInsetsCompat.Type.ime())
 
-            // Get the height of the IME space
-            val imeHeight = insetsCompat.getInsets(WindowInsetsCompat.Type.ime()).bottom
-
-            // Only apply the height if the software keyboard is visible
             binding.keyboardSpacer.updateLayoutParams {
-                height = if (isImeVisible) imeHeight else 0
+                height = if (isImeVisible) {
+                    (imeInsets - navigationInset).coerceAtLeast(0)
+                } else {
+                    0
+                }
             }
         }
         insets
