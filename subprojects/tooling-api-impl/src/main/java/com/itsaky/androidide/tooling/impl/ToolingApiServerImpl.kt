@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.tooling.impl
 
-import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
@@ -44,7 +43,6 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.UNSUPPORTED_CONFIGURATION
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.UNSUPPORTED_GRADLE_VERSION
 import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
-import com.itsaky.androidide.tooling.impl.internal.ProjectImpl
 import com.itsaky.androidide.tooling.impl.sync.RootModelBuilder
 import com.itsaky.androidide.tooling.impl.sync.RootProjectModelBuilderParams
 import com.itsaky.androidide.tooling.impl.util.configureFrom
@@ -71,8 +69,7 @@ import kotlin.concurrent.withLock
  *
  * @author Akash Yadav
  */
-internal class ToolingApiServerImpl(private val project: ProjectImpl) :
-	IToolingApiServer {
+internal class ToolingApiServerImpl() : IToolingApiServer {
 
 	private var client: IToolingApiClient? = null
 	private var connector: GradleConnector? = null
@@ -223,13 +220,6 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
 
 	override fun isServerInitialized(): CompletableFuture<Boolean> {
 		return CompletableFuture.supplyAsync { isInitialized }
-	}
-
-	override fun getRootProject(): CompletableFuture<IProject> {
-		return CompletableFuture.supplyAsync {
-			assertProjectInitialized()
-			return@supplyAsync this.project
-		}
 	}
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {

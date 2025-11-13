@@ -20,7 +20,10 @@ package com.itsaky.androidide.tooling.impl;
 import com.itsaky.androidide.logging.JvmStdErrAppender;
 import com.itsaky.androidide.tooling.api.IToolingApiClient;
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher;
-import com.itsaky.androidide.tooling.impl.internal.ProjectImpl;
+
+import org.gradle.tooling.events.OperationType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.gradle.tooling.events.OperationType;
 import org.slf4j.Logger;
@@ -44,10 +47,9 @@ public class Main {
     System.setProperty(JvmStdErrAppender.PROP_JVM_STDERR_APPENDER_ENABLED, "false");
 
     LOG.debug("Starting Tooling API server...");
-    final var project = new ProjectImpl();
-    final var server = new ToolingApiServerImpl(project);
+    final var server = new ToolingApiServerImpl();
     final var launcher =
-        ToolingApiLauncher.newServerLauncher(server, project, System.in, System.out);
+        ToolingApiLauncher.newServerLauncher(server, System.in, System.out);
     Main.future = launcher.startListening();
     Main.client = (IToolingApiClient) launcher.getRemoteProxy();
     server.connect(client);

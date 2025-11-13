@@ -47,12 +47,11 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.Checkable
+import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.IProjectManager
-import com.itsaky.androidide.projects.api.GradleProject
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.executeAsync
-import com.itsaky.androidide.tooling.api.models.GradleTask
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.doOnApplyWindowInsets
@@ -69,182 +68,183 @@ import org.slf4j.LoggerFactory
  */
 class RunTasksDialogFragment : BottomSheetDialogFragment() {
 
-  private lateinit var binding: LayoutRunTaskDialogBinding
-  private lateinit var run: LayoutRunTaskBinding
-  private val viewModel: RunTasksViewModel by viewModels()
+	private lateinit var binding: LayoutRunTaskDialogBinding
+	private lateinit var run: LayoutRunTaskBinding
+	private val viewModel: RunTasksViewModel by viewModels()
 
-  companion object {
-    private val log = LoggerFactory.getLogger(RunTasksDialogFragment::class.java)
+	companion object {
+		private val log = LoggerFactory.getLogger(RunTasksDialogFragment::class.java)
 
-    private const val CHILD_LOADING = 0
-    private const val CHILD_TASKS = 1
-    private const val CHILD_CONFIRMATION = 2
-    private const val CHILD_PROJECT_NOT_INITIALIZED = 3
+		private const val CHILD_LOADING = 0
+		private const val CHILD_TASKS = 1
+		private const val CHILD_CONFIRMATION = 2
+		private const val CHILD_PROJECT_NOT_INITIALIZED = 3
 
-    // The minimum amount of time (in milliseconds) the adapter should wait after the query is
-    // changed before starting any further filter request.
-    // A too less value here will result in UI lags
-    private const val SEARCH_DELAY = 500L
-  }
+		// The minimum amount of time (in milliseconds) the adapter should wait after the query is
+		// changed before starting any further filter request.
+		// A too less value here will result in UI lags
+		private const val SEARCH_DELAY = 500L
+	}
 
-  override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-    val dialog = object : BottomSheetDialog(requireContext(), theme) {
-      override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        findViewById<View>(com.google.android.material.R.id.container)?.apply {
-          doOnApplyWindowInsets { view, insets, _, margins ->
-            insets.getInsets(statusBars() or navigationBars()).apply {
-              view.updateLayoutParams<MarginLayoutParams> { updateMargins(top = margins.top + top) }
-              run.tasks.apply {
-                updatePadding(bottom = bottom)
-                clipToPadding = false
-                clipChildren = false
-              }
-            }
-          }
-        }
-      }
-    }
-    dialog.behavior.peekHeight = (getWindowHeight() * 0.7).toInt()
-    return dialog
-  }
+	override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+		val dialog = object : BottomSheetDialog(requireContext(), theme) {
+			override fun onAttachedToWindow() {
+				super.onAttachedToWindow()
+				findViewById<View>(com.google.android.material.R.id.container)?.apply {
+					doOnApplyWindowInsets { view, insets, _, margins ->
+						insets.getInsets(statusBars() or navigationBars()).apply {
+							view.updateLayoutParams<MarginLayoutParams> { updateMargins(top = margins.top + top) }
+							run.tasks.apply {
+								updatePadding(bottom = bottom)
+								clipToPadding = false
+								clipChildren = false
+							}
+						}
+					}
+				}
+			}
+		}
+		dialog.behavior.peekHeight = (getWindowHeight() * 0.7).toInt()
+		return dialog
+	}
 
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    this.binding = LayoutRunTaskDialogBinding.inflate(inflater, container, false)
-    this.run = this.binding.run
-    return binding.root
-  }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?
+	): View {
+		this.binding = LayoutRunTaskDialogBinding.inflate(inflater, container, false)
+		this.run = this.binding.run
+		return binding.root
+	}
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    viewModel.observeDisplayedChild(viewLifecycleOwner) {
-      val transition =
-        MaterialSharedAxis(MaterialSharedAxis.X, it > this.binding.flipper.displayedChild)
-      TransitionManager.beginDelayedTransition(this.binding.root, transition)
-      this.binding.flipper.displayedChild = it
-    }
+	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+		super.onViewCreated(view, savedInstanceState)
+		viewModel.observeDisplayedChild(viewLifecycleOwner) {
+			val transition =
+				MaterialSharedAxis(MaterialSharedAxis.X, it > this.binding.flipper.displayedChild)
+			TransitionManager.beginDelayedTransition(this.binding.root, transition)
+			this.binding.flipper.displayedChild = it
+		}
 
-    viewModel.observeQuery(viewLifecycleOwner) {
-      val adapter = run.tasks.adapter as? RunTasksListAdapter? ?: return@observeQuery
-      adapter.filter(it)
-    }
+		viewModel.observeQuery(viewLifecycleOwner) {
+			val adapter = run.tasks.adapter as? RunTasksListAdapter? ?: return@observeQuery
+			adapter.filter(it)
+		}
 
-    viewModel.observeHelpNavigation(viewLifecycleOwner) { event ->
-      event?.let {
-        val intent = Intent(requireContext(), HelpActivity::class.java).apply {
-          putExtra("CONTENT_KEY", it.url)
-          putExtra("CONTENT_TITLE_KEY", it.title)
-        }
-        startActivity(intent)
-        viewModel.onHelpNavigationHandled()
-      }
-    }
+		viewModel.observeHelpNavigation(viewLifecycleOwner) { event ->
+			event?.let {
+				val intent = Intent(requireContext(), HelpActivity::class.java).apply {
+					putExtra("CONTENT_KEY", it.url)
+					putExtra("CONTENT_TITLE_KEY", it.title)
+				}
+				startActivity(intent)
+				viewModel.onHelpNavigationHandled()
+			}
+		}
 
-    run.searchInput.editText?.addTextChangedListener(
-      object : SingleTextWatcher() {
-        val searchRunner = Runnable {
-          viewModel.query = run.searchInput.editText?.text?.toString() ?: ""
-        }
-        override fun afterTextChanged(s: Editable?) {
-          ThreadUtils.getMainHandler().removeCallbacks(searchRunner)
-          ThreadUtils.runOnUiThreadDelayed(searchRunner, SEARCH_DELAY)
-        }
-      }
-    )
+		run.searchInput.editText?.addTextChangedListener(
+			object : SingleTextWatcher() {
+				val searchRunner = Runnable {
+					viewModel.query = run.searchInput.editText?.text?.toString() ?: ""
+				}
 
-      binding.root.applyLongPressRecursively {
+				override fun afterTextChanged(s: Editable?) {
+					ThreadUtils.getMainHandler().removeCallbacks(searchRunner)
+					ThreadUtils.runOnUiThreadDelayed(searchRunner, SEARCH_DELAY)
+				}
+			}
+		)
+
+		binding.root.applyLongPressRecursively {
           TooltipManager.showIdeCategoryTooltip(
-              context = requireContext(),
-              anchorView = it,
-              tag = TooltipTag.PROJECT_GRADLE_TASKS
-          )
-          true
-      }
+				context = requireContext(),
+				anchorView = it,
+				tag = TooltipTag.PROJECT_GRADLE_TASKS
+			)
+			true
+		}
 
-    binding.exec.apply {
-        setOnClickListener {
-            if (viewModel.selected.isEmpty()) {
-                requireActivity().flashInfo(getString(string.msg_err_select_tasks))
-                return@setOnClickListener
-            }
+		binding.exec.apply {
+			setOnClickListener {
+				if (viewModel.selected.isEmpty()) {
+					requireActivity().flashInfo(getString(string.msg_err_select_tasks))
+					return@setOnClickListener
+				}
 
-            if (viewModel.displayedChild == CHILD_TASKS) {
-                binding.confirm.msg.text =
-                    getString(R.string.msg_tasks_to_run, viewModel.getSelectedTaskPaths())
-                viewModel.displayedChild = CHILD_CONFIRMATION
-                return@setOnClickListener
-            }
+				if (viewModel.displayedChild == CHILD_TASKS) {
+					binding.confirm.msg.text =
+						getString(R.string.msg_tasks_to_run, viewModel.getSelectedTaskPaths())
+					viewModel.displayedChild = CHILD_CONFIRMATION
+					return@setOnClickListener
+				}
 
-            if (viewModel.displayedChild == CHILD_CONFIRMATION) {
-                val buildService =
-                    Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-                        ?: run {
-                            log.error("Cannot find build service")
-                            return@setOnClickListener
-                        }
+				if (viewModel.displayedChild == CHILD_CONFIRMATION) {
+					val buildService =
+						Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+							?: run {
+								log.error("Cannot find build service")
+								return@setOnClickListener
+							}
 
-                if (!buildService.isToolingServerStarted()) {
-                    flashError(R.string.msg_tooling_server_unavailable)
-                    return@setOnClickListener
-                }
+					if (!buildService.isToolingServerStarted()) {
+						flashError(R.string.msg_tooling_server_unavailable)
+						return@setOnClickListener
+					}
 
-                val toRun = viewModel.selected.toTypedArray()
-                buildService.executeTasks(*toRun)
-                dismiss()
-            }
-        }
-        setOnLongClickListener {
+					val toRun = viewModel.selected.toTypedArray()
+					buildService.executeTasks(*toRun)
+					dismiss()
+				}
+			}
+			setOnLongClickListener {
             TooltipManager.showIdeCategoryTooltip(
-                context = requireContext(),
-                anchorView = this,
-                tag = TooltipTag.PROJECT_RUN_GRADLE_TASKS
-            )
-            true
-        }
-    }
+					context = requireContext(),
+					anchorView = this,
+					tag = TooltipTag.PROJECT_RUN_GRADLE_TASKS
+				)
+				true
+			}
+		}
 
-    binding.confirm.cancel.setOnClickListener { viewModel.displayedChild = CHILD_TASKS }
+		binding.confirm.cancel.setOnClickListener { viewModel.displayedChild = CHILD_TASKS }
 
-    viewModel.displayedChild = CHILD_LOADING
+		viewModel.displayedChild = CHILD_LOADING
 
-    executeAsync({
-      val project = IProjectManager.getInstance().rootProject
-        ?: return@executeAsync emptyList<Checkable<GradleTask>>()
+		executeAsync({
+			val gradleBuild = IProjectManager.getInstance().gradleBuild
+				?: return@executeAsync emptyList<Checkable<GradleModels.GradleTask>>()
 
-      return@executeAsync project.subProjects
-        .flatMap<GradleProject, GradleTask> { it.tasks }
-        .map<GradleTask, Checkable<GradleTask>> {
-          Checkable<GradleTask>(false, it)
-        }
-    }) { tasks ->
-      viewModel.tasks = tasks ?: emptyList()
-      viewModel.displayedChild =
-        if (viewModel.tasks.isNotEmpty()) CHILD_TASKS else CHILD_PROJECT_NOT_INITIALIZED
+			return@executeAsync gradleBuild.subProjectList
+				.flatMap { it.taskList }
+				.map {
+					Checkable(false, it)
+				}
+		}) { tasks ->
+			viewModel.tasks = tasks ?: emptyList()
+			viewModel.displayedChild =
+				if (viewModel.tasks.isNotEmpty()) CHILD_TASKS else CHILD_PROJECT_NOT_INITIALIZED
 
-      val onCheckChanged = { item: Checkable<GradleTask> ->
-        if (item.isChecked) {
-          viewModel.select(item.data.path)
-        } else {
-          viewModel.deselect(item.data.path)
-        }
-      }
+			val onCheckChanged = { item: Checkable<GradleModels.GradleTask> ->
+				if (item.isChecked) {
+					viewModel.select(item.data.path)
+				} else {
+					viewModel.deselect(item.data.path)
+				}
+			}
 
-      run.tasks.adapter = RunTasksListAdapter(viewModel.tasks, onCheckChanged, viewModel)
-    }
-  }
+			run.tasks.adapter = RunTasksListAdapter(viewModel.tasks, onCheckChanged)
+		}
+	}
 
-  private fun getWindowHeight(): Int {
-    val height = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-      activity?.windowManager?.currentWindowMetrics?.bounds?.height()!!
-    } else {
-      val displayMetrics = DisplayMetrics()
-      activity?.windowManager?.defaultDisplay?.getMetrics(displayMetrics)
-      displayMetrics.heightPixels
-    }
-    return height
-  }
+	private fun getWindowHeight(): Int {
+		val height = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+			activity?.windowManager?.currentWindowMetrics?.bounds?.height()!!
+		} else {
+			val displayMetrics = DisplayMetrics()
+			activity?.windowManager?.defaultDisplay?.getMetrics(displayMetrics)
+			displayMetrics.heightPixels
+		}
+		return height
+	}
 }

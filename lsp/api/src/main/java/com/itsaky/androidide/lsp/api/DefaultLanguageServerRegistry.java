@@ -21,7 +21,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.itsaky.androidide.eventbus.events.project.ProjectInitializedEvent;
 import com.itsaky.androidide.lsp.debug.IDebugClient;
-import com.itsaky.androidide.projects.api.Project;
+import com.itsaky.androidide.projects.api.Workspace;
 import com.itsaky.androidide.utils.ILogger;
 import java.util.HashMap;
 import java.util.Map;
@@ -131,7 +131,7 @@ public class DefaultLanguageServerRegistry extends ILanguageServerRegistry {
   @Subscribe(threadMode = ThreadMode.BACKGROUND)
   @SuppressWarnings("unused")
   public void onProjectInitialized(ProjectInitializedEvent event) {
-    final var project = event.get(Project.class);
+    final var project = event.get(Workspace.class);
     if (project == null) {
       return;
     }

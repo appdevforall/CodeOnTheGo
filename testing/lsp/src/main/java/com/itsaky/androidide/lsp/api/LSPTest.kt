@@ -25,7 +25,6 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
-import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.managers.PreferenceManager
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
@@ -33,9 +32,7 @@ import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.testing.tooling.ToolingApiTestLauncher
-import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileProvider
@@ -64,7 +61,6 @@ import java.nio.file.Path
 abstract class LSPTest {
 
   protected lateinit var toolingServer: IToolingApiServer
-  protected lateinit var toolingProject: IProject
   var cursor: Int = -1
   private val cursorText = "@@cursor@@"
   var file: Path? = null
@@ -94,11 +90,7 @@ abstract class LSPTest {
     ToolingApiTestLauncher.launchServer {
 
       assertThat(result?.isSuccessful).isTrue()
-
-      this@LSPTest.toolingProject = project
       this@LSPTest.toolingServer = server
-
-      Lookup.getDefault().update(BuildService.KEY_PROJECT_PROXY, project)
 
       Environment.ANDROID_JAR = FileProvider.resources().resolve("android.jar").toFile()
       Environment.JAVA_HOME = File(System.getProperty("java.home")!!)
@@ -106,13 +98,13 @@ abstract class LSPTest {
 
       val projectManager = ProjectManagerImpl.getInstance()
       projectManager.register()
-      runBlocking { projectManager.setupProject(project) }
+      runBlocking { projectManager.setup(gradleBuild) }
 
       // We need to manually setup the language server with the project here
       // ProjectManager.notifyProjectUpdate()
       ILanguageServerRegistry.getDefault()
         .getServer(getServerId())!!
-        .setupWithProject(projectManager.rootProject!!)
+        .setupWithProject(projectManager.workspace!!)
 
       isInitialized = true
     }

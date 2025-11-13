@@ -23,7 +23,7 @@ fun Location.asLspLocation(
     useDeclTypeName: Boolean = true,
 ): LspLocation {
     val projectManager = ProjectManagerImpl.getInstance()
-    val fo = projectManager.rootProject?.subProjects?.filterIsInstance<ModuleProject>()
+    val fo = projectManager.workspace?.subProjects?.filterIsInstance<ModuleProject>()
         ?.mapNotNull { moduleProject ->
             val service = JavaCompilerProvider.get(moduleProject)
             var fo: JavaFileObject? = null

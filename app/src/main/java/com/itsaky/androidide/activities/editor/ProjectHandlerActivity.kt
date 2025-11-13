@@ -53,8 +53,8 @@ import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.projects.api.GradleProject
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
@@ -621,7 +621,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         manager.cachedInitResult = result
         editorActivityScope.launch(Dispatchers.IO) {
-            manager.setupProject()
+            manager.setup()
             manager.notifyProjectUpdate()
             updateBuildVariants(manager.androidBuildVariants)
 
@@ -645,9 +645,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             // Get project name for error message
             val projectName =
                 try {
-                    val project = manager.rootProject
+                    val project = manager.workspace?.rootProject
                     if (project != null) {
-                        project.rootProject.name.takeIf { it.isNotEmpty() }
+                        project.name.takeIf { it.isNotEmpty() }
                             ?: manager.projectDir.name
                     } else {
                         manager.projectDir.name
@@ -703,7 +703,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     protected open fun createFindInProjectDialog(): AlertDialog? {
         val manager = ProjectManagerImpl.getInstance()
-        if (manager.rootProject == null) {
+        if (manager.workspace == null) {
             log.warn("No root project model found. Is the project initialized?")
             flashError(getString(string.msg_project_not_initialized))
             return null
@@ -711,12 +711,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         val moduleDirs =
             try {
-                manager.rootProject!!
-                    .subProjects
+                manager.gradleBuild!!
+                    .subProjectList
                     .stream()
-                    .map(GradleProject::projectDir)
+                    .map { project -> project.projectDir }
                     .collect(Collectors.toList())
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 flashError(getString(string.msg_no_modules))
                 emptyList()
             }
@@ -833,13 +833,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val manager = ProjectManagerImpl.getInstance()
         GeneralPreferences.lastOpenedProject = manager.projectDirPath
         try {
-            val project = manager.rootProject
+            val project = manager.workspace?.rootProject
             if (project == null) {
                 log.warn("GradleProject not initialized. Skipping initial setup...")
                 return
             }
 
-            var projectName = project.rootProject.name
+            var projectName = project.name
             if (projectName.isEmpty()) {
                 projectName = manager.projectDir.name
             }
