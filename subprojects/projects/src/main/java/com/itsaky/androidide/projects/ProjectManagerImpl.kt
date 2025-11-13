@@ -210,7 +210,7 @@ class ProjectManagerImpl :
 		if (module is AndroidModule) {
 			return module.getResourceDirectories().find { file.path.startsWith(it.path) } != null
 		}
-    	return false
+		return false
 	}
 
 	/**
