@@ -20,6 +20,7 @@ import androidx.collection.LongSparseArray
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.itsaky.androidide.agent.fragments.AgentFragmentContainer
 import com.itsaky.androidide.app.IDEApplication.Companion.getPluginManager
 import com.itsaky.androidide.fragments.DiagnosticsListFragment
 import com.itsaky.androidide.fragments.SearchResultFragment
@@ -50,6 +51,7 @@ class EditorBottomSheetTabAdapter(
 		const val TAB_DIAGNOSTICS = 3
 		const val TAB_SEARCH_RESULTS = 4
 		const val TAB_DEBUGGER = 5
+        const val TAB_AGENT = 6
 	}
 
 	private val allTabs =
@@ -104,8 +106,16 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.debugger_title),
 					fragmentClass = DebuggerFragment::class.java,
 					itemId = TAB_DEBUGGER,
-                    tooltipTag = TooltipTag.PROJECT_DEBUGGER_OUTPUT
+                    tooltipTag = TooltipTag.PROJECT_DEBUGGER_OUTPUT,
+                ),
+            )
 
+            add(
+                Tab(
+                    title = fragmentActivity.getString(R.string.title_agent),
+                    fragmentClass = AgentFragmentContainer::class.java,
+                    itemId = TAB_AGENT,
+                    tooltipTag = TooltipTag.PROJECT_AGENT,
 				),
 			)
 		}
