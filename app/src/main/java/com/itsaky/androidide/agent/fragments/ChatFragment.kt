@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.ActivityResultLauncher
@@ -215,6 +216,18 @@ class ChatFragment :
     }
 
     private fun setupListeners() {
+        val dismissKeyboardTouchListener = View.OnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                binding.promptInputEdittext.clearFocus()
+                hideKeyboard()
+            }
+            false
+        }
+        binding.chatRecyclerView.setOnTouchListener(dismissKeyboardTouchListener)
+        binding.emptyChatView.apply {
+            isClickable = true
+            setOnTouchListener(dismissKeyboardTouchListener)
+        }
         binding.promptInputEdittext.doAfterTextChanged { text ->
             val currentState = chatViewModel.agentState.value
             if (currentState !is AgentState.Processing && currentState !is AgentState.Cancelling) {
@@ -450,5 +463,10 @@ class ChatFragment :
                 findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
             }
         }
+    }
+
+    private fun hideKeyboard() {
+        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(binding.promptInputEdittext.windowToken, 0)
     }
 }
