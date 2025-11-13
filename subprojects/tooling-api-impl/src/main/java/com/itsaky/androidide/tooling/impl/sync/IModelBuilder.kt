@@ -16,7 +16,6 @@
  */
 package com.itsaky.androidide.tooling.impl.sync
 
-import com.google.protobuf.MessageLiteOrBuilder
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 
 /**
@@ -28,14 +27,14 @@ import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
  */
 interface IModelBuilder<P, R> {
 
-  /**
-   * Builds the model.
-   *
-   * @param param Parameter for building the model.
-   * @return The built model. Implementations should throw [ModelBuilderException] instead of
-   * returning `null`.
-   * @throws ModelBuilderException If the model could not be built.
-   */
-  @Throws(ModelBuilderException::class)
-  fun build(initializeParams: InitializeProjectParams, param: P): R
+	/**
+	 * Builds the model.
+	 *
+	 * @param param Parameter for building the model.
+	 * @return The built model. Implementations should throw [ModelBuilderException] instead of
+	 * returning `null`.
+	 * @throws ModelBuilderException If the model could not be built.
+	 */
+	@Throws(ModelBuilderException::class)
+	fun build(initializeParams: InitializeProjectParams, param: P): R
 }

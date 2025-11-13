@@ -160,7 +160,7 @@ object ProjectSyncHelper {
 
 	/**
 	 * Write the Gradle build model. The model files will be written to the root project's
-	 * directly of the provided [com.itsaky.androidide.project.GradleModels.GradleBuild].
+	 * directory of the provided [com.itsaky.androidide.project.GradleModels.GradleBuild].
 	 *
 	 * @param gradleBuild The Gradle build model.
 	 * @param targetFile The target file.
@@ -273,14 +273,22 @@ object ProjectSyncHelper {
 			if (stored.sha256 == null) {
 				// stored metadata didn't have sha256, so we can't compare
 				// require sync
-				logger.debug("NEED_SYNC: watched file '{}' doesn't have stored checksum", stored.canonicalPath)
+				logger.debug(
+					"NEED_SYNC: watched file '{}' doesn't have stored checksum",
+					stored.canonicalPath
+				)
 				return true
 			}
 
 			if (!computedSha.equals(other = stored.sha256, ignoreCase = true)) {
 				// content changed
 				// require sync
-				logger.debug("NEED_SYNC: checksum mismatch '{}': expected={}, actual={}", stored.canonicalPath, stored.sha256, computedSha)
+				logger.debug(
+					"NEED_SYNC: checksum mismatch '{}': expected={}, actual={}",
+					stored.canonicalPath,
+					stored.sha256,
+					computedSha
+				)
 				return true
 			}
 		}
@@ -290,12 +298,14 @@ object ProjectSyncHelper {
 
 	private suspend fun computeHashes(files: List<SyncMetaModels.FileInfoOrBuilder>): Map<SyncMetaModels.FileInfoOrBuilder, String> =
 		coroutineScope {
-			val deferred =
-				files.associateWith { file ->
-					async { File(file.canonicalPath).sha256() }
-				}
+			withContext(hashDispatcher) {
+				val deferred =
+					files.associateWith { file ->
+						async { File(file.canonicalPath).sha256() }
+					}
 
-			deferred.mapValues { (_, d) -> d.await() }
+				deferred.mapValues { (_, d) -> d.await() }
+			}
 		}
 
 	/**

@@ -38,7 +38,7 @@ object ListingFileRedirect {
 		redirectFileContent: String? = null
 	): File? {
 		if (!redirectFile.exists()) {
-			return redirectFile
+			return null
 		}
 
 		val fileContent = redirectFileContent ?: redirectFile.readText()
