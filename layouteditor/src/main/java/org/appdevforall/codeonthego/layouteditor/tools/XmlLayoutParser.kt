@@ -15,6 +15,7 @@ import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.createView
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.invokeMethod
+import org.appdevforall.codeonthego.layouteditor.utils.restorePositionsAfterLoad
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
@@ -179,6 +180,10 @@ class XmlLayoutParser(context: Context) {
                 }
             }
             parser.next()
+        }
+
+        root?.let {
+            restorePositionsAfterLoad(it, viewAttributeMap)
         }
     }
 
