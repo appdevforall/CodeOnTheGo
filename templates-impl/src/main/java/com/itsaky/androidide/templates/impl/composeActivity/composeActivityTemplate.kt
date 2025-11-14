@@ -56,7 +56,7 @@ fun composeActivityProject() =
 
 				require(data.language == Kotlin) { "Compose activity requires Kotlin language" }
 
-				composeDependencies()
+				composeDependencies(data.useKts)
 
 				res {
 					writeXmlResource("themes", VALUES, source = ::composeThemesXml)
