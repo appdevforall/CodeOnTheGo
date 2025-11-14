@@ -120,6 +120,8 @@ fun Activity.flashSuccess(msg: String?) = showFlashBar(msg, IconType.SUCCESS)
 
 fun Activity.flashError(msg: String?) = showFlashBar(msg, IconType.ERROR)
 
+fun Activity.flashErrorForLong(msg: String?) = showFlashBar(msg = msg, iconType = IconType.ERROR, duration = DURATION_LONG)
+
 fun Activity.flashInfo(msg: String?) = showFlashBar(msg, IconType.INFO)
 
 fun Activity.flashSuccess(
