@@ -29,8 +29,9 @@ import com.itsaky.androidide.utils.FeatureFlags
  * Fragment to show IDE logs.
  * @author Akash Yadav
  */
-class IDELogFragment : LogViewFragment(), GlobalBufferAppender.Consumer {
-
+class IDELogFragment :
+	LogViewFragment(),
+	GlobalBufferAppender.Consumer {
 	override fun isSimpleFormattingEnabled() = true
 
 	override fun getShareableFilename() = "ide_logs"
@@ -45,7 +46,7 @@ class IDELogFragment : LogViewFragment(), GlobalBufferAppender.Consumer {
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
-		emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_idelogs)
+		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_idelogs))
 
 		// Register with GlobalBufferAppender to receive all logs (including buffered ones)
 		GlobalBufferAppender.registerConsumer(this)

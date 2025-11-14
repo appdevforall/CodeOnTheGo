@@ -47,7 +47,7 @@ public abstract class NonEditableEditorFragment extends
 
 		// Editing CodeEditor's content is a synchronized operation
 		editor.getText().delete(0, editor.getText().length());
-		getEmptyStateViewModel().isEmpty().setValue(true);
+		getEmptyStateViewModel().setEmpty(true);
 	}
 
 	@Nullable
@@ -80,7 +80,7 @@ public abstract class NonEditableEditorFragment extends
 	@Override
 	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
 		super.onViewCreated(view, savedInstanceState);
-		getEmptyStateViewModel().getEmptyMessage().setValue(createEmptyStateMessage());
+		getEmptyStateViewModel().setEmptyMessage(createEmptyStateMessage());
 		final var editor = getBinding().getRoot();
 		editor.setEditable(false);
 		editor.setDividerWidth(0);
@@ -93,7 +93,8 @@ public abstract class NonEditableEditorFragment extends
 		editor.setColorScheme(SchemeAndroidIDE.newInstance(requireContext()));
 	}
 
+	@NonNull
 	private CharSequence createEmptyStateMessage() {
-		return null;
+		return "";
 	}
 }
