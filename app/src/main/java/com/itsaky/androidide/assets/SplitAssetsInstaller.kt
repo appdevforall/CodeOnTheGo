@@ -14,6 +14,7 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
@@ -28,6 +29,10 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
         context: Context,
         stagingDir: Path,
     ): Unit = withContext(Dispatchers.IO) {
+        if (!Environment.SPLIT_ASSETS_ZIP.exists()) {
+            throw FileNotFoundException("Assets zip file not found at path: ${Environment.SPLIT_ASSETS_ZIP.path}")
+        }
+
         zipFile = ZipFile(Environment.SPLIT_ASSETS_ZIP)
     }
 
