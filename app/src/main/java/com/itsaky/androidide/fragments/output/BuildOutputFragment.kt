@@ -35,7 +35,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	) {
 		super.onViewCreated(view, savedInstanceState)
 		editor?.includeDebugInfoOnCopy = true
-		emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_buildoutput)
+		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
 		if (unsavedLines.isNotEmpty()) {
 			for (line in unsavedLines) {
 				editor?.append("${line!!.trim()}\n")
@@ -62,7 +62,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 					"${output}\n"
 				}
 			editor?.append(message).also {
-				emptyStateViewModel.isEmpty.value = false
+				emptyStateViewModel.setEmpty(false)
 			}
 		}
 	}
