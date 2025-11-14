@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.ActivityResultLauncher
@@ -49,15 +50,17 @@ class ChatFragment :
         if (isAdded) {
             val insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets)
 
-            // Check if the on-screen keyboard is visible
+            val imeInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val navigationInset =
+                insetsCompat.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
             val isImeVisible = insetsCompat.isVisible(WindowInsetsCompat.Type.ime())
 
-            // Get the height of the IME space
-            val imeHeight = insetsCompat.getInsets(WindowInsetsCompat.Type.ime()).bottom
-
-            // Only apply the height if the software keyboard is visible
             binding.keyboardSpacer.updateLayoutParams {
-                height = if (isImeVisible) imeHeight else 0
+                height = if (isImeVisible) {
+                    (imeInsets - navigationInset).coerceAtLeast(0)
+                } else {
+                    0
+                }
             }
         }
         insets
@@ -215,6 +218,18 @@ class ChatFragment :
     }
 
     private fun setupListeners() {
+        val dismissKeyboardTouchListener = View.OnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                binding.promptInputEdittext.clearFocus()
+                hideKeyboard()
+            }
+            false
+        }
+        binding.chatRecyclerView.setOnTouchListener(dismissKeyboardTouchListener)
+        binding.emptyChatView.apply {
+            isClickable = true
+            setOnTouchListener(dismissKeyboardTouchListener)
+        }
         binding.promptInputEdittext.doAfterTextChanged { text ->
             val currentState = chatViewModel.agentState.value
             if (currentState !is AgentState.Processing && currentState !is AgentState.Cancelling) {
@@ -450,5 +465,10 @@ class ChatFragment :
                 findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
             }
         }
+    }
+
+    private fun hideKeyboard() {
+        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(binding.promptInputEdittext.windowToken, 0)
     }
 }
