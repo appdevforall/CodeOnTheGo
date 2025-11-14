@@ -15,6 +15,7 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.widget.TooltipCompat
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.isEmpty
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -52,6 +53,7 @@ import org.appdevforall.codeonthego.layouteditor.managers.PreferencesManager
 import org.appdevforall.codeonthego.layouteditor.managers.UndoRedoManager
 import org.appdevforall.codeonthego.layouteditor.tools.XmlLayoutGenerator
 import org.appdevforall.codeonthego.layouteditor.tools.XmlLayoutParser
+import org.appdevforall.codeonthego.layouteditor.utils.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.utils.ArgumentUtil.parseType
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
@@ -86,6 +88,8 @@ class DesignEditor : LinearLayout {
     private var isModified = false
     private lateinit var preferencesManager: PreferencesManager
     private var parser: XmlLayoutParser? = null
+    private val attrTranslationX = "android:translationX"
+    private val attrTranslationY = "android:translationY"
 
     init {
         initAttributes()
@@ -217,6 +221,52 @@ class DesignEditor : LinearLayout {
         }
     }
 
+    /**
+     * Updates the **stored attributes** in [viewAttributeMap] for a [child] view
+     * after it's "dropped" at a new position (x, y) within its [ConstraintLayout] parent.
+     *
+     * This function performs the following actions:
+     * 1.  Clamps the raw (x, y) pixel coordinates to ensure the view stays within the
+     * parent container's bounds.
+     * 2.  Converts the clamped pixel coordinates to dp using the screen density.
+     * 3.  Updates the [viewAttributeMap] for the [child]:
+     * - Clears any existing `...constraintBottom_toBottomOf` or `...constraintEnd_toEndOf` attributes.
+     * - Sets `app:layout_constraintStart_toStartOf = "parent"`
+     * - Sets `app:layout_constraintTop_toTopOf = "parent"`
+     * - Sets `app:layout_marginStart = "<x>dp"`
+     * - Sets `app:layout_marginTop = "<y>dp"`
+     *
+     * @param child The view being positioned.
+     * @param x The target X coordinate in container pixels.
+     * @param y The target Y coordinate in container pixels.
+     */
+    private fun positionAtDrop(child: View, x: Float, y: Float) {
+        val container = child.parent as? ConstraintLayout ?: return
+        val density = container.resources.displayMetrics.density
+
+        val maxX = (container.width - child.width).coerceAtLeast(0).toFloat()
+        val maxY = (container.height - child.height).coerceAtLeast(0).toFloat()
+
+        val xPx = x.coerceIn(0f, maxX)
+        val yPx = y.coerceIn(0f, maxY)
+
+        val xDp = xPx / density
+        val yDp = yPx / density
+
+        viewAttributeMap[child]?.apply {
+            if (contains("app:layout_constraintBottom_toBottomOf")) removeValue("app:layout_constraintBottom_toBottomOf")
+            if (contains("app:layout_constraintEnd_toEndOf")) removeValue("app:layout_constraintEnd_toEndOf")
+
+            putValue("app:layout_constraintStart_toStartOf", "parent")
+            putValue("app:layout_constraintTop_toTopOf", "parent")
+            putValue("app:layout_marginStart", "${xDp}dp")
+            putValue("app:layout_marginTop", "${yDp}dp")
+        }
+
+        markAsModified()
+    }
+
+
     private fun setDragListener(group: ViewGroup) {
         group.setOnDragListener(
             OnDragListener { host, event ->
@@ -256,10 +306,7 @@ class DesignEditor : LinearLayout {
 
                             if (index != newIndex) {
                                 parent.removeView(shadow)
-                                try {
-                                    parent.addView(shadow, newIndex)
-                                } catch (_: IllegalStateException) {
-                                }
+                                runCatching { parent.addView(shadow, newIndex) }
                             }
                         } else {
                             if (shadow.parent !== parent) addWidget(shadow, parent, event)
@@ -280,6 +327,7 @@ class DesignEditor : LinearLayout {
                                 if (parent is DesignEditor) parent = getChildAt(0) as ViewGroup
                             }
                         }
+
                         if (draggedView == null) {
                             @Suppress("UNCHECKED_CAST") val data: HashMap<String, Any> =
                                 event.localState as HashMap<String, Any>
@@ -334,12 +382,17 @@ class DesignEditor : LinearLayout {
 
                             if (data.containsKey(Constants.KEY_DEFAULT_ATTRS)) {
                                 @Suppress("UNCHECKED_CAST")
-                                initializer.applyDefaultAttributes(
-                                    newView,
-                                    data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>
-                                )
+                                val defaults = (data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>).toMutableMap()
+                                defaults.remove(attrTranslationX)
+                                defaults.remove(attrTranslationY)
+                                initializer.applyDefaultAttributes(newView, defaults)
                             }
+
+                            positionAtDrop(newView, event.x, event.y)
+                            val rootLayout = getChildAt(0)
+                            restorePositionsAfterLoad(rootLayout, viewAttributeMap)
                         } else addWidget(draggedView, parent, event)
+
                         updateStructure()
                         updateUndoRedoHistory()
                     }
@@ -499,8 +552,13 @@ class DesignEditor : LinearLayout {
                     tag = view.javaClass.superclass.name
                 )
             },
-            onDrag = {
-                view.startDragAndDrop(null, DragShadowBuilder(view), view, 0)
+            onDrop = { child, x, y ->
+                positionAtDrop(child, x, y)
+                val rootLayout = getChildAt(0)
+                restorePositionsAfterLoad(rootLayout, viewAttributeMap)
+
+                updateStructure()
+                updateUndoRedoHistory()
             }
         )
     }
