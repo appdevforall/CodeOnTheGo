@@ -6,7 +6,6 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
 
-
 /**
  * Modifies a [ConstraintSet] to apply basic constraints to a specific view.
  *
@@ -19,7 +18,12 @@ import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
  * @param startPxMargin The START margin in **pixels**.
  * @param topPxMargin The TOP margin in **pixels**.
  */
-private fun modifyConstraintsForView(constraintSet: ConstraintSet, viewId: Int, startPxMargin: Int, topPxMargin: Int) {
+private fun modifyConstraintsForView(
+	constraintSet: ConstraintSet,
+	viewId: Int,
+	startPxMargin: Int,
+	topPxMargin: Int,
+) {
 	constraintSet.clear(viewId, ConstraintSet.BOTTOM)
 	constraintSet.clear(viewId, ConstraintSet.END)
 	constraintSet.connect(viewId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
@@ -55,9 +59,9 @@ private fun String.toPx(density: Float): Float {
  * Helper class to store a set of constraint changes for a single view.
  */
 private data class ViewConstraintChange(
-    val viewId: Int,
-    val startMargin: Int,
-    val topMargin: Int
+	val viewId: Int,
+	val startMargin: Int,
+	val topMargin: Int,
 )
 
 /**
@@ -80,7 +84,10 @@ private data class ViewConstraintChange(
  * @param rootView The root [View] to observe for layout completion.
  * @param attributeMap A [Map] of [View]s to their corresponding [AttributeMap].
  */
-fun restorePositionsAfterLoad(rootView: View, attributeMap: Map<View, AttributeMap>) {
+fun restorePositionsAfterLoad(
+	rootView: View,
+	attributeMap: Map<View, AttributeMap>,
+) {
 	rootView.doOnLayout { container ->
 		val density = container.resources.displayMetrics.density
 
@@ -105,11 +112,13 @@ fun restorePositionsAfterLoad(rootView: View, attributeMap: Map<View, AttributeM
 
 				val changesList = changesByContainer.getOrPut(constraintContainer) { mutableListOf() }
 
-				changesList.add(ViewConstraintChange(
-					viewId = view.id,
-					startMargin = txPx.toInt(),
-					topMargin = tyPx.toInt()
-				))
+				changesList.add(
+					ViewConstraintChange(
+						viewId = view.id,
+						startMargin = txPx.toInt(),
+						topMargin = tyPx.toInt(),
+					),
+				)
 			}
 		}
 
@@ -124,7 +133,7 @@ fun restorePositionsAfterLoad(rootView: View, attributeMap: Map<View, AttributeM
 					constraintSet,
 					change.viewId,
 					change.startMargin,
-					change.topMargin
+					change.topMargin,
 				)
 			}
 

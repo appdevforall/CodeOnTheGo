@@ -41,7 +41,7 @@ import com.itsaky.androidide.lsp.xml.providers.AdvancedEditProvider.onContentCha
 import com.itsaky.androidide.lsp.xml.providers.CodeFormatProvider
 import com.itsaky.androidide.lsp.xml.providers.XmlCompletionProvider
 import com.itsaky.androidide.models.Range
-import com.itsaky.androidide.projects.api.Project
+import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -54,89 +54,75 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class XMLLanguageServer : ILanguageServer {
+	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+	override var client: ILanguageClient? = null
+		private set
 
-  @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-  override var client: ILanguageClient? = null
-    private set
+	private var settings: IServerSettings? = null
 
-  private var settings: IServerSettings? = null
+	override val serverId: String = SERVER_ID
 
-  override val serverId: String = SERVER_ID
+	init {
+		EventBus.getDefault().register(this)
+	}
 
-  init {
-    EventBus.getDefault().register(this)
-  }
+	override fun shutdown() {
+		if (EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().unregister(this)
+		}
+	}
 
-  override fun shutdown() {
-    if (EventBus.getDefault().isRegistered(this)) {
-      EventBus.getDefault().unregister(this)
-    }
-  }
+	override fun connectClient(client: ILanguageClient?) {
+		this.client = client
+	}
 
-  override fun connectClient(client: ILanguageClient?) {
-    this.client = client
-  }
+	override fun applySettings(settings: IServerSettings?) {
+		this.settings = settings
+	}
 
-  override fun applySettings(settings: IServerSettings?) {
-    this.settings = settings
-  }
+	override fun setupWithProject(workspace: Workspace) {}
 
-  override fun setupWithProject(project: Project) {}
-  override fun complete(params: CompletionParams?): CompletionResult {
-    val completionProvider: ICompletionProvider
-    completionProvider = if (!getSettings().completionsEnabled()) {
-      NoCompletionsProvider()
-    } else {
-      XmlCompletionProvider(getSettings())
-    }
-    return completionProvider.complete(params)
-  }
+	override fun complete(params: CompletionParams?): CompletionResult {
+		val completionProvider: ICompletionProvider
+		completionProvider =
+			if (!getSettings().completionsEnabled()) {
+				NoCompletionsProvider()
+			} else {
+				XmlCompletionProvider(getSettings())
+			}
+		return completionProvider.complete(params)
+	}
 
-  fun getSettings(): IServerSettings {
-    if (settings == null) {
-      settings = XMLServerSettings
-    }
-    return settings!!
-  }
+	fun getSettings(): IServerSettings {
+		if (settings == null) {
+			settings = XMLServerSettings
+		}
+		return settings!!
+	}
 
-  override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
-    return ReferenceResult(emptyList())
-  }
+	override suspend fun findReferences(params: ReferenceParams): ReferenceResult = ReferenceResult(emptyList())
 
-  override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
-    return DefinitionResult(emptyList())
-  }
+	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult = DefinitionResult(emptyList())
 
-  override suspend fun expandSelection(params: ExpandSelectionParams): Range {
-    return params.selection
-  }
+	override suspend fun expandSelection(params: ExpandSelectionParams): Range = params.selection
 
-  override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
-    return SignatureHelp(emptyList(), -1, -1)
-  }
+	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp = SignatureHelp(emptyList(), -1, -1)
 
-  override suspend fun analyze(file: Path): DiagnosticResult {
-    return DiagnosticResult.NO_UPDATE
-  }
+	override suspend fun analyze(file: Path): DiagnosticResult = DiagnosticResult.NO_UPDATE
 
-  override fun formatCode(params: FormatCodeParams?): CodeFormatResult {
-    return CodeFormatProvider().format(params)
-  }
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = CodeFormatProvider().format(params)
 
-  @Subscribe(threadMode = ThreadMode.BACKGROUND)
-  fun onDocumentChange(event: DocumentChangeEvent) {
-    if (!DocumentUtils.isXmlFile(event.changedFile)) {
-      return
-    }
-    onContentChange(event)
-  }
+	@Subscribe(threadMode = ThreadMode.BACKGROUND)
+	fun onDocumentChange(event: DocumentChangeEvent) {
+		if (!DocumentUtils.isXmlFile(event.changedFile)) {
+			return
+		}
+		onContentChange(event)
+	}
 
-  override fun handleFailure(failure: LSPFailure?): Boolean {
-    return super<ILanguageServer>.handleFailure(failure)
-  }
+	override fun handleFailure(failure: LSPFailure?): Boolean = super<ILanguageServer>.handleFailure(failure)
 
-  companion object {
-
-    const val SERVER_ID = "ide.lsp.xml"
-  }
+	companion object {
+		const val SERVER_ID = "ide.lsp.xml"
+	}
 }
