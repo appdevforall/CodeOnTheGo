@@ -41,9 +41,9 @@ public final class Environment {
 	private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
 	public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
 	public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/lib/jvm/java-21-openjdk";
-	private static final String ANDROIDIDE_PROJECT_CACHE_DIR = ".androidide";
-
+	private static final String ANDROIDIDE_PROJECT_CACHE_DIR = SharedEnvironment.PROJECT_CACHE_DIR_NAME;
 	private static final String DATABASE_NAME = "documentation.db";
+
 	private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
 	public static File ROOT;
 	public static File PREFIX;
@@ -88,7 +88,7 @@ public final class Environment {
 
 	public static File KEYSTORE_DIR;
 	public static File KEYSTORE_RELEASE;
-	public static File KEYSTORE_PROPERTIES ;
+	public static File KEYSTORE_PROPERTIES;
 	public static String KEYSTORE_RELEASE_NAME = "release.keystore";
 	public static String KEYSTORE_PROPERTIES_NAME = "release.properties";
 	public static String KEYSTORE_PROP_STOREFILE = "storeFile";
