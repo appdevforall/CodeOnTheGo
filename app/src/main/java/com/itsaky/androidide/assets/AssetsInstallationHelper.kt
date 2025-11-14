@@ -163,7 +163,7 @@ object AssetsInstallationHelper {
 
     @WorkerThread
     internal fun extractZipToDir(srcStream: InputStream, destDir: Path) {
-        Files.createDirectories(destDir)
+        createDirectorySafely(destDir)
         ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
             val destFile = destDir.resolve(entry.name).normalize()
             if (!destFile.pathString.startsWith(destDir.pathString)) {
@@ -172,12 +172,27 @@ object AssetsInstallationHelper {
             }
 
             if (entry.isDirectory) {
-                Files.createDirectories(destFile)
+                createDirectorySafely(destFile)
             } else {
+                destFile.parent?.let { createDirectorySafely(it) }
                 Files.newOutputStream(destFile).use { dest ->
                     zipInput.copyTo(dest)
                 }
             }
+        }
+    }
+
+    private fun createDirectorySafely(path: Path) {
+        when {
+            Files.exists(path) && Files.isDirectory(path) -> return
+            Files.exists(path) && !Files.isDirectory(path) -> Files.delete(path)
+        }
+
+        try {
+            Files.createDirectories(path)
+        } catch (e: Exception) {
+            logger.error("Failed to create directory: $path", e)
+            throw e
         }
     }
 }

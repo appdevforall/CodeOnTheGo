@@ -21,7 +21,7 @@ sealed interface AssetsInstaller {
          * value, please update the corresponding value in `AndroidModuleConf.kt`.
          */
         @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
-        private val USE_BUNDLED_ASSETS = !BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "instrumentation"
+        private val USE_BUNDLED_ASSETS = BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "instrumentation"
 
         /**
          * The current assets installer.
