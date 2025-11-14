@@ -34,194 +34,194 @@ import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
 
 internal object RightEditorSidebarActions {
-    private val tooltipTags = mutableListOf<String>()
+	private val tooltipTags = mutableListOf<String>()
 
-    const val startDestination = AgentSidebarAction.ID
+	const val startDestination = AgentSidebarAction.ID
 
-    @JvmStatic
-    fun registerActions(context: Context) {
-        val registry = ActionsRegistry.getInstance()
-        var order = -1
+	@JvmStatic
+	fun registerActions(context: Context) {
+		val registry = ActionsRegistry.getInstance()
+		var order = -1
 
-        @Suppress("KotlinConstantConditions")
-        registry.registerAction(AgentSidebarAction(context, ++order))
-        registry.registerAction(BuildVariantsSidebarAction(context, ++order))
-    }
-    @JvmStatic
-    fun setup(sidebarFragment: RightEditorSidebarFragment) {
-        val binding = sidebarFragment.getBinding() ?: return
-        val controller = binding.rightEditorFragmentContainer.getFragment<NavHostFragment>().navController
-        val context = sidebarFragment.requireContext()
-        val rail = binding.navigation
-        val activity = sidebarFragment.activity
-        val registry = ActionsRegistry.getInstance()
-        val actions = registry.getActions(ActionItem.Location.EDITOR_RIGHT_SIDEBAR)
-        if (actions.isEmpty()) {
-            return
-        }
-        // Get the controller interface from the activity
-        val agentPanelController = if (activity is AgentPanelController) activity else null
+		@Suppress("KotlinConstantConditions")
+		registry.registerAction(AgentSidebarAction(context, ++order))
+		registry.registerAction(BuildVariantsSidebarAction(context, ++order))
+	}
+	@JvmStatic
+	fun setup(sidebarFragment: RightEditorSidebarFragment) {
+		val binding = sidebarFragment.getBinding() ?: return
+		val controller = binding.rightEditorFragmentContainer.getFragment<NavHostFragment>().navController
+		val context = sidebarFragment.requireContext()
+		val rail = binding.navigation
+		val activity = sidebarFragment.activity
+		val registry = ActionsRegistry.getInstance()
+		val actions = registry.getActions(ActionItem.Location.EDITOR_RIGHT_SIDEBAR)
+		if (actions.isEmpty()) {
+			return
+		}
+		// Get the controller interface from the activity
+		val agentPanelController = if (activity is AgentPanelController) activity else null
 
-        rail.background = (rail.background as MaterialShapeDrawable).apply {
-            shapeAppearanceModel = shapeAppearanceModel.roundedOnLeft()
-        }
+		rail.background = (rail.background as MaterialShapeDrawable).apply {
+			shapeAppearanceModel = shapeAppearanceModel.roundedOnLeft()
+		}
 
-        rail.menu.clear()
+		rail.menu.clear()
 
-        val data = ActionData.create(context)
-        val titleRef = WeakReference(binding.title)
-        val params = FillMenuParams(
-            data,
-            ActionItem.Location.EDITOR_RIGHT_SIDEBAR,
-            rail.menu
-        ) { actionsRegistry, action, item, actionsData ->
-            action as SidebarActionItem
+		val data = ActionData.create(context)
+		val titleRef = WeakReference(binding.title)
+		val params = FillMenuParams(
+			data,
+			ActionItem.Location.EDITOR_RIGHT_SIDEBAR,
+			rail.menu
+		) { actionsRegistry, action, item, actionsData ->
+			action as SidebarActionItem
 
 
-            if (action.fragmentClass == null) {
-                (actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
-                return@FillMenuParams true
-            }
+			if (action.fragmentClass == null) {
+				(actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
+				return@FillMenuParams true
+			}
 
-            // This logic will now apply to the Agent Action as well, which is correct.
-            return@FillMenuParams try {
-                controller.navigate(action.id, navOptions {
-                    launchSingleTop = true
-                    restoreState = true
-                    popUpTo(controller.graph.startDestinationId) {
-                        saveState = true
-                    }
-                })
+			// This logic will now apply to the Agent Action as well, which is correct.
+			return@FillMenuParams try {
+				controller.navigate(action.id, navOptions {
+					launchSingleTop = true
+					restoreState = true
+					popUpTo(controller.graph.startDestinationId) {
+						saveState = true
+					}
+				})
 
-                val result = controller.currentDestination?.matchDestination(action.id) == true
-                if (result) {
-                    item.isChecked = true
-                    titleRef.get()?.text = item.title
-                }
+				val result = controller.currentDestination?.matchDestination(action.id) == true
+				if (result) {
+					item.isChecked = true
+					titleRef.get()?.text = item.title
+				}
 
-                result
-            } catch (e: IllegalArgumentException) {
-                false
-            }
-        }
+				result
+			} catch (e: IllegalArgumentException) {
+				false
+			}
+		}
 
-        registry.fillMenu(params)
+		registry.fillMenu(params)
 
-        rail.menu.forEach { item ->
-            val view = rail.findViewById<View>(item.itemId)
-            val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
+		rail.menu.forEach { item ->
+			val view = rail.findViewById<View>(item.itemId)
+			val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
 
-            if (view != null && action != null) {
-                val tag = action.tooltipTag()
-                sidebarFragment.setupTooltip(view, tag)
-                tooltipTags += tag
-            }
-        }
+			if (view != null && action != null) {
+				val tag = action.tooltipTag()
+				sidebarFragment.setupTooltip(view, tag)
+				tooltipTags += tag
+			}
+		}
 
-        controller.graph = controller.createGraph(startDestination = startDestination) {
-            actions.forEach { (actionId, action) ->
-                if (action !is SidebarActionItem) {
-                    throw IllegalStateException(
-                        "Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
-                                " must implement ${SidebarActionItem::class.java.simpleName}"
-                    )
-                }
+		controller.graph = controller.createGraph(startDestination = startDestination) {
+			actions.forEach { (actionId, action) ->
+				if (action !is SidebarActionItem) {
+					throw IllegalStateException(
+						"Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
+								" must implement ${SidebarActionItem::class.java.simpleName}"
+					)
+				}
 
-                val fragment = action.fragmentClass ?: return@forEach
+				val fragment = action.fragmentClass ?: return@forEach
 
-                val builder = FragmentNavigatorDestinationBuilder(
-                    provider[FragmentNavigator::class],
-                    actionId,
-                    fragment
-                )
+				val builder = FragmentNavigatorDestinationBuilder(
+					provider[FragmentNavigator::class],
+					actionId,
+					fragment
+				)
 
-                builder.apply {
-                    action.apply { buildNavigation() }
-                }
+				builder.apply {
+					action.apply { buildNavigation() }
+				}
 
-                destination(builder)
-            }
-        }
+				destination(builder)
+			}
+		}
 
-        val railRef = WeakReference(rail)
-        controller.addOnDestinationChangedListener(
-            object : NavController.OnDestinationChangedListener {
-                override fun onDestinationChanged(
-                    controller: NavController,
-                    destination: NavDestination,
-                    arguments: Bundle?
-                ) {
-                    val railView = railRef.get()
-                    if (railView == null) {
-                        controller.removeOnDestinationChangedListener(this)
-                        return
-                    }
-                    railView.menu.forEach { item ->
-                        if (destination.matchDestination(item.itemId)) {
-                            item.isChecked = true
-                            titleRef.get()?.text = item.title
-                        }
-                    }
-                }
-            })
+		val railRef = WeakReference(rail)
+		controller.addOnDestinationChangedListener(
+			object : NavController.OnDestinationChangedListener {
+				override fun onDestinationChanged(
+					controller: NavController,
+					destination: NavDestination,
+					arguments: Bundle?
+				) {
+					val railView = railRef.get()
+					if (railView == null) {
+						controller.removeOnDestinationChangedListener(this)
+						return
+					}
+					railView.menu.forEach { item ->
+						if (destination.matchDestination(item.itemId)) {
+							item.isChecked = true
+							titleRef.get()?.text = item.title
+						}
+					}
+				}
+			})
 
-        rail.menu.findItem(startDestination.hashCode())?.also {
-            it.isChecked = true
-            binding.title.text = it.title
-        }
-    }
+		rail.menu.findItem(startDestination.hashCode())?.also {
+			it.isChecked = true
+			binding.title.text = it.title
+		}
+	}
 
-    /**
-     * Determines whether the given `route` matches the NavDestination. This handles
-     * both the default case (the destination's route matches the given route) and the nested case where
-     * the given route is a parent/grandparent/etc of the destination.
-     */
-    @JvmStatic
-    internal fun NavDestination.matchDestination(route: String): Boolean =
-        hierarchy.any { it.route == route }
+	/**
+	 * Determines whether the given `route` matches the NavDestination. This handles
+	 * both the default case (the destination's route matches the given route) and the nested case where
+	 * the given route is a parent/grandparent/etc of the destination.
+	 */
+	@JvmStatic
+	internal fun NavDestination.matchDestination(route: String): Boolean =
+		hierarchy.any { it.route == route }
 
-    @JvmStatic
-    internal fun NavDestination.matchDestination(@IdRes destId: Int): Boolean =
-        hierarchy.any { it.id == destId }
+	@JvmStatic
+	internal fun NavDestination.matchDestination(@IdRes destId: Int): Boolean =
+		hierarchy.any { it.id == destId }
 
-    @JvmStatic
-    internal fun ShapeAppearanceModel.roundedOnRight(cornerSize: Float = 28f): ShapeAppearanceModel {
-        return toBuilder().run {
-            setTopRightCorner(CornerFamily.ROUNDED, cornerSize)
-            setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
-            build()
-        }
-    }
+	@JvmStatic
+	internal fun ShapeAppearanceModel.roundedOnRight(cornerSize: Float = 28f): ShapeAppearanceModel {
+		return toBuilder().run {
+			setTopRightCorner(CornerFamily.ROUNDED, cornerSize)
+			setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
+			build()
+		}
+	}
 
-    @JvmStatic
-    internal fun ShapeAppearanceModel.roundedOnLeft(cornerSize: Float = 28f): ShapeAppearanceModel {
-        return toBuilder().run {
-            setTopLeftCorner(CornerFamily.ROUNDED, cornerSize)
-            setBottomLeftCorner(CornerFamily.ROUNDED, cornerSize)
-            build()
-        }
-    }
+	@JvmStatic
+	internal fun ShapeAppearanceModel.roundedOnLeft(cornerSize: Float = 28f): ShapeAppearanceModel {
+		return toBuilder().run {
+			setTopLeftCorner(CornerFamily.ROUNDED, cornerSize)
+			setBottomLeftCorner(CornerFamily.ROUNDED, cornerSize)
+			build()
+		}
+	}
 
-    fun showContactDialog(context: Context) {
-        val builder = DialogUtils.newMaterialDialogBuilder(context)
+	fun showContactDialog(context: Context) {
+		val builder = DialogUtils.newMaterialDialogBuilder(context)
 
-        builder.setTitle(R.string.msg_contact_app_dev_title)
-            .setMessage(R.string.msg_contact_app_dev_description)
-            .setNegativeButton(android.R.string.cancel) { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setPositiveButton(R.string.send_email) { dialog, _ ->
-                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = "mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject)}".toUri()
-                }
-                context.startActivity(intent)
-                dialog.dismiss()
-            }
-            .create()
-            .show()
-    }
+		builder.setTitle(R.string.msg_contact_app_dev_title)
+			.setMessage(R.string.msg_contact_app_dev_description)
+			.setNegativeButton(android.R.string.cancel) { dialog, _ ->
+				dialog.dismiss()
+			}
+			.setPositiveButton(R.string.send_email) { dialog, _ ->
+				val intent = Intent(Intent.ACTION_SENDTO).apply {
+					data = "mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject)}".toUri()
+				}
+				context.startActivity(intent)
+				dialog.dismiss()
+			}
+			.create()
+			.show()
+	}
 
-    fun SidebarActionItem.tooltipTag(): String {
-        return "ide.sidebar.${label.lowercase().replace("[^a-z0-9]+".toRegex(), "_")}.longpress"
-    }
+	fun SidebarActionItem.tooltipTag(): String {
+		return "ide.sidebar.${label.lowercase().replace("[^a-z0-9]+".toRegex(), "_")}.longpress"
+	}
 }
