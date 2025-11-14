@@ -17,36 +17,13 @@
 
 package com.itsaky.androidide.projects.api
 
-import com.itsaky.androidide.tooling.api.ProjectType
-import com.itsaky.androidide.tooling.api.models.GradleTask
-import java.io.File
-import java.util.concurrent.CompletableFuture
+import com.itsaky.androidide.project.GradleModels
 
 /**
- * A Gradle project model which is identical to [IGradleProject][com.itsaky.androidide.tooling.api.IGradleProject]. This project module caches all the data
- * from an [IGradleProject][com.itsaky.androidide.tooling.api.IGradleProject] eliminating the use of [CompletableFuture] s.
+ * A Gradle project model.
  *
- * @param name The display name of the project.
- * @param description The project description.
- * @param path The project path (same as Gradle project paths). For example, `:app`,
- *   `:module:submodule`, etc. Root project is always represented by path `:`.
- * @param projectDir The project directory.
- * @param buildDir The build directory of the project.
- * @param buildScript The Gradle buildscript file of the project.
- * @param tasks The tasks of the project.
- * @param subModules The submodules of the project.
  * @author Akash Yadav
  */
 open class GradleProject(
-  val name: String,
-  val description: String,
-  val path: String,
-  val projectDir: File,
-  val buildDir: File,
-  val buildScript: File,
-  val tasks: List<GradleTask>
-) {
-
-  var type: ProjectType = ProjectType.Gradle
-    protected set
-}
+	val delegate: GradleModels.GradleProject,
+) : GradleModels.GradleProjectOrBuilder by delegate
