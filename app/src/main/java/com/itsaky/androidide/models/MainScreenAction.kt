@@ -73,12 +73,6 @@ constructor(
             R.drawable.ic_delete
         )
 
-        val cloneGitRepository = MainScreenAction(
-            ACTION_CLONE_REPO,
-            R.string.git_clone_repo,
-            R.drawable.ic_git
-        )
-
         val openTerminal = MainScreenAction(
             ACTION_OPEN_TERMINAL,
             R.string.title_terminal,
@@ -107,7 +101,6 @@ constructor(
             createProject,
             openProject,
             deleteProject,
-            cloneGitRepository,
             openTerminal,
             preferences,
             donate,
@@ -123,11 +116,7 @@ constructor(
 
         @JvmStatic
         fun mainScreen(): List<MainScreenAction> {
-            return if (FeatureFlags.isExperimentsEnabled()) {
-                mainActions
-            } else {
-                mainActions.minus(cloneGitRepository)
-            }
+            return mainActions
         }
     }
 }
