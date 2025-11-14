@@ -1,0 +1,74 @@
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+option java_outer_classname = "JavaModels";
+
+package com.itsaky.androidide.project;
+import "common.proto";
+
+// A Java source directory.
+message JavaSourceDirectory {
+
+  // The path to the source directory.
+  string directoryPath = 1;
+
+  // Whether the source directory is auto-generated.
+  bool isGenerated = 2;
+}
+
+// A Java content root model.
+message JavaContentRoot {
+
+  // The list of source directories in the content root.
+  repeated JavaSourceDirectory sourceDirectory = 1;
+
+  // The list of test directories in the content root.
+  repeated JavaSourceDirectory testDirectory = 2;
+}
+
+// An external library dependency.
+message JavaExternalLibraryDependency {
+
+  // The library artifact info.
+  optional LibraryInfo libraryInfo = 1;
+}
+
+// A Java module dependency.
+message JavaModuleDependency {
+
+  // The name of the module.
+  string moduleName = 1;
+
+  // The Gradle project path of the dependency.
+  string projectPath = 2;
+}
+
+// A Java module dependency model.
+message JavaDependency {
+
+  // The path to the JAR file of the dependency.
+  optional string jarFilePath = 1;
+
+  // The scope of the dependency.
+  string scope = 2;
+
+  // Whether the dependency is exported.
+  bool exported = 3;
+
+  oneof dependency {
+    JavaExternalLibraryDependency externalLibrary = 4;
+    JavaModuleDependency module = 5;
+  }
+}
+
+// A Java project model.
+message JavaProject {
+
+  // The content roots of the project.
+  repeated JavaContentRoot contentRoot = 1;
+
+  // The list of dependencies of the project.
+  repeated JavaDependency dependency = 2;
+
+  // The Java compiler settings for this project.
+  JavaCompilerSettings javaCompilerSettings = 3;
+}
