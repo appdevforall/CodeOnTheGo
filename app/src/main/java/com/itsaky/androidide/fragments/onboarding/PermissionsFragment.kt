@@ -103,7 +103,10 @@ class PermissionsFragment :
 			}
 	}
 
-	override fun createContentView(parent: ViewGroup, attachToParent: Boolean) {
+	override fun createContentView(
+		parent: ViewGroup,
+		attachToParent: Boolean,
+	) {
 		permissionsBinding = LayoutOnboardingPermissionsBinding.inflate(layoutInflater, parent, attachToParent)
 		permissionsBinding?.let { b ->
 			recyclerView = b.onboardingItems
@@ -117,10 +120,13 @@ class PermissionsFragment :
 		}
 	}
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		observeViewModelState()
-        observeViewModelEvents()
+		observeViewModelEvents()
 		val allGranted = PermissionsHelper.areAllPermissionsGranted(requireContext())
 		viewModel.onPermissionsUpdated(allGranted)
 	}
@@ -135,18 +141,18 @@ class PermissionsFragment :
 		}
 	}
 
-    private fun observeViewModelEvents() {
-        viewLifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.events.collect { event ->
-                    when (event) {
-                        is InstallationEvent.ShowError -> activity?.flashErrorForLong(event.message)
-                        is InstallationEvent.InstallationResultEvent -> {}
-                    }
-                }
-            }
-        }
-    }
+	private fun observeViewModelEvents() {
+		viewLifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				viewModel.events.collect { event ->
+					when (event) {
+						is InstallationEvent.ShowError -> activity?.flashErrorForLong(event.message)
+						is InstallationEvent.InstallationResultEvent -> {}
+					}
+				}
+			}
+		}
+	}
 
 	private fun handleState(state: InstallationState) {
 		when (state) {
@@ -193,10 +199,10 @@ class PermissionsFragment :
 	}
 
 	private fun startIdeSetup() {
-        val shouldProceed = viewModel.checkStorageAndNotify(requireContext())
-        if (!shouldProceed) {
-            return
-        }
+		val shouldProceed = viewModel.checkStorageAndNotify(requireContext())
+		if (!shouldProceed) {
+			return
+		}
 
 		if (viewModel.isSetupComplete()) {
 			(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()

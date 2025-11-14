@@ -30,12 +30,14 @@ import org.greenrobot.eventbus.EventBus
  * @author Akash Yadav
  */
 class InstallationResultReceiver : BroadcastReceiver() {
-
 	companion object {
 		const val ACTION_INSTALL_STATUS = "${BuildInfo.PACKAGE_NAME}.installer.INSTALL_STATUS"
 	}
 
-	override fun onReceive(context: Context, intent: Intent) {
+	override fun onReceive(
+		context: Context,
+		intent: Intent,
+	) {
 		EventBus.getDefault().post(InstallationResultEvent(intent))
 	}
 }
