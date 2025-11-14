@@ -71,8 +71,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
                 ),
                 HeaderItem("WEB SEARCH"),
                 SelectableItem("web", "Search the web for an answer", R.drawable.ic_search),
-                HeaderItem("GIT"),
-                SelectableItem("git_status", "Git Status", R.drawable.ic_git),
                 HeaderItem(BUILD_OUTPUT_TITLE),
                 SelectableItem("build_output", "Build Output", R.drawable.ic_hammer)
             )
