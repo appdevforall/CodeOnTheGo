@@ -44,6 +44,8 @@ import org.appdevforall.codeonthego.layouteditor.editor.dialogs.StringDialog
 import org.appdevforall.codeonthego.layouteditor.editor.dialogs.ViewDialog
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.positionAtDrop
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.restoreSingleViewPosition
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.getViewId
@@ -86,6 +88,8 @@ class DesignEditor : LinearLayout {
     private var isModified = false
     private lateinit var preferencesManager: PreferencesManager
     private var parser: XmlLayoutParser? = null
+    private val attrTranslationX = "android:translationX"
+    private val attrTranslationY = "android:translationY"
 
     init {
         initAttributes()
@@ -256,10 +260,7 @@ class DesignEditor : LinearLayout {
 
                             if (index != newIndex) {
                                 parent.removeView(shadow)
-                                try {
-                                    parent.addView(shadow, newIndex)
-                                } catch (_: IllegalStateException) {
-                                }
+                                runCatching { parent.addView(shadow, newIndex) }
                             }
                         } else {
                             if (shadow.parent !== parent) addWidget(shadow, parent, event)
@@ -280,6 +281,7 @@ class DesignEditor : LinearLayout {
                                 if (parent is DesignEditor) parent = getChildAt(0) as ViewGroup
                             }
                         }
+
                         if (draggedView == null) {
                             @Suppress("UNCHECKED_CAST") val data: HashMap<String, Any> =
                                 event.localState as HashMap<String, Any>
@@ -334,12 +336,17 @@ class DesignEditor : LinearLayout {
 
                             if (data.containsKey(Constants.KEY_DEFAULT_ATTRS)) {
                                 @Suppress("UNCHECKED_CAST")
-                                initializer.applyDefaultAttributes(
-                                    newView,
-                                    data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>
-                                )
+                                val defaults = (data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>).toMutableMap()
+                                defaults.remove(attrTranslationX)
+                                defaults.remove(attrTranslationY)
+                                initializer.applyDefaultAttributes(newView, defaults)
                             }
+
+                            positionAtDrop(newView, event.x, event.y, viewAttributeMap)
+                            val rootLayout = getChildAt(0)
+                            restoreSingleViewPosition(rootLayout, newView, viewAttributeMap)
                         } else addWidget(draggedView, parent, event)
+
                         updateStructure()
                         updateUndoRedoHistory()
                     }
@@ -499,8 +506,13 @@ class DesignEditor : LinearLayout {
                     tag = view.javaClass.superclass.name
                 )
             },
-            onDrag = {
-                view.startDragAndDrop(null, DragShadowBuilder(view), view, 0)
+            onDrop = { child, x, y ->
+                positionAtDrop(child, x, y, viewAttributeMap)
+                val rootLayout = getChildAt(0)
+                restoreSingleViewPosition(rootLayout, child, viewAttributeMap)
+
+                updateStructure()
+                updateUndoRedoHistory()
             }
         )
     }

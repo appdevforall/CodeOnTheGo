@@ -9,6 +9,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addNewId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
@@ -179,6 +180,10 @@ class XmlLayoutParser(context: Context) {
                 }
             }
             parser.next()
+        }
+
+        root?.let {
+            restorePositionsAfterLoad(it, viewAttributeMap)
         }
     }
 
