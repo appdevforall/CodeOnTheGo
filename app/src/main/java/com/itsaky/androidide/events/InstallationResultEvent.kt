@@ -24,4 +24,7 @@ import android.content.Intent
  *
  * @author Akash Yadav
  */
-data class InstallationResultEvent(val intent: Intent)
+sealed class InstallationEvent {
+    data class InstallationResultEvent(val intent: Intent) : InstallationEvent()
+    data class ShowError(val message: String) : InstallationEvent()
+}

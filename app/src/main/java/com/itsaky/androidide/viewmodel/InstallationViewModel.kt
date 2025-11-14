@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.assets.AssetsInstallationHelper
+import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.withStopWatch
@@ -22,6 +23,8 @@ import com.itsaky.androidide.viewmodel.InstallationState.Installing
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationComplete
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationError
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import org.slf4j.LoggerFactory
 
 class InstallationViewModel : ViewModel() {
@@ -33,6 +36,10 @@ class InstallationViewModel : ViewModel() {
 
     private val _installationProgress = MutableStateFlow("")
     val installationProgress: StateFlow<String> = _installationProgress.asStateFlow()
+
+    private val _events = MutableSharedFlow<InstallationEvent>()
+    val events = _events.asSharedFlow()
+
     fun onPermissionsUpdated(allGranted: Boolean) {
         if (allGranted && _state.value is InstallationPending) {
             _state.update { InstallationGranted }

@@ -88,7 +88,7 @@ import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
-import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.events.InstallationEvent.InstallationResultEvent
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver

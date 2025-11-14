@@ -21,7 +21,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.events.InstallationEvent.InstallationResultEvent
 import org.greenrobot.eventbus.EventBus
 
 /**
