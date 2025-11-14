@@ -26,25 +26,12 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 
     private val logger = LoggerFactory.getLogger(BundledAssetsInstaller::class.java)
 
+    // Do nothing here
+    // All assets (including bootstrap packages) will be read directly from the assets input stream
     override suspend fun preInstall(
         context: Context,
         stagingDir: Path,
-    ): Unit = withContext(Dispatchers.IO) {
-        // For bundled builds, we only need to copy bootstrap packages to the staging directory.
-        // Other assets can be read directly from the assets input stream.
-
-        val assets = context.assets
-        val assetPath =
-            ToolsManager.getCommonAsset("${AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME}.br")
-
-        // Decompress brotli and write the contained ZIP file
-        BrotliInputStream(assets.open(assetPath)).use { input ->
-            stagingDir.resolve(AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME).outputStream()
-                .use { output ->
-                    input.copyTo(output)
-                }
-        }
-    }
+    ): Unit = Unit
 
     @WorkerThread
     override suspend fun doInstall(
@@ -75,11 +62,24 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
             }
 
             AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
-                val channel =
-                    Files.newByteChannel(stagingDir.resolve(AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME))
-                val result = TerminalInstaller.installIfNeeded(context, channel)
-                if (result !is TerminalInstaller.InstallResult.Success) {
-                    throw IllegalStateException("Failed to install terminal: $result")
+                val assetPath =
+                    ToolsManager.getCommonAsset("${AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME}.br")
+                context.assets.open(assetPath).use { assetStream ->
+                    BrotliInputStream(assetStream).use { brotliInputStream ->
+                        val tempZipPath = Files.createTempFile(stagingDir, "bootstrap", ".br")
+                        try {
+                            Files.newOutputStream(tempZipPath).use { output ->
+                                brotliInputStream.copyTo(output)
+                            }
+                            val channel = Files.newByteChannel(tempZipPath)
+                            val result = TerminalInstaller.installIfNeeded(context, channel)
+                            if (result !is TerminalInstaller.InstallResult.Success) {
+                                throw IllegalStateException("Failed to install terminal: $result")
+                            }
+                        } finally {
+                            Files.deleteIfExists(tempZipPath)
+                        }
+                    }
                 }
             }
 
