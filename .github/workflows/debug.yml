@@ -292,6 +292,12 @@ jobs:
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
+      - name: Clean up build folder after upload
+        run: |
+          echo "Cleaning up build folder after Firebase upload..."
+          rm -rf app/build/
+          echo "Build folder cleanup completed"
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
