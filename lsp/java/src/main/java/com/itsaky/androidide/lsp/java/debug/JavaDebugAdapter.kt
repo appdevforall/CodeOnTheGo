@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.java.debug
 
+import android.system.ErrnoException
+import android.system.OsConstants
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
@@ -44,6 +46,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.net.SocketException
 import java.nio.file.Paths
 import java.util.concurrent.CopyOnWriteArraySet
 import com.itsaky.androidide.lsp.debug.events.StepEvent as LspStepEvent
@@ -304,7 +307,7 @@ internal class JavaDebugAdapter :
 					val qualifiedName =
 						ProjectManagerImpl
 							.getInstance()
-							.rootProject
+							.workspace
 							?.subProjects
 							?.filterIsInstance<ModuleProject>()
 							?.firstNotNullOfOrNull { module ->
@@ -589,8 +592,16 @@ internal class JDWPListenerThread(
 			try {
 				logger.debug("Waiting for VM connection")
 				onConnect(listenerState.accept())
-			} catch (timeout: TransportTimeoutException) {
+			} catch (_: TransportTimeoutException) {
 				logger.warn("Timeout waiting for VM connection")
+			} catch (e: SocketException) {
+				val cause = e.cause
+				if (cause is ErrnoException && cause.errno == OsConstants.EINVAL) {
+					logger.warn("JDWP socket closed. Aborting listener.")
+					break
+				} else {
+					logger.error("An error occurred while listening for VM connections", e)
+				}
 			} catch (err: Throwable) {
 				logger.error("An error occurred while listening for VM connections", err)
 			}

@@ -22,71 +22,98 @@ import com.android.builder.model.v2.models.BasicAndroidProject
 import com.android.builder.model.v2.models.ModelBuilderParameter
 import com.android.builder.model.v2.models.ProjectSyncIssues
 import com.android.builder.model.v2.models.VariantDependencies
+import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.tooling.api.IAndroidProject
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
-import com.itsaky.androidide.tooling.impl.internal.AndroidProjectImpl
+import com.itsaky.androidide.tooling.impl.serial.createAndroidProjectProtoModel
+import org.gradle.tooling.model.GradleProject
+import java.io.File
 
 /**
  * Builds model for Android application and library projects.
  *
  * @author Akash Yadav
  */
-class AndroidProjectModelBuilder(initializationParams: InitializeProjectParams) :
-  AbstractModelBuilder<AndroidProjectModelBuilderParams, IAndroidProject>(initializationParams) {
+object AndroidProjectModelBuilder :
+	AbstractModelBuilder<AndroidProjectModelBuilderParams, AndroidModels.AndroidProject>() {
+	override fun build(
+		initializeParams: InitializeProjectParams,
+		param: AndroidProjectModelBuilderParams,
+	): AndroidModels.AndroidProject {
+		val (controller, module, versions, syncIssueReporter) = param
 
-  override fun build(param: AndroidProjectModelBuilderParams): IAndroidProject {
-    val (controller, module, versions, syncIssueReporter) = param
+		val androidParams = initializeParams.androidParams
+		val projectPath = module.gradleProject.path
+		val basicModel = controller.getModelAndLog(module, BasicAndroidProject::class.java)
+		val androidModel = controller.getModelAndLog(module, AndroidProject::class.java)
+		val androidDsl = controller.getModelAndLog(module, AndroidDsl::class.java)
 
-    val androidParams = initializationParams.androidParams
-    val projectPath = module.gradleProject.path
-    val basicModel = controller.getModelAndLog(module, BasicAndroidProject::class.java)
-    val androidModel = controller.getModelAndLog(module, AndroidProject::class.java)
-    val androidDsl = controller.getModelAndLog(module, AndroidDsl::class.java)
+		val variantNames = basicModel.variants.map { it.name }
+		log(
+			"${variantNames.size} build variants found for project '$projectPath': $variantNames",
+		)
 
-    val variantNames = basicModel.variants.map { it.name }
-    log(
-      "${variantNames.size} build variants found for project '$projectPath': $variantNames")
+		var androidVariant = androidParams.variantSelections[projectPath]
 
-    var androidVariant = androidParams.variantSelections[projectPath]
+		if (androidVariant != null && !variantNames.contains(androidVariant)) {
+			log(
+				"Configured variant '$androidVariant' not found for project '$projectPath'. Falling back to default variant.",
+			)
+			androidVariant = null
+		}
 
-    if (androidVariant != null && !variantNames.contains(androidVariant)) {
-      log(
-        "Configured variant '$androidVariant' not found for project '$projectPath'. Falling back to default variant.")
-      androidVariant = null
-    }
+		val configurationVariant = androidVariant ?: variantNames.firstOrNull()
+		if (configurationVariant.isNullOrBlank()) {
+			throw ModelBuilderException(
+				"No variant found for project '$projectPath'. providedVariant=$androidVariant",
+			)
+		}
 
-    val configurationVariant = androidVariant ?: variantNames.firstOrNull()
-    if (configurationVariant.isNullOrBlank()) {
-      throw ModelBuilderException(
-        "No variant found for project '$projectPath'. providedVariant=$androidVariant")
-    }
+		log("Selected build variant '$configurationVariant' for project '$projectPath'")
 
-    log("Selected build variant '$configurationVariant' for project '$projectPath'")
+		val variantDependencies =
+			controller.getModelAndLog(
+				module,
+				VariantDependencies::class.java,
+				ModelBuilderParameter::class.java,
+			) {
+				it.variantName = configurationVariant
+				it.dontBuildRuntimeClasspath = false
+				it.dontBuildAndroidTestRuntimeClasspath = true
+				it.dontBuildTestFixtureRuntimeClasspath = true
+				it.dontBuildUnitTestRuntimeClasspath = true
+				it.dontBuildScreenshotTestRuntimeClasspath = true
+				it.dontBuildHostTestRuntimeClasspath = emptyMap()
+				it.additionalArtifactsInModel = false
+			}
 
-    val variantDependencies = controller.getModelAndLog(module, VariantDependencies::class.java,
-      ModelBuilderParameter::class.java) {
-      it.variantName = configurationVariant
-      it.dontBuildRuntimeClasspath = false
-      it.dontBuildAndroidTestRuntimeClasspath = true
-      it.dontBuildTestFixtureRuntimeClasspath = true
-      it.dontBuildUnitTestRuntimeClasspath = true
-      it.dontBuildScreenshotTestRuntimeClasspath = true
-      it.dontBuildHostTestRuntimeClasspath = emptyMap()
-      it.additionalArtifactsInModel = false
-    }
+		controller.findModel(module, ProjectSyncIssues::class.java)?.also { syncIssues ->
+			syncIssueReporter.reportAll(syncIssues)
+		}
 
-    controller.findModel(module, ProjectSyncIssues::class.java)?.also { syncIssues ->
-      syncIssueReporter.reportAll(syncIssues)
-    }
+		return createAndroidProjectProtoModel(
+			basicAndroidProject = basicModel,
+			androidProject = androidModel,
+			androidDsl = androidDsl,
+			versions = versions,
+			variantDependencies = variantDependencies,
+			configuredVariantName = configurationVariant,
+			classesJar =
+				getClassesJar(
+					gradleProject = module.gradleProject,
+					configuredVariant = configurationVariant,
+				),
+		)
+	}
 
-    return AndroidProjectImpl(
-      module.gradleProject,
-      configurationVariant,
-      basicModel,
-      androidModel,
-      variantDependencies,
-      versions,
-      androidDsl
-    )
-  }
+	private fun getClassesJar(
+		gradleProject: GradleProject,
+		configuredVariant: String,
+	): File {
+		// TODO(itsaky): this should handle product flavors as well
+		return File(
+			gradleProject.buildDirectory,
+			"${IAndroidProject.FD_INTERMEDIATES}/compile_library_classes_jar/$configuredVariant/classes.jar",
+		)
+	}
 }

@@ -16,6 +16,8 @@
  */
 package com.itsaky.androidide.tooling.impl.sync
 
+import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+
 /**
  * A model builder builds project models when the project is initialized/synced.
  *
@@ -24,15 +26,17 @@ package com.itsaky.androidide.tooling.impl.sync
  * @author Akash Yadav
  */
 interface IModelBuilder<P, R> {
-
-  /**
-   * Builds the model.
-   *
-   * @param param Parameter for building the model.
-   * @return The built model. Implementations should throw [ModelBuilderException] instead of
-   * returning `null`.
-   * @throws ModelBuilderException If the model could not be built.
-   */
-  @Throws(ModelBuilderException::class)
-  fun build(param: P): R
+	/**
+	 * Builds the model.
+	 *
+	 * @param param Parameter for building the model.
+	 * @return The built model. Implementations should throw [ModelBuilderException] instead of
+	 * returning `null`.
+	 * @throws ModelBuilderException If the model could not be built.
+	 */
+	@Throws(ModelBuilderException::class)
+	fun build(
+		initializeParams: InitializeProjectParams,
+		param: P,
+	): R
 }
