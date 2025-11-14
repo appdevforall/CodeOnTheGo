@@ -90,7 +90,7 @@ class InstallationViewModel : ViewModel() {
 					}
 				} catch (e: Exception) {
 					Sentry.captureException(e)
-					log.error("IDE setup installation faileid", e)
+					log.error("IDE setup installation failed", e)
 					_state.update {
 						InstallationError(R.string.unknown_error)
 					}
@@ -108,7 +108,7 @@ class InstallationViewModel : ViewModel() {
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
 			Environment.ANDROID_HOME.exists()
 
-	private fun deviceHasLowStorage(): Pair<Boolean, Long> {
+	private fun deviceHasLowStorage(): Pair<Boolean, Float> {
 		val stat =
 			StatFs(
 				android.os.Environment
@@ -121,7 +121,7 @@ class InstallationViewModel : ViewModel() {
 		val additionalBytesNeeded = requiredStorageInBytes - availableStorageInBytes
 		val isLowStorage = availableStorageInBytes < requiredStorageInBytes
 
-		return Pair(isLowStorage, additionalBytesNeeded.coerceAtLeast(0))
+		return Pair(isLowStorage, additionalBytesNeeded)
 	}
 
 	fun checkStorageAndNotify(context: Context): Boolean {
@@ -129,13 +129,10 @@ class InstallationViewModel : ViewModel() {
 
 		if (isLowStorage) {
 			viewModelScope.launch {
-				val errorMessage =
-					context.getString(
-						R.string.not_enough_storage,
-						additionalBytesNeeded.bytesToGigabytes().toString(),
-					)
-				_events.emit(InstallationEvent.ShowError(errorMessage))
-			}
+                val errorMessage =
+                    context.getString(R.string.not_enough_storage, additionalBytesNeeded.bytesToGigabytes())
+                _events.emit(InstallationEvent.ShowError(errorMessage))
+            }
 			return false
 		}
 		return true
