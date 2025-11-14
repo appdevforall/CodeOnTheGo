@@ -7,18 +7,12 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.text.Editable
-import android.text.TextWatcher
-import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.ActionBarDrawerToggle
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.TooltipCompat
@@ -30,8 +24,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ToastUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.idetooltips.TooltipCategory
@@ -46,7 +38,6 @@ import org.appdevforall.codeonthego.layouteditor.R.string
 import org.appdevforall.codeonthego.layouteditor.adapters.LayoutListAdapter
 import org.appdevforall.codeonthego.layouteditor.adapters.PaletteListAdapter
 import org.appdevforall.codeonthego.layouteditor.databinding.ActivityLayoutEditorBinding
-import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
 import org.appdevforall.codeonthego.layouteditor.editor.DesignEditor
 import org.appdevforall.codeonthego.layouteditor.editor.DeviceConfiguration
 import org.appdevforall.codeonthego.layouteditor.editor.DeviceSize
@@ -61,7 +52,6 @@ import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileCreator
 import org.appdevforall.codeonthego.layouteditor.utils.FilePicker
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
-import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils.Companion.make
 import org.appdevforall.codeonthego.layouteditor.utils.Utils
@@ -297,8 +287,6 @@ class EditorActivity : BaseActivity() {
 
 	@SuppressLint("SetTextI18n")
 	private fun setupDrawerNavigationRail() {
-		val paletteFab =
-			binding.paletteNavigation.headerView?.findViewById<FloatingActionButton>(R.id.paletteFab)
 		val helpFab =
 			binding.paletteNavigation.headerView?.findViewById<FloatingActionButton>(R.id.help_fab)
 
@@ -355,10 +343,6 @@ class EditorActivity : BaseActivity() {
 					"${getString(string.error_failed_to_initialize_palette)}: ${e.message}",
 					Toast.LENGTH_SHORT,
 				).show()
-		}
-
-		paletteFab?.setOnClickListener {
-			createLayout()
 		}
 
 		helpFab.setOnClickListener {
@@ -649,18 +633,7 @@ class EditorActivity : BaseActivity() {
 		}
 	}
 
-	private fun createAndOpenNewLayout(
-		name: String,
-		layoutContent: String?,
-	) {
-		val layoutFile = LayoutFile(project.layoutPath + name, project.layoutPath + name)
-		layoutFile.saveLayout(layoutContent)
-		openLayout(layoutFile)
-		// Mark as saved since we just created and saved it
-		binding.editorLayout.markAsSaved()
-	}
-
-	private fun openLayout(layoutFile: LayoutFile) {
+    private fun openLayout(layoutFile: LayoutFile) {
 		var contentToParse = layoutFile.readDesignFile()
 
 		if (contentToParse.isNullOrBlank()) {
@@ -690,233 +663,7 @@ class EditorActivity : BaseActivity() {
 			.show()
 	}
 
-	@SuppressLint("RestrictedApi", "SetTextI18n")
-	fun createLayout() {
-		val builder = MaterialAlertDialogBuilder(this)
-		builder.setTitle(string.create_layout)
-
-		val bind: TextinputlayoutBinding =
-			TextinputlayoutBinding.inflate(builder.create().layoutInflater)
-		val editText: TextInputEditText = bind.textinputEdittext
-		val inputLayout: TextInputLayout = bind.textinputLayout
-
-		inputLayout.suffixText = ".xml"
-
-		@Suppress("DEPRECATION")
-		builder.setView(bind.getRoot(), 10, 10, 10, 10)
-		builder.setNegativeButton(
-			string.cancel,
-		) { _, _ -> }
-		builder.setPositiveButton(string.create) { _, _ ->
-			createAndOpenNewLayout(
-				"${editText.getText().toString().replace(" ", "_").lowercase()}.xml",
-				"",
-			)
-		}
-
-		val dialog: AlertDialog = builder.create()
-		dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-		dialog.show()
-
-		inputLayout.setHint(string.msg_new_layout_name)
-		editText.setText(getString(string.default_layout_name))
-		editText.addTextChangedListener(
-			object : TextWatcher {
-				override fun beforeTextChanged(
-					p1: CharSequence,
-					p2: Int,
-					p3: Int,
-					p4: Int,
-				) {}
-
-				override fun onTextChanged(
-					p1: CharSequence,
-					p2: Int,
-					p3: Int,
-					p4: Int,
-				) {
-					NameErrorChecker.checkForLayouts(
-						editText.text.toString(),
-						inputLayout,
-						dialog,
-						project.allLayouts,
-						-1,
-					)
-				}
-
-				override fun afterTextChanged(p1: Editable) {}
-			},
-		)
-
-		editText.requestFocus()
-
-		val inputMethodManager =
-			getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-		inputMethodManager.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
-
-		if (editText.text.toString().isEmpty()) {
-			editText.setSelection(0, editText.text.toString().length)
-		}
-
-		NameErrorChecker.checkForLayouts(
-			editText.text.toString(),
-			inputLayout,
-			dialog,
-			project.allLayouts,
-			-1,
-		)
-	}
-
-	@SuppressLint("RestrictedApi")
-	private fun renameLayout(pos: Int) {
-		val layouts = project.allLayouts
-		val builder = MaterialAlertDialogBuilder(this)
-		builder.setTitle(string.rename_layout)
-		val bind: TextinputlayoutBinding =
-			TextinputlayoutBinding.inflate(builder.create().layoutInflater)
-		val editText: TextInputEditText = bind.textinputEdittext
-		val inputLayout: TextInputLayout = bind.textinputLayout
-
-		inputLayout.suffixText = ".xml"
-
-		editText.setText(layouts[pos].name.substring(0, layouts[pos].name.lastIndexOf(".")))
-		inputLayout.setHint(string.msg_new_layout_name)
-
-		val padding =
-			TypedValue
-				.applyDimension(
-					TypedValue.COMPLEX_UNIT_DIP,
-					10f,
-					resources.displayMetrics,
-				).toInt()
-
-		@Suppress("DEPRECATION")
-		builder.setView(bind.getRoot(), padding, padding, padding, padding)
-		builder.setNegativeButton(
-			string.cancel,
-		) { _, _ -> }
-		builder.setPositiveButton(
-			string.rename,
-		) { _, _ ->
-			val path: String = layouts[pos].path
-			renameLayout(path, editText, layouts, pos)
-		}
-
-		val dialog: AlertDialog = builder.create()
-		dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-		dialog.show()
-
-		editText.addTextChangedListener(
-			object : TextWatcher {
-				override fun beforeTextChanged(
-					p1: CharSequence,
-					p2: Int,
-					p3: Int,
-					p4: Int,
-				) {}
-
-				override fun onTextChanged(
-					p1: CharSequence,
-					p2: Int,
-					p3: Int,
-					p4: Int,
-				) {
-					NameErrorChecker.checkForLayouts(
-						editText.text.toString(),
-						inputLayout,
-						dialog,
-						project.allLayouts,
-						pos,
-					)
-				}
-
-				override fun afterTextChanged(p1: Editable) {}
-			},
-		)
-
-		NameErrorChecker.checkForLayouts(
-			editText.text.toString(),
-			inputLayout,
-			dialog,
-			project.allLayouts,
-			pos,
-		)
-
-		editText.requestFocus()
-		val inputMethodManager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-		inputMethodManager.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
-
-		if (editText.text.toString().isNotEmpty()) {
-			editText.setSelection(0, editText.text.toString().length)
-		}
-	}
-
-	private fun renameLayout(
-		path: String,
-		editText: TextInputEditText,
-		layouts: MutableList<LayoutFile>,
-		pos: Int,
-	) {
-		val newPath = "${path.substring(0, path.lastIndexOf("/"))}/${
-			editText.text.toString().replace(" ", "_").lowercase()
-		}.xml"
-		layouts[pos].rename(newPath, "test")
-		if (layouts[pos] === project.currentLayout) openLayout(layouts[pos])
-		layoutAdapter.notifyItemChanged(pos)
-	}
-
-	@SuppressLint("NotifyDataSetChanged")
-	fun deleteLayout(pos: Int) {
-		val layouts = project.allLayouts
-		val builder = MaterialAlertDialogBuilder(this)
-		builder.setTitle(string.delete_layout)
-		builder.setMessage(string.msg_delete_layout)
-		builder.setNegativeButton(
-			string.no,
-		) { d, _ -> d.dismiss() }
-		builder.setPositiveButton(
-			string.yes,
-		) { _, _ ->
-			if (layouts[pos].path == project.mainLayout.path) {
-				ToastUtils.showShort(getString(string.error_cannot_delete_main_layout))
-				return@setPositiveButton
-			}
-			FileUtil.deleteFile(layouts[pos].path)
-			if (layouts[pos] === project.currentLayout) openLayout(project.mainLayout)
-			layouts.remove(layouts[pos])
-			layoutAdapter.notifyItemRemoved(pos)
-		}
-
-		builder.create().show()
-	}
-
-	private fun showLayoutListOptions(
-		v: View,
-		pos: Int,
-	) {
-		val popupMenu = PopupMenu(v.context, v)
-		popupMenu.inflate(R.menu.menu_layout_file_options)
-		popupMenu.setOnMenuItemClickListener { item: MenuItem ->
-			val id = item.itemId
-			when (id) {
-				R.id.menu_delete_layout -> {
-					deleteLayout(pos)
-					true
-				}
-
-				R.id.menu_rename_layout -> {
-					renameLayout(pos)
-					true
-				}
-
-				else -> false
-			}
-		}
-
-		popupMenu.show()
-	}
-
-	private fun saveXml() {
+    private fun saveXml() {
 		val currentLayoutFile = project.currentLayout as? LayoutFile ?: return
 
 		if (binding.editorLayout.isEmpty()) {
@@ -959,7 +706,4 @@ class EditorActivity : BaseActivity() {
 		feedbackButtonManager?.setupDraggableFab()
 	}
 
-	companion object {
-		const val ACTION_OPEN: String = "org.appdevforall.codeonthego.layouteditor.open"
-	}
 }

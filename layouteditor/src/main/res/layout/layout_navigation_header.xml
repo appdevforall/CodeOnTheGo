@@ -8,15 +8,6 @@
 	android:orientation="vertical">
 
 	<com.google.android.material.floatingactionbutton.FloatingActionButton
-		android:id="@+id/paletteFab"
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:background="?attr/selectableItemBackgroundBorderless"
-		app:elevation="0dp"
-		app:srcCompat="@drawable/plus"
-		tools:ignore="ContentDescription" />
-
-	<com.google.android.material.floatingactionbutton.FloatingActionButton
 		android:id="@+id/help_fab"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
