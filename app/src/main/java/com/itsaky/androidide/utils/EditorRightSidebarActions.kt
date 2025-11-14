@@ -28,7 +28,6 @@ import com.itsaky.androidide.actions.SidebarActionItem
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.AgentSidebarAction
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
-import com.itsaky.androidide.actions.sidebar.GitSidebarAction
 import com.itsaky.androidide.activities.editor.AgentPanelController
 import com.itsaky.androidide.agent.fragments.RightEditorSidebarFragment
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
@@ -47,7 +46,6 @@ internal object RightEditorSidebarActions {
         @Suppress("KotlinConstantConditions")
         registry.registerAction(AgentSidebarAction(context, ++order))
         registry.registerAction(BuildVariantsSidebarAction(context, ++order))
-        registry.registerAction(GitSidebarAction(context, ++order))
     }
     @JvmStatic
     fun setup(sidebarFragment: RightEditorSidebarFragment) {
