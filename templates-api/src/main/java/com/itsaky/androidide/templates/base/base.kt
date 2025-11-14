@@ -79,7 +79,7 @@ inline fun baseProject(
             packageName.setValue(newPackage)
         }
 
-        Environment.mkdirIfNotExits(Environment.PROJECTS_DIR)
+        Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
 
         val saveLocation = stringParameter {
             name = R.string.wizard_save_location
