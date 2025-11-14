@@ -2,6 +2,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.content.Context
+import android.os.StatFs
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
@@ -9,6 +10,8 @@ import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.bytesToGigabytes
+import com.itsaky.androidide.utils.gigabytesToBytes
 import com.itsaky.androidide.utils.withStopWatch
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
@@ -106,5 +109,32 @@ class InstallationViewModel : ViewModel() {
     private fun checkToolsIsInstalled(): Boolean {
         return IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
                 Environment.ANDROID_HOME.exists()
+    }
+
+    private fun deviceHasLowStorage(): Pair<Boolean, Long> {
+        val stat = StatFs(android.os.Environment.getExternalStorageDirectory().path)
+
+        val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
+        val requiredStorageInBytes = 4L.gigabytesToBytes() // 4GB
+        val additionalBytesNeeded = requiredStorageInBytes - availableStorageInBytes
+        val isLowStorage = availableStorageInBytes < requiredStorageInBytes
+
+        return Pair(isLowStorage, additionalBytesNeeded.coerceAtLeast(0))
+    }
+
+    fun checkStorageAndNotify(context: Context) : Boolean {
+        val (isLowStorage, additionalBytesNeeded) = deviceHasLowStorage()
+
+        if (isLowStorage) {
+            viewModelScope.launch {
+                val errorMessage = context.getString(
+                    R.string.not_enough_storage,
+                    additionalBytesNeeded.bytesToGigabytes().toString()
+                )
+                _events.emit(InstallationEvent.ShowError(errorMessage))
+            }
+            return false
+        }
+        return true
     }
 }
