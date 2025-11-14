@@ -561,7 +561,7 @@ class GradleBuildService :
 	}
 
 	private fun ensureTmpdir() {
-		Environment.mkdirIfNotExits(Environment.TMP_DIR)
+    Environment.mkdirIfNotExists(Environment.TMP_DIR)
 	}
 
 	private fun logBuildInProgress() {
