@@ -118,26 +118,26 @@ public final class Environment {
 		DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
 		SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, "assets-" + arch + ".zip");
 
-		ROOT = mkdirIfNotExits(new File(DEFAULT_ROOT));
-		PREFIX = mkdirIfNotExits(new File(ROOT, "usr"));
-		HOME = mkdirIfNotExits(new File(ROOT, "home"));
-		ANDROIDIDE_HOME = mkdirIfNotExits(new File(HOME, ".androidide"));
-		TMP_DIR = mkdirIfNotExits(new File(PREFIX, "tmp"));
-		BIN_DIR = mkdirIfNotExits(new File(PREFIX, "bin"));
-		OPT_DIR = mkdirIfNotExits(new File(PREFIX, "opt"));
-		LOGSENDER_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "logsender"));
-		LOGSENDER_AAR = mkdirIfNotExits(new File(LOGSENDER_DIR, LOGSENDER_AAR_NAME));
-		PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
+		ROOT = mkdirIfNotExists(new File(DEFAULT_ROOT));
+		PREFIX = mkdirIfNotExists(new File(ROOT, "usr"));
+		HOME = mkdirIfNotExists(new File(ROOT, "home"));
+		ANDROIDIDE_HOME = mkdirIfNotExists(new File(HOME, ".androidide"));
+		TMP_DIR = mkdirIfNotExists(new File(PREFIX, "tmp"));
+		BIN_DIR = mkdirIfNotExists(new File(PREFIX, "bin"));
+		OPT_DIR = mkdirIfNotExists(new File(PREFIX, "opt"));
+		LOGSENDER_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "logsender"));
+		LOGSENDER_AAR = mkdirIfNotExists(new File(LOGSENDER_DIR, LOGSENDER_AAR_NAME));
+		PROJECTS_DIR = mkdirIfNotExists(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
 		// NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
 		// and don't create the dir if it doesn't exist
 		ANDROID_JAR = new File(ANDROID_JAR_HOME, "android.jar");
-		TOOLING_API_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "tooling-api")),
+		TOOLING_API_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "tooling-api")),
 				"tooling-api-all.jar");
-		COGO_PLUGIN_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "plugin")),
+		COGO_PLUGIN_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "plugin")),
 				"cogo-plugin.jar");
-		ANDROIDIDE_UI = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "ui"));
+		ANDROIDIDE_UI = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "ui"));
 
-		INIT_SCRIPT = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
+		INIT_SCRIPT = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
 		GRADLE_USER_HOME = new File(HOME, ".gradle");
 
 		ANDROID_HOME = new File(DEFAULT_ANDROID_HOME);
@@ -149,22 +149,22 @@ public final class Environment {
 		BASH_SHELL = new File(BIN_DIR, "bash");
 		LOGIN_SHELL = new File(BIN_DIR, "login");
 
-		GRADLE_DISTS = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "gradle-dists"));
-		LOCAL_MAVEN_DIR = mkdirIfNotExits(new File(HOME, "maven/localMvnRepository"));
+		GRADLE_DISTS = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "gradle-dists"));
+		LOCAL_MAVEN_DIR = mkdirIfNotExists(new File(HOME, "maven/localMvnRepository"));
 
 		System.setProperty("user.home", HOME.getAbsolutePath());
 
 		DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
 
-		GRADLE_GEN_JARS = mkdirIfNotExits(new File(GRADLE_CACHE_DIR, "caches/" +
+		GRADLE_GEN_JARS = mkdirIfNotExists(new File(GRADLE_CACHE_DIR, "caches/" +
 				GRADLE_DISTRIBUTION_VERSION + "/generated-gradle-jars"));
 
-		KEYSTORE_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "keystore"));
+		KEYSTORE_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "keystore"));
 		KEYSTORE_RELEASE = new File(KEYSTORE_DIR, KEYSTORE_RELEASE_NAME);
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
 	}
 
-	public static File mkdirIfNotExits(File in) {
+	public static File mkdirIfNotExists(File in) {
 		if (in != null && !in.exists()) {
 			FileUtils.createOrExistsDir(in);
 		}
