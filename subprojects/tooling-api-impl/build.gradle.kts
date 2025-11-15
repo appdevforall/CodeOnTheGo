@@ -36,22 +36,6 @@ tasks.register("deleteExistingJarFiles") {
 	}
 }
 
-/**
- * Keywords: [ local Jars, libs, ToolsManager, ResourceUtils, assets ]
- * This method gets tooling jar from: ~/AndroidIDE/app/build/intermediates/assets/debug/mergeDebugAssets/data/common
- * and puts them under: ~/AndroidIDE/subprojects/tooling-api-impl/build
- * Why do we need to copy this, when ToolsManager still uses data/common folder? Please tell me.
- * Why does it need a generated folder to hold dependencies? Not a guess.
- * Why? So far I have no idea.
- * How it gets to the source path to get the jars without explicitly specifing it? Not a clue.
- * There are other methods that handle other jars from data/common folder.
- *
- * Task execution order is the following:
- * 1) jar
- * 2) deleteExistingJarFiles
- * 3) shadowJar
- * 4) copyJar
- */
 tasks.register("copyJar") {
 	doLast {
 		val libsDir = project.layout.buildDirectory.dir("libs")
@@ -83,6 +67,7 @@ dependencies {
 
 	implementation(projects.buildInfo)
 	implementation(projects.shared)
+	implementation(projects.subprojects.projectModels)
 
 	implementation(libs.common.jkotlin)
 	implementation(libs.google.auto.service.annotations)

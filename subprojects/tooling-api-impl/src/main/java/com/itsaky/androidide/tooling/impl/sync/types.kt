@@ -24,23 +24,30 @@ import org.gradle.tooling.CancellationToken
 import org.gradle.tooling.ProjectConnection
 import org.gradle.tooling.model.idea.IdeaModule
 import org.gradle.tooling.model.idea.IdeaProject
+import java.io.File
 
 /**
  * Parameters for the root project model builder.
  *
  * @property projectConnection The project connection
  * @property cancellationToken The cancellation token.
+ * @property projectCacheFile The file to store the Gradle project models.
+ * @property projectSyncMetaFile The file to store the Gradle sync metadata.
  */
 class RootProjectModelBuilderParams(
-  val projectConnection: ProjectConnection,
-  val cancellationToken: CancellationToken?,
-  gradleArgs: List<String>,
-  jvmArgs: List<String>,
-): GradleBuildParams(gradleArgs, jvmArgs) {
-  operator fun component1() = projectConnection
-  operator fun component2() = cancellationToken
-  operator fun component3() = gradleArgs
-  operator fun component4() = jvmArgs
+	val projectConnection: ProjectConnection,
+	val cancellationToken: CancellationToken?,
+	val projectCacheFile: File,
+	val projectSyncMetaFile: File,
+	gradleArgs: List<String>,
+	jvmArgs: List<String>,
+) : GradleBuildParams(gradleArgs, jvmArgs) {
+	operator fun component1() = projectConnection
+	operator fun component2() = cancellationToken
+	operator fun component3() = projectCacheFile
+	operator fun component4() = projectSyncMetaFile
+	operator fun component5() = gradleArgs
+	operator fun component6() = jvmArgs
 }
 
 /**
@@ -52,24 +59,29 @@ class RootProjectModelBuilderParams(
  * @property syncIssueReporter [ISyncIssueReporter] to report project synchronization issues.
  */
 data class AndroidProjectModelBuilderParams(
-  val controller: BuildController,
-  val module: IdeaModule,
-  val versions: Versions,
-  val syncIssueReporter: ISyncIssueReporter
+	val controller: BuildController,
+	val module: IdeaModule,
+	val versions: Versions,
+	val syncIssueReporter: ISyncIssueReporter
 )
 
 class ModuleProjectModelBuilderParams(
-  val controller: BuildController,
-  project: IdeaProject,
-  module: IdeaModule,
-  modulePaths: Map<String, String>,
-  val syncIssueReporter: ISyncIssueReporter
+	val controller: BuildController,
+	project: IdeaProject,
+	module: IdeaModule,
+	modulePaths: Map<String, String>,
+	val syncIssueReporter: ISyncIssueReporter
 ) : JavaProjectModelBuilderParams(
-  project, module, modulePaths)
+	project, module, modulePaths
+)
 
-open class JavaProjectModelBuilderParams(val project: IdeaProject, val module: IdeaModule,
-  val modulePaths: Map<String, String>) {
+open class JavaProjectModelBuilderParams(
+	val project: IdeaProject, val module: IdeaModule,
+	val modulePaths: Map<String, String>
+) {
 
-  constructor(base: ModuleProjectModelBuilderParams) : this(base.project, base.module,
-    base.modulePaths)
+	constructor(base: ModuleProjectModelBuilderParams) : this(
+		base.project, base.module,
+		base.modulePaths
+	)
 }

@@ -19,12 +19,12 @@ package com.itsaky.androidide.tooling.api.util
 import com.google.gson.GsonBuilder
 import com.itsaky.androidide.builder.model.DefaultJavaCompileOptions
 import com.itsaky.androidide.builder.model.IJavaCompilerSettings
-import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
+import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.models.AndroidProjectMetadata
 import com.itsaky.androidide.tooling.api.models.AndroidVariantMetadata
 import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
@@ -91,155 +91,171 @@ import java.util.concurrent.Executors
  * @author Akash Yadav
  */
 object ToolingApiLauncher {
+	fun <T> createIOLauncher(
+		local: Any?,
+		remote: Class<T>?,
+		`in`: InputStream?,
+		out: OutputStream?,
+	): Launcher<T> =
+		Launcher
+			.Builder<T>()
+			.setInput(`in`)
+			.setOutput(out)
+			.setLocalService(local)
+			.setRemoteInterface(remote)
+			.configureGson { configureGson(it) }
+			.create()
 
-  fun <T> createIOLauncher(
-    local: Any?, remote: Class<T>?, `in`: InputStream?, out: OutputStream?): Launcher<T> {
-    return Launcher.Builder<T>()
-      .setInput(`in`)
-      .setOutput(out)
-      .setLocalService(local)
-      .setRemoteInterface(remote)
-      .configureGson { configureGson(it) }
-      .create()
-  }
+	@JvmStatic
+	fun configureGson(builder: GsonBuilder) {
+		builder.registerTypeAdapter(File::class.java, FileTypeAdapter())
 
-  @JvmStatic
-  fun configureGson(builder: GsonBuilder) {
-    builder.registerTypeAdapter(File::class.java, FileTypeAdapter())
+		builder.runtimeTypeAdapter(
+			InitializeResult::class.java,
+			InitializeResult.Success::class.java,
+			InitializeResult.Failure::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			GradleBuildParams::class.java,
+			InitializeProjectParams::class.java,
+			TaskExecutionMessage::class.java,
+		)
 
-    // some methods return BasicProjectMetadata while some return ProjectMetadata
-    // so we need to register type adapter for both of them
-    builder.runtimeTypeAdapter(
-      GradleBuildParams::class.java,
-      InitializeProjectParams::class.java,
-      TaskExecutionMessage::class.java,
-    )
-    builder.runtimeTypeAdapter(
-      BasicProjectMetadata::class.java,
-      ProjectMetadata::class.java,
-      AndroidProjectMetadata::class.java,
-      JavaProjectMetadata::class.java
-    )
-    builder.runtimeTypeAdapter(
-      ProjectMetadata::class.java,
-      AndroidProjectMetadata::class.java,
-      JavaProjectMetadata::class.java
-    )
-    builder.runtimeTypeAdapter(
-      BasicAndroidVariantMetadata::class.java,
-      AndroidVariantMetadata::class.java
-    )
-    builder.runtimeTypeAdapter(
-      JavaModuleDependency::class.java,
-      JavaModuleExternalDependency::class.java,
-      JavaModuleProjectDependency::class.java
-    )
-    builder.runtimeTypeAdapter(
-      IJavaCompilerSettings::class.java,
-      DefaultJavaCompileOptions::class.java,
-      JavaModuleCompilerSettings::class.java
-    )
-    builder.runtimeTypeAdapter(
-      Launchable::class.java,
-      GradleTask::class.java
-    )
-    builder.runtimeTypeAdapter(
-      ProgressEvent::class.java,
-      ProjectConfigurationProgressEvent::class.java,
-      ProjectConfigurationStartEvent::class.java,
-      ProjectConfigurationFinishEvent::class.java,
+		// some methods return BasicProjectMetadata while some return ProjectMetadata
+		// so we need to register type adapter for both of them
+		builder.runtimeTypeAdapter(
+			BasicProjectMetadata::class.java,
+			ProjectMetadata::class.java,
+			AndroidProjectMetadata::class.java,
+			JavaProjectMetadata::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			ProjectMetadata::class.java,
+			AndroidProjectMetadata::class.java,
+			JavaProjectMetadata::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			BasicAndroidVariantMetadata::class.java,
+			AndroidVariantMetadata::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			JavaModuleDependency::class.java,
+			JavaModuleExternalDependency::class.java,
+			JavaModuleProjectDependency::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			IJavaCompilerSettings::class.java,
+			DefaultJavaCompileOptions::class.java,
+			JavaModuleCompilerSettings::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			Launchable::class.java,
+			GradleTask::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			ProgressEvent::class.java,
+			ProjectConfigurationProgressEvent::class.java,
+			ProjectConfigurationStartEvent::class.java,
+			ProjectConfigurationFinishEvent::class.java,
+			FileDownloadProgressEvent::class.java,
+			FileDownloadStartEvent::class.java,
+			FileDownloadFinishEvent::class.java,
+			TaskProgressEvent::class.java,
+			TaskStartEvent::class.java,
+			TaskFinishEvent::class.java,
+			TestProgressEvent::class.java,
+			TestStartEvent::class.java,
+			TestFinishEvent::class.java,
+			TransformProgressEvent::class.java,
+			TransformStartEvent::class.java,
+			TransformFinishEvent::class.java,
+			WorkItemProgressEvent::class.java,
+			WorkItemStartEvent::class.java,
+			WorkItemFinishEvent::class.java,
+			DefaultProgressEvent::class.java,
+			DefaultStartEvent::class.java,
+			DefaultFinishEvent::class.java,
+			StatusEvent::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			OperationDescriptor::class.java,
+			ProjectConfigurationOperationDescriptor::class.java,
+			FileDownloadOperationDescriptor::class.java,
+			TaskOperationDescriptor::class.java,
+			TestOperationDescriptor::class.java,
+			TransformOperationDescriptor::class.java,
+			WorkItemOperationDescriptor::class.java,
+			DefaultOperationDescriptor::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			OperationResult::class.java,
+			ProjectConfigurationOperationResult::class.java,
+			FileDownloadResult::class.java,
+			TaskOperationResult::class.java,
+			TestOperationResult::class.java,
+			WorkItemOperationResult::class.java,
+			DefaultOperationResult::class.java,
+		)
+		builder.runtimeTypeAdapter(
+			TaskOperationResult::class.java,
+			TaskFailureResult::class.java,
+			TaskSkippedResult::class.java,
+			TaskExecutionResult::class.java,
+			TaskSuccessResult::class.java,
+		)
+	}
 
-      FileDownloadProgressEvent::class.java,
-      FileDownloadStartEvent::class.java,
-      FileDownloadFinishEvent::class.java,
+	private fun <T> GsonBuilder.runtimeTypeAdapter(
+		baseClass: Class<T>,
+		vararg subtypes: Class<out T>,
+	) {
+		registerTypeAdapterFactory(
+			RuntimeTypeAdapterFactory
+				.of(baseClass, "gsonType", true)
+				.registerSubtype(baseClass, baseClass.name)
+				.also { factory ->
+					subtypes.forEach { subtype ->
+						factory.registerSubtype(subtype, subtype.name)
+					}
+				},
+		)
+	}
 
-      TaskProgressEvent::class.java,
-      TaskStartEvent::class.java,
-      TaskFinishEvent::class.java,
+	fun newClientLauncher(
+		client: IToolingApiClient,
+		`in`: InputStream?,
+		out: OutputStream?,
+	): Launcher<Any> = newIoLauncher(arrayOf(client), arrayOf(IToolingApiServer::class.java), `in`, out)
 
-      TestProgressEvent::class.java,
-      TestStartEvent::class.java,
-      TestFinishEvent::class.java,
+	fun newIoLauncher(
+		locals: Array<Any>,
+		remotes: Array<Class<*>?>,
+		`in`: InputStream?,
+		out: OutputStream?,
+	): Launcher<Any> =
+		Launcher
+			.Builder<Any>()
+			.setInput(`in`)
+			.setOutput(out)
+			.setExecutorService(Executors.newCachedThreadPool())
+			.setLocalServices(listOf(*locals))
+			.setRemoteInterfaces(listOf(*remotes))
+			.configureGson { configureGson(it) }
+			.setClassLoader(locals[0].javaClass.classLoader)
+			.create()
 
-      TransformProgressEvent::class.java,
-      TransformStartEvent::class.java,
-      TransformFinishEvent::class.java,
-
-      WorkItemProgressEvent::class.java,
-      WorkItemStartEvent::class.java,
-      WorkItemFinishEvent::class.java,
-
-      DefaultProgressEvent::class.java,
-      DefaultStartEvent::class.java,
-      DefaultFinishEvent::class.java,
-
-      StatusEvent::class.java
-    )
-    builder.runtimeTypeAdapter(
-      OperationDescriptor::class.java,
-      ProjectConfigurationOperationDescriptor::class.java,
-      FileDownloadOperationDescriptor::class.java,
-      TaskOperationDescriptor::class.java,
-      TestOperationDescriptor::class.java,
-      TransformOperationDescriptor::class.java,
-      WorkItemOperationDescriptor::class.java,
-      DefaultOperationDescriptor::class.java
-    )
-    builder.runtimeTypeAdapter(
-      OperationResult::class.java,
-      ProjectConfigurationOperationResult::class.java,
-      FileDownloadResult::class.java,
-      TaskOperationResult::class.java,
-      TestOperationResult::class.java,
-      WorkItemOperationResult::class.java,
-      DefaultOperationResult::class.java
-    )
-    builder.runtimeTypeAdapter(
-      TaskOperationResult::class.java,
-      TaskFailureResult::class.java,
-      TaskSkippedResult::class.java,
-      TaskExecutionResult::class.java,
-      TaskSuccessResult::class.java
-    )
-  }
-
-  private fun <T> GsonBuilder.runtimeTypeAdapter(baseClass: Class<T>,
-    vararg subtypes: Class<out T>) {
-    registerTypeAdapterFactory(
-      RuntimeTypeAdapterFactory.of(baseClass, "gsonType", true)
-        .registerSubtype(baseClass, baseClass.name).also { factory ->
-          subtypes.forEach { subtype ->
-            factory.registerSubtype(subtype, subtype.name)
-          }
-        }
-    )
-  }
-
-  fun newClientLauncher(
-    client: IToolingApiClient, `in`: InputStream?, out: OutputStream?): Launcher<Any> {
-    return newIoLauncher(arrayOf(client), arrayOf(
-      IToolingApiServer::class.java, IProject::class.java), `in`, out)
-  }
-
-  fun newIoLauncher(
-    locals: Array<Any>, remotes: Array<Class<*>?>, `in`: InputStream?,
-    out: OutputStream?): Launcher<Any> {
-    return Launcher.Builder<Any>()
-      .setInput(`in`)
-      .setOutput(out)
-      .setExecutorService(Executors.newCachedThreadPool())
-      .setLocalServices(listOf(*locals))
-      .setRemoteInterfaces(listOf(*remotes))
-      .configureGson { configureGson(it) }
-      .setClassLoader(locals[0].javaClass.classLoader)
-      .create()
-  }
-
-  @JvmStatic
-  fun newServerLauncher(
-    server: IToolingApiServer, project: IProject, `in`: InputStream?,
-    out: OutputStream?): Launcher<Any> {
-    return newIoLauncher(arrayOf(server, project), arrayOf(
-      IToolingApiClient::class.java), `in`, out)
-  }
+	@JvmStatic
+	fun newServerLauncher(
+		server: IToolingApiServer,
+		`in`: InputStream?,
+		out: OutputStream?,
+	): Launcher<Any> =
+		newIoLauncher(
+			arrayOf(server),
+			arrayOf(
+				IToolingApiClient::class.java,
+			),
+			`in`,
+			out,
+		)
 }

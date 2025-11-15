@@ -18,7 +18,7 @@
 
 package com.itsaky.androidide.app
 
-
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.StrictMode
@@ -81,272 +81,292 @@ import kotlin.system.exitProcess
 
 const val EXIT_CODE_CRASH = 1
 
-class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
-    private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
-    private var ideLogcatReader: IDELogcatReader? = null
-    private var pluginManager: PluginManager? = null
-    private var currentActivity: android.app.Activity? = null
-    private val crashEventSubscriber = CrashEventSubscriber()
-    private val analyticsManager: IAnalyticsManager by inject()
+class IDEApplication :
+	TermuxApplication(),
+	DefaultLifecycleObserver {
+	private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
+	private var ideLogcatReader: IDELogcatReader? = null
+	private var pluginManager: PluginManager? = null
+	private var currentActivity: android.app.Activity? = null
+	private val crashEventSubscriber = CrashEventSubscriber()
+	private val analyticsManager: IAnalyticsManager by inject()
 
-    companion object {
-        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
+	companion object {
+		private val log = LoggerFactory.getLogger(IDEApplication::class.java)
 
-        @JvmStatic
-        lateinit var instance: IDEApplication
-            private set
+		@JvmStatic
+		@SuppressLint("StaticFieldLeak")
+		lateinit var instance: IDEApplication
+			private set
 
-        init {
-            Shell.setDefaultBuilder(
-                Shell.Builder
-                    .create()
-                    .setFlags(Shell.FLAG_REDIRECT_STDERR),
-            )
-            HiddenApiBypass.setHiddenApiExemptions("")
-            if (!VMUtils.isJvm() && !isTestMode()) {
-                try {
-                    if (isAtLeastR()) {
-                        System.loadLibrary("adb")
-                    }
+		init {
+			Shell.setDefaultBuilder(
+				Shell.Builder
+					.create()
+					.setFlags(Shell.FLAG_REDIRECT_STDERR),
+			)
+			HiddenApiBypass.setHiddenApiExemptions("")
+			if (!VMUtils.isJvm() && !isTestMode()) {
+				try {
+					if (isAtLeastR()) {
+						System.loadLibrary("adb")
+					}
 
-                    TreeSitter.loadLibrary()
-                } catch (e: UnsatisfiedLinkError) {
-                    log.warn("Failed to load native libraries", e)
-                }
-            }
+					TreeSitter.loadLibrary()
+				} catch (e: UnsatisfiedLinkError) {
+					log.warn("Failed to load native libraries", e)
+				}
+			}
 
-            RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
-        }
+			RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
+		}
 
-        @JvmStatic
-        fun getPluginManager(): PluginManager? {
-            return instance.pluginManager
-        }
-    }
+		@JvmStatic
+		fun getPluginManager(): PluginManager? = instance.pluginManager
+	}
 
-    /**
-     * Sets up the plugin service providers to integrate with AndroidIDE's actual systems.
-     */
-    private fun setupPluginServices() {
-        pluginManager?.let { manager ->
-            manager.setActivityProvider(object : PluginManager.ActivityProvider {
-                override fun getCurrentActivity(): android.app.Activity? {
-                    return getCurrentActiveActivity()
-                }
-            })
+	/**
+	 * Sets up the plugin service providers to integrate with AndroidIDE's actual systems.
+	 */
+	private fun setupPluginServices() {
+		pluginManager?.let { manager ->
+			manager.setActivityProvider(
+				object : PluginManager.ActivityProvider {
+					override fun getCurrentActivity(): android.app.Activity? = getCurrentActiveActivity()
+				},
+			)
 
-            log.info("Plugin services configured successfully")
-        }
-    }
+			log.info("Plugin services configured successfully")
+		}
+	}
 
-    /**
-     * Gets the current active activity from AndroidIDE.
-     * This method should return the currently visible activity.
-     */
-    private fun getCurrentActiveActivity(): android.app.Activity? {
-        return currentActivity
-    }
+	/**
+	 * Gets the current active activity from AndroidIDE.
+	 * This method should return the currently visible activity.
+	 */
+	private fun getCurrentActiveActivity(): android.app.Activity? = currentActivity
 
+	/**
+	 * Called by activities when they become active/visible.
+	 * This is used for plugin UI service integration.
+	 */
+	fun setCurrentActivity(activity: android.app.Activity?) {
+		this.currentActivity = activity
+		log.debug("Current activity set to: ${activity?.javaClass?.simpleName}")
+	}
 
-    /**
-     * Called by activities when they become active/visible.
-     * This is used for plugin UI service integration.
-     */
-    fun setCurrentActivity(activity: android.app.Activity?) {
-        this.currentActivity = activity
-        log.debug("Current activity set to: ${activity?.javaClass?.simpleName}")
-    }
+	@OptIn(DelicateCoroutinesApi::class)
+	override fun onCreate() {
+		instance = this
+		uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
+		Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
-    @OptIn(DelicateCoroutinesApi::class)
-    override fun onCreate() {
-        instance = this
-        uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
+		super<TermuxApplication>.onCreate()
 
-        super<TermuxApplication>.onCreate()
+		initializePluginSystem()
 
-        initializePluginSystem()
+		startKoin {
+			androidContext(this@IDEApplication)
+			modules(coreModule, pluginModule)
+		}
 
-        startKoin {
-            androidContext(this@IDEApplication)
-            modules(coreModule, pluginModule)
-        }
+		SentryAndroid.init(this)
+		ShizukuSettings.initialize(this)
 
-        SentryAndroid.init(this)
-        ShizukuSettings.initialize(this)
-
-        if (BuildConfig.DEBUG) {
-            val builder = StrictMode.VmPolicy.Builder()
-            StrictMode.setVmPolicy(builder.build())
-            // TODO JMT
+		if (BuildConfig.DEBUG) {
+			val builder = StrictMode.VmPolicy.Builder()
+			StrictMode.setVmPolicy(builder.build())
+			// TODO JMT
 //            StrictMode.setVmPolicy(
 //                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
 //                    .build()
 //            )
-            if (DevOpsPreferences.dumpLogs) {
-                startLogcatReader()
-            }
-        }
+			if (DevOpsPreferences.dumpLogs) {
+				startLogcatReader()
+			}
+		}
 
-        EventBus
-            .builder()
-            .addIndex(AppEventsIndex())
-            .addIndex(EditorEventsIndex())
-            .addIndex(ProjectsApiEventsIndex())
-            .addIndex(LspApiEventsIndex())
-            .addIndex(LspJavaEventsIndex())
-            .installDefaultEventBus(true)
+		EventBus
+			.builder()
+			.addIndex(AppEventsIndex())
+			.addIndex(EditorEventsIndex())
+			.addIndex(ProjectsApiEventsIndex())
+			.addIndex(LspApiEventsIndex())
+			.addIndex(LspJavaEventsIndex())
+			.installDefaultEventBus(true)
 
-        EventBus.getDefault().register(this)
-        EventBus.getDefault().register(crashEventSubscriber)
+		EventBus.getDefault().register(this)
+		EventBus.getDefault().register(crashEventSubscriber)
 
-        AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
-        if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-            DynamicColors.applyToActivitiesIfAvailable(this)
-        }
+		if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+			DynamicColors.applyToActivitiesIfAvailable(this)
+		}
 
-        EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
+		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
 
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-        GlobalScope.launch {
-            IDEColorSchemeProvider.init()
-        }
+		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
+		GlobalScope.launch {
+			IDEColorSchemeProvider.init()
+		}
 
-        initializeAnalytics()
-    }
+		initializeAnalytics()
+	}
 
-    private fun initializeAnalytics() {
-        try {
-            ProcessLifecycleOwner.get().lifecycle.addObserver(this)
-            analyticsManager.initialize()
-            log.info("Firebase Analytics initialized successfully")
-        } catch (e: Exception) {
-            log.error("Failed to initialize Firebase Analytics", e)
-        }
-    }
+	private fun initializeAnalytics() {
+		try {
+			ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+			analyticsManager.initialize()
+			log.info("Firebase Analytics initialized successfully")
+		} catch (e: Exception) {
+			log.error("Failed to initialize Firebase Analytics", e)
+		}
+	}
 
-    override fun onStart(owner: LifecycleOwner) {
-        super.onStart(owner)
-        analyticsManager.startSession()
-    }
+	override fun onStart(owner: LifecycleOwner) {
+		super.onStart(owner)
+		analyticsManager.startSession()
+	}
 
-    override fun onStop(owner: LifecycleOwner) {
-        super.onStop(owner)
-        analyticsManager.endSession()
-    }
+	override fun onStop(owner: LifecycleOwner) {
+		super.onStop(owner)
+		analyticsManager.endSession()
+	}
 
-    @OptIn(DelicateCoroutinesApi::class)
-    private fun initializePluginSystem() {
-        try {
-            log.info("Initializing plugin system...")
+	@OptIn(DelicateCoroutinesApi::class)
+	private fun initializePluginSystem() {
+		try {
+			log.info("Initializing plugin system...")
 
-            // Create a plugin logger adapter
-            val pluginLogger = object : com.itsaky.androidide.plugins.PluginLogger {
-                override val pluginId = "system"
-                override fun debug(message: String) = log.debug(message)
-                override fun debug(message: String, error: Throwable) = log.debug(message, error)
-                override fun info(message: String) = log.info(message)
-                override fun info(message: String, error: Throwable) = log.info(message, error)
-                override fun warn(message: String) = log.warn(message)
-                override fun warn(message: String, error: Throwable) = log.warn(message, error)
-                override fun error(message: String) = log.error(message)
-                override fun error(message: String, error: Throwable) = log.error(message, error)
-            }
+			// Create a plugin logger adapter
+			val pluginLogger =
+				object : com.itsaky.androidide.plugins.PluginLogger {
+					override val pluginId = "system"
 
-            pluginManager = PluginManager.getInstance(
-                context = this,
-                eventBus = EventBus.getDefault(),
-                logger = pluginLogger
-            )
+					override fun debug(message: String) = log.debug(message)
 
-            // Set up plugin service providers
-            setupPluginServices()
+					override fun debug(
+						message: String,
+						error: Throwable,
+					) = log.debug(message, error)
 
-            // Load plugins asynchronously
-            GlobalScope.launch {
-                try {
-                    pluginManager?.loadPlugins()
-                    log.info("Plugin system initialized successfully")
-                } catch (e: Exception) {
-                    log.error("Failed to load plugins", e)
-                }
-            }
-        } catch (e: Exception) {
-            log.error("Failed to initialize plugin system", e)
-        }
-    }
+					override fun info(message: String) = log.info(message)
 
-    private fun handleCrash(
-        thread: Thread,
-        th: Throwable,
-    ) {
-        Log.d("CrashHandlerAstytooo", th.toString())
-        writeException(th)
+					override fun info(
+						message: String,
+						error: Throwable,
+					) = log.info(message, error)
 
-        Sentry.captureException(th)
+					override fun warn(message: String) = log.warn(message)
 
-        try {
-            val intent = Intent()
-            intent.action = CrashHandlerActivity.REPORT_ACTION
-            intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            if (uncaughtExceptionHandler != null) {
-                uncaughtExceptionHandler!!.uncaughtException(thread, th)
-            }
+					override fun warn(
+						message: String,
+						error: Throwable,
+					) = log.warn(message, error)
 
-            exitProcess(EXIT_CODE_CRASH)
-        } catch (error: Throwable) {
-            log.error("Unable to show crash handler activity", error)
-        }
-    }
+					override fun error(message: String) = log.error(message)
 
-    fun showChangelog(context: Context? = null) {
-        var version = BuildInfo.VERSION_NAME_SIMPLE
-        if (!version.startsWith('v')) {
-            version = "v$version"
-        }
-        val url = "${BuildInfo.REPO_URL}/releases/tag/$version"
-        UrlManager.openUrl(url, null, context ?: currentActivity ?: this)
-    }
+					override fun error(
+						message: String,
+						error: Throwable,
+					) = log.error(message, error)
+				}
 
-    private fun startLogcatReader() {
-        if (ideLogcatReader != null) {
-            // already started
-            return
-        }
+			pluginManager =
+				PluginManager.getInstance(
+					context = this,
+					eventBus = EventBus.getDefault(),
+					logger = pluginLogger,
+				)
 
-        log.info("Starting logcat reader...")
-        ideLogcatReader = IDELogcatReader().also { it.start() }
-    }
+			// Set up plugin service providers
+			setupPluginServices()
 
-    private fun stopLogcatReader() {
-        log.info("Stopping logcat reader...")
-        ideLogcatReader?.stop()
-        ideLogcatReader = null
-    }
+			// Load plugins asynchronously
+			GlobalScope.launch {
+				try {
+					pluginManager?.loadPlugins()
+					log.info("Plugin system initialized successfully")
+				} catch (e: Exception) {
+					log.error("Failed to load plugins", e)
+				}
+			}
+		} catch (e: Exception) {
+			log.error("Failed to initialize plugin system", e)
+		}
+	}
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onPrefChanged(event: PreferenceChangeEvent) {
-        val enabled = event.value as? Boolean?
-        if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
-            if (enabled == true) {
-                startLogcatReader()
-            } else {
-                stopLogcatReader()
-            }
-        } else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
-            AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
-        } else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
-            // Use empty locale list if the locale has been reset to 'System Default'
-            val selectedLocale = GeneralPreferences.selectedLocale
-            val localeListCompat =
-                selectedLocale?.let {
-                    LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
-                } ?: LocaleListCompat.getEmptyLocaleList()
+	private fun handleCrash(
+		thread: Thread,
+		th: Throwable,
+	) {
+		Log.d("CrashHandlerAstytooo", th.toString())
+		writeException(th)
 
-            AppCompatDelegate.setApplicationLocales(localeListCompat)
-        }
-    }
+		Sentry.captureException(th)
+
+		try {
+			val intent = Intent()
+			intent.action = CrashHandlerActivity.REPORT_ACTION
+			intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
+			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+			startActivity(intent)
+			if (uncaughtExceptionHandler != null) {
+				uncaughtExceptionHandler!!.uncaughtException(thread, th)
+			}
+
+			exitProcess(EXIT_CODE_CRASH)
+		} catch (error: Throwable) {
+			log.error("Unable to show crash handler activity", error)
+		}
+	}
+
+	fun showChangelog(context: Context? = null) {
+		var version = BuildInfo.VERSION_NAME_SIMPLE
+		if (!version.startsWith('v')) {
+			version = "v$version"
+		}
+		val url = "${BuildInfo.REPO_URL}/releases/tag/$version"
+		UrlManager.openUrl(url, null, context ?: currentActivity ?: this)
+	}
+
+	private fun startLogcatReader() {
+		if (ideLogcatReader != null) {
+			// already started
+			return
+		}
+
+		log.info("Starting logcat reader...")
+		ideLogcatReader = IDELogcatReader().also { it.start() }
+	}
+
+	private fun stopLogcatReader() {
+		log.info("Stopping logcat reader...")
+		ideLogcatReader?.stop()
+		ideLogcatReader = null
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPrefChanged(event: PreferenceChangeEvent) {
+		val enabled = event.value as? Boolean?
+		if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
+			if (enabled == true) {
+				startLogcatReader()
+			} else {
+				stopLogcatReader()
+			}
+		} else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
+			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		} else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
+			// Use empty locale list if the locale has been reset to 'System Default'
+			val selectedLocale = GeneralPreferences.selectedLocale
+			val localeListCompat =
+				selectedLocale?.let {
+					LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
+				} ?: LocaleListCompat.getEmptyLocaleList()
+
+			AppCompatDelegate.setApplicationLocales(localeListCompat)
+		}
+	}
 }

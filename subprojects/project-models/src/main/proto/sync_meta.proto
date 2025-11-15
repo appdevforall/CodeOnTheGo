@@ -1,0 +1,55 @@
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+option java_outer_classname = "SyncMetaModels";
+
+package com.itsaky.androidide.project;
+
+// Metadata about a file contributing to the sync.
+message FileInfo {
+
+  // Path of the file relative to the project's root directory.
+  string relative_path = 1;
+
+  // Canonical path of the file.
+  string canonical_path = 2;
+
+  // Size of the file in bytes.
+  uint64 size = 3;
+
+  // The time the file was last modified.
+  int64 mtime = 4;
+
+  // SHA-256 hash of the file.
+  optional string sha256 = 5;
+}
+
+// Metadata about the built project model.
+message ProjectModelInfo {
+
+  // The path the project model cache file.
+  string model_cache_path = 1;
+
+  // The checksum of the model cache file. Used to check whether the cache
+  // file was externally modified.
+  string checksum = 2;
+}
+
+// Metadata about the Gradle sync.
+message SyncMeta {
+
+  // Sync metadata version.
+  string meta_version = 1;
+
+  // Canonical path to the project root.
+  string root_project_path = 2;
+
+  // The sync time.
+  string sync_time = 3;
+
+  // Files that contribute the project sync
+  // and are watched for changes.
+  repeated FileInfo watched_files = 4;
+
+  // Metadata about built project models.
+  optional ProjectModelInfo projectModelInfo = 5;
+}
