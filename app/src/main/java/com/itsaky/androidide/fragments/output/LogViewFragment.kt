@@ -174,7 +174,7 @@ abstract class LogViewFragment :
 		chars?.let {
 			ThreadUtils.runOnUiThread {
 				_binding?.editor?.append(chars)?.also {
-					emptyStateViewModel.isEmpty.value = false
+					emptyStateViewModel.setEmpty(false)
 				}
 			}
 		}
@@ -277,7 +277,7 @@ abstract class LogViewFragment :
 
 	override fun clearOutput() {
 		_binding?.editor?.setText("")?.also {
-			emptyStateViewModel.isEmpty.value = true
+			emptyStateViewModel.setEmpty(true)
 		}
 	}
 
