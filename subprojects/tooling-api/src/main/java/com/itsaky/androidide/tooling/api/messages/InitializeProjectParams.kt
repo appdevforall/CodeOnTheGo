@@ -25,13 +25,17 @@ import java.io.Serializable
  * @property directory The absolute path to the root directory of the project to initialize.
  * @property gradleDistribution The parameters for the Gradle distribution to use.
  * @property androidParams The [AndroidInitializationParams] for initializing the Android module projects.
+ * @property needsGradleSync Whether to start a Gradle build in order to fetch project models.
  * @author Akash Yadav
  */
-class InitializeProjectParams @JvmOverloads constructor(
-  val directory: String,
-  val gradleDistribution: GradleDistributionParams = GradleDistributionParams.WRAPPER,
-  val androidParams: AndroidInitializationParams = AndroidInitializationParams.DEFAULT,
-  gradleArgs: List<String> = emptyList(),
-  jvmArgs: List<String> = emptyList(),
-) : GradleBuildParams(gradleArgs, jvmArgs), Serializable
-
+class InitializeProjectParams
+	@JvmOverloads
+	constructor(
+		val directory: String,
+		val gradleDistribution: GradleDistributionParams = GradleDistributionParams.WRAPPER,
+		val androidParams: AndroidInitializationParams = AndroidInitializationParams.DEFAULT,
+		val needsGradleSync: Boolean = true,
+		gradleArgs: List<String> = emptyList(),
+		jvmArgs: List<String> = emptyList(),
+	) : GradleBuildParams(gradleArgs, jvmArgs),
+		Serializable

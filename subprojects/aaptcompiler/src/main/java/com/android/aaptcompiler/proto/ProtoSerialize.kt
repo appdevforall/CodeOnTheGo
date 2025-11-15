@@ -641,10 +641,10 @@ fun serializeMacroToPb(macro: Macro): Resources.MacroBody {
     val macroBuilder = Resources.MacroBody.newBuilder()
     macroBuilder.rawString = macro.rawValue!!
 
-    val styleString = macroBuilder.styleStringBuilder
+    val styleString = Resources.StyleString.newBuilder()
     styleString.str = macro.styleString!!.str
     for (span in macro.styleString!!.spans) {
-        val spansBuilder = styleString.addSpansBuilder()
+        val spansBuilder = Resources.StyleString.Span.newBuilder()
         spansBuilder.name = span.name
         spansBuilder.startIndex = span.firstChar
         spansBuilder.endIndex = span.lastChar
@@ -653,14 +653,14 @@ fun serializeMacroToPb(macro: Macro): Resources.MacroBody {
     macroBuilder.styleString = styleString.build()
 
     for (untranslatables in macro.untranslatables) {
-        val section = macroBuilder.addUntranslatableSectionsBuilder()
+        val section = Resources.UntranslatableSection.newBuilder()
         section.startIndex = untranslatables.startIndex.toLong()
         section.endIndex = untranslatables.endIndex.toLong()
         macroBuilder.addUntranslatableSections(section.build())
     }
 
     for (aliasNamespace in macro.aliasNamespaces) {
-        val namespace = macroBuilder.addNamespaceStackBuilder()
+        val namespace = Resources.NamespaceAlias.newBuilder()
         namespace.prefix = aliasNamespace.alias
         namespace.packageName = aliasNamespace.packageName
         namespace.isPrivate = aliasNamespace.isPrivate
