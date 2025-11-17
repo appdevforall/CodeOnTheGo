@@ -1,8 +1,13 @@
 name: Compress Documentation DB and Upload to Google Drive
 
+permissions:
+  id-token: write
+  contents: write
+  actions: write
+
 on:
   schedule:
-    - cron: '0 11 * * *'  # Daily at 11:00 PM UTC
+    - cron: '0 11 * * *'  # Daily at 11:00 AM UTC
   workflow_dispatch:
 
 jobs:
@@ -109,7 +114,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "@here The daily release build failed because *documentation.db* could not be downloaded from Google Drive."
+                    text: "@here The compression run failed because *documentation.db* could not be downloaded from Google Drive."
                   }
                 },
                 {
