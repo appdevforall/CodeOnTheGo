@@ -28,7 +28,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.WIF_P"ROVIDER }}
           # service_account: ${{ secrets.IDENTITY_EMAIL }}
-          service_account: "app-distributor@codeonthego-64a92.iam.gserviceaccount.com"
+          service_account: 'app-distributor@codeonthego-64a92.iam.gserviceaccount.com'
           token_format: 'access_token'
           # access_token_scopes: 'https://www.googleapis.com/auth/drive.readonly'
           access_token_scopes: 'https://www.googleapis.com/auth/drive.file'
