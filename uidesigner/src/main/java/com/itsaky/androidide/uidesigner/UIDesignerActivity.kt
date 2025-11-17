@@ -123,11 +123,29 @@ class UIDesignerActivity : BaseIDEActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    val extras = requireNotNull(intent?.extras) { "Intent extras are required" }
-    val path = requireNotNull(extras.getString(EXTRA_FILE)) { "Layout file path is required" }
-    val file = File(path)
+    val extras = intent?.extras
+    if (extras == null) {
+      log.error("UIDesignerActivity started without intent extras")
+      setResult(RESULT_CANCELED)
+      finish()
+      return
+    }
 
-    require(file.exists()) { "File does not exist: $file" }
+    val path = extras.getString(EXTRA_FILE)
+    if (path == null) {
+      log.error("UIDesignerActivity started without layout file path")
+      setResult(RESULT_CANCELED)
+      finish()
+      return
+    }
+
+    val file = File(path)
+    if (!file.exists()) {
+      log.error("Layout file does not exist: {}", file)
+      setResult(RESULT_CANCELED)
+      finish()
+      return
+    }
 
     viewModel.file = file
 
