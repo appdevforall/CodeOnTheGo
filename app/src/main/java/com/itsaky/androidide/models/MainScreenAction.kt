@@ -21,8 +21,6 @@ import android.view.View
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.FeatureFlags
-import java.util.Collections
 
 /**
  * An action button shown on the main screen.
@@ -30,93 +28,95 @@ import java.util.Collections
  * @author Akash Yadav
  */
 data class MainScreenAction
-@JvmOverloads
-constructor(
-    val id: Int,
-    @StringRes val text: Int,
-    @DrawableRes val icon: Int,
-    var onClick: ((MainScreenAction, View) -> Unit)? = null,
-    var onLongClick: ((MainScreenAction, View) -> Boolean)? = null,
-    var view: View? = null
-) {
+	@JvmOverloads
+	constructor(
+		val id: Int,
+		@StringRes val text: Int,
+		@DrawableRes val icon: Int,
+		var onClick: ((MainScreenAction, View) -> Unit)? = null,
+		var onLongClick: ((MainScreenAction, View) -> Boolean)? = null,
+		var view: View? = null,
+	) {
+		companion object {
+			const val ACTION_CREATE_PROJECT = 100
+			const val ACTION_OPEN_PROJECT = 110
+			const val ACTION_CLONE_REPO = 120
+			const val ACTION_OPEN_TERMINAL = 130
+			const val ACTION_PREFERENCES = 140
+			const val ACTION_DONATE = 150
+			const val ACTION_DOCS = 160
+			const val ACTION_DELETE_PROJECT = 170
 
-    companion object {
+			/**
+			 * Get all main screen actions.
+			 */
 
-        const val ACTION_CREATE_PROJECT = 100
-        const val ACTION_OPEN_PROJECT = 110
-        const val ACTION_CLONE_REPO = 120
-        const val ACTION_OPEN_TERMINAL = 130
-        const val ACTION_PREFERENCES = 140
-        const val ACTION_DONATE = 150
-        const val ACTION_DOCS = 160
-        const val ACTION_DELETE_PROJECT = 170
+			val createProject =
+				MainScreenAction(
+					ACTION_CREATE_PROJECT,
+					R.string.create_project,
+					R.drawable.ic_add,
+				)
 
-        /**
-         * Get all main screen actions.
-         */
+			val openProject =
+				MainScreenAction(
+					ACTION_OPEN_PROJECT,
+					R.string.msg_open_existing_project,
+					R.drawable.ic_folder,
+				)
 
-        val createProject = MainScreenAction(
-            ACTION_CREATE_PROJECT,
-            R.string.create_project,
-            R.drawable.ic_add
-        )
+			val deleteProject =
+				MainScreenAction(
+					ACTION_DELETE_PROJECT,
+					R.string.msg_delete_existing_project,
+					R.drawable.ic_delete,
+				)
 
-        val openProject = MainScreenAction(
-            ACTION_OPEN_PROJECT,
-            R.string.msg_open_existing_project,
-            R.drawable.ic_folder
-        )
+			val openTerminal =
+				MainScreenAction(
+					ACTION_OPEN_TERMINAL,
+					R.string.title_terminal,
+					R.drawable.ic_terminal,
+				)
 
-        val deleteProject = MainScreenAction(
-            ACTION_DELETE_PROJECT,
-            R.string.msg_delete_existing_project,
-            R.drawable.ic_delete
-        )
+			val preferences =
+				MainScreenAction(
+					ACTION_PREFERENCES,
+					R.string.msg_preferences,
+					R.drawable.ic_settings,
+				)
 
-        val openTerminal = MainScreenAction(
-            ACTION_OPEN_TERMINAL,
-            R.string.title_terminal,
-            R.drawable.ic_terminal
-        )
+			val donate =
+				MainScreenAction(
+					ACTION_DONATE,
+					R.string.btn_donate,
+					R.drawable.ic_heart,
+				)
 
-        val preferences = MainScreenAction(
-            ACTION_PREFERENCES,
-            R.string.msg_preferences,
-            R.drawable.ic_settings
-        )
+			val docs =
+				MainScreenAction(
+					ACTION_DOCS,
+					R.string.btn_docs,
+					R.drawable.ic_action_help_outlined,
+				)
 
-        val donate = MainScreenAction(
-            ACTION_DONATE,
-            R.string.btn_donate,
-            R.drawable.ic_heart
-        )
+			private val allActions: List<MainScreenAction> =
+				listOf(
+					createProject,
+					openProject,
+					deleteProject,
+					openTerminal,
+					preferences,
+					donate,
+					docs,
+				)
 
-        val docs = MainScreenAction(
-            ACTION_DOCS,
-            R.string.btn_docs,
-            R.drawable.ic_action_help_outlined
-        )
+			private val mainActions = allActions.minus(donate)
 
-        private val allActions: List<MainScreenAction> = listOf(
-            createProject,
-            openProject,
-            deleteProject,
-            openTerminal,
-            preferences,
-            donate,
-            docs
-        )
+			@JvmStatic
+			fun all(): List<MainScreenAction> = allActions
 
-        private val mainActions = allActions.minus(donate)
-
-        @JvmStatic
-        fun all(): List<MainScreenAction> {
-            return allActions
-        }
-
-        @JvmStatic
-        fun mainScreen(): List<MainScreenAction> {
-            return mainActions
-        }
-    }
-}
+			@JvmStatic
+			fun mainScreen(): List<MainScreenAction> = mainActions
+		}
+	}

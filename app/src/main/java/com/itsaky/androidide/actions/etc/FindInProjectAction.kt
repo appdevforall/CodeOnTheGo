@@ -29,48 +29,48 @@ import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
 class FindInProjectAction() : EditorActivityAction() {
+	override val id: String = ID
+	override var requiresUIThread: Boolean = true
+	override var order: Int = 0
+	override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
 
-  override val id: String = ID
-  override var requiresUIThread: Boolean = true
-  override var order: Int = 0
-  override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT
 
-  companion object{
-    const val ID = "ide.editor.find.inProject"
-  }
+	companion object {
+		const val ID = "ide.editor.find.inProject"
+	}
 
-  constructor(context: Context, order: Int) : this() {
-    this.label = context.getString(R.string.menu_find_project)
-    this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search_project)
-    this.order = order
-  }
+	constructor(context: Context, order: Int) : this() {
+		this.label = context.getString(R.string.menu_find_project)
+		this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search_project)
+		this.order = order
+	}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    data.getActivity()
-      ?: run {
-        markInvisible()
-        return
-      }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		data.getActivity()
+			?: run {
+				markInvisible()
+				return
+			}
 
-    val project = IProjectManager.getInstance().rootProject
-    if (project == null || project.subProjects.isEmpty()) {
-      markInvisible()
-      return
-    }
+		val gradleBuild = IProjectManager.getInstance().gradleBuild
+		if (gradleBuild == null || gradleBuild.subProjectCount == 0) {
+			markInvisible()
+			return
+		}
 
-    visible = true
-    enabled = true
-  }
+		visible = true
+		enabled = true
+	}
 
-  override suspend fun execAction(data: ActionData): Boolean {
-    val context = data.getActivity() ?: return false
-    val dialog = context.findInProjectDialog
+	override suspend fun execAction(data: ActionData): Boolean {
+		val context = data.getActivity() ?: return false
+		val dialog = context.findInProjectDialog
 
-    return run {
-      dialog.show()
-      true
-    }
-  }
+		return run {
+			dialog.show()
+			true
+		}
+	}
 }
