@@ -31,6 +31,7 @@ jobs:
           service_account: 'app-distributor@codeonthego-64a92.iam.gserviceaccount.com'
           token_format: 'access_token'
           # access_token_scopes: 'https://www.googleapis.com/auth/drive.readonly'
+          # access_token_scopes: 'https://www.googleapis.com/auth/drive.file'
           access_token_scopes: 'https://www.googleapis.com/auth/drive.file'
 
 
@@ -41,6 +42,8 @@ jobs:
                     
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
           
+          echo "Service account prefix: ${{ secrets.IDENTITY_EMAIL }}" | cut -c1-10
+
           # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
           DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
