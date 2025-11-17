@@ -40,10 +40,14 @@ jobs:
           echo "Checking if documentation.db has changed..."
                     
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
+          
           # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
-          DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
+          # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
+          DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
+          
           # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
-          LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
+          # LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
+          LAST_MD5_FILE_ID="12YTCvnV-kKaEfAk_OGzKJKA-ecFw48Yi"
           
           # Download last_md5 from Drive
           LAST_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -70,7 +74,8 @@ jobs:
       - name: Download latest documentation.db from Google Drive
         run: |
           # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
-          DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
+          # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
+          DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
           if [ -z "$DB_FILE_ID" ]; then
