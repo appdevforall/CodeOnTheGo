@@ -47,9 +47,12 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				-> {
 					val assetPath = ToolsManager.getCommonAsset("$entryName.br")
-					val srcStream = BrotliInputStream(assets.open(assetPath))
-					val destDir = destinationDirForArchiveEntry(entryName).toPath()
-					AssetsInstallationHelper.extractZipToDir(srcStream, destDir)
+					assets.open(assetPath).use { assetStream ->
+						BrotliInputStream(assetStream).use { srcStream ->
+							val destDir = destinationDirForArchiveEntry(entryName).toPath()
+							AssetsInstallationHelper.extractZipToDir(srcStream, destDir)
+						}
+					}
 				}
 
 				GRADLE_API_NAME_JAR_ZIP -> {
