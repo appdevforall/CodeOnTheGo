@@ -189,8 +189,12 @@ jobs:
             "https://www.googleapis.com/upload/drive/v3/files/${BR_FILE_ID}?uploadType=media"
 
           # Upload last_md5
+          #curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
+          #  -F "file=@last_md5;type=text/plain" \
+          #  "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media"
           curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -F "file=@last_md5;type=text/plain" \
+            -H "Content-Type: text/plain" \
+            --data-binary "@last_md5" \
             "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media"
-
+  
           echo "Upload complete."
