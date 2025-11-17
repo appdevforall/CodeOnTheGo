@@ -172,9 +172,12 @@ jobs:
 
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
           # BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
-          BR_FILE_ID="1RB4X2VXz07vFQwOoLBsb3o70PSN8mLoL"
+          # BR_FILE_ID="1RB4X2VXz07vFQwOoLBsb3o70PSN8mLoL"
+          BR_FILE_ID="1if0BF3AxKImNCaCEn2JBfOPQI0ge3PrF"
+          
           # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
-          LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
+          # LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
+          LAST_MD5_FILE_ID="12YTCvnV-kKaEfAk_OGzKJKA-ecFw48Yi"
 
           # Compute current md5Checksum of documentation.db
           CURRENT_MD5=$(md5sum documentation.db | awk '{print $1}')
