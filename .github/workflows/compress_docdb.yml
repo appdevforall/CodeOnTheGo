@@ -37,23 +37,12 @@ jobs:
       - name: Check if documentation.db has changed
         run: |
           echo "Checking if documentation.db has changed..."
-          
-          ACCOUNT="${{ secrets.IDENTITY_EMAIL }}"
-          
-          echo "Service Account: $ACCOUNT"
-          
+                    
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
           # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
           # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
           LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
-          
-          # Get current md5Checksum of documentation.db
-          CURRENT_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?fields=md5Checksum" \
-            | jq -r '.md5Checksum')
-          
-          echo "Current md5Checksum: $CURRENT_MD5"
           
           # Download last_md5 from Drive
           LAST_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -61,6 +50,13 @@ jobs:
             | tr -d '\n')
           
           echo "Last md5Checksum: $LAST_MD5"
+          
+          # Get current md5Checksum of documentation.db
+          CURRENT_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?fields=md5Checksum" \
+            | jq -r '.md5Checksum')
+          
+          echo "Current md5Checksum: $CURRENT_MD5"
           
           # Compare
           if [ "$CURRENT_MD5" = "$LAST_MD5" ]; then
@@ -134,7 +130,7 @@ jobs:
               ]
             }' > error_payload.json
 
-            curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+            # curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
             rm -f error_payload.json
             exit 1
           fi
