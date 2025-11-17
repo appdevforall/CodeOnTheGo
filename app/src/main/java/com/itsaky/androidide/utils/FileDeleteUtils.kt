@@ -1,6 +1,7 @@
 package com.itsaky.androidide.utils
 
 import android.util.Log
+import io.sentry.Sentry
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.IOException
@@ -9,34 +10,43 @@ object FileDeleteUtils {
     private const val TAG = "FileDeleteUtils"
 
 
-    fun deleteRecursive(
-        fileOrDirectory: File,
-        onDeleted: (success: Boolean) -> Unit = {}
-    ) {
+    suspend fun deleteRecursive(fileOrDirectory: File): Boolean = withContext(Dispatchers.IO) {
         val hiddenFile = File(
             fileOrDirectory.parentFile,
             ".${fileOrDirectory.name}"
         )
 
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-
-                if (fileOrDirectory.isDirectory) {
-                    val copied = fileOrDirectory.copyRecursively(hiddenFile, overwrite = false)
-                } else {
-                    fileOrDirectory.copyTo(hiddenFile, overwrite = false)
-                    Log.d(TAG, "File copy complete")
-                }
-            } catch (t: Throwable) {
-                Log.e(TAG, "Copy failed: ${t.message}", t)
-            }
-
-            val deletedOriginal = deleteRecursively(fileOrDirectory)
-
-            withContext(Dispatchers.Main) {
-                onDeleted(deletedOriginal)
+        if (hiddenFile.exists() && !fileOrDirectory.exists()) {
+            Log.w(TAG, "Cleaning up previous failed deletion: ${hiddenFile.absolutePath}")
+            if (!deleteRecursively(hiddenFile)) {
+                Log.e(TAG, "Failed to clean up hidden file: ${hiddenFile.absolutePath}")
+                return@withContext false
             }
         }
+
+        if (fileOrDirectory.exists()) {
+            val renamed = runCatching {
+                fileOrDirectory.renameTo(hiddenFile)
+            }.onFailure { t ->
+                Log.e(TAG, "Failed to rename ${fileOrDirectory.absolutePath} to hidden: ${t.message}", t)
+                Sentry.captureException(t)
+            }.getOrDefault(false)
+
+            if (!renamed) {
+                return@withContext false
+            }
+        } else if (!hiddenFile.exists()) {
+            Log.d(TAG, "File does not exist: ${fileOrDirectory.absolutePath}")
+            return@withContext true
+        }
+
+        val deleted = deleteRecursively(hiddenFile)
+
+        if (!deleted) {
+            Log.w(TAG, "Hidden directory remains after deletion failure: ${hiddenFile.absolutePath}")
+        }
+
+        deleted
     }
 
     private fun deleteRecursively(file: File): Boolean {
@@ -45,23 +55,32 @@ object FileDeleteUtils {
                 val children = file.listFiles()
                 if (children != null) {
                     for (child in children) {
-                        deleteRecursively(child)
+                        if (!deleteRecursively(child)) {
+                            Log.w(TAG, "Failed to delete: ${child.absolutePath}")
+                            return false
+                        }
                     }
                 }
             }
 
-            val deleted = file.delete()
-            return deleted || !file.exists()
+            return file.delete().also { deleted ->
+                if (!deleted) {
+                    Log.e(TAG, "Failed to delete: ${file.absolutePath}")
+                }
+            }
 
         } catch (e: SecurityException) {
             Log.e(TAG, "SecurityException deleting ${file.absolutePath}: ${e.message}", e)
-            return !file.exists()
+            Sentry.captureException(e)
+            return false
         } catch (e: IOException) {
             Log.e(TAG, "IOException deleting ${file.absolutePath}: ${e.message}", e)
-            return !file.exists()
+            Sentry.captureException(e)
+            return false
         } catch (t: Throwable) {
             Log.e(TAG, "Unexpected error deleting ${file.absolutePath}: ${t.message}", t)
-            return !file.exists()
+            Sentry.captureException(t)
+            return false
         }
     }
 }
