@@ -176,7 +176,7 @@ public class ToolsManager {
 			FileUtils.delete(Environment.LOGSENDER_AAR);
 		}
 
-		Environment.mkdirIfNotExits(Environment.LOGSENDER_DIR);
+		Environment.mkdirIfNotExists(Environment.LOGSENDER_DIR);
 
 		final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
 		ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
