@@ -64,7 +64,7 @@
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory!</string>
 	<string name="please_wait">Please wait for a moment.</string>
-	<string name="not_enough_storage">Installation failed \n\nYou need %.1fGB to continue</string>
+	<string name="not_enough_storage">Installation failed \n\nYou need an additional %.1fGB of free space to continue</string>
 
 	<!-- Project Builder -->
 	<string name="title_unsupported_device">This device is not supported</string>

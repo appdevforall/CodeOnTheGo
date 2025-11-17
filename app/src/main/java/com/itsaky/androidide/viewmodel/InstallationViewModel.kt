@@ -31,6 +31,10 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 class InstallationViewModel : ViewModel() {
+	companion object {
+		const val LEAST_STORAGE_NEEDED_FOR_INSTALLATION = 40L
+	}
+
 	private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
 
 	private val _state = MutableStateFlow<InstallationState>(InstallationPending)
@@ -108,31 +112,27 @@ class InstallationViewModel : ViewModel() {
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
 			Environment.ANDROID_HOME.exists()
 
-	private fun deviceHasLowStorage(): Pair<Boolean, Float> {
-		val stat =
-			StatFs(
-				android.os.Environment
-					.getExternalStorageDirectory()
-					.path,
-			)
+	private fun deviceHasLowStorage(context: Context): Pair<Boolean, Float> {
+		val stat = StatFs(context.filesDir.path)
 
 		val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
-		val requiredStorageInBytes = 4L.gigabytesToBytes() // 4GB
-		val additionalBytesNeeded = requiredStorageInBytes - availableStorageInBytes
+		val requiredStorageInBytes = LEAST_STORAGE_NEEDED_FOR_INSTALLATION.gigabytesToBytes() // 4GB
+		val additionalBytesNeeded = (requiredStorageInBytes - availableStorageInBytes).coerceAtLeast(0F)
+
 		val isLowStorage = availableStorageInBytes < requiredStorageInBytes
 
 		return Pair(isLowStorage, additionalBytesNeeded)
 	}
 
 	fun checkStorageAndNotify(context: Context): Boolean {
-		val (isLowStorage, additionalBytesNeeded) = deviceHasLowStorage()
+		val (isLowStorage, additionalBytesNeeded) = deviceHasLowStorage(context)
 
 		if (isLowStorage) {
 			viewModelScope.launch {
-                val errorMessage =
-                    context.getString(R.string.not_enough_storage, additionalBytesNeeded.bytesToGigabytes())
-                _events.emit(InstallationEvent.ShowError(errorMessage))
-            }
+				val errorMessage =
+					context.getString(R.string.not_enough_storage, additionalBytesNeeded.bytesToGigabytes())
+				_events.emit(InstallationEvent.ShowError(errorMessage))
+			}
 			return false
 		}
 		return true
