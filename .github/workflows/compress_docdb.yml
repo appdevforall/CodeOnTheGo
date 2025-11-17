@@ -26,7 +26,7 @@ jobs:
         id: auth_drive
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.WIF_P"ROVIDER }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           # service_account: ${{ secrets.IDENTITY_EMAIL }}
           service_account: 'app-distributor@codeonthego-64a92.iam.gserviceaccount.com'
           token_format: 'access_token'
