@@ -803,10 +803,7 @@
 	<string name="actions">Actions</string>
 	<string name="help">Help</string>
 	<string name="code"></string>
-	<string name="email_feedback_warning_prompt">
-		To send a private message to feedback@appdevforall.org, tap
-		<b>OK</b>
-		. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?
+	<string name="email_feedback_warning_prompt"> To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?
 	</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
 	<string name="feedback_message">Please enter your feedback in the space below. If you are reporting a problem, please include as
