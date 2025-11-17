@@ -34,7 +34,6 @@ class MainFragment : BaseFragment() {
 	private val viewModel by activityViewModels<MainViewModel>()
 	private var binding: FragmentMainBinding? = null
 
-
 	companion object {
 		const val KEY_TOOLTIP_URL = "tooltip_url"
 	}
@@ -161,7 +160,6 @@ class MainFragment : BaseFragment() {
 	private fun showViewSavedProjects() {
 		viewModel.setScreen(MainViewModel.SCREEN_SAVED_PROJECTS)
 	}
-
 
 	private fun gotoPreferences() {
 		startActivity(Intent(requireActivity(), PreferencesActivity::class.java))

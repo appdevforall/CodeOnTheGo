@@ -45,6 +45,6 @@ class TerminalActivity : TermuxActivity() {
 
   override fun onServiceConnected(componentName: ComponentName?, service: IBinder?) {
     super.onServiceConnected(componentName, service)
-    Environment.mkdirIfNotExits(Environment.TMP_DIR)
+    Environment.mkdirIfNotExists(Environment.TMP_DIR)
   }
 }
