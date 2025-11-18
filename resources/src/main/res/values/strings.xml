@@ -1020,7 +1020,7 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
 
 	<!-- Tooltip Links HTML Template -->
 	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
-	<string name="title_alert">Alert!</string>
+	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
 	<string name="telegram_group_url">https://t.me/CodeOnTheGoDiscussions</string>
