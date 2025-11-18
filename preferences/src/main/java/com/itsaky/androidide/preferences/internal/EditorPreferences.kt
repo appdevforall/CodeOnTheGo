@@ -167,5 +167,7 @@ object EditorPreferences {
 
   var pinLineNumbers: Boolean
     get() = prefManager.getBoolean(PIN_LINE_NUMBERS, true)
-    set(value) = prefManager.putBoolean(PIN_LINE_NUMBERS, value)
+    set(value) {
+		prefManager.putBoolean(PIN_LINE_NUMBERS, value)
+	}
 }
