@@ -24,13 +24,15 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.idetooltips.TooltipTag
 
 class DiagnosticsListFragment : RecyclerViewFragment<DiagnosticsAdapter>() {
-  override val fragmentTooltipTag: String? = TooltipTag.PROJECT_DIAGNOSTICS
-  override fun onCreateAdapter(): RecyclerView.Adapter<*> {
-    return DiagnosticsAdapter(ArrayList(), null)
-  }
+	override val fragmentTooltipTag: String? = TooltipTag.PROJECT_DIAGNOSTICS
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_diagnostics)
-  }
+	override fun onCreateAdapter(): RecyclerView.Adapter<*> = DiagnosticsAdapter(ArrayList(), null)
+
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_diagnostics))
+	}
 }

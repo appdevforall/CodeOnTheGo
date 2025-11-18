@@ -40,415 +40,438 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
-class ChatFragment :
-    EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
+class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
+	private val chatViewModel: ChatViewModel by activityViewModel()
 
-    private val chatViewModel: ChatViewModel by activityViewModel()
+	private val insetsListener =
+		View.OnApplyWindowInsetsListener { _, insets ->
+			if (isAdded) {
+				val insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets)
 
-    private val insetsListener = View.OnApplyWindowInsetsListener { _, insets ->
-        if (isAdded) {
-            val insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets)
+				// Check if the on-screen keyboard is visible
+				val isImeVisible = insetsCompat.isVisible(WindowInsetsCompat.Type.ime())
 
-            // Check if the on-screen keyboard is visible
-            val isImeVisible = insetsCompat.isVisible(WindowInsetsCompat.Type.ime())
+				// Get the height of the IME space
+				val imeHeight = insetsCompat.getInsets(WindowInsetsCompat.Type.ime()).bottom
 
-            // Get the height of the IME space
-            val imeHeight = insetsCompat.getInsets(WindowInsetsCompat.Type.ime()).bottom
+				// Only apply the height if the software keyboard is visible
+				binding.keyboardSpacer.updateLayoutParams {
+					height = if (isImeVisible) imeHeight else 0
+				}
+			}
+			insets
+		}
 
-            // Only apply the height if the software keyboard is visible
-            binding.keyboardSpacer.updateLayoutParams {
-                height = if (isImeVisible) imeHeight else 0
-            }
-        }
-        insets
-    }
+	private lateinit var chatAdapter: ChatAdapter
+	private val selectedContext = mutableListOf<String>()
+	private val selectedImageUris = mutableListOf<Uri>()
+	private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
+	private lateinit var markwon: Markwon
+	private var lastRenderedMessages: List<ChatMessage> = emptyList()
 
-    private lateinit var chatAdapter: ChatAdapter
-    private val selectedContext = mutableListOf<String>()
-    private val selectedImageUris = mutableListOf<Uri>()
-    private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
-    private lateinit var markwon: Markwon
-    private var lastRenderedMessages: List<ChatMessage> = emptyList()
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		if (chatViewModel.sessions.value.isNullOrEmpty()) {
+			chatViewModel.loadSessions(requireActivity().getPreferences(Context.MODE_PRIVATE))
+		}
+		imagePickerLauncher =
+			registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
+				if (uris.isNotEmpty()) {
+					selectedImageUris.addAll(uris)
+					updateContextChips()
+					flashInfo("${uris.size} images selected.")
+				}
+			}
+	}
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        if (chatViewModel.sessions.value.isNullOrEmpty()) {
-            chatViewModel.loadSessions(requireActivity().getPreferences(Context.MODE_PRIVATE))
-        }
-        imagePickerLauncher =
-            registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
-                if (uris.isNotEmpty()) {
-                    selectedImageUris.addAll(uris)
-                    updateContextChips()
-                    flashInfo("${uris.size} images selected.")
-                }
-            }
-    }
+	override fun onResume() {
+		super.onResume()
+		activity?.window?.decorView?.setOnApplyWindowInsetsListener(insetsListener)
+		chatViewModel.checkBackendStatusOnResume(requireContext())
+	}
 
-    override fun onResume() {
-        super.onResume()
-        activity?.window?.decorView?.setOnApplyWindowInsetsListener(insetsListener)
-        chatViewModel.checkBackendStatusOnResume(requireContext())
-    }
+	override fun onFragmentLongPressed() {
+	}
 
-    override fun onFragmentLongPressed() {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		emptyStateViewModel.setEmptyMessage("No git actions yet")
+		emptyStateViewModel.setEmpty(false)
+		markwon =
+			Markwon
+				.builder(requireContext())
+				.usePlugin(LinkifyPlugin.create())
+				.build()
 
-    }
+		setupUI()
+		setupListeners()
+		setupStateObservers()
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        emptyStateViewModel.emptyMessage.value = "No git actions yet"
-        emptyStateViewModel.isEmpty.value = false
-        markwon = Markwon.builder(requireContext())
-            .usePlugin(LinkifyPlugin.create())
-            .build()
+		chatViewModel.backendStatus.observe(viewLifecycleOwner) { status ->
+			binding.backendStatusText.text = status.displayText
+		}
+		chatViewModel.currentSession.observe(viewLifecycleOwner) { session ->
+			updateToolbarForSession(session)
+		}
 
+		viewLifecycleOwner.lifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				chatViewModel.chatMessages.collect { messages ->
+					lastRenderedMessages = messages
+					chatAdapter.submitList(messages)
+					updateUIState(messages)
+					updateToolbarForMessages(messages)
+					if (messages.isNotEmpty()) {
+						binding.chatRecyclerView.scrollToPosition(messages.size - 1)
+					}
+				}
+			}
+		}
+		parentFragmentManager.setFragmentResultListener(
+			"chat_history_request",
+			viewLifecycleOwner,
+		) { _, bundle ->
+			bundle.getString("selected_session_id")?.let { sessionId ->
+				chatViewModel.setCurrentSession(sessionId)
+			}
+		}
+		parentFragmentManager.setFragmentResultListener(
+			"context_selection_request",
+			viewLifecycleOwner,
+		) { _, bundle ->
+			bundle.getStringArrayList("selected_context")?.let { result ->
+				selectedContext.clear()
+				selectedContext.addAll(result)
+				updateContextChips()
+			}
+		}
+	}
 
-        setupUI()
-        setupListeners()
-        setupStateObservers()
+	private fun handleSendMessage() {
+		val inputText =
+			binding.promptInputEdittext.text
+				.toString()
+				.trim()
+		if (inputText.isEmpty()) {
+			return
+		}
 
-        chatViewModel.backendStatus.observe(viewLifecycleOwner) { status ->
-            binding.backendStatusText.text = status.displayText
-        }
-        chatViewModel.currentSession.observe(viewLifecycleOwner) { session ->
-            updateToolbarForSession(session)
-        }
+		binding.promptInputEdittext.text?.clear()
 
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                chatViewModel.chatMessages.collect { messages ->
-                    lastRenderedMessages = messages
-                    chatAdapter.submitList(messages)
-                    updateUIState(messages)
-                    updateToolbarForMessages(messages)
-                    if (messages.isNotEmpty()) {
-                        binding.chatRecyclerView.scrollToPosition(messages.size - 1)
-                    }
-                }
-            }
-        }
-        parentFragmentManager.setFragmentResultListener(
-            "chat_history_request",
-            viewLifecycleOwner
-        ) { _, bundle ->
-            bundle.getString("selected_session_id")?.let { sessionId ->
-                chatViewModel.setCurrentSession(sessionId)
-            }
-        }
-        parentFragmentManager.setFragmentResultListener(
-            "context_selection_request", viewLifecycleOwner
-        ) { _, bundle ->
-            bundle.getStringArrayList("selected_context")?.let { result ->
-                selectedContext.clear()
-                selectedContext.addAll(result)
-                updateContextChips()
-            }
-        }
-    }
+		viewLifecycleOwner.lifecycleScope.launch {
+			if (selectedContext.isEmpty()) {
+				chatViewModel.sendMessage(inputText, inputText, requireContext())
+			} else {
+				val masterPrompt = buildMasterPrompt(inputText)
+				chatViewModel.sendMessage(
+					fullPrompt = masterPrompt,
+					originalUserText = inputText,
+					requireContext(),
+				)
+			}
+		}
+	}
 
-    private fun handleSendMessage() {
-        val inputText = binding.promptInputEdittext.text.toString().trim()
-        if (inputText.isEmpty()) {
-            return
-        }
+	private suspend fun buildMasterPrompt(userInput: String): String =
+		withContext(Dispatchers.IO) {
+			val promptBuilder = StringBuilder()
+			promptBuilder.append("this is the master prompt, answer to the user message: $userInput\n")
 
-        binding.promptInputEdittext.text?.clear()
+			if (selectedContext.isNotEmpty()) {
+				promptBuilder.append("\nuse the context:\n")
+				selectedContext.forEach { filePath ->
+					val result = ReadFileCommand(filePath).execute()
+					result
+						.onSuccess { content ->
+							promptBuilder.append("--- START FILE: $filePath ---\n")
+							promptBuilder.append(content)
+							promptBuilder.append("\n--- END FILE: $filePath ---\n\n")
+						}.onFailure { exception ->
+							Log.e("ChatFragment", "Failed to read context file: $filePath", exception)
+							promptBuilder.append("--- FAILED TO READ FILE: $filePath ---\n\n")
+						}
+				}
+			}
 
-        viewLifecycleOwner.lifecycleScope.launch {
-            if (selectedContext.isEmpty()) {
-                chatViewModel.sendMessage(inputText, inputText, requireContext())
-            } else {
-                val masterPrompt = buildMasterPrompt(inputText)
-                chatViewModel.sendMessage(
-                    fullPrompt = masterPrompt,
-                    originalUserText = inputText,
-                    requireContext()
-                )
-            }
-        }
-    }
+			// Clear the selected context on the main thread after using it
+			withContext(Dispatchers.Main) {
+				selectedContext.clear()
+				updateContextChips()
+			}
 
-    private suspend fun buildMasterPrompt(userInput: String): String = withContext(Dispatchers.IO) {
-        val promptBuilder = StringBuilder()
-        promptBuilder.append("this is the master prompt, answer to the user message: $userInput\n")
+			promptBuilder.toString()
+		}
 
-        if (selectedContext.isNotEmpty()) {
-            promptBuilder.append("\nuse the context:\n")
-            selectedContext.forEach { filePath ->
-                val result = ReadFileCommand(filePath).execute()
-                result.onSuccess { content ->
-                    promptBuilder.append("--- START FILE: $filePath ---\n")
-                    promptBuilder.append(content)
-                    promptBuilder.append("\n--- END FILE: $filePath ---\n\n")
-                }.onFailure { exception ->
-                    Log.e("ChatFragment", "Failed to read context file: $filePath", exception)
-                    promptBuilder.append("--- FAILED TO READ FILE: $filePath ---\n\n")
-                }
-            }
-        }
+	private fun setupUI() {
+		chatAdapter =
+			ChatAdapter(markwon) { action, message ->
+				handleMessageAction(action, message)
+			}
+		chatAdapter.registerAdapterDataObserver(
+			object : RecyclerView.AdapterDataObserver() {
+				override fun onItemRangeInserted(
+					positionStart: Int,
+					itemCount: Int,
+				) {
+					super.onItemRangeInserted(positionStart, itemCount)
+					binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+				}
+			},
+		)
 
-        // Clear the selected context on the main thread after using it
-        withContext(Dispatchers.Main) {
-            selectedContext.clear()
-            updateContextChips()
-        }
+		binding.chatRecyclerView.adapter = chatAdapter
+		binding.chatRecyclerView.layoutManager =
+			LinearLayoutManager(requireContext()).apply {
+				stackFromEnd = true
+			}
+	}
 
-        promptBuilder.toString()
-    }
+	private fun setupListeners() {
+		binding.promptInputEdittext.doAfterTextChanged { text ->
+			val currentState = chatViewModel.agentState.value
+			if (currentState !is AgentState.Processing && currentState !is AgentState.Cancelling) {
+				binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
+			}
+		}
+		binding.btnSendPrompt.setOnClickListener {
+			handleSendMessage()
+		}
+		binding.btnStopGeneration.setOnClickListener {
+			chatViewModel.stopAgentResponse()
+		}
+		binding.promptInputEdittext.setOnKeyListener { _, keyCode, keyEvent ->
+			if (keyEvent.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
+				if (keyEvent.isShiftPressed) {
+					false // Allow newline
+				} else {
+					handleSendMessage()
+					true // Consume event
+				}
+			} else {
+				false
+			}
+		}
+		binding.btnAddContext.setOnClickListener {
+			findNavController().navigate(R.id.action_chatFragment_to_contextSelectionFragment)
+		}
+		binding.btnUploadImage.setOnClickListener {
+			imagePickerLauncher.launch("image/*")
+		}
+		binding.chatToolbar.setOnMenuItemClickListener { menuItem ->
+			when (menuItem.itemId) {
+				R.id.menu_new_chat -> {
+					chatViewModel.createNewSession()
+					true
+				}
 
-    private fun setupUI() {
-        chatAdapter = ChatAdapter(markwon) { action, message ->
-            handleMessageAction(action, message)
-        }
-        chatAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                super.onItemRangeInserted(positionStart, itemCount)
-                binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
-            }
-        })
+				R.id.menu_chat_history -> {
+					findNavController().navigate(R.id.action_chatFragment_to_chatHistoryFragment)
+					true
+				}
 
-        binding.chatRecyclerView.adapter = chatAdapter
-        binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
-            stackFromEnd = true
-        }
-    }
+				R.id.menu_ai_settings -> {
+					findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
+					true
+				}
 
-    private fun setupListeners() {
-        binding.promptInputEdittext.doAfterTextChanged { text ->
-            val currentState = chatViewModel.agentState.value
-            if (currentState !is AgentState.Processing && currentState !is AgentState.Cancelling) {
-                binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
-            }
-        }
-        binding.btnSendPrompt.setOnClickListener {
-            handleSendMessage()
-        }
-        binding.btnStopGeneration.setOnClickListener {
-            chatViewModel.stopAgentResponse()
-        }
-        binding.promptInputEdittext.setOnKeyListener { _, keyCode, keyEvent ->
-            if (keyEvent.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
-                if (keyEvent.isShiftPressed) {
-                    false // Allow newline
-                } else {
-                    handleSendMessage()
-                    true // Consume event
-                }
-            } else {
-                false
-            }
-        }
-        binding.btnAddContext.setOnClickListener {
-            findNavController().navigate(R.id.action_chatFragment_to_contextSelectionFragment)
-        }
-        binding.btnUploadImage.setOnClickListener {
-            imagePickerLauncher.launch("image/*")
-        }
-        binding.chatToolbar.setOnMenuItemClickListener { menuItem ->
-            when (menuItem.itemId) {
-                R.id.menu_new_chat -> {
-                    chatViewModel.createNewSession()
-                    true
-                }
+				else -> false
+			}
+		}
+		binding.promptInputEdittext.setOnFocusChangeListener { view, hasFocus ->
+			if (!hasFocus) {
+				val imm =
+					context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+				imm?.hideSoftInputFromWindow(view.windowToken, 0)
+			}
+		}
+	}
 
-                R.id.menu_chat_history -> {
-                    findNavController().navigate(R.id.action_chatFragment_to_chatHistoryFragment)
-                    true
-                }
+	private fun setupStateObservers() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			chatViewModel.agentState
+				.combine(chatViewModel.stepElapsedTime) { state, stepTime ->
+					state to stepTime
+				}.combine(chatViewModel.totalElapsedTime) { (state, stepTime), totalTime ->
+					Triple(state, stepTime, totalTime)
+				}.collect { (state, stepTime, totalTime) ->
+					when (state) {
+						is AgentState.Idle -> {
+							binding.agentStatusContainer.isVisible = false
 
-                R.id.menu_ai_settings -> {
-                    findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
-                    true
-                }
+							binding.btnStopGeneration.isVisible = false
+							binding.btnSendPrompt.isVisible = true
 
-                else -> false
-            }
-        }
-        binding.promptInputEdittext.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) {
-                val imm =
-                    context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(view.windowToken, 0)
-            }
-        }
-    }
+							binding.btnSendPrompt.isEnabled =
+								binding.promptInputEdittext.text?.isNotBlank() == true
+						}
 
-    private fun setupStateObservers() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            chatViewModel.agentState.combine(chatViewModel.stepElapsedTime) { state, stepTime ->
-                state to stepTime
-            }.combine(chatViewModel.totalElapsedTime) { (state, stepTime), totalTime ->
-                Triple(state, stepTime, totalTime)
-            }.collect { (state, stepTime, totalTime) ->
-                when (state) {
-                    is AgentState.Idle -> {
-                        binding.agentStatusContainer.isVisible = false
+						is AgentState.Processing -> {
+							val stepTimeFormatted = chatViewModel.formatTime(stepTime)
+							val totalTimeFormatted = chatViewModel.formatTime(totalTime)
+							val timeString = "($stepTimeFormatted of $totalTimeFormatted)"
 
-                        binding.btnStopGeneration.isVisible = false
-                        binding.btnSendPrompt.isVisible = true
+							binding.agentStatusMessage.text = state.message
+							binding.agentStatusTimer.text = timeString
+							binding.agentStatusTimer.isVisible = true
+							binding.agentStatusContainer.isVisible = true
 
-                        binding.btnSendPrompt.isEnabled =
-                            binding.promptInputEdittext.text?.isNotBlank() == true
-                    }
+							binding.btnStopGeneration.isVisible = true
+							binding.btnSendPrompt.isVisible = false
 
-                    is AgentState.Processing -> {
-                        val stepTimeFormatted = chatViewModel.formatTime(stepTime)
-                        val totalTimeFormatted = chatViewModel.formatTime(totalTime)
-                        val timeString = "($stepTimeFormatted of $totalTimeFormatted)"
+							binding.btnStopGeneration.isEnabled = true
+						}
 
-                        binding.agentStatusMessage.text = state.message
-                        binding.agentStatusTimer.text = timeString
-                        binding.agentStatusTimer.isVisible = true
-                        binding.agentStatusContainer.isVisible = true
+						is AgentState.Cancelling -> {
+							binding.agentStatusMessage.text = "Stopping..."
+							binding.agentStatusTimer.isVisible = false
+							binding.agentStatusContainer.isVisible = true
 
-                        binding.btnStopGeneration.isVisible = true
-                        binding.btnSendPrompt.isVisible = false
+							binding.btnStopGeneration.isVisible = true
+							binding.btnSendPrompt.isVisible = false
 
-                        binding.btnStopGeneration.isEnabled = true
-                    }
+							binding.btnStopGeneration.isEnabled = false
+						}
 
-                    is AgentState.Cancelling -> {
-                        binding.agentStatusMessage.text = "Stopping..."
-                        binding.agentStatusTimer.isVisible = false
-                        binding.agentStatusContainer.isVisible = true
+						is AgentState.Error -> {
+							binding.agentStatusMessage.text = state.message
+							binding.agentStatusTimer.isVisible = false
+							binding.agentStatusContainer.isVisible = true
 
-                        binding.btnStopGeneration.isVisible = true
-                        binding.btnSendPrompt.isVisible = false
+							binding.btnStopGeneration.isVisible = false
+							binding.btnSendPrompt.isVisible = true
 
-                        binding.btnStopGeneration.isEnabled = false
-                    }
+							binding.btnSendPrompt.isEnabled =
+								binding.promptInputEdittext.text?.isNotBlank() == true
+						}
+					}
+				}
+		}
+	}
 
-                    is AgentState.Error -> {
-                        binding.agentStatusMessage.text = state.message
-                        binding.agentStatusTimer.isVisible = false
-                        binding.agentStatusContainer.isVisible = true
+	private fun updateUIState(messages: List<ChatMessage>) {
+		val hasMessages = messages.isNotEmpty()
+		binding.emptyChatView.isVisible = !hasMessages
+		if (!hasMessages) {
+			val sessionTitle = chatViewModel.currentSession.value?.title
+			binding.emptyChatView.text =
+				sessionTitle?.takeIf { it.isNotBlank() } ?: getString(R.string.new_chat)
+		}
+		binding.chatRecyclerView.isVisible = hasMessages
+	}
 
-                        binding.btnStopGeneration.isVisible = false
-                        binding.btnSendPrompt.isVisible = true
+	private fun updateToolbarForSession(session: ChatSession?) {
+		updateToolbar(
+			sessionTitle = session?.title,
+			messages = lastRenderedMessages,
+		)
+	}
 
-                        binding.btnSendPrompt.isEnabled =
-                            binding.promptInputEdittext.text?.isNotBlank() == true
-                    }
-                }
-            }
-        }
-    }
+	private fun updateToolbarForMessages(messages: List<ChatMessage>) {
+		updateToolbar(
+			sessionTitle = chatViewModel.currentSession.value?.title,
+			messages = messages,
+		)
+	}
 
-    private fun updateUIState(messages: List<ChatMessage>) {
-        val hasMessages = messages.isNotEmpty()
-        binding.emptyChatView.isVisible = !hasMessages
-        if (!hasMessages) {
-            val sessionTitle = chatViewModel.currentSession.value?.title
-            binding.emptyChatView.text =
-                sessionTitle?.takeIf { it.isNotBlank() } ?: getString(R.string.new_chat)
-        }
-        binding.chatRecyclerView.isVisible = hasMessages
-    }
+	private fun updateToolbar(
+		sessionTitle: String?,
+		messages: List<ChatMessage>,
+	) {
+		val title =
+			when {
+				messages.isNotEmpty() -> {
+					val firstUserMessage = messages.firstOrNull { it.sender == Sender.USER }?.text
+					val fallback = firstUserMessage ?: messages.first().text
+					formatChatTitle(fallback)
+				}
 
-    private fun updateToolbarForSession(session: ChatSession?) {
-        updateToolbar(
-            sessionTitle = session?.title,
-            messages = lastRenderedMessages
-        )
-    }
+				!sessionTitle.isNullOrBlank() -> formatChatTitle(sessionTitle)
 
-    private fun updateToolbarForMessages(messages: List<ChatMessage>) {
-        updateToolbar(
-            sessionTitle = chatViewModel.currentSession.value?.title,
-            messages = messages
-        )
-    }
+				else -> getString(R.string.new_chat)
+			}
+		binding.chatToolbar.title = title
 
-    private fun updateToolbar(sessionTitle: String?, messages: List<ChatMessage>) {
-        val title = when {
-            messages.isNotEmpty() -> {
-                val firstUserMessage = messages.firstOrNull { it.sender == Sender.USER }?.text
-                val fallback = firstUserMessage ?: messages.first().text
-                formatChatTitle(fallback)
-            }
+		val menuItem = binding.chatToolbar.menu.findItem(R.id.menu_new_chat)
+		val isNewChatDisplayed = messages.isEmpty()
+		menuItem?.isEnabled = !isNewChatDisplayed
+		val alpha = if (!isNewChatDisplayed) 255 else (255 * 0.4f).toInt()
+		menuItem?.icon?.mutate()?.alpha = alpha
+	}
 
-            !sessionTitle.isNullOrBlank() -> formatChatTitle(sessionTitle)
+	private fun formatChatTitle(rawTitle: String?): String {
+		if (rawTitle.isNullOrBlank()) {
+			return getString(R.string.new_chat)
+		}
+		val trimmed = rawTitle.trim()
+		val maxLength = 48
+		return if (trimmed.length <= maxLength) {
+			trimmed
+		} else {
+			trimmed.take(maxLength - 3).trimEnd() + "..."
+		}
+	}
 
-            else -> getString(R.string.new_chat)
-        }
-        binding.chatToolbar.title = title
+	override fun onPause() {
+		super.onPause()
+		// Clean up the listener to prevent leaks or unwanted behavior
+		activity?.window?.decorView?.setOnApplyWindowInsetsListener(null)
+		chatViewModel.saveAllSessionsAndState(requireActivity().getPreferences(Context.MODE_PRIVATE))
+	}
 
-        val menuItem = binding.chatToolbar.menu.findItem(R.id.menu_new_chat)
-        val isNewChatDisplayed = messages.isEmpty()
-        menuItem?.isEnabled = !isNewChatDisplayed
-        val alpha = if (!isNewChatDisplayed) 255 else (255 * 0.4f).toInt()
-        menuItem?.icon?.mutate()?.alpha = alpha
-    }
+	private fun updateContextChips() {
+		binding.contextChipGroup.removeAllViews()
+		val allContextItems =
+			selectedContext + selectedImageUris.map { "Image: ${it.lastPathSegment}" }
+		if (allContextItems.isEmpty()) {
+			binding.contextChipGroup.visibility = View.GONE
+		} else {
+			binding.contextChipGroup.visibility = View.VISIBLE
+			allContextItems.forEach { itemText ->
+				val chip =
+					Chip(requireContext()).apply {
+						text = itemText
+						isCloseIconVisible = true
+						setOnCloseIconClickListener {
+							val uriToRemove =
+								selectedImageUris.find { "Image: ${it.lastPathSegment}" == itemText }
+							if (uriToRemove != null) {
+								selectedImageUris.remove(uriToRemove)
+							} else {
+								selectedContext.remove(itemText)
+							}
+							updateContextChips() // Refresh the chips
+						}
+					}
+				binding.contextChipGroup.addView(chip)
+			}
+		}
+	}
 
-    private fun formatChatTitle(rawTitle: String?): String {
-        if (rawTitle.isNullOrBlank()) {
-            return getString(R.string.new_chat)
-        }
-        val trimmed = rawTitle.trim()
-        val maxLength = 48
-        return if (trimmed.length <= maxLength) {
-            trimmed
-        } else {
-            trimmed.take(maxLength - 3).trimEnd() + "..."
-        }
-    }
+	private fun handleMessageAction(
+		action: String,
+		message: ChatMessage,
+	) {
+		when (action) {
+			ACTION_EDIT -> {
+				// Set the selected message's text into the input field
+				binding.promptInputEdittext.setText(message.text)
 
+				// Move the cursor to the end of the text for a better editing experience
+				binding.promptInputEdittext.setSelection(message.text.length)
 
-    override fun onPause() {
-        super.onPause()
-        // Clean up the listener to prevent leaks or unwanted behavior
-        activity?.window?.decorView?.setOnApplyWindowInsetsListener(null)
-        chatViewModel.saveAllSessionsAndState(requireActivity().getPreferences(Context.MODE_PRIVATE))
-    }
+				// Request focus on the input field and show the keyboard
+				binding.promptInputEdittext.requestFocus()
+				val imm =
+					context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+				imm?.showSoftInput(binding.promptInputEdittext, InputMethodManager.SHOW_IMPLICIT)
+			}
 
-    private fun updateContextChips() {
-        binding.contextChipGroup.removeAllViews()
-        val allContextItems =
-            selectedContext + selectedImageUris.map { "Image: ${it.lastPathSegment}" }
-        if (allContextItems.isEmpty()) {
-            binding.contextChipGroup.visibility = View.GONE
-        } else {
-            binding.contextChipGroup.visibility = View.VISIBLE
-            allContextItems.forEach { itemText ->
-                val chip = Chip(requireContext()).apply {
-                    text = itemText
-                    isCloseIconVisible = true
-                    setOnCloseIconClickListener {
-                        val uriToRemove =
-                            selectedImageUris.find { "Image: ${it.lastPathSegment}" == itemText }
-                        if (uriToRemove != null) {
-                            selectedImageUris.remove(uriToRemove)
-                        } else {
-                            selectedContext.remove(itemText)
-                        }
-                        updateContextChips() // Refresh the chips
-                    }
-                }
-                binding.contextChipGroup.addView(chip)
-            }
-        }
-    }
-
-    private fun handleMessageAction(action: String, message: ChatMessage) {
-        when (action) {
-            ACTION_EDIT -> {
-                // Set the selected message's text into the input field
-                binding.promptInputEdittext.setText(message.text)
-
-                // Move the cursor to the end of the text for a better editing experience
-                binding.promptInputEdittext.setSelection(message.text.length)
-
-                // Request focus on the input field and show the keyboard
-                binding.promptInputEdittext.requestFocus()
-                val imm =
-                    context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.showSoftInput(binding.promptInputEdittext, InputMethodManager.SHOW_IMPLICIT)
-            }
-
-            ChatAdapter.DiffCallback.ACTION_OPEN_SETTINGS -> {
-                findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
-            }
-        }
-    }
+			ChatAdapter.DiffCallback.ACTION_OPEN_SETTINGS -> {
+				findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
+			}
+		}
+	}
 }
