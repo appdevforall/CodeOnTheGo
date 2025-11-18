@@ -164,6 +164,7 @@ class IDEApplication :
 
 		if (isUserUnlocked) {
 			// do not initialize plugins when we're in direct boot mode
+			// because we can't access the required files
 			initializePluginSystem()
 		}
 
@@ -179,6 +180,9 @@ class IDEApplication :
 			val builder = StrictMode.VmPolicy.Builder()
 			StrictMode.setVmPolicy(builder.build())
 			if (isUserUnlocked && DevOpsPreferences.dumpLogs) {
+				// starting the logcat reader means we'll be accessing the
+				// file system to write the logs to a file, which is not allowed
+				// in direct boot mode
 				startLogcatReader()
 			}
 		}
@@ -202,15 +206,18 @@ class IDEApplication :
 		}
 
 		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
-
 		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
 
 		if (isUserUnlocked) {
+			// reading the color schemes requires us to access the file
+			// system, which is not allowed in direct boot mode
 			GlobalScope.launch {
 				IDEColorSchemeProvider.init()
 			}
 		}
 
+		// Firebase analytics automatically disables itself when in direct
+		// boot mode
 		initializeAnalytics()
 	}
 
