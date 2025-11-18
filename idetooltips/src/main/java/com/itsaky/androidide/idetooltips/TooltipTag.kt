@@ -21,6 +21,7 @@ object TooltipTag {
 	const val PROJECT_IDE_LOGS = "project.idelogs"
 	const val PROJECT_SEARCH_RESULTS = "project.searchresults"
 	const val PROJECT_DIAGNOSTICS = "project.diagnostics"
+    const val PROJECT_AGENT = "project.agent"
 	const val OUTPUT_CLEAR = "output.clear"
 	const val OUTPUT_SHARE_EXTERNAL = "output.share.external"
 	const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
