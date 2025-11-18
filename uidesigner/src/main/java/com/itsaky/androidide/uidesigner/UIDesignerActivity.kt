@@ -122,14 +122,32 @@ class UIDesignerActivity : BaseIDEActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    intent?.extras?.let {
-      val path = it.getString(EXTRA_FILE) ?: return
-      val file = File(path)
-      if (!file.exists()) {
-        throw IllegalArgumentException("File does not exist: $file")
-      }
-      viewModel.file = file
+
+    val extras = intent?.extras
+    if (extras == null) {
+      log.error("UIDesignerActivity started without intent extras")
+      setResult(RESULT_CANCELED)
+      finish()
+      return
     }
+
+    val path = extras.getString(EXTRA_FILE)
+    if (path == null) {
+      log.error("UIDesignerActivity started without layout file path")
+      setResult(RESULT_CANCELED)
+      finish()
+      return
+    }
+
+    val file = File(path)
+    if (!file.exists()) {
+      log.error("Layout file does not exist: {}", file)
+      setResult(RESULT_CANCELED)
+      finish()
+      return
+    }
+
+    viewModel.file = file
 
     setSupportActionBar(this.binding!!.toolbar)
     supportActionBar?.title = viewModel.file.nameWithoutExtension
