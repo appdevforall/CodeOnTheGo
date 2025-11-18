@@ -44,23 +44,21 @@ class PreferenceManager @SuppressLint("CommitPrefEdits") constructor(
 		Context.MODE_PRIVATE
 	)
 
-	fun remove(key: String): com.itsaky.androidide.managers.PreferenceManager {
+	fun remove(key: String) = apply {
 		val edit = prefs.edit()
 		edit.remove(key)
 		applyChanges(edit)
 		dispatchRemoveEvent(key)
-		return this
 	}
 
-	fun putInt(key: String, `val`: Int): com.itsaky.androidide.managers.PreferenceManager {
+	fun putInt(key: String, `val`: Int) = apply {
 		val edit = prefs.edit()
 		edit.putInt(key, `val`)
 		applyChanges(edit)
 		dispatchChangeEvent(key, `val`)
-		return this
 	}
 
-	fun putFloat(key: String, `val`: Float) {
+	fun putFloat(key: String, `val`: Float) = apply {
 		val edit = prefs.edit()
 		edit.putFloat(key, `val`)
 		applyChanges(edit)
@@ -84,7 +82,7 @@ class PreferenceManager @SuppressLint("CommitPrefEdits") constructor(
 		return prefs.getString(key, defaultValue)
 	}
 
-	fun putString(key: String, value: String?): com.itsaky.androidide.managers.PreferenceManager {
+	fun putString(key: String, value: String?) = apply {
 		val edit = prefs.edit()
 		edit.putString(key, value)
 		applyChanges(edit)
@@ -100,7 +98,7 @@ class PreferenceManager @SuppressLint("CommitPrefEdits") constructor(
 		return prefs.getBoolean(key, defaultValue)
 	}
 
-	fun putBoolean(key: String, value: Boolean) {
+	fun putBoolean(key: String, value: Boolean) = apply {
 		val edit = prefs.edit()
 		edit.putBoolean(key, value)
 		applyChanges(edit)
@@ -111,7 +109,7 @@ class PreferenceManager @SuppressLint("CommitPrefEdits") constructor(
 		return prefs.getLong(key, defaultValue)
 	}
 
-	fun putLong(key: String, value: Long) {
+	fun putLong(key: String, value: Long) = apply {
 		val edit = prefs.edit()
 		edit.putLong(key, value)
 		applyChanges(edit)
