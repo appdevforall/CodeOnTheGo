@@ -40,151 +40,158 @@ import java.io.File
  * @author Akash Yadav
  */
 object ConstraintVerifier {
+	/**
+	 * Checks whether the given input is valid against the given constraints.
+	 *
+	 * @see verify
+	 */
+	fun isValid(
+		input: String,
+		constraints: List<ParameterConstraint>,
+	): Boolean = verify(input, constraints) == null
 
-  /**
-   * Checks whether the given input is valid against the given constraints.
-   *
-   * @see verify
-   */
-  fun isValid(input: String, constraints: List<ParameterConstraint>): Boolean =
-    verify(input, constraints) == null
+	/**
+	 * Verify the input against the given constraints.
+	 *
+	 * @param input The input to verify.
+	 * @param constraints The constraints to verify against.
+	 * @return The error message if the validation fails, `null` otherwise.
+	 */
+	fun verify(
+		input: String,
+		constraints: List<ParameterConstraint>,
+	): String? {
+		var err: String?
+		for (constraint in constraints) {
+			err =
+				when (constraint) {
+					NONEMPTY -> checkNotEmpty(input)
+					PACKAGE -> validatePackageName(input)
+					CLASS -> validateClassName(input)
+					CLASS_NAME -> validateSimpleName(input)
+					MODULE_NAME -> validateModuleName(input)
+					LAYOUT -> validateLayoutName(input)
+					EXISTS -> checKFileExists(input)
+					FILE -> checkIsFile(input)
+					DIRECTORY -> checkIsDirectory(input)
+					else -> throw IllegalArgumentException(
+						"Unsupported parameter constraint '$constraint'",
+					)
+				}
 
-  /**
-   * Verify the input against the given constraints.
-   *
-   * @param input The input to verify.
-   * @param constraints The constraints to verify against.
-   * @return The error message if the validation fails, `null` otherwise.
-   */
-  fun verify(input: String, constraints: List<ParameterConstraint>): String? {
-    var err: String?
-    for (constraint in constraints) {
-      err = when (constraint) {
-        NONEMPTY -> checkNotEmpty(input)
-        PACKAGE -> validatePackageName(input)
-        CLASS -> validateClassName(input)
-        CLASS_NAME -> validateSimpleName(input)
-        MODULE_NAME -> validateModuleName(input)
-        LAYOUT -> validateLayoutName(input)
-        EXISTS -> checKFileExists(input)
-        FILE -> checkIsFile(input)
-        DIRECTORY -> checkIsDirectory(input)
-        else -> throw IllegalArgumentException(
-          "Unsupported parameter constraint '$constraint'")
-      }
+			if (err != null) {
+				return err
+			}
+		}
+		return null
+	}
 
-      if (err != null) {
-        return err
-      }
-    }
-    return null
-  }
+	private fun validatePackageName(input: String): String? {
+		AndroidUtils.validatePackageName(input)?.let { return it }
 
-  private fun validatePackageName(input: String): String? {
-    AndroidUtils.validatePackageName(input)?.let { return it }
+		if (SourceVersion.isName(input)) {
+			return null
+		}
 
-    if (SourceVersion.isName(input)) {
-      return null
-    }
+		return BaseApplication.baseInstance
+			.getString(R.string.msg_package_is_not_valid)
+	}
 
-    return BaseApplication.baseInstance
-      .getString(R.string.msg_package_is_not_valid)
-  }
+	private fun validateLayoutName(input: String): String? {
+		if (input.isBlank()) {
+			return BaseApplication.baseInstance
+				.getString(R.string.msg_value_empty)
+		}
 
-  private fun validateLayoutName(input: String): String? {
-    if (input.isBlank()) {
-      return BaseApplication.baseInstance
-        .getString(R.string.msg_value_empty)
-    }
+		// Allow only lowecase letters with digits and underscores
+		if (input.matches(Regex("[a-z][a-z0-9_]+"))) {
+			return null
+		}
 
-    // Allow only lowecase letters with digits and underscores
-    if (input.matches(Regex("[a-z][a-z0-9_]+"))) {
-      return null
-    }
+		return BaseApplication.baseInstance
+			.getString(string.msg_invalid_layout_name)
+	}
 
-    return BaseApplication.baseInstance
-      .getString(string.msg_invalid_layout_name)
-  }
+	private fun checkIsDirectory(input: String): String? {
+		checKFileExists(input)?.let { return it }
 
-  private fun checkIsDirectory(input: String): String? {
-    checKFileExists(input)?.let { return it }
+		val file = File(input)
+		if (file.isDirectory) {
+			return null
+		}
 
-    val file = File(input)
-    if (file.isDirectory) {
-      return null
-    }
+		return BaseApplication.baseInstance
+			.getString(string.msg_path_must_be_dir)
+	}
 
-    return BaseApplication.baseInstance
-      .getString(string.msg_path_must_be_dir)
-  }
+	private fun checkIsFile(input: String): String? {
+		checKFileExists(input)?.let { return it }
 
-  private fun checkIsFile(input: String): String? {
-    checKFileExists(input)?.let { return it }
+		val file = File(input)
+		if (file.isFile) {
+			return null
+		}
 
-    val file = File(input)
-    if (file.isFile) {
-      return null
-    }
+		return BaseApplication.baseInstance
+			.getString(string.msg_path_must_be_file)
+	}
 
-    return BaseApplication.baseInstance
-      .getString(string.msg_path_must_be_file)
-  }
+	private fun checKFileExists(input: String): String? {
+		val file = File(input)
+		if (file.exists()) {
+			return null
+		}
 
-  private fun checKFileExists(input: String): String? {
-    val file = File(input)
-    if (file.exists()) {
-      return null
-    }
+		return BaseApplication.baseInstance
+			.getString(string.msg_file_not_exist)
+	}
 
-    return BaseApplication.baseInstance
-      .getString(string.msg_file_not_exist)
-  }
+	private fun checkNotEmpty(input: String): String? {
+		if (input.isNotBlank()) {
+			return null
+		}
 
-  private fun checkNotEmpty(input: String): String? {
-    if (input.isNotBlank()) {
-      return null
-    }
+		return BaseApplication.baseInstance.getString(string.msg_value_empty)
+	}
 
-    return BaseApplication.baseInstance.getString(string.msg_value_empty)
-  }
+	private fun validateModuleName(input: String): String? {
+		if (isValidModuleName(input)) {
+			return null
+		}
 
-  private fun validateModuleName(input: String): String? {
-    if (isValidModuleName(input)) {
-      return null
-    }
+		return BaseApplication.baseInstance
+			.getString(string.msg_invalid_module_name)
+	}
 
-    return BaseApplication.baseInstance
-      .getString(string.msg_invalid_module_name)
-  }
+	private fun validateClassName(name: String): String? {
+		if (!name.contains('.')) {
+			return validateSimpleName(name)
+		}
 
-  private fun validateClassName(name: String): String? {
-    if (!name.contains('.')) {
-      return validateSimpleName(name)
-    }
+		val pck = name.take(name.lastIndexOf('.'))
+		var err: String? = null
+		if (pck.contains('.')) {
+			err = validatePackageName(pck)
+		} else {
+			if (!SourceVersion.isIdentifier(pck) || SourceVersion.isKeyword(pck)) {
+				err =
+					BaseApplication.baseInstance
+						.getString(string.msg_package_is_not_valid)
+			}
+		}
 
-    val pck = name.take(name.lastIndexOf('.'))
-    var err: String? = null
-    if (pck.contains('.')) {
-      err = validatePackageName(pck)
-    } else {
-      if (!SourceVersion.isIdentifier(pck) || SourceVersion.isKeyword(pck)) {
-        err = BaseApplication.baseInstance
-          .getString(string.msg_package_is_not_valid)
-      }
-    }
+		if (err != null) {
+			return err
+		}
 
-    if (err != null) {
-      return err
-    }
+		return validateSimpleName(name.substring(name.lastIndexOf('.') + 1))
+	}
 
-    return validateSimpleName(name.substring(name.lastIndexOf('.') + 1))
-  }
-
-  private fun validateSimpleName(name: String): String? {
-    if (SourceVersion.isKeyword(name) || !SourceVersion.isIdentifier(name)) {
-      return BaseApplication.baseInstance
-        .getString(string.msg_classname_with_keywords)
-    }
-    return null
-  }
+	private fun validateSimpleName(name: String): String? {
+		if (SourceVersion.isKeyword(name) || !SourceVersion.isIdentifier(name)) {
+			return BaseApplication.baseInstance
+				.getString(string.msg_classname_with_keywords)
+		}
+		return null
+	}
 }

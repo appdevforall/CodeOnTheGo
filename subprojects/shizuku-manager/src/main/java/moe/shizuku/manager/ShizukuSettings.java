@@ -6,9 +6,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
-
 import com.itsaky.androidide.app.BaseApplication;
-
 import java.lang.annotation.Retention;
 
 public class ShizukuSettings {

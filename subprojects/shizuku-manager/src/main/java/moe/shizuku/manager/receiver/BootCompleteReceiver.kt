@@ -26,7 +26,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class BootCompleteReceiver : BroadcastReceiver() {
-
 	companion object {
 		private val logger = LoggerFactory.getLogger(BootCompleteReceiver::class.java)
 	}
@@ -73,7 +72,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
 
 		logger.info(
 			"Starting Shizuku server on boot using root with cmd: {}",
-			ShizukuStarter.internalCommand
+			ShizukuStarter.internalCommand,
 		)
 		Shell.cmd(ShizukuStarter.internalCommand).exec()
 	}
@@ -104,7 +103,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
 
 						logger.info(
 							"Connected to WADB. Starting Shizuku server with cmd: {}",
-							ShizukuStarter.internalCommand
+							ShizukuStarter.internalCommand,
 						)
 						client.shellCommand(ShizukuStarter.internalCommand, null)
 						client.close()

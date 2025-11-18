@@ -21,10 +21,8 @@ import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-
 import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
-import com.itsaky.androidide.app.BaseApplication;
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 import java.io.File;

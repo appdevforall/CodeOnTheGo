@@ -42,9 +42,10 @@ open class BaseApplication : Application() {
 		get() = _isUserUnlocked
 
 	val prefManager: PreferenceManager
-		get() = checkNotNull(_prefManager) {
-			"PreferenceManager not initialized"
-		}
+		get() =
+			checkNotNull(_prefManager) {
+				"PreferenceManager not initialized"
+			}
 
 	@JvmOverloads
 	fun getSafeContext(deviceProtectedStorageContext: Boolean = false): Context {
@@ -54,8 +55,11 @@ open class BaseApplication : Application() {
 
 		logger.warn("Creating safe context because user is not unlocked")
 		return object : ContextWrapper(createDeviceProtectedStorageContext()) {
-			override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences? {
-				return try {
+			override fun getSharedPreferences(
+				name: String?,
+				mode: Int,
+			): SharedPreferences? =
+				try {
 					super.getSharedPreferences(name, mode)
 				} catch (_: IllegalStateException) {
 					// SharedPreferences in credential encrypted storage are not available until
@@ -63,7 +67,6 @@ open class BaseApplication : Application() {
 					logger.warn("Using no-op SharedPreferences because user is probably not unlocked")
 					NoopSharedPreferencesImpl()
 				}
-			}
 		}
 	}
 
@@ -85,12 +88,15 @@ open class BaseApplication : Application() {
 	fun writeException(th: Throwable?) {
 		FileUtil.writeFile(
 			File(FileUtil.getExternalStorageDir(), "idelog.txt").absolutePath,
-			ThrowableUtils.getFullStackTrace(th)
+			ThrowableUtils.getFullStackTrace(th),
 		)
 	}
 
 	@JvmOverloads
-	fun openUrl(url: String, pkg: String? = null) {
+	fun openUrl(
+		url: String,
+		pkg: String? = null,
+	) {
 		openUrl(url, pkg, this)
 	}
 
@@ -105,19 +111,17 @@ open class BaseApplication : Application() {
 		}
 
 	companion object {
-
 		private val logger = LoggerFactory.getLogger(BaseApplication::class.java)
 
 		const val NOTIFICATION_GRADLE_BUILD_SERVICE: String = "17571"
-
 
 		private var _baseInstance: BaseApplication? = null
 
 		@JvmStatic
 		val baseInstance: BaseApplication
-			get() = checkNotNull(_baseInstance) {
-				"baseInstance is not set"
-			}
-
+			get() =
+				checkNotNull(_baseInstance) {
+					"baseInstance is not set"
+				}
 	}
 }
