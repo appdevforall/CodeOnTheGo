@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory
 
 class InstallationViewModel : ViewModel() {
 	companion object {
-		const val LEAST_STORAGE_NEEDED_FOR_INSTALLATION = 40L
+		const val LEAST_STORAGE_NEEDED_FOR_INSTALLATION = 4L
 	}
 
 	private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
