@@ -5,14 +5,15 @@ import android.util.TypedValue;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.os.UserManagerCompat;
 
 import com.itsaky.androidide.app.BaseApplication;
 import com.termux.shared.android.PackageUtils;
+import com.termux.shared.data.DataUtils;
+import com.termux.shared.logger.Logger;
 import com.termux.shared.settings.preferences.AppSharedPreferences;
 import com.termux.shared.settings.preferences.SharedPreferenceUtils;
 import com.termux.shared.termux.TermuxConstants;
-import com.termux.shared.logger.Logger;
-import com.termux.shared.data.DataUtils;
 import com.termux.shared.termux.TermuxUtils;
 import com.termux.shared.termux.settings.preferences.TermuxPreferenceConstants.TERMUX_APP;
 
@@ -41,12 +42,21 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
      *                {@link TermuxConstants#TERMUX_PACKAGE_NAME}.
      * @return Returns the {@link TermuxAppSharedPreferences}. This will {@code null} if an exception is raised.
      */
-	@NonNull
+	@Nullable
     @SuppressWarnings("unused")
 	public static TermuxAppSharedPreferences build(@NonNull final Context context) {
 		// Code on the Go changed: always use safe IDE context to avoid accessing
-		// credential protected storage during boot
-		return new TermuxAppSharedPreferences(BaseApplication.getBaseInstance().getSafeContext());
+		// credential protected storage during direct boot mode
+		final var isUserUnlocked = UserManagerCompat.isUserUnlocked(context);
+		if (!isUserUnlocked) {
+			return new TermuxAppSharedPreferences(BaseApplication.getBaseInstance().getSafeContext());
+		}
+
+		Context termuxPackageContext = PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_PACKAGE_NAME);
+		if (termuxPackageContext == null)
+			return null;
+		else
+			return new TermuxAppSharedPreferences(termuxPackageContext);
     }
 
     /**
