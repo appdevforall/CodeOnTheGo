@@ -38,10 +38,10 @@ class PreferenceManager @SuppressLint("CommitPrefEdits") constructor(
 	}
 
 	@JvmOverloads
-	constructor(context: Context, preferenceMode: String? = null) : this(
-		context,
-		preferenceMode,
-		Context.MODE_PRIVATE
+	constructor(context: Context, preferenceName: String? = null) : this(
+		context = context,
+		preferenceName = preferenceName,
+		prefMode = Context.MODE_PRIVATE
 	)
 
 	fun remove(key: String) = apply {
