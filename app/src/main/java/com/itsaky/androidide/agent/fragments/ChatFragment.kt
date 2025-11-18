@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.ActivityResultLauncher
@@ -48,6 +49,7 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 			if (isAdded) {
 				val insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets)
 
+        val navigationInset = insetsCompat.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
 				// Check if the on-screen keyboard is visible
 				val isImeVisible = insetsCompat.isVisible(WindowInsetsCompat.Type.ime())
 
@@ -56,7 +58,7 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 
 				// Only apply the height if the software keyboard is visible
 				binding.keyboardSpacer.updateLayoutParams {
-					height = if (isImeVisible) imeHeight else 0
+					height = if (isImeVisible) (imeHeight - navigationInset).coerceAtLeast(0) else 0
 				}
 			}
 			insets
@@ -230,6 +232,18 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 	}
 
 	private fun setupListeners() {
+    val dismissKeyboardTouchListener = View.OnTouchListener { _, event ->
+      if (event.action == MotionEvent.ACTION_DOWN) {
+				binding.promptInputEdittext.clearFocus()
+				hideKeyboard()
+      }
+      false
+    }
+    binding.chatRecyclerView.setOnTouchListener(dismissKeyboardTouchListener)
+    binding.emptyChatView.apply {
+      isClickable = true
+      setOnTouchListener(dismissKeyboardTouchListener)
+    }
 		binding.promptInputEdittext.doAfterTextChanged { text ->
 			val currentState = chatViewModel.agentState.value
 			if (currentState !is AgentState.Processing && currentState !is AgentState.Cancelling) {
@@ -473,5 +487,10 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 				findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
 			}
 		}
+	}
+
+	private fun hideKeyboard() {
+		val inputMethodManager = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+		inputMethodManager?.hideSoftInputFromWindow(binding.promptInputEdittext.windowToken, 0)
 	}
 }
