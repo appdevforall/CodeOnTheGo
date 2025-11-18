@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
@@ -19,9 +20,16 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
+import com.itsaky.androidide.utils.Environment.PROJECTS_DIR
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import io.sentry.Sentry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -45,6 +53,7 @@ class RecentProjectsFragment : BaseFragment() {
         setupRecyclerView()
         setupObservers()
         setupClickListeners()
+        bootstrapFromFixedFolderIfNeeded(autoOpenFirst = true)
     }
 
     private fun setupRecyclerView() {
@@ -52,6 +61,49 @@ class RecentProjectsFragment : BaseFragment() {
         binding.listProjects.addItemDecoration(
             CustomDividerItemDecoration(requireContext(), R.drawable.custom_list_divider)
         )
+    }
+
+    private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
+
+    private fun bootstrapFromFixedFolderIfNeeded(autoOpenFirst: Boolean) {
+        if (viewModel.didBootstrap) return
+        viewModel.didBootstrap = true
+
+        viewLifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val validProjects = findValidProjects(PROJECTS_DIR)
+                if (validProjects.isEmpty()) return@launch
+
+                loadProjectsIntoViewModel(validProjects)
+
+                if (autoOpenFirst) withContext(Dispatchers.Main) {
+                    openProject(validProjects.first())
+                }
+            } catch (e: Throwable) {
+                Sentry.captureException(e)
+            }
+        }
+    }
+
+    private fun findValidProjects(projectsRoot: File): List<File> {
+        if (!projectsRoot.isProjectCandidateDir()) return emptyList()
+
+        val subdirs = projectsRoot.listFiles()
+            ?.filter { it.isProjectCandidateDir() }
+            .orEmpty()
+        if (subdirs.isEmpty()) return emptyList()
+
+        return subdirs.filter { dir -> isValidProjectDirectory(dir) }
+    }
+
+    private suspend fun loadProjectsIntoViewModel(projects: List<File>) {
+        val jobs = projects.map { dir ->
+            viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
+        }
+        jobs.joinAll()
+
+        val loadJob = viewModel.loadProjects()
+        loadJob.join()
     }
 
 	private fun pickProjectDirectory(
@@ -63,7 +115,7 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 
 		pickDirectory { selectedDir ->
-			if (!isValidProjectDirectory(selectedDir)) {
+			if (!isValidProjectOrContainerDirectory(selectedDir)) {
 				flashError(
 					msg = requireContext().getString(
 						R.string.project_directory_invalid,
@@ -77,14 +129,61 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 	}
 
-	private fun onProjectDirectoryPicked(directory: File) {
-		viewModel.insertProjectFromFolder(
-			name = directory.name,
-			location = directory.absolutePath
-		)
+    private fun onProjectDirectoryPicked(directory: File) {
+			if (!directory.isProjectCandidateDir()) {
+				flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+				return
+			}
 
-		openProject(root = directory)
-	}
+			// Is the current folder a valid android project?
+			// Yes: Then open it.
+			if (isValidProjectDirectory(directory)) {
+				viewModel.insertProjectFromFolder(
+					name = directory.name,
+					location = directory.absolutePath
+				)
+
+				openProject(root = directory)
+				return
+			}
+
+			// No, the current folder is a container of Android Projects: Then open the first valid one.
+			val subFolders = directory.listFiles()
+
+			if (subFolders == null) {
+				flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+				return
+			}
+			if (subFolders.isEmpty()) {
+					flashError(getString(R.string.msg_no_subfolders, directory.name))
+					return
+			}
+
+			val validSubDirs = subFolders.filter { it.isProjectCandidateDir() }
+
+			val validProjects = validSubDirs.filter { isValidProjectDirectory(it) }
+			val invalidProjects = validSubDirs - validProjects.toSet()
+
+			when {
+				validProjects.isEmpty() -> {
+					flashError(getString(R.string.msg_no_valid_projects, directory.name))
+					return
+				}
+				invalidProjects.isNotEmpty() -> {
+					flashError(getString(R.string.msg_skipped_invalid_projects))
+				}
+			}
+
+
+			val jobs = validProjects.map { sub ->
+				viewModel.insertProjectFromFolder(sub.name, sub.absolutePath)
+			}
+
+			viewLifecycleScope.launch {
+				jobs.joinAll()
+				openProject(root = validProjects.first())
+			}
+    }
 
     private fun setupObservers() {
         viewModel.projects.observe(viewLifecycleOwner) { projects ->
@@ -92,8 +191,7 @@ class RecentProjectsFragment : BaseFragment() {
 				adapter = RecentProjectsAdapter(
 					projects,
 					onProjectClick = ::openProject,
-					onOpenFileFromFolderClick = ::pickProjectDirectory,
-					onRemoveProjectClick = viewModel::deleteProject,
+                    onRemoveProjectClick = viewModel::deleteProject,
 					onFileRenamed = viewModel::updateProject,
 				)
 				binding.listProjects.adapter = adapter
@@ -109,6 +207,19 @@ class RecentProjectsFragment : BaseFragment() {
             binding.btnOpenFromFolder.setOnClickListener {
                 pickProjectDirectory(isLongClick = false)
             }
+
+            binding.openFromFolderBtn.apply {
+                isVisible = !isEmpty
+                setOnClickListener { pickProjectDirectory(isLongClick = false) }
+                setOnLongClickListener {
+                    TooltipManager.showIdeCategoryTooltip(
+                        context = context,
+                        anchorView = this,
+                        tag = PROJECT_OPEN_FOLDER
+                    )
+                    true
+                }
+            }
         }
     }
 
@@ -118,6 +229,25 @@ class RecentProjectsFragment : BaseFragment() {
         val buildGradleKtsFile = File(appFolder, "build.gradle.kts")
         return appFolder.exists() && appFolder.isDirectory &&
                 (buildGradleFile.exists() || buildGradleKtsFile.exists())
+    }
+
+    /**
+     * Determines if the selected directory is either:
+     *  1. A valid Android project itself, OR
+     *  2. A container that includes one or more valid Android projects.
+     */
+    fun isValidProjectOrContainerDirectory(selectedDir: File): Boolean {
+        if (!selectedDir.isProjectCandidateDir()) {
+            return false
+        }
+
+        if (isValidProjectDirectory(selectedDir)) {
+            return true
+        }
+
+        // Check if it contains valid Android projects as subdirectories
+        val subDirs = selectedDir.listFiles()?.filter { it.isProjectCandidateDir() } ?: return false
+        return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
 
     private fun setupClickListeners() {
@@ -149,11 +279,6 @@ class RecentProjectsFragment : BaseFragment() {
 	override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-    }
-
-    override fun onResume() {
-        super.onResume()
-        viewModel.loadProjects()
     }
 
     private fun showToolTip(tag: String) {

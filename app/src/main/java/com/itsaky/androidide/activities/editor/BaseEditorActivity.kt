@@ -138,6 +138,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.viewmodel.WADBViewModel
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -183,6 +184,7 @@ abstract class BaseEditorActivity :
 	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
 	val editorViewModel by viewModels<EditorViewModel>()
 	val debuggerViewModel by viewModels<DebuggerViewModel>()
+	val wadbViewModel by viewModels<WADBViewModel>()
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
 	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
 
@@ -210,21 +212,25 @@ abstract class BaseEditorActivity :
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START)) {
-					binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
-				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-//				if (binding.root.isDrawerOpen(GravityCompat.START)) {
-//					binding.root.closeDrawer(GravityCompat.START)
-                if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
-				} else if (binding.swipeReveal.isOpen) {
-					binding.swipeReveal.close()
-				} else {
-					doConfirmProjectClose()
+				when {
+					binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START) -> {
+						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+					}
+					isRightPanelOpen() -> {
+						closeRightPanel()
+					}
+					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
+						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+					}
+					binding.swipeReveal.isOpen -> {
+						binding.swipeReveal.close()
+					}
+					else -> {
+						doConfirmProjectClose()
+					}
 				}
 			}
 		}
-        }
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
@@ -308,7 +314,9 @@ abstract class BaseEditorActivity :
 		try {
 			unbindService(debuggerServiceConnection)
 		} catch (e: Throwable) {
-			log.error("Failed to stop debugger service", e)
+			if (e !is IllegalArgumentException) {
+				log.error("Failed to stop debugger service", e)
+			}
 		}
 	}
 
@@ -357,6 +365,8 @@ abstract class BaseEditorActivity :
 	private var gestureDetector: GestureDetector? = null
     private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
     private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
+
+	private var editorAppBarInsetTop: Int = 0
 
     companion object {
 
@@ -475,6 +485,7 @@ abstract class BaseEditorActivity :
 
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
+		editorAppBarInsetTop = insets.top
 		this._binding?.apply {
 			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
 				?.onApplyWindowInsets(insets)
@@ -663,6 +674,14 @@ abstract class BaseEditorActivity :
                     verticalGuideline?.setGuidelinePercent(percent)
 
                     findViewById<View>(R.id.editor_root_container).requestLayout()
+
+                    if (binding.contentCard.progress == 0f) {
+                        content.apply {
+                            editorAppBarLayout.updatePadding(
+                                top = editorAppBarInsetTop
+                            )
+                        }
+                    }
                 }
 
                 MotionEvent.ACTION_UP -> {
@@ -748,6 +767,24 @@ abstract class BaseEditorActivity :
 
         animator.start()
     }
+
+    private fun isRightPanelOpen(): Boolean {
+        return if (isPortraitMode) {
+            rightPanelBottomSheetBehavior?.state != BottomSheetBehavior.STATE_HIDDEN
+        } else {
+            val visible = rightPanelContainer?.visibility == View.VISIBLE
+            val percent = (verticalGuideline?.layoutParams as? ConstraintLayout.LayoutParams)?.guidePercent ?: 1f
+            visible && percent < 1f
+        }
+    }
+
+		private fun closeRightPanel() {
+				if (isPortraitMode) {
+						rightPanelBottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
+				} else {
+						animateGuideline(1.0f, shouldHideOnEnd = true)
+				}
+		}
 
     private fun setupToolbar() {
         content.customToolbar.apply {
@@ -1244,7 +1281,7 @@ abstract class BaseEditorActivity :
 			ensureDebuggerServiceBound()
 		}
 
-		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		debuggerService?.onConnectionStateUpdated(newState = state)
 		if (state == DebuggerConnectionState.ATTACHED) {
 			// if a VM was just attached, make sure the debugger fragment is visible
 			bottomSheetViewModel.setSheetState(

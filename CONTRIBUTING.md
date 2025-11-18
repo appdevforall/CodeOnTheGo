@@ -6,23 +6,30 @@ agree to abide the terms specified in the [CODE OF CONDUCT](./CODE_OF_CONDUCT.md
 ## Requirements
 
 - Android Studio.
-- JDK 17 (prefer the one bundled with Android Studio).
+- JDK 17
 
-> NOTE:
->
-> At the time of this writing, the stable version of Android Studio (Electric Eel) is bundled with
-> JDK 11. Only Android Studio Flamingo and newer are bundled with JDK 17.
+## Git Pre-Commit Hook: Branch Name Enforcement
 
-## Build the project
+This project enforces a strict branch naming policy using a Git pre-commit hook.
 
-Open the project in Android Studio. No extra steps are needed for this.
+### Allowed Branch Formats:
+- `ADFA-123` (3 to 5 digit number)
+- `feature/ADFA-123`
+- `bugfix/ADFA-12345`
+- `chore/ADFA-9999`
+- `anyprefix/ADFA-#####`
 
-It is possible to build AndroidIDE in AndroidIDE itself. But, as it might be a too heavy task for an
-Android device to be able to build the project, Android Studio is always recommended.
+### Setup
 
-You can refer the [AndroidIDE Developer Guide](https://docs.androidide.com/developer/index.html) to
-get started with the development or to learn more about the various components in the IDE. 
+#### Mac/Linux:
+```bash
+sh ./scripts/install-git-hooks.sh
+```
 
+#### Windows
+```bash
+scripts\install-git-hooks.bat
+```
 ## Source code format
 
 - Indents : 2-space
@@ -37,10 +44,9 @@ get started with the development or to learn more about the various components i
 
 ## Propose a change
 
-Before proposing a change, it is always recommended to open an issue and discuss it with the
-maintainers.
+Before proposing a change, please open an issue and discuss it with our team.
 
-**The `main` branch is protected and requires all the commits to be signed with your GPG key and the
+**The `dev` branch is protected and requires all commits to be signed with your GPG key and the
 commit history to be linear.**
 See [protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches)
 .
@@ -51,16 +57,25 @@ To contribute to this project,
 - Clone the forked repo to your local machine.
 - Open the project.
 - Make your changes.
-- Create a pull request. Give a proper title and description to your PR.
+- Create a pull request that includes a meaningful title and description.
 
-## Issues & Pull requests
+## Report issues 
 
-Use the issue/PR templates whenever possible. Provide a proper title and a clear description of the
-issue/PR. For bug reports, provide a step-by-step procedure to reproduce the issue. Always put
-things like crash
-logs, and build outputs in `code blocks`.
+[Report issues and request features here](https://github.com/appdevforall/CodeOnTheGo/issues).
 
 ## Contact us
 
-If you want to discuss anything about the project, you can discuss it in
-the [Telegram group](https://t.me/androidide_discussions).
+- [Website](https://www.appdevforall.org)
+- [Official Telegram channel](https://t.me/CodeOnTheGoOfficial)
+- [Telegram discussions](https://t.me/CodeOnTheGoDiscussions)
+- [Email](mailto:feedback@appdevforall.org)
+
+
+
+
+
+
+
+
+
+

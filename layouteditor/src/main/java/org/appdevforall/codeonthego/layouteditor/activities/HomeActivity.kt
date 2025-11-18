@@ -18,8 +18,10 @@ import androidx.fragment.app.FragmentTransaction
 import androidx.preference.PreferenceManager
 import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 import com.google.android.material.navigation.NavigationView
+import com.itsaky.androidide.utils.UrlManager
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.R
+import com.itsaky.androidide.resources.R as ResourcesStrings
 import org.appdevforall.codeonthego.layouteditor.databinding.ActivityHomeBinding
 import org.appdevforall.codeonthego.layouteditor.fragments.ui.AboutFragment
 import org.appdevforall.codeonthego.layouteditor.fragments.ui.HomeFragment
@@ -112,13 +114,13 @@ class HomeActivity : BaseActivity() {
           true
         }
         R.id.nav_github -> {
-          openUrl(Constants.GITHUB_URL)
+          UrlManager.openUrl(Constants.GITHUB_URL, null, this)
           true
         }
         R.id.nav_share -> {
           val shareIntent = IntentBuilder(this)
           shareIntent.setType("text/plain")
-          shareIntent.setChooserTitle(getString(R.string.app_name))
+          shareIntent.setChooserTitle(getString(ResourcesStrings.string.app_name))
           shareIntent.setText(getString(R.string.share_description, Constants.GITHUB_URL))
           shareIntent.startChooser()
           true

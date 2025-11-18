@@ -23,34 +23,36 @@ import java.io.File
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultLibrary : Library, Serializable {
-  private val serialVersionUID = 1L
-  override var androidLibraryData: DefaultAndroidLibraryData? = null
-  override var artifact: File? = null
-  override var srcJar: File? = null
-  override val srcJars: List<File> = emptyList()
-  override var docJar: File? = null
-  override var samplesJar: File? = null
-  override var key: String = ""
-  override var libraryInfo: DefaultLibraryInfo? = null
-  override var lintJar: File? = null
-  override var projectInfo: DefaultProjectInfo? = null
-  override var type: LibraryType = ANDROID_LIBRARY
+class DefaultLibrary :
+	Library,
+	Serializable {
+	private val serialVersionUID = 1L
+	override var androidLibraryData: DefaultAndroidLibraryData? = null
+	override var artifact: File? = null
+	override var srcJar: File? = null
+	override val srcJars: List<File> = emptyList()
+	override var docJar: File? = null
+	override var samplesJar: File? = null
+	override var key: String = ""
+	override var libraryInfo: DefaultLibraryInfo? = null
+	override var lintJar: File? = null
+	override var projectInfo: DefaultProjectInfo? = null
+	override var type: LibraryType = ANDROID_LIBRARY
 
-  /** Dependencies of this library. */
-  val dependencies = mutableSetOf<String>()
+	/** Dependencies of this library. */
+	val dependencies = mutableSetOf<String>()
 
-  /**
-   * Whether an attempt should be made to lookup this library's package name.
-   *
-   * FOR INTERNAL USE ONLY!
-   */
-  var lookupPackage: Boolean = true
+	/**
+	 * Whether an attempt should be made to lookup this library's package name.
+	 *
+	 * FOR INTERNAL USE ONLY!
+	 */
+	var lookupPackage: Boolean = true
 
-  /**
-   * The package name of this library. MUST NOT be accesed directly. Use
-   * `DefaultLibrary.findPackageName()` method defined in the `:subprojects:tooling-api-models`
-   * module.
-   */
-  var packageName: String = ""
+	/**
+	 * The package name of this library. MUST NOT be accessed directly. Use
+	 * `DefaultLibrary.findPackageName()` method defined in the `:subprojects:tooling-api-models`
+	 * module.
+	 */
+	var packageName: String = ""
 }
