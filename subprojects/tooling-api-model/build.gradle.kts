@@ -17,29 +17,30 @@
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-  id ("java-library")
-  id ("org.jetbrains.kotlin.jvm")
+	id("java-library")
+	id("org.jetbrains.kotlin.jvm")
 }
 
 dependencies {
-  implementation(projects.logger)
+	implementation(projects.logger)
 
-  api(projects.subprojects.xmlDom)
-  api(projects.subprojects.builderModelImpl)
-  api(libs.common.jsonrpc)
+	api(projects.subprojects.xmlDom)
+	api(projects.subprojects.builderModelImpl)
+	api(projects.subprojects.projectModels)
+	api(libs.common.jsonrpc)
 
-  implementation(libs.common.jkotlin)
+	implementation(libs.common.jkotlin)
 }
 
-tasks.register < Copy > ("copyToTestDir") {
-  from (project.layout.buildDirectory.file("libs/tooling-api-model.jar"))
-  into (project.rootProject.mkdir ("tests/test-home/.androidide/init"))
-  rename { "model.jar" }
+tasks.register<Copy>("copyToTestDir") {
+	from(project.layout.buildDirectory.file("libs/tooling-api-model.jar"))
+	into(project.rootProject.mkdir("tests/test-home/.androidide/init"))
+	rename { "model.jar" }
 
-  outputs.upToDateWhen { false }
+	outputs.upToDateWhen { false }
 }
 
 project.tasks.jar {
-  finalizedBy ("copyToTestDir")
-  outputs.upToDateWhen { false }
+	finalizedBy("copyToTestDir")
+	outputs.upToDateWhen { false }
 }

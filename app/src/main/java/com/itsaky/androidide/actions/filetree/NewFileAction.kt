@@ -296,7 +296,7 @@ class NewFileAction(val context: Context, override val order: Int) :
     createNewFileWithContent(
       context,
       node,
-      Environment.mkdirIfNotExits(file),
+      Environment.mkdirIfNotExists(file),
       ProjectWriter.createLayout(),
       ".xml"
     )
@@ -328,7 +328,7 @@ class NewFileAction(val context: Context, override val order: Int) :
     createNewFileWithContent(
       context,
       node,
-      Environment.mkdirIfNotExits(file),
+      Environment.mkdirIfNotExists(file),
       ProjectWriter.createMenu(),
       ".xml"
     )
@@ -338,7 +338,7 @@ class NewFileAction(val context: Context, override val order: Int) :
     createNewFileWithContent(
       context,
       node,
-      Environment.mkdirIfNotExits(file),
+      Environment.mkdirIfNotExists(file),
       ProjectWriter.createDrawable(),
       ".xml"
     )
