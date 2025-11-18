@@ -379,7 +379,7 @@ private fun AndroidModuleTemplateBuilder.androidPluginKts(isToml: Boolean): Stri
     return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "$ANDROID_GRADLE_PLUGIN_VERSION" """
 }
 
-private fun AndroidModuleTemplateBuilder. androidPluginGroovy(): String {
+private fun AndroidModuleTemplateBuilder.androidPluginGroovy(): String {
     return """id "com.android.application" version "$ANDROID_GRADLE_PLUGIN_VERSION" """
 }
 
