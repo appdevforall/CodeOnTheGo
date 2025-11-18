@@ -68,6 +68,8 @@ abstract class FragmentWithBinding<T : ViewBinding> : BaseFragment {
 
   override fun onDestroyView() {
     _binding = null
+    bind = null
+    inflate = null
     super.onDestroyView()
   }
 }
