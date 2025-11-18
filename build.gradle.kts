@@ -172,6 +172,11 @@ spotless {
 
 		target("**/src/*/res/**/*.xml")
 		targetExclude(*commonTargetExcludes)
+
+		// Formatting strings.xml with Eclipse WTP causes the strings to be
+		// split into multiple lines, which is not what we want.
+		// Exclude strings.xml from this rule.
+		targetExclude("**/src/*/res/values*/strings.xml")
 	}
 
 	format("misc") {
