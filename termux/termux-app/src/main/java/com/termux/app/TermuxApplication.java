@@ -20,7 +20,7 @@ public class TermuxApplication extends BaseApplication {
     public void onCreate() {
         super.onCreate();
 
-        Context context = getApplicationContext();
+        Context context = getSafeContext();
 
         // Set log config for the app
         setLogConfig(context);

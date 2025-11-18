@@ -27,80 +27,83 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 @Suppress("MemberVisibilityCanBePrivate")
 object BuildPreferences {
 
-  const val STACKTRACE = "idepref_gradleCmd_stacktrace"
-  const val DEBUG = "idepref_gradleCmd_debug"
-  const val SCAN = "idepref_gradleCmd_scan"
-  const val INFO = "idepref_gradleCmd_info"
-  const val WARNING_MODE = "idepref_gradleCmd_warningMode"
-  const val BUILD_CACHE = "idepref_gradleCmd_buildCache"
-  const val OFFLINE_MODE = "idepref_gradleCmd_offlineMode"
+	const val STACKTRACE = "idepref_gradleCmd_stacktrace"
+	const val DEBUG = "idepref_gradleCmd_debug"
+	const val SCAN = "idepref_gradleCmd_scan"
+	const val INFO = "idepref_gradleCmd_info"
+	const val WARNING_MODE = "idepref_gradleCmd_warningMode"
+	const val BUILD_CACHE = "idepref_gradleCmd_buildCache"
+	const val OFFLINE_MODE = "idepref_gradleCmd_offlineMode"
 
-  const val GRADLE_COMMANDS = "idepref_build_gradleCommands"
-  const val CUSTOM_GRADLE_INSTALLATION = "idepref_build_customGradleInstallation"
-  const val LAUNCH_APP_AFTER_INSTALL = "ide.build.run.launchAppAfterInstall"
+	const val GRADLE_COMMANDS = "idepref_build_gradleCommands"
+	const val CUSTOM_GRADLE_INSTALLATION = "idepref_build_customGradleInstallation"
+	const val LAUNCH_APP_AFTER_INSTALL = "ide.build.run.launchAppAfterInstall"
 
-  /** Switch for Gradle `--debug` option. */
-  var isDebugEnabled: Boolean
-    get() = prefManager.getBoolean(DEBUG)
-    set(enabled) {
-      prefManager.putBoolean(DEBUG, enabled)
-    }
+	/** Switch for Gradle `--debug` option. */
+	var isDebugEnabled: Boolean
+		get() = prefManager.getBoolean(DEBUG)
+		set(enabled) {
+			prefManager.putBoolean(DEBUG, enabled)
+		}
 
-  /** Switch for Gradle `--scan` option. */
-  var isScanEnabled: Boolean
-    get() = prefManager.getBoolean(SCAN)
-    set(enabled) {
-      prefManager.putBoolean(SCAN, enabled)
-    }
+	/** Switch for Gradle `--scan` option. */
+	var isScanEnabled: Boolean
+		get() = prefManager.getBoolean(SCAN)
+		set(enabled) {
+			prefManager.putBoolean(SCAN, enabled)
+		}
 
-  /** Switch for Gradle `--warning-mode all` option. */
-  var isWarningModeAllEnabled: Boolean
-    get() = prefManager.getBoolean(WARNING_MODE)
-    set(enabled) {
-      prefManager.putBoolean(WARNING_MODE, enabled)
-    }
+	/** Switch for Gradle `--warning-mode all` option. */
+	var isWarningModeAllEnabled: Boolean
+		get() = prefManager.getBoolean(WARNING_MODE)
+		set(enabled) {
+			prefManager.putBoolean(WARNING_MODE, enabled)
+		}
 
-  /** Switch for Gradle `--build-cache` option. */
-  var isBuildCacheEnabled: Boolean
-    get() = prefManager.getBoolean(BUILD_CACHE, true)
-    set(enabled) {
-      prefManager.putBoolean(BUILD_CACHE, enabled)
-    }
+	/** Switch for Gradle `--build-cache` option. */
+	var isBuildCacheEnabled: Boolean
+		get() = prefManager.getBoolean(BUILD_CACHE, true)
+		set(enabled) {
+			prefManager.putBoolean(BUILD_CACHE, enabled)
+		}
 
-  /** Switch for Gradle `--offline` option. */
-  var isOfflineEnabled: Boolean
-    get() = prefManager.getBoolean(OFFLINE_MODE, true)
-    set(enabled) {
-      prefManager.putBoolean(OFFLINE_MODE, enabled)
-    }
+	/** Switch for Gradle `--offline` option. */
+	var isOfflineEnabled: Boolean
+		get() = prefManager.getBoolean(OFFLINE_MODE, true)
+		set(enabled) {
+			prefManager.putBoolean(OFFLINE_MODE, enabled)
+		}
 
-  /** Switch for Gradle `--stacktrace` option. */
-  var isStacktraceEnabled: Boolean
-    get() = prefManager.getBoolean(STACKTRACE)
-    set(value) {
-      prefManager.putBoolean(STACKTRACE, value)
-    }
+	/** Switch for Gradle `--stacktrace` option. */
+	var isStacktraceEnabled: Boolean
+		get() = prefManager.getBoolean(STACKTRACE)
+		set(value) {
+			prefManager.putBoolean(STACKTRACE, value)
+		}
 
-  /** Switch for Gradle `--info` option. */
-  var isInfoEnabled: Boolean
-    get() = prefManager.getBoolean(INFO, false)
-    set(enabled) {
-      prefManager.putBoolean(INFO, enabled)
-    }
+	/** Switch for Gradle `--info` option. */
+	var isInfoEnabled: Boolean
+		get() = prefManager.getBoolean(INFO, false)
+		set(enabled) {
+			prefManager.putBoolean(INFO, enabled)
+		}
 
-  /** Custom Gradle installation directory path. */
-  var gradleInstallationDir: String
-    get() = prefManager.getString(CUSTOM_GRADLE_INSTALLATION, "${GRADLE_DISTRIBUTIONS_DIR}/${GRADLE_DISTRIBUTION_NAME}")
-    set(value) {
-      prefManager.putString(CUSTOM_GRADLE_INSTALLATION, value)
-    }
+	/** Custom Gradle installation directory path. */
+	var gradleInstallationDir: String
+		get() = prefManager.getString(
+			CUSTOM_GRADLE_INSTALLATION,
+			"${GRADLE_DISTRIBUTIONS_DIR}/${GRADLE_DISTRIBUTION_NAME}"
+		)!!
+		set(value) {
+			prefManager.putString(CUSTOM_GRADLE_INSTALLATION, value)
+		}
 
-  /**
-   * Whether the app should be launched automatically after installation (after build).
-   */
-  var launchAppAfterInstall: Boolean
-    get() = prefManager.getBoolean(LAUNCH_APP_AFTER_INSTALL, false)
-    set(value) {
-      prefManager.putBoolean(LAUNCH_APP_AFTER_INSTALL, value)
-    }
+	/**
+	 * Whether the app should be launched automatically after installation (after build).
+	 */
+	var launchAppAfterInstall: Boolean
+		get() = prefManager.getBoolean(LAUNCH_APP_AFTER_INSTALL, false)
+		set(value) {
+			prefManager.putBoolean(LAUNCH_APP_AFTER_INSTALL, value)
+		}
 }

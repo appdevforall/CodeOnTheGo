@@ -124,7 +124,7 @@ object XmlPreferences {
     }
 
   var emptyElementsBehavior: String
-    get() = prefManager.getString(EMPTY_ELEMENTS_BEHAVIOR, "Collapse")
+    get() = prefManager.getString(EMPTY_ELEMENTS_BEHAVIOR, "Collapse")!!
     set(value) {
       prefManager.putString(EMPTY_ELEMENTS_BEHAVIOR, value)
     }

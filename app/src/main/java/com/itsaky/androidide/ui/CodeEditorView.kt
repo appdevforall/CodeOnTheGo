@@ -532,7 +532,7 @@ class CodeEditorView(
       return
     }
 
-    BaseApplication.getBaseInstance().prefManager
+    BaseApplication.baseInstance.prefManager
     when (event.key) {
       EditorPreferences.FONT_SIZE -> onFontSizePrefChanged()
       EditorPreferences.FONT_LIGATURES -> onFontLigaturesPrefChanged()

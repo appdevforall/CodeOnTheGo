@@ -112,7 +112,7 @@ class MemoryUsageWatcher(
   }
 
   private fun readUsages() {
-    val activityManager = BaseApplication.getBaseInstance().getSystemService<ActivityManager>()
+    val activityManager = BaseApplication.baseInstance.getSystemService<ActivityManager>()
     if (activityManager == null) {
       log.error("ActivityManager is null")
       return

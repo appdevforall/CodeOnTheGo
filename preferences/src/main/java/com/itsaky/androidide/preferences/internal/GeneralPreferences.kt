@@ -89,7 +89,7 @@ object GeneralPreferences {
     }
 
   var lastOpenedProject: String
-    get() = prefManager.getString(LAST_OPENED_PROJECT, NO_OPENED_PROJECT)
+    get() = prefManager.getString(LAST_OPENED_PROJECT, NO_OPENED_PROJECT)!!
     set(value) {
       prefManager.putString(LAST_OPENED_PROJECT, value)
     }

@@ -6,6 +6,7 @@ import android.util.TypedValue;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.itsaky.androidide.app.BaseApplication;
 import com.termux.shared.android.PackageUtils;
 import com.termux.shared.settings.preferences.AppSharedPreferences;
 import com.termux.shared.settings.preferences.SharedPreferenceUtils;
@@ -40,13 +41,12 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
      *                {@link TermuxConstants#TERMUX_PACKAGE_NAME}.
      * @return Returns the {@link TermuxAppSharedPreferences}. This will {@code null} if an exception is raised.
      */
-    @Nullable
-    public static TermuxAppSharedPreferences build(@NonNull final Context context) {
-        Context termuxPackageContext = PackageUtils.getContextForPackage(context, TermuxConstants.TERMUX_PACKAGE_NAME);
-        if (termuxPackageContext == null)
-            return null;
-        else
-            return new TermuxAppSharedPreferences(termuxPackageContext);
+	@NonNull
+    @SuppressWarnings("unused")
+	public static TermuxAppSharedPreferences build(@NonNull final Context context) {
+		// Code on the Go changed: always use safe IDE context to avoid accessing
+		// credential protected storage during boot
+		return new TermuxAppSharedPreferences(BaseApplication.getBaseInstance().getSafeContext());
     }
 
     /**

@@ -22,8 +22,10 @@ import static org.adfa.constants.ConstantsKt.V8_KEY;
 
 import android.content.res.AssetManager;
 import android.os.Build;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
+
 import com.aayushatharva.brotli4j.Brotli4jLoader;
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream;
 import com.blankj.utilcode.util.FileIOUtils;
@@ -34,6 +36,7 @@ import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider;
 import com.itsaky.androidide.utils.Environment;
 import com.itsaky.androidide.utils.IoUtilsKt;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
@@ -46,6 +49,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.security.SecureRandom;
 import java.util.concurrent.CompletableFuture;
+
 import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,8 +69,6 @@ import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 
-
-
 public class ToolsManager {
 
 	private static final Logger LOG = LoggerFactory.getLogger(ToolsManager.class);
@@ -78,8 +80,7 @@ public class ToolsManager {
 	/**
 	 * Keywords: [assets, gradle, gradleWrapper, localJars, Jars, Jar, ProjectTemplate, postRecipe ] ~/AndroidIDE/app/build/intermediates/assets/debug/mergeDebugAssets/data/common Why do we need build/intermediates/*** folder when we can just use assets? I don't know. During my short search I wasn't able to find anything meaningful in regards to that folder. The fact is that app copies assets from data/common folder. And to add any new libs using existing mechanisms
 	 *
-	 * @param name
-	 *            - asset name
+	 * @param name - asset name
 	 * @return Full path to debug/compressed_assets/name
 	 * @see ToolsManager getCommonAsset(String name)
 	 * @see ResourceUtils copyFileFromAssets We have to put our files under data/common folder. And add new postRecipe entry to templates
@@ -189,7 +190,7 @@ public class ToolsManager {
 	}
 
 	private static boolean shouldExtractScheme(final BaseApplication app, final File dir,
-			final String path) throws IOException {
+											   final String path) throws IOException {
 
 		final var schemePropFile = new File(dir, "scheme.prop");
 		if (!schemePropFile.exists()) {
@@ -278,7 +279,7 @@ public class ToolsManager {
 	}
 
 	private static void writeNoMediaFile() {
-		final var noMedia = new File(BaseApplication.getBaseInstance().getProjectsDir(), ".nomedia");
+		final var noMedia = new File(Environment.PROJECTS_DIR, ".nomedia");
 		if (!noMedia.exists()) {
 			try {
 				if (!noMedia.createNewFile()) {

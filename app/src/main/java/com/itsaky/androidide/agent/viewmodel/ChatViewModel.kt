@@ -106,7 +106,7 @@ class ChatViewModel : ViewModel() {
 
 
     private fun getOrCreateRepository(context: Context): GeminiRepository? {
-        val prefs = BaseApplication.getBaseInstance().prefManager
+        val prefs = BaseApplication.baseInstance.prefManager
         val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
         val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
 
@@ -156,7 +156,7 @@ class ChatViewModel : ViewModel() {
     }
 
     fun checkBackendStatusOnResume(context: Context) {
-        val prefs = BaseApplication.getBaseInstance().prefManager
+        val prefs = BaseApplication.baseInstance.prefManager
         val currentBackendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)!!
         val currentModelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
         val backend = AiBackend.valueOf(currentBackendName)

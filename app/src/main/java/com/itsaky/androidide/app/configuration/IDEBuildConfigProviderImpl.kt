@@ -30,7 +30,7 @@ import com.itsaky.androidide.app.BaseApplication
 open class IDEBuildConfigProviderImpl : IDEBuildConfigProvider {
 
   override val cpuAbiName: String by lazy {
-    val applicationInfo = BaseApplication.getBaseInstance().applicationInfo!!
+    val applicationInfo = BaseApplication.baseInstance.applicationInfo!!
 
     // transform to valid ABI names
     return@lazy when (val abi = applicationInfo.nativeLibraryDir!!.substringAfterLast('/')) {

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import moe.shizuku.manager.ShizukuSettings.LaunchMethod
 import moe.shizuku.manager.model.ServiceStatus
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
@@ -78,6 +79,8 @@ object ShizukuState {
 			} else {
 				null
 			}
+
+		ShizukuSettings.setLastLaunchMode(if (uid == 0) LaunchMethod.ROOT else LaunchMethod.ADB)
 
 		val permission = try {
 			Shizuku.checkRemotePermission("android.permission.GRANT_RUNTIME_PERMISSIONS") == PackageManager.PERMISSION_GRANTED

@@ -36,24 +36,24 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun getCurrentBackend(): AiBackend {
-        val prefs = BaseApplication.getBaseInstance().prefManager
+        val prefs = BaseApplication.baseInstance.prefManager
         val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
         return AiBackend.valueOf(backendName ?: AiBackend.GEMINI.name)
     }
 
     fun saveBackend(backend: AiBackend) {
-        val prefs = BaseApplication.getBaseInstance().prefManager
+        val prefs = BaseApplication.baseInstance.prefManager
         prefs.putString(PREF_KEY_AI_BACKEND, backend.name)
     }
 
     fun saveLocalModelPath(uriString: String) {
-        val prefs = BaseApplication.getBaseInstance().prefManager
+        val prefs = BaseApplication.baseInstance.prefManager
         prefs.putString(PREF_KEY_LOCAL_MODEL_PATH, uriString)
         onNewModelSelected(uriString)
     }
 
     fun getLocalModelPath(): String? {
-        val prefs = BaseApplication.getBaseInstance().prefManager
+        val prefs = BaseApplication.baseInstance.prefManager
         return prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
     }
 

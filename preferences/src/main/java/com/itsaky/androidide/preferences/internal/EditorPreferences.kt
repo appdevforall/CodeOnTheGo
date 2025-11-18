@@ -142,7 +142,7 @@ object EditorPreferences {
     }
 
   var colorScheme: String
-    get() = prefManager.getString(COLOR_SCHEME, DEFAULT_COLOR_SCHEME)
+    get() = prefManager.getString(COLOR_SCHEME, DEFAULT_COLOR_SCHEME)!!
     set(value) {
       prefManager.putString(COLOR_SCHEME, value)
     }

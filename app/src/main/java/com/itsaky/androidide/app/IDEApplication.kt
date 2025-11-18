@@ -19,12 +19,12 @@
 package com.itsaky.androidide.app
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.os.StrictMode
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.core.os.UserManagerCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -34,7 +34,6 @@ import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.analytics.IAnalyticsManager
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
@@ -54,7 +53,6 @@ import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
-import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
@@ -159,11 +157,15 @@ class IDEApplication :
 	override fun onCreate() {
 		instance = this
 		uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
+
 		Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
 		super<TermuxApplication>.onCreate()
 
-		initializePluginSystem()
+		if (isUserUnlocked) {
+			// do not initialize plugins when we're in direct boot mode
+			initializePluginSystem()
+		}
 
 		startKoin {
 			androidContext(this@IDEApplication)
@@ -176,12 +178,7 @@ class IDEApplication :
 		if (BuildConfig.DEBUG) {
 			val builder = StrictMode.VmPolicy.Builder()
 			StrictMode.setVmPolicy(builder.build())
-			// TODO JMT
-//            StrictMode.setVmPolicy(
-//                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
-//                    .build()
-//            )
-			if (DevOpsPreferences.dumpLogs) {
+			if (isUserUnlocked && DevOpsPreferences.dumpLogs) {
 				startLogcatReader()
 			}
 		}
@@ -207,8 +204,11 @@ class IDEApplication :
 		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
 
 		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-		GlobalScope.launch {
-			IDEColorSchemeProvider.init()
+
+		if (isUserUnlocked) {
+			GlobalScope.launch {
+				IDEColorSchemeProvider.init()
+			}
 		}
 
 		initializeAnalytics()
@@ -320,15 +320,6 @@ class IDEApplication :
 		} catch (error: Throwable) {
 			log.error("Unable to show crash handler activity", error)
 		}
-	}
-
-	fun showChangelog(context: Context? = null) {
-		var version = BuildInfo.VERSION_NAME_SIMPLE
-		if (!version.startsWith('v')) {
-			version = "v$version"
-		}
-		val url = "${BuildInfo.REPO_URL}/releases/tag/$version"
-		UrlManager.openUrl(url, null, context ?: currentActivity ?: this)
 	}
 
 	private fun startLogcatReader() {

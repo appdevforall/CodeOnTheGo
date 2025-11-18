@@ -24,4 +24,4 @@ import com.itsaky.androidide.managers.PreferenceManager
  * The global preference manager instance.
  */
 val prefManager: PreferenceManager
-  get() = BaseApplication.getBaseInstance().prefManager
+  get() = BaseApplication.baseInstance.prefManager
