@@ -21,6 +21,7 @@ import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import java.util.zip.CRC32
 import kotlin.reflect.jvm.javaMethod
 
 plugins {
@@ -400,11 +401,16 @@ tasks.register("recompressApk") {
 	doLast {
 		val abi: String = extensions.extraProperties["abi"].toString()
 		val buildName: String = extensions.extraProperties["buildName"].toString()
+		val noCompressExtensions = if (extensions.extraProperties.has("noCompressExtensions")) {
+			extensions.extraProperties["noCompressExtensions"] as? Set<String> ?: emptySet()
+		} else {
+			emptySet()
+		}
 
 		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
 
         val start = System.nanoTime()
-		recompressApk(abi, buildName)
+		recompressApk(abi, buildName, noCompressExtensions)
         val durationMs = "%.2f".format((System.nanoTime() - start) / 1_000_000.0)
 
         project.logger.lifecycle("recompressApk completed in ${durationMs}ms")
@@ -412,6 +418,8 @@ tasks.register("recompressApk") {
 }
 
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
+
+val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "br")
 
 afterEvaluate {
 	tasks.named("assembleV8Release").configure {
@@ -421,22 +429,20 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v8"
 				extensions.extraProperties["buildName"] = "release"
+				extensions.extraProperties["noCompressExtensions"] = noCompress
 			}
 		}
 	}
 
 	tasks.named("assembleV7Release").configure {
-    if (isCiCd) {
-      finalizedBy("recompressApk")
-    }
+		finalizedBy("recompressApk")
 
 		doLast {
-      if (isCiCd) {
-        tasks.named("recompressApk").configure {
-          extensions.extraProperties["abi"] = "v7"
-          extensions.extraProperties["buildName"] = "release"
-        }
-      }
+			tasks.named("recompressApk").configure {
+				extensions.extraProperties["abi"] = "v7"
+				extensions.extraProperties["buildName"] = "release"
+				extensions.extraProperties["noCompressExtensions"] = noCompress
+			}
 		}
 	}
 
@@ -475,7 +481,10 @@ afterEvaluate {
 fun recompressApk(
 	abi: String,
 	buildName: String,
+	noCompressExtensions: Set<String>
 ) {
+	project.logger.lifecycle("Recompressing APK with exclusions: $noCompressExtensions")
+
 	val apkDir: File =
 		layout.buildDirectory
 			.dir("outputs/apk/$abi/$buildName")
@@ -486,7 +495,7 @@ fun recompressApk(
 	apkDir.walk().filter { it.extension == "apk" }.forEach { apkFile ->
 		project.logger.lifecycle("Recompressing APK: ${apkFile.name}")
 		val tempZipFile = File(apkFile.parentFile, "${apkFile.name}.tmp")
-		recompressZip(apkFile, tempZipFile)
+		recompressZip(apkFile, tempZipFile, noCompressExtensions)
 		signApk(tempZipFile)
 		if (apkFile.delete()) {
 			tempZipFile.renameTo(apkFile)
@@ -497,6 +506,7 @@ fun recompressApk(
 fun recompressZip(
 	inputZip: File,
 	outputZip: File,
+	noCompressExtensions: Set<String>
 ) {
 	ZipInputStream(BufferedInputStream(FileInputStream(inputZip))).use { zis ->
 		ZipOutputStream(BufferedOutputStream(FileOutputStream(outputZip))).use { zos ->
@@ -505,6 +515,7 @@ fun recompressZip(
 			var entry = zis.nextEntry
 			while (entry != null) {
 				if (!entry.isDirectory) {
+					val extension = entry.name.substringAfterLast('.', "").lowercase()
 					val newEntry = ZipEntry(entry.name)
 
 					// Remove timestamps for deterministic output (-X)
@@ -513,12 +524,22 @@ fun recompressZip(
 						newEntry.creationTime = FileTime.fromMillis(0)
 						newEntry.lastModifiedTime = FileTime.fromMillis(0)
 						newEntry.lastAccessTime = FileTime.fromMillis(0)
-					} catch (_: Throwable) {
-						// In case JVM doesn't support them
+					} catch (_: Throwable) {}
+
+					// Force STORE method for no-compress extensions
+					if (extension in noCompressExtensions) {
+						val byteArray = zis.readBytes()
+						newEntry.method = ZipEntry.STORED
+						newEntry.size = byteArray.size.toLong()
+						newEntry.crc = CRC32().apply { update(byteArray) }.value
+						zos.putNextEntry(newEntry)
+						zos.write(byteArray)
+					} else {
+						newEntry.method = ZipEntry.DEFLATED
+						zos.putNextEntry(newEntry)
+						zis.copyTo(zos)
 					}
 
-					zos.putNextEntry(newEntry)
-					zis.copyTo(zos)
 					zos.closeEntry()
 				}
 				entry = zis.nextEntry
