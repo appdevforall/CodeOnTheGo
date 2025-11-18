@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.google.android.material.tabs.TabLayoutMediator
@@ -22,6 +23,8 @@ import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_NOT_CONNECTED
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_THREAD_SELECTOR
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
@@ -29,8 +32,6 @@ import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
-import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
-import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.viewmodel.WADBViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
@@ -47,8 +48,7 @@ import rikka.shizuku.Shizuku
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment :
-	EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private var tabs: Array<Pair<String, () -> Fragment>>? = null
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 	private val wadbViewModel by activityViewModels<WADBViewModel>()
@@ -98,17 +98,10 @@ class DebuggerFragment :
 				}
 			}
 
-		emptyStateViewModel.isEmpty.observe(viewLifecycleOwner) { isEmpty ->
-			if (isEmpty) {
-				binding.debuggerContents.threadLayoutSelector.spinnerText
-					.clearListSelection()
-			}
-		}
-
 		binding.debuggerContents.threadLayoutSelector.spinnerLayout.setOnLongPressListener {
 			showToolTipDialog(
 				DEBUG_THREAD_SELECTOR,
-				binding.debuggerContents.threadLayoutSelector.root
+				binding.debuggerContents.threadLayoutSelector.root,
 			)
 		}
 
@@ -123,10 +116,31 @@ class DebuggerFragment :
 			ShizukuState.reload().await()
 		}
 
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.CREATED) {
+				launch {
+					ShizukuState.serviceStatus.collectLatest { currentStatus ->
+						withContext(Dispatchers.IO) {
+							onShizukuServiceStatusChange(currentStatus)
+						}
+					}
+				}
+			}
+		}
+
 		viewLifecycleScope.launch {
 			viewModel.setThreads(emptyList())
 
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				emptyStateViewModel.isEmpty.collectLatest { isEmpty ->
+					if (isEmpty) {
+						withContext(Dispatchers.Main) {
+							binding.debuggerContents.threadLayoutSelector.spinnerText
+								.clearListSelection()
+						}
+					}
+				}
+
 				viewModel.observeCurrentView(
 					scope = this,
 					notifyOn = Dispatchers.Main,
@@ -137,50 +151,29 @@ class DebuggerFragment :
 					// 1. current view is not debugger UI
 					// 2. current view is debugger UI but not connected to a VM
 					// 3. current view is debugger UI but no thread data is available
-					emptyStateViewModel.isEmpty.value =
-						currentView == VIEW_DEBUGGER &&
-								(
-										!Shizuku.pingBinder() || viewModel.connectionState.value < DebuggerConnectionState.ATTACHED ||
-												viewModel.allThreads.value.isEmpty()
-										)
+					val isDebuggerView = currentView == VIEW_DEBUGGER
+					val isShizukuConnected = Shizuku.pingBinder()
+					val isDebuggerDetached =
+						viewModel.connectionState.value < DebuggerConnectionState.ATTACHED
+					val hasThreadData = viewModel.allThreads.value.isNotEmpty()
+					emptyStateViewModel.setEmpty(isDebuggerView && (!isShizukuConnected || isDebuggerDetached || !hasThreadData))
 				}
 
 				viewModel.observeConnectionState(
 					scope = this,
 					notifyOn = Dispatchers.Main,
 				) { state ->
-					val message =
+					val showMessage =
+						// NOTE: Keep this in sync with getEmptyStateMessage
 						when (state) {
-							// not connected to a VM
-							DebuggerConnectionState.DETACHED -> getString(R.string.debugger_state_not_connected)
-
-							// connected, but not suspended
-							DebuggerConnectionState.ATTACHED -> {
-								viewModel.debugClient.clientOrNull?.let { client ->
-									getString(
-										R.string.debugger_state_connected,
-										client.name,
-										client.version,
-									)
-								}
-							}
-
-							// ----
-							// No need to show any message for below states
-							// the debugger UI will show the active threads, variables and call stack when the
-							// VM is in one of these states
-
-							// suspended, but not due to a breakpoint hit or step event
-							DebuggerConnectionState.SUSPENDED -> null
-							// suspended due to a breakpoint hit or step event
-							DebuggerConnectionState.AWAITING_BREAKPOINT -> null
+							DebuggerConnectionState.DETACHED -> true
+							DebuggerConnectionState.ATTACHED -> true
+							DebuggerConnectionState.SUSPENDED -> false
+							DebuggerConnectionState.AWAITING_BREAKPOINT -> false
 						}
 
-					emptyStateViewModel.isEmpty.value =
-						currentView == VIEW_DEBUGGER &&
-								message != null
-					emptyStateViewModel.emptyMessage.value =
-						if (Shizuku.pingBinder()) message else getString(R.string.debugger_state_not_paired)
+					emptyStateViewModel.setEmpty(currentView == VIEW_DEBUGGER && showMessage)
+					emptyStateViewModel.setEmptyMessage(getEmptyStateMessage(debuggerConnectionState = state))
 				}
 
 				viewModel.observeLatestThreads(
@@ -194,9 +187,7 @@ class DebuggerFragment :
 							}.awaitAll()
 
 					withContext(Dispatchers.Main) {
-						emptyStateViewModel.isEmpty.value =
-							currentView == VIEW_DEBUGGER &&
-									descriptors.isEmpty()
+						emptyStateViewModel.setEmpty(currentView == VIEW_DEBUGGER && descriptors.isEmpty())
 						binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
 							ThreadSelectorListAdapter(
 								requireContext(),
@@ -204,9 +195,9 @@ class DebuggerFragment :
 								onItemLongClick = { _, _, _ ->
 									showToolTipDialog(
 										DEBUG_THREAD_SELECTOR,
-										binding.debuggerContents.debuggerContentContainer.rootView
+										binding.debuggerContents.debuggerContentContainer.rootView,
 									)
-								}
+								},
 							),
 						)
 					}
@@ -234,24 +225,10 @@ class DebuggerFragment :
 						}
 					}
 				}
-
-				ShizukuState.serviceStatus.collectLatest { currentStatus ->
-					withContext(Dispatchers.IO) {
-						onShizukuServiceStatusChange(currentStatus)
-					}
-				}
 			}
 		}
 
-		emptyStateViewModel.emptyMessage.value =
-			getString(
-				if (Shizuku.pingBinder()) {
-					R.string.debugger_state_not_connected
-				} else {
-					R.string.debugger_state_not_paired
-				}
-			)
-
+		emptyStateViewModel.setEmptyMessage(getEmptyStateMessage())
 		binding.debuggerContents.threadLayoutSelector.spinnerText.setOnItemClickListener { _, _, index, _ ->
 			viewLifecycleScope.launch {
 				viewModel.setSelectedThreadIndex(index)
@@ -273,10 +250,12 @@ class DebuggerFragment :
 				}
 			}
 		tabs?.let { tab ->
-			binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(
-				childFragmentManager,
-				viewLifecycleOwner.lifecycle,
-				tab.map { it.second })
+			binding.debuggerContents.pager.adapter =
+				DebuggerPagerAdapter(
+					childFragmentManager,
+					viewLifecycleOwner.lifecycle,
+					tab.map { it.second },
+				)
 		}
 		mediator?.attach()
 	}
@@ -299,9 +278,64 @@ class DebuggerFragment :
 		showToolTipDialog(DEBUG_NOT_CONNECTED)
 	}
 
+	private fun getEmptyStateMessage(
+		newMessage: String? = null,
+		debuggerConnectionState: DebuggerConnectionState = viewModel.connectionState.value,
+		isShizukuServiceRunning: Boolean = Shizuku.pingBinder(),
+	): String {
+		if (!isShizukuServiceRunning) {
+			return getString(R.string.debugger_state_not_paired)
+		}
+
+		val message =
+			when (debuggerConnectionState) {
+				// not connected to a VM
+				DebuggerConnectionState.DETACHED -> {
+					getString(R.string.debugger_state_not_connected)
+				}
+
+				// connected, but not suspended
+				DebuggerConnectionState.ATTACHED -> {
+					viewModel.debugClient.clientOrNull?.let { client ->
+						val connectedMessage =
+							getString(
+								R.string.debugger_state_connected,
+								client.name,
+								client.version,
+							)
+						connectedMessage
+					}
+				}
+
+				// ----
+				// No need to show any message for below states
+				// the debugger UI will show the active threads, variables and call stack when the
+				// VM is in one of these states
+
+				// suspended, but not due to a breakpoint hit or step event
+				DebuggerConnectionState.SUSPENDED -> {
+					null
+				}
+				// suspended due to a breakpoint hit or step event
+				DebuggerConnectionState.AWAITING_BREAKPOINT -> {
+					null
+				}
+			}
+
+		if (message != null) {
+			return message
+		}
+
+		if (newMessage != null) {
+			return newMessage
+		}
+
+		return getString(R.string.debugger_state_not_connected)
+	}
+
 	fun showToolTipDialog(
 		tag: String,
-		anchorView: View? = null
+		anchorView: View? = null,
 	) {
 		anchorView?.let {
 			TooltipManager.showIdeCategoryTooltip(requireContext(), it, tag)
@@ -322,6 +356,7 @@ class DebuggerFragment :
 		}
 
 		viewModel.currentView = newView
+		emptyStateViewModel.setEmptyMessage(getEmptyStateMessage())
 	}
 }
 
@@ -338,7 +373,7 @@ class DebuggerPagerAdapter(
 class ThreadSelectorListAdapter(
 	context: Context,
 	items: List<ThreadDescriptor?>,
-	private val onItemLongClick: ((ThreadDescriptor, Int, View) -> Unit)
+	private val onItemLongClick: ((ThreadDescriptor, Int, View) -> Unit),
 ) : ArrayAdapter<ThreadDescriptor?>(context, android.R.layout.simple_dropdown_item_1line, items) {
 	@SuppressLint("ClickableViewAccessibility")
 	override fun getView(
@@ -349,12 +384,12 @@ class ThreadSelectorListAdapter(
 		val inflater = LayoutInflater.from(this.context)
 		val view =
 			(
-					convertView ?: inflater.inflate(
-						android.R.layout.simple_dropdown_item_1line,
-						parent,
-						false,
-					)
-					) as TextView
+				convertView ?: inflater.inflate(
+					android.R.layout.simple_dropdown_item_1line,
+					parent,
+					false,
+				)
+			) as TextView
 
 		val item = getItem(position)
 		if (item == null) {
@@ -368,26 +403,29 @@ class ThreadSelectorListAdapter(
 			var longPressDetected = false
 
 			val gestureDetector =
-				GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-					override fun onLongPress(e: MotionEvent) {
-						longPressDetected = true
-						try {
-							view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-							if (view.isAttachedToWindow) {
-								onItemLongClick.invoke(item, position, view)
+				GestureDetector(
+					context,
+					object : GestureDetector.SimpleOnGestureListener() {
+						override fun onLongPress(e: MotionEvent) {
+							longPressDetected = true
+							try {
+								view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+								if (view.isAttachedToWindow) {
+									onItemLongClick.invoke(item, position, view)
+								}
+							} catch (e: Exception) {
+								Sentry.captureException(e)
 							}
-						} catch (e: Exception) {
-							Sentry.captureException(e)
 						}
-					}
 
-					override fun onDown(e: MotionEvent): Boolean {
-						longPressDetected = false
-						return true
-					}
-				})
+						override fun onDown(e: MotionEvent): Boolean {
+							longPressDetected = false
+							return true
+						}
+					},
+				)
 
-			view.setOnTouchListener { v, event ->
+			view.setOnTouchListener { _, event ->
 				gestureDetector.onTouchEvent(event)
 				longPressDetected
 			}
