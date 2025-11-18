@@ -75,8 +75,6 @@ class RecentProjectsFragment : BaseFragment() {
                 val validProjects = findValidProjects(PROJECTS_DIR)
                 if (validProjects.isEmpty()) return@launch
 
-                val newInstallation = viewModel.projects.value.isNullOrEmpty()
-
                 loadProjectsIntoViewModel(validProjects)
 
                 if (GeneralPreferences.autoOpenProjects) {
@@ -95,7 +93,7 @@ class RecentProjectsFragment : BaseFragment() {
 
                     val lastCreated = validProjects.maxByOrNull { it.lastModified() }
 
-                    if (lastCreated != null && !newInstallation) {
+                    if (lastCreated != null) {
                         withContext(Dispatchers.Main) { openProjectAndSetAsLast(lastCreated) }
                     }
                 }
