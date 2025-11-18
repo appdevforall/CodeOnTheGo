@@ -35,7 +35,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:clipToPadding="false"
-        android:paddingBottom="8dp"
+        android:paddingBottom="4dp"
         app:layout_constraintBottom_toTopOf="@id/input_bar_card"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -88,7 +88,7 @@
         android:id="@+id/input_bar_card"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:cardElevation="8dp"
+        app:cardElevation="4dp"
         app:layout_constraintBottom_toTopOf="@id/keyboard_spacer"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -98,10 +98,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="8dp"
-            android:paddingTop="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp">
+            android:paddingStart="4dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="4dp"
+            android:paddingBottom="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -133,11 +133,11 @@
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/prompt_input_layout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:hint="Type a message or prompt...">
+                android:layout_marginTop="2dp"
+                android:hint="Type a message...">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/prompt_input_edittext"
@@ -145,8 +145,8 @@
                     android:layout_height="wrap_content"
                     android:gravity="top"
                     android:inputType="textMultiLine|textCapSentences"
-                    android:maxLines="8"
-                    android:minHeight="56dp"
+                    android:maxLines="6"
+                    android:minHeight="48dp"
                     android:scrollbars="vertical" />
             </com.google.android.material.textfield.TextInputLayout>
 
