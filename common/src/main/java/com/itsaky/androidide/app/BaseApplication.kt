@@ -46,21 +46,22 @@ open class BaseApplication : Application() {
 			"PreferenceManager not initialized"
 		}
 
-	val safeContext by lazy {
-		if (isUserUnlocked) {
-			this
-		} else {
-			logger.warn("Creating safe context because user is not unlocked")
-			object : ContextWrapper(createDeviceProtectedStorageContext()) {
-				override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences? {
-					return try {
-						super.getSharedPreferences(name, mode)
-					} catch (_: IllegalStateException) {
-						// SharedPreferences in credential encrypted storage are not available until
-						// after user is unlocked
-						logger.warn("Using no-op SharedPreferences because user is probably not unlocked")
-						NoopSharedPreferencesImpl()
-					}
+	@JvmOverloads
+	fun getSafeContext(deviceProtectedStorageContext: Boolean = false): Context {
+		if (isUserUnlocked && !deviceProtectedStorageContext) {
+			return this
+		}
+
+		logger.warn("Creating safe context because user is not unlocked")
+		return object : ContextWrapper(createDeviceProtectedStorageContext()) {
+			override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences? {
+				return try {
+					super.getSharedPreferences(name, mode)
+				} catch (_: IllegalStateException) {
+					// SharedPreferences in credential encrypted storage are not available until
+					// after user is unlocked
+					logger.warn("Using no-op SharedPreferences because user is probably not unlocked")
+					NoopSharedPreferencesImpl()
 				}
 			}
 		}
@@ -73,7 +74,7 @@ open class BaseApplication : Application() {
 		Environment.init(this)
 		super.onCreate()
 
-		_prefManager = PreferenceManager(safeContext)
+		_prefManager = PreferenceManager(getSafeContext())
 		JavaCharacter.initMap()
 
 		if (isUserUnlocked && (!VMUtils.isJvm() || this.isInstrumentedTest)) {

@@ -24,7 +24,6 @@ import android.os.StrictMode
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
-import androidx.core.os.UserManagerCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -174,7 +173,7 @@ class IDEApplication :
 		}
 
 		SentryAndroid.init(this)
-		ShizukuSettings.initialize(this)
+		ShizukuSettings.initialize()
 
 		if (BuildConfig.DEBUG) {
 			val builder = StrictMode.VmPolicy.Builder()

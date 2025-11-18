@@ -47,12 +47,15 @@ class BootCompleteReceiver : BroadcastReceiver() {
 			return
 		}
 
-		if (ShizukuSettings.getLastLaunchMode() == LaunchMethod.ROOT) {
+		val lastLaunchMode = ShizukuSettings.getLastLaunchMode()
+		logger.info("Boot completed. Last launch mode: {}", lastLaunchMode)
+
+		if (lastLaunchMode == LaunchMethod.ROOT) {
 			rootStart(context)
 		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
 			// https://r.android.com/2128832
 			context.checkSelfPermission(WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED &&
-			ShizukuSettings.getLastLaunchMode() == LaunchMethod.ADB
+			lastLaunchMode == LaunchMethod.ADB
 		) {
 			adbStart(context)
 		} else {
