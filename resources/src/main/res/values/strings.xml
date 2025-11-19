@@ -96,7 +96,6 @@
 	<string name="title_confirm_project_close">Close project</string>
 	<string name="cancel_project_text">Cancel</string>
 	<string name="close_without_saving">Close without saving files</string>
-	<string name="save_close_project">Save files and close project</string>
 	<string name="save_and_close">Save files and close project</string>
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project
@@ -804,10 +803,7 @@
 	<string name="actions">Actions</string>
 	<string name="help">Help</string>
 	<string name="code"></string>
-	<string name="email_feedback_warning_prompt">
-		To send a private message to feedback@appdevforall.org, tap
-		<b>OK</b>
-		. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?
+	<string name="email_feedback_warning_prompt"> To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?
 	</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
 	<string name="feedback_message">Please enter your feedback in the space below. If you are reporting a problem, please include as
