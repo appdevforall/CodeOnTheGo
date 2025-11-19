@@ -78,6 +78,7 @@ jobs:
           echo "$CURRENT_MD5" > last_md5
 
       - name: Download latest documentation.db from Google Drive
+        if: steps.checksum.outputs.skip != 'true'
         run: |
           # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
