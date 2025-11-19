@@ -12,7 +12,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/guideline_vertical_end"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
@@ -67,47 +67,6 @@
         </com.itsaky.androidide.ui.ContentTranslatingDrawerLayout>
 
     </FrameLayout>
-
-    <androidx.constraintlayout.widget.Guideline
-        android:id="@+id/guideline_vertical_end"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        app:layout_constraintGuide_percent="1.0" />
-
-    <FrameLayout
-        android:id="@+id/resize_divider"
-        android:layout_width="24dp"
-        android:layout_height="0dp"
-        android:elevation="8dp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="@id/guideline_vertical_end"
-        app:layout_constraintStart_toStartOf="@id/guideline_vertical_end"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="-6dp"
-            android:layout_gravity="center"
-            android:src="@drawable/ic_resize"
-            app:tint="?attr/colorControlNormal" />
-
-    </FrameLayout>
-
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/right_panel_container"
-        android:name="com.itsaky.androidide.agent.fragments.RightEditorSidebarFragment"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:elevation="8dp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="@id/guideline_vertical_end"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:visibility="visible" />
 
   <com.google.android.material.floatingactionbutton.FloatingActionButton
       android:id="@+id/fab_feedback"
