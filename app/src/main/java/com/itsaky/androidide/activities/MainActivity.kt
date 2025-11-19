@@ -307,6 +307,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     internal fun openProject(root: File) {
         ProjectManagerImpl.getInstance().projectPath = root.absolutePath
+        GeneralPreferences.lastOpenedProject = root.absolutePath
 
         // Track project open in Firebase Analytics
         analyticsManager.trackProjectOpened(root.absolutePath)

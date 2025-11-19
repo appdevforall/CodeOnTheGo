@@ -1187,8 +1187,6 @@ open class EditorHandlerActivity :
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
 			}
 
-			GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
-
 			performCloseAllFiles(manualFinish = true)
 		}
 
@@ -1197,7 +1195,6 @@ open class EditorHandlerActivity :
 			dialog.dismiss()
 
 			saveAllAsync(notify = false) {
-				GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
 
 				runOnUiThread {
 					performCloseAllFiles(manualFinish = true)
