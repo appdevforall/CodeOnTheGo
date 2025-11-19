@@ -37,6 +37,7 @@ jobs:
 
 
       - name: Check if documentation.db has changed
+        id: checksum
         run: |
           echo "Checking if documentation.db has changed..."
                     
@@ -68,10 +69,12 @@ jobs:
           
           # Compare
           if [ "$CURRENT_MD5" = "$LAST_MD5" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT      
             echo "No change detected. Skipping download and compression."
             exit 0
           fi
           
+          echo "skip=false" >> $GITHUB_OUTPUT      
           echo "$CURRENT_MD5" > last_md5
 
       - name: Download latest documentation.db from Google Drive
@@ -147,6 +150,7 @@ jobs:
           echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
 
       - name: Compress documentation.db with Brotli
+        if: steps.checksum.outputs.skip != 'true'
         run: |
           echo "Installing Brotli..."
           sudo apt-get update && sudo apt-get install -y brotli
@@ -167,6 +171,7 @@ jobs:
           echo "Compressed size: $COMPRESSED_SIZE"
 
       - name: Upload documentation.db.br and last_md5 to Drive
+        if: steps.checksum.outputs.skip != 'true'
         run: |
           echo "Uploading documentation.db.br and last_md5 to Drive..."
 
