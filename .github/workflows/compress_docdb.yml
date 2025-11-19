@@ -41,10 +41,13 @@ jobs:
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
           
           DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
+          
           # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
           # DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
           
-          LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
+          # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
+          LAST_MD5_FILE_ID="1EXaaC2SbnGy7bsBPFWusGX48KAoj-019"
+          
           # LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
           # LAST_MD5_FILE_ID="12YTCvnV-kKaEfAk_OGzKJKA-ecFw48Yi"
           
@@ -76,6 +79,7 @@ jobs:
         if: steps.checksum.outputs.skip != 'true'
         run: |
           DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
+          
           # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
           # DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
@@ -172,11 +176,15 @@ jobs:
           echo "Uploading documentation.db.br and last_md5 to Drive..."
 
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
-          BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
+          # BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
+          BR_FILE_ID="1qsJgKXG2ncoXDLB0lz1D-bkrvdEe1ECp"
+          
           # BR_FILE_ID="1RB4X2VXz07vFQwOoLBsb3o70PSN8mLoL"
           # BR_FILE_ID="1if0BF3AxKImNCaCEn2JBfOPQI0ge3PrF"
           
-          LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
+          # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
+          LAST_MD5_FILE_ID="1EXaaC2SbnGy7bsBPFWusGX48KAoj-019"
+          
           # LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
           # LAST_MD5_FILE_ID="12YTCvnV-kKaEfAk_OGzKJKA-ecFw48Yi"
 
