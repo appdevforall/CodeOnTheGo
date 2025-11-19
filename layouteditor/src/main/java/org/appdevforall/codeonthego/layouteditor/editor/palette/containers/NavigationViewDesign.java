@@ -51,7 +51,7 @@ public class NavigationViewDesign extends NavigationView {
 		try {
 			super.onAttachedToWindow();
 		} catch (IllegalArgumentException e) {
-			logger.error("NavigationView should be placed in a DrawerLayout");
+			logger.error("NavigationView should be placed in a DrawerLayout", e);
 		}
 	}
 }

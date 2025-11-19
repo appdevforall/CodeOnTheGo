@@ -50,7 +50,7 @@ class DrawerLayoutDesign(
 		try {
 			super.onAttachedToWindow()
 		} catch (e: Exception) {
-			logger.error("Error in previewing DrawerLayoutDesign")
+			logger.error("Error in previewing DrawerLayoutDesign", e)
 		}
 	}
 }
