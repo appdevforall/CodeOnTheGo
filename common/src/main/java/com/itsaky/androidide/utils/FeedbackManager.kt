@@ -297,16 +297,16 @@ object FeedbackManager {
                 buildString {
                     append(
                         activity.getString(
-                            R.string.feedback_message,
-                            stackTraceSection,
-                        ),
-                    )
-                    append(
-                        activity.getString(
                             R.string.feedback_device_info,
                             BuildInfo.VERSION_NAME_SIMPLE,
                             Build.VERSION.RELEASE,
                             "${Build.MANUFACTURER} ${Build.MODEL}",
+                        ),
+                    )
+                    append(
+                        activity.getString(
+                            R.string.feedback_message,
+                            stackTraceSection,
                         ),
                     )
                 }
