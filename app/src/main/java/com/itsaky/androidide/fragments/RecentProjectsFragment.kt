@@ -25,6 +25,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
@@ -53,7 +54,7 @@ class RecentProjectsFragment : BaseFragment() {
         setupRecyclerView()
         setupObservers()
         setupClickListeners()
-        bootstrapFromFixedFolderIfNeeded(autoOpenFirst = true)
+        bootstrapFromFixedFolderIfNeeded()
     }
 
     private fun setupRecyclerView() {
@@ -65,7 +66,7 @@ class RecentProjectsFragment : BaseFragment() {
 
     private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
 
-    private fun bootstrapFromFixedFolderIfNeeded(autoOpenFirst: Boolean) {
+    private fun bootstrapFromFixedFolderIfNeeded() {
         if (viewModel.didBootstrap) return
         viewModel.didBootstrap = true
 
@@ -76,8 +77,23 @@ class RecentProjectsFragment : BaseFragment() {
 
                 loadProjectsIntoViewModel(validProjects)
 
-                if (autoOpenFirst) withContext(Dispatchers.Main) {
-                    openProject(validProjects.first())
+                if (GeneralPreferences.autoOpenProjects) {
+                    val lastOpenedPath = GeneralPreferences.lastOpenedProject
+
+                    val projectToOpen = validProjects.find {
+                        it.absolutePath == lastOpenedPath
+                    }
+
+                    if (projectToOpen != null) {
+                        withContext(Dispatchers.Main) { openProject(projectToOpen) }
+                        return@launch
+                    }
+
+                    val lastCreated = validProjects.maxByOrNull { it.lastModified() }
+
+                    if (lastCreated != null) {
+                        withContext(Dispatchers.Main) { openProject(lastCreated) }
+                    }
                 }
             } catch (e: Throwable) {
                 Sentry.captureException(e)
