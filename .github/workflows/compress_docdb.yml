@@ -171,17 +171,26 @@ jobs:
           echo "$CURRENT_MD5" > last_md5
 
           # Upload documentation.db.br
-          curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
             -F "file=@documentation.db.br;type=application/octet-stream" \
-            "https://www.googleapis.com/upload/drive/v3/files/${BR_FILE_ID}?uploadType=media"
+            "https://www.googleapis.com/upload/drive/v3/files/${BR_FILE_ID}?uploadType=media")
+
+          if [[ "$response" -ne 200 ]]; then
+            echo "Failed upload of documentation.db.br with HTTP status $response"
+            exit 1
+          fi
 
           # Upload last_md5
-          #curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
-          #  -F "file=@last_md5;type=text/plain" \
-          #  "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media"
-          curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \          
             -H "Content-Type: text/plain" \
             --data-binary "@last_md5" \
-            "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media"
-  
+            "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media")
+          
+          if [[ "$response" -ne 200 ]]; then
+            echo "Failed upload of documentation.db.md5 with HTTP status $response"
+            exit 1
+          fi          
+          
           echo "Upload complete."
