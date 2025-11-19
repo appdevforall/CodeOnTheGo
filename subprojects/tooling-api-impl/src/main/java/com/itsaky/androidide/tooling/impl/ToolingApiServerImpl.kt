@@ -203,10 +203,10 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					} catch (err: Throwable) {
 						failure = err
 					} finally {
-						when (failure) {
-							null -> notifyBuildSuccess(emptyList())
-							is BuildCancelledException -> throw failure
-							else -> notifyBuildFailure(emptyList())
+						if (failure == null) {
+							notifyBuildSuccess(emptyList())
+						} else {
+							throw failure
 						}
 					}
 				}
