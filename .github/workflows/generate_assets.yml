@@ -1,4 +1,4 @@
-name: Compress Documentation DB and Upload to Google Drive
+name: Generate Assets Zips and Upload to Google Drive
 
 permissions:
   id-token: write
@@ -10,7 +10,7 @@ on:
 
 jobs:
   generate_assets:
-    name: Generate Asset Zips
+    name: Generate Assets Zips
     runs-on: self-hosted
     timeout-minutes: 30
 
