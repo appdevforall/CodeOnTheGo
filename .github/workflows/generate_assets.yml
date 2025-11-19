@@ -133,3 +133,9 @@ jobs:
           #  "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media"
 
           echo "Upload complete."
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: |
+          rm -f app/google-services.json
+          echo "google-services.json cleaned up successfully"
