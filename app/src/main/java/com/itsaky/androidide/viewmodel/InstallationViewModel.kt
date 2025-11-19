@@ -61,6 +61,9 @@ class InstallationViewModel : ViewModel() {
 			return
 		}
 
+		if (!checkStorageAndNotify(context)) {
+			return
+		}
 		if (!checkToolsIsInstalled()) {
 			viewModelScope.launch {
 				try {
