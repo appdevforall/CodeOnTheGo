@@ -45,9 +45,9 @@ jobs:
           
           echo "Service account prefix: ${{ secrets.IDENTITY_EMAIL }}" | cut -c1-10
 
-          # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
+          DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
-          DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
+          # DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
           
           # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
           # LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
@@ -80,9 +80,9 @@ jobs:
       - name: Download latest documentation.db from Google Drive
         if: steps.checksum.outputs.skip != 'true'
         run: |
-          # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
+          DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
-          DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
+          # DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
           if [ -z "$DB_FILE_ID" ]; then
