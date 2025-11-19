@@ -101,7 +101,7 @@ jobs:
                   type: "header",
                   text: {
                     type: "plain_text",
-                    text: ":x: Release Build Failed - Documentation DB Download Error",
+                    text: ":x: Compression Failed - Documentation DB Download Error",
                     emoji: true
                   }
                 },
