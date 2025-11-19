@@ -179,17 +179,17 @@ class HomeActivity : BaseActivity() {
   }
 
   private fun goToHome() {
-    replaceFragment(HomeFragment() as Fragment)
+    replaceFragment(HomeFragment())
     supportActionBar?.title = getString(R.string.projects)
   }
 
   private fun goToPreference() {
-    replaceFragment(PreferencesFragment() as Fragment)
+    replaceFragment(PreferencesFragment())
     supportActionBar?.title = getString(R.string.preference)
   }
 
   private fun goToAbout() {
-    replaceFragment(AboutFragment() as Fragment)
+    replaceFragment(AboutFragment())
     supportActionBar?.title = getString(R.string.about)
   }
 

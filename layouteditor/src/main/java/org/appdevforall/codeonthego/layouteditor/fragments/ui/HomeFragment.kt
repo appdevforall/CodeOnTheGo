@@ -2,7 +2,6 @@ package org.appdevforall.codeonthego.layouteditor.fragments.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
@@ -20,7 +19,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
-import org.appdevforall.codeonthego.layouteditor.LayoutEditor
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.R.string
 import org.appdevforall.codeonthego.layouteditor.activities.EditorActivity
@@ -31,11 +29,14 @@ import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import java.io.File
 import java.util.Calendar
+import androidx.core.content.edit
+import androidx.core.view.isGone
 
 @Suppress("unused")
 class HomeFragment : Fragment() {
-  private var binding: FragmentHomeBinding? = null
-  private var sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(LayoutEditor.instance!!.context)
+  private var _binding: FragmentHomeBinding? = null
+  private val binding get() = _binding!!
+  private lateinit var sharedPreferences: SharedPreferences
 
   private val projects = mutableListOf<ProjectFile>()
   private lateinit var adapter: ProjectListAdapter
@@ -43,14 +44,19 @@ class HomeFragment : Fragment() {
   override fun onCreateView(
     inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
   ): View {
-    binding = FragmentHomeBinding.inflate(inflater, container, false)
-    return binding!!.root
+    _binding = FragmentHomeBinding.inflate(inflater, container, false)
+    return _binding!!.root
+  }
+
+  override fun onAttach(context: Context) {
+    super.onAttach(context)
+    sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
   }
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
 
-    binding!!.fab.setOnClickListener { showCreateProjectDialog() }
+    binding.fab.setOnClickListener { showCreateProjectDialog() }
 
     loadProjects()
 
@@ -60,15 +66,15 @@ class HomeFragment : Fragment() {
       updateNoProjectsViewVisibility()
     }
 
-    binding!!.listProjects.adapter = adapter
-    binding!!.listProjects.layoutManager =
+    binding.listProjects.adapter = adapter
+    binding.listProjects.layoutManager =
       LinearLayoutManager(requireContext(), RecyclerView.VERTICAL, false)
     updateNoProjectsViewVisibility()
   }
 
   override fun onDestroyView() {
     super.onDestroyView()
-    binding = null
+    _binding = null
   }
 
   @SuppressLint("SimpleDateFormat", "RestrictedApi", "SetTextI18n")
@@ -90,7 +96,7 @@ class HomeFragment : Fragment() {
     ) { _, _ -> createProject(bind.textinputEdittext.text.toString()) }
 
     val dialog = builder.create()
-    dialog.window!!.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+		dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
     dialog.show()
 
     inputLayout.hint = getString(string.msg_new_project_name)
@@ -129,7 +135,7 @@ class HomeFragment : Fragment() {
       FileUtil.makeDir(FileUtil.getPackageDataDir(requireContext()) + "/projects/")
     }
 
-    for (file in root.listFiles()!!) {
+    root.listFiles()?.forEach { file ->
       val path = file.path
       projects.add(ProjectFile(path, sharedPreferences.getString(path, currentTime), requireContext()))
     }
@@ -137,8 +143,10 @@ class HomeFragment : Fragment() {
 
   @SuppressLint("NotifyDataSetChanged")
   private fun createProject(name: String) {
-    val projectDir = FileUtil.getPackageDataDir(requireContext()) + "/projects/" + name
+    val ctx = context ?: return
+    val projectDir = FileUtil.getPackageDataDir(ctx) + "/projects/" + name
     val time = Calendar.getInstance().time.toString()
+
     FileUtil.makeDir(projectDir)
     FileUtil.makeDir("$projectDir/drawable/")
     FileUtil.makeDir("$projectDir/values/")
@@ -148,14 +156,13 @@ class HomeFragment : Fragment() {
     FileUtil.copyFileFromAsset("strings.xml", "$projectDir/values")
     FileUtil.copyFileFromAsset("default_font.ttf", "$projectDir/font")
 
-    val project = ProjectFile(projectDir, time, requireContext())
-    //((LayoutFile) getActivity().getIntent().getExtras().getParcelable(Constants.EXTRA_KEY_LAYOUT)).saveLayout("");
+    val project = ProjectFile(projectDir, time, ctx)
     project.createDefaultLayout()
     projects.add(project)
     adapter.notifyItemInserted(projects.indexOf(project))
-    updateNoProjectsViewVisibility()
+    if (_binding != null) updateNoProjectsViewVisibility()
 
-    sharedPreferences.edit().putString(projectDir, time).apply()
+    sharedPreferences.edit { putString(projectDir, time) }
 
     val intent = Intent(requireContext(), EditorActivity::class.java)
     ProjectManager.instance.openProject(project)
@@ -189,9 +196,10 @@ class HomeFragment : Fragment() {
   }
 
   private fun updateNoProjectsViewVisibility() {
-    binding!!.noProjectsView.visibility = if (projects.isEmpty()) View.VISIBLE else View.GONE
-    binding!!.listProjects.visibility =
-      if (binding!!.noProjectsView.visibility == View.GONE) View.VISIBLE else View.GONE
+    val safeBinding = _binding ?: return
+    safeBinding.noProjectsView.visibility = if (projects.isEmpty()) View.VISIBLE else View.GONE
+    safeBinding.listProjects.visibility =
+      if (safeBinding.noProjectsView.isGone) View.VISIBLE else View.GONE
   }
 
   private val currentTime: String
