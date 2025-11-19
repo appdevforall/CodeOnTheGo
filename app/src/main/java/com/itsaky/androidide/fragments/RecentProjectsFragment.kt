@@ -85,30 +85,16 @@ class RecentProjectsFragment : BaseFragment() {
                     }
 
                     if (projectToOpen != null) {
-                        withContext(Dispatchers.Main) {
-                            openProjectAndSetAsLast(projectToOpen)
-                        }
+                        withContext(Dispatchers.Main) { openProject(projectToOpen) }
                         return@launch
                     }
 
                     val lastCreated = validProjects.maxByOrNull { it.lastModified() }
 
                     if (lastCreated != null) {
-                        withContext(Dispatchers.Main) { openProjectAndSetAsLast(lastCreated) }
+                        withContext(Dispatchers.Main) { openProject(lastCreated) }
                     }
                 }
-            } catch (e: Throwable) {
-                Sentry.captureException(e)
-            }
-        }
-    }
-
-    private fun openProjectAndSetAsLast(project: File) {
-        openProject(project)
-
-        viewLifecycleScope.launch(Dispatchers.IO) {
-            try {
-                GeneralPreferences.lastOpenedProject = project.absolutePath
             } catch (e: Throwable) {
                 Sentry.captureException(e)
             }
