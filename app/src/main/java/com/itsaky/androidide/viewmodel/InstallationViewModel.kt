@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.events.InstallationEvent
+import com.itsaky.androidide.models.StorageInfo
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.bytesToGigabytes
@@ -112,29 +113,44 @@ class InstallationViewModel : ViewModel() {
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
 			Environment.ANDROID_HOME.exists()
 
-	private fun deviceHasLowStorage(context: Context): Pair<Boolean, Float> {
-		val stat = StatFs(context.filesDir.path)
+    /**
+     * Checks the app's internal storage and returns detailed information.
+     */
+    private fun getStorageInfo(context: Context): StorageInfo {
+        val internalStoragePath = context.filesDir.path
+        val stat = StatFs(internalStoragePath)
 
-		val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
-		val requiredStorageInBytes = LEAST_STORAGE_NEEDED_FOR_INSTALLATION.gigabytesToBytes() // 4GB
-		val additionalBytesNeeded = (requiredStorageInBytes - availableStorageInBytes).coerceAtLeast(0F)
+        val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
+        val requiredStorageInBytes = LEAST_STORAGE_NEEDED_FOR_INSTALLATION.gigabytesToBytes()
 
-		val isLowStorage = availableStorageInBytes < requiredStorageInBytes
+        val isLowStorage = availableStorageInBytes < requiredStorageInBytes
 
-		return Pair(isLowStorage, additionalBytesNeeded)
-	}
+        val additionalBytesNeeded = (requiredStorageInBytes - availableStorageInBytes)
+            .coerceAtLeast(0L)
 
-	fun checkStorageAndNotify(context: Context): Boolean {
-		val (isLowStorage, additionalBytesNeeded) = deviceHasLowStorage(context)
+        return StorageInfo(isLowStorage, availableStorageInBytes, additionalBytesNeeded)
+    }
 
-		if (isLowStorage) {
-			viewModelScope.launch {
-				val errorMessage =
-					context.getString(R.string.not_enough_storage, additionalBytesNeeded.bytesToGigabytes())
-				_events.emit(InstallationEvent.ShowError(errorMessage))
-			}
-			return false
-		}
-		return true
-	}
+    fun checkStorageAndNotify(context: Context): Boolean {
+        val storageInfo = getStorageInfo(context)
+
+        if (storageInfo.isLowStorage) {
+            val additionalGBNeeded = storageInfo.additionalBytesNeeded.bytesToGigabytes()
+            val availableGB = storageInfo.availableBytes.bytesToGigabytes()
+
+            val errorMessage = context.getString(
+                R.string.not_enough_storage,
+                additionalGBNeeded,
+                availableGB
+            )
+
+            viewModelScope.launch {
+                _events.emit(InstallationEvent.ShowError(errorMessage))
+            }
+            return false
+        }
+
+        return true
+    }
+
 }
