@@ -27,11 +27,8 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          # service_account: ${{ secrets.IDENTITY_EMAIL }}
           service_account: 'app-distributor@codeonthego-64a92.iam.gserviceaccount.com'
           token_format: 'access_token'
-          # access_token_scopes: 'https://www.googleapis.com/auth/drive.readonly'
-          # access_token_scopes: 'https://www.googleapis.com/auth/drive.file'
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
 
@@ -43,15 +40,13 @@ jobs:
                     
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
           
-          echo "Service account prefix: ${{ secrets.IDENTITY_EMAIL }}" | cut -c1-10
-
           DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           # DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
           # DB_FILE_ID="1urnFp00pdyQUMgkFn0uDsJw29SmJahxV"
           
-          # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
+          LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
           # LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
-          LAST_MD5_FILE_ID="12YTCvnV-kKaEfAk_OGzKJKA-ecFw48Yi"
+          # LAST_MD5_FILE_ID="12YTCvnV-kKaEfAk_OGzKJKA-ecFw48Yi"
           
           # Download last_md5 from Drive
           LAST_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -177,13 +172,13 @@ jobs:
           echo "Uploading documentation.db.br and last_md5 to Drive..."
 
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
-          # BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
+          BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
           # BR_FILE_ID="1RB4X2VXz07vFQwOoLBsb3o70PSN8mLoL"
-          BR_FILE_ID="1if0BF3AxKImNCaCEn2JBfOPQI0ge3PrF"
+          # BR_FILE_ID="1if0BF3AxKImNCaCEn2JBfOPQI0ge3PrF"
           
-          # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
+          LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
           # LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
-          LAST_MD5_FILE_ID="12YTCvnV-kKaEfAk_OGzKJKA-ecFw48Yi"
+          # LAST_MD5_FILE_ID="12YTCvnV-kKaEfAk_OGzKJKA-ecFw48Yi"
 
           # Compute current md5Checksum of documentation.db
           CURRENT_MD5=$(md5sum documentation.db | awk '{print $1}')
