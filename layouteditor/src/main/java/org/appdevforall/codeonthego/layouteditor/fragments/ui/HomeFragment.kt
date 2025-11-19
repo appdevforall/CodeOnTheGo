@@ -96,7 +96,7 @@ class HomeFragment : Fragment() {
     ) { _, _ -> createProject(bind.textinputEdittext.text.toString()) }
 
     val dialog = builder.create()
-		dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+    dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
     dialog.show()
 
     inputLayout.hint = getString(string.msg_new_project_name)
