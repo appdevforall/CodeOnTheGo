@@ -1,6 +1,8 @@
 package org.appdevforall.localwebserver
 
+import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.util.Log
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
@@ -27,12 +29,12 @@ data class ServerConfig(
 class WebServer(private val config: ServerConfig) {
     private lateinit var serverSocket: ServerSocket
     private lateinit var database: SQLiteDatabase
-    private          var databaseTimestamp: Long = -1
-    private          val log = LoggerFactory.getLogger(WebServer::class.java)
-    private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
-    private          val encodingHeader : String = "Accept-Encoding"
-    private          var brotliSupported = false
-    private          val brotliCompression : String = "br"
+    private var databaseTimestamp: Long = -1
+    private val log = LoggerFactory.getLogger(WebServer::class.java)
+    private var debugEnabled: Boolean = File(config.debugEnablePath).exists()
+    private val encodingHeader: String = "Accept-Encoding"
+    private var brotliSupported = false
+    private val brotliCompression: String = "br"
 
 
     //function to obtain the last modified date of a documentation.db database
@@ -47,7 +49,11 @@ class WebServer(private val config: ServerConfig) {
             if (!silent) {
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
-                if (debugEnabled) log.debug("{} was last modified at {}.", pathname, dateFormat.format(Date(timestamp)))
+                if (debugEnabled) log.debug(
+                    "{} was last modified at {}.",
+                    pathname,
+                    dateFormat.format(Date(timestamp))
+                )
             }
         }
 
@@ -75,13 +81,23 @@ FROM   LastChange
     fun start() {
         lateinit var clientSocket: Socket
         try {
-            log.debug("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.", 
-                     config.bindName, config.port, debugEnabled, config.debugEnablePath, config.debugDatabasePath)
+            log.debug(
+                "Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.",
+                config.bindName,
+                config.port,
+                debugEnabled,
+                config.debugEnablePath,
+                config.debugDatabasePath
+            )
 
             databaseTimestamp = getDatabaseTimestamp(config.databasePath)
 
             try {
-                database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
+                database = SQLiteDatabase.openDatabase(
+                    config.databasePath,
+                    null,
+                    SQLiteDatabase.OPEN_READONLY
+                )
             } catch (e: Exception) {
                 log.error("Cannot open database: {}", e.message)
                 return
@@ -90,7 +106,8 @@ FROM   LastChange
             // NEW FEATURE: Log database metadata when debug is enabled
             if (debugEnabled) logDatabaseLastChanged()
 
-            serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
+            serverSocket =
+                ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
             log.info("WebServer started successfully.")
 
             while (true) {
@@ -138,24 +155,31 @@ FROM   LastChange
 
         //extract the request method (e.g. GET, POST, PUT)
         val method = parts[0]
-        var path   = parts[1].split("?")[0] // Discard any HTTP query parameters.
+        var path = parts[1].split("?")[0] // Discard any HTTP query parameters.
         path = path.substring(1)
 
         // we only support teh GET method, return an error page for anything else
-        if (method != "GET") {
+        if (method != "GET" && method != "POST") {
             return sendError(writer, 501, "Not Implemented")
         }
 
+
+        var contentLength = 0
+
         //the HTTP headers follow the the method line, read until eof or 0 length
         //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
-        while(requestLine.length > 0) {
+        while (requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
 
-           if (debugEnabled) log.debug("Header: {}", requestLine)
+            if (debugEnabled) log.debug("Header: {}", requestLine)
 
-            if(requestLine.startsWith(encodingHeader)) {
+            if (requestLine.contains("Content-Length")) {
+                contentLength = requestLine.split(" ")[1].toInt()
+            }
+
+            if (requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-                if(parts.size == 0) {
+                if (parts.size == 0) {
                     break
                 }
                 brotliSupported = parts.contains(brotliCompression)
@@ -163,12 +187,57 @@ FROM   LastChange
             }
         }
 
+
+
+        if (method == "POST") {
+
+            val data = CharArray(contentLength)
+
+            var bytesRead = 0
+            while (bytesRead < contentLength) {
+                val readResult = reader.read(data, bytesRead, contentLength - bytesRead)
+                if (readResult == -1) { // End of stream reached prematurely
+                    log.debug("POST data stream ended prematurely")
+                    sendError(writer, 400, "Bad Request: Incomplete POST data")
+                    return
+                }
+                bytesRead += readResult
+            }
+
+            log.debug("Concat data = '${data}'")
+
+            val file = createFileFromPost(data)
+            val result = compileAndRunJava(file)
+            val byteArrayFromResult = result.toByteArray()
+
+            log.debug(String(byteArrayFromResult))
+
+            val javacOut = String(data) + String(byteArrayFromResult) // Your existing line
+            val javacOutBytes = javacOut.toByteArray(Charsets.UTF_8) // Encode to bytes
+
+            writer.println("HTTP/1.1 200 OK")
+            writer.println("Content-Type: text/plain; charset=utf-8") // Be explicit about charset
+            writer.println("Content-Length: ${javacOutBytes.size}") // Use the byte array's size
+            writer.println() // End of headers
+
+            // Option A: Write bytes directly (more control, avoids extra newline from println)
+            output.write(javacOutBytes)
+            output.flush()
+            writer.flush()
+
+            return
+        }
+
         //check to see if there is a newer version of the documentation.db database on the sdcard
         // if there is use that for our responses
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
         if (debugDatabaseTimestamp > databaseTimestamp) {
             database.close()
-            database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
+            database = SQLiteDatabase.openDatabase(
+                config.debugDatabasePath,
+                null,
+                SQLiteDatabase.OPEN_READONLY
+            )
             databaseTimestamp = debugDatabaseTimestamp
         }
 
@@ -189,16 +258,26 @@ WHERE  C.contentTypeID = CT.id
         if (rowCount != 1) {
             return when (rowCount) {
                 0 -> sendError(writer, 404, "Not Found", "Path requested: " + path)
-                else -> sendError(writer, 500, "Internal Server Error 2", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
+                else -> sendError(
+                    writer,
+                    500,
+                    "Internal Server Error 2",
+                    "Corrupt database - multiple records found when unique record expected, Path requested: " + path
+                )
             }
         }
 
         cursor.moveToFirst()
-        var dbContent   = cursor.getBlob(0)
-        val dbMimeType  = cursor.getString(1)
+        var dbContent = cursor.getBlob(0)
+        val dbMimeType = cursor.getString(1)
         var compression = cursor.getString(2)
 
-        if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
+        if (debugEnabled) log.debug(
+            "len(content)={}, MIME type={}, compression={}.",
+            dbContent.size,
+            dbMimeType,
+            compression
+        )
 
         if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
             val query2 = """
@@ -212,14 +291,22 @@ WHERE  path = ?
 
             while (dbContent2.size == 1024 * 1024) {
                 val path2 = "${path}-${fragmentNumber}"
-                if (debugEnabled) log.debug("DB item > 1 MB. fragment#{} path2='{}'.", fragmentNumber, path2)
+                if (debugEnabled) log.debug(
+                    "DB item > 1 MB. fragment#{} path2='{}'.",
+                    fragmentNumber,
+                    path2
+                )
 
                 val cursor2 = database.rawQuery(query2, arrayOf(path2))
                 cursor2.moveToFirst()
                 dbContent2 = cursor2.getBlob(0)
                 dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 22-Jul-2025
                 fragmentNumber += 1
-                if (debugEnabled) log.debug("Fragment size={}, dbContent.length={}.", dbContent2.size, dbContent.size)
+                if (debugEnabled) log.debug(
+                    "Fragment size={}, dbContent.length={}.",
+                    dbContent2.size,
+                    dbContent.size
+                )
             }
         }
 
@@ -268,23 +355,27 @@ WHERE  path = ?
             val schemaCursor = database.rawQuery(schemaQuery, arrayOf())
             val columnCount = schemaCursor.count
             val columnNames = mutableListOf<String>()
-            
+
             while (schemaCursor.moveToNext()) {
                 columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
             }
             schemaCursor.close()
-            
-            if (debugEnabled) log.debug("LastChange table has {} columns: {}", columnCount, columnNames)
-            
+
+            if (debugEnabled) log.debug(
+                "LastChange table has {} columns: {}",
+                columnCount,
+                columnNames
+            )
+
             // Build the SELECT query for the 20 most recent rows
             val selectColumns = columnNames.joinToString(", ")
             val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY rowid DESC LIMIT 20"
-            
+
             val dataCursor = database.rawQuery(dataQuery, arrayOf())
             val rowCount = dataCursor.count
-            
+
             if (debugEnabled) log.debug("Retrieved {} rows from LastChange table", rowCount)
-            
+
             // Generate HTML table
             val html = buildString {
                 appendLine("<!DOCTYPE html>")
@@ -300,14 +391,14 @@ WHERE  path = ?
                 appendLine("<body>")
                 appendLine("<h1>LastChange Table (20 Most Recent Rows)</h1>")
                 appendLine("<table width='100%'>")
-                
+
                 // Add header row
                 appendLine("<tr>")
                 for (columnName in columnNames) {
                     appendLine("<th>${escapeHtml(columnName)}</th>")
                 }
                 appendLine("</tr>")
-                
+
                 // Add data rows
                 while (dataCursor.moveToNext()) {
                     appendLine("<tr>")
@@ -317,14 +408,14 @@ WHERE  path = ?
                     }
                     appendLine("</tr>")
                 }
-                
+
                 appendLine("</table>")
                 appendLine("</body>")
                 appendLine("</html>")
             }
-            
+
             dataCursor.close()
-            
+
             // Send the response
             val htmlBytes = html.toByteArray(Charsets.UTF_8)
             writer.println("HTTP/1.1 200 OK")
@@ -335,10 +426,15 @@ WHERE  path = ?
             writer.flush()
             output.write(htmlBytes)
             output.flush()
-            
+
         } catch (e: Exception) {
             log.error("Error handling /db endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+            sendError(
+                writer,
+                500,
+                "Internal Server Error",
+                "Error generating database table: ${e.message}"
+            )
         }
     }
 
@@ -364,5 +460,61 @@ WHERE  path = ?
         if (details.isNotEmpty()) {
             writer.println(details)
         }
+    }
+
+
+    private fun createFileFromPost(input: CharArray): File {
+        val inputAsString = String(input)
+        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/Playground.java"
+        val file = File(filePath)
+        try {
+            file.writeText(inputAsString)
+        } catch (e: Exception) {
+            log.debug("Error creating file")
+        }
+        return file
+    }
+
+    private fun compileAndRunJava(sourceFile: File): String {
+        val dir = sourceFile.parentFile
+        val fileName = sourceFile.nameWithoutExtension
+        val classFile = File(dir, "$fileName.class")
+
+
+        // TODO Alex: Don't hard-code these
+        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/Playground.java"
+        val directoryPath = "/data/data/com.itsaky.androidide/files"
+        val javacPath = "$directoryPath/usr/bin/javac"
+        val javaPath = "$directoryPath/usr/bin/java"
+
+        val javac = ProcessBuilder(javacPath, filePath)
+            .directory(dir)
+            .redirectErrorStream(true)
+            .start()
+        val compileOutput = javac.inputStream.bufferedReader().readText()
+        javac.waitFor()
+
+        if (!classFile.exists()) {
+            return "Compilation failed:\n$compileOutput"
+        }
+
+        val java = ProcessBuilder(
+            javaPath,
+            "-cp",
+            dir?.absolutePath,
+            fileName
+        )
+            .directory(dir)
+            .redirectErrorStream(true)
+            .start()
+        val runOutput = java.inputStream.bufferedReader().readText()
+        java.waitFor()
+
+        return if (compileOutput.isNotBlank()) {
+            "Compile output\n $compileOutput\n Program output\n$runOutput"
+        } else {
+            "Program output\n $runOutput"
+        }
+
     }
 }
