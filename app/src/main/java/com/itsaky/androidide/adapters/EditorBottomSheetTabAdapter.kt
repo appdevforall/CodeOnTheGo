@@ -107,20 +107,20 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.debugger_title),
 					fragmentClass = DebuggerFragment::class.java,
 					itemId = TAB_DEBUGGER,
-                    tooltipTag = TooltipTag.PROJECT_DEBUGGER_OUTPUT,
-                ),
-            )
+					tooltipTag = TooltipTag.PROJECT_DEBUGGER_OUTPUT,
+				),
+			)
 
-            if (isExperimentsEnabled()) {
-                add(
-                    Tab(
-                        title = fragmentActivity.getString(R.string.title_agent),
-                        fragmentClass = AgentFragmentContainer::class.java,
-                        itemId = TAB_AGENT,
-                        tooltipTag = TooltipTag.PROJECT_AGENT,
-                    ),
-                )
-            }
+			if (isExperimentsEnabled()) {
+				add(
+					Tab(
+						title = fragmentActivity.getString(R.string.title_agent),
+						fragmentClass = AgentFragmentContainer::class.java,
+						itemId = TAB_AGENT,
+						tooltipTag = TooltipTag.PROJECT_AGENT,
+					),
+				)
+			}
 		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
