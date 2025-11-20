@@ -20,7 +20,6 @@ import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_RENAME
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
@@ -31,147 +30,104 @@ import com.itsaky.androidide.utils.flashSuccess
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
 import org.slf4j.LoggerFactory
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 class RecentProjectsAdapter(
-	private var projects: List<ProjectFile>,
-	private val onProjectClick: (File) -> Unit,
-	private val onOpenFileFromFolderClick: (Boolean) -> Unit,
-	private val onRemoveProjectClick: (ProjectFile) -> Unit,
-	private val onFileRenamed: (RenamedFile) -> Unit,
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-	private companion object {
-		private val logger = LoggerFactory.getLogger(RecentProjectsAdapter::class.java)
-		const val VIEW_TYPE_PROJECT = 0
-		const val VIEW_TYPE_OPEN_FOLDER = 1
-	}
+    private var projects: List<ProjectFile>,
+    private val onProjectClick: (File) -> Unit,
+    private val onRemoveProjectClick: (ProjectFile) -> Unit,
+    private val onFileRenamed: (RenamedFile) -> Unit,
+) : RecyclerView.Adapter<RecentProjectsAdapter.ProjectViewHolder>() {
 
 	private var projectOptionsPopup: PopupWindow? = null
 
-	override fun getItemCount(): Int = projects.size + if (projects.isNotEmpty()) 1 else 0
+    private companion object {
+		private val logger = LoggerFactory.getLogger(RecentProjectsAdapter::class.java)
+        const val VIEW_TYPE_PROJECT = 0
+        const val VIEW_TYPE_OPEN_FOLDER = 1
+    }
 
-	override fun getItemViewType(position: Int): Int = if (position < projects.size) VIEW_TYPE_PROJECT else VIEW_TYPE_OPEN_FOLDER
+    override fun getItemCount(): Int = projects.size
 
-	override fun onCreateViewHolder(
-		parent: ViewGroup,
-		viewType: Int,
-	): RecyclerView.ViewHolder {
+	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProjectViewHolder {
 		val inflater = LayoutInflater.from(parent.context)
-		return when (viewType) {
-			VIEW_TYPE_PROJECT -> {
-				val binding = SavedRecentProjectItemBinding.inflate(inflater, parent, false)
-				ProjectViewHolder(binding)
-			}
-
-			else -> {
-				val view =
-					inflater.inflate(R.layout.saved_project_open_folder_layout, parent, false)
-				OpenFolderViewHolder(view)
-			}
-		}
+		val binding = SavedRecentProjectItemBinding.inflate(inflater, parent, false)
+		return ProjectViewHolder(binding)
 	}
 
-	override fun onBindViewHolder(
-		holder: RecyclerView.ViewHolder,
-		position: Int,
-	) {
-		when (holder) {
-			is ProjectViewHolder -> holder.bind(projects[position], position)
-			is OpenFolderViewHolder -> holder.bind()
-		}
+	override fun onBindViewHolder(holder: ProjectViewHolder, position: Int) {
+		holder.bind(projects[position])
 	}
 
-	fun updateProjects(newProjects: List<ProjectFile>) {
-		projects = newProjects
-		notifyDataSetChanged()
-	}
+    fun updateProjects(newProjects: List<ProjectFile>) {
+        projects = newProjects
 
-	inner class ProjectViewHolder(
-		private val binding: SavedRecentProjectItemBinding,
-	) : RecyclerView.ViewHolder(binding.root) {
-		fun bind(
-			project: ProjectFile,
-			position: Int,
-		) {
-			binding.projectName.text = project.name
-			binding.projectDate.text = formatDate(project.date ?: "")
-			binding.icon.text =
-				project.name
-					.split(" ")
-					.mapNotNull { it.firstOrNull()?.uppercaseChar() }
-					.take(2)
-					.joinToString("")
+		// noinspection NotifyDataSetChanged
+        notifyDataSetChanged()
+    }
 
-			TooltipCompat.setTooltipText(
-				binding.menu,
-				binding.root.context.getString(R.string.options),
-			)
-			TooltipCompat.setTooltipText(binding.root, project.name)
-			binding.root.animation =
-				AnimationUtils.loadAnimation(binding.root.context, R.anim.project_list_animation)
+    inner class ProjectViewHolder(private val binding: SavedRecentProjectItemBinding) :
+        RecyclerView.ViewHolder(binding.root) {
 
-			binding.root.setOnClickListener {
-				onProjectClick(File(project.path))
-			}
-			binding.root.setOnLongClickListener {
+        fun bind(project: ProjectFile, position: Int) {
+            binding.projectName.text = project.name
+            binding.projectDate.text = formatDate(project.date ?: "")
+            binding.icon.text = project.name
+                .split(" ")
+                .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+                .take(2)
+                .joinToString("")
+
+            TooltipCompat.setTooltipText(
+                binding.menu,
+                binding.root.context.getString(R.string.options)
+            )
+            TooltipCompat.setTooltipText(binding.root, project.name)
+            binding.root.animation =
+                AnimationUtils.loadAnimation(binding.root.context, R.anim.project_list_animation)
+
+            binding.root.setOnClickListener {
+                onProjectClick(File(project.path))
+            }
+            binding.root.setOnLongClickListener {
 				TooltipManager.showIdeCategoryTooltip(
 					binding.root.context,
 					binding.root,
-					PROJECT_RECENT_TOP,
+					PROJECT_RECENT_TOP
 				)
 				true
 			}
-			binding.menu.setOnClickListener { view ->
-				showPopupMenu(view, project, position)
+            binding.menu.setOnClickListener { view ->
+                showPopupMenu(view, project, position)
 			}
 		}
 
-		private fun formatDate(dateString: String): String =
-			try {
-				val inputFormat =
-					SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.getDefault())
-				val date = inputFormat.parse(dateString)
-				val day = SimpleDateFormat("d", Locale.ENGLISH).format(date).toInt()
-				val suffix =
-					when {
-						day in 11..13 -> "th"
-						day % 10 == 1 -> "st"
-						day % 10 == 2 -> "nd"
-						day % 10 == 3 -> "rd"
-						else -> "th"
-					}
-				SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault()).format(date)
-			} catch (e: Exception) {
-				dateString.take(5)
-			}
-	}
+        private fun formatDate(dateString: String): String {
+            return try {
+                val inputFormat =
+                    SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.getDefault())
+                val date = inputFormat.parse(dateString)
+                val day = SimpleDateFormat("d", Locale.ENGLISH).format(date).toInt()
+                val suffix = when {
+                    day in 11..13 -> "th"
+                    day % 10 == 1 -> "st"
+                    day % 10 == 2 -> "nd"
+                    day % 10 == 3 -> "rd"
+                    else -> "th"
+                }
+                SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault()).format(date)
+            } catch (_: Exception) {
+                dateString.take(5)
+            }
+        }
+    }
 
-	inner class OpenFolderViewHolder(
-		itemView: View,
-	) : RecyclerView.ViewHolder(itemView) {
-		fun bind() {
-			itemView.visibility = if (projects.isEmpty()) View.GONE else View.VISIBLE
-			itemView.setOnClickListener { onOpenFileFromFolderClick(false) }
-			itemView.setOnLongClickListener {
-				TooltipManager.showIdeCategoryTooltip(
-					context = itemView.context,
-					anchorView = itemView,
-					tag = PROJECT_OPEN_FOLDER,
-				)
-				true
-			}
-		}
-	}
-
-	private fun showPopupMenu(
-		view: View,
-		project: ProjectFile,
-		position: Int,
-	) {
-		val inflater = LayoutInflater.from(view.context)
-		val popupView = inflater.inflate(R.layout.custom_popup_menu, null)
+    private fun showPopupMenu(view: View, position: Int) {
+        val inflater = LayoutInflater.from(view.context)
+        val popupView = inflater.inflate(R.layout.custom_popup_menu, null)
 
 		projectOptionsPopup?.dismiss()
 		projectOptionsPopup =
@@ -184,178 +140,153 @@ class RecentProjectsAdapter(
 
 		val popupWindow = projectOptionsPopup!!
 
-		val renameItem = popupView.findViewById<View>(R.id.menu_rename)
-		val deleteItem = popupView.findViewById<View>(R.id.menu_delete)
+        val renameItem = popupView.findViewById<View>(R.id.menu_rename)
+        val deleteItem = popupView.findViewById<View>(R.id.menu_delete)
 
-		renameItem.setOnClickListener {
-			promptRenameProject(view, project, position)
-			popupWindow.dismiss()
-		}
+        renameItem.setOnClickListener {
+            promptRenameProject(view, project, position)
+            popupWindow.dismiss()
+        }
 
-		renameItem.setOnLongClickListener {
-			popupWindow.dismiss()
-			TooltipManager.showIdeCategoryTooltip(
-				context = view.context,
-				anchorView = view,
-				tag = PROJECT_RECENT_RENAME,
-			)
-			true
-		}
+        renameItem.setOnLongClickListener {
+            popupWindow.dismiss()
+            TooltipManager.showIdeCategoryTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = PROJECT_RECENT_RENAME
+            )
+            true
+        }
 
-		deleteItem.setOnClickListener {
-			showDeleteDialog(view.context, project)
-			popupWindow.dismiss()
-		}
+        deleteItem.setOnClickListener {
+            showDeleteDialog(view.context, project)
+            popupWindow.dismiss()
+        }
 
-		deleteItem.setOnLongClickListener {
-			popupWindow.dismiss()
-			TooltipManager.showIdeCategoryTooltip(
-				context = view.context,
-				anchorView = view,
-				tag = DELETE_PROJECT,
-			)
-			true
-		}
+        deleteItem.setOnLongClickListener {
+            popupWindow.dismiss()
+            TooltipManager.showIdeCategoryTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = DELETE_PROJECT
+            )
+            true
+        }
 
-		popupWindow.showAsDropDown(view, 0, 0)
-	}
+        popupWindow.showAsDropDown(view, 0, 0)
+    }
 
-	private fun showDeleteDialog(
-		context: Context,
-		project: ProjectFile,
-	) {
-		val dialog =
-			MaterialAlertDialogBuilder(context)
-				.setTitle(R.string.delete_project)
-				.setMessage(R.string.msg_delete_project)
-				.setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
-				.setPositiveButton(R.string.yes) { _, _ ->
-					onRemoveProjectClick(project)
-					executeAsync({ FileUtils.delete(project.path) }) {
-						val deleted = it ?: false
-						if (!deleted) {
-							return@executeAsync
-						}
-					}
-				}.create()
+    private fun showDeleteDialog(context: Context, project: ProjectFile) {
+        val dialog = MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.delete_project)
+            .setMessage(R.string.msg_delete_project)
+            .setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
+            .setPositiveButton(R.string.yes) { _, _ ->
+                onRemoveProjectClick(project)
+                executeAsync({ FileUtils.delete(project.path) }) {
+                    val deleted = it ?: false
+                    if (!deleted) {
+                        return@executeAsync
+                    }
+                }
+            }
+            .create()
 
-		val contentView = dialog.window?.decorView
 
-		dialog.setOnShowListener {
-			contentView?.applyLongPressRecursively {
-				TooltipManager.showIdeCategoryTooltip(
-					context = context,
-					anchorView = contentView,
-					tag = DELETE_PROJECT_DIALOG,
-				)
-				true
-			}
-		}
+        val contentView = dialog.window?.decorView
 
-		dialog.show()
-	}
+        dialog.setOnShowListener {
+            contentView?.applyLongPressRecursively {
+                TooltipManager.showIdeCategoryTooltip(
+                    context = context,
+                    anchorView = contentView,
+                    tag = DELETE_PROJECT_DIALOG
+                )
+                true
+            }
+        }
 
-	private fun promptRenameProject(
-		view: View,
-		project: ProjectFile,
-		position: Int,
-	) {
-		val context = view.context
-		val oldName = project.name
-		val builder = MaterialAlertDialogBuilder(context).setTitle(R.string.rename_project)
+        dialog.show()
+    }
 
-		val binding = TextinputlayoutBinding.inflate(LayoutInflater.from(context))
-		binding.textinputEdittext.setText(project.name)
-		binding.textinputLayout.hint = context.getString(R.string.msg_new_project_name)
-		val padding = (16 * context.resources.displayMetrics.density).toInt()
-		builder.setView(binding.root, padding, padding, padding, padding)
+    private fun promptRenameProject(view: View, project: ProjectFile, position: Int) {
+        val context = view.context
+        val oldName = project.name
+        val builder = MaterialAlertDialogBuilder(context).setTitle(R.string.rename_project)
 
-		builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
-		builder.setPositiveButton(R.string.rename) { _, _ ->
-			val newName = binding.textinputEdittext.text.toString()
-			val newPath = project.path.substringBeforeLast("/") + "/" + newName
-			try {
-				project.rename(newPath)
-				flashSuccess(R.string.renamed)
-				onFileRenamed(RenamedFile(oldName, newName, newPath))
-				notifyItemChanged(position)
-			} catch (e: Exception) {
+        val binding = TextinputlayoutBinding.inflate(LayoutInflater.from(context))
+        binding.textinputEdittext.setText(project.name)
+        binding.textinputLayout.hint = context.getString(R.string.msg_new_project_name)
+        val padding = (16 * context.resources.displayMetrics.density).toInt()
+        builder.setView(binding.root, padding, padding, padding, padding)
+
+        builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
+        builder.setPositiveButton(R.string.rename) { _, _ ->
+            val newName = binding.textinputEdittext.text.toString()
+            val newPath = project.path.substringBeforeLast("/") + "/" + newName
+            try {
+                project.rename(newPath)
+                flashSuccess(R.string.renamed)
+                onFileRenamed(RenamedFile(oldName, newName, newPath))
+                notifyItemChanged(position)
+            } catch (e: Exception) {
 				logger.error("Failed to rename project", e)
-				flashError(R.string.rename_failed)
-			}
-		}
+                flashError(R.string.rename_failed)
+            }
+        }
 
-		val dialog = builder.create()
-		dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        val dialog = builder.create()
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
 
-		val contentView = dialog.window?.decorView
+        val contentView = dialog.window?.decorView
 
-		dialog.setOnShowListener {
-			contentView?.applyLongPressRecursively {
-				TooltipManager.showIdeCategoryTooltip(
-					context = context,
-					anchorView = contentView,
-					tag = PROJECT_RENAME_DIALOG,
-				)
-				true
-			}
-		}
+        dialog.setOnShowListener {
+            contentView?.applyLongPressRecursively {
+                TooltipManager.showIdeCategoryTooltip(
+                    context = context,
+                    anchorView = contentView,
+                    tag = PROJECT_RENAME_DIALOG
+                )
+                true
+            }
+        }
 
-		dialog.show()
+        dialog.show()
 
-		binding.textinputEdittext.addTextChangedListener(
-			object : TextWatcher {
-				override fun beforeTextChanged(
-					s: CharSequence?,
-					start: Int,
-					count: Int,
-					after: Int,
-				) {}
+        binding.textinputEdittext.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                validateProjectName(binding.textinputLayout, s.toString(), project.name, dialog)
+            }
+        })
 
-				override fun onTextChanged(
-					s: CharSequence?,
-					start: Int,
-					before: Int,
-					count: Int,
-				) {}
+        validateProjectName(
+            binding.textinputLayout,
+            binding.textinputEdittext.text.toString(),
+            project.name,
+            dialog
+        )
+    }
 
-				override fun afterTextChanged(s: Editable?) {
-					validateProjectName(binding.textinputLayout, s.toString(), project.name, dialog)
-				}
-			},
-		)
-
-		validateProjectName(
-			binding.textinputLayout,
-			binding.textinputEdittext.text.toString(),
-			project.name,
-			dialog,
-		)
-	}
-
-	private fun validateProjectName(
-		inputLayout: TextInputLayout,
+    private fun validateProjectName(
+        inputLayout: TextInputLayout,
 		newName: String,
-		currentName: String,
-		dialog: AlertDialog,
-	) {
-		val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-		when {
-			newName.isEmpty() -> {
-				inputLayout.error = dialog.context.getString(R.string.msg_cannnot_empty)
-				positiveButton.isEnabled = false
-			}
+		dialog: AlertDialog
+    ) {
+        val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        when {
+            newName.isEmpty() -> {
+                inputLayout.error = dialog.context.getString(R.string.msg_cannnot_empty)
+                positiveButton.isEnabled = false
+            }
 
-			else -> {
-				inputLayout.error = null
-				positiveButton.isEnabled = true
-			}
-		}
-	}
+            else -> {
+                inputLayout.error = null
+                positiveButton.isEnabled = true
+            }
+        }
+    }
 
-	data class RenamedFile(
-		val oldName: String,
-		val newName: String,
-		val newPath: String,
-	)
+    data class RenamedFile(val oldName: String, val newName: String, val newPath: String)
 }

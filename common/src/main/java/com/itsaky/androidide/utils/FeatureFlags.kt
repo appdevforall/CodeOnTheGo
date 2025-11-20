@@ -6,6 +6,7 @@ import java.io.File
 object FeatureFlags {
 	private const val EXPERIMENTS_FILE_NAME = "CodeOnTheGo.exp"
 	private const val LOGD_FILE_NAME = "CodeOnTheGo.logd"
+  private const val EMULATOR_FILE_NAME = "S153.txt"
 
 	private val downloadsDir =
 		Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -19,4 +20,9 @@ object FeatureFlags {
 		val logdFile = File(downloadsDir, LOGD_FILE_NAME)
 		return logdFile.exists()
 	}
+
+  fun isEmulatorUseEnabled(): Boolean {
+    val emulatorFile = File(downloadsDir, EMULATOR_FILE_NAME)
+    return emulatorFile.exists()
+  }
 }

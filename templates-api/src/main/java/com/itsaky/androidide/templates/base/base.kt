@@ -68,6 +68,7 @@ inline fun baseProject(
     language: EnumParameter<Language> = projectLanguageParameter(),
     projectVersionData: ProjectVersionData = ProjectVersionData(),
     isToml: Boolean = false,
+    showUseKts: Boolean = true,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
     return ProjectTemplateBuilder().apply {
@@ -79,7 +80,7 @@ inline fun baseProject(
             packageName.setValue(newPackage)
         }
 
-        Environment.mkdirIfNotExits(Environment.PROJECTS_DIR)
+        Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
 
         val saveLocation = stringParameter {
             name = R.string.wizard_save_location
@@ -100,12 +101,20 @@ inline fun baseProject(
         widgets(
             TextFieldWidget(projectName), TextFieldWidget(packageName),
             TextFieldWidget(saveLocation), SpinnerWidget(language),
-            SpinnerWidget(minSdk), CheckBoxWidget(useKts)
+            SpinnerWidget(minSdk)
         )
+
+        if (showUseKts) {
+            widgets(CheckBoxWidget(useKts))
+        }
 
         // Setup the required properties before executing the recipe
         preRecipe = {
             this@apply._executor = this
+
+            if (!showUseKts) {
+                useKts.setValue(true, notify = false)
+            }
 
             this@apply._data = ProjectTemplateData(
                 projectName.value,

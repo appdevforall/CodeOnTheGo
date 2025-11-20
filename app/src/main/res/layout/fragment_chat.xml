@@ -114,7 +114,7 @@
                     style="@style/Widget.Material3.Button.IconButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:contentDescription="Add Context File"
+                    android:contentDescription="@string/add_context_file"
                     android:text="\@" />
 
                 <HorizontalScrollView
@@ -137,7 +137,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:hint="Type a message or prompt...">
+                android:hint="@string/type_a_message_or_prompt">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/prompt_input_edittext"
@@ -149,6 +149,14 @@
                     android:minHeight="56dp"
                     android:scrollbars="vertical" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/experimental_ai_use_at_your_own_risk"
+                android:textAppearance="?attr/textAppearanceCaption"
+                android:gravity="center_horizontal"
+                android:layout_marginTop="4dp"/>
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -172,7 +180,7 @@
                         android:id="@+id/backend_status_icon"
                         android:layout_width="18dp"
                         android:layout_height="18dp"
-                        android:contentDescription="Current AI Backend"
+                        android:contentDescription="@string/current_ai_backend"
                         android:src="@drawable/ic_ai"
                         app:tint="?attr/colorOnSurfaceVariant" />
 
@@ -202,7 +210,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:contentDescription="Stop Generation"
+                        android:contentDescription="@string/stop_generation"
                         android:visibility="gone"
                         app:icon="@drawable/ic_stop"
                         tools:visibility="visible" />
@@ -214,7 +222,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:contentDescription="Send Message"
+                        android:contentDescription="@string/send_message"
                         android:enabled="false"
                         app:icon="@drawable/ic_send" />
                 </RelativeLayout>
@@ -226,7 +234,7 @@
                     android:layout_height="wrap_content"
                     android:layout_centerVertical="true"
                     android:layout_toStartOf="@id/btn_control_prompt"
-                    android:contentDescription="Upload Image"
+                    android:contentDescription="@string/upload_image"
                     app:icon="@drawable/ic_add_photo" />
             </RelativeLayout>
         </LinearLayout>
