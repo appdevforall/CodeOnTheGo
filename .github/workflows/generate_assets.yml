@@ -100,13 +100,13 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
-      - name: Find V8 Assets
+      - name: V8 Assets Path
         id: assets_v8
         run: |
           assets_path="app/build/outputs/assets/assets-arm64-v8a.zip"
           echo "ASSETS_PATH=$assets_path" >> $GITHUB_OUTPUT
 
-      - name: Find V7 Assets
+      - name: V7 Assets Path
         id: assets_v7
         run: |
           assets_path="app/build/outputs/assets/assets-armeabi-v7a.zip"
@@ -119,18 +119,33 @@ jobs:
           ls -la "${{ steps.assets_v7.outputs.ASSETS_PATH }}"
 
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
-          # V8_FILE_ID="${{ secrets.ASSETS_V8_FILE_ID }}"
-          # V7_FILE_ID="${{ secrets.ASSETS_V7_FILE_ID }}"
+          V8_FILE_ID="${{ secrets.ASSETS_V8_FILE_ID }}"
+          V7_FILE_ID="${{ secrets.ASSETS_V7_FILE_ID }}"
+          
+          V8_PATH="app/build/outputs/assets/assets-arm64-v8a.zip"
+          V7_PATH="app/build/outputs/assets/assets-armeabi-v7a.zip"         
+          
+          # Upload v8          
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -F "file=@${V8_PATH};type=application/octet-stream" \
+            "https://www.googleapis.com/upload/drive/v3/files/${V8_FILE_ID}?uploadType=media")
 
-          # Upload v8
-          #curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
-          #  -F "file=@documentation.db.br;type=application/octet-stream" \
-          #  "https://www.googleapis.com/upload/drive/v3/files/${BR_FILE_ID}?uploadType=media"
+          if [[ "$response" -ne 200 ]]; then
+            echo "Upload of ${V8_PATH} failed with HTTP status $response"
+            exit 1
+          fi
 
-          # Upload v7
-          #curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
-          #  -F "file=@last_md5;type=text/plain" \
-          #  "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media"
+          # Upload v7          
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -F "file=@${V7_PATH};type=application/octet-stream" \
+            "https://www.googleapis.com/upload/drive/v3/files/${V7_FILE_ID}?uploadType=media")
+
+          if [[ "$response" -ne 200 ]]; then
+            echo "Upload of ${V7_PATH} failed with HTTP status $response"
+            exit 1
+          fi
 
           echo "Upload complete."
 
