@@ -12,7 +12,8 @@ import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.net.ServerSocket
 import java.net.Socket
-import java.nio.file.Files
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -23,7 +24,8 @@ data class ServerConfig(
     val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/documentation.db",
     val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
-            "/Download/CodeOnTheGo.webserver.debug"
+            "/Download/CodeOnTheGo.webserver.debug",
+    val applicationContext: Context
 )
 
 class WebServer(private val config: ServerConfig) {
@@ -35,7 +37,8 @@ class WebServer(private val config: ServerConfig) {
     private val encodingHeader: String = "Accept-Encoding"
     private var brotliSupported = false
     private val brotliCompression: String = "br"
-
+    private val directoryPath = config.applicationContext.filesDir
+    private val playgroundFilePath = "$directoryPath/Playground.java"
 
     //function to obtain the last modified date of a documentation.db database
     // this is used to see if there is a newer version of the database on the sdcard
@@ -465,8 +468,7 @@ WHERE  path = ?
 
     private fun createFileFromPost(input: CharArray): File {
         val inputAsString = String(input)
-        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/Playground.java"
-        val file = File(filePath)
+        val file = File(playgroundFilePath)
         try {
             file.writeText(inputAsString)
         } catch (e: Exception) {
@@ -480,17 +482,14 @@ WHERE  path = ?
         val fileName = sourceFile.nameWithoutExtension
         val classFile = File(dir, "$fileName.class")
 
-
-        // TODO Alex: Don't hard-code these
-        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/Playground.java"
-        val directoryPath = "/data/data/com.itsaky.androidide/files"
         val javacPath = "$directoryPath/usr/bin/javac"
         val javaPath = "$directoryPath/usr/bin/java"
 
-        val javac = ProcessBuilder(javacPath, filePath)
+        val javac = ProcessBuilder(javacPath, playgroundFilePath)
             .directory(dir)
             .redirectErrorStream(true)
             .start()
+
         val compileOutput = javac.inputStream.bufferedReader().readText()
         javac.waitFor()
 
@@ -509,6 +508,8 @@ WHERE  path = ?
             .start()
         val runOutput = java.inputStream.bufferedReader().readText()
         java.waitFor()
+
+        Files.delete(Paths.get(classFile.path))
 
         return if (compileOutput.isNotBlank()) {
             "Compile output\n $compileOutput\n Program output\n$runOutput"
