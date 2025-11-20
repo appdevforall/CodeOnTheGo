@@ -30,7 +30,6 @@ import com.itsaky.androidide.utils.flashSuccess
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
 import org.slf4j.LoggerFactory
-import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -125,8 +124,10 @@ class RecentProjectsAdapter(
         }
     }
 
-    private fun showPopupMenu(view: View, position: Int) {
+    private fun showPopupMenu(view: View, project: ProjectFile, position: Int) {
         val inflater = LayoutInflater.from(view.context)
+
+		// noinspection InflateParams
         val popupView = inflater.inflate(R.layout.custom_popup_menu, null)
 
 		projectOptionsPopup?.dismiss()
@@ -257,14 +258,13 @@ class RecentProjectsAdapter(
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                validateProjectName(binding.textinputLayout, s.toString(), project.name, dialog)
+                validateProjectName(binding.textinputLayout, s.toString(), dialog)
             }
         })
 
         validateProjectName(
             binding.textinputLayout,
             binding.textinputEdittext.text.toString(),
-            project.name,
             dialog
         )
     }
