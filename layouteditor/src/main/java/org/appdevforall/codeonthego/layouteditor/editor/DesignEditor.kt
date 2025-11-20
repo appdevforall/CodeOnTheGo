@@ -78,8 +78,6 @@ class DesignEditor : LinearLayout {
 	private lateinit var paint: Paint
 	private lateinit var shadow: View
 
-	private lateinit var attributes: HashMap<String, List<HashMap<String, Any>>>
-	private lateinit var parentAttributes: HashMap<String, List<HashMap<String, Any>>>
 	private lateinit var initializer: AttributeInitializer
 
 	private var isBlueprint = false
@@ -92,7 +90,46 @@ class DesignEditor : LinearLayout {
 	private val attrTranslationY = "android:translationY"
 
 	init {
-		initAttributes()
+		viewAttributeMap = HashMap()
+	}
+
+	companion object {
+		@Volatile
+		private var cachedAttributes: HashMap<String, List<HashMap<String, Any>>>? = null
+
+		@Volatile
+		private var cachedParentAttributes: HashMap<String, List<HashMap<String, Any>>>? = null
+
+		private fun getAttributes(context: Context): HashMap<String, List<HashMap<String, Any>>> {
+			return cachedAttributes ?: synchronized(this) {
+				cachedAttributes ?: loadAttributesFromAssets(context, Constants.ATTRIBUTES_FILE).also {
+					cachedAttributes = it
+				}
+			}
+		}
+
+		private fun getParentAttributes(context: Context): HashMap<String, List<HashMap<String, Any>>> {
+			return cachedParentAttributes ?: synchronized(this) {
+				cachedParentAttributes ?: loadAttributesFromAssets(context, Constants.PARENT_ATTRIBUTES_FILE).also {
+					cachedParentAttributes = it
+				}
+			}
+		}
+
+		private fun loadAttributesFromAssets(
+			context: Context,
+			filePath: String
+		): HashMap<String, List<HashMap<String, Any>>> {
+			return Gson().fromJson(
+				FileUtil.readFromAsset(filePath, context),
+				object : TypeToken<HashMap<String?, ArrayList<HashMap<String?, Any?>?>?>?>() {}.type,
+			)
+		}
+
+		fun preload(context: Context) {
+			getAttributes(context)
+			getParentAttributes(context)
+		}
 	}
 
 	constructor(context: Context) : super(context) {
@@ -400,6 +437,7 @@ class DesignEditor : LinearLayout {
 							}
 
 							if (data.containsKey(Constants.KEY_DEFAULT_ATTRS)) {
+								ensureInitializerInitialized()
 								@Suppress("UNCHECKED_CAST")
 								val defaults = (data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>).toMutableMap()
 								defaults.remove(attrTranslationX)
@@ -471,8 +509,7 @@ class DesignEditor : LinearLayout {
 		updateStructure()
 		toggleStrokeWidgets()
 
-		initializer =
-			AttributeInitializer(context, viewAttributeMap, attributes, parentAttributes)
+		ensureInitializerInitialized()
 	}
 
 	private fun ensureConstraintsApplied() {
@@ -1038,20 +1075,16 @@ class DesignEditor : LinearLayout {
 		return target
 	}
 
-	private fun initAttributes() {
-		attributes = convertJsonToJavaObject(Constants.ATTRIBUTES_FILE)
-		parentAttributes = convertJsonToJavaObject(Constants.PARENT_ATTRIBUTES_FILE)
-		viewAttributeMap = HashMap()
-		initializer =
-			AttributeInitializer(context, viewAttributeMap, attributes, parentAttributes)
-	}
-
-	private fun convertJsonToJavaObject(filePath: String): HashMap<String, List<HashMap<String, Any>>> =
-		Gson()
-			.fromJson(
-				FileUtil.readFromAsset(filePath, context),
-				object : TypeToken<HashMap<String?, ArrayList<HashMap<String?, Any?>?>?>?>() {}.type,
+	private fun ensureInitializerInitialized() {
+		if (!::initializer.isInitialized) {
+			initializer = AttributeInitializer(
+				context,
+				viewAttributeMap,
+				getAttributes(context),
+				getParentAttributes(context)
 			)
+		}
+	}
 
 	enum class ViewType {
 		DESIGN,
