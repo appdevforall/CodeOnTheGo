@@ -62,11 +62,12 @@ internal inline fun baseProjectImpl(
     language: EnumParameter<Language> = projectLanguageParameter(),
     projectVersionData: ProjectVersionData = ProjectVersionData(),
     isToml: Boolean = false,
+    showUseKts: Boolean = true,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate =
   baseProject(projectName = projectName, packageName = packageName,
     useKts = useKts, minSdk = minSdk, language = language,
-    projectVersionData = projectVersionData, isToml = isToml) {
+    projectVersionData = projectVersionData, isToml = isToml, showUseKts = showUseKts) {
     block()
 
     // make sure we return a proper result
