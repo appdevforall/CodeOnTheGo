@@ -806,10 +806,9 @@
 	<string name="email_feedback_warning_prompt"> To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?
 	</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
-	<string name="feedback_message">Please enter your feedback in the space below. If you are reporting a problem, please include as
-		much information as possible about the issue.\n\nThanks!\n\nVersion: %1$s\n\n-------------stack
-		trace----------\n%2$s</string>
-	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+	<string name="feedback_message">\n\nPlease enter your feedback in the space below. If you are reporting a problem, please include as much information as possible about the issue.\n\nThanks!\n\n-------------stack trace----------\n%1$s</string>
+	<string name="feedback_device_info">App Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+	<string name="feedback_stack_trace_unavailable">Stack trace unavailable. Please describe the issue you encountered.</string>
 	<string name="send_feedback">Send feedback</string>
 	<string name="alert_message">Send feedback</string>
 	<string name="fab_more">More</string>
