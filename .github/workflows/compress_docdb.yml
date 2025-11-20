@@ -173,7 +173,8 @@ jobs:
           # Upload documentation.db.br
           response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -F "file=@documentation.db.br;type=application/octet-stream" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@documentation.db.br" \
             "https://www.googleapis.com/upload/drive/v3/files/${BR_FILE_ID}?uploadType=media")
 
           if [[ "$response" -ne 200 ]]; then
