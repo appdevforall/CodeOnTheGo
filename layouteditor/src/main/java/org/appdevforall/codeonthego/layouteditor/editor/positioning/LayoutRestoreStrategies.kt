@@ -42,8 +42,8 @@ fun modifyConstraintsForView(constraintSet: ConstraintSet, viewId: Int, startPxM
  * for better performance.
  *
  * **Attributes Read:**
- * - `app:layout_marginStart`
- * - `app:layout_marginTop`
+ * - `android:layout_marginStart`
+ * - `android:layout_marginTop`
  *
  * @param container The parent [ConstraintLayout].
  * @param view The child view to read attributes for.
@@ -58,8 +58,8 @@ fun collectConstraintLayoutChange(
     density: Float,
     changesByContainer: MutableMap<ConstraintLayout, MutableList<ViewConstraintChange>>
 ) {
-    val txStr = attrs.getValue("app:layout_marginStart")
-    val tyStr = attrs.getValue("app:layout_marginTop")
+    val txStr = attrs.getValue("android:layout_marginStart")
+    val tyStr = attrs.getValue("android:layout_marginTop")
 
     if (txStr.isNotEmpty() || tyStr.isNotEmpty()) {
         val (txPx, tyPx) = calculateClampedPx(container, view, txStr, tyStr, density)

@@ -12,7 +12,7 @@ internal val POSITIONING_KEYS_TO_REMOVE = setOf(
     // ConstraintLayout
     "app:layout_constraintBottom_toBottomOf", "app:layout_constraintEnd_toEndOf",
     "app:layout_constraintStart_toStartOf", "app:layout_constraintTop_toTopOf",
-    "app:layout_marginStart", "app:layout_marginTop", "app:layout_marginEnd", "app:layout_marginBottom",
+    "android:layout_marginStart", "android:layout_marginTop", "android:layout_marginEnd", "android:layout_marginBottom",
 
     // GridLayout
     "android:layout_row",
@@ -73,7 +73,7 @@ internal fun calculateDropCoordinatesInDp(
 /**
  * Clears all known positioning attributes from the [attributes] map.
  * This is crucial to prevent conflicts, e.g., having both
- * `app:layout_marginStart` (from ConstraintLayout) and
+ * `android:layout_marginStart` (from ConstraintLayout) and
  * `android:layout_marginLeft` (from RelativeLayout) defined at the same time.
  *
  * @param attributes The AttributeMap for the view to be cleaned.

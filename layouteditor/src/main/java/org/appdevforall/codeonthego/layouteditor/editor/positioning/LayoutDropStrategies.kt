@@ -161,8 +161,8 @@ internal fun applyDragReorder(container: ViewGroup, child: View, x: Float, y: Fl
  * **Attributes Written:**
  * - `app:layout_constraintStart_toStartOf`
  * - `app:layout_constraintTop_toTopOf`
- * - `app:layout_marginStart`
- * - `app:layout_marginTop`
+ * - `android:layout_marginStart`
+ * - `android:layout_marginTop`
  *
  * @param map The [AttributeMap] to write attributes to.
  * @param coords The [DpCoordinates] containing the margins to apply.
@@ -173,8 +173,8 @@ internal fun applyConstraintLayoutAttributes(
 ) {
     map.putValue("app:layout_constraintStart_toStartOf", "parent")
     map.putValue("app:layout_constraintTop_toTopOf", "parent")
-    map.putValue("app:layout_marginStart", "${coords.xDp}dp")
-    map.putValue("app:layout_marginTop", "${coords.yDp}dp")
+    map.putValue("android:layout_marginStart", "${coords.xDp}dp")
+    map.putValue("android:layout_marginTop", "${coords.yDp}dp")
 }
 
 /**
