@@ -18,7 +18,4 @@
 <resources>
     <!--  Required by F-Droid-->
     <string name="app_name" translatable="false">Code on the Go</string>
-    <string name="retry">Retry</string>
-    <string name="open_ai_settings">Open AI Settings</string>
-    <string name="new_chat">New Chat</string>
 </resources>
