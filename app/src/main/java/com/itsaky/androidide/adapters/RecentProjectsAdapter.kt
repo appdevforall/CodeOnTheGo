@@ -58,7 +58,7 @@ class RecentProjectsAdapter(
 	}
 
 	override fun onBindViewHolder(holder: ProjectViewHolder, position: Int) {
-		holder.bind(projects[position])
+		holder.bind(projects[position], position)
 	}
 
     fun updateProjects(newProjects: List<ProjectFile>) {
