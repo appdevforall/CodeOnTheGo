@@ -1038,6 +1038,8 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
 	<string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
 	<string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
 	<string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
+	<string name="ai_disclaimer">Disclaimer</string>
+	<string name="ai_disclaimer_message">This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.</string>
 
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
@@ -1058,4 +1060,15 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
 	<!-- Documentation urls -->
 	<string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
 
+
+    <string name="retry">Retry</string>
+    <string name="open_ai_settings">Open AI Settings</string>
+    <string name="new_chat">New Chat</string>
+    <string name="experimental_ai_use_at_your_own_risk">⚠️ Experimental AI. Use at your own risk.</string>
+    <string name="current_ai_backend">Current AI Backend</string>
+    <string name="stop_generation">Stop Generation</string>
+    <string name="send_message">Send Message</string>
+    <string name="upload_image">Upload Image</string>
+    <string name="add_context_file">Add Context File</string>
+    <string name="type_a_message_or_prompt">Type a message or prompt…</string>
 </resources>
