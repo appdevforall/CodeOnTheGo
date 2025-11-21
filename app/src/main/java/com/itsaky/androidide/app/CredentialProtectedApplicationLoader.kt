@@ -64,11 +64,14 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		logger.info("Loading credential protected storage context components...")
 		application = app
 
+		EventBus.getDefault().register(this)
+
+		// Load termux application
+		TermuxApplicationLoader.load(app)
+
 		if (DevOpsPreferences.dumpLogs) {
 			startLogcatReader()
 		}
-
-		EventBus.getDefault().register(this)
 
 		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 

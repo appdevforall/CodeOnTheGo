@@ -31,7 +31,6 @@ import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
-import com.termux.app.TermuxApplication
 import com.topjohnwu.superuser.Shell
 import io.sentry.Sentry
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -41,7 +40,7 @@ import java.lang.Thread.UncaughtExceptionHandler
 
 const val EXIT_CODE_CRASH = 1
 
-class IDEApplication : TermuxApplication() {
+class IDEApplication : BaseApplication() {
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var currentActivity: Activity? = null
