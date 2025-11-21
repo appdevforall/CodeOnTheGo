@@ -140,6 +140,7 @@ class IDEApplication : TermuxApplication() {
 					if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
 						logger.info("Device unlocked! Loading all components...")
 						CredentialProtectedApplicationLoader.load(this@IDEApplication)
+						unregisterReceiver(this)
 					}
 				}
 			}, IntentFilter(Intent.ACTION_USER_UNLOCKED))
