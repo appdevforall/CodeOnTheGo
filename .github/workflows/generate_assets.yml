@@ -162,7 +162,7 @@ jobs:
           
           jq -n \
             --arg v8_link "$GDRIVE_V8_LINK" \
-            --arg v7_link "$GDRIVE_V8_LINK" \
+            --arg v7_link "$GDRIVE_V7_LINK" \
             '{
               blocks: [
                 {
