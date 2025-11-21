@@ -259,7 +259,7 @@ object ProjectSyncHelper {
 
 		val syncMetaFile = syncMetaFileForProject(projectDir)
 		val projectCacheFile = cacheFileForProject(projectDir)
-		if (areSyncFilesReadable(syncMetaFile, projectCacheFile)) {
+		if (!areSyncFilesReadable(syncMetaFile, projectCacheFile)) {
 			// one of the required files are missing, require sync
 			logger.debug(
 				"NEED_SYNC: sync files missing or are unreadable:" +
