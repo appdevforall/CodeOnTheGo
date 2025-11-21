@@ -103,6 +103,10 @@ public class FontFragment extends Fragment {
     });
   }
 
+  private void postToast(String msg) {
+    requireActivity().runOnUiThread(() -> ToastUtils.showLong(msg));
+  }
+
   public void addFont(final Uri uri) {
     String path = FileUtil.convertUriToFilePath(this.getContext(),uri);
     if (TextUtils.isEmpty(path)) {
@@ -127,27 +131,30 @@ public class FontFragment extends Fragment {
     builder.setPositiveButton(
         R.string.add,
         (di, which) -> {
+          final String finalName = editTextName.getText().toString().trim();
+          final String finalToPath = project.getFontPath() + finalName + extension;
+          final String finalFileName = finalName + extension;
+
           executor.execute(() -> {
             String filePath = FileUtil.convertUriToFilePath(getContext(), uri);
             File original = new File(filePath);
 
-            boolean valid = isValidFontFile(original);
-
-            if (!valid) {
-              requireActivity().runOnUiThread(() ->
-                ToastUtils.showLong(getString(R.string.msg_font_add_invalid))
-              );
+            if (!isValidFontFile(original)) {
+              postToast(getString(R.string.msg_font_add_invalid));
               return;
             }
 
-            String fontPath = project.getFontPath();
-            String toPath = fontPath + editTextName.getText().toString() + extension;
-            String name = editTextName.getText().toString();
+            boolean copySucceeded = FileUtil.copyFile(uri, finalToPath, getContext());
 
-            FileUtil.copyFile(uri, toPath, getContext());
+            if (!copySucceeded) {
+              File failedFile = new File(finalToPath);
+              if (failedFile.exists()) failedFile.delete();
+              postToast(getString(R.string.msg_font_copy_failed));
+              return;
+            }
 
             requireActivity().runOnUiThread(() -> {
-              FontItem item = new FontItem(name + extension, toPath);
+              FontItem item = new FontItem(finalFileName + extension, finalToPath);
               fontList.add(item);
               adapter.notifyItemInserted(fontList.size() - 1);
             });
