@@ -44,7 +44,7 @@ public class FontFragment extends Fragment {
   private FontResourceAdapter adapter;
   private ProjectFile project;
   private List<FontItem> fontList = new ArrayList<>();
-  private static final ExecutorService executor = Executors.newSingleThreadExecutor();
+  private ExecutorService executor;
 
   @Override
   public android.view.View onCreateView(
@@ -57,12 +57,20 @@ public class FontFragment extends Fragment {
   @Override
   public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
-    loadFonts();
-    RecyclerView mRecyclerView = binding.recyclerView;
+    executor = Executors.newSingleThreadExecutor();
     adapter = new FontResourceAdapter(fontList);
+    RecyclerView mRecyclerView = binding.recyclerView;
     mRecyclerView.setAdapter(adapter);
     mRecyclerView.setLayoutManager(
         new LinearLayoutManager(requireContext(), RecyclerView.VERTICAL, false));
+    loadFonts();
+  }
+
+  @Override
+  public void onDestroyView() {
+    super.onDestroyView();
+    executor.shutdownNow();
+    binding = null;
   }
 
   private void loadFonts() {
@@ -120,23 +128,28 @@ public class FontFragment extends Fragment {
         R.string.add,
         (di, which) -> {
           executor.execute(() -> {
+            String filePath = FileUtil.convertUriToFilePath(getContext(), uri);
+            File original = new File(filePath);
+
+            boolean valid = isValidFontFile(original);
+
+            if (!valid) {
+              requireActivity().runOnUiThread(() ->
+                ToastUtils.showLong(getString(R.string.msg_font_add_invalid))
+              );
+              return;
+            }
+
             String fontPath = project.getFontPath();
             String toPath = fontPath + editTextName.getText().toString() + extension;
             String name = editTextName.getText().toString();
 
             FileUtil.copyFile(uri, toPath, getContext());
-            boolean valid = isValidFontFile(new File(toPath));
 
             requireActivity().runOnUiThread(() -> {
-              if (!valid) {
-                ToastUtils.showLong(getString(R.string.msg_font_add_invalid));
-                new File(toPath).delete();
-                return;
-              }
-
-              FontItem fontItem = new FontItem(name + extension, toPath);
-              fontList.add(fontItem);
-              adapter.notifyItemInserted(fontList.indexOf(fontItem));
+              FontItem item = new FontItem(name + extension, toPath);
+              fontList.add(item);
+              adapter.notifyItemInserted(fontList.size() - 1);
             });
           });
         });
