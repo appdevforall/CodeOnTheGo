@@ -186,8 +186,7 @@ jobs:
               ]
             }' > payload.json
           
-          # curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
-          cat payload.json
+          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
 
           rm -f payload.json
       - name: Cleanup google-services.json
