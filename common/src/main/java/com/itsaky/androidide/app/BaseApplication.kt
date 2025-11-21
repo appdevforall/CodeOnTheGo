@@ -29,16 +29,39 @@ import org.slf4j.LoggerFactory
 
 open class BaseApplication : Application() {
 	private var _prefManager: PreferenceManager? = null
-	private var _isUserUnlocked = false
+	private var _isUserUnlocked: Boolean? = null
 
 	val isUserUnlocked: Boolean
-		get() = _isUserUnlocked
+		get() = checkNotNull(_isUserUnlocked) {
+			"Cannot access isUserUnlocked before application is created"
+		}
 
 	val prefManager: PreferenceManager
 		get() =
 			checkNotNull(_prefManager) {
 				"PreferenceManager not initialized"
 			}
+
+	init {
+		_baseInstance = this
+	}
+
+	override fun attachBaseContext(base: Context?) {
+		super.attachBaseContext(base)
+		requireNotNull(base) {
+			"Cannot attach to a null Context"
+		}
+
+		_isUserUnlocked = UserManagerCompat.isUserUnlocked(base)
+	}
+
+	override fun onCreate() {
+		super.onCreate()
+		Environment.init(this)
+
+		_prefManager = PreferenceManager(getSafeContext())
+		JavaCharacter.initMap()
+	}
 
 	@JvmOverloads
 	fun getSafeContext(deviceProtectedStorageContext: Boolean = false): Context {
@@ -61,17 +84,6 @@ open class BaseApplication : Application() {
 					NoopSharedPreferencesImpl()
 				}
 		}
-	}
-
-	override fun onCreate() {
-		_baseInstance = this
-		_isUserUnlocked = UserManagerCompat.isUserUnlocked(this)
-
-		Environment.init(this)
-		super.onCreate()
-
-		_prefManager = PreferenceManager(getSafeContext())
-		JavaCharacter.initMap()
 	}
 
 	companion object {
