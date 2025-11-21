@@ -31,42 +31,7 @@ jobs:
           token_format: 'access_token'
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
-      - name: Check if documentation.db has changed
-        id: checksum
-        run: |
-          echo "Checking if documentation.db has changed..."
-                    
-          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
-          
-          DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
-          LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
-          
-          # Download last_md5 from Drive
-          LAST_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${LAST_MD5_FILE_ID}?alt=media" \
-            | tr -d '\n')
-          
-          echo "Last md5Checksum: $LAST_MD5"
-          
-          # Get current md5Checksum of documentation.db
-          CURRENT_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?fields=md5Checksum" \
-            | jq -r '.md5Checksum')
-          
-          echo "Current md5Checksum: $CURRENT_MD5"
-          
-          # Compare
-          if [ "$CURRENT_MD5" = "$LAST_MD5" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT      
-            echo "No change detected. Skipping download and compression."
-            exit 0
-          fi
-          
-          echo "skip=false" >> $GITHUB_OUTPUT      
-          echo "$CURRENT_MD5" > last_md5
-
       - name: Download latest documentation.db from Google Drive
-        if: steps.checksum.outputs.skip != 'true'
         run: |
           DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
@@ -135,6 +100,41 @@ jobs:
           fi
 
           echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
+
+      - name: Check if documentation.db has changed
+        id: checksum
+        run: |
+          echo "Checking if documentation.db has changed..."
+          
+          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
+          LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
+          
+          # Download last_md5 from Drive
+          LAST_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${LAST_MD5_FILE_ID}?alt=media" \
+            | tr -d '\n')
+          
+          echo "Last md5Checksum: $LAST_MD5"
+          
+          # Get current md5Checksum of documentation.db
+          CURRENT_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?fields=md5Checksum" \
+            | jq -r '.md5Checksum')
+          
+          # Compute checksum of the downloaded documentation.db
+          CURRENT_MD5=$(md5sum documentation.db | awk '{print $1}')
+          
+          echo "Current md5Checksum: $CURRENT_MD5"
+
+          # Compare
+          if [ "$CURRENT_MD5" = "$LAST_MD5" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT      
+            echo "No change detected. Skipping download and compression."
+            exit 0
+          fi
+          
+          echo "skip=false" >> $GITHUB_OUTPUT      
+          echo "$CURRENT_MD5" > last_md5
 
       - name: Compress documentation.db with Brotli
         if: steps.checksum.outputs.skip != 'true'
