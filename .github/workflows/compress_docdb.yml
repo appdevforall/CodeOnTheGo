@@ -143,8 +143,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y brotli
 
           echo "Compressing documentation.db with maximum compression..."
-          # brotli -f -Z -o documentation.db.br documentation.db
-          cp documentation.db documentation.db.br
+          brotli -f -Z -o documentation.db.br documentation.db
 
           if [ ! -f documentation.db.br ]; then
             echo "ERROR: Failed to create documentation.db.br"
