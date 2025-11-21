@@ -50,7 +50,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
@@ -771,7 +770,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private fun initialSetup() {
 		val manager = ProjectManagerImpl.getInstance()
-		GeneralPreferences.lastOpenedProject = manager.projectDirPath
 		try {
 			val project = manager.workspace?.rootProject
 			if (project == null) {
