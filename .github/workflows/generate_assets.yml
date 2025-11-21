@@ -153,6 +153,10 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          
+          V8_FILE_ID="${{ secrets.ASSETS_V8_FILE_ID }}"
+          V7_FILE_ID="${{ secrets.ASSETS_V7_FILE_ID }}"         
+          
           GDRIVE_V8_LINK="<https://drive.google.com/file/d/${V8_FILE_ID}/view|Download Assets Zip 64-bit ARM>"
           GDRIVE_V7_LINK="<https://drive.google.com/file/d/${V7_FILE_ID}/view|Download Assets Zip 32-bit ARM>"         
           
