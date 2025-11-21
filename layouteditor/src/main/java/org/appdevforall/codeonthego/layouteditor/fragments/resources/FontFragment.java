@@ -1,5 +1,7 @@
 package org.appdevforall.codeonthego.layouteditor.fragments.resources;
 
+import static org.appdevforall.codeonthego.layouteditor.utils.Utils.isValidFontFile;
+
 import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
@@ -61,17 +63,33 @@ public class FontFragment extends Fragment {
   }
 
   private void loadFonts() {
-    File[] files = project.getFonts();
+    new Thread(() -> {
+      File[] files = project.getFonts();
 
-    if (files == null) {
-      ToastUtils.showShort("Null");
-    } else {
+      if (files == null) {
+        requireActivity().runOnUiThread(() -> ToastUtils.showShort("Null"));
+        return;
+      }
+
+      List<FontItem> temp = new ArrayList<>();
       for (File file : files) {
         String name = file.getName();
-        // name = name.substring(0, name.lastIndexOf("."));
-        fontList.add(new FontItem(name, file.getPath()));
+
+        if (!isValidFontFile(file)) {
+          requireActivity().runOnUiThread(() ->
+            ToastUtils.showLong(getString(R.string.msg_font_load_invalid, name))
+          );
+          continue;
+        }
+        temp.add(new FontItem(name, file.getPath()));
       }
-    }
+
+      requireActivity().runOnUiThread(() -> {
+        fontList.clear();
+        fontList.addAll(temp);
+        if (adapter != null) adapter.notifyDataSetChanged();
+      });
+    }).start();
   }
 
   public void addFont(final Uri uri) {
@@ -98,15 +116,26 @@ public class FontFragment extends Fragment {
     builder.setPositiveButton(
         R.string.add,
         (di, which) -> {
-          String fontPath = project.getFontPath();
+          new Thread(() -> {
+            String fontPath = project.getFontPath();
+            String toPath = fontPath + editTextName.getText().toString() + extension;
+            String name = editTextName.getText().toString();
 
-          String toPath = fontPath + editTextName.getText().toString() + extension;
-          FileUtil.copyFile(uri, toPath, getContext());
+            FileUtil.copyFile(uri, toPath, getContext());
+            boolean valid = isValidFontFile(new File(toPath));
 
-          String name = editTextName.getText().toString();
-          var fontItem = new FontItem(name + extension, toPath);
-          fontList.add(fontItem);
-          adapter.notifyItemInserted(fontList.indexOf(fontItem));
+            requireActivity().runOnUiThread(() -> {
+              if (!valid) {
+                ToastUtils.showLong(getString(R.string.msg_font_add_invalid));
+                new File(toPath).delete();
+                return;
+              }
+
+              FontItem fontItem = new FontItem(name + extension, toPath);
+              fontList.add(fontItem);
+              adapter.notifyItemInserted(fontList.indexOf(fontItem));
+            });
+          }).start();
         });
 
     final AlertDialog dialog = builder.create();
