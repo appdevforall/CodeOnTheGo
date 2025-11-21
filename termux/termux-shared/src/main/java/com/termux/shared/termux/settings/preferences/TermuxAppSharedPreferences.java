@@ -69,6 +69,13 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
      * @return Returns the {@link TermuxAppSharedPreferences}. This will {@code null} if an exception is raised.
      */
     public static TermuxAppSharedPreferences build(@NonNull final Context context, final boolean exitAppOnError) {
+		// Code on the Go changed: always use safe IDE context to avoid accessing
+		// credential protected storage during direct boot mode
+		final var isUserUnlocked = UserManagerCompat.isUserUnlocked(context);
+		if (!isUserUnlocked) {
+			return new TermuxAppSharedPreferences(BaseApplication.getBaseInstance().getSafeContext());
+		}
+
         Context termuxPackageContext = TermuxUtils.getContextForPackageOrExitApp(context, TermuxConstants.TERMUX_PACKAGE_NAME, exitAppOnError);
         if (termuxPackageContext == null)
             return null;

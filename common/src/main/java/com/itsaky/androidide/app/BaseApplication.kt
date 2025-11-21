@@ -21,18 +21,11 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
 import androidx.core.os.UserManagerCompat
-import androidx.test.platform.app.InstrumentationRegistry
-import com.blankj.utilcode.util.ThrowableUtils
 import com.itsaky.androidide.managers.NoopSharedPreferencesImpl
 import com.itsaky.androidide.managers.PreferenceManager
-import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.JavaCharacter
-import com.itsaky.androidide.utils.UrlManager.openUrl
-import com.itsaky.androidide.utils.VMUtils
 import org.slf4j.LoggerFactory
-import java.io.File
 
 open class BaseApplication : Application() {
 	private var _prefManager: PreferenceManager? = null
@@ -79,36 +72,7 @@ open class BaseApplication : Application() {
 
 		_prefManager = PreferenceManager(getSafeContext())
 		JavaCharacter.initMap()
-
-		if (isUserUnlocked && (!VMUtils.isJvm() || this.isInstrumentedTest)) {
-			ToolsManager.init(this, null)
-		}
 	}
-
-	fun writeException(th: Throwable?) {
-		FileUtil.writeFile(
-			File(FileUtil.getExternalStorageDir(), "idelog.txt").absolutePath,
-			ThrowableUtils.getFullStackTrace(th),
-		)
-	}
-
-	@JvmOverloads
-	fun openUrl(
-		url: String,
-		pkg: String? = null,
-	) {
-		openUrl(url, pkg, this)
-	}
-
-	private val isInstrumentedTest: Boolean
-		get() {
-			try {
-				InstrumentationRegistry.getInstrumentation()
-				return true
-			} catch (_: IllegalStateException) {
-				return false
-			}
-		}
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(BaseApplication::class.java)

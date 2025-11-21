@@ -42,7 +42,7 @@ object SnippetParser {
 		},
 	): Map<S, List<ISnippet>> {
 		// not supported for tests as assets cannot be accessed
-		if (VMUtils.isJvm()) {
+		if (VMUtils.isJvm) {
 			return emptyMap()
 		}
 
