@@ -61,13 +61,14 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			startLogcatReader()
 		}
 
+		EventBus.getDefault().register(this)
+
 		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
 		if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
 			DynamicColors.applyToActivitiesIfAvailable(app)
 		}
 
-		EventBus.getDefault().register(this)
 		initializePluginSystem()
 
 		GlobalScope.launch {

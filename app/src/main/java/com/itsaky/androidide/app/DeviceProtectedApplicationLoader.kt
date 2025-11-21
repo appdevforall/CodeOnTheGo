@@ -58,9 +58,9 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
 		EventBus.getDefault().register(crashEventSubscriber)
 
-		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-
 		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
+
+		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
 
 		initializeAnalytics()
 	}
