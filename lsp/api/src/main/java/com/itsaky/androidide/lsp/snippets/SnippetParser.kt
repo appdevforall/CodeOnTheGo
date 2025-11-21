@@ -32,102 +32,102 @@ import java.util.concurrent.ConcurrentHashMap
  * @author Akash Yadav
  */
 object SnippetParser {
+	private val log = LoggerFactory.getLogger(SnippetParser::class.java)
 
-  private val log = LoggerFactory.getLogger(SnippetParser::class.java)
+	fun <S : ISnippetScope> parse(
+		lang: String,
+		scopes: Array<S>,
+		snippetFactory: (String, String, List<String>) -> ISnippet = { prefix, desc, body ->
+			DefaultSnippet(prefix, desc, body.toTypedArray())
+		},
+	): Map<S, List<ISnippet>> {
+		// not supported for tests as assets cannot be accessed
+		if (VMUtils.isJvm) {
+			return emptyMap()
+		}
 
-  fun <S : ISnippetScope> parse(
-    lang: String,
-    scopes: Array<S>,
-    snippetFactory: (String, String, List<String>) -> ISnippet = { prefix, desc, body ->
-      DefaultSnippet(prefix, desc, body.toTypedArray())
-    }
-  ): Map<S, List<ISnippet>> {
+		return ConcurrentHashMap<S, List<ISnippet>>().apply {
+			for (scope in scopes) {
+				this[scope] =
+					mutableListOf<ISnippet>().apply {
+						readSnippets(lang, scope.filename, snippetFactory, this)
+					}
+			}
+		}
+	}
 
-    // not supported for tests as assets cannot be accessed
-    if (VMUtils.isJvm()) {
-      return emptyMap()
-    }
+	private fun readSnippets(
+		lang: String,
+		type: String,
+		snippetFactory: (String, String, List<String>) -> ISnippet,
+		snippets: MutableList<ISnippet>,
+	) {
+		executeAsyncProvideError({
+			val content =
+				try {
+					BaseApplication.baseInstance
+						.assets
+						.open(assetsPath(lang, type))
+						.reader()
+				} catch (e: IOException) {
+					// snippet file probably does not exist
+					return@executeAsyncProvideError
+				}
 
-    return ConcurrentHashMap<S, List<ISnippet>>().apply {
-      for (scope in scopes) {
-        this[scope] =
-          mutableListOf<ISnippet>().apply {
-            readSnippets(lang, scope.filename, snippetFactory, this)
-          }
-      }
-    }
-  }
+			JsonReader(content).use {
+				it.beginObject()
+				while (it.hasNext()) {
+					val prefix = it.nextName()
+					readSnippet(prefix, it, snippetFactory, snippets)
+				}
+				it.endObject()
+			}
+		}) { result, err ->
+			if (result == null || err != null) {
+				log.error("Failed to load '{}' snippets", type, err)
+			}
+		}
+	}
 
-  private fun readSnippets(
-    lang: String,
-    type: String,
-    snippetFactory: (String, String, List<String>) -> ISnippet,
-    snippets: MutableList<ISnippet>
-  ) {
-    executeAsyncProvideError({
-      val content =
-        try {
-          BaseApplication.getBaseInstance()
-            .assets
-            .open(assetsPath(lang, type))
-            .reader()
-        } catch (e: IOException) {
-          // snippet file probably does not exist
-          return@executeAsyncProvideError
-        }
+	fun assetsPath(
+		lang: String,
+		type: String,
+	) = "data/editor/$lang/snippets.$type.json"
 
-      JsonReader(content).use {
-        it.beginObject()
-        while (it.hasNext()) {
-          val prefix = it.nextName()
-          readSnippet(prefix, it, snippetFactory, snippets)
-        }
-        it.endObject()
-      }
-    }) { result, err ->
-      if (result == null || err != null) {
-        log.error("Failed to load '{}' snippets", type, err)
-      }
-    }
-  }
+	private fun readSnippet(
+		prefix: String,
+		reader: JsonReader,
+		snippetFactory: (String, String, List<String>) -> ISnippet,
+		snippets: MutableList<ISnippet>,
+	) {
+		reader.beginObject()
+		var desc: String? = null
+		val body = mutableListOf<String>()
+		while (reader.hasNext()) {
+			val n = reader.nextName()
+			if (n != "desc" && n != "body") {
+				throw JsonParseException("'desc' or 'body' was expected, but found '$n'")
+			}
 
-  fun assetsPath(lang: String, type: String) =
-    "data/editor/${lang}/snippets.${type}.json"
+			if (n == "desc") {
+				desc = reader.nextString()
+				continue
+			}
 
-  private fun readSnippet(
-    prefix: String,
-    reader: JsonReader,
-    snippetFactory: (String, String, List<String>) -> ISnippet,
-    snippets: MutableList<ISnippet>
-  ) {
-    reader.beginObject()
-    var desc: String? = null
-    val body = mutableListOf<String>()
-    while (reader.hasNext()) {
-      val n = reader.nextName()
-      if (n != "desc" && n != "body") {
-        throw JsonParseException("'desc' or 'body' was expected, but found '${n}'")
-      }
+			if (n == "body") {
+				reader.beginArray()
+				while (reader.hasNext()) {
+					body.add(reader.nextString())
+				}
+				reader.endArray()
+			}
+		}
 
-      if (n == "desc") {
-        desc = reader.nextString()
-        continue
-      }
+		checkNotNull(desc) { "DefaultSnippet description not defined for '$prefix'" }
+		check(body.isNotEmpty()) { "DefaultSnippet body not defined for '$prefix'" }
 
-      if (n == "body") {
-        reader.beginArray()
-        while (reader.hasNext()) {
-          body.add(reader.nextString())
-        }
-        reader.endArray()
-      }
-    }
+		snippets.add(snippetFactory(prefix, desc, body))
 
-    checkNotNull(desc) { "DefaultSnippet description not defined for '${prefix}'" }
-    check(body.isNotEmpty()) { "DefaultSnippet body not defined for '${prefix}'" }
-
-    snippets.add(snippetFactory(prefix, desc, body))
-
-    reader.endObject()
-  }
+		reader.endObject()
+	}
 }

@@ -3,17 +3,15 @@ package moe.shizuku.manager;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.content.SharedPreferences;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
+import com.itsaky.androidide.app.BaseApplication;
 import java.lang.annotation.Retention;
-import moe.shizuku.manager.utils.EmptySharedPreferencesImpl;
 
 public class ShizukuSettings {
 
 	public static final String NAME = "settings";
-	public static final String KEEP_START_ON_BOOT = "start_on_boot";
 
 	private static SharedPreferences sPreferences;
 
@@ -26,9 +24,9 @@ public class ShizukuSettings {
 		return sPreferences;
 	}
 
-	public static void initialize(Context context) {
+	public static void initialize() {
 		if (sPreferences == null) {
-			sPreferences = getSettingsStorageContext(context)
+			sPreferences = getSettingsStorageContext()
 					.getSharedPreferences(NAME, Context.MODE_PRIVATE);
 		}
 	}
@@ -38,18 +36,8 @@ public class ShizukuSettings {
 	}
 
 	@NonNull
-	private static Context getSettingsStorageContext(@NonNull Context context) {
-		return new ContextWrapper(context.createDeviceProtectedStorageContext()) {
-			@Override
-			public SharedPreferences getSharedPreferences(String name, int mode) {
-				try {
-					return super.getSharedPreferences(name, mode);
-				} catch (IllegalStateException e) {
-					// SharedPreferences in credential encrypted storage are not available until after user is unlocked
-					return new EmptySharedPreferencesImpl();
-				}
-			}
-		};
+	private static Context getSettingsStorageContext() {
+		return BaseApplication.getBaseInstance().getSafeContext(true);
 	}
 
 	@IntDef({

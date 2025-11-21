@@ -69,7 +69,7 @@ class ReusableContext(cancelService: CancelService) : Context(), TaskListener {
   
   init {
     put(Log.logKey, ReusableLog.factory)
-    put(FSInfo::class.java, if (VMUtils.isJvm()) CacheFSInfo() else CacheFSInfoSingleton)
+    put(FSInfo::class.java, if (VMUtils.isJvm) CacheFSInfo() else CacheFSInfoSingleton)
     put(JavaCompiler.compilerKey, ReusableJavaCompiler.factory)
     put(JavacFlowListener.flowListenerKey, JavacFlowListener { this.hasFlowCompleted(it) })
     put(JarPackageProvider::class.java, JarPackageProviderImpl)

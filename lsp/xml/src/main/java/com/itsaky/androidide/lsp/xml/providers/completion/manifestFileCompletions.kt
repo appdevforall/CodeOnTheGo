@@ -29,7 +29,7 @@ const val MANIFEST_TAG_PREFIX = "AndroidManifest"
 
 fun canCompleteManifest(pathData: ResourcePathData, type: NodeType): Boolean {
   return pathData.file.name == ANDROID_MANIFEST_XML ||
-    (VMUtils.isJvm() &&
+    (VMUtils.isJvm &&
       pathData.file.name.startsWith("Manifest") &&
       pathData.file.name.endsWith("_template.xml"))
 }

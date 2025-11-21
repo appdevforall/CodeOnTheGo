@@ -274,7 +274,7 @@ class JavaLanguageServer : ILanguageServer {
 	}
 
 	private fun startOrRestartAnalyzeTimer() {
-		if (VMUtils.isJvm()) {
+		if (VMUtils.isJvm) {
 			return
 		}
 		if (!timer.isStarted) {

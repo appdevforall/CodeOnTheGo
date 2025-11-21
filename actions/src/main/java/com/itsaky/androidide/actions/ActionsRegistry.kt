@@ -30,7 +30,7 @@ abstract class ActionsRegistry {
     @JvmStatic
     fun getInstance(): ActionsRegistry {
       if (instance == null) {
-        instance = if (VMUtils.isJvm()) {
+        instance = if (VMUtils.isJvm) {
           DefaultActionsRegistry()
         } else ServiceLoader.load(ActionsRegistry::class.java).findFirstOrThrow()
       }

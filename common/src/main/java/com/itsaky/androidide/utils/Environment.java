@@ -20,9 +20,9 @@ import static org.adfa.constants.ConstantsKt.GRADLE_DISTRIBUTION_VERSION;
 import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
-import com.itsaky.androidide.app.BaseApplication;
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 import java.io.File;
@@ -113,7 +113,7 @@ public final class Environment {
 		return new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
 	}
 
-	public static void init() {
+	public static void init(Context context) {
 		var arch = getArchitecture();
 		DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
 		SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, "assets-" + arch + ".zip");
@@ -154,7 +154,7 @@ public final class Environment {
 
 		System.setProperty("user.home", HOME.getAbsolutePath());
 
-		DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
+		DOC_DB = context.getDatabasePath(DATABASE_NAME);
 
 		GRADLE_GEN_JARS = mkdirIfNotExists(new File(GRADLE_CACHE_DIR, "caches/" +
 				GRADLE_DISTRIBUTION_VERSION + "/generated-gradle-jars"));
