@@ -166,8 +166,12 @@ public class Utils {
    * 3. Directory table has a reasonable number of entries
    */
   public static boolean isValidFontFile(File file) {
+    int MAX_FONT_TABLES = 100;
+    int FONT_HEADER_SIZE = 12;
+    int TABLE_DIRECTORY_ENTRY_SIZE = 16;
+
     try {
-      if (!file.exists() || file.length() < 12) {
+      if (!file.exists() || file.length() < FONT_HEADER_SIZE) {
           return false;
       }
 
@@ -190,15 +194,16 @@ public class Utils {
       // --- Number of tables ---
       int numTables = buffer.getShort() & 0xFFFF;
 
-      if (numTables == 0 || numTables > 100) { // sanity limit
+      if (numTables == 0 || numTables > MAX_FONT_TABLES) { // sanity limit
           return false;
       }
 
       // Directory size must fit in the file
-      int expectedSize = 12 + (16 * numTables);
+      int expectedSize = FONT_HEADER_SIZE + (TABLE_DIRECTORY_ENTRY_SIZE * numTables);
       return bytes.length >= expectedSize;
 
     } catch (IOException e) {
+      Log.e("Utils", "Error validating font file: " + file.getName(), e);
       return false;
     }
   }

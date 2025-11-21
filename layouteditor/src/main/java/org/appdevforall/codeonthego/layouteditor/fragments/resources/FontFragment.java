@@ -35,6 +35,8 @@ import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class FontFragment extends Fragment {
 
@@ -42,6 +44,7 @@ public class FontFragment extends Fragment {
   private FontResourceAdapter adapter;
   private ProjectFile project;
   private List<FontItem> fontList = new ArrayList<>();
+  private static final ExecutorService executor = Executors.newSingleThreadExecutor();
 
   @Override
   public android.view.View onCreateView(
@@ -63,7 +66,7 @@ public class FontFragment extends Fragment {
   }
 
   private void loadFonts() {
-    new Thread(() -> {
+    executor.execute(() -> {
       File[] files = project.getFonts();
 
       if (files == null) {
@@ -89,7 +92,7 @@ public class FontFragment extends Fragment {
         fontList.addAll(temp);
         if (adapter != null) adapter.notifyDataSetChanged();
       });
-    }).start();
+    });
   }
 
   public void addFont(final Uri uri) {
@@ -116,7 +119,7 @@ public class FontFragment extends Fragment {
     builder.setPositiveButton(
         R.string.add,
         (di, which) -> {
-          new Thread(() -> {
+          executor.execute(() -> {
             String fontPath = project.getFontPath();
             String toPath = fontPath + editTextName.getText().toString() + extension;
             String name = editTextName.getText().toString();
@@ -135,7 +138,7 @@ public class FontFragment extends Fragment {
               fontList.add(fontItem);
               adapter.notifyItemInserted(fontList.indexOf(fontItem));
             });
-          }).start();
+          });
         });
 
     final AlertDialog dialog = builder.create();
