@@ -115,8 +115,6 @@ jobs:
       - name: Upload asset zips to Google Drive
         run: |
           echo "Uploading assets v8 and v7 to Google Drive..."
-          ls -la "${{ steps.assets_v8.outputs.ASSETS_PATH }}"
-          ls -la "${{ steps.assets_v7.outputs.ASSETS_PATH }}"
 
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
           V8_FILE_ID="${{ secrets.ASSETS_V8_FILE_ID }}"
@@ -155,12 +153,12 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          V8_PATH="${{ steps.assets_v8.outputs.ASSETS_PATH }}"
-          V7_PATH="${{ steps.assets_v7.outputs.ASSETS_PATH }}"         
+          GDRIVE_V8_LINK="<https://drive.google.com/file/d/${V8_FILE_ID}/view|Download Assets Zip 64-bit ARM>"
+          GDRIVE_V7_LINK="<https://drive.google.com/file/d/${V7_FILE_ID}/view|Download Assets Zip 32-bit ARM>"         
           
           jq -n \
-            --arg v8_path "$V8_PATH" \
-            --arg v7_path "$V7_PATH" \
+            --arg v8_link "$GDRIVE_V8_LINK" \
+            --arg v7_link "$GDRIVE_V8_LINK" \
             '{
               blocks: [
                 {
@@ -175,20 +173,21 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*V8 Path:* `$v8_path`"
+                    text: "*Assets 64-bit ARM Link:* `$v8_link`"
                   }
                 },
                 {
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*V7 Path:* `$v7_path`"
+                    text: "*Assets 32-bit ARM Link:* `$v7_link`"
                   }
                 }    
               ]
             }' > payload.json
           
           # curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+          cat payload.json
 
           rm -f payload.json
       - name: Cleanup google-services.json
