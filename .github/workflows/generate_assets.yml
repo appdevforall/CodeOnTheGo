@@ -173,14 +173,14 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*Assets 64-bit ARM Link:* `$v8_link`"
+                    text: "*Assets 64-bit ARM Link:* \($v8_link)"
                   }
                 },
                 {
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*Assets 32-bit ARM Link:* `$v7_link`"
+                    text: "*Assets 32-bit ARM Link:* \($v7_link)"
                   }
                 }    
               ]
