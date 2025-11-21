@@ -43,6 +43,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 	private val logger = LoggerFactory.getLogger(CredentialProtectedApplicationLoader::class.java)
 
+	private var isLoaded = false
 	private lateinit var application: IDEApplication
 
 	var ideLogcatReader: IDELogcatReader? = null
@@ -53,8 +54,14 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 	@OptIn(DelicateCoroutinesApi::class)
 	override fun load(app: IDEApplication) {
-		logger.info("Loading credential protected storage context components...")
+		if (isLoaded) {
+			logger.warn("Attempt to perform multiple loads of the application. Ignoring.")
+			return
+		}
 
+		isLoaded = true
+
+		logger.info("Loading credential protected storage context components...")
 		application = app
 
 		if (DevOpsPreferences.dumpLogs) {
