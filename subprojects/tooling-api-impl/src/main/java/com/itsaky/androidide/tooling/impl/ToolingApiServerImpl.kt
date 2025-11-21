@@ -211,6 +211,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				)
 
 			RootModelBuilder.build(params, modelBuilderParams)
+			notifyBuildSuccess(emptyList())
 		}
 
 		stopWatch.log()
