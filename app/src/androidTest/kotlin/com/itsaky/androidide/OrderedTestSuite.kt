@@ -1,5 +1,6 @@
 package com.itsaky.androidide
 
+import com.itsaky.androidide.screens.acceptanceTest.PermissionsScreenTest
 import org.junit.runner.RunWith
 import org.junit.runners.Suite
 

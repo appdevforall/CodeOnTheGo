@@ -1,4 +1,4 @@
-package com.itsaky.androidide.screens
+package com.itsaky.androidide.screens.acceptanceTest
 
 import android.view.View
 import com.itsaky.androidide.R

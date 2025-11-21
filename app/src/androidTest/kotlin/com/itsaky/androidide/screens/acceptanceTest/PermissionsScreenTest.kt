@@ -1,16 +1,17 @@
-package com.itsaky.androidide
+package com.itsaky.androidide.screens.acceptanceTest
 
-import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
+import androidx.test.espresso.matcher.ViewMatchers
 import androidx.test.ext.junit.rules.activityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.screens.OnboardingScreen
-import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.screens.SystemPermissionsScreen
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.After
-import org.junit.Assert.assertEquals
+import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -71,7 +72,7 @@ class PermissionsScreenTest : TestCase() {
 
                 // Make the size check flaky-safe with increased timeout
                 flakySafely(timeoutMs = 15000) {
-                    assertEquals(2, rvPermissions.getSize())
+                    Assert.assertEquals(4, rvPermissions.getSize()) //JMT changed #items from to 4
                 }
 
                 rvPermissions {
@@ -250,12 +251,12 @@ class PermissionsScreenTest : TestCase() {
                     rvPermissions {
                         childAt<PermissionScreen.PermissionItem>(0) {
                             grantButton {
-                                isNotEnabled()
+                                ViewMatchers.isNotEnabled()
                             }
                         }
                         childAt<PermissionScreen.PermissionItem>(1) {
                             grantButton {
-                                isNotEnabled()
+                                ViewMatchers.isNotEnabled()
                             }
                         }
                     }

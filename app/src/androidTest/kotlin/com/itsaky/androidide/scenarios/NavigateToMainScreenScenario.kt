@@ -3,7 +3,7 @@ package com.itsaky.androidide.scenarios
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.screens.InstallToolsScreen
 import com.itsaky.androidide.screens.OnboardingScreen
-import com.itsaky.androidide.screens.PermissionScreen
+import com.itsaky.androidide.screens.acceptanceTest.PermissionScreen
 import com.itsaky.androidide.screens.SystemPermissionsScreen
 import com.kaspersky.kaspresso.testcases.api.scenario.Scenario
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
