@@ -139,8 +139,11 @@ class IDEApplication : TermuxApplication() {
 				override fun onReceive(context: Context?, intent: Intent?) {
 					if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
 						logger.info("Device unlocked! Loading all components...")
-						CredentialProtectedApplicationLoader.load(this@IDEApplication)
-						unregisterReceiver(this)
+						try {
+							CredentialProtectedApplicationLoader.load(this@IDEApplication)
+						} finally {
+							unregisterReceiver(this)
+						}
 					}
 				}
 			}, IntentFilter(Intent.ACTION_USER_UNLOCKED))
