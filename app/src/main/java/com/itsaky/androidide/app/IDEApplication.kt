@@ -107,6 +107,23 @@ class IDEApplication : TermuxApplication() {
 
 		super.onCreate()
 
+		// @devs: looking to initialize a component at application startup?
+		// first, decide whether the component you want to initialize can be
+		// run in direct boot mode or not. If it can run in direct boot mode,
+		// you can do the initialization in DeviceProtectedApplicationLoader.
+		// Otherwise, you must do it in CredentialProtectedApplicationLoader.
+		//
+		// Components initialized in CredentialProtectedApplicationLoader may
+		// not be initialized right away. This happens when the user reboots
+		// their device but has not unlocked yet.
+		//
+		// Pay extra attention to what goes in DeviceProtectedApplicationLoader.
+		// In case any of the components fail to initialize there, it may lead
+		// to ANRs when the IDE is launched after device reboot.
+		// https://appdevforall.atlassian.net/browse/ADFA-2026
+		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
+
+
 		// load common stuff, which doesn't depend on access to
 		// credential protected storage
 		DeviceProtectedApplicationLoader.load(this)
