@@ -28,6 +28,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
 
 /**
@@ -43,7 +44,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 	private val logger = LoggerFactory.getLogger(CredentialProtectedApplicationLoader::class.java)
 
-	private var isLoaded = false
+	private val _isLoaded = AtomicBoolean(false)
 	private lateinit var application: IDEApplication
 
 	var ideLogcatReader: IDELogcatReader? = null
@@ -52,6 +53,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	var pluginManager: PluginManager? = null
 		private set
 
+	val isLoaded: Boolean
+		get() = _isLoaded.acquire
+
 	@OptIn(DelicateCoroutinesApi::class)
 	override fun load(app: IDEApplication) {
 		if (isLoaded) {
@@ -59,7 +63,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			return
 		}
 
-		isLoaded = true
+		_isLoaded.setRelease(true)
 
 		logger.info("Loading credential protected storage context components...")
 		application = app

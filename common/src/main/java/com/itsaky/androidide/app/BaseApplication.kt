@@ -29,12 +29,9 @@ import org.slf4j.LoggerFactory
 
 open class BaseApplication : Application() {
 	private var _prefManager: PreferenceManager? = null
-	private var _isUserUnlocked: Boolean? = null
 
 	val isUserUnlocked: Boolean
-		get() = checkNotNull(_isUserUnlocked) {
-			"Cannot access isUserUnlocked before application is created"
-		}
+		get() = UserManagerCompat.isUserUnlocked(this)
 
 	val prefManager: PreferenceManager
 		get() =
@@ -44,15 +41,6 @@ open class BaseApplication : Application() {
 
 	init {
 		_baseInstance = this
-	}
-
-	override fun attachBaseContext(base: Context?) {
-		super.attachBaseContext(base)
-		requireNotNull(base) {
-			"Cannot attach to a null Context"
-		}
-
-		_isUserUnlocked = UserManagerCompat.isUserUnlocked(base)
 	}
 
 	override fun onCreate() {

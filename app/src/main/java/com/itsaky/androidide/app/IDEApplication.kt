@@ -45,6 +45,17 @@ class IDEApplication : BaseApplication() {
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var currentActivity: Activity? = null
 
+	private val deviceUnlockReceiver = object : BroadcastReceiver() {
+		override fun onReceive(context: Context?, intent: Intent?) {
+			if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
+				runCatching { unregisterReceiver(this) }
+
+				logger.info("Device unlocked! Loading all components...")
+				CredentialProtectedApplicationLoader.load(this@IDEApplication)
+			}
+		}
+	}
+
 	companion object {
 		private val logger = LoggerFactory.getLogger(IDEApplication::class.java)
 
@@ -134,18 +145,7 @@ class IDEApplication : BaseApplication() {
 			CredentialProtectedApplicationLoader.load(this)
 		} else {
 			logger.info("Device in Direct Boot Mode: postponing initialization...")
-			registerReceiver(object : BroadcastReceiver() {
-				override fun onReceive(context: Context?, intent: Intent?) {
-					if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
-						logger.info("Device unlocked! Loading all components...")
-						try {
-							CredentialProtectedApplicationLoader.load(this@IDEApplication)
-						} finally {
-							unregisterReceiver(this)
-						}
-					}
-				}
-			}, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+			registerReceiver(deviceUnlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
 		}
 	}
 
