@@ -110,6 +110,9 @@ room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics-ktx" }
 
+# Sentry
+sentry-android-replay = { module = "io.sentry:sentry-android-replay", version.ref = "sentry" }
+
 
 # AndroidIDE
 androidide-ts = { module = "com.itsaky.androidide.treesitter:android-tree-sitter", version.ref = "tree-sitter" }

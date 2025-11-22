@@ -64,6 +64,8 @@ import com.topjohnwu.superuser.Shell
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
 import io.sentry.android.core.SentryAndroid
+import io.sentry.android.core.SentryAndroidOptions
+import io.sentry.android.replay.SentryReplayQuality
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -170,7 +172,12 @@ class IDEApplication :
 			modules(coreModule, pluginModule)
 		}
 
-		SentryAndroid.init(this)
+		SentryAndroid.init(this) { options ->
+			// Reduce replay quality to LOW to prevent OOM
+			// This reduces screenshot compression to 10 and bitrate to 50kbps
+			// (defaults to MEDIUM quality)
+			options.sessionReplay.quality = SentryReplayQuality.LOW
+		}
 		ShizukuSettings.initialize(this)
 
 		if (BuildConfig.DEBUG) {
