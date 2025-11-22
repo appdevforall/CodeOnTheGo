@@ -1,14 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools"    
   tools:override="true"
   tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation">
-  <string name="app_slogan">Harika bir kullanıcı arayüzü oluşturun!</string>
-  <string name="home">ANA SAYFA</string>
-  <string name="preference">TERCİHLER</string>
-  <string name="github">GITHUB</string>
   <string name="about">HAKKINDA</string>
-  <string name="share">PAYLAŞ</string>
-  <string name="open_source_licence">AÇIK KAYNAK LİSANSLARI</string>
-  <string name="projects">Projeler</string>
   <string name="title_preference">Tercihler</string>
   <string name="title_about">Hakkında</string>
   <string name="navigation_drawer_open">Gezinme çekmecesini aç</string>
@@ -23,9 +16,7 @@
   <string name="copy">Kopyala</string>
   <string name="drawable_manager">Çizilebilir Yönetici</string>
   <string name="xml_preview">XML Önizlemesi</string>
-  <string name="msg_no_projects">Herhangi bir projeniz yok.</string>
   <string name="msg_create_new">Yeni bir proje oluşturmak için + simgesine tıklayın.</string>
-  <string name="share_description">UI öğelerini görsel bir düzen düzenleyiciye sürükleyerek Android uygulama düzenlerini kolayca oluşturmak için Layout Editor kullanın.\n\n## Özellikler\n- Sürükle ve Bırak ile düzen tasarlayın\n- Görünüm ve düzen özelliklerini düzenleyin\n- Düzenin XML kodunu görün ve kopyalayın\n- Daha fazlası: %1$s#özellikler\n\nBuradan indirin: 1$s/releases/latest</string>
   <string name="permission_granted">İzin verildi&#8230;</string>
   <string name="permission_denied">İzin reddedildi&#8230;</string>
   <string name="preview_layout">Düzeni Önizle</string>
@@ -48,10 +39,6 @@
   <string name="msg_current_name_unavailable">Geçerli ad kullanılamıyor!</string>
   <string name="msg_cannnot_empty">Alan boş bırakılamaz!</string>
   <string name="options">Seçenekler</string>
-  <string name="enable_vibration">Titreşimi Etkinleştir</string>
-  <string name="summary_enable_vibration">Pil tüketebilir</string>
-  <string name="show_stroke">Vuruşu Göster</string>
-  <string name="summary_show_stroke">Düzenleyicide vuruş gösterilsin mi?</string>
   <string name="remove_drawable">Çizilebiliri kaldır</string>
   <string name="remove_font">Yazı tipini kaldır</string>
   <string name="msg_remove_drawable">Çizilebiliri kaldırmak istiyor musunuz?</string>
@@ -83,10 +70,6 @@
   <string name="theme_dark">Koyu</string>
   <string name="theme_light">Açık</string>
   <string name="theme_auto">Otomatik</string>
-  <string name="choose_theme">Tema seç</string>
-  <string name="summary_choose_theme">Temayı uygulamaya uygula.</string>
-  <string name="dynamic_colors">Dinamik Renkler Kullan</string>
-  <string name="summary_dynamic_colors">Bu özellik yalnızca Android 12+ içindir.</string>
   <string name="msg_dynamic_colors_dialog">Bu, uygulamayı tüm görevlerle kapatacak!.</string>
   <string name="export_layout">Düzeni Dışa Aktar</string>
   <string name="invalid_data_intent">Intent tarafından döndürülen Geçersiz Veri.</string>
@@ -111,7 +94,6 @@
   <string name="select">Seç</string>
   <string name="palette">Palet</string>
   <string name="common">Yaygın</string>
-  <string name="ui">UI</string>
   <string name="texts">Metinler</string>
   <string name="buttons">Butonlar</string>
   <string name="widgets">Widget\'lar</string>
