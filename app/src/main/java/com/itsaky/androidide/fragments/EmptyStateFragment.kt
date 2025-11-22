@@ -34,6 +34,9 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	protected val emptyStateViewModel by viewModels<EmptyStateFragmentViewModel>()
 
 	private var gestureDetector: GestureDetector? = null
+	
+	// Cache the last known empty state to avoid returning incorrect default when detached
+	private var cachedIsEmpty: Boolean = true
 
 	/**
 	 * Called when a long press is detected on the fragment's root view.
@@ -49,10 +52,19 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		}
 
 	internal var isEmpty: Boolean
-		get() = if (isAdded && !isDetached) emptyStateViewModel.isEmpty.value else true
+		get() {
+			return if (isAdded && !isDetached) {
+				// Update cache when attached and return current value
+				emptyStateViewModel.isEmpty.value.also { cachedIsEmpty = it }
+			} else {
+				// Return cached value when detached to avoid UI inconsistencies
+				cachedIsEmpty
+			}
+		}
 		set(value) {
 			if (isAdded && !isDetached) {
 				emptyStateViewModel.setEmpty(value)
+				cachedIsEmpty = value
 			}
 		}
 
@@ -91,6 +103,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 				launch {
 					emptyStateViewModel.isEmpty.collectLatest { isEmpty ->
 						withContext(Dispatchers.Main.immediate) {
+							cachedIsEmpty = isEmpty
 							emptyStateBinding?.root?.displayedChild = if (isEmpty) 0 else 1
 						}
 					}
