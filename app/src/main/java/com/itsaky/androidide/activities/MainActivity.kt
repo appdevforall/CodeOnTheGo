@@ -254,7 +254,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     override fun bindLayout(): View {
         _binding = ActivityMainBinding.inflate(layoutInflater)
-        return binding.root
+        return _binding!!.root
     }
 
     private fun showToolTip(tag: String) {
@@ -262,7 +262,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun openLastProject() {
-        binding.root.post { tryOpenLastProject() }
+        // Ensure binding is initialized before accessing it
+        // super.onCreate() should have called bindLayout(), but we check defensively
+        val root = _binding?.root ?: window?.decorView
+        root?.post { tryOpenLastProject() }
     }
 
     private fun tryOpenLastProject() {
