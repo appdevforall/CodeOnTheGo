@@ -11,10 +11,6 @@
   <application>
 
     <activity
-      android:name=".activities.HomeActivity"
-      android:exported="true">
-    </activity>
-    <activity
       android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
       android:theme="@style/AppTheme.Licence" />
     <activity
