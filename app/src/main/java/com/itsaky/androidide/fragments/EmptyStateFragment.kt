@@ -36,6 +36,8 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	private var gestureDetector: GestureDetector? = null
 	
 	// Cache the last known empty state to avoid returning incorrect default when detached
+	// Volatile ensures thread-safe visibility and atomicity for boolean reads/writes
+	@Volatile
 	private var cachedIsEmpty: Boolean = true
 
 	/**
@@ -101,8 +103,10 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		}
 
 		// Sync ViewModel with cache when view is created (in case cache was updated while detached)
-		if (emptyStateViewModel.isEmpty.value != cachedIsEmpty) {
-			emptyStateViewModel.setEmpty(cachedIsEmpty)
+		// Read cached value into local variable to ensure atomic read
+		val cachedValue = cachedIsEmpty
+		if (emptyStateViewModel.isEmpty.value != cachedValue) {
+			emptyStateViewModel.setEmpty(cachedValue)
 		}
 
 		viewLifecycleScope.launch {
