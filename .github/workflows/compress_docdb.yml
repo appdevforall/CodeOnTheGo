@@ -175,7 +175,7 @@ jobs:
           echo "$CURRENT_MD5" > last_md5
 
           # Compute md5Checksum of documentation.db.br
-          BR_MD5=$(md5sum documentation.db | awk '{print $1}')
+          BR_MD5=$(md5sum documentation.db.br | awk '{print $1}')
           echo "$BR_MD5" > br_md5
 
           # Upload documentation.db.br
