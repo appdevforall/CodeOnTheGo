@@ -276,6 +276,10 @@ dependencies {
 	implementation("io.insert-koin:koin-android:3.5.3")
 	implementation(libs.androidx.security.crypto)
 
+	// Sentry Session Replay (for quality configuration)
+	implementation(libs.sentry.android.replay)
+	implementation("io.sentry:sentry-android-replay:8.14.0")
+	
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))
 	implementation(libs.firebase.analytics)
