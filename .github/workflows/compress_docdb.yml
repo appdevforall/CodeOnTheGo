@@ -32,6 +32,7 @@ jobs:
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
       - name: Download latest documentation.db from Google Drive
+        id: download
         run: |
           DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
@@ -137,6 +138,7 @@ jobs:
           echo "$CURRENT_MD5" > last_md5
 
       - name: Compress documentation.db with Brotli
+        id: brotli
         if: steps.checksum.outputs.skip != 'true'
         run: |
           echo "Installing Brotli..."
@@ -158,17 +160,23 @@ jobs:
           echo "Compressed size: $COMPRESSED_SIZE"
 
       - name: Upload documentation.db.br and last_md5 to Drive
+        id: upload
         if: steps.checksum.outputs.skip != 'true'
         run: |
           echo "Uploading documentation.db.br and last_md5 to Drive..."
 
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
           BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"         
+          BR_MD5_FILE_ID="${{ secrets.DOCUMENTATION_BR_MD5_FILE_ID }}"         
           LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
 
           # Compute current md5Checksum of documentation.db
           CURRENT_MD5=$(md5sum documentation.db | awk '{print $1}')
           echo "$CURRENT_MD5" > last_md5
+
+          # Compute md5Checksum of documentation.db.br
+          BR_MD5=$(md5sum documentation.db | awk '{print $1}')
+          echo "$BR_MD5" > br_md5
 
           # Upload documentation.db.br
           response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
@@ -194,4 +202,17 @@ jobs:
             exit 1
           fi          
           
+          # Upload br_md5
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: text/plain" \
+            --data-binary "@br_md5" \
+            "https://www.googleapis.com/upload/drive/v3/files/${BR_MD5_FILE_ID}?uploadType=media")
+          
+          if [[ "$response" -ne 200 ]]; then
+            echo "Failed upload of documentation.db.br.md5 with HTTP status $response"
+            exit 1
+          fi          
+          
           echo "Upload complete."
+
