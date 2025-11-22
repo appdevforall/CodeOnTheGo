@@ -49,9 +49,11 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		}
 
 	internal var isEmpty: Boolean
-		get() = emptyStateViewModel.isEmpty.value
+		get() = if (isAdded && !isDetached) emptyStateViewModel.isEmpty.value else true
 		set(value) {
-			emptyStateViewModel.setEmpty(value)
+			if (isAdded && !isDetached) {
+				emptyStateViewModel.setEmpty(value)
+			}
 		}
 
 	override fun onCreateView(
