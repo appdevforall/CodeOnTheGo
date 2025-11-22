@@ -187,7 +187,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     override fun onApplySystemBarInsets(insets: Insets) {
-        binding.fragmentContainersParent.setPadding(
+        // onApplySystemBarInsets can be called before bindLayout() sets _binding
+        _binding?.fragmentContainersParent?.setPadding(
             insets.left, 0, insets.right, insets.bottom
         )
     }
@@ -253,8 +254,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     override fun bindLayout(): View {
-        _binding = ActivityMainBinding.inflate(layoutInflater)
-        return _binding!!.root
+        val binding = ActivityMainBinding.inflate(layoutInflater)
+        _binding = binding
+        return binding.root
     }
 
     private fun showToolTip(tag: String) {
@@ -262,10 +264,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun openLastProject() {
-        // Ensure binding is initialized before accessing it
-        // super.onCreate() should have called bindLayout(), but we check defensively
-        val root = _binding?.root ?: window?.decorView
-        root?.post { tryOpenLastProject() }
+        // bindLayout() is called by super.onCreate() before this method runs
+        binding.root.post { tryOpenLastProject() }
     }
 
     private fun tryOpenLastProject() {
