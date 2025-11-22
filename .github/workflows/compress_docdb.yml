@@ -117,11 +117,6 @@ jobs:
           
           echo "Last md5Checksum: $LAST_MD5"
           
-          # Get current md5Checksum of documentation.db
-          CURRENT_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?fields=md5Checksum" \
-            | jq -r '.md5Checksum')
-          
           # Compute checksum of the downloaded documentation.db
           CURRENT_MD5=$(md5sum documentation.db | awk '{print $1}')
           
