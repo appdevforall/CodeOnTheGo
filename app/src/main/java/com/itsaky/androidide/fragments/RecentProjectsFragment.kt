@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
-
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,8 +8,6 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
-
-
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.databinding.FragmentSavedProjectsBinding
@@ -25,6 +22,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
@@ -33,39 +31,44 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
-
+	@Suppress("ktlint:standard:backing-property-naming")
     private var _binding: FragmentSavedProjectsBinding? = null
     private val binding get() = _binding!!
 
-    private val viewModel: RecentProjectsViewModel by activityViewModels()
-    private val mainViewModel: MainViewModel by activityViewModels()
-    private lateinit var adapter: RecentProjectsAdapter
+	private val viewModel: RecentProjectsViewModel by activityViewModels()
+	private val mainViewModel: MainViewModel by activityViewModels()
+	private lateinit var adapter: RecentProjectsAdapter
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentSavedProjectsBinding.inflate(inflater, container, false)
-        return binding.root
-    }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		_binding = FragmentSavedProjectsBinding.inflate(inflater, container, false)
+		return binding.root
+	}
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        setupRecyclerView()
-        setupObservers()
-        setupClickListeners()
-        bootstrapFromFixedFolderIfNeeded(autoOpenFirst = true)
-    }
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		setupRecyclerView()
+		setupObservers()
+		setupClickListeners()
+        bootstrapFromFixedFolderIfNeeded()
+	}
 
-    private fun setupRecyclerView() {
-        binding.listProjects.layoutManager = LinearLayoutManager(requireContext())
-        binding.listProjects.addItemDecoration(
-            CustomDividerItemDecoration(requireContext(), R.drawable.custom_list_divider)
-        )
-    }
+	private fun setupRecyclerView() {
+		binding.listProjects.layoutManager = LinearLayoutManager(requireContext())
+		binding.listProjects.addItemDecoration(
+			CustomDividerItemDecoration(requireContext(), R.drawable.custom_list_divider),
+		)
+	}
 
     private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
 
-    private fun bootstrapFromFixedFolderIfNeeded(autoOpenFirst: Boolean) {
+    private fun bootstrapFromFixedFolderIfNeeded() {
         if (viewModel.didBootstrap) return
         viewModel.didBootstrap = true
 
@@ -76,8 +79,23 @@ class RecentProjectsFragment : BaseFragment() {
 
                 loadProjectsIntoViewModel(validProjects)
 
-                if (autoOpenFirst) withContext(Dispatchers.Main) {
-                    openProject(validProjects.first())
+                if (GeneralPreferences.autoOpenProjects) {
+                    val lastOpenedPath = GeneralPreferences.lastOpenedProject
+
+                    val projectToOpen = validProjects.find {
+                        it.absolutePath == lastOpenedPath
+                    }
+
+                    if (projectToOpen != null) {
+                        withContext(Dispatchers.Main) { openProject(projectToOpen) }
+                        return@launch
+                    }
+
+                    val lastCreated = validProjects.maxByOrNull { it.lastModified() }
+
+                    if (lastCreated != null) {
+                        withContext(Dispatchers.Main) { openProject(lastCreated) }
+                    }
                 }
             } catch (e: Throwable) {
                 Sentry.captureException(e)
@@ -117,10 +135,11 @@ class RecentProjectsFragment : BaseFragment() {
 		pickDirectory { selectedDir ->
 			if (!isValidProjectOrContainerDirectory(selectedDir)) {
 				flashError(
-					msg = requireContext().getString(
-						R.string.project_directory_invalid,
-						selectedDir.name
-					)
+					msg =
+						requireContext().getString(
+							R.string.project_directory_invalid,
+							selectedDir.name,
+						),
 				)
 				return@pickDirectory
 			}
@@ -281,9 +300,7 @@ class RecentProjectsFragment : BaseFragment() {
         _binding = null
     }
 
-    private fun showToolTip(tag: String) {
-        TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
-    }
-
+	private fun showToolTip(tag: String) {
+		TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
+	}
 }
-

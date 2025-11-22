@@ -140,6 +140,11 @@ class TreeSitterIndentProvider(
       return defaultIndents
     }
 
+    if (indentsQuery == TSQuery.EMPTY) {
+      log.info("Cannot compute indents. Indents query is empty.")
+      return defaultIndents
+    }
+
     val rootNode = tree.rootNode ?: run {
       log.info("Cannot compute indents. Root node is null.")
       return defaultIndents
