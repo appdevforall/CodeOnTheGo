@@ -89,5 +89,15 @@
             "android:layout_width": "match_parent",
             "android:padding": "8dp"
         }
+    },
+    {
+        "name": "DrawerLayout",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.DrawerLayoutDesign",
+        "iconName": "ic_palette_drawer_layout",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:layout_height": "match_parent",
+            "android:padding": "8dp"
+        }
     }
 ]
