@@ -62,9 +62,11 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			}
 		}
 		set(value) {
+			// Always update cache to preserve intended state even when detached
+			cachedIsEmpty = value
+			// Update ViewModel only when attached
 			if (isAdded && !isDetached) {
 				emptyStateViewModel.setEmpty(value)
-				cachedIsEmpty = value
 			}
 		}
 
@@ -96,6 +98,11 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			gestureDetector?.onTouchEvent(event)
 			// Return false to allow children to handle their own touch events (e.g., scrolling)
 			false
+		}
+
+		// Sync ViewModel with cache when view is created (in case cache was updated while detached)
+		if (emptyStateViewModel.isEmpty.value != cachedIsEmpty) {
+			emptyStateViewModel.setEmpty(cachedIsEmpty)
 		}
 
 		viewLifecycleScope.launch {
