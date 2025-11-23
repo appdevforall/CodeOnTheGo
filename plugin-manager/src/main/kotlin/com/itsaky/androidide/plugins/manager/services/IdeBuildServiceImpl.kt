@@ -8,12 +8,26 @@ import java.util.concurrent.CopyOnWriteArraySet
 /**
  * Implementation of IdeBuildService that provides access to COGO's build system
  * status and operations for plugins that need to monitor or interact with builds.
+ *
+ * This is a singleton to ensure all plugins share the same build state and receive
+ * consistent notifications from the main build system.
  */
-class IdeBuildServiceImpl : IdeBuildService {
+class IdeBuildServiceImpl private constructor() : IdeBuildService {
 
     private val buildStatusListeners = CopyOnWriteArraySet<BuildStatusListener>()
     private var buildInProgress = false
     private var toolingServerStarted = false
+
+    companion object {
+        @Volatile
+        private var INSTANCE: IdeBuildServiceImpl? = null
+
+        fun getInstance(): IdeBuildServiceImpl {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: IdeBuildServiceImpl().also { INSTANCE = it }
+            }
+        }
+    }
 
     override fun isBuildInProgress(): Boolean {
         return buildInProgress
