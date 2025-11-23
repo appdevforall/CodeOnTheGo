@@ -408,7 +408,7 @@ constructor(
 	fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
 		runOnUiThread {
 			val fragment = pagerAdapter.diagnosticsFragment
-			if (fragment == null || !fragment.isAdded) {
+			if (fragment == null || !fragment.isAdded || fragment.isDetached) {
 				return@runOnUiThread
 			}
 
@@ -417,7 +417,13 @@ constructor(
 	}
 
 	fun handleSearchResultVisibility(errorVisible: Boolean) {
-		runOnUiThread { pagerAdapter.searchResultFragment?.isEmpty = errorVisible }
+		runOnUiThread {
+			val fragment = pagerAdapter.searchResultFragment
+			if (fragment == null || !fragment.isAdded || fragment.isDetached) {
+				return@runOnUiThread
+			}
+			fragment.isEmpty = errorVisible
+		}
 	}
 
 	fun setDiagnosticsAdapter(adapter: DiagnosticsAdapter) {
