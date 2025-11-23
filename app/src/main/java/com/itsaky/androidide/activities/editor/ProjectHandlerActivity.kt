@@ -552,11 +552,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
-				if (error != null) {
-					Sentry.captureException(error)
-				}
 
-				withContext(Dispatchers.Main) { postProjectInit(false, CACHE_READ_ERROR) }
+				withContext(Dispatchers.Main) { initializeProject(forceSync = true) }
 				return@launch
 			}
 
