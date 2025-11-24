@@ -13,7 +13,7 @@ class UndoRedoManager(
   private val maxSize = 20
 
   /** History list to store the XMLs  */
-  private val history = arrayListOf("")
+  private val history = arrayListOf<String>()
 
   /** Index to track the current history  */
   private var index = 0
@@ -76,7 +76,7 @@ class UndoRedoManager(
      *
      * @return true if undo is enabled
      */
-    get() = index > 0
+    get() = history.size > 1 && index > 0
   val isRedoEnabled: Boolean
     /**
      * To check if Redo is enabled or not
