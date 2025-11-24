@@ -1,8 +1,13 @@
 name: Compress Documentation DB and Upload to Google Drive
 
+permissions:
+  id-token: write
+  contents: write
+  actions: write
+
 on:
   schedule:
-    - cron: '0 11 * * *'  # Daily at 11:00 PM UTC
+    - cron: '0 11 * * *'  # Daily at 11:00 AM UTC
   workflow_dispatch:
 
 jobs:
@@ -12,11 +17,6 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
       - name: Authenticate to Google Cloud for Drive access
         id: auth_drive
         uses: google-github-actions/auth@v2
@@ -24,51 +24,12 @@ jobs:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.IDENTITY_EMAIL }}
           token_format: 'access_token'
-          # access_token_scopes: 'https://www.googleapis.com/auth/drive.readonly'
-          access_token_scopes: 'https://www.googleapis.com/auth/drive.file'
-
-
-
-      - name: Check if documentation.db has changed
-        run: |
-          echo "Checking if documentation.db has changed..."
-          
-          ACCOUNT="${{ secrets.IDENTITY_EMAIL }}"
-          
-          echo "Service Account: $ACCOUNT"
-          
-          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
-          # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
-          DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
-          # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
-          LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
-          
-          # Get current md5Checksum of documentation.db
-          CURRENT_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?fields=md5Checksum" \
-            | jq -r '.md5Checksum')
-          
-          echo "Current md5Checksum: $CURRENT_MD5"
-          
-          # Download last_md5 from Drive
-          LAST_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${LAST_MD5_FILE_ID}?alt=media" \
-            | tr -d '\n')
-          
-          echo "Last md5Checksum: $LAST_MD5"
-          
-          # Compare
-          if [ "$CURRENT_MD5" = "$LAST_MD5" ]; then
-            echo "No change detected. Skipping download and compression."
-            exit 0
-          fi
-          
-          echo "$CURRENT_MD5" > last_md5
+          access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
       - name: Download latest documentation.db from Google Drive
+        id: download
         run: |
-          # DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
-          DB_FILE_ID="16U3qaswjCwLK-ruXEJgBeAWpWH9mMoAb"
+          DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
           if [ -z "$DB_FILE_ID" ]; then
@@ -101,7 +62,7 @@ jobs:
                   type: "header",
                   text: {
                     type: "plain_text",
-                    text: ":x: Release Build Failed - Documentation DB Download Error",
+                    text: ":x: Compression Failed - Documentation DB Download Error",
                     emoji: true
                   }
                 },
@@ -109,7 +70,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "@here The daily release build failed because *documentation.db* could not be downloaded from Google Drive."
+                    text: "@here The compression run failed because *documentation.db* could not be downloaded from Google Drive."
                   }
                 },
                 {
@@ -136,7 +97,39 @@ jobs:
 
           echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
 
+      - name: Check if documentation.db has changed
+        id: checksum
+        run: |
+          echo "Checking if documentation.db has changed..."
+          
+          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
+          LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
+          
+          # Download last_md5 from Drive
+          LAST_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${LAST_MD5_FILE_ID}?alt=media" \
+            | tr -d '\n')
+          
+          echo "Last md5Checksum: $LAST_MD5"
+          
+          # Compute checksum of the downloaded documentation.db
+          CURRENT_MD5=$(md5sum documentation.db | awk '{print $1}')
+          
+          echo "Current md5Checksum: $CURRENT_MD5"
+
+          # Compare
+          if [ "$CURRENT_MD5" = "$LAST_MD5" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT      
+            echo "No change detected. Skipping download and compression."
+            exit 0
+          fi
+          
+          echo "skip=false" >> $GITHUB_OUTPUT      
+          echo "$CURRENT_MD5" > last_md5
+
       - name: Compress documentation.db with Brotli
+        id: brotli
+        if: steps.checksum.outputs.skip != 'true'
         run: |
           echo "Installing Brotli..."
           sudo apt-get update && sudo apt-get install -y brotli
@@ -157,27 +150,59 @@ jobs:
           echo "Compressed size: $COMPRESSED_SIZE"
 
       - name: Upload documentation.db.br and last_md5 to Drive
+        id: upload
+        if: steps.checksum.outputs.skip != 'true'
         run: |
           echo "Uploading documentation.db.br and last_md5 to Drive..."
 
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
-          # BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
-          BR_FILE_ID="1RB4X2VXz07vFQwOoLBsb3o70PSN8mLoL"
-          # LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
-          LAST_MD5_FILE_ID="1pgrkrnICNs0AOB8iju9Soz6KVeKKMFQG"
+          BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"         
+          BR_MD5_FILE_ID="${{ secrets.DOCUMENTATION_BR_MD5_FILE_ID }}"         
+          LAST_MD5_FILE_ID="${{ secrets.DOCUMENTATION_MD5_FILE_ID }}"
 
           # Compute current md5Checksum of documentation.db
           CURRENT_MD5=$(md5sum documentation.db | awk '{print $1}')
           echo "$CURRENT_MD5" > last_md5
 
+          # Compute md5Checksum of documentation.db.br
+          BR_MD5=$(md5sum documentation.db.br | awk '{print $1}')
+          echo "$BR_MD5" > br_md5
+
           # Upload documentation.db.br
-          curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -F "file=@documentation.db.br;type=application/octet-stream" \
-            "https://www.googleapis.com/upload/drive/v3/files/${BR_FILE_ID}?uploadType=media"
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@documentation.db.br" \
+            "https://www.googleapis.com/upload/drive/v3/files/${BR_FILE_ID}?uploadType=media")
+
+          if [[ "$response" -ne 200 ]]; then
+            echo "Failed upload of documentation.db.br with HTTP status $response"
+            exit 1
+          fi
 
           # Upload last_md5
-          curl -s -X PATCH -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -F "file=@last_md5;type=text/plain" \
-            "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media"
-
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: text/plain" \
+            --data-binary "@last_md5" \
+            "https://www.googleapis.com/upload/drive/v3/files/${LAST_MD5_FILE_ID}?uploadType=media")
+          
+          if [[ "$response" -ne 200 ]]; then
+            echo "Failed upload of documentation.db.md5 with HTTP status $response"
+            exit 1
+          fi          
+          
+          # Upload br_md5
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: text/plain" \
+            --data-binary "@br_md5" \
+            "https://www.googleapis.com/upload/drive/v3/files/${BR_MD5_FILE_ID}?uploadType=media")
+          
+          if [[ "$response" -ne 200 ]]; then
+            echo "Failed upload of documentation.db.br.md5 with HTTP status $response"
+            exit 1
+          fi          
+          
           echo "Upload complete."
+
