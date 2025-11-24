@@ -461,7 +461,6 @@
 	<!-- GitHub -->
 	<string name="title_warning">Warning</string>
 	<string name="title_github" translatable="false">GitHub</string>
-	<string name="github">GitHub</string>
 	<string name="choose_different_location">Choose Different Location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
