@@ -19,6 +19,7 @@ package com.itsaky.androidide.handlers
 
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl as IdeBuildService
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.projects.builder.LaunchResult
@@ -46,7 +47,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
   private val pluginBuildService by lazy {
     try {
-      com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl.getInstance()
+      IdeBuildService.getInstance()
     } catch (e: Exception) {
       log.warn("Failed to get IdeBuildServiceImpl instance", e)
       null
