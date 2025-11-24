@@ -105,8 +105,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
         ANDROID_SDK_ZIP                  -> 53226785L
         DOCUMENTATION_DB                  -> 297763377L
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 97485855L
-        AssetsInstallationHelper.
-        BOOTSTRAP_ENTRY_NAME              -> 124120151L
+        AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
         GRADLE_API_NAME_JAR_ZIP           -> 29447748L
         else -> 0L
     }

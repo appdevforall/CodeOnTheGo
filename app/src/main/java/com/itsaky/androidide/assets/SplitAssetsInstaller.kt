@@ -121,8 +121,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
         ANDROID_SDK_ZIP                  -> 85024182L
         DOCUMENTATION_DB                  -> 224296960L
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 215389106L
-        AssetsInstallationHelper.
-        BOOTSTRAP_ENTRY_NAME              -> 456462823L
+        AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 456462823L
         GRADLE_API_NAME_JAR_ZIP           -> 46758608L
         else -> 0L
     }
