@@ -94,6 +94,6 @@ class UndoRedoManager(
   private fun matchLastHistory(xml: String): Boolean {
     val lastIndex = history.size - 1
     if (lastIndex < 0) return false
-    return xml === history[lastIndex]
+    return xml == history[lastIndex]
   }
 }
