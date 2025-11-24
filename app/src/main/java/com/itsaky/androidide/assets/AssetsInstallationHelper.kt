@@ -6,6 +6,7 @@ import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.utils.useEntriesEach
+import com.itsaky.androidide.utils.Environment.DEFAULT_ROOT
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -159,7 +160,7 @@ object AssetsInstallationHelper {
                         (installedSize * 100.0 / totalSize)
                     } else 0.0
 
-                    val freeStorage = getAvailableStorage(stagingDir.toFile())
+                    val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
                     val snapshot =
                         buildString {
