@@ -83,13 +83,8 @@ android {
 		release {
 			manifestPlaceholders["sentryDsn"] =
 				props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
-            signingConfig = signingConfigs.getByName("debug")
 		}
 	}
-
-    sentry {
-        autoUploadProguardMapping = false
-    }
 
 	testOptions {
 		execution = "ANDROIDX_TEST_ORCHESTRATOR"
