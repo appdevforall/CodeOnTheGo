@@ -78,7 +78,7 @@ public class FontFragment extends Fragment {
       File[] files = project.getFonts();
 
       if (files == null) {
-        requireActivity().runOnUiThread(() -> ToastUtils.showShort("Null"));
+        requireActivity().runOnUiThread(() -> ToastUtils.showShort(getString(R.string.msg_error_load_failed)));
         return;
       }
 

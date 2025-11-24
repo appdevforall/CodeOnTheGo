@@ -124,6 +124,7 @@
     <string name="cancel_and_stay_in_editor">Cancel and stay in Layout Editor</string>
     <string name="msg_font_load_invalid">Failed to load font %1$s. File is empty or invalid.</string>
     <string name="msg_font_add_invalid">Failed to add font. The file is empty or corrupt.</string>
+    <string name="msg_error_load_failed">Failed to load file list.</string>
 
     <!-- EditorActivity strings -->
     <string name="error_invalid_xml_file">Selected file is not an Android XML layout file</string>
