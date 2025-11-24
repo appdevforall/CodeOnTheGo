@@ -89,6 +89,9 @@ class DesignEditor : LinearLayout {
 	private var parser: XmlLayoutParser? = null
 	private val attrTranslationX = "android:translationX"
 	private val attrTranslationY = "android:translationY"
+	private val widgetIdOverrides = mapOf(
+		"switch" to "switchWidget",
+	)
 
 	init {
 		viewAttributeMap = HashMap()
@@ -359,12 +362,12 @@ class DesignEditor : LinearLayout {
 							if (newView is EditText) newView.isFocusable = false
 
 							val map = AttributeMap()
-							val id =
-								getIdForNewView(
-									newView.javaClass.superclass.simpleName
-										.replace(" ".toRegex(), "_")
-										.lowercase(),
-								)
+							val raw = newView.javaClass.superclass.simpleName
+								.replace(" ".toRegex(), "_")
+								.lowercase()
+							val sanitized = sanitizeIdName(raw)
+							val id = getIdForNewView(sanitized)
+
 							IdManager.addNewId(newView, id)
 							map.putValue("android:id", "@+id/$id")
 							map.putValue("android:layout_width", "wrap_content")
@@ -429,6 +432,8 @@ class DesignEditor : LinearLayout {
 		}
 		return id
 	}
+
+	private fun sanitizeIdName(base: String): String = widgetIdOverrides[base] ?: base
 
 	fun loadLayoutFromParser(xml: String) {
 		clearAll()
