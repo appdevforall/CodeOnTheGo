@@ -34,6 +34,11 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	protected val emptyStateViewModel by viewModels<EmptyStateFragmentViewModel>()
 
 	private var gestureDetector: GestureDetector? = null
+	
+	// Cache the last known empty state to avoid returning incorrect default when detached
+	// Volatile ensures thread-safe visibility and atomicity for boolean reads/writes
+	@Volatile
+	private var cachedIsEmpty: Boolean = true
 
 	/**
 	 * Called when a long press is detected on the fragment's root view.
@@ -49,9 +54,22 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		}
 
 	internal var isEmpty: Boolean
-		get() = emptyStateViewModel.isEmpty.value
+		get() {
+			return if (isAdded && !isDetached) {
+				// Update cache when attached and return current value
+				emptyStateViewModel.isEmpty.value.also { cachedIsEmpty = it }
+			} else {
+				// Return cached value when detached to avoid UI inconsistencies
+				cachedIsEmpty
+			}
+		}
 		set(value) {
-			emptyStateViewModel.setEmpty(value)
+			// Always update cache to preserve intended state even when detached
+			cachedIsEmpty = value
+			// Update ViewModel only when attached
+			if (isAdded && !isDetached) {
+				emptyStateViewModel.setEmpty(value)
+			}
 		}
 
 	override fun onCreateView(
@@ -84,11 +102,19 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 			false
 		}
 
+		// Sync ViewModel with cache when view is created (in case cache was updated while detached)
+		// Read cached value into local variable to ensure atomic read
+		val cachedValue = cachedIsEmpty
+		if (emptyStateViewModel.isEmpty.value != cachedValue) {
+			emptyStateViewModel.setEmpty(cachedValue)
+		}
+
 		viewLifecycleScope.launch {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				launch {
 					emptyStateViewModel.isEmpty.collectLatest { isEmpty ->
 						withContext(Dispatchers.Main.immediate) {
+							cachedIsEmpty = isEmpty
 							emptyStateBinding?.root?.displayedChild = if (isEmpty) 0 else 1
 						}
 					}
