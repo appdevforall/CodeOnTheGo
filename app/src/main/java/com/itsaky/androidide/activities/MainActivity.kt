@@ -187,7 +187,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     override fun onApplySystemBarInsets(insets: Insets) {
-        binding.fragmentContainersParent.setPadding(
+        // onApplySystemBarInsets can be called before bindLayout() sets _binding
+        _binding?.fragmentContainersParent?.setPadding(
             insets.left, 0, insets.right, insets.bottom
         )
     }
@@ -253,7 +254,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     override fun bindLayout(): View {
-        _binding = ActivityMainBinding.inflate(layoutInflater)
+        val binding = ActivityMainBinding.inflate(layoutInflater)
+        _binding = binding
         return binding.root
     }
 
@@ -262,6 +264,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun openLastProject() {
+        // bindLayout() is called by super.onCreate() before this method runs
         binding.root.post { tryOpenLastProject() }
     }
 
