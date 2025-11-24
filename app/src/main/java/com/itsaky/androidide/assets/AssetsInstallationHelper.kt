@@ -160,7 +160,7 @@ object AssetsInstallationHelper {
                         (installedSize * 100.0 / totalSize)
                     } else 0.0
 
-                    // determine storage left
+                    // determine the storage left
                     val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
                     val snapshot =
