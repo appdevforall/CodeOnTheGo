@@ -1,14 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools"
     tools:override="true"
     tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation">
-    <string name="app_slogan">Buat UI Keren!</string>
-    <string name="home">UTAMA</string>
-    <string name="preference">PREFERENSI</string>
-    <string name="github">GITHUB</string>
     <string name="about">TENTANG</string>
-    <string name="share">BAGIKAN</string>
-    <string name="open_source_licence">LISENSI SUMBER TERBUKA</string>
-    <string name="projects">Proyek</string>
     <string name="title_preference">Preferensi</string>
     <string name="title_about">Tentang</string>
     <string name="navigation_drawer_open">Buka laci navigasi</string>
@@ -21,9 +14,7 @@
     <string name="copy">Salin</string>
     <string name="drawable_manager">Manajer Drawable</string>
     <string name="xml_preview">Pratinjau XML</string>
-    <string name="msg_no_projects">Anda tidak memiliki proyek apa pun.</string>
     <string name="msg_create_new">Klik ikon + untuk membuat proyek baru.</string>
-    <string name="share_description">Gunakan Layout Editor untuk membuat tata letak aplikasi Android dengan mudah dengan menyeret elemen UI ke dalam editor tata letak visual.\n\n### Fitur\n- Tata letak desain dengan Drag &amp; Drop\n- Edit properti tampilan dan tata letak\n- Lihat dan Salin kode XML tata letak\n- Lagi : %1$s#fitur\n\nUnduh dari sini: %1$s/releases/latest</string>
     <string name="permission_granted">Izin diberikan&#8230;</string>
     <string name="permission_denied">Izin ditolak&#8230;</string>
     <string name="preview_layout">Pratinjau tata letak</string>
@@ -41,10 +32,6 @@
     <string name="msg_current_name_unavailable">Nama saat ini tidak tersedia!</string>
     <string name="msg_cannnot_empty">Kolom tidak boleh kosong!</string>
     <string name="options">Pilihan</string>
-    <string name="enable_vibration">Aktifkan Getaran</string>
-    <string name="summary_enable_vibration">Dapat mengkonsumsi baterai</string>
-    <string name="show_stroke">Tampilkan Stroke</string>
-    <string name="summary_show_stroke">Tampilkan stroke di editor?</string>
     <string name="remove_drawable">Hapus drawable</string>
     <string name="remove_font">Hapus font</string>
     <string name="msg_remove_drawable">Apakah Anda ingin menghapus sumber daya drawable?</string>
@@ -74,10 +61,7 @@
     <string name="theme_dark">Gelap</string>
     <string name="theme_light">Terang</string>
     <string name="theme_auto">Otomatis</string>
-    <string name="msg_choose_theme">Pilih tema</string>
     <string name="theme">Tema</string>
-    <string name="dynamic_colors">Gunakan Warna Dinamis</string>
-    <string name="summary_dynamic_colors">Fitur ini hanya untuk Android 12+.</string>
     <string name="export_layout">Ekspor tata letak</string>
     <string name="invalid_data_intent">Data tidak valid dikembalikan oleh Intent.</string>
     <string name="select_from_storage">Pilih file dari Penyimpanan Utama.</string>

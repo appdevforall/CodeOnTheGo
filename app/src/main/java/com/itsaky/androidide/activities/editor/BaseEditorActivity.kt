@@ -576,7 +576,11 @@ abstract class BaseEditorActivity :
         }
 
         feedbackButtonManager =
-            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+            FeedbackButtonManager(
+                activity = this,
+                feedbackFab = binding.fabFeedback,
+                getLogContent = ::getLogContent,
+            )
         feedbackButtonManager?.setupDraggableFab()
 
         setupMemUsageChart()
@@ -1280,17 +1284,25 @@ abstract class BaseEditorActivity :
     }
 
     private fun getLogContent(): String? {
-        if (bottomSheetViewModel.sheetBehaviorState == BottomSheetBehavior.STATE_COLLAPSED) {
-            return null
+        val pagerAdapter = binding.content.bottomSheet.pagerAdapter
+
+        val candidateTabs = buildList {
+            add(bottomSheetViewModel.currentTab)
+            add(BottomSheetViewModel.TAB_BUILD_OUTPUT)
+            add(BottomSheetViewModel.TAB_APPLICATION_LOGS)
+            add(BottomSheetViewModel.TAB_IDE_LOGS)
+        }.distinct()
+
+        candidateTabs.forEach { tabIndex ->
+            val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tabIndex)
+            if (fragment is ShareableOutputFragment) {
+                val shareable = fragment.getShareableContent().trim()
+                if (shareable.isNotEmpty()) {
+                    return shareable
+                }
+            }
         }
 
-        val fragment = this.binding.content.bottomSheet.pagerAdapter.getFragmentAtIndex<Fragment>(
-            bottomSheetViewModel.currentTab
-        )
-
-        return when (fragment) {
-            is ShareableOutputFragment -> fragment.getShareableContent()
-            else -> null
-        }
+        return null
     }
 }

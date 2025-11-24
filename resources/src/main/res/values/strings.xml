@@ -589,7 +589,6 @@
 	<string
 		name="title_github"
 		translatable="false">GitHub</string>
-	<string name="github">GitHub</string>
 	<string name="choose_different_location">Choose Different Location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
@@ -807,10 +806,9 @@
 	<string name="email_feedback_warning_prompt"> To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?
 	</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
-	<string name="feedback_message">Please enter your feedback in the space below. If you are reporting a problem, please include as
-		much information as possible about the issue.\n\nThanks!\n\nVersion: %1$s\n\n-------------stack
-		trace----------\n%2$s</string>
-	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+	<string name="feedback_message">\n\nPlease enter your feedback in the space below. If you are reporting a problem, please include as much information as possible about the issue.\n\nThanks!\n\n-------------stack trace----------\n%1$s</string>
+	<string name="feedback_device_info">App Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+	<string name="feedback_stack_trace_unavailable">Stack trace unavailable. Please describe the issue you encountered.</string>
 	<string name="send_feedback">Send feedback</string>
 	<string name="alert_message">Send feedback</string>
 	<string name="fab_more">More</string>
@@ -1021,7 +1019,7 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
 
 	<!-- Tooltip Links HTML Template -->
 	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
-	<string name="title_alert">Alert!</string>
+	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
 	<string name="telegram_group_url">https://t.me/CodeOnTheGoDiscussions</string>
@@ -1039,6 +1037,8 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
 	<string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
 	<string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
 	<string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
+	<string name="ai_disclaimer">Disclaimer</string>
+	<string name="ai_disclaimer_message">This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.</string>
 
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
@@ -1059,4 +1059,15 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
 	<!-- Documentation urls -->
 	<string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
 
+
+    <string name="retry">Retry</string>
+    <string name="open_ai_settings">Open AI Settings</string>
+    <string name="new_chat">New Chat</string>
+    <string name="experimental_ai_use_at_your_own_risk">⚠️ Experimental AI. Use at your own risk.</string>
+    <string name="current_ai_backend">Current AI Backend</string>
+    <string name="stop_generation">Stop Generation</string>
+    <string name="send_message">Send Message</string>
+    <string name="upload_image">Upload Image</string>
+    <string name="add_context_file">Add Context File</string>
+    <string name="type_a_message_or_prompt">Type a message or prompt…</string>
 </resources>
