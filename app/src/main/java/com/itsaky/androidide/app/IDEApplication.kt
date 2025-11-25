@@ -177,7 +177,7 @@ class IDEApplication :
 			// This reduces screenshot compression to 10 and bitrate to 50kbps
 			// (defaults to MEDIUM quality)
 			options.sessionReplay.quality = SentryReplayQuality.LOW
-      options.environment = if (BuildConfig.DEBUG) "development" else "production"
+			options.environment = if (BuildConfig.DEBUG) "development" else "production"
 		}
 
 		ShizukuSettings.initialize(this)
