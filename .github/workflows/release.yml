@@ -139,9 +139,9 @@ jobs:
           echo "Merge completed successfully"
 
   download_documentation:
-    name: Download and compress documentation DB
+    name: Download pre-compressed documentation DB
     runs-on: self-hosted
-    timeout-minutes: 30
+    timeout-minutes: 5
     needs: merge_stage_to_main
 
     steps:
@@ -159,35 +159,33 @@ jobs:
           token_format: 'access_token'
           access_token_scopes: 'https://www.googleapis.com/auth/drive.readonly'
 
-      - name: Download latest documentation.db from Google Drive
+      - name: Download pre-compressed documentation.db.br from Google Drive
         run: |
-          FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
+          FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
           if [ -z "$FILE_ID" ]; then
-            echo "ERROR: DOCUMENTATION_DB_FILE_ID secret not set"
-            echo "Please set the DOCUMENTATION_DB_FILE_ID secret in repository settings"
+            echo "ERROR: DOCUMENTATION_BR_FILE_ID secret not set"
             exit 1
           fi
 
-          echo "Downloading documentation.db from Google Drive..."
+          echo "Downloading documentation.db.br from Google Drive..."
 
-          mkdir -p assets
+          mkdir -p assets/release/common/database
           curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
-            -o assets/documentation.db
+            -o assets/release/common/database/documentation.db.br
 
-          if [ ! -f assets/documentation.db ]; then
-            echo "ERROR: Failed to download documentation.db"
+          if [ ! -f assets/release/common/database/documentation.db.br ]; then
+            echo "ERROR: Failed to download documentation.db.br"
             exit 1
           fi
 
-          FILE_SIZE_BYTES=$(stat -c%s assets/documentation.db 2>/dev/null || stat -f%z assets/documentation.db 2>/dev/null)
-          FILE_SIZE_HUMAN=$(du -h assets/documentation.db | cut -f1)
+          FILE_SIZE_BYTES=$(stat -c%s assets/release/common/database/documentation.db.br 2>/dev/null || stat -f%z assets/release/common/database/documentation.db.br 2>/dev/null)
+          FILE_SIZE_HUMAN=$(du -h assets/release/common/database/documentation.db.br | cut -f1)
 
-          if [ "$FILE_SIZE_BYTES" -lt 1000000 ]; then
+          if [ "$FILE_SIZE_BYTES" -lt 100000 ]; then
             echo "ERROR: Downloaded file is too small ($FILE_SIZE_HUMAN)"
-            echo "This usually means the file was not found or service account lacks access"
 
             jq -n '{
               blocks: [
@@ -203,21 +201,21 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "@here The daily release build failed because *documentation.db* could not be downloaded from Google Drive."
+                    text: "@here The daily release build failed because *documentation.db.br* could not be downloaded from Google Drive."
                   }
                 },
                 {
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*Possible Causes:*\n• File not found or incorrect file ID\n• Service account does not have access to the file\n• File was deleted or moved"
+                    text: "*Possible Causes:*\n• compress_docdb workflow has not run yet\n• File not found or incorrect file ID\n• Service account does not have access to the file"
                   }
                 },
                 {
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*Action Required:*\n1. Verify the file exists in Google Drive\n2. Check that DOCUMENTATION_DB_FILE_ID secret is correct\n3. Ensure service account has Viewer access to the file"
+                    text: "*Action Required:*\n1. Verify compress_docdb workflow ran successfully\n2. Check that DOCUMENTATION_BR_FILE_ID secret is correct\n3. Ensure service account has Viewer access to the file"
                   }
                 }
               ]
@@ -228,30 +226,7 @@ jobs:
             exit 1
           fi
 
-          echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
-
-      - name: Compress documentation.db with Brotli
-        run: |
-          echo "Installing Brotli..."
-          sudo apt-get update && sudo apt-get install -y brotli
-
-          echo "Creating target directory..."
-          mkdir -p assets/release/common/database
-
-          echo "Compressing documentation.db with maximum compression..."
-          brotli -f -Z -o assets/release/common/database/documentation.db.br assets/documentation.db
-
-          if [ ! -f assets/release/common/database/documentation.db.br ]; then
-            echo "ERROR: Failed to create documentation.db.br"
-            exit 1
-          fi
-
-          ORIGINAL_SIZE=$(du -h assets/documentation.db | cut -f1)
-          COMPRESSED_SIZE=$(du -h assets/release/common/database/documentation.db.br | cut -f1)
-
-          echo "Successfully compressed documentation.db"
-          echo "Original size: $ORIGINAL_SIZE"
-          echo "Compressed size: $COMPRESSED_SIZE"
+          echo "Successfully downloaded documentation.db.br ($FILE_SIZE_HUMAN)"
 
       - name: Upload compressed documentation DB
         uses: actions/upload-artifact@v4
