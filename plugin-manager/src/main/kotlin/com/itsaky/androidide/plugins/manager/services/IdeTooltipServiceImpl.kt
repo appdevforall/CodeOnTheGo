@@ -2,7 +2,7 @@ package com.itsaky.androidide.plugins.manager.services
 
 import android.content.Context
 import android.view.View
-import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.plugins.manager.tooltip.PluginTooltipManager
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 
 /**
@@ -35,12 +35,14 @@ class IdeTooltipServiceImpl(
 
     companion object {
         private const val LOG_TAG = "IdeTooltipService"
+        // Default category for plugin tooltips if not specified
+        private const val DEFAULT_PLUGIN_CATEGORY = "plugin"
     }
 
     override fun showTooltip(anchorView: View, category: String, tag: String) {
         try {
-            // Use the themed context to ensure proper attribute resolution
-            TooltipManager.showTooltip(
+            // Use the PluginTooltipManager for isolated plugin documentation
+            PluginTooltipManager.showTooltip(
                 context = themedContext,
                 anchorView = anchorView,
                 category = category,
@@ -55,10 +57,11 @@ class IdeTooltipServiceImpl(
 
     override fun showTooltip(anchorView: View, tag: String) {
         try {
-            // Use the themed context to ensure proper attribute resolution
-            TooltipManager.showIdeCategoryTooltip(
+            // Use the PluginTooltipManager with default plugin category
+            PluginTooltipManager.showTooltip(
                 context = themedContext,
                 anchorView = anchorView,
+                category = DEFAULT_PLUGIN_CATEGORY,
                 tag = tag
             )
         } catch (e: Exception) {

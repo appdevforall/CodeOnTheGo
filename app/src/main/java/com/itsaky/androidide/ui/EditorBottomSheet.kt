@@ -21,6 +21,7 @@ import android.app.Activity
 import android.content.Context
 import android.text.TextUtils
 import android.util.AttributeSet
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewTreeObserver
@@ -405,11 +406,24 @@ constructor(
 	}
 
 	fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
-		runOnUiThread { pagerAdapter.diagnosticsFragment?.isEmpty = errorVisible }
+		runOnUiThread {
+			val fragment = pagerAdapter.diagnosticsFragment
+			if (fragment == null || !fragment.isAdded || fragment.isDetached) {
+				return@runOnUiThread
+			}
+
+			fragment.isEmpty = errorVisible
+		}
 	}
 
 	fun handleSearchResultVisibility(errorVisible: Boolean) {
-		runOnUiThread { pagerAdapter.searchResultFragment?.isEmpty = errorVisible }
+		runOnUiThread {
+			val fragment = pagerAdapter.searchResultFragment
+			if (fragment == null || !fragment.isAdded || fragment.isDetached) {
+				return@runOnUiThread
+			}
+			fragment.isEmpty = errorVisible
+		}
 	}
 
 	fun setDiagnosticsAdapter(adapter: DiagnosticsAdapter) {

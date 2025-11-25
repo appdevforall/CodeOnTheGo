@@ -17,10 +17,41 @@
 
 package com.itsaky.androidide.tooling.api.messages.result
 
+import java.io.File
+import java.io.Serializable
+
 /**
  * Result received after an initialize project request.
  *
- * @param isSuccessful Whether the project initialization was successful.
  * @author Akash Yadav
  */
-class InitializeResult(val isSuccessful: Boolean, val failure: TaskExecutionResult.Failure? = null)
+sealed class InitializeResult : Serializable {
+	protected val gsonType: String = javaClass.name
+	protected val serialVersionUID = 1L
+
+	/**
+	 * The project initialization was successful.
+	 */
+	data class Success(
+		val cacheFile: File,
+	) : InitializeResult()
+
+	/**
+	 * The project initialization failed.
+	 */
+	data class Failure(
+		val failure: TaskExecutionResult.Failure? = null,
+	) : InitializeResult()
+}
+
+/**
+ * Whether the project initialization was successful.
+ */
+val InitializeResult.isSuccessful: Boolean
+	get() = this is InitializeResult.Success
+
+/**
+ * Get the failure of the project initialization, if the initialization failed.
+ */
+val InitializeResult.failure: TaskExecutionResult.Failure?
+	get() = (this as? InitializeResult.Failure)?.failure

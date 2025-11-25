@@ -20,17 +20,12 @@ package com.itsaky.androidide.fragments.onboarding
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
-import androidx.core.app.ActivityCompat
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -42,19 +37,15 @@ import com.itsaky.androidide.activities.OnboardingActivity
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
-import com.itsaky.androidide.models.OnboardingPermissionItem
+import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.tasks.doAsyncWithProgress
+import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashErrorForLong
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
-import com.itsaky.androidide.utils.isAtLeastT
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.InstallationState
-import com.itsaky.androidide.viewmodel.InstallationState.InstallationComplete
-import com.itsaky.androidide.viewmodel.InstallationState.InstallationError
-import com.itsaky.androidide.viewmodel.InstallationState.Installing
-import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
-import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
 import com.itsaky.androidide.viewmodel.InstallationViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -89,7 +80,7 @@ class PermissionsFragment :
 		}
 
 	private val permissions by lazy {
-		getRequiredPermissions(requireContext())
+		PermissionsHelper.getRequiredPermissions(requireContext())
 	}
 
 	companion object {
@@ -110,105 +101,12 @@ class PermissionsFragment :
 						)
 					}
 			}
-
-		@JvmStatic
-		fun getRequiredPermissions(context: Context): List<OnboardingPermissionItem> {
-			val permissions = mutableListOf<OnboardingPermissionItem>()
-
-			if (isAtLeastT()) {
-				permissions.add(
-					OnboardingPermissionItem(
-						Manifest.permission.POST_NOTIFICATIONS,
-						R.string.permission_title_notifications,
-						R.string.permission_desc_notifications,
-						canPostNotifications(context),
-					),
-				)
-			}
-
-			permissions.add(
-				OnboardingPermissionItem(
-					Manifest.permission_group.STORAGE,
-					R.string.permission_title_storage,
-					R.string.permission_desc_storage,
-					isStoragePermissionGranted(context),
-				),
-			)
-
-			permissions.add(
-				OnboardingPermissionItem(
-					Manifest.permission.REQUEST_INSTALL_PACKAGES,
-					R.string.permission_title_install_packages,
-					R.string.permission_desc_install_packages,
-					canRequestPackageInstalls(context),
-				),
-			)
-
-			permissions.add(
-				OnboardingPermissionItem(
-					Manifest.permission.SYSTEM_ALERT_WINDOW,
-					R.string.permission_title_overlay_window,
-					R.string.permission_desc_overlay_window,
-					canDrawOverlays(context),
-				),
-			)
-
-			return permissions
-		}
-
-		@JvmStatic
-		@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-		fun canPostNotifications(context: Context) = isPermissionGranted(context, Manifest.permission.POST_NOTIFICATIONS)
-
-		@JvmStatic
-		fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
-
-		@JvmStatic
-		fun areAllPermissionsGranted(context: Context): Boolean = getRequiredPermissions(context).all { it.isOptional || it.isGranted }
-
-		@JvmStatic
-		fun isStoragePermissionGranted(context: Context): Boolean {
-			if (isAtLeastR()) {
-				return Environment.isExternalStorageManager()
-			}
-
-			return checkSelfPermission(
-				context,
-				Manifest.permission.READ_EXTERNAL_STORAGE,
-			) &&
-				checkSelfPermission(
-					context,
-					Manifest.permission.WRITE_EXTERNAL_STORAGE,
-				)
-		}
-
-		@JvmStatic
-		fun canRequestPackageInstalls(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
-
-		@JvmStatic
-		fun isPermissionGranted(
-			context: Context,
-			permission: String,
-		): Boolean =
-			when (permission) {
-				Manifest.permission_group.STORAGE -> isStoragePermissionGranted(context)
-				Manifest.permission.REQUEST_INSTALL_PACKAGES -> context.packageManager.canRequestPackageInstalls()
-				Manifest.permission.SYSTEM_ALERT_WINDOW -> canDrawOverlays(context)
-				else -> checkSelfPermission(context, permission)
-			}
-
-		@JvmStatic
-		fun checkSelfPermission(
-			context: Context,
-			permission: String,
-		): Boolean =
-			ActivityCompat.checkSelfPermission(
-				context,
-				permission,
-			) == PackageManager.PERMISSION_GRANTED
 	}
 
-	override fun createContentView(parent: ViewGroup, attachToParent: Boolean) {
+	override fun createContentView(
+		parent: ViewGroup,
+		attachToParent: Boolean,
+	) {
 		permissionsBinding = LayoutOnboardingPermissionsBinding.inflate(layoutInflater, parent, attachToParent)
 		permissionsBinding?.let { b ->
 			recyclerView = b.onboardingItems
@@ -222,11 +120,14 @@ class PermissionsFragment :
 		}
 	}
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		observeViewModelState()
-
-		val allGranted = areAllPermissionsGranted(requireContext())
+		observeViewModelEvents()
+		val allGranted = PermissionsHelper.areAllPermissionsGranted(requireContext())
 		viewModel.onPermissionsUpdated(allGranted)
 	}
 
@@ -240,22 +141,35 @@ class PermissionsFragment :
 		}
 	}
 
+	private fun observeViewModelEvents() {
+		viewLifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				viewModel.events.collect { event ->
+					when (event) {
+						is InstallationEvent.ShowError -> activity?.flashErrorForLong(event.message)
+						is InstallationEvent.InstallationResultEvent -> {}
+					}
+				}
+			}
+		}
+	}
+
 	private fun handleState(state: InstallationState) {
 		when (state) {
-			is InstallationPending -> {
+			is InstallationState.InstallationPending -> {
 				finishButton?.isEnabled = false
 			}
-			is InstallationGranted -> {
+			is InstallationState.InstallationGranted -> {
 				finishButton?.isEnabled = true
 			}
-			is Installing -> {
+			is InstallationState.Installing -> {
 				finishButton?.isEnabled = false
 			}
-			is InstallationComplete -> {
+			is InstallationState.InstallationComplete -> {
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashSuccess(getString(R.string.ide_setup_complete))
 			}
-			is InstallationError -> {
+			is InstallationState.InstallationError -> {
 				finishButton?.isEnabled = true
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashError(getString(state.errorMessageResId))
@@ -277,14 +191,19 @@ class PermissionsFragment :
 		).also { this.adapter = it }
 
 	private fun onPermissionsUpdated() {
-		permissions.forEach { it.isGranted = isPermissionGranted(requireContext(), it.permission) }
+		permissions.forEach { it.isGranted = PermissionsHelper.isPermissionGranted(requireContext(), it.permission) }
 		recyclerView?.adapter = createAdapter()
 
-		val allGranted = areAllPermissionsGranted(requireContext())
+		val allGranted = PermissionsHelper.areAllPermissionsGranted(requireContext())
 		viewModel.onPermissionsUpdated(allGranted)
 	}
 
 	private fun startIdeSetup() {
+		val shouldProceed = viewModel.checkStorageAndNotify(requireContext())
+		if (!shouldProceed) {
+			return
+		}
+
 		if (viewModel.isSetupComplete()) {
 			(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
 			return
@@ -310,13 +229,13 @@ class PermissionsFragment :
 
 				viewModel.state.first { state ->
 					when (state) {
-						is InstallationComplete -> {
+						is InstallationState.InstallationComplete -> {
 							withContext(Dispatchers.Main) {
 								(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
 							}
 							true
 						}
-						is InstallationError -> true
+						is InstallationState.InstallationError -> true
 						else -> false
 					}
 				}

@@ -48,6 +48,8 @@ class AdbPairingService : Service() {
 		const val ACTION_PAIR_SUCCEEDED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_SUCCEEDED"
 		const val ACTION_PAIR_FAILED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_FAILED"
 
+		const val PERMISSION_RECEIVE_WADB_PAIR_RESULT = BuildInfo.PACKAGE_NAME + ".debug.RECEIVE_WADB_PAIR_RESULT"
+
 		fun startIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(START_ACTION)
 
 		private fun stopIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(STOP_ACTION)
@@ -214,7 +216,7 @@ class AdbPairingService : Service() {
 			text = getString(R.string.notification_adb_pairing_succeed_text)
 
 			stopSearch()
-			sendBroadcast(Intent(ACTION_PAIR_SUCCEEDED))
+			sendBroadcast(Intent(ACTION_PAIR_SUCCEEDED), PERMISSION_RECEIVE_WADB_PAIR_RESULT)
 		} else {
 			title = getString(R.string.notification_adb_pairing_failed_title)
 
@@ -238,6 +240,7 @@ class AdbPairingService : Service() {
 				}
 
 			logger.warn("Pair failed", exception)
+			sendBroadcast(Intent(ACTION_PAIR_FAILED), PERMISSION_RECEIVE_WADB_PAIR_RESULT)
 		}
 
 		getSystemService(NotificationManager::class.java).notify(

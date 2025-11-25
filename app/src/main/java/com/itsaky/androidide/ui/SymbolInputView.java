@@ -51,7 +51,7 @@ public class SymbolInputView extends RecyclerView {
     if (adapter instanceof SymbolInputAdapter) {
       ((SymbolInputAdapter) adapter).refresh(editor, symbols);
     } else {
-      setAdapter(new SymbolInputAdapter(editor));
+      setAdapter(new SymbolInputAdapter(editor, symbols));
     }
   }
 }
