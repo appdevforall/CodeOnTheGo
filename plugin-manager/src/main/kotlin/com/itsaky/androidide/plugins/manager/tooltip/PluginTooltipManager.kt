@@ -1,11 +1,10 @@
 package com.itsaky.androidide.plugins.manager.tooltip
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.text.Html
 import android.util.Log
 import android.view.Gravity
@@ -17,8 +16,8 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
+import androidx.core.graphics.drawable.toDrawable
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.R
@@ -27,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import androidx.core.graphics.drawable.toDrawable
 
 /**
  * Manages tooltips specifically for plugins.
@@ -202,6 +200,16 @@ object PluginTooltipManager {
         )
     }
 
+    private fun canShowPopup(context: Context, view: View): Boolean {
+        val activityValid = (context as? Activity)?.let {
+            !it.isFinishing && !it.isDestroyed
+        } ?: true
+
+        val viewAttached = view.isAttachedToWindow && view.windowToken != null
+
+        return activityValid && viewAttached
+    }
+
     /**
      * Internal helper to create and show the tooltip popup window.
      */
@@ -215,6 +223,11 @@ object PluginTooltipManager {
         onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit,
         onSeeMoreClicked: (popupWindow: PopupWindow, nextLevel: Int, tooltipItem: IDETooltipItem) -> Unit,
     ) {
+        if (!canShowPopup(context, anchorView)) {
+            Log.w(TAG, "Cannot show tooltip: activity destroyed or view detached")
+            return
+        }
+
         val inflater = LayoutInflater.from(context)
         val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
         val popupWindow = PopupWindow(
@@ -348,6 +361,11 @@ object PluginTooltipManager {
         anchorView: View,
         tooltip: IDETooltipItem
     ) {
+        if (!canShowPopup(context, anchorView)) {
+            Log.w(TAG, "Cannot show debug info popup: activity destroyed or view detached")
+            return
+        }
+
         val inflater = LayoutInflater.from(context)
         val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
         val debugPopup = PopupWindow(

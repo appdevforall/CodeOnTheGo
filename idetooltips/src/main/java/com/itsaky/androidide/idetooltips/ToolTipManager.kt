@@ -1,6 +1,7 @@
 package com.itsaky.androidide.idetooltips
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
@@ -212,6 +213,16 @@ object TooltipManager {
         )
     }
 
+    private fun canShowPopup(context: Context, view: View): Boolean {
+        val activityValid = (context as? Activity)?.let {
+            !it.isFinishing && !it.isDestroyed
+        } ?: true
+
+        val viewAttached = view.isAttachedToWindow && view.windowToken != null
+
+        return activityValid && viewAttached
+    }
+
     /**
      * Internal helper function to create, configure, and show the tooltip PopupWindow.
      * Contains the logic common to both showTooltipPopup and showEditorTooltip.
@@ -225,6 +236,11 @@ object TooltipManager {
         onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit,
         onSeeMoreClicked: (popupWindow: PopupWindow, nextLevel: Int, tooltipItem: IDETooltipItem) -> Unit,
     ) {
+        if (!canShowPopup(context, anchorView)) {
+            Log.w(TAG, "Cannot show tooltip: activity destroyed or view detached")
+            return
+        }
+
         val inflater = LayoutInflater.from(context)
         val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
         val popupWindow = PopupWindow(
