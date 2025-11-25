@@ -30,7 +30,7 @@ fun AndroidModuleTemplateBuilder.baseAndroidXDependencies() {
   addDependency(Dependency.AndroidX.Interpolator)
 }
 
-fun AndroidModuleTemplateBuilder.composeDependencies() {
+fun AndroidModuleTemplateBuilder.composeDependencies(useKts: Boolean) {
   addDependency(Dependency.Compose.BOM, isPlatform = true)
   addDependency(Dependency.Compose.Material3)
   addDependency(Dependency.Compose.UI_Tooling)
@@ -42,6 +42,5 @@ fun AndroidModuleTemplateBuilder.composeDependencies() {
   addDependency(Dependency.Compose.Core_Ktx)
   addDependency(Dependency.Compose.UI_Test_Manifest)
   addDependency(Dependency.Compose.Collection_Ktx)
-
-  addCustomDependency(Dependency.Compose.Kotlin_Stdlib)
+  addCustomDependency(Dependency.Compose.kotlinStdlib(useKts).prependIndent("    "))
 }
