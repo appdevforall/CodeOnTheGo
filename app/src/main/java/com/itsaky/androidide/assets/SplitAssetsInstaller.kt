@@ -117,6 +117,10 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 	}
 
     override fun expectedSize(entryName: String): Long = when (entryName) {
+        /*
+         * The following file sizes are based on the zips and
+         * db file(s) contained in assets-arm64-v8a.zip
+         */
         GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 137260932L
         ANDROID_SDK_ZIP                  -> 85024182L
         DOCUMENTATION_DB                  -> 224296960L

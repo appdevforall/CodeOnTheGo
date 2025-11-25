@@ -101,6 +101,10 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 		}
 
     override fun expectedSize(entryName: String): Long = when (entryName) {
+        /*
+         * The following file sizes are based on the br
+         * file(s) contained in assets/release repo folder
+         */
         GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 63399283L
         ANDROID_SDK_ZIP                  -> 53226785L
         DOCUMENTATION_DB                  -> 297763377L
