@@ -153,11 +153,10 @@ class FeedbackEmailHandler(
         return when {
             // No screenshot or log file (if both files failed to be created)
             attachmentUris.isEmpty() -> {
-                Intent(Intent.ACTION_SEND).apply {
+                Intent(Intent.ACTION_SENDTO).apply {
                     putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
                     putExtra(Intent.EXTRA_SUBJECT, subject)
                     putExtra(Intent.EXTRA_TEXT, body)
-                    type = "*/*"
                 }
             }
             // Both screenshot and log file
@@ -168,7 +167,7 @@ class FeedbackEmailHandler(
                     putExtra(Intent.EXTRA_TEXT, body)
                     putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachmentUris))
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    type = "*/*"
+                    type = "message/rfc822"
                 }
             }
             else -> {
@@ -179,7 +178,7 @@ class FeedbackEmailHandler(
                     putExtra(Intent.EXTRA_TEXT, body)
                     putExtra(Intent.EXTRA_STREAM, attachmentUris.first())
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    type = "*/*"
+                    type = "message/rfc822"
                 }
             }
         }
