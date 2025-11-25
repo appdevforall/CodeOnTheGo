@@ -57,4 +57,12 @@ sealed interface AssetsInstaller {
      * Called after installing assets.
      */
     suspend fun postInstall(context: Context, stagingDir: Path)
+
+    /**
+     * Returns the expected size (in bytes) of the given entry.
+     *
+     * @param entryName The name of the entry whose size is requested.
+     * @return The expected size in bytes, or 0 if unknown.
+     */
+    fun expectedSize(entryName: String): Long
 }

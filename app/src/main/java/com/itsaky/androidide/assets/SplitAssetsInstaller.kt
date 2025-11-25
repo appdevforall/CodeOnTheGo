@@ -116,7 +116,17 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 		super.postInstall(context, stagingDir)
 	}
 
-	private fun destinationDirForArchiveEntry(entryName: String): File =
+    override fun expectedSize(entryName: String): Long = when (entryName) {
+        GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 137260932L
+        ANDROID_SDK_ZIP                  -> 85024182L
+        DOCUMENTATION_DB                  -> 224296960L
+        LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 215389106L
+        AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 456462823L
+        GRADLE_API_NAME_JAR_ZIP           -> 46758608L
+        else -> 0L
+    }
+
+    private fun destinationDirForArchiveEntry(entryName: String): File =
 		when (entryName) {
 			GRADLE_DISTRIBUTION_ARCHIVE_NAME -> Environment.GRADLE_DISTS
 			ANDROID_SDK_ZIP -> Environment.ANDROID_HOME
@@ -124,4 +134,8 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 			GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
 			else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
 		}
+
 }
+
+
+
