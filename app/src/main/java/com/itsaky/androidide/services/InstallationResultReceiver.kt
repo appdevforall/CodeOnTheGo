@@ -21,7 +21,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.events.InstallationEvent.InstallationResultEvent
 import org.greenrobot.eventbus.EventBus
 
 /**
@@ -30,12 +30,14 @@ import org.greenrobot.eventbus.EventBus
  * @author Akash Yadav
  */
 class InstallationResultReceiver : BroadcastReceiver() {
-
 	companion object {
 		const val ACTION_INSTALL_STATUS = "${BuildInfo.PACKAGE_NAME}.installer.INSTALL_STATUS"
 	}
 
-	override fun onReceive(context: Context, intent: Intent) {
+	override fun onReceive(
+		context: Context,
+		intent: Intent,
+	) {
 		EventBus.getDefault().post(InstallationResultEvent(intent))
 	}
 }
