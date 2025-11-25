@@ -43,7 +43,8 @@ viewpager2 = "1.1.0-beta02"
 zoomage = "1.3.1"
 monitor = "1.6.1"
 monitorVersion = "1.7.2"
-sentry = "5.8.0"
+sentry = "8.27.1"
+sentry-gradle-plugin = "5.12.2"
 mockk = "1.14.5"
 firebase-bom = "33.7.0"
 google-services = "4.4.2"
@@ -110,6 +111,10 @@ room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics-ktx" }
 
+# Sentry
+sentry-core = { module = "io.sentry:sentry", version.ref = "sentry" }
+sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
+sentry-android-replay = { module = "io.sentry:sentry-android-replay", version.ref = "sentry" }
 
 # AndroidIDE
 androidide-ts = { module = "com.itsaky.androidide.treesitter:android-tree-sitter", version.ref = "tree-sitter" }
@@ -278,7 +283,7 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish.base", version.ref = "maven-publish-plugin" }
 gradle-publish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
-sentry = { id = "io.sentry.android.gradle", version.ref = "sentry" }
+sentry = { id = "io.sentry.android.gradle", version.ref = "sentry-gradle-plugin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
 google-protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 rikka-autoresconfig = { id = "dev.rikka.tools.autoresconfig", version = "1.2.2" }
