@@ -82,7 +82,7 @@ import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
-import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
@@ -479,7 +479,7 @@ abstract class BaseEditorActivity :
 	}
 
 	@Subscribe(threadMode = MAIN)
-	open fun onInstallationResult(event: InstallationResultEvent) {
+	open fun onInstallationResult(event: InstallationEvent.InstallationResultEvent) {
 		val intent = event.intent
 		if (isDestroying) {
 			return
