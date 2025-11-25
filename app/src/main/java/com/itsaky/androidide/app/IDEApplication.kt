@@ -170,7 +170,10 @@ class IDEApplication :
 			modules(coreModule, pluginModule)
 		}
 
-		SentryAndroid.init(this)
+        SentryAndroid.init(this) { options ->
+            options.environment = if (BuildConfig.DEBUG) "development" else "production"
+        }
+
 		ShizukuSettings.initialize(this)
 
 		if (BuildConfig.DEBUG) {
