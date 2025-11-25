@@ -30,28 +30,27 @@ import com.itsaky.androidide.resources.R.string
  *
  * @author Akash Yadav
  */
-class ProjectSyncAction(context: Context, override val order: Int) : BaseBuildAction() {
+class ProjectSyncAction(
+	context: Context,
+	override val order: Int,
+) : BaseBuildAction() {
+	override val id: String = ID
+	override var requiresUIThread = false
 
-  override val id: String = ID
-  override var requiresUIThread = false
+	companion object {
+		const val ID = "ide.editor.syncProject"
+	}
 
-  companion object {
-    const val ID = "ide.editor.syncProject"
-  }
+	init {
+		label = context.getString(string.title_sync_project)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_sync)
+	}
 
-  init {
-    label = context.getString(string.title_sync_project)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_sync)
-  }
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_SYNC
 
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_SYNC
-
-  override suspend fun execAction(data: ActionData): Any {
-    return data.requireActivity().saveAll(requestSync = false)
-  }
-
-  override fun postExec(data: ActionData, result: Any) {
-    val activity = data.requireActivity()
-    activity.initializeProject()
-  }
+	override suspend fun execAction(data: ActionData) {
+		val activity = data.requireActivity()
+		activity.saveAll(requestSync = false)
+		activity.initializeProject(forceSync = true)
+	}
 }

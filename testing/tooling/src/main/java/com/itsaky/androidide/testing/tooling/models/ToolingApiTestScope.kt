@@ -17,22 +17,24 @@
 
 package com.itsaky.androidide.testing.tooling.models
 
-import com.itsaky.androidide.tooling.api.IProject
+import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import java.util.concurrent.CompletableFuture
 
 /**
- * Scope for Tooling API tests. Provides access to the [IToolingApiServer], [IProject] and the [InitializeResult].
+ * Scope for Tooling API tests. Provides access to the [IToolingApiServer], [GradleModels.GradleBuild] and the [InitializeResult].
  *
  * @author Akash Yadav
  */
 class ToolingApiTestScope(
-  val server: IToolingApiServer,
-  val project: IProject,
-  val initializeResult: CompletableFuture<InitializeResult>
+	val server: IToolingApiServer,
+	val gradleBuild: CompletableFuture<GradleModels.GradleBuild>,
+	val initializeResult: CompletableFuture<InitializeResult>,
 ) {
+	val build: GradleModels.GradleBuild?
+		get() = gradleBuild.get()
 
-  val result: InitializeResult?
-    get() = initializeResult.get()
+	val result: InitializeResult?
+		get() = initializeResult.get()
 }

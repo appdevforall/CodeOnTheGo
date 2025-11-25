@@ -31,7 +31,6 @@ import java.util.Locale
 
 
 const val SAVED_MODEL_URI_KEY = "saved_model_uri"
-private const val PREFS_NAME = "LlamaPrefs"
 
 class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 

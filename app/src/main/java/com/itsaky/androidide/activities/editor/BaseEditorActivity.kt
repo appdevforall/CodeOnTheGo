@@ -17,8 +17,6 @@
 
 package com.itsaky.androidide.activities.editor
 
-import android.animation.ValueAnimator
-import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
@@ -35,7 +33,6 @@ import android.text.SpannableStringBuilder
 import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.LeadingMarginSpan
-import android.util.Log
 import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
@@ -51,10 +48,6 @@ import androidx.annotation.GravityInt
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
-import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.constraintlayout.widget.Guideline
-import androidx.coordinatorlayout.widget.CoordinatorLayout
-import androidx.core.animation.doOnEnd
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
@@ -77,6 +70,7 @@ import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.build.DebugAction
@@ -89,6 +83,7 @@ import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
@@ -128,6 +123,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.WADBViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.widgets.WidgetTableRegistry
@@ -136,9 +132,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.itsaky.androidide.FeedbackButtonManager
-import com.itsaky.androidide.fragments.output.ShareableOutputFragment
-import com.itsaky.androidide.viewmodel.WADBViewModel
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -158,7 +151,7 @@ import kotlin.math.roundToLong
 abstract class BaseEditorActivity :
 	EdgeToEdgeIDEActivity(),
 	TabLayout.OnTabSelectedListener,
-    DiagnosticClickListener, AgentPanelController {
+    DiagnosticClickListener {
 
 
 	protected var mLifecycleObserver: EditorActivityLifecyclerObserver? = null
@@ -198,26 +191,12 @@ abstract class BaseEditorActivity :
 	override val subscribeToEvents: Boolean
 		get() = true
 
-    // Properties for the new resizable panel
-    private var rightPanelContainer: View? = null
-    private var resizeDivider: View? = null
-    private var verticalGuideline: Guideline? = null
-
-    // Property for the bottom sheet behavior
-    private var rightPanelBottomSheetBehavior: BottomSheetBehavior<View>? = null
-
-    // Flag to check if we are in portrait mode (and thus using the bottom sheet)
-    private var isPortraitMode = false
-
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
 				when {
 					binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START) -> {
 						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
-					}
-					isRightPanelOpen() -> {
-						closeRightPanel()
 					}
 					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
 						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
@@ -582,7 +561,6 @@ abstract class BaseEditorActivity :
 
 		setupStateObservers()
         setupViews()
-        setupResizablePanel()
 
         setupContainers()
         setupDiagnosticInfo()
@@ -598,7 +576,11 @@ abstract class BaseEditorActivity :
         }
 
         feedbackButtonManager =
-            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+            FeedbackButtonManager(
+                activity = this,
+                feedbackFab = binding.fabFeedback,
+                getLogContent = ::getLogContent,
+            )
         feedbackButtonManager?.setupDraggableFab()
 
         setupMemUsageChart()
@@ -608,183 +590,6 @@ abstract class BaseEditorActivity :
         setupGestureDetector()
 
     }
-
-    private fun setupResizablePanel() {
-        Log.d(TAG, "setupResizablePanel: Initializing...")
-        rightPanelContainer = findViewById(R.id.right_panel_container)
-        Log.d(
-            TAG,
-            "setupResizablePanel: rightPanelContainer is ${if (rightPanelContainer == null) "NULL" else "FOUND"}"
-        )
-
-        if (rightPanelContainer?.layoutParams is CoordinatorLayout.LayoutParams) {
-            Log.d(TAG, "setupResizablePanel: Portrait mode detected (CoordinatorLayout).")
-            isPortraitMode = true
-            rightPanelBottomSheetBehavior = BottomSheetBehavior.from(rightPanelContainer!!)
-            rightPanelBottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
-        } else if (rightPanelContainer != null) {
-            Log.d(TAG, "setupResizablePanel: Landscape/Tablet mode detected (ConstraintLayout).")
-            isPortraitMode = false
-            resizeDivider = findViewById(R.id.resize_divider)
-            verticalGuideline = findViewById(R.id.guideline_vertical_end)
-            Log.d(
-                TAG,
-                "setupResizablePanel: resizeDivider is ${if (resizeDivider == null) "NULL" else "FOUND"}"
-            )
-            Log.d(
-                TAG,
-                "setupResizablePanel: verticalGuideline is ${if (verticalGuideline == null) "NULL" else "FOUND"}"
-            )
-            setupDragToResizeListener()
-        } else {
-            Log.e(TAG, "setupResizablePanel: rightPanelContainer is NULL. Cannot determine mode.")
-        }
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupDragToResizeListener() {
-
-        Log.d(TAG, "setupDragToResizeListener: Attaching touch listener.")
-        resizeDivider?.setOnTouchListener { view, event ->
-            val parentView = view.parent as? View
-            if (parentView == null) {
-                Log.e(TAG, "onDrag: Parent view is null!")
-                return@setOnTouchListener false
-            }
-            val parentWidth = parentView.width
-
-            val minEditorWidthPx = SizeUtils.dp2px(200f)
-
-            when (event.action) {
-                MotionEvent.ACTION_MOVE -> {
-                    if (parentWidth == 0) {
-                        Log.w(TAG, "onDrag: ACTION_MOVE detected but parentWidth is 0. Skipping.")
-                        return@setOnTouchListener true
-                    }
-
-                    val touchXInParent = view.x + event.x
-                    var percent = touchXInParent / parentWidth
-
-                    Log.d(
-                        TAG,
-                        "onDrag: rawX=${event.rawX}, parentWidth=$parentWidth, newPercent=$percent"
-                    )
-
-                    verticalGuideline = findViewById(R.id.guideline_vertical_end)
-                    verticalGuideline?.setGuidelinePercent(percent)
-
-                    findViewById<View>(R.id.editor_root_container).requestLayout()
-
-                    if (binding.contentCard.progress == 0f) {
-                        content.apply {
-                            editorAppBarLayout.updatePadding(
-                                top = editorAppBarInsetTop
-                            )
-                        }
-                    }
-                }
-
-                MotionEvent.ACTION_UP -> {
-                    val currentPercent =
-                        (verticalGuideline?.layoutParams as ConstraintLayout.LayoutParams).guidePercent
-
-                    val fullScreenThreshold =
-                        0.2f
-
-                    val hideThreshold: Float =
-                        if (parentWidth > 0 && minEditorWidthPx < parentWidth) {
-                            minEditorWidthPx.toFloat() / parentWidth.toFloat()
-                        } else {
-                            0.7f
-                        }
-
-                    if (currentPercent < fullScreenThreshold) {
-                        animateGuideline(0.01f)
-                    } else if (currentPercent < hideThreshold) {
-                        animateGuideline(1.0f, true)
-                    }
-                }
-
-                MotionEvent.ACTION_DOWN -> {
-                    Log.d(TAG, "onDrag: ACTION_DOWN detected on divider.")
-                }
-            }
-            true // Consume the event
-        }
-    }
-
-    /**
-     * Call this method from your action to show/hide the AI panel.
-     */
-    override fun toggleAgentPanel() {
-        Log.d(TAG, "toggleAgentPanel: Called.")
-
-            rightPanelContainer?.let {
-                val isCurrentlyVisible = it.visibility == View.VISIBLE
-
-                if (isCurrentlyVisible) {
-                    // Animate to hidden state
-                    animateGuideline(1.0f)
-                } else {
-                    // Retrieve the last saved percentage, or use the default
-                    val percentToShow: Float = 0.5f
-
-                    // Set initial state before animating
-                    it.visibility = View.VISIBLE
-                    resizeDivider?.visibility = View.VISIBLE
-                    verticalGuideline?.setGuidelinePercent(1.0f) // Start from closed position
-
-                    // Animate to the saved/default percentage
-                    animateGuideline(percentToShow)
-                }
-            } ?: Log.e(TAG, "toggleAgentPanel: rightPanelContainer is NULL!")
-
-    }
-
-    private fun animateGuideline(toPercent: Float, shouldHideOnEnd: Boolean = false) {
-        val guideline = verticalGuideline ?: return
-        val params = guideline.layoutParams as ConstraintLayout.LayoutParams
-
-        val animator = ValueAnimator.ofFloat(params.guidePercent, toPercent)
-        animator.duration = 250 // Slightly longer for a smoother feel
-
-        // Ensure views are visible before starting an "opening" animation
-        if (toPercent < 1.0f) {
-            rightPanelContainer?.visibility = View.VISIBLE
-            resizeDivider?.visibility = View.VISIBLE
-        }
-
-        animator.addUpdateListener { animation ->
-            guideline.setGuidelinePercent(animation.animatedValue as Float)
-        }
-
-        if (toPercent.toDouble() == 1.0 && shouldHideOnEnd) {
-            animator.doOnEnd {
-                rightPanelContainer?.visibility = View.GONE
-                resizeDivider?.visibility = View.GONE
-            }
-        }
-
-        animator.start()
-    }
-
-    private fun isRightPanelOpen(): Boolean {
-        return if (isPortraitMode) {
-            rightPanelBottomSheetBehavior?.state != BottomSheetBehavior.STATE_HIDDEN
-        } else {
-            val visible = rightPanelContainer?.visibility == View.VISIBLE
-            val percent = (verticalGuideline?.layoutParams as? ConstraintLayout.LayoutParams)?.guidePercent ?: 1f
-            visible && percent < 1f
-        }
-    }
-
-		private fun closeRightPanel() {
-				if (isPortraitMode) {
-						rightPanelBottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
-				} else {
-						animateGuideline(1.0f, shouldHideOnEnd = true)
-				}
-		}
 
     private fun setupToolbar() {
         content.customToolbar.apply {
@@ -1456,14 +1261,6 @@ abstract class BaseEditorActivity :
                     return true
                 }
 
-                // --- THIS IS THE FIX ---
-                // Check for a left swipe (to show the AI Agent Panel)
-                if (diffX < -flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
-                    // Instead of opening a drawer, call our new method
-                    toggleAgentPanel()
-                    return true
-                }
-
                 return false
             }
         })
@@ -1487,17 +1284,25 @@ abstract class BaseEditorActivity :
     }
 
     private fun getLogContent(): String? {
-        if (bottomSheetViewModel.sheetBehaviorState == BottomSheetBehavior.STATE_COLLAPSED) {
-            return null
+        val pagerAdapter = binding.content.bottomSheet.pagerAdapter
+
+        val candidateTabs = buildList {
+            add(bottomSheetViewModel.currentTab)
+            add(BottomSheetViewModel.TAB_BUILD_OUTPUT)
+            add(BottomSheetViewModel.TAB_APPLICATION_LOGS)
+            add(BottomSheetViewModel.TAB_IDE_LOGS)
+        }.distinct()
+
+        candidateTabs.forEach { tabIndex ->
+            val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tabIndex)
+            if (fragment is ShareableOutputFragment) {
+                val shareable = fragment.getShareableContent().trim()
+                if (shareable.isNotEmpty()) {
+                    return shareable
+                }
+            }
         }
 
-        val fragment = this.binding.content.bottomSheet.pagerAdapter.getFragmentAtIndex<Fragment>(
-            bottomSheetViewModel.currentTab
-        )
-
-        return when (fragment) {
-            is ShareableOutputFragment -> fragment.getShareableContent()
-            else -> null
-        }
+        return null
     }
 }
