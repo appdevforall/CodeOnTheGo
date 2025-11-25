@@ -181,6 +181,74 @@ jobs:
             exit 1
           fi
 
+          BR_MD5_FILE_ID="${{ secrets.DOCUMENTATION_BR_MD5_FILE_ID }}"
+          if [ -n "$BR_MD5_FILE_ID" ]; then
+            echo "Verifying MD5 checksum..."
+
+            EXPECTED_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+              "https://www.googleapis.com/drive/v3/files/${BR_MD5_FILE_ID}?alt=media" \
+              | tr -d '\n')
+
+            ACTUAL_MD5=$(md5sum assets/release/common/database/documentation.db.br | awk '{print $1}')
+
+            echo "Expected MD5: $EXPECTED_MD5"
+            echo "Actual MD5:   $ACTUAL_MD5"
+
+            if [ "$ACTUAL_MD5" != "$EXPECTED_MD5" ]; then
+              echo "ERROR: MD5 checksum mismatch"
+
+              jq -n \
+                --arg expected "$EXPECTED_MD5" \
+                --arg actual "$ACTUAL_MD5" \
+                '{
+                  blocks: [
+                    {
+                      type: "header",
+                      text: {
+                        type: "plain_text",
+                        text: ":x: Release Build Failed - Documentation DB Integrity Check Failed",
+                        emoji: true
+                      }
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: "@here The daily release build failed because *documentation.db.br* failed integrity verification."
+                      }
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: "*Checksum Mismatch:*\n• Expected: `\($expected)`\n• Actual: `\($actual)`"
+                      }
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: "*Possible Causes:*\n• File was corrupted during download\n• File on Google Drive was modified after compression\n• MD5 file on Drive is out of sync"
+                      }
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: "*Action Required:*\n1. Re-run the compress_docdb workflow to regenerate the file and MD5\n2. Verify both files uploaded successfully to Google Drive"
+                      }
+                    }
+                  ]
+                }' > error_payload.json
+
+              curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+              rm -f error_payload.json
+              exit 1
+            fi
+
+            echo "MD5 checksum verified successfully"
+          fi
+
           FILE_SIZE_BYTES=$(stat -c%s assets/release/common/database/documentation.db.br 2>/dev/null || stat -f%z assets/release/common/database/documentation.db.br 2>/dev/null)
           FILE_SIZE_HUMAN=$(du -h assets/release/common/database/documentation.db.br | cut -f1)
 
