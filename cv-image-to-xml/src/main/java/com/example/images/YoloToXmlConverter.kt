@@ -29,7 +29,7 @@ object YoloToXmlConverter {
     )
 
     fun generateXmlLayout(
-        detections: List<MainActivity.DetectionResult>,
+        detections: List<ComputerVisionActivity.DetectionResult>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,
@@ -44,7 +44,7 @@ object YoloToXmlConverter {
     }
 
     private fun scaleDetection(
-        detection: MainActivity.DetectionResult,
+        detection: ComputerVisionActivity.DetectionResult,
         sourceWidth: Int,
         sourceHeight: Int,
         targetW: Int,

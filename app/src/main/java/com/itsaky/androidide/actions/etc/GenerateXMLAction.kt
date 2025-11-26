@@ -12,6 +12,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.resources.R
+import com.example.images.ComputerVisionActivity
 
 import java.io.File
 

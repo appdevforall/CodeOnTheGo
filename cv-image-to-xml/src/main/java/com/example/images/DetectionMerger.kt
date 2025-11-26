@@ -10,7 +10,7 @@ import java.util.Collections.max
  * ConcurrentModificationExceptions.
  */
 class DetectionMerger(
-    private val yoloResults: List<MainActivity.DetectionResult>,
+    private val yoloResults: List<ComputerVisionActivity.DetectionResult>,
     private val allTextBlocks: List<Text.TextBlock>
 ) {
 
@@ -22,14 +22,14 @@ class DetectionMerger(
      * Executes the merging logic by running a series of ordered, non-destructive passes.
      * @return The final, correctly merged list of all UI detections.
      */
-    fun merge(): List<MainActivity.DetectionResult> {
+    fun merge(): List<ComputerVisionActivity.DetectionResult> {
 
         // Pass 1: Interactive components get exclusive first rights to claim text.
         // This returns a map of which text block is now "reserved" by which component.
         val componentTextClaims = claimTextForComponents()
 
         // Pass 2: Build the final list, respecting the claims made in Pass 1.
-        val finalDetections = mutableListOf<MainActivity.DetectionResult>()
+        val finalDetections = mutableListOf<ComputerVisionActivity.DetectionResult>()
         val usedTextBlocks = mutableSetOf<Text.TextBlock>()
 
         // Add all YOLO results, enriching them with their claimed text.
@@ -53,7 +53,7 @@ class DetectionMerger(
                     // This text is inside the container and was not claimed by a button,
                     // so it must be a standalone TextView within the card.
                     finalDetections.add(
-                        MainActivity.DetectionResult(
+                        ComputerVisionActivity.DetectionResult(
                             boundingBox = textBox,
                             label = "text",
                             score = 0.99f,
@@ -72,7 +72,7 @@ class DetectionMerger(
         for (textBlock in orphanText) {
             textBlock.boundingBox?.let {
                 finalDetections.add(
-                    MainActivity.DetectionResult(
+                    ComputerVisionActivity.DetectionResult(
                         boundingBox = RectF(it),
                         label = "text",
                         score = 0.99f,
@@ -91,8 +91,8 @@ class DetectionMerger(
      * This method is non-destructive and only returns a "plan" of claims.
      * @return A map where the key is the component and the value is the text block it has claimed.
      */
-    private fun claimTextForComponents(): Map<MainActivity.DetectionResult, Text.TextBlock> {
-        val claims = mutableMapOf<MainActivity.DetectionResult, Text.TextBlock>()
+    private fun claimTextForComponents(): Map<ComputerVisionActivity.DetectionResult, Text.TextBlock> {
+        val claims = mutableMapOf<ComputerVisionActivity.DetectionResult, Text.TextBlock>()
         val yoloComponents = yoloResults.filter { it.label in componentLabels }
         val availableText = allTextBlocks.toMutableSet() // Use a set for efficient removal
 

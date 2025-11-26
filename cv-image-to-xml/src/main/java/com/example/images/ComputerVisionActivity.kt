@@ -94,7 +94,7 @@ class ComputerVisionActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.activity_computer_vision)
 
         frame = findViewById(R.id.imageView)
         val detectButton: Button = findViewById(R.id.detectButton)
@@ -410,7 +410,7 @@ class ComputerVisionActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val TAG = "MainActivity"
+        private const val TAG = "ComputerVisionActivity"
         private const val MODEL_INPUT_WIDTH = 640
         private const val MODEL_INPUT_HEIGHT = 640
         private const val CONFIDENCE_THRESHOLD = 0.3f

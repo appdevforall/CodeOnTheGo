@@ -7,7 +7,7 @@ import android.graphics.RectF
  * This is the core of the new, robust tree-based architecture.
  */
 data class UiNode(
-    val detection: MainActivity.DetectionResult,
+    val detection: ComputerVisionActivity.DetectionResult,
     val children: MutableList<UiNode> = mutableListOf()
 ) {
     // Convenience properties to access the underlying detection data
