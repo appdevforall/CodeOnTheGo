@@ -172,8 +172,8 @@ include(
 	":testing:lsp",
 	":testing:tooling",
 	":testing:unit",
-    ":plugin-api",
-    ":plugin-manager",
+	":plugin-api",
+	":plugin-manager",
 )
 
 object FDroidConfig {

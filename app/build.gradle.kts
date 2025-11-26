@@ -117,6 +117,9 @@ android {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/gradle/incremental.annotation.processors")
         }
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 }
 
