@@ -1,14 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools"
   tools:override="true"
   tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation">
-  <string name="app_slogan">创造超棒的界面！</string>
-  <string name="home">主页</string>
-  <string name="preference">偏好</string>
-  <string name="github">GITHUB 存储库</string>
   <string name="about">关于</string>
-  <string name="share">分享</string>
-  <string name="open_source_licence">开源许可证</string>
-  <string name="projects">项目</string>
   <string name="title_preference">偏好</string>
   <string name="title_about">关于</string>
   <string name="navigation_drawer_open">打开导航抽屉</string>
@@ -23,9 +16,7 @@
   <string name="copy">复制</string>
   <string name="drawable_manager">绘制资源管理</string>
   <string name="xml_preview">XML 预览</string>
-  <string name="msg_no_projects">还没有任何项目</string>
   <string name="msg_create_new">点击 + 图标创建一个新项目</string>
-  <string name="share_description">使用布局编辑器，通过将 UI 元素拖动到可视布局编辑器中来轻松构建 Android 应用布局。\n\n### 功能\n- 通过拖放设计布局\n- 编辑视图和布局属性\n- 查看和复制布局的 XML 代码\n- 更多：%1$s#features\n\n从此处下载：%1$s/releases/latest\n\n### 译者的话\n由于部分内容为“硬编码”，为了方便中国大陆的朋友，所以将硬编码的字符也翻译了，您可以前往我的存储库中下载：https://github.com/guobao2333/LayoutEditor</string>
   <string name="permission_granted">已授予权限&#8230;</string>
   <string name="permission_denied">没有权限&#8230;</string>
   <string name="preview_layout">预览布局</string>
@@ -48,10 +39,6 @@
   <string name="msg_current_name_unavailable">当前名称不可用！</string>
   <string name="msg_cannnot_empty">字段不能为空！</string>
   <string name="options">选项</string>
-  <string name="enable_vibration">启用振动</string>
-  <string name="summary_enable_vibration">可能会增加耗电量</string>
-  <string name="show_stroke">显示笔画</string>
-  <string name="summary_show_stroke">在编辑器中显示笔画？</string>
   <string name="remove_drawable">删除drawable</string>
   <string name="remove_font">删除字体</string>
   <string name="msg_remove_drawable">您想删除绘制资源吗？</string>
@@ -83,10 +70,6 @@
   <string name="theme_dark">暗色</string>
   <string name="theme_light">亮色</string>
   <string name="theme_auto">自动</string>
-  <string name="choose_theme">选择主题</string>
-  <string name="summary_choose_theme">将主题应用到程序。</string>
-  <string name="dynamic_colors">使用动态颜色</string>
-  <string name="summary_dynamic_colors">此功能仅适用于 Android 12+</string>
   <string name="msg_dynamic_colors_dialog">这将关闭包含所有任务的应用程序！</string>
   <string name="export_layout">导出布局</string>
   <string name="invalid_data_intent">Intent 返回的数据无效。</string>
@@ -111,7 +94,6 @@
   <string name="select">选择</string>
   <string name="palette">调色板</string>
   <string name="common">常规</string>
-  <string name="ui">界面</string>
   <string name="texts">文本</string>
   <string name="buttons">按钮</string>
   <string name="widgets">部件</string>

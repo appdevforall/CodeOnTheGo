@@ -100,7 +100,17 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 			}
 		}
 
-	private fun destinationDirForArchiveEntry(entryName: String): File =
+    override fun expectedSize(entryName: String): Long = when (entryName) {
+        GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 63399283L
+        ANDROID_SDK_ZIP                  -> 53226785L
+        DOCUMENTATION_DB                  -> 297763377L
+        LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 97485855L
+        AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
+        GRADLE_API_NAME_JAR_ZIP           -> 29447748L
+        else -> 0L
+    }
+
+    private fun destinationDirForArchiveEntry(entryName: String): File =
 		when (entryName) {
 			GRADLE_DISTRIBUTION_ARCHIVE_NAME -> Environment.GRADLE_DISTS
 			ANDROID_SDK_ZIP -> Environment.ANDROID_HOME

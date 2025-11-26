@@ -3,6 +3,7 @@ package com.itsaky.androidide.app
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
@@ -16,7 +17,9 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
+import io.sentry.SentryReplayOptions.SentryReplayQuality
 import io.sentry.android.core.SentryAndroid
+import io.sentry.android.core.SentryAndroidOptions
 import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.koin.android.ext.koin.androidContext
@@ -29,7 +32,8 @@ import kotlin.system.exitProcess
 /**
  * @author Akash Yadav
  */
-internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLifecycleObserver, KoinComponent {
+internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLifecycleObserver,
+	KoinComponent {
 
 	private val logger = LoggerFactory.getLogger(DeviceProtectedApplicationLoader::class.java)
 
@@ -44,7 +48,15 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 			modules(coreModule, pluginModule)
 		}
 
-		SentryAndroid.init(app)
+		SentryAndroid.init(app) { options ->
+			// Reduce replay quality to LOW to prevent OOM
+			// This reduces screenshot compression to 10 and bitrate to 50kbps
+			// (defaults to MEDIUM quality)
+			options.sessionReplay.quality = SentryReplayQuality.LOW
+			options.environment =
+				if (BuildConfig.DEBUG) IDEApplication.SENTRY_ENV_DEV else IDEApplication.SENTRY_ENV_PROD
+		}
+
 		ShizukuSettings.initialize()
 
 		EventBus

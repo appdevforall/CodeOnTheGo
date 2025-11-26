@@ -59,6 +59,9 @@ class IDEApplication : BaseApplication() {
 	companion object {
 		private val logger = LoggerFactory.getLogger(IDEApplication::class.java)
 
+		const val SENTRY_ENV_DEV = "development"
+		const val SENTRY_ENV_PROD = "production"
+
 		@JvmStatic
 		@SuppressLint("StaticFieldLeak")
 		lateinit var instance: IDEApplication

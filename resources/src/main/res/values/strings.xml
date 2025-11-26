@@ -55,6 +55,7 @@
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory!</string>
 	<string name="please_wait">Please wait for a moment.</string>
+	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the Internal Storage partition. You currently have %2$.1fGB available.</string>
 
 	<!-- Project Builder -->
 	<string name="title_unsupported_device">This device is not supported</string>
@@ -588,7 +589,6 @@
 	<string
 		name="title_github"
 		translatable="false">GitHub</string>
-	<string name="github">GitHub</string>
 	<string name="choose_different_location">Choose Different Location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
