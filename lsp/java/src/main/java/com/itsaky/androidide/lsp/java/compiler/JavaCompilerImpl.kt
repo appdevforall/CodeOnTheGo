@@ -35,7 +35,7 @@ class JavaCompilerImpl(context: Context?) : ReusableJavaCompiler(context) {
 
   override fun parse(filename: JavaFileObject?, content: CharSequence?): JCCompilationUnit {
 
-    if (VMUtils.isJvm()) {
+    if (VMUtils.isJvm) {
       return super.parse(filename, content)
     }
 

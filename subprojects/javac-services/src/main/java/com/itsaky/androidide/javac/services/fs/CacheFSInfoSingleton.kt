@@ -39,7 +39,7 @@ object CacheFSInfoSingleton : CacheFSInfo() {
   fun cache(file: Path, cacheJarClasspath: Boolean = true) {
 
     if (System.getProperty(TEST_PROP_ENABLED_ON_JVM, null) != "true") {
-      if (VMUtils.isJvm()) {
+      if (VMUtils.isJvm) {
         return
       }
     }
