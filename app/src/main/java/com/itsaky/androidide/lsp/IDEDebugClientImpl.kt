@@ -305,11 +305,7 @@ class IDEDebugClientImpl(
             selectedThreadIndex = 0
         }
 
-        viewModel.setThreads(threads)
-
-        if (selectedThreadIndex >= 0) {
-            viewModel.setSelectedThreadIndex(selectedThreadIndex)
-        }
+        viewModel.setThreads(threads, selectedThreadIndex)
     }
 
     private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)
