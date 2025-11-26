@@ -15,7 +15,8 @@ const val EXIT_CODE_CRASH = 1
 class CrashEventSubscriber {
     private val log = LoggerFactory.getLogger(CrashEventSubscriber::class.java)
 
-    @Subscribe(threadMode = ThreadMode.BACKGROUND)
+    @Suppress("unused")
+	@Subscribe(threadMode = ThreadMode.BACKGROUND)
     fun onReportCaughtException(ev: ReportCaughtExceptionEvent) {
         try {
             Sentry.configureScope { scope ->
