@@ -1,11 +1,10 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.containers;
 
-import com.google.android.material.bottomappbar.BottomAppBar;
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.drawable.Drawable;
-import androidx.appcompat.content.res.AppCompatResources;
-import org.appdevforall.codeonthego.layouteditor.R;
+
+import com.google.android.material.bottomappbar.BottomAppBar;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 

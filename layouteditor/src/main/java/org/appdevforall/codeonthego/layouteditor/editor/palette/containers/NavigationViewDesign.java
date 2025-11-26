@@ -1,8 +1,10 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.containers;
 
-import com.google.android.material.navigation.NavigationView;
 import android.content.Context;
 import android.graphics.Canvas;
+
+import com.google.android.material.navigation.NavigationView;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 

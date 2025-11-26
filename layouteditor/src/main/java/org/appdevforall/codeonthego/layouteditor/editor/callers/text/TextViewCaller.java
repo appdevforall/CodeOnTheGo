@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.view.View;
 import android.widget.CheckedTextView;
 import android.widget.TextView;
+
 import org.appdevforall.codeonthego.layouteditor.ProjectFile;
 import org.appdevforall.codeonthego.layouteditor.managers.DrawableManager;
 import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;

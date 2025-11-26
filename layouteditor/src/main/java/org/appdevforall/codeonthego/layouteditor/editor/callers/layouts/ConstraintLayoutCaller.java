@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.layouteditor.editor.callers.layouts;
 
 import android.content.Context;
-import android.util.Log;
 import android.view.View;
 
 import androidx.constraintlayout.widget.ConstraintLayout;
@@ -9,7 +8,6 @@ import androidx.constraintlayout.widget.ConstraintSet;
 
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager;
 import org.appdevforall.codeonthego.layouteditor.utils.DimensionUtil;
-import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 
 public class ConstraintLayoutCaller {
 
