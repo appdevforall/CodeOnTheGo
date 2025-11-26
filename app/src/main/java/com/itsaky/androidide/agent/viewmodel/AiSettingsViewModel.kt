@@ -24,7 +24,6 @@ sealed class ModelLoadingState {
     data class Error(val message: String) : ModelLoadingState()
 }
 
-// NEW: State for the underlying inference engine library
 sealed class EngineState {
     object Uninitialized : EngineState()
     object Initializing : EngineState()
