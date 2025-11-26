@@ -48,7 +48,7 @@ class PluginManager private constructor(
     /**
      * Interface for providing the current Activity context for UI operations
      */
-    interface ActivityProvider {
+    fun interface ActivityProvider {
         fun getCurrentActivity(): Activity?
     }
     
