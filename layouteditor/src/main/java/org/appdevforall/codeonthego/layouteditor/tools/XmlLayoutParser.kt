@@ -250,7 +250,9 @@ class XmlLayoutParser(
 	  target: View,
 	  attributeMap: AttributeMap
 	) {
-		val params = (target.layoutParams as ConstraintLayout.LayoutParams).apply {
+		val params = (target.layoutParams as? ConstraintLayout.LayoutParams) ?: return
+
+		params.apply {
 			startToStart = ConstraintLayout.LayoutParams.PARENT_ID
 			topToTop = ConstraintLayout.LayoutParams.PARENT_ID
 			endToEnd = ConstraintLayout.LayoutParams.UNSET
@@ -281,7 +283,9 @@ class XmlLayoutParser(
 			val centeredX = (parent.width - target.width) / 2
 			val centeredY = (parent.height - target.height) / 2
 
-			(target.layoutParams as ConstraintLayout.LayoutParams).apply {
+			val layoutParams = (target.layoutParams as? ConstraintLayout.LayoutParams) ?: return@post
+
+			layoutParams.apply {
 				marginStart = centeredX
 				topMargin = centeredY
 			}.also { target.layoutParams = it }
@@ -292,8 +296,6 @@ class XmlLayoutParser(
 
 			attributeMap.putValue("android:layout_marginStart", "${startDp}dp")
 			attributeMap.putValue("android:layout_marginTop", "${topDp}dp")
-
-			Log.d("XmlParser", "Saved attributes: marginStart=${startDp}dp, marginTop=${topDp}dp")
 		}
 	}
 }
