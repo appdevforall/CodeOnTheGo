@@ -11,13 +11,8 @@
         android:protectionLevel="normal"
         tools:ignore="ManifestOrder" />
 
-    <permission
-        android:name="org.adfa.cogo.permission.RECEIVE_FOREGROUND_WINDOW_UPDATES"
-        android:protectionLevel="signature" />
-
-    <permission
-        android:name="org.adfa.cogo.debugger.DEBUGGER"
-        android:protectionLevel="normal" />
+    <permission android:name="${applicationId}.debug.RECEIVE_WADB_PAIR_RESULT"
+        android:protectionLevel="signature"/>
 
     <uses-feature
         android:name="android.software.leanback"
@@ -36,14 +31,19 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.ENFORCE_UPDATE_OWNERSHIP" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
-    <uses-permission android:name="org.adfa.cogo.permission.RECEIVE_FOREGROUND_WINDOW_UPDATES" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <uses-permission android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+    <uses-permission android:name="${applicationId}.debug.RECEIVE_WADB_PAIR_RESULT" />
+    
     <application
         android:name=".app.IDEApplication"
         android:allowBackup="false"
@@ -91,8 +91,9 @@
             android:theme="@style/Theme.AndroidIDE" />
         <activity
             android:name=".activities.editor.EditorActivityKt"
-            android:configChanges="orientation|screenSize|uiMode"
-            android:launchMode="singleTop" />
+            android:configChanges="orientation|screenSize"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize" />
         <activity android:name=".activities.PreferencesActivity" />
         <activity android:name=".activities.PluginManagerActivity" />
         <activity android:name=".activities.AboutActivity" />
@@ -167,13 +168,6 @@
                 android:resource="@xml/ide_file_provider_paths" />
         </provider>
 
-        <provider
-            android:name=".services.debug.DebuggerStatusProvider"
-            android:authorities="org.adfa.cogo.debugger"
-            android:exported="true"
-            android:grantUriPermissions="false"
-            android:permission="org.adfa.cogo.debugger.DEBUGGER" />
-
         <receiver
             android:name=".services.InstallationResultReceiver"
             android:enabled="true"
@@ -184,6 +178,25 @@
             </intent-filter>
         </receiver>
 
+        <!--
+         Receiver used to receive broadcasts when foreground application changes
+         This receiver *must* have permissions that are not usually granted to
+         normal Android applications so that only the `shell` user can send
+         broadcasts to this receiver.
+         -->
+        <receiver
+            android:name=".services.debug.ForegroundAppReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
+            android:multiprocess="false"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <!-- Must be the same as the one defined in ShizukuServerConstants.java -->
+                <action android:name="com.itsaky.androidide.shizuku.ACTION_FOREGROUND_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".services.builder.GradleBuildService"
             android:exported="false" />
@@ -191,20 +204,6 @@
         <service
             android:name=".services.debug.DebuggerService"
             android:exported="false" />
-
-        <service
-            android:name=".services.debug.ForegroundDetectionService"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/debugger_accessibility_service_config" />
-        </service>
 
         <service
             android:name=".services.log.LogReceiverService"

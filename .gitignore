@@ -121,3 +121,14 @@ tests/test-home
 /sample-plugin/build/
 /keystore-generator-plugin/build/
 /keystore-generator-plugin/.kotlin/
+
+# Plugin build directories
+/plugin-api/build/
+/plugin-manager/build/
+/sample-plugin/build/
+/keystore-generator-plugin/build/
+/keystore-generator-plugin/.kotlin/
+**/build
+
+# Release files
+*.zim

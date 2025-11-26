@@ -7,6 +7,8 @@ permissions:
 
 on:
   push:
+    branches-ignore:
+      - main
 
   workflow_dispatch: { }
 
@@ -125,6 +127,13 @@ jobs:
       - name: Install Flox
         if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "google-services.json created successfully"
 
       - name: Assemble Universal APK
         run: |
@@ -283,6 +292,12 @@ jobs:
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
+      - name: Clean up build folder after upload
+        run: |
+          echo "Cleaning up build folder after Firebase upload..."
+          rm -rf app/build/
+          echo "Build folder cleanup completed"
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
@@ -395,3 +410,9 @@ jobs:
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
 
           rm -f payload.json
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: |
+          rm -f app/google-services.json
+          echo "google-services.json cleaned up successfully"

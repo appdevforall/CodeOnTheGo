@@ -45,7 +45,7 @@ internal fun ModuleTemplateBuilder.dependencies(): String {
         for (dep in dependencies) {
             if (dep.tomlDependency != null) {
                 append(System.lineSeparator())
-                append("    ${dep.tomlValue()}")
+                append("    ${dep.tomlValue(data.useKts)}")
             } else {
                 append(System.lineSeparator())
                 append("    ${dep.value()}")

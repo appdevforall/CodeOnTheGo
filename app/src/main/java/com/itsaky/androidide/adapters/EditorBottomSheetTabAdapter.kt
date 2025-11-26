@@ -20,6 +20,7 @@ import androidx.collection.LongSparseArray
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.itsaky.androidide.agent.fragments.AgentFragmentContainer
 import com.itsaky.androidide.app.IDEApplication.Companion.getPluginManager
 import com.itsaky.androidide.fragments.DiagnosticsListFragment
 import com.itsaky.androidide.fragments.SearchResultFragment
@@ -31,6 +32,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
 
@@ -50,6 +52,7 @@ class EditorBottomSheetTabAdapter(
 		const val TAB_DIAGNOSTICS = 3
 		const val TAB_SEARCH_RESULTS = 4
 		const val TAB_DEBUGGER = 5
+        const val TAB_AGENT = 6
 	}
 
 	private val allTabs =
@@ -104,8 +107,20 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.debugger_title),
 					fragmentClass = DebuggerFragment::class.java,
 					itemId = TAB_DEBUGGER,
+					tooltipTag = TooltipTag.PROJECT_DEBUGGER_OUTPUT,
 				),
 			)
+
+			if (isExperimentsEnabled()) {
+				add(
+					Tab(
+						title = fragmentActivity.getString(R.string.title_agent),
+						fragmentClass = AgentFragmentContainer::class.java,
+						itemId = TAB_AGENT,
+						tooltipTag = TooltipTag.PROJECT_AGENT,
+					),
+				)
+			}
 		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
@@ -113,6 +128,14 @@ class EditorBottomSheetTabAdapter(
 
 	init {
 		addPluginTabs()
+	}
+
+	fun clearAll() {
+		val size = tabs.size
+		if (size == 0) return
+		tabs.clear()
+		pluginFragmentFactories.clear()
+		notifyDataSetChanged()
 	}
 
 	fun removeFragment(klass: Class<out Fragment>) {

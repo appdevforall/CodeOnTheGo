@@ -2,7 +2,9 @@ package com.itsaky.androidide.fragments.debug
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.activityViewModels
@@ -12,6 +14,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
+import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -23,14 +28,30 @@ import kotlinx.coroutines.withContext
  * @author Akash Yadav
  */
 class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
-	override val fragmentTooltipTag: String? = null // Tooltip pending to be defined
+	override val fragmentTooltipTag: String = DEBUG_OUTPUT_CALLSTACK
 	private val viewHolder by activityViewModels<DebuggerViewModel>()
 
+	private lateinit var gestureDetector: GestureDetector
+
+	private val gestureListener =
+		object : GestureDetector.SimpleOnGestureListener() {
+			override fun onLongPress(e: MotionEvent) {
+				TooltipManager.showIdeCategoryTooltip(requireContext(), _binding!!.root, fragmentTooltipTag)
+			}
+		}
+
+	@SuppressLint("ClickableViewAccessibility")
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
+
+		gestureDetector = GestureDetector(requireContext(), gestureListener)
+		_binding?.root?.setOnTouchListener { _, event ->
+			gestureDetector.onTouchEvent(event)
+			false
+		}
 
 		viewLifecycleScope.launch {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -106,9 +127,17 @@ class CallStackAdapter(
 					return@withContext
 				}
 
+				val isSelected = position == selectedFrameIndex
+				val selectedTextColor = binding.root.context.resolveAttr(R.attr.colorPrimary)
+				val unselectedTextColor = binding.root.context.resolveAttr(R.attr.colorOnSurface)
+				val textColor = if (isSelected) selectedTextColor else unselectedTextColor
+
 				binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
 				binding.label.text = descriptor.displayText()
-				binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
+				binding.indicator.visibility = if (isSelected) View.VISIBLE else View.INVISIBLE
+
+				binding.label.setTextColor(textColor)
+				binding.source.setTextColor(textColor)
 
 				binding.root.setOnClickListener {
 					onItemClickListener?.invoke(position)

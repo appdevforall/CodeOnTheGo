@@ -21,6 +21,7 @@ import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import java.util.zip.CRC32
 import kotlin.reflect.jvm.javaMethod
 
 plugins {
@@ -31,6 +32,7 @@ plugins {
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
 	alias(libs.plugins.sentry)
+	alias(libs.plugins.google.services)
 	kotlin("plugin.serialization")
 }
 
@@ -210,6 +212,7 @@ dependencies {
 	implementation(projects.actions)
 	implementation(projects.buildInfo)
 	implementation(projects.common)
+    implementation(projects.commonUi)
 	implementation(projects.editor)
 	implementation(projects.termux.termuxApp)
 	implementation(projects.termux.termuxView)
@@ -224,6 +227,7 @@ dependencies {
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)
 	implementation(projects.subprojects.shizukuProvider)
+	implementation(projects.subprojects.shizukuServerShared)
 	implementation(projects.subprojects.xmlUtils)
 	implementation(projects.subprojects.projects)
 	implementation(projects.subprojects.toolingApi)
@@ -245,6 +249,7 @@ dependencies {
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
+    implementation(projects.cvImageToXml)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -271,7 +276,22 @@ dependencies {
 	// Koin for Dependency Injection
 	implementation("io.insert-koin:koin-android:3.5.3")
 	implementation(libs.androidx.security.crypto)
+
+	// Sentry Android SDK (core + replay for quality configuration)
+	implementation(libs.sentry.core)
+	implementation(libs.sentry.android.core)
+	implementation(libs.sentry.android.replay)
+
+	// Firebase Analytics
+	implementation(platform(libs.firebase.bom))
+	implementation(libs.firebase.analytics)
+
+	// Lifecycle Process for app lifecycle tracking
+	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.google.genai)
+    "v7Implementation"(files("libs/v7/llama-v7-release.aar"))
+    "v8Implementation"(files("libs/v8/llama-v8-release.aar"))
 }
 
 tasks.register("downloadDocDb") {
@@ -387,12 +407,25 @@ tasks.register("recompressApk") {
 	doLast {
 		val abi: String = extensions.extraProperties["abi"].toString()
 		val buildName: String = extensions.extraProperties["buildName"].toString()
+		val noCompressExtensions = if (extensions.extraProperties.has("noCompressExtensions")) {
+			extensions.extraProperties["noCompressExtensions"] as? Set<String> ?: emptySet()
+		} else {
+			emptySet()
+		}
 
 		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
 
-		recompressApk(abi, buildName)
-	}
+        val start = System.nanoTime()
+		recompressApk(abi, buildName, noCompressExtensions)
+        val durationMs = "%.2f".format((System.nanoTime() - start) / 1_000_000.0)
+
+        project.logger.lifecycle("recompressApk completed in ${durationMs}ms")
+    }
 }
+
+val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
+
+val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "br")
 
 afterEvaluate {
 	tasks.named("assembleV8Release").configure {
@@ -402,6 +435,7 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v8"
 				extensions.extraProperties["buildName"] = "release"
+				extensions.extraProperties["noCompressExtensions"] = noCompress
 			}
 		}
 	}
@@ -413,15 +447,50 @@ afterEvaluate {
 			tasks.named("recompressApk").configure {
 				extensions.extraProperties["abi"] = "v7"
 				extensions.extraProperties["buildName"] = "release"
+				extensions.extraProperties["noCompressExtensions"] = noCompress
 			}
 		}
 	}
+
+  tasks.named("assembleV8Debug").configure {
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
+
+    doLast {
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v8"
+          extensions.extraProperties["buildName"] = "debug"
+        }
+      }
+    }
+  }
+
+  tasks.named("assembleV7Debug").configure {
+    if (isCiCd) {
+      finalizedBy("recompressApk")
+    }
+
+    doLast {
+      if (isCiCd) {
+        tasks.named("recompressApk").configure {
+          extensions.extraProperties["abi"] = "v7"
+          extensions.extraProperties["buildName"] = "debug"
+        }
+      }
+    }
+  }
+
 }
 
 fun recompressApk(
 	abi: String,
 	buildName: String,
+	noCompressExtensions: Set<String>
 ) {
+	project.logger.lifecycle("Recompressing APK with exclusions: $noCompressExtensions")
+
 	val apkDir: File =
 		layout.buildDirectory
 			.dir("outputs/apk/$abi/$buildName")
@@ -432,7 +501,7 @@ fun recompressApk(
 	apkDir.walk().filter { it.extension == "apk" }.forEach { apkFile ->
 		project.logger.lifecycle("Recompressing APK: ${apkFile.name}")
 		val tempZipFile = File(apkFile.parentFile, "${apkFile.name}.tmp")
-		recompressZip(apkFile, tempZipFile)
+		recompressZip(apkFile, tempZipFile, noCompressExtensions)
 		signApk(tempZipFile)
 		if (apkFile.delete()) {
 			tempZipFile.renameTo(apkFile)
@@ -443,6 +512,7 @@ fun recompressApk(
 fun recompressZip(
 	inputZip: File,
 	outputZip: File,
+	noCompressExtensions: Set<String>
 ) {
 	ZipInputStream(BufferedInputStream(FileInputStream(inputZip))).use { zis ->
 		ZipOutputStream(BufferedOutputStream(FileOutputStream(outputZip))).use { zos ->
@@ -451,6 +521,7 @@ fun recompressZip(
 			var entry = zis.nextEntry
 			while (entry != null) {
 				if (!entry.isDirectory) {
+					val extension = entry.name.substringAfterLast('.', "").lowercase()
 					val newEntry = ZipEntry(entry.name)
 
 					// Remove timestamps for deterministic output (-X)
@@ -459,12 +530,22 @@ fun recompressZip(
 						newEntry.creationTime = FileTime.fromMillis(0)
 						newEntry.lastModifiedTime = FileTime.fromMillis(0)
 						newEntry.lastAccessTime = FileTime.fromMillis(0)
-					} catch (_: Throwable) {
-						// In case JVM doesn't support them
+					} catch (_: Throwable) {}
+
+					// Force STORE method for no-compress extensions
+					if (extension in noCompressExtensions) {
+						val byteArray = zis.readBytes()
+						newEntry.method = ZipEntry.STORED
+						newEntry.size = byteArray.size.toLong()
+						newEntry.crc = CRC32().apply { update(byteArray) }.value
+						zos.putNextEntry(newEntry)
+						zos.write(byteArray)
+					} else {
+						newEntry.method = ZipEntry.DEFLATED
+						zos.putNextEntry(newEntry)
+						zis.copyTo(zos)
 					}
 
-					zos.putNextEntry(newEntry)
-					zis.copyTo(zos)
 					zos.closeEntry()
 				}
 				entry = zis.nextEntry
@@ -482,9 +563,12 @@ fun signApk(apkFile: File) {
 		signerExec = "apksigner.bat"
 	}
 
-	val signingConfig = android.signingConfigs.getByName("debug") // 🔥 Get existing signing config
+    val signingConfig = android.signingConfigs.findByName("common")
+        ?: android.signingConfigs.getByName("debug")
 
-	val keystorePath = signingConfig.storeFile?.absolutePath ?: error("Keystore not found!")
+    project.logger.lifecycle("Signing Config: ${signingConfig.name}")
+
+    val keystorePath = signingConfig.storeFile?.absolutePath ?: error("Keystore not found!")
 	val keystorePassword = signingConfig.storePassword ?: error("Keystore password missing!")
 	val keyAlias = signingConfig.keyAlias ?: error("Key alias missing!")
 	val keyPassword = signingConfig.keyPassword ?: error("Key password missing!")

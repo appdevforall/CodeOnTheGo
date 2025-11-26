@@ -37,25 +37,23 @@ import com.itsaky.androidide.utils.IoUtilsKt;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.math.BigInteger;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import java.security.Security;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Objects;
 import java.util.Properties;
-import java.security.SecureRandom;
 import java.util.concurrent.CompletableFuture;
-import org.jetbrains.annotations.Contract;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.FileWriter;
-import java.math.BigInteger;
-import java.security.*;
-import java.security.cert.X509Certificate;
-import java.util.Date;
-
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
@@ -63,9 +61,9 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-
-
-
+import org.jetbrains.annotations.Contract;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ToolsManager {
 
@@ -74,6 +72,14 @@ public class ToolsManager {
 	public static String COMMON_ASSET_DATA_DIR = "data/common";
 
 	public static String DATABASE_ASSET_DATA_DIR = "database";
+
+	private static final String CHAR_POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+	public static String generateIssuerDN() {
+		SecureRandom random = new SecureRandom();
+		String country = Environment.KEYSTORE_EU_COUNTRY_CODES[random.nextInt(Environment.KEYSTORE_EU_COUNTRY_CODES.length)];
+		return String.format("C=%s, O=, CN=", country);
+	}
 
 	/**
 	 * Keywords: [assets, gradle, gradleWrapper, localJars, Jars, Jar, ProjectTemplate, postRecipe ] ~/AndroidIDE/app/build/intermediates/assets/debug/mergeDebugAssets/data/common Why do we need build/intermediates/*** folder when we can just use assets? I don't know. During my short search I wasn't able to find anything meaningful in regards to that folder. The fact is that app copies assets from data/common folder. And to add any new libs using existing mechanisms
@@ -176,11 +182,84 @@ public class ToolsManager {
 			FileUtils.delete(Environment.LOGSENDER_AAR);
 		}
 
-		Environment.mkdirIfNotExits(Environment.LOGSENDER_DIR);
+		Environment.mkdirIfNotExists(Environment.LOGSENDER_DIR);
 
 		final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
 		ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
 				Environment.LOGSENDER_AAR.getAbsolutePath());
+	}
+
+	private static void generateKeystore() {
+		try {
+			String keystorePath = Environment.KEYSTORE_RELEASE.getPath();
+			String alias = generateRandomPassword(Environment.KEYSTORE_ALIAS_LEN);
+
+			LOG.debug("Generating keystore at: {}", keystorePath);
+
+			Security.addProvider(new BouncyCastleProvider());
+
+			String storePassword = generateRandomPassword(Environment.KEYSTORE_PWD_LEN);
+			String keyPassword = storePassword;
+
+			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", "BC");
+			keyGen.initialize(Environment.KEYSTORE_KEY_SIZE);
+			KeyPair keyPair = keyGen.generateKeyPair();
+
+			Date now = new Date();
+			Date expiry = new Date(now.getTime() + Environment.KEYSTORE_EXPIRY_5YRS);
+
+			X500Name issuer = new X500Name(generateIssuerDN());
+			X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
+					issuer,
+					BigInteger.valueOf(System.currentTimeMillis()),
+					now,
+					expiry,
+					issuer,
+					keyPair.getPublic());
+
+			ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSAEncryption")
+					.build(keyPair.getPrivate());
+
+			X509Certificate certificate = new JcaX509CertificateConverter()
+					.getCertificate(certBuilder.build(signer));
+
+			KeyStore keyStore = KeyStore.getInstance("PKCS12");
+			keyStore.load(null, null);
+			keyStore.setKeyEntry(alias, keyPair.getPrivate(), keyPassword.toCharArray(), new java.security.cert.Certificate[]{certificate});
+
+			File keystoreFile = new File(keystorePath);
+			keystoreFile.getParentFile().mkdirs();
+
+			try (FileOutputStream fos = new FileOutputStream(keystoreFile)) {
+				keyStore.store(fos, storePassword.toCharArray());
+			}
+
+			// Write to keystore.properties
+			File propsFile = Environment.KEYSTORE_PROPERTIES;
+			Properties props = new Properties();
+			props.setProperty(Environment.KEYSTORE_PROP_STOREFILE, keystoreFile.getName());
+			props.setProperty(Environment.KEYSTORE_PROP_STOREPWD, storePassword);
+			props.setProperty(Environment.KEYSTORE_PROP_KEYALIAS, alias);
+			props.setProperty(Environment.KEYSTORE_PROP_KEYPWD, keyPassword);
+
+			try (FileWriter writer = new FileWriter(propsFile)) {
+				props.store(writer, "Generated keystore credentials");
+			}
+
+			LOG.debug("Keystore generated at: {}", keystoreFile.getAbsolutePath());
+			LOG.debug("Passwords saved to: {}", propsFile.getAbsolutePath());
+		} catch (Exception e) {
+			LOG.error("Failed to generate keystore!! ", e);
+		}
+	}
+
+	private static String generateRandomPassword(int length) {
+		SecureRandom random = new SecureRandom();
+		StringBuilder sb = new StringBuilder(length);
+		for (int i = 0; i < length; i++) {
+			sb.append(CHAR_POOL.charAt(random.nextInt(CHAR_POOL.length())));
+		}
+		return sb.toString();
 	}
 
 	@NonNull
@@ -278,7 +357,7 @@ public class ToolsManager {
 	}
 
 	private static void writeNoMediaFile() {
-		final var noMedia = new File(BaseApplication.getBaseInstance().getProjectsDir(), ".nomedia");
+		final var noMedia = new File(Environment.PROJECTS_DIR, ".nomedia");
 		if (!noMedia.exists()) {
 			try {
 				if (!noMedia.createNewFile()) {
@@ -287,89 +366,6 @@ public class ToolsManager {
 			} catch (IOException e) {
 				LOG.error("Failed to create .nomedia file in projects directory");
 			}
-		}
-	}
-
-	private static final String CHAR_POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-	private static String generateRandomPassword(int length) {
-		SecureRandom random = new SecureRandom();
-		StringBuilder sb = new StringBuilder(length);
-		for (int i = 0; i < length; i++) {
-			sb.append(CHAR_POOL.charAt(random.nextInt(CHAR_POOL.length())));
-		}
-		return sb.toString();
-	}
-
-	public static String generateIssuerDN() {
-		SecureRandom random = new SecureRandom();
-		String country = Environment.KEYSTORE_EU_COUNTRY_CODES[
-				random.nextInt(Environment.KEYSTORE_EU_COUNTRY_CODES.length)];
-		return String.format("C=%s, O=, CN=", country);
-	}
-
-	private static void generateKeystore() {
-		try {
-			String keystorePath = Environment.KEYSTORE_RELEASE.getPath();
-			String alias = generateRandomPassword(Environment.KEYSTORE_ALIAS_LEN);
-
-			LOG.debug("Generating keystore at: {}", keystorePath);
-
-			Security.addProvider(new BouncyCastleProvider());
-
-			String storePassword = generateRandomPassword(Environment.KEYSTORE_PWD_LEN);
-			String keyPassword = storePassword;
-
-			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", "BC");
-			keyGen.initialize(Environment.KEYSTORE_KEY_SIZE);
-			KeyPair keyPair = keyGen.generateKeyPair();
-
-			Date now = new Date();
-			Date expiry = new Date(now.getTime() + Environment.KEYSTORE_EXPIRY_5YRS);
-
-			X500Name issuer = new X500Name(generateIssuerDN());
-			X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
-					issuer,
-					BigInteger.valueOf(System.currentTimeMillis()),
-					now,
-					expiry,
-					issuer,
-					keyPair.getPublic()
-			);
-
-			ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSAEncryption")
-					.build(keyPair.getPrivate());
-
-			X509Certificate certificate = new JcaX509CertificateConverter()
-					.getCertificate(certBuilder.build(signer));
-
-			KeyStore keyStore = KeyStore.getInstance("PKCS12");
-			keyStore.load(null, null);
-			keyStore.setKeyEntry(alias, keyPair.getPrivate(), keyPassword.toCharArray(), new java.security.cert.Certificate[]{certificate});
-
-			File keystoreFile = new File(keystorePath);
-			keystoreFile.getParentFile().mkdirs();
-
-			try (FileOutputStream fos = new FileOutputStream(keystoreFile)) {
-				keyStore.store(fos, storePassword.toCharArray());
-			}
-
-			// Write to keystore.properties
-			File propsFile = Environment.KEYSTORE_PROPERTIES;
-			Properties props = new Properties();
-			props.setProperty(Environment.KEYSTORE_PROP_STOREFILE, keystoreFile.getName());
-			props.setProperty(Environment.KEYSTORE_PROP_STOREPWD, storePassword);
-			props.setProperty(Environment.KEYSTORE_PROP_KEYALIAS, alias);
-			props.setProperty(Environment.KEYSTORE_PROP_KEYPWD, keyPassword);
-
-			try (FileWriter writer = new FileWriter(propsFile)) {
-				props.store(writer, "Generated keystore credentials");
-			}
-
-			LOG.debug("Keystore generated at: {}", keystoreFile.getAbsolutePath());
-			LOG.debug("Passwords saved to: {}", propsFile.getAbsolutePath());
-		} catch (Exception e) {
-			LOG.error("Failed to generate keystore!! ", e);
 		}
 	}
 

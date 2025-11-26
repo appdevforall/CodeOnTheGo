@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import moe.shizuku.manager.ShizukuSettings.LaunchMethod
 import moe.shizuku.manager.model.ServiceStatus
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
@@ -79,8 +80,31 @@ object ShizukuState {
 				null
 			}
 
-		val permissionTest =
-			Shizuku.checkRemotePermission("android.permission.GRANT_RUNTIME_PERMISSIONS") == PackageManager.PERMISSION_GRANTED
-		return ServiceStatus(uid, apiVersion, patchVersion, seContext, permissionTest)
+		ShizukuSettings.setLastLaunchMode(if (uid == 0) LaunchMethod.ROOT else LaunchMethod.ADB)
+
+		val permission =
+			try {
+				Shizuku.checkRemotePermission("android.permission.GRANT_RUNTIME_PERMISSIONS") == PackageManager.PERMISSION_GRANTED
+			} catch (e: Exception) {
+				// this can happen when the cotg_server process is not running, or
+				// if it was started during an earlier installation of Code on the Go, but wasn't
+				// stopped when the app was uninstalled.
+				logger.error(
+					"Failed to check GRANT_RUNTIME_PERMISSIONS permission." +
+						" Is the cotg_server process running?" +
+						" Is the process running from an earlier installation of CoGo?" +
+						" uid=" + uid +
+						" apiVersion=" + apiVersion +
+						" patchVersion=" + patchVersion +
+						" seContext=" + seContext,
+					e,
+				)
+
+				// we won't be able to use Shizuku anyways, so it's better to notify listeners
+				// that cotg_server is not running than returning an invalid status
+				return ServiceStatus.EMPTY
+			}
+
+		return ServiceStatus(uid, apiVersion, patchVersion, seContext, permission)
 	}
 }

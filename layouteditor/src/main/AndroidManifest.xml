@@ -11,10 +11,6 @@
   <application>
 
     <activity
-      android:name=".activities.HomeActivity"
-      android:exported="true">
-    </activity>
-    <activity
       android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
       android:theme="@style/AppTheme.Licence" />
     <activity
@@ -29,9 +25,6 @@
       android:exported="true"
       android:windowSoftInputMode="adjustResize"
       android:parentActivityName=".activities.EditorActivity" />
-    <activity
-      android:name=".activities.CrashActivity"
-      android:exported="true" />
     <activity
       android:name=".activities.PreviewLayoutActivity"
       android:exported="true"

@@ -1,0 +1,200 @@
+name: Generate Assets Zips and Upload to Google Drive
+
+permissions:
+  id-token: write
+  contents: write
+  actions: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate_assets:
+    name: Generate Assets Zips
+    runs-on: self-hosted
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: stage
+
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+          git lfs pull
+
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "google-services.json created successfully"
+
+      - name: Authenticate to Google Cloud for Drive access
+        id: auth_drive
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.IDENTITY_EMAIL }}
+          token_format: 'access_token'
+          access_token_scopes: 'https://www.googleapis.com/auth/drive'
+
+      - name: Download latest documentation.db from Google Drive
+        run: |
+          DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
+          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
+
+          if [ -z "DB_FILE_ID" ]; then
+            echo "ERROR: DOCUMENTATION_DB_FILE_ID secret not set"
+            echo "Please set the DOCUMENTATION_DB_FILE_ID secret in repository settings"
+            exit 1
+          fi
+
+          echo "Downloading documentation.db from Google Drive..."
+
+          mkdir -p assets
+          curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
+            -o assets/documentation.db
+
+          if [ ! -f assets/documentation.db ]; then
+            echo "ERROR: Failed to download documentation.db"
+            exit 1
+          fi
+
+          FILE_SIZE_BYTES=$(stat -c%s assets/documentation.db 2>/dev/null || stat -f%z assets/documentation.db 2>/dev/null)
+          FILE_SIZE_HUMAN=$(du -h assets/documentation.db | cut -f1)
+
+          if [ "$FILE_SIZE_BYTES" -lt 1000000 ]; then
+            echo "ERROR: Downloaded file is too small ($FILE_SIZE_HUMAN)"
+            echo "This usually means the file was not found or service account lacks access"
+            exit 1
+          fi
+
+          echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
+
+      - name: Assemble Assets
+        run: |
+          flox activate -d flox/base -- ./gradlew :app:assembleAssets --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
+            -Dandroid.aapt2.daemonHeapSize=4096M \
+            -Dorg.gradle.workers.max=1 \
+            -Dorg.gradle.parallel=false
+
+      - name: V8 Assets Path
+        id: assets_v8
+        run: |
+          assets_path="app/build/outputs/assets/assets-arm64-v8a.zip"
+          echo "ASSETS_PATH=$assets_path" >> $GITHUB_OUTPUT
+
+      - name: V7 Assets Path
+        id: assets_v7
+        run: |
+          assets_path="app/build/outputs/assets/assets-armeabi-v7a.zip"
+          echo "ASSETS_PATH=$assets_path" >> $GITHUB_OUTPUT
+
+      - name: Upload asset zips to Google Drive
+        run: |
+          echo "Uploading assets v8 and v7 to Google Drive..."
+
+          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
+          V8_FILE_ID="${{ secrets.ASSETS_V8_FILE_ID }}"
+          V7_FILE_ID="${{ secrets.ASSETS_V7_FILE_ID }}"
+          
+          V8_PATH="${{ steps.assets_v8.outputs.ASSETS_PATH }}"
+          V7_PATH="${{ steps.assets_v7.outputs.ASSETS_PATH }}"         
+          
+          # Upload v8          
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @"${V8_PATH}" \
+            "https://www.googleapis.com/upload/drive/v3/files/${V8_FILE_ID}?uploadType=media")
+
+          if [[ "$response" -ne 200 ]]; then
+            echo "Upload of ${V8_PATH} failed with HTTP status $response"
+            exit 1
+          fi
+
+          # Upload v7          
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @"${V7_PATH}" \
+            "https://www.googleapis.com/upload/drive/v3/files/${V7_FILE_ID}?uploadType=media")
+
+          if [[ "$response" -ne 200 ]]; then
+            echo "Upload of ${V7_PATH} failed with HTTP status $response"
+            exit 1
+          fi
+
+          echo "Upload complete."
+
+      - name: Send Rich Slack Notification
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          
+          V8_FILE_ID="${{ secrets.ASSETS_V8_FILE_ID }}"
+          V7_FILE_ID="${{ secrets.ASSETS_V7_FILE_ID }}"         
+          
+          GDRIVE_V8_LINK="<https://drive.google.com/file/d/${V8_FILE_ID}/view|Download Assets Zip 64-bit ARM>"
+          GDRIVE_V7_LINK="<https://drive.google.com/file/d/${V7_FILE_ID}/view|Download Assets Zip 32-bit ARM>"         
+          
+          jq -n \
+            --arg v8_link "$GDRIVE_V8_LINK" \
+            --arg v7_link "$GDRIVE_V7_LINK" \
+            '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":rocket: [Updated] New Assets Zips Available",
+                    emoji: true
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Assets 64-bit ARM Link:* \($v8_link)"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Assets 32-bit ARM Link:* \($v7_link)"
+                  }
+                }    
+              ]
+            }' > payload.json
+          
+          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+
+          rm -f payload.json
+      - name: Cleanup google-services.json
+        if: always()
+        run: |
+          rm -f app/google-services.json
+          echo "google-services.json cleaned up successfully"

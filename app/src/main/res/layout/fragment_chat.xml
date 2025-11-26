@@ -14,13 +14,13 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:menu="@menu/chat_menu"
-        app:title="AI Agent" />
+        app:title="@string/ai_agent" />
 
     <TextView
         android:id="@+id/empty_chat_view"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="New Chat"
+        android:text="@string/new_chat"
         android:textAppearance="?attr/textAppearanceHeadline5"
         android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone"
@@ -114,7 +114,7 @@
                     style="@style/Widget.Material3.Button.IconButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:contentDescription="Add Context File"
+                    android:contentDescription="@string/add_context_file"
                     android:text="\@" />
 
                 <HorizontalScrollView
@@ -137,7 +137,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:hint="Type a message or prompt...">
+                android:hint="@string/type_a_message_or_prompt">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/prompt_input_edittext"
@@ -150,28 +150,52 @@
                     android:scrollbars="vertical" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/experimental_ai_use_at_your_own_risk"
+                android:textAppearance="?attr/textAppearanceCaption"
+                android:gravity="center_horizontal"
+                android:layout_marginTop="4dp"/>
+
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp">
+                android:layout_marginTop="4dp"
+                android:minHeight="56dp">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/agent_mode_menu"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                    android:layout_width="150dp"
-                    android:layout_height="wrap_content"
+                <LinearLayout
+                    android:id="@+id/backend_status_view"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
                     android:layout_alignParentStart="true"
-                    android:layout_centerVertical="true">
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/backend_status_background"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp">
 
-                    <AutoCompleteTextView
-                        android:id="@+id/agent_mode_autocomplete"
-                        android:layout_width="120dp"
+                    <ImageView
+                        android:id="@+id/backend_status_icon"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:contentDescription="@string/current_ai_backend"
+                        android:src="@drawable/ic_ai"
+                        app:tint="?attr/colorOnSurfaceVariant" />
+
+                    <TextView
+                        android:id="@+id/backend_status_text"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:inputType="none"
-                        android:lines="1"
-                        android:text="Agent"
-                        tools:ignore="LabelFor" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:maxWidth="130dp"
+                        android:maxLines="1"
+                        android:textAppearance="?attr/textAppearanceLabelLarge"
+                        android:textColor="?attr/colorOnSurface"
+                        tools:text="Gemini" />
+                </LinearLayout>
 
                 <RelativeLayout
                     android:id="@+id/btn_control_prompt"
@@ -179,7 +203,6 @@
                     android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true">
-
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_stop_generation"
                         style="@style/Widget.Material3.Button.Icon"
@@ -187,7 +210,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:contentDescription="Stop Generation"
+                        android:contentDescription="@string/stop_generation"
                         android:visibility="gone"
                         app:icon="@drawable/ic_stop"
                         tools:visibility="visible" />
@@ -199,7 +222,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:contentDescription="Send Message"
+                        android:contentDescription="@string/send_message"
                         android:enabled="false"
                         app:icon="@drawable/ic_send" />
                 </RelativeLayout>
@@ -211,7 +234,7 @@
                     android:layout_height="wrap_content"
                     android:layout_centerVertical="true"
                     android:layout_toStartOf="@id/btn_control_prompt"
-                    android:contentDescription="Upload Image"
+                    android:contentDescription="@string/upload_image"
                     app:icon="@drawable/ic_add_photo" />
             </RelativeLayout>
         </LinearLayout>

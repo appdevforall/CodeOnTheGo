@@ -12,7 +12,6 @@ val packageVariant = System.getenv("TERMUX_PACKAGE_VARIANT") ?: "apt-android-7" 
 android {
     namespace = "com.termux"
     ndkVersion = BuildConfig.NDK_VERSION
-
     defaultConfig {
         buildConfigField("String", "TERMUX_PACKAGE_VARIANT", "\"" + packageVariant + "\"") // Used by TermuxApplication class
         manifestPlaceholders["TERMUX_PACKAGE_NAME"] = BuildConfig.PACKAGE_NAME
@@ -44,6 +43,7 @@ dependencies {
     implementation(libs.common.markwon.recycler)
 
     implementation(projects.common)
+    implementation(projects.commonUi)
     implementation(projects.preferences)
     implementation(projects.resources)
     implementation(projects.termux.termuxView)

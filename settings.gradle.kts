@@ -113,6 +113,7 @@ include(
 	":app",
 	":build-info",
 	":common",
+	":common-ui",
 	":editor",
 	":editor-api",
 	":editor-treesitter",
@@ -141,6 +142,7 @@ include(
 	":lsp:models",
 	":lsp:java",
 	":lsp:xml",
+	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
 	":subprojects:builder-model-impl",
 	":subprojects:flashbar",
@@ -148,6 +150,7 @@ include(
 	":subprojects:javac-services",
 	":subprojects:libjdwp",
 	":subprojects:projects",
+	":subprojects:project-models",
 	":subprojects:shizuku-aidl",
 	":subprojects:shizuku-api",
 	":subprojects:shizuku-common",
@@ -172,8 +175,8 @@ include(
 	":testing:lsp",
 	":testing:tooling",
 	":testing:unit",
-    ":plugin-api",
-    ":plugin-manager",
+	":plugin-api",
+	":plugin-manager",
     ":cv-image-to-xml"
 )
 

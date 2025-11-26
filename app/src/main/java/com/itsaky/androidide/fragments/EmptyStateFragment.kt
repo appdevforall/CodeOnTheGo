@@ -8,110 +8,158 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewbinding.ViewBinding
 import com.itsaky.androidide.databinding.FragmentEmptyStateBinding
 import com.itsaky.androidide.editor.ui.EditorLongPressEvent
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.EmptyStateFragmentViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 
 abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
+	constructor(layout: Int, bind: (View) -> T) : super(layout, bind)
+	constructor(inflate: (LayoutInflater, ViewGroup?, Boolean) -> T) : super(inflate)
 
-  constructor(layout: Int, bind: (View) -> T) : super(layout, bind)
-  constructor(inflate: (LayoutInflater, ViewGroup?, Boolean) -> T) : super(inflate)
+	protected var emptyStateBinding: FragmentEmptyStateBinding? = null
+		private set
 
-  protected var emptyStateBinding: FragmentEmptyStateBinding? = null
-    private set
+	protected val emptyStateViewModel by viewModels<EmptyStateFragmentViewModel>()
 
-  protected val emptyStateViewModel by viewModels<EmptyStateFragmentViewModel>()
+	private var gestureDetector: GestureDetector? = null
+	
+	// Cache the last known empty state to avoid returning incorrect default when detached
+	// Volatile ensures thread-safe visibility and atomicity for boolean reads/writes
+	@Volatile
+	private var cachedIsEmpty: Boolean = true
 
-  private lateinit var gestureDetector: GestureDetector
+	/**
+	 * Called when a long press is detected on the fragment's root view.
+	 * Subclasses must implement this to define the action (e.g., show a tooltip).
+	 */
+	protected abstract fun onFragmentLongPressed()
 
-  /**
-   * Called when a long press is detected on the fragment's root view.
-   * Subclasses must implement this to define the action (e.g., show a tooltip).
-   */
-  protected abstract fun onFragmentLongPressed()
+	private val gestureListener =
+		object : GestureDetector.SimpleOnGestureListener() {
+			override fun onLongPress(e: MotionEvent) {
+				onFragmentLongPressed()
+			}
+		}
 
-  private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
-    override fun onLongPress(e: MotionEvent) {
-      onFragmentLongPressed()
-    }
-  }
+	internal var isEmpty: Boolean
+		get() {
+			return if (isAdded && !isDetached) {
+				// Update cache when attached and return current value
+				emptyStateViewModel.isEmpty.value.also { cachedIsEmpty = it }
+			} else {
+				// Return cached value when detached to avoid UI inconsistencies
+				cachedIsEmpty
+			}
+		}
+		set(value) {
+			// Always update cache to preserve intended state even when detached
+			cachedIsEmpty = value
+			// Update ViewModel only when attached
+			if (isAdded && !isDetached) {
+				emptyStateViewModel.setEmpty(value)
+			}
+		}
 
-  internal var isEmpty: Boolean
-    get() = emptyStateViewModel.isEmpty.value ?: false
-    set(value) {
-      emptyStateViewModel.isEmpty.value = value
-    }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View =
+		FragmentEmptyStateBinding
+			.inflate(inflater, container, false)
+			.also { emptyStateBinding ->
+				this.emptyStateBinding = emptyStateBinding
+				emptyStateBinding.root.addView(
+					super.onCreateView(inflater, emptyStateBinding.root, savedInstanceState),
+				)
+			}.root
 
-  override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-                            savedInstanceState: Bundle?): View {
+	@SuppressLint("ClickableViewAccessibility")
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-    return FragmentEmptyStateBinding.inflate(inflater, container, false).also { emptyStateBinding ->
-      this.emptyStateBinding = emptyStateBinding
-      emptyStateBinding.root.addView(
-        super.onCreateView(inflater, emptyStateBinding.root, savedInstanceState)
-      )
-    }.root
-  }
+		gestureDetector = GestureDetector(requireContext(), gestureListener)
 
-  @SuppressLint("ClickableViewAccessibility")
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
+		// Set a non-consuming touch listener on the root ViewFlipper
+		emptyStateBinding?.root?.setOnTouchListener { _, event ->
+			gestureDetector?.onTouchEvent(event)
+			// Return false to allow children to handle their own touch events (e.g., scrolling)
+			false
+		}
 
+		// Sync ViewModel with cache when view is created (in case cache was updated while detached)
+		// Read cached value into local variable to ensure atomic read
+		val cachedValue = cachedIsEmpty
+		if (emptyStateViewModel.isEmpty.value != cachedValue) {
+			emptyStateViewModel.setEmpty(cachedValue)
+		}
 
-    gestureDetector = GestureDetector(requireContext(), gestureListener)
+		viewLifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				launch {
+					emptyStateViewModel.isEmpty.collectLatest { isEmpty ->
+						withContext(Dispatchers.Main.immediate) {
+							cachedIsEmpty = isEmpty
+							emptyStateBinding?.root?.displayedChild = if (isEmpty) 0 else 1
+						}
+					}
+				}
+				launch {
+					emptyStateViewModel.emptyMessage.collect { message ->
+						withContext(Dispatchers.Main.immediate) {
+							emptyStateBinding?.emptyView?.message = message
+						}
+					}
+				}
+			}
+		}
+	}
 
-    // Set a non-consuming touch listener on the root ViewFlipper
-    emptyStateBinding?.root?.setOnTouchListener { _, event ->
-      gestureDetector.onTouchEvent(event)
-      // Return false to allow children to handle their own touch events (e.g., scrolling)
-      false
-    }
+	override fun onDestroyView() {
+		this.emptyStateBinding = null
+		gestureDetector = null
+		super.onDestroyView()
+	}
 
-    emptyStateViewModel.isEmpty.observe(viewLifecycleOwner) { isEmpty ->
-      emptyStateBinding?.apply {
-        root.displayedChild = if (isEmpty) 0 else 1
-      }
-    }
+	fun showTooltipDialog(tooltipTag: String) {
+		val anchorView = activity?.window?.decorView ?: return
+		TooltipManager.showIdeCategoryTooltip(
+			context = requireContext(),
+			anchorView = anchorView,
+			tag = tooltipTag,
+		)
+	}
 
-    emptyStateViewModel.emptyMessage.observe(viewLifecycleOwner) { message ->
-      emptyStateBinding?.emptyView?.message = message
-    }
-  }
+	override fun onResume() {
+		super.onResume()
+		// Register this fragment to receive events
+		EventBus.getDefault().register(this)
+	}
 
-  override fun onDestroyView() {
-    this.emptyStateBinding = null
-    super.onDestroyView()
-  }
+	override fun onPause() {
+		super.onPause()
+		// Unregister to avoid memory leaks
+		EventBus.getDefault().unregister(this)
+	}
 
-  fun showTooltipDialog(tooltipTag: String) {
-      val anchorView = activity?.window?.decorView ?: return
-      TooltipManager.showTooltip(
-          context = requireContext(),
-          anchorView = anchorView,
-          tag = tooltipTag,
-      )
-  }
-
-  override fun onResume() {
-    super.onResume()
-    // Register this fragment to receive events
-    EventBus.getDefault().register(this)
-  }
-
-  override fun onPause() {
-    super.onPause()
-    // Unregister to avoid memory leaks
-    EventBus.getDefault().unregister(this)
-  }
-
-  // This method will be called when an EditorLongPressEvent is posted
-  @Subscribe(threadMode = ThreadMode.MAIN)
-  fun onEditorLongPressed(event: EditorLongPressEvent) {
-    onFragmentLongPressed()
-  }
+	// This method will be called when an EditorLongPressEvent is posted
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onEditorLongPressed(event: EditorLongPressEvent) {
+		onFragmentLongPressed()
+	}
 }

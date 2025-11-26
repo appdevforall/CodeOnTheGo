@@ -41,7 +41,8 @@ fun composeActivityProject() =
 	baseProjectImpl(
 		language = composeLanguageParameter(),
 		projectVersionData = ProjectVersionData(kotlin = composeKotlinVersion),
-		isToml = true
+		isToml = true,
+		showUseKts = false
 	) {
 
 		templateName = R.string.template_compose
@@ -56,7 +57,7 @@ fun composeActivityProject() =
 
 				require(data.language == Kotlin) { "Compose activity requires Kotlin language" }
 
-				composeDependencies()
+				composeDependencies(data.useKts)
 
 				res {
 					writeXmlResource("themes", VALUES, source = ::composeThemesXml)

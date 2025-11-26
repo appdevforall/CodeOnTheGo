@@ -18,10 +18,8 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -55,6 +53,7 @@ import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -69,9 +68,9 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.build.DebugAction
@@ -83,7 +82,8 @@ import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
-import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.events.InstallationEvent
+import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
@@ -108,7 +108,6 @@ import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
-import com.itsaky.androidide.utils.ApkInstallationSessionCallback
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
@@ -117,12 +116,14 @@ import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.WADBViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.widgets.WidgetTableRegistry
@@ -150,30 +151,35 @@ import kotlin.math.roundToLong
 abstract class BaseEditorActivity :
 	EdgeToEdgeIDEActivity(),
 	TabLayout.OnTabSelectedListener,
-	DiagnosticClickListener {
-	protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
+    DiagnosticClickListener {
+
+
+	protected var mLifecycleObserver: EditorActivityLifecyclerObserver? = null
 	protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null
 	protected var filesTreeFragment: FileTreeFragment? = null
 	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
+	private var drawerToggle: ActionBarDrawerToggle? = null
+	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
 	protected val memoryUsageWatcher = MemoryUsageWatcher()
 	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
+	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-    var isDestroying = false
-        protected set
+	var isDestroying = false
+	protected set
 
 	/**
 	 * Editor activity's [CoroutineScope] for executing tasks in the background.
 	 */
 	protected val editorActivityScope = CoroutineScope(Dispatchers.Default)
 
-	internal var installationCallback: ApkInstallationSessionCallback? = null
-
 	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
 	val editorViewModel by viewModels<EditorViewModel>()
 	val debuggerViewModel by viewModels<DebuggerViewModel>()
+	val wadbViewModel by viewModels<WADBViewModel>()
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
+	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
@@ -188,14 +194,19 @@ abstract class BaseEditorActivity :
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (binding.root.isDrawerOpen(GravityCompat.START)) {
-					binding.root.closeDrawer(GravityCompat.START)
-				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
-				} else if (binding.swipeReveal.isOpen) {
-					binding.swipeReveal.close()
-				} else {
-					doConfirmProjectClose()
+				when {
+					binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START) -> {
+						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+					}
+					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
+						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+					}
+					binding.swipeReveal.isOpen -> {
+						binding.swipeReveal.close()
+					}
+					else -> {
+						doConfirmProjectClose()
+					}
 				}
 			}
 		}
@@ -282,7 +293,9 @@ abstract class BaseEditorActivity :
 		try {
 			unbindService(debuggerServiceConnection)
 		} catch (e: Throwable) {
-			log.error("Failed to stop debugger service", e)
+			if (e !is IllegalArgumentException) {
+				log.error("Failed to stop debugger service", e)
+			}
 		}
 	}
 
@@ -308,7 +321,7 @@ abstract class BaseEditorActivity :
 		isDebuggerStarting = true
 
 		val intent = Intent(this, DebuggerService::class.java)
-		if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
+		if (bindService(intent, debuggerServiceConnection, BIND_AUTO_CREATE)) {
 			postStopDebuggerServiceIfNotConnected()
 			doSetStatus(getString(string.debugger_starting))
 		} else {
@@ -328,11 +341,15 @@ abstract class BaseEditorActivity :
 
 	protected var optionsMenuInvalidator: Runnable? = null
 
-	private lateinit var gestureDetector: GestureDetector
+	private var gestureDetector: GestureDetector? = null
     private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
     private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
+	private var editorAppBarInsetTop: Int = 0
+
     companion object {
+
+        private const val TAG = "ResizePanelDebugger"
 
         const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
@@ -374,18 +391,35 @@ abstract class BaseEditorActivity :
 
 	protected open fun preDestroy() {
 		BuildOutputProvider.clearBottomSheet()
-        _binding = null
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
-		optionsMenuInvalidator?.also {
-			ThreadUtils.getMainHandler().removeCallbacks(it)
-		}
+		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
+		drawerToggle = null
+		bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
+		bottomSheetCallback = null
 
+		runCatching { onBackPressedCallback.remove() }
+		runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
+		optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
 		optionsMenuInvalidator = null
 
-		installationCallback?.destroy()
-		installationCallback = null
+		apkInstallationViewModel.destroy(this)
+
+		feedbackButtonManager = null
+		mLifecycleObserver?.let {
+			runCatching { lifecycle.removeObserver(it) }
+		}
+		mLifecycleObserver = null
+
+		IDEApplication.instance.setCurrentActivity(null)
+
+		diagnosticInfoBinding = null
+		filesTreeFragment = null
+		editorBottomSheet = null
+		gestureDetector = null
+
+		_binding = null
 
 		if (isDestroying) {
 			memoryUsageWatcher.stopWatching(true)
@@ -430,10 +464,10 @@ abstract class BaseEditorActivity :
 
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
+		editorAppBarInsetTop = insets.top
 		this._binding?.apply {
-			drawerSidebar
-				.getFragment<EditorSidebarFragment>()
-				.onApplyWindowInsets(insets)
+			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
+				?.onApplyWindowInsets(insets)
 
 			content.apply {
 				editorAppBarLayout.updatePadding(
@@ -445,7 +479,7 @@ abstract class BaseEditorActivity :
 	}
 
 	@Subscribe(threadMode = MAIN)
-	open fun onInstallationResult(event: InstallationResultEvent) {
+	open fun onInstallationResult(event: InstallationEvent.InstallationResultEvent) {
 		val intent = event.intent
 		if (isDestroying) {
 			return
@@ -502,6 +536,7 @@ abstract class BaseEditorActivity :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        mLifecycleObserver = EditorActivityLifecyclerObserver()
 
 		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
 
@@ -516,12 +551,15 @@ abstract class BaseEditorActivity :
         }
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-        lifecycle.addObserver(mLifecycleObserver)
+        mLifecycleObserver?.let {
+            lifecycle.addObserver(it)
+				}
 
         setupToolbar()
         setupDrawers()
         content.tabs.addOnTabSelectedListener(this)
 
+		setupStateObservers()
         setupViews()
 
         setupContainers()
@@ -533,17 +571,24 @@ abstract class BaseEditorActivity :
         )
 
         content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
-            showTooltip(
-                tag = TooltipTag.EDITOR_BUILD_STATUS
-            )
+            showTooltip(tag = TooltipTag.EDITOR_BUILD_STATUS)
             true
         }
+
+        feedbackButtonManager =
+            FeedbackButtonManager(
+                activity = this,
+                feedbackFab = binding.fabFeedback,
+                getLogContent = ::getLogContent,
+            )
+        feedbackButtonManager?.setupDraggableFab()
 
         setupMemUsageChart()
         watchMemory()
         observeFileOperations()
 
         setupGestureDetector()
+
     }
 
     private fun setupToolbar() {
@@ -561,16 +606,16 @@ abstract class BaseEditorActivity :
                     super.onDrawerOpened(drawerView)
                     // Hide the keyboard when the drawer opens.
                     closeKeyboard()
+                    // Dismiss autocomplete and other editor windows
+                    provideCurrentEditor()?.editor?.ensureWindowsDismissed()
                 }
             }
 
-
+            drawerToggle = toggle
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
             setOnNavIconLongClickListener {
-                showTooltip(
-                    tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON
-                )
+                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
             }
         }
 
@@ -676,7 +721,7 @@ abstract class BaseEditorActivity :
 
         this.isDestroying = isFinishing
         getFileTreeFragment()?.saveTreeState()
-        
+
         // Clear current activity from plugin services when activity is finishing
         if (isFinishing) {
             IDEApplication.instance.setCurrentActivity(null)
@@ -690,15 +735,18 @@ abstract class BaseEditorActivity :
         memoryUsageWatcher.listener = memoryUsageListener
         memoryUsageWatcher.startWatching()
 
+		apkInstallationViewModel.reloadStatus(this)
+
         try {
             getFileTreeFragment()?.listProjectFiles()
         } catch (th: Throwable) {
             log.error("Failed to update files list", th)
             flashError(string.msg_failed_list_files)
         }
-        
+
         // Set this activity as current for plugin services
         IDEApplication.instance.setCurrentActivity(this)
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onStop() {
@@ -914,6 +962,8 @@ abstract class BaseEditorActivity :
                 super.onDrawerOpened(drawerView)
                 // Hide the keyboard when the drawer opens.
                 closeKeyboard()
+                // Dismiss autocomplete and other editor windows
+                provideCurrentEditor()?.editor?.ensureWindowsDismissed()
             }
         }
 
@@ -940,7 +990,7 @@ abstract class BaseEditorActivity :
         invalidateOptionsMenu()
     }
 
-	private fun setupViews() {
+	private fun setupStateObservers() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.CREATED) {
 				launch {
@@ -970,33 +1020,35 @@ abstract class BaseEditorActivity :
 			}
 		}
 
-        editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
-        editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
-        editorViewModel._statusText.observe(this) {
-            content.bottomSheet.setStatus(
-                it.first,
-                it.second
-            )
-        }
+		editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
+		editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
+		editorViewModel._statusText.observe(this) {
+			content.bottomSheet.setStatus(
+				it.first,
+				it.second
+			)
+		}
 
-        editorViewModel.observeFiles(this) { files ->
-            if (this is EditorHandlerActivity) {
-                (this as EditorHandlerActivity).updateTabVisibility()
-            } else {
-                content.apply {
-                    if (files.isNullOrEmpty()) {
-                        tabs.visibility = View.GONE
-                        viewContainer.displayedChild = 1
-                    } else {
-                        tabs.visibility = View.VISIBLE
-                        viewContainer.displayedChild = 0
-                    }
-                }
-            }
+		editorViewModel.observeFiles(this) { files ->
+			if (this is EditorHandlerActivity) {
+				this.updateTabVisibility()
+			} else {
+				content.apply {
+					if (files.isNullOrEmpty()) {
+						tabs.visibility = View.GONE
+						viewContainer.displayedChild = 1
+					} else {
+						tabs.visibility = View.VISIBLE
+						viewContainer.displayedChild = 0
+					}
+				}
+			}
 
-            invalidateOptionsMenu()
-        }
+			invalidateOptionsMenu()
+		}
+	}
 
+	private fun setupViews() {
         setupNoEditorView()
         setupBottomSheet()
 
@@ -1034,7 +1086,7 @@ abstract class BaseEditorActivity :
 			ensureDebuggerServiceBound()
 		}
 
-		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		debuggerService?.onConnectionStateUpdated(newState = state)
 		if (state == DebuggerConnectionState.ATTACHED) {
 			// if a VM was just attached, make sure the debugger fragment is visible
 			bottomSheetViewModel.setSheetState(
@@ -1054,9 +1106,7 @@ abstract class BaseEditorActivity :
 
 	private fun setupNoEditorView() {
 		content.noEditorLayout.setOnLongClickListener {
-			showTooltip(
-				tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
-			)
+			showTooltip(tag = TooltipTag.EDITOR_PROJECT_OVERVIEW)
 			true
 		}
         content.noEditorSummary.movementMethod = LinkMovementMethod()
@@ -1108,28 +1158,29 @@ abstract class BaseEditorActivity :
 	private fun setupBottomSheet() {
         editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
         BuildOutputProvider.setBottomSheet(content.bottomSheet)
-        editorBottomSheet?.addBottomSheetCallback(object : BottomSheetCallback() {
+        val cb = object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
-				// update the sheet state so that the ViewModel is in sync
-				bottomSheetViewModel.setSheetState(sheetState = newState)
+						    // update the sheet state so that the ViewModel is in sync
+							bottomSheetViewModel.setSheetState(sheetState = newState)
+							if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+								provideCurrentEditor()?.editor?.ensureWindowsDismissed()
+							}
+						}
 
-                if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-                    val editor = provideCurrentEditor()
-                    editor?.editor?.ensureWindowsDismissed()
-                }
-            }
+					override fun onSlide(bottomSheet: View, slideOffset: Float) {
+						content.apply {
+							val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+							this.bottomSheet.onSlide(slideOffset)
+							this.viewContainer.scaleX = editorScale
+							this.viewContainer.scaleY = editorScale
+						}
+					}
+				}
 
-            override fun onSlide(bottomSheet: View, slideOffset: Float) {
-				content.apply {
-                    val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-                    this.bottomSheet.onSlide(slideOffset)
-                    this.viewContainer.scaleX = editorScale
-                    this.viewContainer.scaleY = editorScale
-                }
-            }
-        })
+		bottomSheetCallback = cb
+		editorBottomSheet?.addBottomSheetCallback(cb)
 
-        val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
+		val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 contentCardRealHeight = binding.contentCard.height
                 content.also {
@@ -1170,10 +1221,6 @@ abstract class BaseEditorActivity :
         }
     }
 
-	open fun installationSessionCallback(): SessionCallback {
-        return ApkInstallationSessionCallback(this).also { installationCallback = it }
-    }
-
     private fun observeFileOperations() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -1207,15 +1254,10 @@ abstract class BaseEditorActivity :
 
                 val diffX = e2.x - (e1?.x ?: 0f)
 
-                // Check for a right swipe (to open left drawer)
+                // Check for a right swipe (to open left drawer) - This part is still correct
                 if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    // Use the correct binding for the drawer layout
                     binding.editorDrawerLayout.openDrawer(GravityCompat.START)
-                    return true
-                }
-
-                // Check for a left swipe (to open right drawer)
-                if (diffX < -flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
-                    binding.editorDrawerLayout.openDrawer(GravityCompat.END)
                     return true
                 }
 
@@ -1227,18 +1269,40 @@ abstract class BaseEditorActivity :
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         // Pass the event to our gesture detector first
         if (ev != null) {
-            gestureDetector.onTouchEvent(ev)
+            gestureDetector?.onTouchEvent(ev)
         }
         // Then, let the default dispatching happen
         return super.dispatchTouchEvent(ev)
     }
 
     private fun showTooltip(tag: String) {
-        TooltipManager.showTooltip(
-            context = this@BaseEditorActivity,
+        TooltipManager.showIdeCategoryTooltip(
+            context = this,
             anchorView = content.customToolbar,
             tag = tag,
         )
     }
-}
 
+    private fun getLogContent(): String? {
+        val pagerAdapter = binding.content.bottomSheet.pagerAdapter
+
+        val candidateTabs = buildList {
+            add(bottomSheetViewModel.currentTab)
+            add(BottomSheetViewModel.TAB_BUILD_OUTPUT)
+            add(BottomSheetViewModel.TAB_APPLICATION_LOGS)
+            add(BottomSheetViewModel.TAB_IDE_LOGS)
+        }.distinct()
+
+        candidateTabs.forEach { tabIndex ->
+            val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tabIndex)
+            if (fragment is ShareableOutputFragment) {
+                val shareable = fragment.getShareableContent().trim()
+                if (shareable.isNotEmpty()) {
+                    return shareable
+                }
+            }
+        }
+
+        return null
+    }
+}

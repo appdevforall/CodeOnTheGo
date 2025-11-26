@@ -11,8 +11,8 @@
 //import com.itsaky.androidide.agent.repository.GeminiTools.allMyTools
 //import com.itsaky.androidide.agent.viewmodel.ExecutorAgent
 //import com.itsaky.androidide.api.IDEApiFacade
-//import com.itsaky.androidide.models.AgentState
-//import com.itsaky.androidide.models.ChatMessage
+//import com.itsaky.androidide.agent.AgentState
+//import com.itsaky.androidide.agent.ChatMessage
 //import com.itsaky.androidide.models.PlanStep
 //import com.itsaky.androidide.models.StepResult
 //import kotlinx.coroutines.Dispatchers
@@ -375,7 +375,7 @@
 //
 //        val chatHistoryAsContent = history.map {
 //            Content.builder().parts(listOf(Part.builder().text(it.text).build()))
-//                .role(if (it.sender == ChatMessage.Sender.USER) "user" else "model").build()
+//                .role(if (it.sender == Sender.USER) "user" else "model").build()
 //        }
 //
 //        var loopCount = 0

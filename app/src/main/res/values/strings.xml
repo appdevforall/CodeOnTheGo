@@ -18,5 +18,4 @@
 <resources>
     <!--  Required by F-Droid-->
     <string name="app_name" translatable="false">Code on the Go</string>
-
 </resources>

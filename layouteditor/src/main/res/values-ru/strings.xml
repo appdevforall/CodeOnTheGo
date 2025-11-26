@@ -1,15 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools"
   tools:override="true"
   tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation">
-  <string name="app_name">Layout Editor</string>
-  <string name="app_slogan">Создай потрясающий интерфейс!</string>
-  <string name="home">НАЧАТЬ</string>
-  <string name="preference">НАСТРОЙКИ</string>
-  <string name="github">GITHUB</string>
   <string name="about">О ПРИЛОЖЕНИИ</string>
-  <string name="share">ПОДЕЛИТЬСЯ</string>
-  <string name="open_source_licence">ЛИЦЕНЗИИ НА ОТКРЫТЫЕ ИСХОДНИКИ</string>
-  <string name="projects">Проекты</string>
   <string name="title_preference">Настройки</string>
   <string name="title_about">О приложении</string>
   <string name="navigation_drawer_open">Открыть блок навигации</string>
@@ -22,9 +14,7 @@
   <string name="copy">Копирование</string>
   <string name="drawable_manager">Управление отрисовкой</string>
   <string name="xml_preview">Предпросмотр XML</string>
-  <string name="msg_no_projects">У вас нет проектов.</string>
   <string name="msg_create_new">Клик + значок для создания нового проекта.</string>
-  <string name="share_description">Редактор Макетов для легкого построения приложений Андроид переносом элементов пользовательского интерфейса в визуальном редакторе.\n\n### Возможности:\n- Дизайн макета перетаскиванием\n- Редактирование свойств обзора и макета\n- Просмотр и копирование XML-кода макета\n- Больше : %1$s#features\n\nСкачать: %1$s/releases/latest</string>
   <string name="permission_granted">Разрешение предоставлено&#8230;</string>
   <string name="permission_denied">Разрешения нет&#8230;</string>
   <string name="preview_layout">Просмотр макета</string>
@@ -42,10 +32,6 @@
   <string name="msg_current_name_unavailable">Текущее имя недоступно!</string>
   <string name="msg_cannnot_empty">Поле не может быть пустым!</string>
   <string name="options">Возможности</string>
-  <string name="enable_vibration">Включить вибрацию</string>
-  <string name="summary_enable_vibration">Может расходовать батарею</string>
-  <string name="show_stroke">Показать штрихи</string>
-  <string name="summary_show_stroke">Показать штрихи в редакторе?</string>
   <string name="remove_drawable">Удалить отрисовку</string>
   <string name="remove_font">Удалить шрифт</string>
   <string name="msg_remove_drawable">Удалить отрисовку?</string>
@@ -75,10 +61,7 @@
   <string name="theme_dark">Темная</string>
   <string name="theme_light">Светлая</string>
   <string name="theme_auto">Авто</string>
-  <string name="msg_choose_theme">Выбор темы</string>
   <string name="theme">Тема</string>
-  <string name="dynamic_colors">Использовать динамические цвета</string>
-  <string name="summary_dynamic_colors">Эта возможность только для Андроид 12+.</string>
   <string name="export_layout">Экспорт макета</string>
   <string name="invalid_data_intent">Интент вернул некорректные данные.</string>
   <string name="select_from_storage">Выберите файл из основного хранилища.</string>

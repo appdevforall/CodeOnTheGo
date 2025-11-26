@@ -57,7 +57,6 @@ import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
 import com.itsaky.androidide.actions.etc.GenerateXMLAction
 import com.itsaky.androidide.plugins.extensions.UIExtension
-import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 
 /**

@@ -12,32 +12,94 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
+import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter.DiffCallback.ACTION_EDIT
+import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.MessageStatus
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
-import com.itsaky.androidide.models.ChatMessage
-import com.itsaky.androidide.models.MessageStatus
+import com.itsaky.androidide.databinding.ListItemChatSystemMessageBinding
 import io.noties.markwon.Markwon
+import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class ChatAdapter(
     private val markwon: Markwon,
     private val onMessageAction: (action: String, message: ChatMessage) -> Unit
 ) :
-    ListAdapter<ChatMessage, ChatAdapter.MessageViewHolder>(DiffCallback) {
+    ListAdapter<ChatMessage, RecyclerView.ViewHolder>(DiffCallback) {
 
-    class MessageViewHolder(val binding: ListItemChatMessageBinding) :
-        RecyclerView.ViewHolder(binding.root)
+    private val timeFormatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+    private val decimalSecondsFormatter = DecimalFormat("0.0")
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
-        val binding = ListItemChatMessageBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return MessageViewHolder(binding)
+    private val expandedMessageIds = mutableSetOf<String>()
+
+    private object ExpansionPayload
+
+    companion object {
+        private const val VIEW_TYPE_DEFAULT = 0
+        private const val VIEW_TYPE_SYSTEM = 1
     }
 
-    override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
+    sealed class MessageViewHolder(view: View) : RecyclerView.ViewHolder(view)
+
+    class DefaultMessageViewHolder(val binding: ListItemChatMessageBinding) :
+        MessageViewHolder(binding.root)
+
+    class SystemMessageViewHolder(val binding: ListItemChatSystemMessageBinding) :
+        MessageViewHolder(binding.root)
+
+    override fun getItemViewType(position: Int): Int {
         val message = getItem(position)
+        return if (message.sender == Sender.SYSTEM && message.status == MessageStatus.ERROR) {
+            VIEW_TYPE_DEFAULT
+        } else if (message.sender == Sender.SYSTEM) {
+            VIEW_TYPE_SYSTEM
+        } else {
+            VIEW_TYPE_DEFAULT
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return when (viewType) {
+            VIEW_TYPE_SYSTEM -> {
+                val binding = ListItemChatSystemMessageBinding.inflate(inflater, parent, false)
+                SystemMessageViewHolder(binding)
+            }
+            else -> { // VIEW_TYPE_DEFAULT
+                val binding = ListItemChatMessageBinding.inflate(inflater, parent, false)
+                DefaultMessageViewHolder(binding)
+            }
+        }
+    }
+
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.contains(ExpansionPayload)) {
+            // Partial bind: only update the expansion UI
+            if (holder is SystemMessageViewHolder) {
+                updateSystemMessageExpansion(holder, getItem(position))
+            }
+        } else {
+            // Full bind
+            super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        val message = getItem(position)
+        when (holder) {
+            is DefaultMessageViewHolder -> bindDefaultMessage(holder, message)
+            is SystemMessageViewHolder -> bindSystemMessage(holder, message)
+        }
+    }
+
+    private fun bindDefaultMessage(holder: DefaultMessageViewHolder, message: ChatMessage) {
         holder.binding.messageSender.text = message.sender.name.lowercase(Locale.getDefault())
             .replaceFirstChar { it.titlecase(Locale.getDefault()) }
 
@@ -53,26 +115,136 @@ class ChatAdapter(
                 holder.binding.loadingIndicator.visibility = View.VISIBLE
                 holder.binding.messageContent.visibility = View.GONE
                 holder.binding.btnRetry.visibility = View.GONE
+                holder.binding.messageMetadataContainer.visibility = View.GONE
             }
-
             MessageStatus.SENT, MessageStatus.COMPLETED -> {
                 holder.binding.loadingIndicator.visibility = View.GONE
                 holder.binding.messageContent.visibility = View.VISIBLE
                 holder.binding.btnRetry.visibility = View.GONE
                 markwon.setMarkdown(holder.binding.messageContent, message.text)
+                updateMessageMetadata(holder.binding, message)
             }
-
             MessageStatus.ERROR -> {
                 holder.binding.loadingIndicator.visibility = View.GONE
                 holder.binding.messageContent.visibility = View.VISIBLE
                 holder.binding.btnRetry.visibility = View.VISIBLE
                 holder.binding.messageContent.text = message.text
-                holder.binding.btnRetry.setOnClickListener {
-                    onMessageAction(ACTION_RETRY, message)
+                if (message.sender == Sender.SYSTEM) {
+                    holder.binding.btnRetry.text =
+                        holder.itemView.context.getString(R.string.open_ai_settings)
+                    holder.binding.btnRetry.setIconResource(R.drawable.ic_settings)
+                    holder.binding.btnRetry.setOnClickListener {
+                        onMessageAction(DiffCallback.ACTION_OPEN_SETTINGS, message)
+                    }
+                } else {
+                    holder.binding.btnRetry.text =
+                        holder.itemView.context.getString(R.string.retry)
+                    holder.binding.btnRetry.setIconResource(R.drawable.ic_refresh)
+                    holder.binding.btnRetry.setOnClickListener {
+                        onMessageAction(DiffCallback.ACTION_RETRY, message)
+                    }
                 }
+                updateMessageMetadata(holder.binding, message)
             }
         }
     }
+
+    private fun bindSystemMessage(holder: SystemMessageViewHolder, message: ChatMessage) {
+        // Full bind: always process the markdown content
+        markwon.setMarkdown(holder.binding.messageContent, message.text)
+
+        // Set the current expansion state
+        updateSystemMessageExpansion(holder, message)
+
+        // Handle click to expand/collapse
+        holder.binding.messageHeader.setOnClickListener {
+            // Update the internal state set
+            if (!expandedMessageIds.remove(message.id)) {
+                expandedMessageIds.add(message.id)
+            }
+            // Notify the adapter with the specific payload for an efficient update
+            notifyItemChanged(holder.bindingAdapterPosition, ExpansionPayload)
+        }
+    }
+
+    /**
+     * A new helper function that only updates the views related to the expansion state.
+     * This is called for both full and partial binds.
+     */
+    private fun updateSystemMessageExpansion(
+        holder: SystemMessageViewHolder,
+        message: ChatMessage
+    ) {
+        val isExpanded = expandedMessageIds.contains(message.id)
+        if (isExpanded) {
+            holder.binding.messageHeaderTitle.text = "System Log"
+            holder.binding.messageContent.visibility = View.VISIBLE
+            holder.binding.expandIcon.rotation = 180f
+        } else {
+            holder.binding.messageHeaderTitle.text = createPreview(message.text)
+            holder.binding.messageContent.visibility = View.GONE
+            holder.binding.expandIcon.rotation = 0f
+        }
+    }
+
+    private fun createPreview(rawText: String): String {
+        val cleanedText = rawText
+            .replace(Regex("`{1,3}|\\*{1,2}|_"), "") // Remove common markdown characters
+            .replace(Regex("\\s+"), " ") // Collapse all whitespace and newlines into a single space
+            .trim()
+        return "Log: $cleanedText" // Prepend a label for context
+    }
+
+    private fun updateMessageMetadata(
+        binding: ListItemChatMessageBinding,
+        message: ChatMessage
+    ) {
+        val timestampText = formatTimestamp(message.timestamp)
+        val durationText = formatDuration(message.durationMs)
+
+        val hasTimestamp = timestampText != null
+        val hasDuration = durationText != null
+
+        if (!hasTimestamp && !hasDuration) {
+            binding.messageMetadataContainer.visibility = View.GONE
+            return
+        }
+
+        binding.messageMetadataContainer.visibility = View.VISIBLE
+
+        if (hasTimestamp) {
+            binding.messageTimestamp.text = timestampText
+            binding.messageTimestamp.visibility = View.VISIBLE
+        } else {
+            binding.messageTimestamp.visibility = View.GONE
+        }
+
+        if (hasDuration) {
+            binding.messageDuration.text = durationText
+            binding.messageDuration.visibility = View.VISIBLE
+        } else {
+            binding.messageDuration.visibility = View.GONE
+        }
+    }
+
+    private fun formatTimestamp(timestamp: Long): String? {
+        if (timestamp <= 0L) return null
+        return synchronized(timeFormatter) {
+            timeFormatter.format(Date(timestamp))
+        }
+    }
+
+    private fun formatDuration(durationMs: Long?): String? {
+        if (durationMs == null || durationMs <= 0) return null
+        val seconds = durationMs / 1000.0
+        return if (seconds < 60) {
+            "took ${decimalSecondsFormatter.format(seconds)}s"
+        } else {
+            val minutes = seconds / 60.0
+            "took ${decimalSecondsFormatter.format(minutes)}m"
+        }
+    }
+
 
     private fun showContextMenu(view: View, message: ChatMessage) {
         val context = view.context
@@ -80,7 +252,7 @@ class ChatAdapter(
         popup.inflate(R.menu.chat_message_context_menu)
 
         val editItem = popup.menu.findItem(R.id.menu_edit_message)
-        editItem.isVisible = message.sender == ChatMessage.Sender.USER
+        editItem.isVisible = message.sender == Sender.USER
 
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -104,14 +276,13 @@ class ChatAdapter(
         popup.show()
     }
 
-    companion object DiffCallback : DiffUtil.ItemCallback<ChatMessage>() {
+    object DiffCallback : DiffUtil.ItemCallback<ChatMessage>() {
         const val ACTION_EDIT = "edit"
         const val ACTION_RETRY = "retry"
-
+        const val ACTION_OPEN_SETTINGS = "open_settings"
         override fun areItemsTheSame(oldItem: ChatMessage, newItem: ChatMessage): Boolean {
-            return oldItem.timestamp == newItem.timestamp && oldItem.text == newItem.text
+            return oldItem.id == newItem.id
         }
-
         override fun areContentsTheSame(oldItem: ChatMessage, newItem: ChatMessage): Boolean {
             return oldItem == newItem
         }

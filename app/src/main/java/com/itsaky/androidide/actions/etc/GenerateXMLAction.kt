@@ -12,8 +12,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.layouteditor.activities.EditorActivity
-import org.appdevforall.codeonthego.layouteditor.utils.Constants
+
 import java.io.File
 
 class GenerateXMLAction(context: Context, override val order: Int) : EditorRelatedAction() {
@@ -83,10 +82,10 @@ class GenerateXMLAction(context: Context, override val order: Int) : EditorRelat
 
   override fun postExec(data: ActionData, result: Any) {
     val activity = data.requireActivity()
-    activity.previewLayout(data.requireEditor().file!!)
+    activity.navigateComputerVisionActivity(data.requireEditor().file!!)
   }
 
-  private fun EditorHandlerActivity.previewLayout(file: File) {
+  private fun EditorHandlerActivity.navigateComputerVisionActivity(file: File) {
 //    //close any open xml files first
 //    val openEditors = editorViewModel.getOpenedFileCount()
 //    for(index in 1..openEditors) {
@@ -94,9 +93,7 @@ class GenerateXMLAction(context: Context, override val order: Int) : EditorRelat
 //    }
 //    invalidateOptionsMenu()
 
-    val intent = Intent(this, EditorActivity::class.java)
-    intent.putExtra(Constants.EXTRA_KEY_FILE_PATH, file.absolutePath.substringBefore("layout"))
-    intent.putExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME, file.name.substringBefore("."))
+    val intent = Intent(this, ComputerVisionActivity::class.java)
     uiDesignerResultLauncher?.launch(intent)
   }
 
