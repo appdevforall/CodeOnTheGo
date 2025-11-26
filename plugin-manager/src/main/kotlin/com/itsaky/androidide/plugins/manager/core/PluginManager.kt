@@ -48,7 +48,7 @@ class PluginManager private constructor(
     /**
      * Interface for providing the current Activity context for UI operations
      */
-    interface ActivityProvider {
+    fun interface ActivityProvider {
         fun getCurrentActivity(): Activity?
     }
     
@@ -683,7 +683,7 @@ class PluginManager private constructor(
             pluginId,
             "build"
         ) {
-            IdeBuildServiceImpl()
+            IdeBuildServiceImpl.getInstance()
         }
 
         // Tooltip service for showing help documentation
@@ -788,7 +788,7 @@ class PluginManager private constructor(
             pluginId,
             "build"
         ) {
-            IdeBuildServiceImpl()
+            IdeBuildServiceImpl.getInstance()
         }
 
         // Tooltip service for showing documentation tooltips
