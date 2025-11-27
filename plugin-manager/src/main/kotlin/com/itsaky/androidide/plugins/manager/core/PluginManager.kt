@@ -29,7 +29,11 @@ import com.itsaky.androidide.plugins.manager.documentation.PluginDocumentationMa
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
+import com.itsaky.androidide.actions.SidebarSlotManager
+import com.itsaky.androidide.actions.SidebarSlotExceededException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -268,6 +272,17 @@ class PluginManager private constructor(
                 return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
             }
 
+            // Validate sidebar slots BEFORE loading plugin code
+            if (manifest.sidebarItems > 0) {
+                val available = SidebarSlotManager.getAvailableSlotsForPlugins()
+                if (manifest.sidebarItems > available) {
+                    return Result.failure(
+                        SidebarSlotExceededException(manifest.sidebarItems, available, manifest.id)
+                    )
+                }
+                SidebarSlotManager.reservePluginSlots(manifest.id, manifest.sidebarItems)
+            }
+
             // Parse permissions
             val permissions = executeWithErrorHandling("parse permissions", manifest.id) {
                 manifest.permissions.mapNotNull { permissionStr ->
@@ -396,6 +411,9 @@ class PluginManager private constructor(
     fun uninstallPlugin(pluginId: String): Boolean {
         logger.info("=== Starting uninstall for plugin: $pluginId ===")
 
+        // Release sidebar slots reserved by this plugin
+        SidebarSlotManager.releasePluginSlots(pluginId)
+
         // Clean up sidebar actions BEFORE unloading the plugin
         cleanupSidebarActions(pluginId)
 
@@ -496,7 +514,13 @@ class PluginManager private constructor(
             .map { it.plugin }
             .filterIsInstance<com.itsaky.androidide.plugins.extensions.UIExtension>()
     }
-    
+
+    fun getPluginIdForInstance(plugin: IPlugin): String? {
+        return loadedPlugins.entries
+            .find { it.value.plugin === plugin }
+            ?.key
+    }
+
     fun enablePlugin(pluginId: String): Boolean {
         val loadedPlugin = loadedPlugins[pluginId] ?: return false
         
@@ -726,6 +750,16 @@ class PluginManager private constructor(
             )
         }
 
+        // Sidebar service for plugin sidebar slot management
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSidebarService::class.java,
+            pluginId,
+            "sidebar"
+        ) {
+            IdeSidebarServiceImpl(pluginId)
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -830,9 +864,19 @@ class PluginManager private constructor(
             )
         }
 
+        // Sidebar service for plugin sidebar slot management
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSidebarService::class.java,
+            pluginId,
+            "sidebar"
+        ) {
+            IdeSidebarServiceImpl(pluginId)
+        }
+
         // Copy other services from global registry
         // TODO: Add mechanism to copy global services to plugin-specific registry
-        
+
         return PluginContextImpl(
             androidContext = context,
             services = pluginServiceRegistry,
