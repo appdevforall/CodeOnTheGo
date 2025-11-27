@@ -243,6 +243,7 @@ class PluginManager private constructor(
      * Load plugin with full resource support
      */
     fun loadPlugin(file: File): Result<IPlugin> {
+        var reservedSlotsPluginId: String? = null
         return try {
             logger.debug("Loading plugin from: ${file.absolutePath}")
 
@@ -281,6 +282,7 @@ class PluginManager private constructor(
                     )
                 }
                 SidebarSlotManager.reservePluginSlots(manifest.id, manifest.sidebarItems)
+                reservedSlotsPluginId = manifest.id
             }
 
             // Parse permissions
@@ -296,21 +298,40 @@ class PluginManager private constructor(
             // Load plugin classes
             val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!)
             if (classLoader == null) {
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
                 return Result.failure(RuntimeException("Failed to create class loader for  plugin: ${manifest.id}"))
             }
 
             logger.debug("Loading main class: ${manifest.mainClass}")
             val pluginClass = executeWithErrorHandling("load main class ${manifest.mainClass}", manifest.id) {
                 classLoader.loadClass(manifest.mainClass)
-            }.getOrElse { return Result.failure(it) }
+            }.getOrElse {
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(it)
+            }
 
             logger.debug("Creating plugin instance for: ${manifest.id}")
             val plugin = executeWithErrorHandling("create plugin instance", manifest.id) {
                 pluginClass.getDeclaredConstructor().newInstance() as IPlugin
-            }.getOrElse { return Result.failure(it) }
+            }.getOrElse {
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(it)
+            }
 
             // Create plugin context with  resources
-            val ctx = pluginLoader.createPluginContext() ?: return Result.failure(RuntimeException("Failed to create plugin context for: ${manifest.id}"))
+            val ctx = pluginLoader.createPluginContext()
+            if (ctx == null) {
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(RuntimeException("Failed to create plugin context for: ${manifest.id}"))
+            }
 
             val pluginContext = createPluginContextWithResources(manifest.id, classLoader, permissions, ctx)
 
@@ -319,6 +340,9 @@ class PluginManager private constructor(
                 plugin.initialize(pluginContext)
             } catch (e: Exception) {
                 logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
                 return Result.failure(e)
             }
 
@@ -365,9 +389,15 @@ class PluginManager private constructor(
                 Result.success(plugin)
             } else {
                 logger.warn(" plugin initialization returned false for: ${manifest.id}")
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
                 Result.failure(RuntimeException(" plugin initialization failed for: ${manifest.id}"))
             }
         } catch (e: Exception) {
+            reservedSlotsPluginId?.let { pluginId ->
+                SidebarSlotManager.releasePluginSlots(pluginId)
+            }
             logger.error("Failed to load  plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
             Result.failure(RuntimeException("Error loading  plugin: ${e.message}", e))
         }
