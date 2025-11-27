@@ -9,6 +9,7 @@ import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
+import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,7 +59,7 @@ class AgenticRunner(
         // Fetch the key when the client is first needed
         val apiKey = EncryptedPrefs.getGeminiApiKey(context)
         if (apiKey.isNullOrBlank()) {
-            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
+            val errorMessage = context.getString(R.string.ai_api_key_not_found)
             log.error(errorMessage)
             // Throw an exception that we can catch in the ViewModel
             throw IllegalStateException(errorMessage)
@@ -69,7 +70,7 @@ class AgenticRunner(
     private val criticClient: GeminiClient by lazy {
         val apiKey = EncryptedPrefs.getGeminiApiKey(context)
         if (apiKey.isNullOrBlank()) {
-            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
+            val errorMessage = context.getString(R.string.ai_api_key_not_found)
             log.error(errorMessage)
             throw IllegalStateException(errorMessage)
         }
@@ -294,7 +295,7 @@ class AgenticRunner(
         val critiqueResult = critic.reviewAndSummarize(history)
         if (critiqueResult != "OK") {
             history.add(
-                Content.builder().role("user")
+                Content.builder().role("system")
                     .parts(Part.builder().text(critiqueResult).build()).build()
             )
             logTurn("system_critic", history.last().parts().get())
