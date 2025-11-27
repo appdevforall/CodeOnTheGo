@@ -21,6 +21,8 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import org.tensorflow.lite.DataType
@@ -56,6 +58,8 @@ class ComputerVisionActivity : AppCompatActivity() {
     private var imageUri: Uri? = null
     private var currentBitmap: Bitmap? = null
     private var lastDetections: List<DetectionResult> = emptyList()
+    private var layoutFilePath: String? = null
+    private var layoutFileName: String? = null
 
     private val textRecognizer by lazy { com.google.mlkit.vision.text.TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
@@ -71,7 +75,7 @@ class ComputerVisionActivity : AppCompatActivity() {
                 frame.setImageBitmap(currentBitmap)
                 lastDetections = emptyList()
             }
-        } ?: Toast.makeText(this, "No image selected", Toast.LENGTH_SHORT).show()
+        } ?: Toast.makeText(this, R.string.msg_no_image_selected, Toast.LENGTH_SHORT).show()
     }
 
     private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { isSuccess ->
@@ -84,21 +88,29 @@ class ComputerVisionActivity : AppCompatActivity() {
                 }
             }
         } else {
-            Toast.makeText(this, "Image capture cancelled", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.msg_image_capture_cancelled, Toast.LENGTH_SHORT).show()
         }
     }
 
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        if (isGranted) openCamera() else Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_LONG).show()
+        if (isGranted) openCamera() else Toast.makeText(this, R.string.msg_camera_permission_required, Toast.LENGTH_LONG).show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_computer_vision)
 
+        layoutFilePath = intent.getStringExtra(EXTRA_LAYOUT_FILE_PATH)
+        layoutFileName = intent.getStringExtra(EXTRA_LAYOUT_FILE_NAME)
+
+        val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        toolbar.setNavigationOnClickListener { finish() }
+
         frame = findViewById(R.id.imageView)
         val detectButton: Button = findViewById(R.id.detectButton)
-        val shareButton: Button = findViewById(R.id.shareButton)
+        val updateButton: Button = findViewById(R.id.updateButton)
         val saveButton: Button = findViewById(R.id.saveButton)
 
         initializeModelAndLabels()
@@ -109,9 +121,9 @@ class ComputerVisionActivity : AppCompatActivity() {
             true
         }
         detectButton.setOnClickListener {
-            currentBitmap?.let { runObjectDetection(it) } ?: Toast.makeText(this, "Please select an image first", Toast.LENGTH_SHORT).show()
+            currentBitmap?.let { runObjectDetection(it) } ?: Toast.makeText(this, R.string.msg_select_image_first, Toast.LENGTH_SHORT).show()
         }
-        shareButton.setOnClickListener { generateAndProcessXml(share = true) }
+        updateButton.setOnClickListener { showUpdateConfirmationDialog() }
         saveButton.setOnClickListener { generateAndProcessXml(save = true) }
     }
 
@@ -163,7 +175,7 @@ class ComputerVisionActivity : AppCompatActivity() {
             labels = assets.open("labels.txt").bufferedReader().useLines { lines -> lines.map { it.trim() }.toList() }
         } catch (e: IOException) {
             Log.e(TAG, "Error initializing TFLite model or labels", e)
-            Toast.makeText(this, "Model or labels could not be loaded", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.msg_model_load_failed, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -227,9 +239,44 @@ class ComputerVisionActivity : AppCompatActivity() {
         Log.d(TAG, "Inference complete. Displaying ${detections.size} final objects.")
     }
 
+    private fun showUpdateConfirmationDialog() {
+        if (lastDetections.isEmpty() || currentBitmap == null) {
+            Toast.makeText(this, R.string.msg_run_detection_first, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val fileName = layoutFileName ?: getString(R.string.layout_default_name)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.title_update_layout)
+            .setMessage(getString(R.string.msg_overwrite_layout, fileName))
+            .setNegativeButton(R.string.no, null)
+            .setPositiveButton(R.string.yes) { dialog, _ ->
+                dialog.dismiss()
+                updateLayoutFile()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun updateLayoutFile() {
+        val generatedXml = YoloToXmlConverter.generateXmlLayout(
+            detections = lastDetections,
+            sourceImageWidth = currentBitmap!!.width,
+            sourceImageHeight = currentBitmap!!.height,
+            targetDpWidth = 360,
+            targetDpHeight = 640
+        )
+
+        setResult(RESULT_OK, Intent().apply {
+            putExtra(RESULT_GENERATED_XML, generatedXml)
+        })
+        finish()
+    }
+
     private fun generateAndProcessXml(share: Boolean = false, save: Boolean = false) {
         if (lastDetections.isEmpty() || currentBitmap == null) {
-            Toast.makeText(this, "Please run detection on an image first.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.msg_run_detection_first, Toast.LENGTH_SHORT).show()
             return
         }
         val generatedXml = YoloToXmlConverter.generateXmlLayout(
@@ -263,10 +310,10 @@ class ComputerVisionActivity : AppCompatActivity() {
                 val file = File(downloadsDir, fileName)
                 FileOutputStream(file).use { outputStream -> outputStream.write(xmlString.toByteArray()) }
             }
-            Toast.makeText(this, "Saved to Downloads/$fileName", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.msg_saved_to_downloads, fileName), Toast.LENGTH_LONG).show()
         } catch (e: IOException) {
             Log.e(TAG, "Failed to save XML file", e)
-            Toast.makeText(this, "Error saving file: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.msg_error_saving_file, e.message), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -276,7 +323,7 @@ class ComputerVisionActivity : AppCompatActivity() {
             putExtra(Intent.EXTRA_TEXT, xmlString)
             type = "text/plain"
         }
-        startActivity(Intent.createChooser(sendIntent, "Share XML Layout"))
+        startActivity(Intent.createChooser(sendIntent, getString(R.string.msg_share_xml_layout)))
     }
 
     private fun runYoloInference(bitmap: Bitmap): List<DetectionResult> {
@@ -383,8 +430,8 @@ class ComputerVisionActivity : AppCompatActivity() {
 
     private fun openCamera() {
         val values = ContentValues().apply {
-            put(MediaStore.Images.Media.TITLE, "New Picture")
-            put(MediaStore.Images.Media.DESCRIPTION, "From the Camera")
+            put(MediaStore.Images.Media.TITLE, getString(R.string.camera_picture_title))
+            put(MediaStore.Images.Media.DESCRIPTION, getString(R.string.camera_picture_description))
         }
         imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
         imageUri?.let { takePictureLauncher.launch(it) }
@@ -415,5 +462,8 @@ class ComputerVisionActivity : AppCompatActivity() {
         private const val MODEL_INPUT_HEIGHT = 640
         private const val CONFIDENCE_THRESHOLD = 0.3f
         private const val NMS_THRESHOLD = 0.45f
+        const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
+        const val EXTRA_LAYOUT_FILE_NAME = "com.example.images.LAYOUT_FILE_NAME"
+        const val RESULT_GENERATED_XML = "ide.uidesigner.generatedXml"
     }
 }

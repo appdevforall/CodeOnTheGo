@@ -22,8 +22,10 @@ class GenerateXMLAction(context: Context, override val order: Int) : EditorRelat
   override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
   override var requiresUIThread: Boolean = false
 
-  companion object{
+  companion object {
     const val ID = "ide.editor.generatexml"
+    const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
+    const val EXTRA_LAYOUT_FILE_NAME = "com.example.images.LAYOUT_FILE_NAME"
   }
 
   init {
@@ -87,14 +89,10 @@ class GenerateXMLAction(context: Context, override val order: Int) : EditorRelat
   }
 
   private fun EditorHandlerActivity.navigateComputerVisionActivity(file: File) {
-//    //close any open xml files first
-//    val openEditors = editorViewModel.getOpenedFileCount()
-//    for(index in 1..openEditors) {
-//      closeFile(index-1) //zero based
-//    }
-//    invalidateOptionsMenu()
-
-    val intent = Intent(this, ComputerVisionActivity::class.java)
+    val intent = Intent(this, ComputerVisionActivity::class.java).apply {
+      putExtra(EXTRA_LAYOUT_FILE_PATH, file.absolutePath)
+      putExtra(EXTRA_LAYOUT_FILE_NAME, file.name)
+    }
     uiDesignerResultLauncher?.launch(intent)
   }
 
