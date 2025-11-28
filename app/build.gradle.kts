@@ -16,12 +16,13 @@ import java.net.URL
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
+import java.util.Locale
 import java.util.Properties
+import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
-import java.util.zip.CRC32
 import kotlin.reflect.jvm.javaMethod
 
 fun TaskContainer.registerD8Task(
@@ -526,6 +527,90 @@ fun createAssetsZip(arch: String) {
     }
 }
 
+fun registerBundleLlamaAssetsTask(flavor: String, arch: String): TaskProvider<Task> {
+    val capitalized =
+        flavor.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+    return tasks.register<Task>("bundle${capitalized}LlamaAssets") {
+        dependsOn("assemble${capitalized}Assets")
+
+        doLast {
+            val assetsZip =
+                project.layout.buildDirectory
+                    .file("outputs/assets/assets-$arch.zip")
+                    .get()
+                    .asFile
+            if (!assetsZip.exists()) {
+                throw GradleException("Assets zip not found: ${assetsZip.absolutePath}. Run assemble${capitalized}Assets first.")
+            }
+
+            val tempAar = Files.createTempFile("llama-$flavor", ".aar").toFile()
+            var found = false
+            ZipInputStream(assetsZip.inputStream()).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    if (entry.name == "dynamic_libs/llama.aar") {
+                        tempAar.outputStream().use { zis.copyTo(it) }
+                        found = true
+                        break
+                    }
+                    entry = zis.nextEntry
+                }
+            }
+
+            if (!found) {
+                tempAar.delete()
+                throw GradleException("dynamic_libs/llama.aar not found inside ${assetsZip.name}")
+            }
+
+            val targetDir = project.rootProject.file("assets/release/$flavor/dynamic_libs")
+            targetDir.mkdirs()
+            val destBr = File(targetDir, "llama-$flavor.aar.br")
+            val destAar = File(targetDir, "llama-$flavor.aar")
+
+            destBr.delete()
+            destAar.delete()
+
+            val brotliAvailable =
+                try {
+                    val result =
+                        project.exec {
+                            commandLine("brotli", "--version")
+                            isIgnoreExitValue = true
+                        }
+                    result.exitValue == 0
+                } catch (_: Exception) {
+                    false
+                }
+
+            if (brotliAvailable) {
+                project.exec {
+                    commandLine("brotli", "-f", "-o", destBr.absolutePath, tempAar.absolutePath)
+                }
+                project.logger.lifecycle(
+                    "Bundled llama AAR compressed to ${
+                        destBr.relativeTo(
+                            project.rootProject.projectDir
+                        )
+                    }"
+                )
+                destAar.delete()
+            } else {
+                project.logger.warn(
+                    "brotli CLI not found; bundling llama AAR uncompressed at ${
+                        destAar.relativeTo(
+                            project.rootProject.projectDir
+                        )
+                    }"
+                )
+                tempAar.copyTo(destAar, overwrite = true)
+                destBr.delete()
+            }
+
+            tempAar.delete()
+        }
+    }
+}
+
 tasks.register("assembleV8Assets") {
     dependsOn(":llama-impl:assembleV8Release")
 	doLast {
@@ -543,6 +628,9 @@ tasks.register("assembleV7Assets") {
 tasks.register("assembleAssets") {
 	dependsOn("assembleV8Assets", "assembleV7Assets")
 }
+
+val bundleLlamaV7Assets = registerBundleLlamaAssetsTask(flavor = "v7", arch = "armeabi-v7a")
+val bundleLlamaV8Assets = registerBundleLlamaAssetsTask(flavor = "v8", arch = "arm64-v8a")
 
 tasks.register("recompressApk") {
 	doLast {
@@ -579,6 +667,8 @@ afterEvaluate {
 				extensions.extraProperties["noCompressExtensions"] = noCompress
 			}
 		}
+
+        dependsOn(bundleLlamaV8Assets)
 	}
 
 	tasks.named("assembleV7Release").configure {
@@ -591,6 +681,8 @@ afterEvaluate {
 				extensions.extraProperties["noCompressExtensions"] = noCompress
 			}
 		}
+
+        dependsOn(bundleLlamaV7Assets)
 	}
 
   tasks.named("assembleV8Debug").configure {
