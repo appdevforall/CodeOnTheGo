@@ -98,7 +98,16 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 								}
 								logger.debug("Completed extracting '{}' to {}", DOCUMENTATION_DB, Environment.DOC_DB)
 							}
+                            AssetsInstallationHelper.LLAMA_AAR -> {
+                                val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
+                                destDir.mkdirs()
+                                val destFile = File(destDir, "llama.aar")
 
+                                logger.debug("Extracting '{}' to {}", entry.name, destFile.absolutePath)
+                                destFile.outputStream().use { output ->
+                                    zipInput.copyTo(output)
+                                }
+                            }
 							else -> throw IllegalStateException("Unknown entry: $entryName")
 						}
 					}

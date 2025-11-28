@@ -1,6 +1,5 @@
 package com.itsaky.androidide.agent.repository
 
-import android.llama.cpp.LLamaAndroid
 import kotlinx.coroutines.Dispatchers
 
 /**
@@ -14,7 +13,6 @@ import kotlinx.coroutines.Dispatchers
 object LlmInferenceEngineProvider {
     val instance: LlmInferenceEngine by lazy {
         LlmInferenceEngine(
-            llama = LLamaAndroid.instance(),
             ioDispatcher = Dispatchers.IO
         )
     }
