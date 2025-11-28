@@ -1071,4 +1071,6 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
     <string name="upload_image">Upload Image</string>
     <string name="add_context_file">Add Context File</string>
     <string name="type_a_message_or_prompt">Type a message or prompt…</string>
+    <string name="ai_setting_initializing_engine">Initializing engine</string>
+    <string name="ai_setting_engine_ready">Engine is ready.</string>
 </resources>
