@@ -318,6 +318,11 @@ class IDEDebugClientImpl(
         val file = location.source.path
         val position = Position(location.line, 0)
 
+        if (!IDELanguageClientImpl.isInitialized()) {
+            logger.error("Cannot open {}:{} because language client is not initialized", file, position.line)
+            return
+        }
+
         val activity = IDELanguageClientImpl.getInstance().activity
 
         if (activity == null) {
