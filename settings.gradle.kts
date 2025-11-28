@@ -177,6 +177,8 @@ include(
 	":testing:unit",
 	":plugin-api",
 	":plugin-manager",
+    ":llama-api",
+    ":llama-impl"
 )
 
 object FDroidConfig {

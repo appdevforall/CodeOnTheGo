@@ -18,9 +18,9 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.io.path.outputStream
 
 data object BundledAssetsInstaller : BaseAssetsInstaller() {
 	private val logger = LoggerFactory.getLogger(BundledAssetsInstaller::class.java)
@@ -95,12 +95,66 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 						}
 					}
 				}
+                AssetsInstallationHelper.LLAMA_AAR -> {
+                    val sourceAssetName = when (cpuArch) {
+                        CpuArch.AARCH64 -> "llama-v8.aar"
+                        CpuArch.ARM -> "llama-v7.aar"
+                        else -> {
+                            logger.warn("Unsupported CPU arch for Llama AAR: $cpuArch. Skipping.")
+                            return@withContext
+                        }
+                    }
+                    val candidates = listOf(
+                        "dynamic_libs/${sourceAssetName}.br", // preferred (compressed)
+                        "dynamic_libs/${sourceAssetName}",    // fallback (uncompressed)
+                    )
 
+                    val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
+                    destDir.mkdirs()
+                    val destFile = File(destDir, "llama.aar")
+
+                    val opened = candidates.firstNotNullOfOrNull { path ->
+                        try {
+                            path to assets.open(path)
+                        } catch (_: FileNotFoundException) {
+                            null
+                        }
+                    } ?: run {
+                        logger.warn(
+                            "Llama AAR asset not found for arch {}. Tried {}",
+                            cpuArch,
+                            candidates
+                        )
+                        return@withContext
+                    }
+
+                    val (assetPath, stream) = opened
+                    logger.debug("Extracting '{}' to {}", assetPath, destFile.absolutePath)
+
+                    val inputStream =
+                        if (assetPath.endsWith(".br")) BrotliInputStream(stream) else stream
+
+                    inputStream.use { input ->
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
 				else -> throw IllegalStateException("Unknown entry: $entryName")
 			}
 		}
 
-	private fun destinationDirForArchiveEntry(entryName: String): File =
+    override fun expectedSize(entryName: String): Long = when (entryName) {
+        GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 63399283L
+        ANDROID_SDK_ZIP                  -> 53226785L
+        DOCUMENTATION_DB                  -> 297763377L
+        LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 97485855L
+        AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
+        GRADLE_API_NAME_JAR_ZIP           -> 29447748L
+        else -> 0L
+    }
+
+    private fun destinationDirForArchiveEntry(entryName: String): File =
 		when (entryName) {
 			GRADLE_DISTRIBUTION_ARCHIVE_NAME -> Environment.GRADLE_DISTS
 			ANDROID_SDK_ZIP -> Environment.ANDROID_HOME
