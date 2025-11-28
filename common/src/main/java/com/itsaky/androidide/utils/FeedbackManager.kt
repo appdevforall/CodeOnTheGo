@@ -321,9 +321,7 @@ object FeedbackManager {
                 )
 
             if (emailIntent.resolveActivity(activity.packageManager) != null) {
-                activity.startActivity(
-                    Intent.createChooser(emailIntent, activity.getString(R.string.send_feedback)),
-                )
+                activity.startActivity(emailIntent)
             } else {
                 Toast
                     .makeText(activity,
