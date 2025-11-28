@@ -4,7 +4,13 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical">
-
+    <TextView
+        android:id="@+id/engine_status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Initializing engine..."
+        android:textAppearance="?attr/textAppearanceBody2"
+        android:layout_marginTop="8dp"/>
     <TextView
         android:id="@+id/model_status_text_view"
         android:layout_width="match_parent"

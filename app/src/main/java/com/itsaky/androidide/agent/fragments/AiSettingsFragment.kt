@@ -21,6 +21,7 @@ import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
+import com.itsaky.androidide.agent.viewmodel.EngineState
 import com.itsaky.androidide.agent.viewmodel.ModelLoadingState
 import com.itsaky.androidide.databinding.FragmentAiSettingsBinding
 import com.itsaky.androidide.utils.flashInfo
@@ -45,11 +46,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                 requireContext().contentResolver.takePersistableUriPermission(it, takeFlags)
 
                 val uriString = it.toString()
-                // The fragment's only job is to save the path via the ViewModel.
-                viewModel.saveLocalModelPath(uriString)
                 viewModel.loadModelFromUri(uriString, requireContext())
-                // It also updates its own UI.
-                updateLocalLlmUi(binding.backendSpecificSettingsContainer)
                 flashInfo("Attempting to load selected model...")
             }
         }
@@ -84,7 +81,6 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
         binding.backendAutocomplete.setOnItemClickListener { _, _, position, _ ->
             val selectedBackend = backends[position]
-            // Its only job is to save the backend selection.
             viewModel.saveBackend(selectedBackend)
             updateBackendSpecificUi(selectedBackend)
         }
@@ -100,7 +96,6 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                     .inflate(R.layout.layout_settings_local_llm, container, true)
                 updateLocalLlmUi(localLlmView)
             }
-
             AiBackend.GEMINI -> {
                 val geminiApiView = LayoutInflater.from(requireContext())
                     .inflate(R.layout.layout_settings_gemini_api, container, true)
@@ -114,8 +109,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         val browseButton = view.findViewById<Button>(R.id.btn_browse_model)
         val loadSavedButton = view.findViewById<Button>(R.id.loadSavedButton)
         val modelStatusTextView = view.findViewById<TextView>(R.id.model_status_text_view)
-
-        viewModel.checkInitialSavedModel(requireContext())
+        val engineStatusTextView = view.findViewById<TextView>(R.id.engine_status_text) // <-- NEW: Get reference to the new TextView
 
         browseButton.setOnClickListener {
             filePickerLauncher.launch(arrayOf("*/*"))
@@ -123,17 +117,36 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
         loadSavedButton.setOnClickListener { loadFromSaved() }
 
+        viewModel.engineState.observe(viewLifecycleOwner) { state ->
+            when (state) {
+                is EngineState.Initializing, EngineState.Uninitialized -> {
+                    engineStatusTextView.text = getString(R.string.ai_setting_initializing_engine)
+                    browseButton.isEnabled = false
+                    loadSavedButton.isEnabled = viewModel.savedModelPath.value != null
+                }
+                is EngineState.Initialized -> {
+                    engineStatusTextView.text = getString(R.string.ai_setting_engine_ready)
+                    browseButton.isEnabled = true
+                    loadSavedButton.isEnabled = viewModel.savedModelPath.value != null
+                }
+                is EngineState.Error -> {
+                    engineStatusTextView.text = state.message
+                    browseButton.isEnabled = false
+                    loadSavedButton.isEnabled = false
+                }
+            }
+        }
+
         viewModel.savedModelPath.observe(viewLifecycleOwner) { uri ->
+            loadSavedButton.isEnabled = uri != null && viewModel.engineState.value is EngineState.Initialized
+
             if (uri != null) {
-                loadSavedButton.isEnabled = true
                 modelPathTextView.visibility = View.VISIBLE
                 context?.let {
                     modelPathTextView.text =
                         getString(R.string.ai_setting_saved, uri.toUri().getFileName(it))
                 }
-
             } else {
-                loadSavedButton.isEnabled = false
                 modelPathTextView.visibility = View.GONE
             }
         }
@@ -145,19 +158,16 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                     modelStatusTextView.text =
                         getString(R.string.ai_setting_no_model_is_currently_loaded)
                 }
-
                 is ModelLoadingState.Loading -> {
                     modelStatusTextView.visibility = View.VISIBLE
                     modelStatusTextView.text =
                         getString(R.string.ai_setting_loading_model_please_wait)
                 }
-
                 is ModelLoadingState.Loaded -> {
                     modelStatusTextView.visibility = View.VISIBLE
                     modelStatusTextView.text =
                         getString(R.string.ai_setting_model_loaded, state.modelName)
                 }
-
                 is ModelLoadingState.Error -> {
                     modelStatusTextView.visibility = View.VISIBLE
                     modelStatusTextView.text =
@@ -176,14 +186,11 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             if (hasPermission) {
                 viewModel.loadModelFromUri(savedUri, requireContext())
             } else {
-                viewModel.log("Permission for saved model lost. Please select it again.")
                 requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
                     remove(SAVED_MODEL_URI_KEY)
                 }
-                viewModel.onNewModelSelected(null)
+                viewModel.saveLocalModelPath("")
             }
-        } else {
-            viewModel.log("No saved model found.")
         }
     }
 
