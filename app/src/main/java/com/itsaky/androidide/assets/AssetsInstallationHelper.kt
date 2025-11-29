@@ -52,7 +52,8 @@ object AssetsInstallationHelper {
 		val message: String,
 	)
 
-	private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
+    const val LLAMA_AAR = "dynamic_libs/llama.aar"
+    private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
 	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
 	const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
 
@@ -92,6 +93,7 @@ object AssetsInstallationHelper {
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
+                LLAMA_AAR
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
