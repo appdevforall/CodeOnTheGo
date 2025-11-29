@@ -48,7 +48,7 @@ plugins {
 }
 
 jacoco {
-    toolVersion = "0.8.8"
+    toolVersion = "0.8.11"
 }
 
 buildscript {
@@ -64,7 +64,7 @@ subprojects {
     plugins.apply("jacoco")
 
     extensions.configure<JacocoPluginExtension> {
-        toolVersion = "0.8.8"
+        toolVersion = "0.8.11"
     }
 
     // Always load the F-Droid config
@@ -256,8 +256,8 @@ tasks.named<Delete>("clean") {
 
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
-    // TODO: Skip xml-inflater until bug is fixed
-    val excludedProjects = setOf("xml-inflater")
+    // TODO: Skip xml-inflater and llama-impl until bugs are fixed
+    val excludedProjects = setOf("xml-inflater", "llama-impl")
 
     // Depend only on testV8DebugUnitTest tasks in subprojects
     dependsOn(
