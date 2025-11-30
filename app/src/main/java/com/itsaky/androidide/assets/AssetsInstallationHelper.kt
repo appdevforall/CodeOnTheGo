@@ -171,7 +171,7 @@ object AssetsInstallationHelper {
                     val snapshot =
                         buildString {
                             entryStatusMap.forEach { (entry, status) ->
-                                appendLine("$entry ${if (status == STATUS_FINISHED) "✅" else ""}")
+                                appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
                             }
                             appendLine("--------------------")
                             appendLine("Progress: ${formatPercent(percent)}")
