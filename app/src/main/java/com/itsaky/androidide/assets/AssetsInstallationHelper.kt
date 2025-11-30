@@ -40,6 +40,9 @@ import kotlin.math.pow
 typealias AssetsInstallerProgressConsumer = (AssetsInstallationHelper.Progress) -> Unit
 
 object AssetsInstallationHelper {
+    private const val STATUS_INSTALLING = "Installing"
+    private const val STATUS_FINISHED = "FINISHED"
+
 	sealed interface Result {
 		data object Success : Result
 
@@ -136,7 +139,7 @@ object AssetsInstallationHelper {
 		val installerJobs =
 			expectedEntries.map { entry ->
 				async {
-					entryStatusMap[entry] = "Installing"
+					entryStatusMap[entry] = STATUS_INSTALLING
 
 					ASSETS_INSTALLER.doInstall(
 						context = context,
@@ -145,7 +148,7 @@ object AssetsInstallationHelper {
 						entryName = entry,
 					)
 
-					entryStatusMap[entry] = "FINISHED"
+					entryStatusMap[entry] = STATUS_FINISHED
 				}
 			}
 
@@ -154,7 +157,7 @@ object AssetsInstallationHelper {
                 var previousSnapshot = ""
                 while (isActive) {
                     val installedSize = entryStatusMap
-                        .filterValues { it == "FINISHED" }
+                        .filterValues { it == STATUS_FINISHED }
                         .keys
                         .sumOf { entrySizes[it] ?: 0 }
 
@@ -168,7 +171,7 @@ object AssetsInstallationHelper {
                     val snapshot =
                         buildString {
                             entryStatusMap.forEach { (entry, status) ->
-                                appendLine("$entry → $status")
+                                appendLine("$entry ${if (status == STATUS_FINISHED) "✅" else ""}")
                             }
                             appendLine("--------------------")
                             appendLine("Progress: ${formatPercent(percent)}")
