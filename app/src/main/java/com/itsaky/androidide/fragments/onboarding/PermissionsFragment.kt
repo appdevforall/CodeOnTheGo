@@ -25,6 +25,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.Animation
+import android.view.animation.AnimationUtils
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -64,6 +66,7 @@ class PermissionsFragment :
 	private var permissionsBinding: LayoutOnboardingPermissionsBinding? = null
 	private var recyclerView: RecyclerView? = null
 	private var finishButton: MaterialButton? = null
+    private lateinit var pulseAnimation: Animation
 
 	private val storagePermissionRequestLauncher =
 		registerForActivityResult(
@@ -111,6 +114,7 @@ class PermissionsFragment :
 		permissionsBinding?.let { b ->
 			recyclerView = b.onboardingItems
 			finishButton = b.finishInstallationButton
+            pulseAnimation = AnimationUtils.loadAnimation(requireContext(), R.anim.pulse_animation)
 
 			b.onboardingItems.adapter = createAdapter()
 
@@ -157,20 +161,20 @@ class PermissionsFragment :
 	private fun handleState(state: InstallationState) {
 		when (state) {
 			is InstallationState.InstallationPending -> {
-				finishButton?.isEnabled = false
+				disableFinishButton()
 			}
 			is InstallationState.InstallationGranted -> {
-				finishButton?.isEnabled = true
+				enableFinishButton()
 			}
 			is InstallationState.Installing -> {
-				finishButton?.isEnabled = false
+                disableFinishButton()
 			}
 			is InstallationState.InstallationComplete -> {
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashSuccess(getString(R.string.ide_setup_complete))
 			}
 			is InstallationState.InstallationError -> {
-				finishButton?.isEnabled = true
+                enableFinishButton()
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashError(getString(state.errorMessageResId))
 			}
@@ -301,4 +305,14 @@ class PermissionsFragment :
 			activity?.flashError(R.string.msg_complete_ide_setup)
 		}
 	}
+
+    private fun enableFinishButton() {
+        finishButton?.isEnabled = true
+        finishButton?.startAnimation(pulseAnimation)
+    }
+
+    private fun disableFinishButton() {
+        finishButton?.isEnabled = false
+        finishButton?.clearAnimation()
+    }
 }
