@@ -20,7 +20,9 @@ import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileOutputStream
@@ -181,33 +183,40 @@ object FeedbackManager {
 
 
 	fun captureScreenshot(context: Context, callback: (File?) -> Unit) {
-		val activity = context as? Activity
+		val activity = context as? AppCompatActivity
 		if (activity == null) {
 			logger.warn("Cannot capture screenshot: Context is not an Activity")
 			callback(null)
 			return
 		}
 
-		val rootView = activity.window.decorView.rootView
-		val screenshotFile = createScreenshotFile(context) ?: run {
-			callback(null)
-			return
-		}
-        captureWithPixelCopy(activity, rootView, screenshotFile, callback)
+        activity.lifecycleScope.launch {
+            val screenshotFile = createScreenshotFile(context) ?: run {
+                callback(null)
+                return@launch
+            }
+
+            val rootView = activity.window.decorView.rootView
+            withContext(Dispatchers.Main) {
+                captureWithPixelCopy(activity, rootView, screenshotFile, callback)
+            }
+        }
     }
 
-
-	private fun createScreenshotFile(context: Context): File? {
-		return runCatching {
-			val screenshotDir = File(context.cacheDir, "screenshots").apply {
-				if (!exists()) mkdirs()
-			}
-			val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-			File(screenshotDir, "screenshot_$timestamp.png")
-		}.onFailure {
-			logger.error("Failed to create screenshot file", it)
-		}.getOrNull()
-	}
+    private suspend fun createScreenshotFile(context: Context): File? {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val screenshotDir = File(context.cacheDir, "screenshots").apply {
+                    if (!exists()) mkdirs()
+                }
+                val timestamp =
+                    SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                File(screenshotDir, "screenshot_$timestamp.png")
+            }.onFailure {
+                logger.error("Failed to create screenshot file", it)
+            }.getOrNull()
+        }
+    }
 
 	private fun captureWithPixelCopy(
 		activity: Activity,
@@ -232,29 +241,44 @@ object FeedbackManager {
 				bitmap,
 				{ result ->
 					if (result == PixelCopy.SUCCESS) {
-						saveScreenshot(bitmap, screenshotFile, callback)
-					}
-				},
-				Handler(Looper.getMainLooper())
-			)
+                        val scope = (activity as? AppCompatActivity)?.lifecycleScope
+                        if (scope == null) {
+                            logger.error("Failed to save screenshot: Activity is not a LifecycleOwner.")
+                            callback(null)
+                            return@request
+                        }
+
+                        scope.launch {
+                            saveScreenshot(bitmap, screenshotFile, callback)
+                        }
+                    } else {
+                        // If PixelCopy fails, trigger the callback with null
+                        callback(null)
+                    }
+                },
+                Handler(Looper.getMainLooper())
+            )
 		}.onFailure {
 			logger.error("PixelCopy exception, falling back to Canvas", it)
 		}
 	}
 
 
-	private fun saveScreenshot(bitmap: Bitmap, file: File, callback: (File?) -> Unit) {
-		runCatching {
-			FileOutputStream(file).use { out ->
-				bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
-			}
-			bitmap.recycle()
-			callback(file)
-		}.onFailure {
-			logger.error("Failed to save screenshot", it)
-			callback(null)
-		}
-	}
+    private suspend fun saveScreenshot(bitmap: Bitmap, file: File, callback: (File?) -> Unit) {
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                FileOutputStream(file).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+                }
+                file
+            }.onFailure {
+                logger.error("Failed to save screenshot", it)
+            }.getOrNull()
+        }
+
+        bitmap.recycle()
+        callback(result)
+    }
 
 
 	private fun launchIntentChooser(
