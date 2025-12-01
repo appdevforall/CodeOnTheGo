@@ -37,6 +37,9 @@ public class XmlLayoutGenerator {
 
   private String peek(View view, HashMap<View, AttributeMap> attributeMap, int depth) {
     if (attributeMap == null || view == null) return "";
+    if (tryWriteInclude(view, attributeMap, depth)) {
+      return builder.toString();
+    }
     String indent = getIndent(depth);
     int nextDepth = depth;
 
@@ -92,6 +95,28 @@ public class XmlLayoutGenerator {
 
     builder.append(indent).append("<").append(className).append("\n");
     return className;
+  }
+
+  private boolean tryWriteInclude(View view, HashMap<View, AttributeMap> attributeMap, int depth) {
+    AttributeMap attrs = attributeMap.get(view);
+
+    if (attrs != null && attrs.contains("tools:is_xml_include")) {
+      String indent = getIndent(depth);
+      builder.append(indent).append("<include");
+
+      for (String key : attrs.keySet()) {
+        if (key.equals("tools:is_xml_include") || key.equals("tools:original_tag_name"))
+            continue;
+
+        builder.append("\n").append(indent).append(TAB)
+          .append(key).append("=\"")
+          .append(StringEscapeUtils.escapeXml11(attrs.getValue(key)))
+          .append("\"");
+      }
+      builder.append(" />\n\n");
+      return true;
+    }
+    return false;
   }
 
   @NonNull

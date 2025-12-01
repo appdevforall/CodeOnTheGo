@@ -30,6 +30,10 @@ class XmlLayoutParser(
 	private val initializer: AttributeInitializer
 	private val listViews: MutableList<View> = ArrayList()
 
+	companion object {
+		const val MARKER_IS_INCLUDE = "tools:is_xml_include"
+	}
+
 	init {
 		val attributes =
 			Gson()
@@ -113,23 +117,17 @@ class XmlLayoutParser(
 						}
 
 						"include" -> {
-							val layoutAttr = parser.getAttributeValue(null, "layout")
-							val layoutName = layoutAttr?.removePrefix("@layout/")
+							val placeholder = View(context)
+							val attrs = AttributeMap()
 
-							if (!layoutName.isNullOrBlank()) {
-								val resId =
-									context.resources.getIdentifier(
-										layoutName,
-										"layout",
-										context.packageName,
-									)
-								if (resId != 0) {
-									val includedParser = context.resources.getLayout(resId)
-									parseFromXml(includedParser, context)
-								} else {
-									Log.e("XmlParser", "Unknown included layout: $layoutName")
-								}
+							for (i in 0 until parser.attributeCount) {
+								attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
 							}
+
+							attrs.putValue(MARKER_IS_INCLUDE, "true")
+							viewAttributeMap[placeholder] = attrs
+							listViews.add(placeholder)
+
 							parser.next()
 							continue
 						}
