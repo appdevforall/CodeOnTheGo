@@ -38,7 +38,10 @@ data class PluginManifest(
     val dependencies: List<String> = emptyList(),
     
     @SerializedName("extensions")
-    val extensions: List<ExtensionInfo> = emptyList()
+    val extensions: List<ExtensionInfo> = emptyList(),
+
+    @SerializedName("sidebar_items")
+    val sidebarItems: Int = 0
 )
 
 data class ExtensionInfo(

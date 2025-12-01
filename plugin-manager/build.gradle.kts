@@ -33,6 +33,7 @@ android {
 dependencies {
   api(projects.pluginApi)
 
+  implementation(projects.actions)
   implementation(projects.common)
   implementation(projects.logger)
   implementation(projects.lookup)
