@@ -161,20 +161,20 @@ class PermissionsFragment :
 	private fun handleState(state: InstallationState) {
 		when (state) {
 			is InstallationState.InstallationPending -> {
-				disableFishButton()
+				disableFinishButton()
 			}
 			is InstallationState.InstallationGranted -> {
-				enableFishButton()
+				enableFinishButton()
 			}
 			is InstallationState.Installing -> {
-                disableFishButton()
+                disableFinishButton()
 			}
 			is InstallationState.InstallationComplete -> {
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashSuccess(getString(R.string.ide_setup_complete))
 			}
 			is InstallationState.InstallationError -> {
-                enableFishButton()
+                enableFinishButton()
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashError(getString(state.errorMessageResId))
 			}
@@ -306,12 +306,12 @@ class PermissionsFragment :
 		}
 	}
 
-    private fun enableFishButton() {
+    private fun enableFinishButton() {
         finishButton?.isEnabled = true
         finishButton?.startAnimation(pulseAnimation)
     }
 
-    private fun disableFishButton() {
+    private fun disableFinishButton() {
         finishButton?.isEnabled = false
         finishButton?.clearAnimation()
     }
