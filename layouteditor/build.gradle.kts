@@ -30,6 +30,7 @@ dependencies {
     implementation (libs.androidx.palette.ktx)
     implementation (libs.google.material)
     implementation (libs.google.material)
+    implementation (libs.play.services.oss.licenses)
     implementation (libs.google.gson)
     implementation (libs.common.glide)
 
