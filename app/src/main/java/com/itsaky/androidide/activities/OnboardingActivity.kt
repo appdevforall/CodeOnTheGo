@@ -24,6 +24,9 @@ import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
 import android.view.ViewTreeObserver
+import android.view.animation.Animation
+import android.view.animation.AnimationUtils
+import android.widget.ImageButton
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -62,6 +65,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import androidx.core.view.isVisible
 
 class OnboardingActivity : AppIntro2() {
 	private val activityScope =
@@ -70,8 +74,10 @@ class OnboardingActivity : AppIntro2() {
 	private var listJdkInstallationsJob: Job? = null
     private lateinit var feedbackButton: FloatingActionButton
     private var feedbackButtonManager: FeedbackButtonManager? = null
+    private lateinit var nextButton: ImageButton
+    private lateinit var pulseAnimation: Animation
 
-	companion object {
+    companion object {
 		private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
 		private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
 			"ide.archConfig.experimentalWarning.isShown"
@@ -115,7 +121,10 @@ class OnboardingActivity : AppIntro2() {
 		isIndicatorEnabled = true
 		isWizardMode = true
 
-		addSlide(GreetingFragment())
+        nextButton = findViewById(R.id.next)
+        pulseAnimation = AnimationUtils.loadAnimation(this, R.anim.pulse_animation)
+
+        addSlide(GreetingFragment())
 		addSlide(PermissionsInfoFragment())
 
 		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
@@ -246,6 +255,14 @@ class OnboardingActivity : AppIntro2() {
 			isIndicatorEnabled = true
 			isButtonsEnabled = true
 		}
+
+        if (nextButton.isVisible) {
+            if (nextButton.animation == null) {
+                nextButton.startAnimation(pulseAnimation)
+            }
+        } else {
+            nextButton.clearAnimation()
+        }
 	}
 
 	private fun checkToolsIsInstalled(): Boolean =
