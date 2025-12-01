@@ -295,7 +295,7 @@ class AgenticRunner(
         val critiqueResult = critic.reviewAndSummarize(history)
         if (critiqueResult != "OK") {
             history.add(
-                Content.builder().role("system")
+                Content.builder().role("user")
                     .parts(Part.builder().text(critiqueResult).build()).build()
             )
             logTurn("system_critic", history.last().parts().get())
