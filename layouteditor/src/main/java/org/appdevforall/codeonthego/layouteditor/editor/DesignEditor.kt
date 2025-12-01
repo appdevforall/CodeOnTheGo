@@ -392,7 +392,7 @@ class DesignEditor : LinearLayout {
 							}
 
 							if (data.containsKey(Constants.KEY_DEFAULT_ATTRS)) {
-								ensureInitializerInitialized()
+								initAttributeInitializer()
 								@Suppress("UNCHECKED_CAST")
 								val defaults = (data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>).toMutableMap()
 								defaults.remove(attrTranslationX)
@@ -463,7 +463,7 @@ class DesignEditor : LinearLayout {
 		updateStructure()
 		toggleStrokeWidgets()
 
-		ensureInitializerInitialized()
+		initAttributeInitializer()
 	}
 
 	private fun ensureConstraintsApplied() {
@@ -1029,15 +1029,13 @@ class DesignEditor : LinearLayout {
 		return target
 	}
 
-	private fun ensureInitializerInitialized() {
-		if (!::initializer.isInitialized) {
-			initializer = AttributeInitializer(
-				context,
-				viewAttributeMap,
-				getAttributes(context),
-				getParentAttributes(context)
-			)
-		}
+	private fun initAttributeInitializer() {
+		initializer = AttributeInitializer(
+			context,
+			viewAttributeMap,
+			getAttributes(context),
+			getParentAttributes(context)
+		)
 	}
 
 	enum class ViewType {
