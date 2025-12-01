@@ -69,7 +69,7 @@ class PermissionsInfoFragment :
 
     private fun openPrivacyPolicy() {
         try {
-            val privacyPolicyUrl = getString(com.itsaky.androidide.resources.R.string.privacy_policy_url)
+            val privacyPolicyUrl = getString(R.string.privacy_policy_url)
             val intent = Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
             startActivity(intent)
         } catch (e: Exception) {
