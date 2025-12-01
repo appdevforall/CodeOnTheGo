@@ -38,6 +38,10 @@
             android:name="plugin.main_class"
             android:value="com.example.sampleplugin.ApkViewer" />
 
+        <meta-data
+            android:name="plugin.sidebar_items"
+            android:value="1" />
+
     </application>
 
 </manifest>
