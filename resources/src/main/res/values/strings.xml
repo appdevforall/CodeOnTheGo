@@ -681,6 +681,7 @@
 	<string name="msg_file_is_not_dir">Selected file is not a directory</string>
 	<string name="msg_project_dir_doesnt_exist">Project directory does not exist</string>
 	<string name="msg_project_cache_read_failure">Failed to read project cache</string>
+	<string name="msg_font_copy_failed">Could not save the font file. Please try again.</string>
 	<string name="msg_files_being_saved">A file save operation is already in progress!</string>
 	<string name="title_install_tools">Install Development Tools</string>
 	<string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of
@@ -1071,4 +1072,6 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
     <string name="upload_image">Upload Image</string>
     <string name="add_context_file">Add Context File</string>
     <string name="type_a_message_or_prompt">Type a message or prompt…</string>
+    <string name="ai_setting_initializing_engine">Initializing engine</string>
+    <string name="ai_setting_engine_ready">Engine is ready.</string>
 </resources>
