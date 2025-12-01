@@ -167,6 +167,9 @@ class PluginLoader(
             // Parse dependencies
             val dependencies = metaData.getString("plugin.dependencies")?.split(",")?.map { it.trim() } ?: emptyList()
 
+            // Parse sidebar items count
+            val sidebarItems = metaData.getInt("plugin.sidebar_items", 0)
+
             return PluginManifest(
                 id = pluginId,
                 name = pluginName,
@@ -178,7 +181,8 @@ class PluginLoader(
                 maxIdeVersion = pluginMaxIdeVersion,
                 permissions = permissions,
                 dependencies = dependencies,
-                extensions = emptyList() // Extensions can be parsed similarly if needed
+                extensions = emptyList(),
+                sidebarItems = sidebarItems
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract plugin metadata: ${e.message}", e)
