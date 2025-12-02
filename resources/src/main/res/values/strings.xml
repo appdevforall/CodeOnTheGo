@@ -880,7 +880,7 @@
 	<string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
 	<string name="ai_disclaimer">Disclaimer</string>
 	<string name="ai_disclaimer_message">This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.</string>
-    <string name="ai_api_key_not_found">No Gemini API Key found.\nIf you recently updated or reinstalled the app, your AI key may have been reset.\nPlease add your Gemini key again in AI Settings.</string>
+    <string name="ai_api_key_not_found">❌ No Gemini API Key found.\nIf you recently updated or reinstalled the app, your AI key may have been reset.\nPlease add your Gemini key again in AI Settings.</string>
 
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
