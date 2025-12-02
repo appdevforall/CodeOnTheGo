@@ -27,10 +27,13 @@ import org.appdevforall.codeonthego.layouteditor.R.string;
 import org.appdevforall.codeonthego.vectormaster.VectorMasterDrawable;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.Callable;
@@ -154,6 +157,55 @@ public class Utils {
   public static int getScreenWidth() {
     DisplayMetrics displayMetrics = Resources.getSystem().getDisplayMetrics();
     return displayMetrics.widthPixels;
+  }
+
+  /**
+   * Basic validation of a TTF/OTF file.
+   * Checks:
+   * 1. File exists and is not empty
+   * 2. Valid TTF/OTF header (scaler type)
+   * 3. Directory table has a reasonable number of entries
+   */
+  public static boolean isValidFontFile(File file) {
+    final int MAX_FONT_TABLES = 100;
+    final int FONT_HEADER_SIZE = 12;
+    final int TABLE_DIRECTORY_ENTRY_SIZE = 16;
+
+    if (!file.exists() || file.length() < FONT_HEADER_SIZE) {
+      return false;
+    }
+
+    try (FileInputStream stream = new FileInputStream(file)) {
+      byte[] header = new byte[FONT_HEADER_SIZE];
+      if (stream.read(header) != FONT_HEADER_SIZE) {
+        return false;
+      }
+
+      ByteBuffer buf = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN);
+
+      // --- Validate scaler type ---
+      int scalerType = buf.getInt();
+      boolean validScaler =
+        scalerType == 0x00010000 ||   // TTF
+        scalerType == 0x4F54544F;     // OTTO
+
+      if (!validScaler) return false;
+
+      // --- Number of tables ---
+      int numTables = buf.getShort() & 0xFFFF;
+      if (numTables == 0 || numTables > MAX_FONT_TABLES) {
+        return false;
+      }
+
+      int directorySize = numTables * TABLE_DIRECTORY_ENTRY_SIZE;
+      byte[] tableDir = new byte[directorySize];
+
+      return stream.read(tableDir) == directorySize;
+
+    } catch (IOException e) {
+      Log.e("Utils", "Error validating font file: " + file.getName(), e);
+      return false;
+    }
   }
 
   public static VectorMasterDrawable getVectorDrawableAsync(Context context, Uri uri) {
