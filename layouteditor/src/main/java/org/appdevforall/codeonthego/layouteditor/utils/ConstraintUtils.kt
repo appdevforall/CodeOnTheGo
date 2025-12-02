@@ -107,8 +107,8 @@ fun restorePositionsAfterLoad(
 		attributeMap.forEach { (view, attrs) ->
 			val constraintContainer = view.parent as? ConstraintLayout ?: return@forEach
 
-			val txStr = attrs.getValue("app:layout_marginStart")
-			val tyStr = attrs.getValue("app:layout_marginTop")
+			val txStr = attrs.getValue("android:layout_marginStart")
+			val tyStr = attrs.getValue("android:layout_marginTop")
 
 			if (txStr.isNotEmpty() || tyStr.isNotEmpty()) {
 				val maxX = (constraintContainer.width - view.width).coerceAtLeast(0).toFloat()
