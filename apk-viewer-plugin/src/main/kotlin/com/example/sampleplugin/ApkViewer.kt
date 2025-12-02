@@ -8,6 +8,7 @@ import com.itsaky.androidide.plugins.extensions.EditorTabExtension
 import com.itsaky.androidide.plugins.extensions.MenuItem
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.EditorTabItem
+import com.itsaky.androidide.plugins.extensions.NavigationItem
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.example.sampleplugin.fragments.ApkAnalyzerFragment
 
@@ -75,6 +76,22 @@ class ApkViewer : IPlugin, UIExtension, EditorTabExtension {
                 isEnabled = true,
                 isVisible = true,
                 order = 100
+            )
+        )
+    }
+
+    // UIExtension - Sidebar navigation item
+    override fun getSideMenuItems(): List<NavigationItem> {
+        return listOf(
+            NavigationItem(
+                id = "apk_analyzer_sidebar",
+                title = "APK Analyzer",
+                icon = android.R.drawable.ic_menu_info_details,
+                isEnabled = true,
+                isVisible = true,
+                group = "tools",
+                order = 0,
+                action = { openApkAnalyzerTab() }
             )
         )
     }
