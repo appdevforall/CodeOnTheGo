@@ -216,7 +216,7 @@ object TooltipManager {
     private fun canShowPopup(context: Context, view: View): Boolean {
         val activityValid = (context as? Activity)?.let {
             !it.isFinishing && !it.isDestroyed
-        } ?: true
+        } ?: false
 
         val viewAttached = view.isAttachedToWindow && view.windowToken != null
 
