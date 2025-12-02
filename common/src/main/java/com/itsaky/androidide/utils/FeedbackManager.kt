@@ -181,25 +181,28 @@ object FeedbackManager {
 		}
 	}
 
+    fun captureScreenshot(context: Context, callback: (File?) -> Unit) {
+        val activity = context as? AppCompatActivity
 
-	fun captureScreenshot(context: Context, callback: (File?) -> Unit) {
-		val activity = context as? AppCompatActivity
-		if (activity == null) {
-			logger.warn("Cannot capture screenshot: Context is not an Activity")
-			callback(null)
-			return
-		}
+        if (activity == null) {
+            logger.warn("Cannot capture screenshot: Context is not an Activity")
+            callback(null)
+            return
+        }
+
+        val rootView = activity.window.decorView.rootView
 
         activity.lifecycleScope.launch {
-            val screenshotFile = createScreenshotFile(context) ?: run {
+            val screenshotFile = withContext(Dispatchers.IO) {
+                createScreenshotFile(context)
+            }
+
+            if (screenshotFile == null) {
                 callback(null)
                 return@launch
             }
 
-            val rootView = activity.window.decorView.rootView
-            withContext(Dispatchers.Main) {
-                captureWithPixelCopy(activity, rootView, screenshotFile, callback)
-            }
+            captureWithPixelCopy(activity, rootView, screenshotFile, callback)
         }
     }
 
