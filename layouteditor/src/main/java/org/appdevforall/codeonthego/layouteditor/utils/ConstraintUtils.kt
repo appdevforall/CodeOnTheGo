@@ -3,8 +3,18 @@ package org.appdevforall.codeonthego.layouteditor.utils
 import android.view.View
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
+import androidx.core.view.children
 import androidx.core.view.doOnLayout
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+
+private fun ConstraintLayout.cloneWithIds(): ConstraintSet {
+	children.forEach { child ->
+		if (child.id == View.NO_ID) {
+			child.id = View.generateViewId()
+		}
+	}
+	return ConstraintSet().apply { clone(this@cloneWithIds) }
+}
 
 /**
  * Modifies a [ConstraintSet] to apply basic constraints to a specific view.
@@ -124,10 +134,7 @@ fun restorePositionsAfterLoad(
 
 		// --- 2. APPLICATION PASS ---
 		changesByContainer.forEach { (container, changeList) ->
-			val constraintSet = ConstraintSet()
-
-			constraintSet.clone(container)
-
+			val constraintSet = container.cloneWithIds()
 			changeList.forEach { change ->
 				modifyConstraintsForView(
 					constraintSet,
@@ -136,7 +143,6 @@ fun restorePositionsAfterLoad(
 					change.topMargin,
 				)
 			}
-
 			constraintSet.applyTo(container)
 		}
 	}
