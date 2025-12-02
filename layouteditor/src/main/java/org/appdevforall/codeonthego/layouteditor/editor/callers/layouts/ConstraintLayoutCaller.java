@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.layouteditor.editor.callers.layouts;
 
 import android.content.Context;
-import android.util.Log;
 import android.view.View;
 
 import androidx.constraintlayout.widget.ConstraintLayout;
@@ -9,7 +8,6 @@ import androidx.constraintlayout.widget.ConstraintSet;
 
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager;
 import org.appdevforall.codeonthego.layouteditor.utils.DimensionUtil;
-import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 
 public class ConstraintLayoutCaller {
 
@@ -22,56 +20,54 @@ public class ConstraintLayoutCaller {
   private static final int START = ConstraintSet.START;
   private static final int END = ConstraintSet.END;
 
-  private static void generateViewId(View view) {
-    if (view.getId() == View.NO_ID) view.setId(View.generateViewId());
+  private static ConstraintSet cloneWithIds(ConstraintLayout layout) {
+    for (int i = 0; i < layout.getChildCount(); i++) {
+      View child = layout.getChildAt(i);
+      if (child.getId() == View.NO_ID) {
+        child.setId(View.generateViewId());
+      }
+    }
+    ConstraintSet set = new ConstraintSet();
+    set.clone(layout);
+    return set;
+  }
+
+  private static ConstraintLayout getParentLayout(View target) {
+    return (ConstraintLayout) target.getParent();
   }
 
   private static void setConstraint(
       ConstraintLayout layout, View target, String value, int startSide, int endSide) {
-    ConstraintSet set = new ConstraintSet();
-    set.clone(layout);
-
-    if (value.equals("parent")) {
-      set.connect(target.getId(), startSide, PARENT_ID, endSide);
-    } else {
-      set.connect(target.getId(), startSide, IdManager.getViewId(value), endSide);
-    }
+    ConstraintSet set = cloneWithIds(layout);
+    int targetViewId = "parent".equals(value) ? PARENT_ID : IdManager.getViewId(value);
+    set.connect(target.getId(), startSide, targetViewId, endSide);
     set.applyTo(layout);
   }
 
   private static void setConstraint(View target, String value, int startSide, int endSide) {
-    ConstraintLayout layout = (ConstraintLayout) target.getParent();
-    generateViewId(target);
-    generateViewId(layout);
-    setConstraint(layout, target, value, startSide, endSide);
+    setConstraint(getParentLayout(target), target, value, startSide, endSide);
   }
 
   private static void setMargin(ConstraintLayout layout, View target, int side, int value) {
-    ConstraintSet set = new ConstraintSet();
-    set.clone(layout);
+    ConstraintSet set = cloneWithIds(layout);
     set.setMargin(target.getId(), side, value);
     set.applyTo(layout);
   }
 
   private static void setMargin(View target, int side, String value) {
-    ConstraintLayout layout = (ConstraintLayout) target.getParent();
-    generateViewId(target);
-    generateViewId(layout);
+    ConstraintLayout layout = getParentLayout(target);
     int margin = (int) DimensionUtil.parse(value, target.getContext());
     setMargin(layout, target, side, margin);
   }
 
   private static void setGoneMargin(ConstraintLayout layout, View target, int side, int value) {
-    ConstraintSet set = new ConstraintSet();
-    set.clone(layout);
+    ConstraintSet set = cloneWithIds(layout);
     set.setGoneMargin(target.getId(), side, value);
     set.applyTo(layout);
   }
 
   private static void setGoneMargin(View target, int side, String value) {
-    ConstraintLayout layout = (ConstraintLayout) target.getParent();
-    generateViewId(target);
-    generateViewId(layout);
+    ConstraintLayout layout = getParentLayout(target);
     int margin = (int) DimensionUtil.parse(value, target.getContext());
     setGoneMargin(layout, target, side, margin);
   }
@@ -184,35 +180,21 @@ public class ConstraintLayoutCaller {
     setGoneMargin(target, BASELINE, value);
   }
 
+  private static float parseBias(String value) {
+    return Math.max(0f, Math.min(1f, Float.parseFloat(value)));
+  }
+
   public static void setHorizontalBias(View target, String value, Context context) {
-    ConstraintLayout layout = (ConstraintLayout) target.getParent();
-    generateViewId(target);
-    generateViewId(layout);
-
-    float bias = Float.valueOf(value);
-
-    if (bias > 1.0f) bias = 1.0f;
-    if (bias < 0) bias = 0.0f;
-
-    ConstraintSet set = new ConstraintSet();
-    set.clone(layout);
-    set.setHorizontalBias(target.getId(), bias);
+    ConstraintLayout layout = getParentLayout(target);
+    ConstraintSet set = cloneWithIds(layout);
+    set.setHorizontalBias(target.getId(), parseBias(value));
     set.applyTo(layout);
   }
-  
+
   public static void setVerticalBias(View target, String value, Context context) {
-    ConstraintLayout layout = (ConstraintLayout) target.getParent();
-    generateViewId(target);
-    generateViewId(layout);
-
-    float bias = Float.valueOf(value);
-
-    if (bias > 1.0f) bias = 1.0f;
-    if (bias < 0) bias = 0.0f;
-
-    ConstraintSet set = new ConstraintSet();
-    set.clone(layout);
-    set.setVerticalBias(target.getId(), bias);
+    ConstraintLayout layout = getParentLayout(target);
+    ConstraintSet set = cloneWithIds(layout);
+    set.setVerticalBias(target.getId(), parseBias(value));
     set.applyTo(layout);
   }
 }

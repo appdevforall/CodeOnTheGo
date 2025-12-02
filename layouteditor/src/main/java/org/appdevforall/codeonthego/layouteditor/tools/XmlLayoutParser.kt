@@ -10,6 +10,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addNewId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
@@ -17,7 +18,6 @@ import org.appdevforall.codeonthego.layouteditor.utils.Constants.ATTR_INITIAL_PO
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.createView
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.invokeMethod
-import org.appdevforall.codeonthego.layouteditor.utils.restorePositionsAfterLoad
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
@@ -31,6 +31,10 @@ class XmlLayoutParser(
 
 	private val initializer: AttributeInitializer
 	private val listViews: MutableList<View> = ArrayList()
+
+	companion object {
+    const val MARKER_IS_INCLUDE = "tools:is_xml_include"
+	}
 
 	init {
 		val attributes =
@@ -115,25 +119,21 @@ class XmlLayoutParser(
 						}
 
 						"include" -> {
-							val layoutAttr = parser.getAttributeValue(null, "layout")
-							val layoutName = layoutAttr?.removePrefix("@layout/")
+							val placeholder = View(context)
 
-							if (!layoutName.isNullOrBlank()) {
-								val resId =
-									context.resources.getIdentifier(
-										layoutName,
-										"layout",
-										context.packageName,
-									)
-								if (resId != 0) {
-									val includedParser = context.resources.getLayout(resId)
-									parseFromXml(includedParser, context)
-								} else {
-									Log.e("XmlParser", "Unknown included layout: $layoutName")
-								}
-							}
-							parser.next()
-							continue
+							val attrs = AttributeMap()
+
+							for (i in 0 until parser.attributeCount) {
+                attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
+              }
+
+              attrs.putValue(MARKER_IS_INCLUDE, "true")
+
+              viewAttributeMap[placeholder] = attrs
+              listViews.add(placeholder)
+
+              parser.next()
+              continue
 						}
 
 						"merge" -> {
@@ -151,13 +151,15 @@ class XmlLayoutParser(
 						}
 					}
 
-					val map = AttributeMap()
-					for (i in 0 until parser.attributeCount) {
-						val fullName = parser.getAttributeName(i)
-						val value = parser.getAttributeValue(i)
-						map.putValue(fullName, value)
+          if (view != null && tagName != "fragment") {
+						val map = AttributeMap()
+						for (i in 0 until parser.attributeCount) {
+							val fullName = parser.getAttributeName(i)
+							val value = parser.getAttributeValue(i)
+							map.putValue(fullName, value)
+						}
+						viewAttributeMap[view] = map
 					}
-					view?.let { viewAttributeMap[it] = map }
 				}
 
 				/**
