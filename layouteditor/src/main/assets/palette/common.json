@@ -62,7 +62,7 @@
         "defaultAttributes": {
             "android:layout_width": "48dp",
             "android:layout_height": "48dp",
-            "android:src": "@drawable/default_image"
+            "android:src": "@drawable/ic_launcher_round"
         }
     },
     {
