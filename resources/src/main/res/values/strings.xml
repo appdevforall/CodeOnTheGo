@@ -1,27 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources
-	xmlns:tools="http://schemas.android.com/tools"
-	tools:ignore="MissingTranslation">
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
 
 	<!-- Code on the Go -->
-	<string
-		name="copy"
-		tools:override="true">Copy</string>
+	<string name="copy" tools:override="true">Copy</string>
 	<string name="terminal_more">More…</string>
 	<string name="text_to_search">Text to find</string>
-	<string
-		name="app_name"
-		translatable="false">Code on the Go</string>
+	<string name="app_name" translatable="false">Code on the Go</string>
 	<string name="about_option_email">Email</string>
 	<string name="about_option_website">Website</string>
-	<string
-		name="about_footer_alternate"
-		translatable="false">Code on the Go v\u2022 %s</string>
+	<string name="about_footer_alternate" translatable="false">Code on the Go v\u2022 %s</string>
 	<string name="about_footer">Code on the Go %1$s for %2$s</string>
 	<string name="about_subtitle">Simply, an IDE for Android</string>
 	<string name="msg_get_package_failed">Failed to extract package name!</string>
-	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join
-		the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
+	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
 	<string name="download_codeonthego_message">Download Code on the Go from the official website to get the latest features and updates.</string>
 	<string name="download_codeonthego_url">https://appdevforall.org/downloads</string>
 	<string name="msg_invalid_url">Invalid URL provided.</string>
@@ -59,27 +50,22 @@
 
 	<!-- Project Builder -->
 	<string name="title_unsupported_device">This device is not supported</string>
-	<string name="msg_unsupported_device">You are using %1$s variant of Code On The Go on a %2$s-only device. This configuration is not
-		supported. Please install the %2$s variant of Code On The Go.</string>
+	<string name="msg_unsupported_device">You are using %1$s variant of Code On The Go on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of Code On The Go.</string>
 	<string name="title_clear_output">Clear output</string>
 	<string name="build_output">Build Output</string>
 	<string name="quick_run_debug">Quick run</string>
 	<string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
 	<string name="preparing">Preparing</string>
 	<string name="preparing_first">Initializing a project may take a few moments.</string>
-	<string name="msg_installing_gradlew">Gradle Wrapper is not available!\nInstalling default one. Gradle v7.4 will be downloaded if
-		necessary.</string>
+	<string name="msg_installing_gradlew">Gradle Wrapper is not available!\nInstalling default one. Gradle v7.4 will be downloaded if necessary.</string>
 	<string name="run">Run</string>
-	<string
-		name="gradle"
-		translatable="false">Gradle</string>
+	<string name="gradle" translatable="false">Gradle</string>
 	<string name="action_start_debugger">Debug</string>
 
 
 	<!-- Project -->
 	<string name="title_first_build">Setting up your project</string>
-	<string name="msg_first_build">Code on the Go is initializing your project. Please be patient!\n\nWhen setup is finished,
-		\"Project initialized\" will be displayed at the bottom of the screen.</string>
+	<string name="msg_first_build">Code on the Go is initializing your project. Please be patient!\n\nWhen setup is finished, \"Project initialized\" will be displayed at the bottom of the screen.</string>
 	<string name="create_project">Create a new project</string>
 	<string name="minimum_sdk">Minimum SDK</string>
 	<string name="new_project">New project</string>
@@ -99,14 +85,11 @@
 	<string name="close_without_saving">Close without saving files</string>
 	<string name="save_and_close">Save files and close project</string>
 	<!-- Templates -->
-	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project
-		file may be lost. Do you want to save the files before you close the project?</string>
+	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
 	<string name="template_empty">Empty Activity</string>
 	<string name="template_navigation_drawer">Navigation Drawer Activity</string>
-	<string
-		name="template_compose"
-		translatable="false">Compose Activity</string>
+	<string name="template_compose" translatable="false">Compose Activity</string>
 	<string name="template_navigation_tabs">Bottom Nav Activity</string>
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
@@ -137,8 +120,7 @@
 	<string name="msg_layout_file_exists">Layout file already exists</string>
 	<string name="msg_invalid_name">Invalid name</string>
 	<string name="text_create">Create</string>
-	<string name="msg_can_contain_slashes">If the file path includes a folder separator (\'/\'), any missing parent folders will be created
-		automatically.</string>
+	<string name="msg_can_contain_slashes">If the file path includes a folder separator (\'/\'), any missing parent folders will be created automatically.</string>
 	<string name="folder_name">Folder name</string>
 	<string name="file_name">File name</string>
 	<string name="new_name">New name</string>
@@ -175,7 +157,7 @@
 	<string name="msg_failed_list_files">Failed to list project files</string>
 
 	<!-- Code Editor -->
-	<string name="open_with">Open with...</string>
+	<string name="open_with">Open with…</string>
 
 	<string name="undo">Undo</string>
 	<string name="redo">Redo</string>
@@ -184,8 +166,7 @@
 	<string name="title_change_text_size">Editor font size</string>
 	<string name="idepref_about_title">About Code on the Go</string>
 	<string name="idepref_build_clearCache_title">Clear Gradle caches</string>
-	<string name="idepref_build_clearCache_summary">Clear Gradle caches directory. This will delete all dependencies downloaded by Gradle. Required
-		files will be downloaded again in next build.</string>
+	<string name="idepref_build_clearCache_summary">Clear Gradle caches directory. This will delete all dependencies downloaded by Gradle. Required files will be downloaded again in next build.</string>
 	<string name="idepref_build_customgradlecommands_title">Additional Gradle flags</string>
 	<string name="idepref_build_customgradlecommands_summary">Choose additional Gradle flags to execute with every task.</string>
 	<string name="idepref_editor_fontsize_title">Font size</string>
@@ -210,8 +191,7 @@
 	<string name="msg_preferences">Preferences</string>
 	<string name="pref_changelog">Changelog</string>
 	<string name="msg_editor_font_size">Please choose default font size of editor :</string>
-	<string name="msg_clear_cache">This will delete caches directory created by Gradle. If you delete it, the next build may take a
-		bit longer than normal as Gradle will download required files again.\n\nAre you sure you want to delete caches?</string>
+	<string name="msg_clear_cache">This will delete caches directory created by Gradle. If you delete it, the next build may take a bit longer than normal as Gradle will download required files again.\n\nAre you sure you want to delete caches?</string>
 
 	<!-- Error Messages used while Logging -->
 
@@ -242,16 +222,11 @@
 	<string name="action_expand_selection">Expand selection</string>
 	<string name="idepref_java_matchLower_title">Match completions in lower case</string>
 	<string name="title_common">Common</string>
-	<string
-		name="idepref_editor_category_common"
-		translatable="false">@string/title_common</string>
-	<string
-		name="idepref_editor_category_java"
-		translatable="false">Java</string>
+	<string name="idepref_editor_category_common" translatable="false">@string/title_common</string>
+	<string name="idepref_editor_category_java" translatable="false">Java</string>
 	<string name="title_files_unsaved">Unsaved files</string>
 	<string name="msg_files_unsaved">Some files are not saved. Would you like to save them before closing? Unsaved files are: \n%s</string>
-	<string name="idepref_java_matchLower_summary">When enabled, code completion matches class names and members even when typed in lowercase
-		(case-insensitive matching).</string>
+	<string name="idepref_java_matchLower_summary">When enabled, code completion matches class names and members even when typed in lowercase (case-insensitive matching).</string>
 	<string name="idepref_editor_ligatures_title">Font ligatures</string>
 	<string name="idepref_editor_ligatures_summary">Enable/disable font ligatures</string>
 	<string name="yes">Yes</string>
@@ -283,8 +258,7 @@
 	<string name="next">Next</string>
 	<string name="exit">Exit</string>
 	<string name="idepref_title_customGradleInstallation">Custom Gradle installation</string>
-	<string name="idepref_msg_customGradleInstallation">Specify a custom Gradle installation to use for build. This OVERRIDES the version specified in
-		gradle-wrapper.properties.</string>
+	<string name="idepref_msg_customGradleInstallation">Specify a custom Gradle installation to use for build. This OVERRIDES the version specified in gradle-wrapper.properties.</string>
 	<string name="msg_gradle_installation_path">Gradle installation path</string>
 	<string name="msg_gradle_installation_input_help">Leave empty to use Gradle wrapper.</string>
 
@@ -298,13 +272,10 @@
 	<string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
 	<string name="idepref_useIcu_title">Use spaces as word boundaries</string>
 	<string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-	<string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the
-		upper left.</string>
+	<string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
 	<string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
-	<string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor,
-		select and long-press text to show the editing toolbar and help button.</string>
-	<string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and
-		long-press text to show the editing toolbar and help button.</string>
+	<string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
+	<string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
 	<string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
 	<string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
 	<string name="btn_donate">Donate</string>
@@ -321,9 +292,7 @@
 	<string name="idepref_about_summary">More about Code on the Go</string>
 	<string name="idepref_general_summary">General IDE configuration</string>
 	<string name="idepref_editor_summary">Configure the editor</string>
-	<string
-		name="xml"
-		translatable="false">XML</string>
+	<string name="xml" translatable="false">XML</string>
 	<string name="idepref_xml_trimFinalNewLine_title">Trim final new line</string>
 	<string name="idepref_xml_insertFinalNewLine_title">Insert final new line</string>
 	<string name="idepref_xml_trimFinalNewLine_summary">Remove empty new line characters at the end of a file.</string>
@@ -347,8 +316,7 @@
 	<string name="idepref_xml_trimTrailingWs_title">Trim trailing whitespace</string>
 	<string name="idepref_xml_trimTrailingWs_summary">Remove extra whitespace at the end of lines.</string>
 	<string name="idepref_maxLineWidth_title">Maximum line width</string>
-	<string name="idepref_maxLineWidth_summary">Set the maximum number of characters on a single line before the editor automatically wraps or
-		breaks the line.</string>
+	<string name="idepref_maxLineWidth_summary">Set the maximum number of characters on a single line before the editor automatically wraps or breaks the line.</string>
 	<string name="idepref_splitAttrIndentSize_title">Split attributes indent size</string>
 	<string name="idepref_splitAttrIndentSize_summary">Set the number of spaces to automatically indent attributes that are split on separate lines.</string>
 	<string name="idepref_preservedNewLines_title">Preserve new lines</string>
@@ -358,9 +326,8 @@
 	<string name="xml_formatting_options">XML formatting options</string>
 	<string name="xml_formatting_options_summary">Set formatting preferences for XML files.</string>
 	<string name="idepref_customFont_title">Use custom font</string>
-	<string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\"
-		will be used as Editor font.</string>
-	<string name="msg_installing_apk">Installing APK...</string>
+	<string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
+	<string name="msg_installing_apk">Installing APK…</string>
 	<string name="msg_action_open_application">Your app is installed. Do you want to launch the app?</string>
 	<string name="msg_action_open_title_application">App installed</string>
 
@@ -419,147 +386,55 @@
 	<string name="msg_err_select_tasks">Please select tasks to run</string>
 	<string name="title_confirmation">Confirmation</string>
 	<string name="msg_tasks_to_run">The following tasks will be run, in order. Click the \'Run\' button again to confirm.\n\n%1$s</string>
-	<string name="msg_loading_tasks">Loading tasks...</string>
+	<string name="msg_loading_tasks">Loading tasks…</string>
 
-	<string
-		name="ui_category_widgets"
-		translatable="false">Widgets</string>
-	<string
-		name="ui_category_layouts"
-		translatable="false">Layouts</string>
+	<string name="ui_category_widgets" translatable="false">Widgets</string>
+	<string name="ui_category_layouts" translatable="false">Layouts</string>
 
-	<string
-		name="widget_view"
-		translatable="false">View</string>
-	<string
-		name="widget_textview"
-		translatable="false">TextView</string>
-	<string
-		name="widget_button"
-		translatable="false">Button</string>
-	<string
-		name="widget_checkbox"
-		translatable="false">CheckBox</string>
-	<string
-		name="widget_checked_textview"
-		translatable="false">CheckedTextView</string>
-	<string
-		name="widget_edittext"
-		translatable="false">EditText</string>
-	<string
-		name="widget_image_button"
-		translatable="false">ImageButton</string>
-	<string
-		name="widget_image_view"
-		translatable="false">ImageView</string>
-	<string
-		name="widget_progressbar"
-		translatable="false">ProgressBar</string>
-	<string
-		name="widget_radio_button"
-		translatable="false">RadioButton</string>
-	<string
-		name="widget_radio_group"
-		translatable="false">RadioGroup</string>
-	<string
-		name="widget_seekbar"
-		translatable="false">SeekBar</string>
-	<string
-		name="widget_spinner"
-		translatable="false">Spinner</string>
-	<string
-		name="widget_auto_complete_textview"
-		translatable="false">AutoCompleteTextView</string>
-	<string
-		name="widget_multi_auto_complete_textview"
-		translatable="false">MultiAutoCompleteTextView</string>
-	<string
-		name="widget_listview"
-		translatable="false">ListView</string>
-	<string
-		name="widget_surfaceview"
-		translatable="false">SurfaceView</string>
-	<string
-		name="widget_switch"
-		translatable="false">Switch</string>
-	<string
-		name="widget_textureview"
-		translatable="false">TextureView</string>
-	<string
-		name="widget_togglebutton"
-		translatable="false">ToggleButton</string>
-	<string
-		name="widget_webview"
-		translatable="false">WebView</string>
-	<string
-		name="widget_frame_layout"
-		translatable="false">FrameLayout</string>
-	<string
-		name="widget_grid_layout"
-		translatable="false">GridLayout</string>
-	<string
-		name="widget_linear_layout_horz"
-		translatable="false">LinearLayout (H)</string>
-	<string
-		name="widget_linear_layout_vert"
-		translatable="false">LinearLayout (V)</string>
-	<string
-		name="widget_relative_layout"
-		translatable="false">RelativeLayout</string>
-	<string
-		name="widget_scrollview"
-		translatable="false">ScrollView</string>
-	<string
-		name="widget_horizontal_scrollview"
-		translatable="false">HorizontalScrollView</string>
-	<string
-		name="widget_text_clock"
-		translatable="false">TextClock</string>
-	<string
-		name="widget_digital_clock"
-		translatable="false">DigitalClock</string>
-	<string
-		name="widget_calendar_view"
-		translatable="false">CalendarView</string>
-	<string
-		name="widget_space"
-		translatable="false">Space</string>
-	<string
-		name="widget_number_picker"
-		translatable="false">NumberPicker</string>
-	<string
-		name="widget_chronometer"
-		translatable="false">Chronometer</string>
-	<string
-		name="widget_rating_bar"
-		translatable="false">RatingBar</string>
-	<string
-		name="widget_quick_contact_badge"
-		translatable="false">QuickContactBadge</string>
-	<string
-		name="widget_videoview"
-		translatable="false">VideoView</string>
-	<string
-		name="widget_analog_clock"
-		translatable="false">AnalogClock</string>
-	<string
-		name="widget_grid_view"
-		translatable="false">GridView</string>
-	<string
-		name="widget_viewanimator"
-		translatable="false">ViewAnimator</string>
-	<string
-		name="widget_viewswitcher"
-		translatable="false">ViewSwitcher</string>
-	<string
-		name="widget_textswitcher"
-		translatable="false">TextSwitcher</string>
-	<string
-		name="widget_imageswitcher"
-		translatable="false">ImageSwitcher</string>
-	<string
-		name="widget_viewflipper"
-		translatable="false">ViewFlipper</string>
+	<string name="widget_view" translatable="false">View</string>
+	<string name="widget_textview" translatable="false">TextView</string>
+	<string name="widget_button" translatable="false">Button</string>
+	<string name="widget_checkbox" translatable="false">CheckBox</string>
+	<string name="widget_checked_textview" translatable="false">CheckedTextView</string>
+	<string name="widget_edittext" translatable="false">EditText</string>
+	<string name="widget_image_button" translatable="false">ImageButton</string>
+	<string name="widget_image_view" translatable="false">ImageView</string>
+	<string name="widget_progressbar" translatable="false">ProgressBar</string>
+	<string name="widget_radio_button" translatable="false">RadioButton</string>
+	<string name="widget_radio_group" translatable="false">RadioGroup</string>
+	<string name="widget_seekbar" translatable="false">SeekBar</string>
+	<string name="widget_spinner" translatable="false">Spinner</string>
+	<string name="widget_auto_complete_textview" translatable="false">AutoCompleteTextView</string>
+	<string name="widget_multi_auto_complete_textview" translatable="false">MultiAutoCompleteTextView</string>
+	<string name="widget_listview" translatable="false">ListView</string>
+	<string name="widget_surfaceview" translatable="false">SurfaceView</string>
+	<string name="widget_switch" translatable="false">Switch</string>
+	<string name="widget_textureview" translatable="false">TextureView</string>
+	<string name="widget_togglebutton" translatable="false">ToggleButton</string>
+	<string name="widget_webview" translatable="false">WebView</string>
+	<string name="widget_frame_layout" translatable="false">FrameLayout</string>
+	<string name="widget_grid_layout" translatable="false">GridLayout</string>
+	<string name="widget_linear_layout_horz" translatable="false">LinearLayout (H)</string>
+	<string name="widget_linear_layout_vert" translatable="false">LinearLayout (V)</string>
+	<string name="widget_relative_layout" translatable="false">RelativeLayout</string>
+	<string name="widget_scrollview" translatable="false">ScrollView</string>
+	<string name="widget_horizontal_scrollview" translatable="false">HorizontalScrollView</string>
+	<string name="widget_text_clock" translatable="false">TextClock</string>
+	<string name="widget_digital_clock" translatable="false">DigitalClock</string>
+	<string name="widget_calendar_view" translatable="false">CalendarView</string>
+	<string name="widget_space" translatable="false">Space</string>
+	<string name="widget_number_picker" translatable="false">NumberPicker</string>
+	<string name="widget_chronometer" translatable="false">Chronometer</string>
+	<string name="widget_rating_bar" translatable="false">RatingBar</string>
+	<string name="widget_quick_contact_badge" translatable="false">QuickContactBadge</string>
+	<string name="widget_videoview" translatable="false">VideoView</string>
+	<string name="widget_analog_clock" translatable="false">AnalogClock</string>
+	<string name="widget_grid_view" translatable="false">GridView</string>
+	<string name="widget_viewanimator" translatable="false">ViewAnimator</string>
+	<string name="widget_viewswitcher" translatable="false">ViewSwitcher</string>
+	<string name="widget_textswitcher" translatable="false">TextSwitcher</string>
+	<string name="widget_imageswitcher" translatable="false">ImageSwitcher</string>
+	<string name="widget_viewflipper" translatable="false">ViewFlipper</string>
 
 	<string name="msg_select_attr">Select an attribute from the below list</string>
 	<string name="action_show_hierarchy">Show layout hierarchy</string>
@@ -586,9 +461,7 @@
 
 	<!-- GitHub -->
 	<string name="title_warning">Warning</string>
-	<string
-		name="title_github"
-		translatable="false">GitHub</string>
+	<string name="title_github" translatable="false">GitHub</string>
 	<string name="choose_different_location">Choose Different Location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
@@ -602,8 +475,7 @@
 	<string name="title_class_chooser">Which %1$s?</string>
 
 	<string name="permlab_bind_logger_service">bind to log service</string>
-	<string name="permdesc_bind_logger_service">Allows this application to bind to Code on the Go\'s logging service. This permission is
-		required for Code on the Go to read logs of this application.</string>
+	<string name="permdesc_bind_logger_service">Allows this application to bind to Code on the Go\'s logging service. This permission is required for Code on the Go to read logs of this application.</string>
 	<string name="wizard_module_name">Module name</string>
 	<string name="wizard_module_type">Module type</string>
 	<string name="msg_invalid_module_name">Invalid Gradle module name</string>
@@ -618,11 +490,7 @@
 	<string name="title_privacy">Privacy</string>
 
 	<string name="privacy_disclosure_title">Privacy &amp; Analytics</string>
-	<string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and Sentry to help us improve the app
-		experience.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is being used.
-		This includes information about app features, performance metrics, and crash reports.\n\nSentry helps us track
-		and fix errors to provide you with a more stable experience.\n\nNo personal information is collected or shared.
-		All data is processed in accordance with our privacy policy to ensure your privacy is protected.</string>
+	<string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and Sentry to help us improve the app experience.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is being used. This includes information about app features, performance metrics, and crash reports.\n\nSentry helps us track and fix errors to provide you with a more stable experience.\n\nNo personal information is collected or shared. All data is processed in accordance with our privacy policy to ensure your privacy is protected.</string>
 	<string name="privacy_disclosure_accept">I Understand</string>
 	<string name="privacy_disclosure_learn_more">Learn More</string>
 
@@ -659,16 +527,13 @@
 	<string name="idepref_editor_stickScroll_title">Sticky scroll</string>
 	<string name="idepref_editor_stickyScroll_summary">Keep the current scope header pinned at the top of the editor while you scroll.</string>
 	<string name="idepref_launchAppAfterInstall_title">Launch app after installation</string>
-	<string name="idepref_launchAppAfterInstall_summary">If enabled, the IDE will (without confirmation) launch the application right after it is
-		installed.</string>
+	<string name="idepref_launchAppAfterInstall_summary">If enabled, the IDE will (without confirmation) launch the application right after it is installed.</string>
 	<string name="title_run_options">Run options</string>
 	<string name="err_cannot_determine_package">Cannot run application. Unable to determine package name.</string>
 	<string name="msg_launch_failure_no_app_module">Cannot run application. No application modules found in project.</string>
 	<string name="title_launch_app">Launch app</string>
 	<string name="title_experiment_flavor">Experimental</string>
-	<string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but
-		it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this
-		configuration whenever possible.</string>
+	<string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
 	<string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
 	<string name="idepref_editor_pinLineNumbers_summary">Locks line numbers in view so they stay visible when scrolling horizontally.</string>
 	<string name="theme_blue_wave">Blue Wave</string>
@@ -684,10 +549,8 @@
 	<string name="msg_font_copy_failed">Could not save the font file. Please try again.</string>
 	<string name="msg_files_being_saved">A file save operation is already in progress!</string>
 	<string name="title_install_tools">Install Development Tools</string>
-	<string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of
-		the screen\n</string>
-	<string name="msg_install_tools">
-	</string>
+	<string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n</string>
+	<string name="msg_install_tools"> </string>
 	<string name="greeting_title">Welcome</string>
 	<string name="greeting_subtitle">No computer? No Internet? No problem.</string>
 	<string name="title_grant">Allow</string>
@@ -701,35 +564,12 @@
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t
-		have Internet access.</string>
-	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions. All of these permissions
-		are required for Code on the Go to work.</string>
-	<string name="permissions_info_notifications">
-		•
-		<b>Notifications</b>
-		is required so you receive important status messages.
-	</string>
-	<string name="permissions_info_storage">
-		•
-		<b>Storage</b>
-		is required so you can create project directories and files.
-	</string>
-	<string name="permissions_info_install">
-		•
-		<b>Install packages</b>
-		is required so you can install the apps that you build.
-	</string>
-	<string name="permissions_info_overlay_accessibility">
-		•
-		<b>Overlay window</b>
-		is required so you can use the debugger. If your device won\'t let you enable this permission, go to
-		<b>Settings \u2192 Apps \u2192 Code on the Go</b>
-		. In the Options menu at the upper right, tap
-		<b>Enable restricted settings</b>
-		. When you return to the installer, you can assign the permission. (The exact steps may vary on different
-		devices.)
-	</string>
+	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
+	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions. All of these permissions are required for Code on the Go to work.</string>
+	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
+	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
+	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
+	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
 	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
@@ -784,9 +624,7 @@
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
 	<string name="debugger_state_not_paired">The app is not paired. Tap the debugger button to start wireless ADB pairing.</string>
-	<string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable
-		version.
-	</string>
+	<string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
 
 	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
 	<string name="debugger_value_error">&lt;error&gt;</string>
@@ -803,9 +641,7 @@
 	<string name="file">File</string>
 	<string name="actions">Actions</string>
 	<string name="help">Help</string>
-	<string name="code"></string>
-	<string name="email_feedback_warning_prompt"> To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?
-	</string>
+	<string name="email_feedback_warning_prompt">To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
 	<string name="feedback_message">\n\nPlease enter your feedback in the space below. If you are reporting a problem, please include as much information as possible about the issue.\n\nThanks!\n\n-------------stack trace----------\n%1$s</string>
 	<string name="feedback_device_info">App Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
@@ -814,11 +650,7 @@
 	<string name="alert_message">Send feedback</string>
 	<string name="fab_more">More</string>
 	<string name="msg_recent_projects">Recent projects</string>
-	<string name="msg_create_new_from_recent">
-		Click the
-		<b>New project</b>
-		button to create a new project, or open an existing project from a folder.
-	</string>
+	<string name="msg_create_new_from_recent">Click the <b>New project</b> button to create a new project, or open an existing project from a folder.</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_no_valid_projects">No valid Android projects found in %1$s</string>
@@ -883,26 +715,26 @@
 
 	<!-- Tooltip HTML Template -->
 	<string name="tooltip_html_template"><![CDATA[
-		<!DOCTYPE html>
-		<html>
-		<head>
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<style>
-					body {
-						margin: 0;
-						padding: 10px;
-						word-wrap: break-word;
-						color: %1$s;
-					}
-					a{
-						color: #233490;
-						text-decoration: underline;
-					}
-				</style>
-			</head>
-			<body>
-				%2$s
-			</body>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                     body {
+                        margin: 0;
+                        padding: 10px;
+                        word-wrap: break-word;
+                        color: %1$s;
+                     }
+                     a{
+                        color: #233490;
+                        text-decoration: underline;
+                       }
+                </style>
+            </head>
+            <body>
+                %2$s
+            </body>
 
 		</html>
 		]]></string>
@@ -925,30 +757,42 @@
 	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
 
 	<!-- Hint for the notification text field which asks the user to enter the wireless debugging pairing code -->
-	<string name="notification_adb_pairing_input_paring_code">Enter pairing code</string><!-- Title for the notification when the wireless debugging pairing service
-		is being searched. -->
+	<string name="notification_adb_pairing_input_paring_code">Enter pairing code</string>
+
+	<!-- Title for the notification when the wireless debugging pairing service is being searched. -->
 	<string name="notification_adb_pairing_searching_for_service_title">Searching for pairing service</string>
+
 	<!-- Title for the notification when the wireless debugging pairing service is found. -->
 	<string name="notification_adb_pairing_service_found_title">Pairing service found</string>
+
 	<!-- Text for the button in the notification to stop searching for the wireless debugging pairing service. -->
 	<string name="notification_adb_pairing_stop_searching">Stop searching</string>
+
 	<!-- Title for the notification when wireless debugging pairing is in progress. -->
 	<string name="notification_adb_pairing_working_title">Pairing in progress</string>
+
 	<!-- Title for the notification when wireless debugging pairing has succeeded. -->
 	<string name="notification_adb_pairing_succeed_title">Pairing successful</string>
+
 	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
 	<string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+
 	<!-- Title for the notification when wireless debugging pairing has failed. -->
-	<string name="notification_adb_pairing_failed_title">Pairing failed</string><!-- Text for the button in the notification to retry wireless debugging pairing
-		after it has failed. -->
-	<string name="notification_adb_pairing_retry">Retry</string><!-- Error message displayed when the entered wireless debugging pairing code is incorrect. -->
+	<string name="notification_adb_pairing_failed_title">Pairing failed</string>
+
+	<!-- Text for the button in the notification to retry wireless debugging pairing after it has failed. -->
+	<string name="notification_adb_pairing_retry">Retry</string>
+
+	<!-- Error message displayed when the entered wireless debugging pairing code is incorrect. -->
 	<string name="paring_code_is_wrong">Pairing code is wrong.</string>
+
 	<!-- Error message displayed when the application cannot connect to the wireless debugging service port. -->
 	<string name="cannot_connect_port">Can\'t connect to wireless debugging service.</string>
+
 	<!-- Error message displayed when the KeyStore mechanism on the device is broken, preventing key generation for wireless
 		debugging. -->
-	<string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this
-		device is broken.</string>
+	<string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this device is broken.</string>
+
 	<!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
 	<string name="dialog_adb_pairing_paring_code">Pairing code</string>
 
@@ -960,8 +804,7 @@
 
 	<!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
 	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.
-		Please allow Code on the
-		Go to show notifications with the \'%1$s\' notification channel.</string>
+		Please allow Code on the Go to show notifications with the \'%1$s\' notification channel.</string>
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
@@ -1013,10 +856,7 @@
 	</string-array>
 
 	<!-- Text shown at the bottom of the ADB pairing dialog -->
-	<string name="debugger_setup_description_footer"><![CDATA[
-Some devices (including older Xiaomi devices) also require giving Code on the Go the “Unrestricted battery usage permission”.
-<a href="http://localhost:6174/i/debug-enable.html">See more information including troubleshooting tips</a>.
-	]]></string>
+	<string name="debugger_setup_description_footer"><![CDATA[Some devices (including older Xiaomi devices) also require giving Code on the Go the “Unrestricted battery usage permission”. <a href="http://localhost:6174/i/debug-enable.html">See more information including troubleshooting tips</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
 	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
@@ -1052,8 +892,7 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
 
 	<!-- URL Consent Dialog -->
 	<string name="url_consent_title">Open External Link?</string>
-	<string name="url_consent_message">You are about to leave Code on the Go to open an external link:\n\n%s\n\nDo you want to
-		continue?</string>
+	<string name="url_consent_message">You are about to leave Code on the Go to open an external link:\n\n%s\n\nDo you want to continue?</string>
 	<string name="url_consent_cancel">Cancel</string>
 	<string name="url_consent_proceed">Proceed</string>
 	<string name="url_consent_dont_ask">Don\'t Ask Again</string>
