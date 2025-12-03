@@ -51,7 +51,6 @@ class DeleteProjectListAdapter(
             label,
             formatDate(renderDate ?: "")
         )
-        return
     }
 
     inner class ProjectViewHolder(private val binding: DeleteProjectsItemBinding) :

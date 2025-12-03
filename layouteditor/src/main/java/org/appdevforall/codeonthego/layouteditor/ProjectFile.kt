@@ -33,8 +33,8 @@ class ProjectFile : Parcelable {
     mainLayoutName: String = "layout_main") {
 
     this.path = path
-    this.createdAt = createdAt.toString()
-    this.lastModified = lastModified.toString()
+    this.createdAt = createdAt
+    this.lastModified = lastModified
     this.name = FileUtil.getLastSegmentFromPath(path)
     this.mainLayoutName = mainLayoutName
     this.preferencesManager = PreferencesManager(context = context)

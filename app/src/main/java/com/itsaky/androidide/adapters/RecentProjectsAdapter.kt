@@ -73,9 +73,9 @@ class RecentProjectsAdapter(
       val ctx = binding.root.context
 
       val label = if (showModified)
-				ctx.getString(R.string.date_modified_label)
-			else
-      	ctx.getString(R.string.date_created_label)
+        ctx.getString(R.string.date_modified_label)
+      else
+        ctx.getString(R.string.date_created_label)
 
       binding.projectDate.text = binding.root.context.getString(
         R.string.date,

@@ -19,6 +19,7 @@ import androidx.appcompat.widget.TooltipCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.isEmpty
 import androidx.drawerlayout.widget.DrawerLayout
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ToastUtils
@@ -30,6 +31,7 @@ import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
+import kotlinx.coroutines.launch
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
@@ -134,16 +136,26 @@ class EditorActivity : BaseActivity() {
 			intent.getStringExtra(Constants.EXTRA_KEY_FILE_PATH),
 			intent.getStringExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME),
 		) { filePath, fileName ->
-			val createdAt = getCreatedTime(filePath).toString()
-			val modifiedAt = getLastModifiedTime(filePath).toString()
-			projectManager.openProject(ProjectFile(filePath, createdAt, modifiedAt, this, mainLayoutName = fileName))
-			project = projectManager.openedProject!!
-			androidToDesignConversion(
-				Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
-			)
+			lifecycleScope.launch {
+				val createdAt = getCreatedTime(filePath).toString()
+				val modifiedAt = getLastModifiedTime(filePath).toString()
+				projectManager.openProject(
+					ProjectFile(
+						filePath,
+						createdAt,
+						modifiedAt,
+						this@EditorActivity,
+						mainLayoutName = fileName
+					)
+				)
+				project = projectManager.openedProject!!
+				androidToDesignConversion(
+					Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
+				)
 
-			supportActionBar?.title = project.name
-			layoutAdapter = LayoutListAdapter(project)
+				supportActionBar?.title = project.name
+				layoutAdapter = LayoutListAdapter(project)
+			}
 		} ?: showNothingDialog()
 
 		binding.editorLayout.setBackgroundColor(

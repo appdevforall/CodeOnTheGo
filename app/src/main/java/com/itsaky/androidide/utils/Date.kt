@@ -14,7 +14,7 @@ fun formatDate(dateString: String): String {
 		}
 
 		val inputFormat = SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.ENGLISH)
-		val date = inputFormat.parse(dateString)
+		val date = inputFormat.parse(dateString) ?: return dateString.take(5)
 		val outputFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 		outputFormat.format(date)
 	}.getOrElse {
