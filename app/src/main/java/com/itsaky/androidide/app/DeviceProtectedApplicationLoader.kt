@@ -1,5 +1,6 @@
 package com.itsaky.androidide.app
 
+import android.os.StrictMode
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -43,7 +44,23 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 	override fun load(app: IDEApplication) {
 		logger.info("Loading device protected storage context components...")
 
-		startKoin {
+        // Enable StrictMode for debug builds
+        if (BuildConfig.DEBUG) {
+            StrictMode.setThreadPolicy(
+                StrictMode.ThreadPolicy.Builder()
+                    .detectAll()
+                    .penaltyLog()
+                    .build()
+            )
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder()
+                    .detectAll()
+                    .penaltyLog()
+                    .build()
+            )
+        }
+
+        startKoin {
 			androidContext(app)
 			modules(coreModule, pluginModule)
 		}
