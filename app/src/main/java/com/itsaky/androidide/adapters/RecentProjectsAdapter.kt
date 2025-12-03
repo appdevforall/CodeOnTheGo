@@ -27,7 +27,6 @@ import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.formatDate
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
 import org.slf4j.LoggerFactory
@@ -68,20 +67,7 @@ class RecentProjectsAdapter(
     }
 
     fun renderDate(binding: SavedRecentProjectItemBinding, project: ProjectFile) {
-      val showModified = project.createdAt != project.lastModified
-      val renderDate = if (showModified) project.lastModified else project.createdAt
-      val ctx = binding.root.context
-
-      val label = if (showModified)
-        ctx.getString(R.string.date_modified_label)
-      else
-        ctx.getString(R.string.date_created_label)
-
-      binding.projectDate.text = binding.root.context.getString(
-        R.string.date,
-        label,
-        formatDate(renderDate ?: "")
-      )
+      binding.projectDate.text = project.renderDateText(binding.root.context)
     }
 
     inner class ProjectViewHolder(private val binding: SavedRecentProjectItemBinding) :

@@ -37,20 +37,7 @@ class DeleteProjectListAdapter(
     }
 
     fun renderDate(binding: DeleteProjectsItemBinding, project: ProjectFile) {
-        val showModified = project.createdAt != project.lastModified
-        val renderDate = if (showModified) project.lastModified else project.createdAt
-        val ctx = binding.root.context
-
-        val label = if (showModified)
-            ctx.getString(R.string.date_modified_label)
-        else
-            ctx.getString(R.string.date_created_label)
-
-        binding.projectDate.text = binding.root.context.getString(
-            R.string.date,
-            label,
-            formatDate(renderDate ?: "")
-        )
+        binding.projectDate.text = project.renderDateText(binding.root.context)
     }
 
     inner class ProjectViewHolder(private val binding: DeleteProjectsItemBinding) :

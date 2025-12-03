@@ -77,10 +77,15 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     fun updateProject(oldName: String, newName: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
+            val modifiedAt = System.currentTimeMillis().toString()
             recentProjectDao.updateNameAndLocation(
                 oldName = oldName,
                 newName = newName,
                 newLocation = location
+            )
+            recentProjectDao.updateLastModified(
+                projectName = newName,
+                lastModified = modifiedAt
             )
             loadProjects()
         }

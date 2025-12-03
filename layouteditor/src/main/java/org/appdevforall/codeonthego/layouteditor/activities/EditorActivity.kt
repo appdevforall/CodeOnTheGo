@@ -136,9 +136,11 @@ class EditorActivity : BaseActivity() {
 			intent.getStringExtra(Constants.EXTRA_KEY_FILE_PATH),
 			intent.getStringExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME),
 		) { filePath, fileName ->
+			supportActionBar?.title = getString(string.loading_project)
 			lifecycleScope.launch {
 				val createdAt = getCreatedTime(filePath).toString()
 				val modifiedAt = getLastModifiedTime(filePath).toString()
+
 				projectManager.openProject(
 					ProjectFile(
 						filePath,

@@ -7,6 +7,7 @@ import android.os.Parcelable.Creator
 import org.appdevforall.codeonthego.layouteditor.managers.PreferencesManager
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
+import com.itsaky.androidide.utils.formatDate
 import org.jetbrains.annotations.Contract
 import java.io.File
 import java.nio.file.Files
@@ -161,6 +162,22 @@ class ProjectFile : Parcelable {
     path = parcel.readString().toString()
     name = parcel.readString().toString()
     this.mainLayoutName = mainLayoutName
+  }
+
+  fun renderDateText(context: Context): String {
+    val showModified = createdAt != lastModified
+    val renderDate = if (showModified) lastModified else createdAt
+
+    val label = if (showModified)
+      context.getString(R.string.date_modified_label)
+    else
+      context.getString(R.string.date_created_label)
+
+    return context.getString(
+      R.string.date,
+      label,
+      formatDate(renderDate ?: "")
+    )
   }
 
   companion object {

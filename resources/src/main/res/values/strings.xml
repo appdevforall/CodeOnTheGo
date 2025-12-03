@@ -661,6 +661,7 @@
 	<string name="date">%1$s: %2$s</string>
 	<string name="date_created_label">Created</string>
 	<string name="date_modified_label">Modified</string>
+	<string name="loading_project">Loading project…</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
 	<string name="open_from_folder">Open from folder</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
