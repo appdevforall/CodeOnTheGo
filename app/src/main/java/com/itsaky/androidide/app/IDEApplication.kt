@@ -24,6 +24,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.StrictMode
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.treesitter.TreeSitter
@@ -114,6 +115,22 @@ class IDEApplication : BaseApplication() {
 
 	@OptIn(DelicateCoroutinesApi::class)
 	override fun onCreate() {
+        // Enable StrictMode for debug builds
+		if (BuildConfig.DEBUG) {
+			StrictMode.setThreadPolicy(
+				StrictMode.ThreadPolicy.Builder()
+					.detectAll()
+					.penaltyLog()
+					.build()
+			)
+			StrictMode.setVmPolicy(
+				StrictMode.VmPolicy.Builder()
+					.detectAll()
+					.penaltyLog()
+					.build()
+			)
+		}
+
 		instance = this
 		uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
 		Thread.setDefaultUncaughtExceptionHandler(::handleUncaughtException)
