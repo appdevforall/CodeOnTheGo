@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Parcel
 import android.os.Parcelable
 import android.os.Parcelable.Creator
+import com.itsaky.androidide.utils.getCreatedTime
+import com.itsaky.androidide.utils.getLastModifiedTime
 import org.appdevforall.codeonthego.layouteditor.managers.PreferencesManager
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
@@ -21,15 +23,20 @@ class ProjectFile : Parcelable {
   var name: String
 
   @JvmField
-  var date: String? = null
+  var createdAt: String? = null
+
+  @JvmField
+  var lastModified: String? = null
 
   private val mainLayoutName: String
   private lateinit var preferencesManager: PreferencesManager
 
-  constructor(path: String, date: String?, context: Context,
+  constructor(path: String, createdAt: String?, lastModified: String?, context: Context,
     mainLayoutName: String = "layout_main") {
+
     this.path = path
-    this.date = date
+    this.createdAt = createdAt.toString()
+    this.lastModified = lastModified.toString()
     this.name = FileUtil.getLastSegmentFromPath(path)
     this.mainLayoutName = mainLayoutName
     this.preferencesManager = PreferencesManager(context = context)

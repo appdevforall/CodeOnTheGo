@@ -27,12 +27,11 @@ import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.formatDate
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class RecentProjectsAdapter(
     private var projects: List<ProjectFile>,
@@ -68,12 +67,31 @@ class RecentProjectsAdapter(
         notifyDataSetChanged()
     }
 
+    fun renderDate(binding: SavedRecentProjectItemBinding, project: ProjectFile) {
+      val showModified = project.createdAt == project.lastModified
+			val ctx = binding.root.context
+
+			val label = if (showModified)
+				ctx.getString(R.string.date_created_label)
+			else
+      	ctx.getString(R.string.date_modified_label)
+
+			val renderDate = if (showModified) project.createdAt else project.lastModified
+      binding.projectDate.text = binding.root.context.getString(
+        R.string.date,
+        label,
+        formatDate(renderDate ?: "")
+      )
+    }
+
     inner class ProjectViewHolder(private val binding: SavedRecentProjectItemBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(project: ProjectFile, position: Int) {
             binding.projectName.text = project.name
-            binding.projectDate.text = formatDate(project.date ?: "")
+
+            renderDate(binding, project)
+
             binding.icon.text = project.name
                 .split(" ")
                 .mapNotNull { it.firstOrNull()?.uppercaseChar() }
@@ -103,26 +121,7 @@ class RecentProjectsAdapter(
                 showPopupMenu(view, project, position)
 			}
 		}
-
-        private fun formatDate(dateString: String): String {
-            return try {
-                val inputFormat =
-                    SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.getDefault())
-                val date = inputFormat.parse(dateString)
-                val day = SimpleDateFormat("d", Locale.ENGLISH).format(date).toInt()
-                val suffix = when {
-                    day in 11..13 -> "th"
-                    day % 10 == 1 -> "st"
-                    day % 10 == 2 -> "nd"
-                    day % 10 == 3 -> "rd"
-                    else -> "th"
-                }
-                SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault()).format(date)
-            } catch (_: Exception) {
-                dateString.take(5)
-            }
-        }
-    }
+	}
 
     private fun showPopupMenu(view: View, project: ProjectFile, position: Int) {
         val inflater = LayoutInflater.from(view.context)

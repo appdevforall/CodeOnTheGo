@@ -28,6 +28,8 @@ import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.utils.getCreatedTime
+import com.itsaky.androidide.utils.getLastModifiedTime
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
@@ -132,7 +134,9 @@ class EditorActivity : BaseActivity() {
 			intent.getStringExtra(Constants.EXTRA_KEY_FILE_PATH),
 			intent.getStringExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME),
 		) { filePath, fileName ->
-			projectManager.openProject(ProjectFile(filePath, "0", this, mainLayoutName = fileName))
+			val createdAt = getCreatedTime(filePath).toString()
+    	val modifiedAt = getLastModifiedTime(filePath).toString()
+			projectManager.openProject(ProjectFile(filePath, createdAt, modifiedAt, this, mainLayoutName = fileName))
 			project = projectManager.openedProject!!
 			androidToDesignConversion(
 				Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),

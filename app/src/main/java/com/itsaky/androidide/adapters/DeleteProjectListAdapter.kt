@@ -4,10 +4,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DeleteProjectsItemBinding
+import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
+import com.itsaky.androidide.utils.formatDate
+import com.itsaky.androidide.utils.getLastModifiedTime
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class DeleteProjectListAdapter(
     private var projects: List<ProjectFile>,
@@ -36,12 +38,30 @@ class DeleteProjectListAdapter(
         notifyDataSetChanged()
     }
 
+    fun renderDate(binding: DeleteProjectsItemBinding, project: ProjectFile) {
+        val showModified = project.createdAt == project.lastModified
+        val ctx = binding.root.context
+
+        val label = if (showModified)
+            ctx.getString(R.string.date_created_label)
+        else
+            ctx.getString(R.string.date_modified_label)
+            val renderDate = if (showModified) project.createdAt else project.lastModified
+
+        binding.projectDate.text = binding.root.context.getString(
+            R.string.date,
+            label,
+            formatDate(renderDate ?: "")
+        )
+        return
+    }
+
     inner class ProjectViewHolder(private val binding: DeleteProjectsItemBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(project: ProjectFile) {
             binding.projectName.text = project.name
-            binding.projectDate.text = formatDate(project.date ?: "")
+            renderDate(binding, project)
             binding.icon.text = project.name.take(2).uppercase()
 
             binding.checkbox.visibility = View.VISIBLE
@@ -57,26 +77,6 @@ class DeleteProjectListAdapter(
             binding.checkbox.setOnLongClickListener {
                 onCheckboxLongPress()
             }
-        }
-    }
-
-    private fun formatDate(dateString: String): String {
-        return try {
-            val inputFormat =
-                SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.getDefault())
-            val date = inputFormat.parse(dateString)
-            val day = SimpleDateFormat("d", Locale.ENGLISH).format(date).toInt()
-            val suffix = when {
-                day in 11..13 -> "th"
-                day % 10 == 1 -> "st"
-                day % 10 == 2 -> "nd"
-                day % 10 == 3 -> "rd"
-                else -> "th"
-            }
-            val outputFormat = SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault())
-            outputFormat.format(date)
-        } catch (e: Exception) {
-            dateString.take(5)
         }
     }
 }
