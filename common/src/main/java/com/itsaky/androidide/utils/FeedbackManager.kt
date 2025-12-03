@@ -218,8 +218,10 @@ object FeedbackManager {
 		callback: (File?) -> Unit
 	) {
 
-        runCatching {
-			val bitmap = createBitmap(rootView.width, rootView.height)
+        var bitmap: Bitmap? = null
+
+        try {
+            bitmap = createBitmap(rootView.width, rootView.height)
 			val locationOfViewInWindow = IntArray(2)
 			rootView.getLocationInWindow(locationOfViewInWindow)
 
@@ -237,12 +239,18 @@ object FeedbackManager {
                         activity.lifecycleScope.launch {
                             saveScreenshot(bitmap, screenshotFile, callback)
                         }
+                    } else {
+                        logger.error("PixelCopy failed with result code: $result")
+                        bitmap.recycle()
+                        callback(null)
                     }
 				},
 				Handler(Looper.getMainLooper())
 			)
-		}.onFailure {
-			logger.error("PixelCopy exception, falling back to Canvas", it)
+		} catch (e: Exception) {
+			logger.error("PixelCopy exception, falling back to Canvas", e)
+            bitmap?.recycle()
+            callback(null)
 		}
 	}
 
