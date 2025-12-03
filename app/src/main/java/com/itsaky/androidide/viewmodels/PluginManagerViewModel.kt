@@ -222,9 +222,11 @@ class PluginManagerViewModel(
             _currentOperation.value = PluginOperation.Installing
             _uiState.update { it.copy(isInstalling = true) }
 
+            var tempFile: File? = null
+
             try {
                 // Move all file I/O to IO dispatcher
-                val tempFile = withContext(Dispatchers.IO) {
+                tempFile = withContext(Dispatchers.IO) {
                     val inputStream = contentResolver.openInputStream(uri)
                         ?: throw Exception("Cannot open file")
 
@@ -256,16 +258,20 @@ class PluginManagerViewModel(
                     }
                     .onFailure { exception ->
                         Log.e(TAG, "Failed to install plugin", exception)
-                        // Clean up temp file on failure
-                        if (tempFile.exists()) {
-                            tempFile.delete()
-                        }
                         _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to install plugin: ${exception.message}"))
                     }
 
             } catch (exception: Exception) {
                 Log.e(TAG, "Error installing plugin from URI", exception)
                 _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to install plugin: ${exception.message}"))
+            } finally {
+                tempFile?.let { file ->
+                    withContext(Dispatchers.IO) {
+                        if (file.exists()) {
+                            file.delete()
+                        }
+                    }
+                }
             }
 
             _uiState.update { it.copy(isInstalling = false) }
