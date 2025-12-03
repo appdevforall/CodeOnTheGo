@@ -6,9 +6,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DeleteProjectsItemBinding
-import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
 import com.itsaky.androidide.utils.formatDate
-import com.itsaky.androidide.utils.getLastModifiedTime
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 
 class DeleteProjectListAdapter(
@@ -39,14 +37,14 @@ class DeleteProjectListAdapter(
     }
 
     fun renderDate(binding: DeleteProjectsItemBinding, project: ProjectFile) {
-        val showModified = project.createdAt == project.lastModified
+        val showModified = project.createdAt != project.lastModified
+        val renderDate = if (showModified) project.lastModified else project.createdAt
         val ctx = binding.root.context
 
         val label = if (showModified)
-            ctx.getString(R.string.date_created_label)
-        else
             ctx.getString(R.string.date_modified_label)
-            val renderDate = if (showModified) project.createdAt else project.lastModified
+        else
+            ctx.getString(R.string.date_created_label)
 
         binding.projectDate.text = binding.root.context.getString(
             R.string.date,

@@ -68,15 +68,15 @@ class RecentProjectsAdapter(
     }
 
     fun renderDate(binding: SavedRecentProjectItemBinding, project: ProjectFile) {
-      val showModified = project.createdAt == project.lastModified
-			val ctx = binding.root.context
+      val showModified = project.createdAt != project.lastModified
+      val renderDate = if (showModified) project.lastModified else project.createdAt
+      val ctx = binding.root.context
 
-			val label = if (showModified)
-				ctx.getString(R.string.date_created_label)
+      val label = if (showModified)
+				ctx.getString(R.string.date_modified_label)
 			else
-      	ctx.getString(R.string.date_modified_label)
+      	ctx.getString(R.string.date_created_label)
 
-			val renderDate = if (showModified) project.createdAt else project.lastModified
       binding.projectDate.text = binding.root.context.getString(
         R.string.date,
         label,

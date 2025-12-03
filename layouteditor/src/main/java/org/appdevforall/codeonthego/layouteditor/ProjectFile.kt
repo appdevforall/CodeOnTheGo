@@ -4,8 +4,6 @@ import android.content.Context
 import android.os.Parcel
 import android.os.Parcelable
 import android.os.Parcelable.Creator
-import com.itsaky.androidide.utils.getCreatedTime
-import com.itsaky.androidide.utils.getLastModifiedTime
 import org.appdevforall.codeonthego.layouteditor.managers.PreferencesManager
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil

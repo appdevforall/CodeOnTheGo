@@ -14,7 +14,7 @@ interface RecentProjectDao {
     @Query("DELETE FROM recent_project_table WHERE name = :name")
     suspend fun deleteByName(name: String)
 
-    @Query("SELECT * FROM recent_project_table order by create_at, last_modified DESC")
+    @Query("SELECT * FROM recent_project_table order by last_modified DESC, create_at DESC")
     suspend fun dumpAll(): List<RecentProject>?
 
     @Query("SELECT * FROM recent_project_table WHERE name = :name LIMIT 1")

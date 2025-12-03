@@ -5,11 +5,9 @@ import java.nio.file.attribute.BasicFileAttributes
 
 
 fun getAttrs(location: String): BasicFileAttributes? {
-	return try {
+	return runCatching {
 		Files.readAttributes(Paths.get(location), BasicFileAttributes::class.java)
-	} catch (_: Exception) {
-		null
-	}
+	}.getOrNull()
 }
 
 fun getLastModifiedTime(location: String): Long {

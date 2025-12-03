@@ -135,7 +135,7 @@ class EditorActivity : BaseActivity() {
 			intent.getStringExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME),
 		) { filePath, fileName ->
 			val createdAt = getCreatedTime(filePath).toString()
-    	val modifiedAt = getLastModifiedTime(filePath).toString()
+			val modifiedAt = getLastModifiedTime(filePath).toString()
 			projectManager.openProject(ProjectFile(filePath, createdAt, modifiedAt, this, mainLayoutName = fileName))
 			project = projectManager.openedProject!!
 			androidToDesignConversion(

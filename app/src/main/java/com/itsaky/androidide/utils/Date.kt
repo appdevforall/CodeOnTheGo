@@ -5,19 +5,19 @@ import java.util.Date
 import java.util.Locale
 
 fun formatDate(dateString: String): String {
-	return try {
+	return runCatching {
 		if (dateString.all { it.isDigit() }) {
 			val millis = dateString.toLong()
 			val date = Date(millis)
 			val outputFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-			return outputFormat.format(date)
+			return@runCatching outputFormat.format(date)
 		}
 
 		val inputFormat = SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.ENGLISH)
 		val date = inputFormat.parse(dateString)
 		val outputFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 		outputFormat.format(date)
-	} catch (_: Exception) {
+	}.getOrElse {
 		dateString.take(5)
 	}
 }
