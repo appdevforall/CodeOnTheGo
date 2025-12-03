@@ -60,7 +60,7 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
             )
         }
 
-		startKoin {
+        startKoin {
 			androidContext(app)
 			modules(coreModule, pluginModule)
 		}
