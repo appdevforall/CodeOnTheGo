@@ -115,22 +115,6 @@ class IDEApplication : BaseApplication() {
 
 	@OptIn(DelicateCoroutinesApi::class)
 	override fun onCreate() {
-        // Enable StrictMode for debug builds
-		if (BuildConfig.DEBUG) {
-			StrictMode.setThreadPolicy(
-				StrictMode.ThreadPolicy.Builder()
-					.detectAll()
-					.penaltyLog()
-					.build()
-			)
-			StrictMode.setVmPolicy(
-				StrictMode.VmPolicy.Builder()
-					.detectAll()
-					.penaltyLog()
-					.build()
-			)
-		}
-
 		instance = this
 		uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
 		Thread.setDefaultUncaughtExceptionHandler(::handleUncaughtException)
