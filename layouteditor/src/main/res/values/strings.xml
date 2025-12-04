@@ -1,12 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation" tools:override="true">
-    <string name="app_slogan">Create Awesome UI!</string>
-    <string name="home">HOME</string>
-    <string name="preference">PREFERENCES</string>
-    <string name="github">GITHUB</string>
     <string name="about">ABOUT</string>
-    <string name="share">SHARE</string>
-    <string name="open_source_licence">OPEN SOURCE LICENCES</string>
-    <string name="projects">Projects</string>
     <string name="title_preference">Preferences</string>
     <string name="title_about">About</string>
     <string name="navigation_drawer_open">Open navigation drawer</string>
@@ -21,9 +14,7 @@
     <string name="copy">Copy</string>
     <string name="drawable_manager">Drawable Manager</string>
     <string name="xml_preview">XML Preview</string>
-    <string name="msg_no_projects">You don\'t have any projects.</string>
     <string name="msg_create_new">Click + icon to create a new project.</string>
-    <string name="share_description">Use Layout Editor to easily build Android app layouts by dragging UI elements into a visual layout editor.\n\n### Features\n- Design layout with Drag &amp; Drop\n- Edit view and layout properties\n- See and Copy the XML code of layout\n- More : %1$s#features\n\nDownload from here: %1$s/releases/latest</string>
     <string name="permission_granted">Permission granted&#8230;</string>
     <string name="permission_denied">Permission denied&#8230;</string>
     <string name="preview_layout">Preview Layout</string>
@@ -46,10 +37,6 @@
     <string name="msg_current_name_unavailable">Current name is unavailable!</string>
     <string name="msg_cannnot_empty">Field cannot be empty!</string>
     <string name="options">Options</string>
-    <string name="enable_vibration">Enable Vibration</string>
-    <string name="summary_enable_vibration">May consume battery</string>
-    <string name="show_stroke">Show Stroke</string>
-    <string name="summary_show_stroke">Show stroke in the editor?</string>
     <string name="remove_drawable">Remove drawable</string>
     <string name="remove_font">Remove font</string>
     <string name="msg_remove_drawable">Do you want to remove the drawable?</string>
@@ -82,10 +69,6 @@
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="theme_auto">Auto</string>
-    <string name="choose_theme">Choose theme</string>
-    <string name="summary_choose_theme">Apply theme to the app.</string>
-    <string name="dynamic_colors">Use Dynamic Colors</string>
-    <string name="summary_dynamic_colors">This feature is only for Android 12+.</string>
     <string name="msg_dynamic_colors_dialog">This will close the application with all tasks!.</string>
     <string name="export_layout">Export Layout</string>
     <string name="invalid_data_intent">Invalid Data returned by Intent.</string>
@@ -110,7 +93,6 @@
     <string name="select">Select</string>
     <string name="palette">Palette</string>
     <string name="common">Common</string>
-    <string name="ui">UI</string>
     <string name="texts">Texts</string>
     <string name="buttons">Buttons</string>
     <string name="widgets">Widgets</string>
@@ -140,7 +122,10 @@
     <string name="save_changes_and_exit">Save changes and exit</string>
     <string name="discard_changes_and_exit">Discard changes and exit</string>
     <string name="cancel_and_stay_in_editor">Cancel and stay in Layout Editor</string>
-    
+    <string name="msg_font_load_invalid">Failed to load font %1$s. File is empty or invalid.</string>
+    <string name="msg_font_add_invalid">Failed to add font. The file is empty or corrupt.</string>
+    <string name="msg_error_load_failed">Failed to load file list.</string>
+
     <!-- EditorActivity strings -->
     <string name="error_invalid_xml_file">Selected file is not an Android XML layout file</string>
     <string name="error_failed_to_load_palette">Failed to load palette</string>
