@@ -10,6 +10,7 @@ import android.os.Looper
 import android.view.PixelCopy
 import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 import com.itsaky.androidide.common.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -133,9 +134,7 @@ class FeedbackEmailHandler(
         screenshotUri?.let { attachmentUris.add(it) }
         logContentUri?.let { attachmentUris.add(it) }
 
-        val hasMultipleAttachments = logContentUri != null && screenshotUri != null
         return getIntentBasedOnAttachments(
-            hasMultipleAttachments = hasMultipleAttachments,
             emailRecipient = emailRecipient,
             subject = subject,
             body = body,
@@ -144,7 +143,6 @@ class FeedbackEmailHandler(
     }
 
     fun getIntentBasedOnAttachments(
-        hasMultipleAttachments: Boolean,
         emailRecipient: String,
         subject: String,
         body: String,
@@ -153,33 +151,22 @@ class FeedbackEmailHandler(
         return when {
             // No screenshot or log file (if both files failed to be created)
             attachmentUris.isEmpty() -> {
-                Intent(Intent.ACTION_SEND).apply {
+                Intent(Intent.ACTION_SENDTO).apply {
+                    data = "mailto:".toUri()
                     putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
                     putExtra(Intent.EXTRA_SUBJECT, subject)
                     putExtra(Intent.EXTRA_TEXT, body)
-                    type = "*/*"
                 }
             }
-            // Both screenshot and log file
-            hasMultipleAttachments -> {
+            // Screenshot and/or log file
+            else -> {
                 Intent(Intent.ACTION_SEND_MULTIPLE).apply {
                     putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
                     putExtra(Intent.EXTRA_SUBJECT, subject)
                     putExtra(Intent.EXTRA_TEXT, body)
                     putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachmentUris))
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    type = "*/*"
-                }
-            }
-            else -> {
-                // Just screenshot
-                Intent(Intent.ACTION_SEND).apply {
-                    putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
-                    putExtra(Intent.EXTRA_SUBJECT, subject)
-                    putExtra(Intent.EXTRA_TEXT, body)
-                    putExtra(Intent.EXTRA_STREAM, attachmentUris.first())
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    type = "*/*"
+                    type = "message/rfc822"
                 }
             }
         }

@@ -1,10 +1,12 @@
 package com.itsaky.androidide.assets
 
 import android.content.Context
+import android.os.StatFs
 import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.utils.useEntriesEach
+import com.itsaky.androidide.utils.Environment.DEFAULT_ROOT
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -19,11 +21,13 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipException
@@ -31,10 +35,14 @@ import java.util.zip.ZipInputStream
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
 import kotlin.io.path.pathString
+import kotlin.math.pow
 
 typealias AssetsInstallerProgressConsumer = (AssetsInstallationHelper.Progress) -> Unit
 
 object AssetsInstallationHelper {
+    private const val STATUS_INSTALLING = "Installing"
+    private const val STATUS_FINISHED = "FINISHED"
+
 	sealed interface Result {
 		data object Success : Result
 
@@ -47,7 +55,8 @@ object AssetsInstallationHelper {
 		val message: String,
 	)
 
-	private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
+    const val LLAMA_AAR = "dynamic_libs/llama.aar"
+    private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
 	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
 	const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
 
@@ -87,6 +96,7 @@ object AssetsInstallationHelper {
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
+                LLAMA_AAR
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
@@ -118,12 +128,18 @@ object AssetsInstallationHelper {
 			return@coroutineScope Result.Failure(IOException("preInstall failed"))
 		}
 
-		val entryStatusMap = ConcurrentHashMap<String, String>()
+        val entrySizes: Map<String, Long> = expectedEntries.associateWith { entry ->
+            ASSETS_INSTALLER.expectedSize(entry)
+        }
+
+        val totalSize = entrySizes.values.sum()
+
+        val entryStatusMap = ConcurrentHashMap<String, String>()
 
 		val installerJobs =
 			expectedEntries.map { entry ->
 				async {
-					entryStatusMap[entry] = "Installing"
+					entryStatusMap[entry] = STATUS_INSTALLING
 
 					ASSETS_INSTALLER.doInstall(
 						context = context,
@@ -132,29 +148,47 @@ object AssetsInstallationHelper {
 						entryName = entry,
 					)
 
-					entryStatusMap[entry] = "FINISHED"
+					entryStatusMap[entry] = STATUS_FINISHED
 				}
 			}
 
 		val progressUpdater =
-			launch {
-				var previousSnapshot = ""
-				while (isActive) {
-					val snapshot =
-						entryStatusMap.entries.joinToString("\n") { (entry, status) ->
-							"$entry → $status"
-						}
+            launch {
+                var previousSnapshot = ""
+                while (isActive) {
+                    val installedSize = entryStatusMap
+                        .filterValues { it == STATUS_FINISHED }
+                        .keys
+                        .sumOf { entrySizes[it] ?: 0 }
 
-					if (snapshot != previousSnapshot) {
-						onProgress(Progress(snapshot))
-						previousSnapshot = snapshot
-					}
+                    val percent = if (totalSize > 0) {
+                        (installedSize * 100.0 / totalSize)
+                    } else 0.0
 
-					delay(500)
-				}
-			}
+                    // determine the storage left
+                    val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
-		// wait for all jobs to complete
+                    val snapshot =
+                        buildString {
+                            entryStatusMap.forEach { (entry, status) ->
+                                appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+                            }
+                            appendLine("--------------------")
+                            appendLine("Progress: ${formatPercent(percent)}")
+                            appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
+                            appendLine("Remaining storage: ${formatBytes(freeStorage)}")
+                        }
+
+                    if (snapshot != previousSnapshot) {
+                        onProgress(Progress(snapshot))
+                        previousSnapshot = snapshot
+                    }
+
+                    delay(500)
+                }
+            }
+
+        // wait for all jobs to complete
 		installerJobs.joinAll()
 
 		// notify post-install
@@ -195,4 +229,27 @@ object AssetsInstallationHelper {
 			}
 		}
 	}
+
+    private fun getAvailableStorage(path: File): Long {
+        val stat = StatFs(path.absolutePath)
+        return stat.availableBytes
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        val unit = 1024
+        if (bytes < unit) return "$bytes B"
+        val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
+        val pre = "KMGTPE"[exp - 1]
+        return String.format(
+            Locale.getDefault(), // use device locale
+            "%.1f %sB",
+            bytes / unit.toDouble().pow(exp.toDouble()),
+            pre
+        )
+    }
+
+    private fun formatPercent(value: Double): String {
+        return String.format(Locale.getDefault(), "%.1f%%", value)
+    }
+
 }

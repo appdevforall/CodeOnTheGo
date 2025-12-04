@@ -1,14 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools"
     tools:override="true"
     tools:ignore="MissingTranslation,PrivateResource,ExtraTranslation">
-    <string name="app_slogan">Crie uma UI incrível!</string>
-    <string name="home">INÍCIO</string>
-    <string name="preference">PREFERÊNCIAS</string>
-    <string name="github">GITHUB</string>
     <string name="about">SOBRE</string>
-    <string name="share">COMPARTILHAR</string>
-    <string name="open_source_licence">LICENÇAS DE CÓDIGO ABERTO</string>
-    <string name="projects">Projetos</string>
     <string name="title_preference">Preferências</string>
     <string name="title_about">Sobre</string>
     <string name="navigation_drawer_open">Abra a gaveta de navegação</string>
@@ -21,9 +14,7 @@
     <string name="copy">Copiar</string>
     <string name="drawable_manager">Gerenciador de drawable</string>
     <string name="xml_preview">Visualização XML</string>
-    <string name="msg_no_projects">Você não tem nenhum projeto.</string>
     <string name="msg_create_new">Clique no ícone + para criar um novo projeto.</string>
-    <string name="share_description">Use o Layout Editor para criar facilmente os layouts do aplicativo Android arrastando elementos da interface do usuário para um editor de layout visual.\n\n### Recursos\n- Layout de design com arrastar e soltar\n- Editar propriedades de exibição e layout\n- Veja e Copie o código XML do layout\n- Mais : %1$s#recursos\n\nBaixe aqui: %1$s/releases/latest</string>
     <string name="permission_granted">Permissão garantida&#8230;</string>
     <string name="permission_denied">Permissão negada&#8230;</string>
     <string name="preview_layout">Visualizar o Layout</string>
@@ -42,10 +33,6 @@
     <string name="msg_cannnot_empty">O campo não pode estar vazio!</string>
     <string name="options">Opções</string>
     <string name="common">Comum</string>
-    <string name="enable_vibration">Ativar vibração</string>
-    <string name="summary_enable_vibration">Pode consumir bateria</string>
-    <string name="show_stroke">Mostrar traço</string>
-    <string name="summary_show_stroke">Mostrar traço no editor?</string>
     <string name="remove_drawable">Remover drawable</string>
     <string name="msg_remove_drawable">Deseja remover os drawables?</string>
     <string name="msg_enter_new_name">Digite o novo nome</string>
@@ -71,10 +58,7 @@
     <string name="theme_dark">Escuro</string>
     <string name="theme_light">Claro</string>
     <string name="theme_auto">Auto</string>
-    <string name="msg_choose_theme">Escolher tema</string>
     <string name="theme">Tema</string>
-    <string name="dynamic_colors">Use cores dinâmicas</string>
-    <string name="summary_dynamic_colors">Este recurso é apenas para Android 12+.</string>
     <string name="export_layout">Exportar Layout</string>
   <string name="hmmm">¯⁠\\⁠_⁠(⁠ツ⁠)⁠_⁠/⁠¯</string>
     <string name="save_layout_message" >Você deseja exportar layout ou imagem</string>

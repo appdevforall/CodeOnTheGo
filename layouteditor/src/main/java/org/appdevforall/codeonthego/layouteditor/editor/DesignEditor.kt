@@ -45,6 +45,8 @@ import org.appdevforall.codeonthego.layouteditor.editor.dialogs.StringDialog
 import org.appdevforall.codeonthego.layouteditor.editor.dialogs.ViewDialog
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.positionAtDrop
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.restoreSingleViewPosition
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.getViewId
@@ -58,7 +60,6 @@ import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil
 import org.appdevforall.codeonthego.layouteditor.utils.Utils
-import org.appdevforall.codeonthego.layouteditor.utils.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.views.StructureView
 
 class DesignEditor : LinearLayout {
@@ -78,8 +79,6 @@ class DesignEditor : LinearLayout {
 	private lateinit var paint: Paint
 	private lateinit var shadow: View
 
-	private lateinit var attributes: HashMap<String, List<HashMap<String, Any>>>
-	private lateinit var parentAttributes: HashMap<String, List<HashMap<String, Any>>>
 	private lateinit var initializer: AttributeInitializer
 
 	private var isBlueprint = false
@@ -90,9 +89,51 @@ class DesignEditor : LinearLayout {
 	private var parser: XmlLayoutParser? = null
 	private val attrTranslationX = "android:translationX"
 	private val attrTranslationY = "android:translationY"
+	private val widgetIdOverrides = mapOf(
+		"switch" to "switchWidget",
+	)
 
 	init {
-		initAttributes()
+		viewAttributeMap = HashMap()
+	}
+
+	companion object {
+		@Volatile
+		private var cachedAttributes: HashMap<String, List<HashMap<String, Any>>>? = null
+
+		@Volatile
+		private var cachedParentAttributes: HashMap<String, List<HashMap<String, Any>>>? = null
+
+		private fun getAttributes(context: Context): HashMap<String, List<HashMap<String, Any>>> {
+			return cachedAttributes ?: synchronized(this) {
+				cachedAttributes ?: loadAttributesFromAssets(context, Constants.ATTRIBUTES_FILE).also {
+					cachedAttributes = it
+				}
+			}
+		}
+
+		private fun getParentAttributes(context: Context): HashMap<String, List<HashMap<String, Any>>> {
+			return cachedParentAttributes ?: synchronized(this) {
+				cachedParentAttributes ?: loadAttributesFromAssets(context, Constants.PARENT_ATTRIBUTES_FILE).also {
+					cachedParentAttributes = it
+				}
+			}
+		}
+
+		private fun loadAttributesFromAssets(
+			context: Context,
+			filePath: String
+		): HashMap<String, List<HashMap<String, Any>>> {
+			return Gson().fromJson(
+				FileUtil.readFromAsset(filePath, context),
+				object : TypeToken<HashMap<String?, ArrayList<HashMap<String?, Any?>?>?>?>() {}.type,
+			)
+		}
+
+		fun preload(context: Context) {
+			getAttributes(context)
+			getParentAttributes(context)
+		}
 	}
 
 	constructor(context: Context) : super(context) {
@@ -225,55 +266,6 @@ class DesignEditor : LinearLayout {
 		}
 	}
 
-	/**
-	 * Updates the **stored attributes** in [viewAttributeMap] for a [child] view
-	 * after it's "dropped" at a new position (x, y) within its [ConstraintLayout] parent.
-	 *
-	 * This function performs the following actions:
-	 * 1.  Clamps the raw (x, y) pixel coordinates to ensure the view stays within the
-	 * parent container's bounds.
-	 * 2.  Converts the clamped pixel coordinates to dp using the screen density.
-	 * 3.  Updates the [viewAttributeMap] for the [child]:
-	 * - Clears any existing `...constraintBottom_toBottomOf` or `...constraintEnd_toEndOf` attributes.
-	 * - Sets `app:layout_constraintStart_toStartOf = "parent"`
-	 * - Sets `app:layout_constraintTop_toTopOf = "parent"`
-	 * - Sets `app:layout_marginStart = "<x>dp"`
-	 * - Sets `app:layout_marginTop = "<y>dp"`
-	 *
-	 * @param child The view being positioned.
-	 * @param x The target X coordinate in container pixels.
-	 * @param y The target Y coordinate in container pixels.
-	 */
-	private fun positionAtDrop(
-		child: View,
-		x: Float,
-		y: Float,
-	) {
-		val container = child.parent as? ConstraintLayout ?: return
-		val density = container.resources.displayMetrics.density
-
-		val maxX = (container.width - child.width).coerceAtLeast(0).toFloat()
-		val maxY = (container.height - child.height).coerceAtLeast(0).toFloat()
-
-		val xPx = x.coerceIn(0f, maxX)
-		val yPx = y.coerceIn(0f, maxY)
-
-		val xDp = xPx / density
-		val yDp = yPx / density
-
-		viewAttributeMap[child]?.apply {
-			if (contains("app:layout_constraintBottom_toBottomOf")) removeValue("app:layout_constraintBottom_toBottomOf")
-			if (contains("app:layout_constraintEnd_toEndOf")) removeValue("app:layout_constraintEnd_toEndOf")
-
-			putValue("app:layout_constraintStart_toStartOf", "parent")
-			putValue("app:layout_constraintTop_toTopOf", "parent")
-			putValue("app:layout_marginStart", "${xDp}dp")
-			putValue("app:layout_marginTop", "${yDp}dp")
-		}
-
-		markAsModified()
-	}
-
 	private fun setDragListener(group: ViewGroup) {
 		group.setOnDragListener(
 			OnDragListener { host, event ->
@@ -370,12 +362,12 @@ class DesignEditor : LinearLayout {
 							if (newView is EditText) newView.isFocusable = false
 
 							val map = AttributeMap()
-							val id =
-								getIdForNewView(
-									newView.javaClass.superclass.simpleName
-										.replace(" ".toRegex(), "_")
-										.lowercase(),
-								)
+							val raw = newView.javaClass.superclass.simpleName
+								.replace(" ".toRegex(), "_")
+								.lowercase()
+							val sanitized = sanitizeIdName(raw)
+							val id = getIdForNewView(sanitized)
+
 							IdManager.addNewId(newView, id)
 							map.putValue("android:id", "@+id/$id")
 							map.putValue("android:layout_width", "wrap_content")
@@ -400,6 +392,7 @@ class DesignEditor : LinearLayout {
 							}
 
 							if (data.containsKey(Constants.KEY_DEFAULT_ATTRS)) {
+								initAttributeInitializer()
 								@Suppress("UNCHECKED_CAST")
 								val defaults = (data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>).toMutableMap()
 								defaults.remove(attrTranslationX)
@@ -407,20 +400,17 @@ class DesignEditor : LinearLayout {
 								initializer.applyDefaultAttributes(newView, defaults)
 							}
 
-							positionAtDrop(newView, event.x, event.y)
+							positionAtDrop(newView, event.x, event.y, viewAttributeMap)
 							val rootLayout = getChildAt(0)
-							restorePositionsAfterLoad(rootLayout, viewAttributeMap)
-						} else {
-							addWidget(draggedView, parent, event)
-						}
+							restoreSingleViewPosition(rootLayout, newView, viewAttributeMap)
+						} else addWidget(draggedView, parent, event)
 
 						updateStructure()
 						updateUndoRedoHistory()
 					}
 				}
 				true
-			},
-		)
+			})
 	}
 
 	private fun getIdForNewView(name: String): String {
@@ -442,6 +432,8 @@ class DesignEditor : LinearLayout {
 		}
 		return id
 	}
+
+	private fun sanitizeIdName(base: String): String = widgetIdOverrides[base] ?: base
 
 	fun loadLayoutFromParser(xml: String) {
 		clearAll()
@@ -471,8 +463,7 @@ class DesignEditor : LinearLayout {
 		updateStructure()
 		toggleStrokeWidgets()
 
-		initializer =
-			AttributeInitializer(context, viewAttributeMap, attributes, parentAttributes)
+		initAttributeInitializer()
 	}
 
 	private fun ensureConstraintsApplied() {
@@ -586,9 +577,9 @@ class DesignEditor : LinearLayout {
 				)
 			},
 			onDrop = { child, x, y ->
-				positionAtDrop(child, x, y)
+				positionAtDrop(child, x, y, viewAttributeMap)
 				val rootLayout = getChildAt(0)
-				restorePositionsAfterLoad(rootLayout, viewAttributeMap)
+				restoreSingleViewPosition(rootLayout, child, viewAttributeMap)
 
 				updateStructure()
 				updateUndoRedoHistory()
@@ -1038,20 +1029,14 @@ class DesignEditor : LinearLayout {
 		return target
 	}
 
-	private fun initAttributes() {
-		attributes = convertJsonToJavaObject(Constants.ATTRIBUTES_FILE)
-		parentAttributes = convertJsonToJavaObject(Constants.PARENT_ATTRIBUTES_FILE)
-		viewAttributeMap = HashMap()
-		initializer =
-			AttributeInitializer(context, viewAttributeMap, attributes, parentAttributes)
+	private fun initAttributeInitializer() {
+		initializer = AttributeInitializer(
+			context,
+			viewAttributeMap,
+			getAttributes(context),
+			getParentAttributes(context)
+		)
 	}
-
-	private fun convertJsonToJavaObject(filePath: String): HashMap<String, List<HashMap<String, Any>>> =
-		Gson()
-			.fromJson(
-				FileUtil.readFromAsset(filePath, context),
-				object : TypeToken<HashMap<String?, ArrayList<HashMap<String?, Any?>?>?>?>() {}.type,
-			)
 
 	enum class ViewType {
 		DESIGN,

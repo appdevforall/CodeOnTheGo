@@ -4,7 +4,9 @@ import android.content.Context;
 import android.graphics.Color;
 import android.view.View;
 import android.widget.EditText;
+
 import androidx.appcompat.widget.AppCompatEditText;
+
 import org.appdevforall.codeonthego.layouteditor.ProjectFile;
 import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
 import org.appdevforall.codeonthego.layouteditor.managers.ValuesManager;

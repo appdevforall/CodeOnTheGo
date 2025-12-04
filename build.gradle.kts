@@ -44,6 +44,11 @@ plugins {
 	alias(libs.plugins.rikka.refine) apply false
 	alias(libs.plugins.google.protobuf) apply false
 	alias(libs.plugins.spotless)
+    id("jacoco")
+}
+
+jacoco {
+    toolVersion = "0.8.11"
 }
 
 buildscript {
@@ -56,10 +61,27 @@ buildscript {
 }
 
 subprojects {
-	// Always load the F-Droid config
+    plugins.apply("jacoco")
+
+    extensions.configure<JacocoPluginExtension> {
+        toolVersion = "0.8.11"
+    }
+
+    // Always load the F-Droid config
 	FDroidConfig.load(project)
 
-	afterEvaluate {
+    tasks.withType<Test> {
+        // Continue even if tests fail, so coverage data is written
+        ignoreFailures = true
+
+        // Attach jacoco agent
+        extensions.configure<JacocoTaskExtension> {
+            isIncludeNoLocationClasses = true
+            excludes = listOf("jdk.internal.*")
+        }
+    }
+
+    afterEvaluate {
 		apply {
 			plugin(AndroidIDEPlugin::class.java)
 		}
@@ -172,6 +194,11 @@ spotless {
 
 		target("**/src/*/res/**/*.xml")
 		targetExclude(*commonTargetExcludes)
+
+		// Formatting strings.xml with Eclipse WTP causes the strings to be
+		// split into multiple lines, which is not what we want.
+		// Exclude strings.xml from this rule.
+		targetExclude("**/src/*/res/values*/strings.xml")
 	}
 
 	format("misc") {
@@ -231,3 +258,67 @@ tasks.named<Delete>("clean") {
 		delete(rootProject.layout.buildDirectory)
 	}
 }
+
+
+tasks.register<JacocoReport>("jacocoAggregateReport") {
+    // TODO: Skip xml-inflater and llama-impl until bugs are fixed
+    val excludedProjects = setOf("xml-inflater")
+
+    // Depend only on testV8DebugUnitTest tasks in subprojects
+    dependsOn(
+        subprojects
+            .filterNot { it.name in excludedProjects }
+            .mapNotNull { it.tasks.findByName("testV8DebugUnitTest") }
+    )
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    val fileFilter = listOf(
+        "**/R.class", "**/R$*.class", "**/BuildConfig.*",
+        "**/Manifest*.*", "**/*Test*.*"
+    )
+
+    // Collect kotlin and java class directories for v8Debug and v8DebugUnitTest variant
+    val classDirs = subprojects
+        .filterNot { it.name in excludedProjects }
+        .flatMap { subproj ->
+            listOf(
+                fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug")) {
+                    exclude(fileFilter)
+                },
+                fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8DebugUnitTest")) {
+                    exclude(fileFilter)
+                },
+                fileTree(subproj.layout.buildDirectory.dir("classes/java/v8Debug")) {
+                    exclude(fileFilter)
+                },
+                fileTree(subproj.layout.buildDirectory.dir("intermediates/javac/v8DebugUnitTest/classes")) {
+                    exclude(fileFilter)
+                }
+            )
+        }
+
+    // Collect source directories
+    val sourceDirs = subprojects
+        .filterNot { it.name in excludedProjects }
+        .map { it.file("src/main/java") }
+
+    // Collect execution data (.exec files)
+    val execFiles = subprojects
+        .filterNot { it.name in excludedProjects }
+        .map { subproj ->
+            subproj.layout.buildDirectory.file(
+                "outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec"
+            )
+        }
+
+    classDirectories.setFrom(classDirs)
+    sourceDirectories.setFrom(sourceDirs)
+    executionData.setFrom(execFiles)
+}
+
+
+

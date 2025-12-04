@@ -11,7 +11,7 @@ data class ChatSession(
     val messages: MutableList<ChatMessage> = mutableListOf()
 ) {
     val title: String
-        get() = messages.firstOrNull()?.text ?: "New Chat"
+        get() = messages.firstOrNull { it.sender == Sender.USER } ?.text ?: "New Chat"
 
     val formattedDate: String
         get() = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(createdAt))
