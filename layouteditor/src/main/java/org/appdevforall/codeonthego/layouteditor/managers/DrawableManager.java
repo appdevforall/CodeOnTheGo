@@ -2,14 +2,13 @@ package org.appdevforall.codeonthego.layouteditor.managers;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
-
 import android.net.Uri;
 
 import androidx.annotation.NonNull;
 
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil;
-
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
+
 import java.io.File;
 import java.util.HashMap;
 import java.util.Set;
