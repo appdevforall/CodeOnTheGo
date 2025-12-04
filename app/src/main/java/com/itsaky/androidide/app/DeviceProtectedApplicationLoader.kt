@@ -15,6 +15,7 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
+import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
@@ -46,16 +47,18 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
         // Enable StrictMode for debug builds
         if (BuildConfig.DEBUG) {
+            val reprieve = FeatureFlags.isReprieveEnabled()
+
             StrictMode.setThreadPolicy(
                 StrictMode.ThreadPolicy.Builder()
                     .detectAll()
-                    .penaltyDeath()
+                    .apply { if (reprieve) penaltyLog() else penaltyDeath() }
                     .build()
             )
             StrictMode.setVmPolicy(
                 StrictMode.VmPolicy.Builder()
                     .detectAll()
-                    .penaltyDeath()
+                    .apply { if (reprieve) penaltyLog() else penaltyDeath() }
                     .build()
             )
         }
