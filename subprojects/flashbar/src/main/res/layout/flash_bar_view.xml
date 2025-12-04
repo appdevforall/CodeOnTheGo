@@ -82,7 +82,6 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/fb_title_message_margin"
                         android:background="@android:color/transparent"
-                        android:justificationMode="inter_word"
                         android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
                         android:visibility="gone"
                         tools:text="A quick brown fox jumps of the lazy dog."

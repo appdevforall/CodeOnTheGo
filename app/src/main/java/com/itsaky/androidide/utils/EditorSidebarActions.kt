@@ -49,6 +49,7 @@ import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.actions.PluginSidebarActionItem
+import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import java.lang.ref.WeakReference
 
@@ -76,6 +77,9 @@ internal object EditorSidebarActions {
         registry.registerAction(PreferencesSidebarAction(context, ++order))
         registry.registerAction(CloseProjectSidebarAction(context, ++order))
         registry.registerAction(HelpSideBarAction(context, ++order))
+
+        // Set built-in item count (6 items) for sidebar slot management
+        SidebarSlotManager.setBuiltInItemCount(order + 1)
 
         // Register plugin sidebar items
         registerPluginSidebarActions(context, registry, ++order)
@@ -236,13 +240,22 @@ internal object EditorSidebarActions {
         pluginManager.getAllPluginInstances()
             .filterIsInstance<UIExtension>()
             .forEach { plugin ->
-                try {
-                    plugin.getSideMenuItems().forEach { navItem ->
-                        val action = PluginSidebarActionItem(context, navItem, order++)
-                        registry.registerAction(action)
-                    }
-                } catch (e: Exception) {
+                val pluginId = pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
+                val declaredSlots = SidebarSlotManager.getDeclaredSlots(pluginId ?: "")
+                val sideMenuItems = plugin.getSideMenuItems()
 
+                if (sideMenuItems.isEmpty()) return@forEach
+
+                if (sideMenuItems.size > declaredSlots) {
+                    throw IllegalStateException(
+                        "Plugin '$pluginId' returned ${sideMenuItems.size} sidebar items " +
+                        "but only declared $declaredSlots in manifest"
+                    )
+                }
+
+                sideMenuItems.forEach { navItem ->
+                    val action = PluginSidebarActionItem(context, navItem, order++)
+                    registry.registerAction(action)
                 }
             }
     }

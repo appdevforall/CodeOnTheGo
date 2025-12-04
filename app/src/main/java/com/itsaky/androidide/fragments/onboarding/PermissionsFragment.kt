@@ -25,6 +25,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.Animation
+import android.view.animation.AnimationUtils
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -37,9 +39,11 @@ import com.itsaky.androidide.activities.OnboardingActivity
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
+import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashErrorForLong
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -62,6 +66,7 @@ class PermissionsFragment :
 	private var permissionsBinding: LayoutOnboardingPermissionsBinding? = null
 	private var recyclerView: RecyclerView? = null
 	private var finishButton: MaterialButton? = null
+    private lateinit var pulseAnimation: Animation
 
 	private val storagePermissionRequestLauncher =
 		registerForActivityResult(
@@ -101,11 +106,15 @@ class PermissionsFragment :
 			}
 	}
 
-	override fun createContentView(parent: ViewGroup, attachToParent: Boolean) {
+	override fun createContentView(
+		parent: ViewGroup,
+		attachToParent: Boolean,
+	) {
 		permissionsBinding = LayoutOnboardingPermissionsBinding.inflate(layoutInflater, parent, attachToParent)
 		permissionsBinding?.let { b ->
 			recyclerView = b.onboardingItems
 			finishButton = b.finishInstallationButton
+            pulseAnimation = AnimationUtils.loadAnimation(requireContext(), R.anim.pulse_animation)
 
 			b.onboardingItems.adapter = createAdapter()
 
@@ -115,10 +124,13 @@ class PermissionsFragment :
 		}
 	}
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		observeViewModelState()
-
+		observeViewModelEvents()
 		val allGranted = PermissionsHelper.areAllPermissionsGranted(requireContext())
 		viewModel.onPermissionsUpdated(allGranted)
 	}
@@ -133,23 +145,36 @@ class PermissionsFragment :
 		}
 	}
 
+	private fun observeViewModelEvents() {
+		viewLifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				viewModel.events.collect { event ->
+					when (event) {
+						is InstallationEvent.ShowError -> activity?.flashErrorForLong(event.message)
+						is InstallationEvent.InstallationResultEvent -> {}
+					}
+				}
+			}
+		}
+	}
+
 	private fun handleState(state: InstallationState) {
 		when (state) {
 			is InstallationState.InstallationPending -> {
-				finishButton?.isEnabled = false
+				disableFinishButton()
 			}
 			is InstallationState.InstallationGranted -> {
-				finishButton?.isEnabled = true
+				enableFinishButton()
 			}
 			is InstallationState.Installing -> {
-				finishButton?.isEnabled = false
+                disableFinishButton()
 			}
 			is InstallationState.InstallationComplete -> {
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashSuccess(getString(R.string.ide_setup_complete))
 			}
 			is InstallationState.InstallationError -> {
-				finishButton?.isEnabled = true
+                enableFinishButton()
 				finishButton?.text = getString(R.string.finish_installation)
 				activity?.flashError(getString(state.errorMessageResId))
 			}
@@ -178,6 +203,11 @@ class PermissionsFragment :
 	}
 
 	private fun startIdeSetup() {
+		val shouldProceed = viewModel.checkStorageAndNotify(requireContext())
+		if (!shouldProceed) {
+			return
+		}
+
 		if (viewModel.isSetupComplete()) {
 			(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
 			return
@@ -275,4 +305,14 @@ class PermissionsFragment :
 			activity?.flashError(R.string.msg_complete_ide_setup)
 		}
 	}
+
+    private fun enableFinishButton() {
+        finishButton?.isEnabled = true
+        finishButton?.startAnimation(pulseAnimation)
+    }
+
+    private fun disableFinishButton() {
+        finishButton?.isEnabled = false
+        finishButton?.clearAnimation()
+    }
 }
