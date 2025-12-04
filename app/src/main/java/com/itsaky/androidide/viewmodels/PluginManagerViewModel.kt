@@ -11,6 +11,7 @@ import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
 import com.itsaky.androidide.ui.models.PluginOperation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -220,24 +222,29 @@ class PluginManagerViewModel(
             _currentOperation.value = PluginOperation.Installing
             _uiState.update { it.copy(isInstalling = true) }
 
+            var tempFile: File? = null
+
             try {
-                val inputStream = contentResolver.openInputStream(uri)
-                    ?: throw Exception("Cannot open file")
+                // Move all file I/O to IO dispatcher
+                tempFile = withContext(Dispatchers.IO) {
+                    val inputStream = contentResolver.openInputStream(uri)
+                        ?: throw Exception("Cannot open file")
 
-                // Create temporary file in cache directory (not plugins directory)
-                // Get the actual filename from the URI
-                val fileName = getFileNameFromUri(uri)
-                val extension = if (fileName?.endsWith(".cgp", ignoreCase = true) == true) ".cgp" else ".apk"
-                val tempFileName = "temp_plugin_${System.currentTimeMillis()}$extension"
-                val tempDir = File(filesDir, "temp")
-                tempDir.mkdirs()
-                val tempFile = File(tempDir, tempFileName)
+                    // Create temporary file in cache directory (not plugins directory)
+                    // Get the actual filename from the URI
+                    val fileName = getFileNameFromUri(uri)
+                    val extension = if (fileName?.endsWith(".cgp", ignoreCase = true) == true) ".cgp" else ".apk"
+                    val tempFileName = "temp_plugin_${System.currentTimeMillis()}$extension"
+                    val tempDir = File(filesDir, "temp").apply { mkdirs() }
+                    val tempFile = File(tempDir, tempFileName)
 
-                // Copy file content
-                FileOutputStream(tempFile).use { output ->
-                    inputStream.use { input ->
-                        input.copyTo(output)
+                    // Copy file content
+                    FileOutputStream(tempFile).use { output ->
+                        inputStream.use { input ->
+                            input.copyTo(output)
+                        }
                     }
+                    tempFile
                 }
 
                 // Install using repository
@@ -251,16 +258,20 @@ class PluginManagerViewModel(
                     }
                     .onFailure { exception ->
                         Log.e(TAG, "Failed to install plugin", exception)
-                        // Clean up temp file on failure
-                        if (tempFile.exists()) {
-                            tempFile.delete()
-                        }
                         _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to install plugin: ${exception.message}"))
                     }
 
             } catch (exception: Exception) {
                 Log.e(TAG, "Error installing plugin from URI", exception)
                 _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to install plugin: ${exception.message}"))
+            } finally {
+                tempFile?.let { file ->
+                    withContext(Dispatchers.IO) {
+                        if (file.exists()) {
+                            file.delete()
+                        }
+                    }
+                }
             }
 
             _uiState.update { it.copy(isInstalling = false) }
