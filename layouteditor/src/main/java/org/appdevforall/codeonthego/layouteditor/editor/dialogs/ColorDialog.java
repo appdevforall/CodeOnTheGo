@@ -14,6 +14,7 @@ import androidx.appcompat.widget.AppCompatSeekBar;
 
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+
 import org.appdevforall.codeonthego.layouteditor.R;
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutColorDialogBinding;
 import org.appdevforall.codeonthego.layouteditor.views.ColorView;

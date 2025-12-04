@@ -9,8 +9,8 @@ import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
-import android.view.ViewGroup;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 
@@ -19,19 +19,22 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.blankj.utilcode.util.ToastUtils;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+
 import org.appdevforall.codeonthego.layouteditor.ProjectFile;
+import org.appdevforall.codeonthego.layouteditor.R;
 import org.appdevforall.codeonthego.layouteditor.adapters.FontResourceAdapter;
 import org.appdevforall.codeonthego.layouteditor.adapters.models.FontItem;
 import org.appdevforall.codeonthego.layouteditor.databinding.FragmentResourcesBinding;
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutFontItemDialogBinding;
 import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil;
-import org.appdevforall.codeonthego.layouteditor.R;
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;

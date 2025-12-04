@@ -1,8 +1,9 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.widgets;
 
-import android.widget.ProgressBar;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.widget.ProgressBar;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 

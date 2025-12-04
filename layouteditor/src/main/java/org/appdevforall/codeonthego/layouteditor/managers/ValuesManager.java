@@ -1,15 +1,10 @@
 package org.appdevforall.codeonthego.layouteditor.managers;
 
-import org.appdevforall.codeonthego.layouteditor.ProjectFile;
 import org.appdevforall.codeonthego.layouteditor.adapters.models.ValuesItem;
-import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
 import org.appdevforall.codeonthego.layouteditor.tools.ValuesResourceParser;
-import org.appdevforall.codeonthego.layouteditor.utils.SBUtils;
+
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 
 public class ValuesManager {
 

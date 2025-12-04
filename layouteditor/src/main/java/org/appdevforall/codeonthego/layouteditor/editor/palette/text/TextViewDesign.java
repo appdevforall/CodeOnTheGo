@@ -1,8 +1,9 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.text;
 
-import android.widget.TextView;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.widget.TextView;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 
