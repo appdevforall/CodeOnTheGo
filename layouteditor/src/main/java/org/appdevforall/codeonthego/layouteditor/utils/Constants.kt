@@ -10,6 +10,7 @@ import android.view.View
 object Constants {
   const val CURRENT_LAYOUT: String = "currentLayout"
   const val CURRENT_LAYOUT_DESIGN: String = "currentLayoutDesign"
+  const val ATTR_INITIAL_POS = "tools:layout_initialPosition"
 
   @JvmField
   val gravityMap = HashMap<String, Int>()
