@@ -6,7 +6,6 @@ import android.os.Build
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
-import androidx.annotation.RequiresApi
 
 object Constants {
   const val CURRENT_LAYOUT: String = "currentLayout"

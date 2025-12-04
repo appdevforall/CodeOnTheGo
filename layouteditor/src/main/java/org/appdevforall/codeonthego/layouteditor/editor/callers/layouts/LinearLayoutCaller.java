@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.layouteditor.editor.callers.layouts;
 
-import android.view.View;
 import android.content.Context;
+import android.view.View;
 import android.widget.LinearLayout;
 
 public class LinearLayoutCaller {

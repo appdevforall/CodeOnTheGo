@@ -18,6 +18,8 @@ import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ClipboardUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.skydoves.colorpickerview.ColorPickerDialog
+import com.skydoves.colorpickerview.listeners.ColorEnvelopeListener
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.adapters.models.ValuesItem
@@ -27,8 +29,6 @@ import org.appdevforall.codeonthego.layouteditor.tools.ColorPickerDialogFlag
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils
-import com.skydoves.colorpickerview.ColorPickerDialog
-import com.skydoves.colorpickerview.listeners.ColorEnvelopeListener
 
 class ColorResourceAdapter(
   private val project: ProjectFile,

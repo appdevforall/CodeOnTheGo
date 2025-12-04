@@ -1,8 +1,9 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.widgets;
 
-import android.webkit.WebView;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.webkit.WebView;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 
