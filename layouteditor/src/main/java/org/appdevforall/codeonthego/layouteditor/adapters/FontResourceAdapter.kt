@@ -2,7 +2,6 @@ package org.appdevforall.codeonthego.layouteditor.adapters
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.DialogInterface
 import android.graphics.Typeface
 import android.text.Editable
 import android.text.TextWatcher

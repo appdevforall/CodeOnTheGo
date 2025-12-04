@@ -2,7 +2,9 @@ package org.appdevforall.codeonthego.layouteditor.editor.palette.containers;
 
 import android.content.Context;
 import android.graphics.Canvas;
+
 import androidx.cardview.widget.CardView;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 

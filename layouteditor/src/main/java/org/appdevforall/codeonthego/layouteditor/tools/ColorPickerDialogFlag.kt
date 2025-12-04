@@ -3,10 +3,10 @@ package org.appdevforall.codeonthego.layouteditor.tools
 import android.annotation.SuppressLint
 import android.content.Context
 import android.widget.TextView
-import org.appdevforall.codeonthego.layouteditor.R
 import com.skydoves.colorpickerview.AlphaTileView
 import com.skydoves.colorpickerview.ColorEnvelope
 import com.skydoves.colorpickerview.flag.FlagView
+import org.appdevforall.codeonthego.layouteditor.R
 
 class ColorPickerDialogFlag(context: Context) :
   FlagView(context, R.layout.layout_color_dialog_flag) {

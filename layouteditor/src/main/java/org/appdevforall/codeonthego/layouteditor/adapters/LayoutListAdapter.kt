@@ -2,14 +2,7 @@ package org.appdevforall.codeonthego.layouteditor.adapters
 
 import android.annotation.SuppressLint
 import android.graphics.Color
-import android.graphics.HardwareRenderer
-import android.graphics.PixelFormat
-import android.graphics.RenderEffect
-import android.graphics.RenderNode
-import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
-import android.hardware.HardwareBuffer
-import android.media.ImageReader
 import android.os.Build
 import android.view.LayoutInflater
 import android.view.View
@@ -17,13 +10,11 @@ import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.widget.TextView
 import androidx.annotation.RequiresApi
-import androidx.core.graphics.drawable.toBitmap
 import androidx.recyclerview.widget.RecyclerView
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutProjectLayoutItemBinding
-import org.appdevforall.codeonthego.layouteditor.utils.BitmapUtil
 
 class LayoutListAdapter(
   val project: ProjectFile
