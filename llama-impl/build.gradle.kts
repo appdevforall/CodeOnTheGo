@@ -61,7 +61,7 @@ android {
 
 dependencies {
     implementation(project(":llama-api"))
-    implementation(libs.androidx.core.ktx.v1170)
+    implementation(libs.androidx.core.ktx.v1120)
     implementation(libs.androidx.appcompat.v171)
     implementation(libs.tooling.slf4j)
 
