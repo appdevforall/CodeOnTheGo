@@ -17,6 +17,9 @@ import java.nio.file.Paths;
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+
 data class ServerConfig(
     val port: Int = 6174,
     val databasePath: String,
@@ -173,6 +176,9 @@ FROM   LastChange
         //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
         while (requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
+            if (requestLine.isEmpty()) {
+                break
+            }
 
             if (debugEnabled) log.debug("Header: {}", requestLine)
 
@@ -182,15 +188,12 @@ FROM   LastChange
 
             if (requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-                if (parts.size == 0) {
-                    break
-                }
+                // if (parts.size == 0) {
+                //     break
+                // }
                 brotliSupported = parts.contains(brotliCompression)
-                break
             }
         }
-
-
 
         if (method == "POST") {
 
@@ -215,7 +218,7 @@ FROM   LastChange
 
             log.debug(String(byteArrayFromResult))
 
-            val javacOut = String(data) + String(byteArrayFromResult) // Your existing line
+            val javacOut = "Received:\n\n" + String(data) + "\n\n---------Output:\n\n" + String(byteArrayFromResult) // Your existing line
             val javacOutBytes = javacOut.toByteArray(Charsets.UTF_8) // Encode to bytes
 
             writer.println("HTTP/1.1 200 OK")
@@ -467,7 +470,8 @@ WHERE  path = ?
 
 
     private fun createFileFromPost(input: CharArray): File {
-        val inputAsString = String(input)
+        val inputAsString = URLDecoder.decode(String(input), StandardCharsets.UTF_8.name()).substring(5)
+
         val file = File(playgroundFilePath)
         try {
             file.writeText(inputAsString)
