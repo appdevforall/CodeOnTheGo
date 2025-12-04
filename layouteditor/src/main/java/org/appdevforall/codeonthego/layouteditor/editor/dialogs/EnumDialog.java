@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.layouteditor.editor.dialogs;
 
 import android.content.Context;
-import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
