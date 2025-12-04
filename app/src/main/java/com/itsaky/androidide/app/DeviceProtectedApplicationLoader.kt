@@ -15,6 +15,7 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
+import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
@@ -29,6 +30,9 @@ import org.koin.core.component.inject
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
+import kotlinx.coroutines.*
+
+
 
 /**
  * @author Akash Yadav
@@ -46,18 +50,24 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
         // Enable StrictMode for debug builds
         if (BuildConfig.DEBUG) {
-            StrictMode.setThreadPolicy(
-                StrictMode.ThreadPolicy.Builder()
-                    .detectAll()
-                    .penaltyDeath()
-                    .build()
-            )
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder()
-                    .detectAll()
-                    .penaltyDeath()
-                    .build()
-            )
+            CoroutineScope(Dispatchers.Main).launch {
+                val reprieve = withContext(Dispatchers.IO) {
+                    FeatureFlags.isReprieveEnabled()
+                }
+
+                StrictMode.setThreadPolicy(
+                    StrictMode.ThreadPolicy.Builder()
+                        .detectAll()
+                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
+                        .build()
+                )
+                StrictMode.setVmPolicy(
+                    StrictMode.VmPolicy.Builder()
+                        .detectAll()
+                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
+                        .build()
+                )
+            }
         }
 
         startKoin {
