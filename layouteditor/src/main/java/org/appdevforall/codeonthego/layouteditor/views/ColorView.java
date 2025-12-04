@@ -9,11 +9,7 @@ import android.util.AttributeSet;
 import android.view.View;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.content.res.AppCompatResources;
 
-import org.appdevforall.codeonthego.layouteditor.R;
-
-import org.appdevforall.codeonthego.layouteditor.views.AlphaPatternDrawable;
 import java.util.Locale;
 
 /** ColorView extends View class. It is used to draw a colored rectangle. */

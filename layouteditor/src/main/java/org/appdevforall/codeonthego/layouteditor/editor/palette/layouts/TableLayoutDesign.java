@@ -1,8 +1,9 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.layouts;
 
-import android.widget.TableLayout;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.widget.TableLayout;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 

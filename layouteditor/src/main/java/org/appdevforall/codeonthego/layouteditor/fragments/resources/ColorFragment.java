@@ -18,6 +18,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+import com.skydoves.colorpickerview.ColorPickerDialog;
+import com.skydoves.colorpickerview.listeners.ColorEnvelopeListener;
+
 import org.appdevforall.codeonthego.layouteditor.ProjectFile;
 import org.appdevforall.codeonthego.layouteditor.R;
 import org.appdevforall.codeonthego.layouteditor.adapters.ColorResourceAdapter;
@@ -29,8 +32,6 @@ import org.appdevforall.codeonthego.layouteditor.tools.ColorPickerDialogFlag;
 import org.appdevforall.codeonthego.layouteditor.tools.ValuesResourceParser;
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker;
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils;
-import com.skydoves.colorpickerview.ColorPickerDialog;
-import com.skydoves.colorpickerview.listeners.ColorEnvelopeListener;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;

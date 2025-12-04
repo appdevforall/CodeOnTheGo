@@ -2,14 +2,8 @@ package org.appdevforall.codeonthego.layouteditor.activities
 
 import android.graphics.Typeface
 import android.os.Bundle
-import android.view.View
 import androidx.core.content.res.ResourcesCompat
 import com.blankj.utilcode.util.ClipboardUtils
-import org.appdevforall.codeonthego.layouteditor.BaseActivity
-import org.appdevforall.codeonthego.layouteditor.R
-import org.appdevforall.codeonthego.layouteditor.databinding.ActivityShowXMLBinding
-import org.appdevforall.codeonthego.layouteditor.utils.SBUtils.Companion.make
-import org.appdevforall.codeonthego.layouteditor.utils.Utils
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.langs.textmate.registry.FileProviderRegistry
@@ -18,6 +12,10 @@ import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import org.appdevforall.codeonthego.layouteditor.BaseActivity
+import org.appdevforall.codeonthego.layouteditor.R
+import org.appdevforall.codeonthego.layouteditor.databinding.ActivityShowXMLBinding
+import org.appdevforall.codeonthego.layouteditor.utils.SBUtils.Companion.make
 import org.eclipse.tm4e.core.registry.IThemeSource
 
 class ShowXMLActivity : BaseActivity() {

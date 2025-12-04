@@ -1,10 +1,11 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.legacy;
 
+import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.widget.GridView;
-import android.content.Context;
-import android.graphics.Canvas;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 

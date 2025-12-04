@@ -1,16 +1,16 @@
 package org.appdevforall.codeonthego.layouteditor.tools;
 
 import android.widget.TextView;
-import org.appdevforall.codeonthego.layouteditor.ProjectFile;
+
 import org.appdevforall.codeonthego.layouteditor.adapters.models.ValuesItem;
-import org.appdevforall.codeonthego.layouteditor.utils.FileUtil;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
-import org.xmlpull.v1.XmlPullParserFactory;
 
 public class ValuesResourceParser {
   public static final String TAG_STRING = "string";

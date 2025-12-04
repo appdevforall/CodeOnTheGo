@@ -6,15 +6,18 @@ import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+
 import org.appdevforall.codeonthego.layouteditor.ProjectFile;
 import org.appdevforall.codeonthego.layouteditor.R;
 import org.appdevforall.codeonthego.layouteditor.adapters.StringResourceAdapter;
@@ -25,6 +28,7 @@ import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
 import org.appdevforall.codeonthego.layouteditor.tools.ValuesResourceParser;
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker;
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils;
+
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;

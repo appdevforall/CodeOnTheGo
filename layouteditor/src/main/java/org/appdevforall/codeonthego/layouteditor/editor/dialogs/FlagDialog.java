@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.layouteditor.editor.dialogs;
 
 import android.content.Context;
-
 import android.util.SparseBooleanArray;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -9,7 +8,6 @@ import android.widget.ListView;
 
 import androidx.annotation.NonNull;
 
-import org.appdevforall.codeonthego.layouteditor.editor.dialogs.AttributeDialog;
 import java.util.ArrayList;
 import java.util.List;
 

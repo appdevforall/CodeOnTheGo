@@ -9,6 +9,7 @@ import androidx.annotation.NonNull;
 
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding;
 
 public class NumberDialog extends AttributeDialog {
