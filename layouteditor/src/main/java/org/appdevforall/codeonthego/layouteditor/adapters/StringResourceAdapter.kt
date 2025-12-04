@@ -13,6 +13,7 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ClipboardUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.apache.commons.lang3.StringEscapeUtils
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.adapters.models.ValuesItem
@@ -22,7 +23,6 @@ import org.appdevforall.codeonthego.layouteditor.utils.FileUtil.writeFile
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils.Companion.make
-import org.apache.commons.lang3.StringEscapeUtils
 
 class StringResourceAdapter(
   private val project: ProjectFile,

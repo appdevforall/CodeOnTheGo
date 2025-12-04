@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.layouteditor.editor.palette.layouts;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.widget.LinearLayout;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 

@@ -2,7 +2,9 @@ package org.appdevforall.codeonthego.layouteditor.tools;
 
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+
 import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
