@@ -51,6 +51,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    // TODO: Add last modified filter.
     private fun applyFilters() {
         var result = allProjects
 
@@ -62,7 +63,6 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             result = when (criteria) {
                 SortCriteria.NAME -> result.sortedBy { it.name.lowercase() }
                 SortCriteria.DATE_CREATED -> result.sortedBy { it.date }
-//                SortCriteria.DATE_MODIFIED -> result.sortedBy { it.lastModified }
                 else -> result
             }
             if (!isAscending) { result = result.reversed() }
