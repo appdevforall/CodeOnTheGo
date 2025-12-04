@@ -30,6 +30,9 @@ import org.koin.core.component.inject
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
+import kotlinx.coroutines.*
+
+
 
 /**
  * @author Akash Yadav
@@ -47,20 +50,24 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
         // Enable StrictMode for debug builds
         if (BuildConfig.DEBUG) {
-            val reprieve = FeatureFlags.isReprieveEnabled()
+            CoroutineScope(Dispatchers.Main).launch {
+                val reprieve = withContext(Dispatchers.IO) {
+                    FeatureFlags.isReprieveEnabled()
+                }
 
-            StrictMode.setThreadPolicy(
-                StrictMode.ThreadPolicy.Builder()
-                    .detectAll()
-                    .apply { if (reprieve) penaltyLog() else penaltyDeath() }
-                    .build()
-            )
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder()
-                    .detectAll()
-                    .apply { if (reprieve) penaltyLog() else penaltyDeath() }
-                    .build()
-            )
+                StrictMode.setThreadPolicy(
+                    StrictMode.ThreadPolicy.Builder()
+                        .detectAll()
+                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
+                        .build()
+                )
+                StrictMode.setVmPolicy(
+                    StrictMode.VmPolicy.Builder()
+                        .detectAll()
+                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
+                        .build()
+                )
+            }
         }
 
         startKoin {
