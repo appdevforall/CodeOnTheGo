@@ -1,10 +1,12 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.containers;
 
-import android.graphics.Color;
-import android.graphics.Paint;
-import androidx.recyclerview.widget.RecyclerView;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+
+import androidx.recyclerview.widget.RecyclerView;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 
