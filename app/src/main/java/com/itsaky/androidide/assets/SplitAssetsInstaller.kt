@@ -45,6 +45,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 	): Unit =
 		withContext(Dispatchers.IO) {
 			val entry = zipFile.getEntry(entryName)
+			?: throw FileNotFoundException("Entry '$entryName' not found in assets zip file")
 			val time =
 				measureTimeMillis {
 					zipFile.getInputStream(entry).use { zipInput ->
