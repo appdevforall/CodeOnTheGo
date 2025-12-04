@@ -40,15 +40,18 @@
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/sort_toggle_btn"
-            style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:backgroundTint="@color/_blue_wave_light_colorPrimaryDark"
+            android:layout_width="100dp"
+            android:layout_height="match_parent"
+            android:textSize="@dimen/_12sp"
+            android:layout_marginStart="12dp"
+            android:text="@string/sort_ascending"
             android:textColor="@android:color/white"
+            app:cornerRadius="18dp"
             app:icon="@drawable/ic_arrow_up"
-            app:iconGravity="textStart"
-            app:iconTint="@android:color/white" />
+            app:iconTint="@android:color/white"
+            app:iconGravity="textStart" />
     </LinearLayout>
 
     <LinearLayout
@@ -67,7 +70,7 @@
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
-            android:visibility="visible"
+            android:visibility="gone"
             android:text="@string/clear_filters"
             app:iconTint="@color/white"
             app:icon="@drawable/ic_close" />

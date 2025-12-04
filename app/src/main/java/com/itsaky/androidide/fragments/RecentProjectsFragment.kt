@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.activityViewModels
@@ -98,6 +99,11 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 	}
 
+	/**
+	 * Dismisses the filter dialog with a brief safety delay.
+	 * * The 50ms buffer ensures that the ViewModel state is successfully updated/saved
+	 * before the dialog is destroyed and the scope is cancelled.
+	 */
 	private fun dismissFilters(dialog: BottomSheetDialog) {
 		viewLifecycleScope.launch {
     	delay(50)
@@ -177,11 +183,23 @@ class RecentProjectsFragment : BaseFragment() {
 	}
 
 	/**
-	 * Updates the arrow icon based on ascending state.
+	 * Updates the arrow icon, the background color and the text based on ascending state.
 	 */
 	private fun setupSortToggle(button: MaterialButton, asc: Boolean) {
-		val icon = if (asc) R.drawable.ic_arrow_up else R.drawable.ic_arrow_down
-		button.setIconResource(icon)
+		val (iconRes, colorRes, textRes) = if (asc) {
+			Triple(
+				R.drawable.ic_arrow_up, R.color._blue_wave_light_colorPrimaryDark, R.string.sort_ascending
+			)
+		} else {
+			Triple(
+				R.drawable.ic_arrow_down, R.color._blue_wave_dark_colorOnSecondary, R.string.sort_descending
+			)
+		}
+		button.apply {
+			setIconResource(iconRes)
+			backgroundTintList = ContextCompat.getColorStateList(context, colorRes)
+			setText(textRes)
+		}
 	}
 
 	/**

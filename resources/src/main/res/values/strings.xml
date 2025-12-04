@@ -92,6 +92,8 @@
     <string name="sort_by_name">Name</string>
     <string name="sort_by_created">Created</string>
     <string name="sort_by_modified">Edited</string>
+    <string name="sort_ascending">Asc</string>
+    <string name="sort_descending">Desc</string>
     <string-array name="sort_options">
         <item>@string/sort_by_name</item>
         <item>@string/sort_by_created</item>
