@@ -1,8 +1,10 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.containers;
 
-import androidx.core.widget.NestedScrollView;
 import android.content.Context;
 import android.graphics.Canvas;
+
+import androidx.core.widget.NestedScrollView;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 
