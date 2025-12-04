@@ -5,8 +5,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
+import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
@@ -23,8 +27,11 @@ import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.viewmodel.SortCriteria
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,6 +45,9 @@ class RecentProjectsFragment : BaseFragment() {
 	private val viewModel: RecentProjectsViewModel by activityViewModels()
 	private val mainViewModel: MainViewModel by activityViewModels()
 	private lateinit var adapter: RecentProjectsAdapter
+	private var searchJob: Job? = null
+	private var selectedCriteria: SortCriteria? = null
+	private var selectedAsc = true
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -54,6 +64,7 @@ class RecentProjectsFragment : BaseFragment() {
 	) {
 		super.onViewCreated(view, savedInstanceState)
 		setupRecyclerView()
+		setupSearchBar()
 		setupObservers()
 		setupClickListeners()
         bootstrapFromFixedFolderIfNeeded()
@@ -65,6 +76,122 @@ class RecentProjectsFragment : BaseFragment() {
 			CustomDividerItemDecoration(requireContext(), R.drawable.custom_list_divider),
 		)
 	}
+
+	private fun openFiltersSheet() {
+		val dialog = BottomSheetDialog(requireContext())
+		val sheet = layoutInflater.inflate(R.layout.layout_project_filters_sheet, null)
+
+		dialog.setContentView(sheet)
+
+		setupFilters(sheet, dialog)
+
+		dialog.show()
+	}
+
+	private fun setupSearchBar() {
+		binding.layoutFilters.searchProjectEditText.doOnTextChanged { text, _, _, _ ->
+			searchJob?.cancel()
+			searchJob = viewLifecycleScope.launch {
+				delay(300L)
+				viewModel.onSearchQuery(text.toString())
+			}
+		}
+	}
+
+	private fun dismissFilters(dialog: BottomSheetDialog) {
+		viewLifecycleScope.launch {
+    	delay(50)
+    	dialog.dismiss()
+		}
+	}
+
+	private fun setupFilters(sheet: View, dialog: BottomSheetDialog) {
+		val sortDropdown = sheet.findViewById<MaterialAutoCompleteTextView>(R.id.sort_dropdown)
+		val sortToggleBtn = sheet.findViewById<MaterialButton>(R.id.sort_toggle_btn)
+		val applyBtn = sheet.findViewById<MaterialButton>(R.id.apply_filters_btn)
+		val clearBtn = sheet.findViewById<MaterialButton>(R.id.clear_filters_btn)
+
+		selectedCriteria = viewModel.currentSortCriteria
+		selectedAsc = viewModel.currentSortAscending
+
+		setupSortUI(sortDropdown, sortToggleBtn)
+		clearBtn.isVisible = viewModel.hasActiveFilters
+
+		sortDropdown.setOnItemClickListener { _, _, position, _ ->
+			selectedCriteria = when (position) {
+				0 -> SortCriteria.NAME
+				1 -> SortCriteria.DATE_CREATED
+				2 -> SortCriteria.DATE_MODIFIED
+				else -> SortCriteria.NAME
+			}
+
+			clearBtn.isVisible = true
+		}
+
+		sortToggleBtn.setOnClickListener {
+			toggleSortDirection(sortToggleBtn)
+			clearBtn.isVisible = true
+		}
+
+		applyBtn.setOnClickListener {
+			selectedCriteria?.let { viewModel.onSortSelected(it) }
+			viewModel.onSortDirectionChanged(selectedAsc)
+			dismissFilters(dialog)
+		}
+
+		clearBtn.setOnClickListener {
+			selectedCriteria = null
+			selectedAsc = true
+
+			sortDropdown.text = null
+			setupSortToggle(sortToggleBtn, true)
+
+			clearBtn.isVisible = false
+			viewModel.clearFilters()
+
+			dismissFilters(dialog)
+		}
+	}
+
+	/**
+	 * Initializes UI according to current VM state.
+	 */
+	private fun setupSortUI(
+		sortDropdown: MaterialAutoCompleteTextView,
+		sortToggleBtn: MaterialButton
+	) {
+		val labelRes = when (selectedCriteria) {
+			SortCriteria.NAME -> R.string.sort_by_name
+			SortCriteria.DATE_CREATED -> R.string.sort_by_created
+			SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
+			null -> null
+		}
+
+		if (labelRes != null) {
+			sortDropdown.setText(getString(labelRes), false)
+		} else {
+			sortDropdown.text = null
+		}
+
+		setupSortToggle(sortToggleBtn, selectedAsc)
+	}
+
+	/**
+	 * Updates the arrow icon based on ascending state.
+	 */
+	private fun setupSortToggle(button: MaterialButton, asc: Boolean) {
+		val icon = if (asc) R.drawable.ic_arrow_up else R.drawable.ic_arrow_down
+		button.setIconResource(icon)
+	}
+
+	/**
+	 * Toggles the ascending/descending state and updates the UI.
+	 */
+	private fun toggleSortDirection(button: MaterialButton) {
+		selectedAsc = !selectedAsc
+		setupSortToggle(button, selectedAsc)
+	}
+
 
     private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
 
@@ -288,6 +415,9 @@ class RecentProjectsFragment : BaseFragment() {
         binding.recentProjectsTxt.setOnLongClickListener {
             showToolTip(PROJECT_RECENT_TOP)
             true
+        }
+        binding.layoutFilters.openFiltersBtn.setOnClickListener {
+            openFiltersSheet()
         }
     }
 

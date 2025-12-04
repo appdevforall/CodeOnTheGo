@@ -15,11 +15,26 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Date
 
+enum class SortCriteria {
+    NAME,
+    DATE_CREATED,
+    DATE_MODIFIED
+}
+
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _projects = MutableLiveData<List<ProjectFile>>()
+    private var allProjects: List<ProjectFile> = emptyList()
     val projects: LiveData<List<ProjectFile>> = _projects
     var didBootstrap = false
+    private var currentQuery: String = ""
+    private var currentSort: SortCriteria? = null
+    private var isAscending: Boolean = true
+
+    val currentSortCriteria: SortCriteria? get() = currentSort
+    val currentSortAscending: Boolean get() = isAscending
+    val hasActiveFilters: Boolean
+        get() = currentSort != null || !isAscending || currentQuery.isNotEmpty()
 
 
     // Get the database and DAO instance
@@ -30,10 +45,51 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         return viewModelScope.launch(Dispatchers.IO) {
             val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
             val context = getApplication<Application>().applicationContext
-            val projectFiles =
-                projectsFromDb.map { ProjectFile(it.location, it.createdAt, context) }
-            _projects.postValue(projectFiles)
+
+            allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, context) }
+            applyFilters()
         }
+    }
+
+    private fun applyFilters() {
+        var result = allProjects
+
+        if (currentQuery.isNotEmpty()) {
+            result = result.filter { it.name.contains(currentQuery, ignoreCase = true) }
+        }
+
+        currentSort.let { criteria ->
+            result = when (criteria) {
+                SortCriteria.NAME -> result.sortedBy { it.name.lowercase() }
+                SortCriteria.DATE_CREATED -> result.sortedBy { it.date }
+//                SortCriteria.DATE_MODIFIED -> result.sortedBy { it.lastModified }
+                else -> result
+            }
+            if (!isAscending) { result = result.reversed() }
+        }
+        _projects.postValue(result)
+    }
+
+    fun onSearchQuery(query: String) {
+        currentQuery = query.trim()
+        applyFilters()
+    }
+
+    fun onSortSelected(criteria: SortCriteria?) {
+        currentSort = criteria
+        applyFilters()
+    }
+
+    fun onSortDirectionChanged(ascending: Boolean) {
+        isAscending = ascending
+        applyFilters()
+    }
+
+    fun clearFilters() {
+        currentSort = null
+        isAscending = true
+        currentQuery = ""
+        applyFilters()
     }
 
     fun insertProject(project: RecentProject) = viewModelScope.launch(Dispatchers.IO) {

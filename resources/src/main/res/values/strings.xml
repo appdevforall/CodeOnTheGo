@@ -84,13 +84,19 @@
 	<string name="cancel_project_text">Cancel</string>
 	<string name="close_without_saving">Close without saving files</string>
 	<string name="save_and_close">Save files and close project</string>
-	<string name="search_projects_hint">Search projects</string>
-    <string name="sort_by">Sort by:</string>
+	<string name="search_projects_hint">Search projects by name…</string>
+    <string name="filters_and_sorting">Filters and sorting</string>
+    <string name="clear_filters">Clear filters</string>
+    <string name="apply_filters">Apply filters</string>
+    <string name="sort_by_hint">Sort by</string>
     <string name="sort_by_name">Name</string>
     <string name="sort_by_created">Created</string>
     <string name="sort_by_modified">Edited</string>
-    <string name="sort_ascending">Asc</string>
-    <string name="sort_descending">Desc</string>
+    <string-array name="sort_options">
+        <item>@string/sort_by_name</item>
+        <item>@string/sort_by_created</item>
+        <item>@string/sort_by_modified</item>
+    </string-array>
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
