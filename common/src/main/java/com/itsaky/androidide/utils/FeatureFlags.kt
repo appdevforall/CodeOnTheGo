@@ -23,8 +23,8 @@ object FeatureFlags {
 	}
 
     fun isReprieveEnabled(): Boolean {
-        val moratoriumFile = File(downloadsDir, REPRIEVE_FILE_NAME)
-        return moratoriumFile.exists()
+        val reprieveFile = File(downloadsDir, REPRIEVE_FILE_NAME)
+        return reprieveFile.exists()
     }
 
     fun isEmulatorUseEnabled(): Boolean {
