@@ -31,6 +31,7 @@
     "FrameLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.FrameLayoutDesign",
     "TableLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.TableLayoutDesign",
     "TableRow": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.TableRowDesign",
+    "DrawerLayout":"org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.DrawerLayoutDesign",
     "Space": "android.widget.Space",
     "GridLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.legacy.GridLayoutDesign",
     "TabHost": "org.appdevforall.codeonthego.layouteditor.editor.palette.legacy.TabHostDesign",
