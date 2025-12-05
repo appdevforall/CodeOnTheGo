@@ -213,20 +213,6 @@ class ProjectManagerImpl :
 		return false
 	}
 
-	/**
-	 * Read the Gradle build model from the currently opened project directory.
-	 *
-	 * @return The Gradle build model result.
-	 */
-	suspend fun readGradleBuild(): Result<GradleModels.GradleBuild> {
-		if (!projectDir.exists()) {
-			return Result.failure(IllegalStateException("Project directory does not exist: ${projectDir.absolutePath}"))
-		}
-
-		val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
-		return ProjectSyncHelper.readGradleBuild(cacheFile)
-	}
-
 	override fun destroy() {
 		log.info("Destroying project manager")
 		this.workspace = null
