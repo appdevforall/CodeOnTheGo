@@ -15,10 +15,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Date
 
+// TODO: Add last modified filter.
 enum class SortCriteria {
     NAME,
     DATE_CREATED,
-    DATE_MODIFIED
 }
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
