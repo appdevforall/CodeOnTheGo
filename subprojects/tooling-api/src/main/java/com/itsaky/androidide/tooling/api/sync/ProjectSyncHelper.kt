@@ -92,7 +92,8 @@ object ProjectSyncHelper {
 	 * @param projectDir The project directory.
 	 * @return The sync metadata file.
 	 */
-	fun syncMetaFileForProject(projectDir: File) = projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_META_FILE)
+	fun syncMetaFileForProject(projectDir: File) =
+		projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_META_FILE)
 
 	/**
 	 * Try to acquire the sync lock.
@@ -219,6 +220,34 @@ object ProjectSyncHelper {
 	}
 
 	/**
+	 * Check whether the project sync files for the given project directory
+	 * exist and are readable.
+	 *
+	 * @param projectDir The project directory.
+	 * @return `true` if the files exist and are readable, `false` otherwise.
+	 */
+	fun areSyncFilesReadable(projectDir: File) = areSyncFilesReadable(
+		syncMetaFile = syncMetaFileForProject(projectDir),
+		projectCacheFile = cacheFileForProject(projectDir)
+	)
+
+	/**
+	 * Check whether the project sync files for the given project directory
+	 * exist and are readable.
+	 *
+	 * @param syncMetaFile The sync metadata file.
+	 * @param projectCacheFile The project cache file.
+	 * @return `true` if the files exist and are readable, `false` otherwise.
+	 */
+	fun areSyncFilesReadable(
+		syncMetaFile: File,
+		projectCacheFile: File,
+	): Boolean {
+		return syncMetaFile.exists() && syncMetaFile.canRead() &&
+				projectCacheFile.exists() && projectCacheFile.canRead()
+	}
+
+	/**
 	 * Check if a sync is needed for the given project directory.
 	 *
 	 * @param projectDir The project directory.
@@ -228,8 +257,21 @@ object ProjectSyncHelper {
 		// @devs: add a log statement whenever this function returns `true`
 		// describing why it returns `true`
 
-		val draft = createSyncMeta(projectDir, includeChecksum = false)
 		val syncMetaFile = syncMetaFileForProject(projectDir)
+		val projectCacheFile = cacheFileForProject(projectDir)
+		if (!areSyncFilesReadable(syncMetaFile, projectCacheFile)) {
+			// one of the required files are missing, require sync
+			logger.debug(
+				"NEED_SYNC: sync files missing or are unreadable:" +
+						" sync-meta={}," +
+						" project-cache={}",
+				syncMetaFile,
+				projectCacheFile
+			)
+			return true
+		}
+
+		val draft = createSyncMeta(projectDir, includeChecksum = false)
 		val stored =
 			try {
 				loadSyncMetaFromFile(syncMetaFile)
