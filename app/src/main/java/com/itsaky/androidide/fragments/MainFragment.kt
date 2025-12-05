@@ -55,7 +55,8 @@ class MainFragment : BaseFragment() {
 		val actions =
 			MainScreenAction.mainScreen().also { actions ->
 				val onClick = { action: MainScreenAction, _: View ->
-					when (action.id) {
+					ifAttached {
+						when (action.id) {
 						ACTION_CREATE_PROJECT -> showCreateProject()
 						ACTION_OPEN_PROJECT -> showViewSavedProjects()
 						ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
@@ -77,10 +78,11 @@ class MainFragment : BaseFragment() {
 								}
 							startActivity(intent)
 						}
+						}
 					}
 				}
 				val onLongClick = { action: MainScreenAction, _: View ->
-					performOptionsMenuClick(action)
+					ifAttached { performOptionsMenuClick(action) }
 					true
 				}
 
@@ -90,11 +92,13 @@ class MainFragment : BaseFragment() {
 
 					if (action.id == MainScreenAction.ACTION_OPEN_TERMINAL) {
 						action.onLongClick = { _: MainScreenAction, _: View ->
-							val intent =
-								Intent(requireActivity(), TerminalActivity::class.java).apply {
-									putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
-								}
-							startActivity(intent)
+							ifAttached {
+								val intent =
+									Intent(requireActivity(), TerminalActivity::class.java).apply {
+										putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
+									}
+								startActivity(intent)
+							}
 							true
 						}
 					}
@@ -103,17 +107,17 @@ class MainFragment : BaseFragment() {
 
 		binding!!.actions.adapter = MainActionsListAdapter(actions)
 
-		binding!!.headerContainer?.setOnClickListener { openQuickstartPageAction() }
+		binding!!.headerContainer?.setOnClickListener { ifAttached { openQuickstartPageAction() } }
 		binding!!.headerContainer?.setOnLongClickListener {
-			TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED)
+			ifAttached { TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED) }
 			true
 		}
 
 		binding!!.greetingText.setOnLongClickListener {
-			TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED)
+			ifAttached { TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED) }
 			true
 		}
-		binding!!.greetingText.setOnClickListener { openQuickstartPageAction() }
+		binding!!.greetingText.setOnClickListener { ifAttached { openQuickstartPageAction() } }
 	}
 
 	private fun performOptionsMenuClick(action: MainScreenAction) {
