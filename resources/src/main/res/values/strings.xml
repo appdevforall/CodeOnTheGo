@@ -84,6 +84,19 @@
 	<string name="cancel_project_text">Cancel</string>
 	<string name="close_without_saving">Close without saving files</string>
 	<string name="save_and_close">Save files and close project</string>
+	<string name="project_info">Info</string>
+	<string name="project_info_title">Basic project info</string>
+	<string name="project_info_general_title">General</string>
+	<string name="project_info_structure_title">Structure</string>
+	<string name="project_info_build_title">Build</string>
+	<string name="project_info_name">Project name</string>
+	<string name="project_info_path">Project path</string>
+	<string name="project_info_template">Base template</string>
+	<string name="project_info_size">Project size</string>
+	<string name="project_info_files_count">Number of files</string>
+	<string name="project_info_gradle_v">Gradle version</string>
+	<string name="project_info_kotlin_v">Kotlin version</string>
+	<string name="project_info_java_v">Java version</string>
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
@@ -94,6 +107,7 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
+	<string name="unknown">Unknown</string>
 
 	<!-- Files -->
 	<string name="save">Save</string>

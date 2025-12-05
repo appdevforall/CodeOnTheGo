@@ -100,6 +100,7 @@ object TooltipTag {
 
     const val PROJECT_NEW = "project.new"
 	const val PROJECT_RECENT_TOP = "project.recent.top"
+	const val PROJECT_INFO_TOOLTIP = "project.recent.info"
 	const val PROJECT_RECENT_RENAME = "project.recent.rename"
 	const val PROJECT_OPEN_FOLDER = "project.open.folder"
 
