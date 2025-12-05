@@ -4,7 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
@@ -15,6 +17,7 @@ import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -41,19 +44,28 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         recentProjectDao.insert(project)
     }
 
+    suspend fun getProjectByName(name: String): RecentProject? {
+			return withContext(Dispatchers.IO) {
+				recentProjectDao.getProjectByName(name)
+			}
+		}
+
     fun insertProjectFromFolder(name: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
             // Check if the project already exists
-            val existingProject = recentProjectDao.getProjectByName(name)
+            val existingProject = getProjectByName(name)
             if (existingProject == null) {
                 val createdAt = getCreatedTime(location)
                 val modifiedAt = getLastModifiedTime(location)
+                val unknown = application.getString(R.string.unknown)
                 recentProjectDao.insert(
                     RecentProject(
                         location = location,
                         name = name,
                         createdAt = createdAt.toString(),
-                        lastModified = modifiedAt.toString()
+                        lastModified = modifiedAt.toString(),
+                        templateName = unknown,
+                        language = unknown
                     )
                 )
             }

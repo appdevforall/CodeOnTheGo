@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -23,11 +24,17 @@ import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.ui.ProjectDetails
+import com.itsaky.androidide.ui.ProjectInfoBottomSheet
+import com.itsaky.androidide.utils.readGradleVersion
+import com.itsaky.androidide.utils.readJavaVersion
+import com.itsaky.androidide.utils.readKotlinVersion
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -212,6 +219,7 @@ class RecentProjectsFragment : BaseFragment() {
 					onProjectClick = ::openProject,
                     onRemoveProjectClick = viewModel::deleteProject,
 					onFileRenamed = viewModel::updateProject,
+					onInfoClick = { project -> openProjectInfo(project) }
 				)
 				binding.listProjects.adapter = adapter
 			} else {
@@ -268,6 +276,40 @@ class RecentProjectsFragment : BaseFragment() {
         val subDirs = selectedDir.listFiles()?.filter { it.isProjectCandidateDir() } ?: return false
         return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
+
+		private fun openProjectInfo(project: ProjectFile) {
+		    lifecycleScope.launch {
+				    val recentProject = viewModel.getProjectByName(project.name)
+				    val details = loadProjectDetails(project.path)
+
+				    val sheet = ProjectInfoBottomSheet(
+				    	project = project,
+				    	recentProject = recentProject,
+				    	details = details
+				    )
+
+				    sheet.show(parentFragmentManager, "project_info_sheet")
+				}
+		}
+
+    private suspend fun loadProjectDetails(projectPath: String): ProjectDetails =
+        withContext(Dispatchers.IO) {
+            val root = File(projectPath)
+            val appDir = root.toPath().resolve("app").toFile()
+
+            val sizeBytes = root.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+            val sizeFormatted = android.text.format.Formatter.formatFileSize(requireContext(), sizeBytes)
+
+            val fileCount = root.walkTopDown().count { it.isFile }
+
+            ProjectDetails(
+                sizeFormatted = sizeFormatted,
+                numberOfFiles = fileCount,
+                gradleVersion = readGradleVersion(root),
+                kotlinVersion = readKotlinVersion(appDir),
+                javaVersion = readJavaVersion(appDir)
+            )
+        }
 
     private fun setupClickListeners() {
         binding.newProjectButton.setOnClickListener {
