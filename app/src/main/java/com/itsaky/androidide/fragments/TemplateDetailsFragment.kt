@@ -130,11 +130,13 @@ class TemplateDetailsFragment :
                 viewModel.setScreen(MainViewModel.SCREEN_MAIN)
                 flashSuccess(string.project_created_successfully)
 
+                val now = System.currentTimeMillis().toString()
                 recentProjectsViewModel.insertProject(
                     RecentProject(
                         location = result.data.projectDir.path,
                         name = result.data.name,
-                        createdAt = Date().toString()
+                        createdAt = now,
+                        lastModified = now
                     )
                 )
 
