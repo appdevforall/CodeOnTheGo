@@ -544,8 +544,10 @@ class EditorActivity : BaseActivity() {
 
 	override fun onResume() {
 		super.onResume()
-		project.drawables?.let {
-			DrawableManager.loadFromFiles(it)
+		if (::project.isInitialized) {
+			project.drawables?.let {
+				DrawableManager.loadFromFiles(it)
+			}
 		}
 		if (undoRedo != null) undoRedo!!.updateButtons()
 		feedbackButtonManager?.loadFabPosition()
