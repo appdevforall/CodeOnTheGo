@@ -43,7 +43,7 @@ object XmlInflaterTest {
 
 		ToolingApiTestLauncher.launchServer {
 			assertThat(result is InitializeResult.Success).isTrue()
-			runBlocking { IProjectManager.getInstance().setup(gradleBuild) }
+			runBlocking { IProjectManager.getInstance().setup(gradleBuild.get()) }
 			init.set(true)
 		}
 	}
