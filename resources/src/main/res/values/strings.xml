@@ -91,13 +91,13 @@
     <string name="sort_by_hint">Sort by</string>
     <string name="sort_by_name">Name</string>
     <string name="sort_by_created">Created</string>
-    <!-- TODO: Add last modified filter. -->
+    <string name="sort_by_modified">Edited</string>
     <string name="sort_ascending">Asc</string>
     <string name="sort_descending">Desc</string>
     <string-array name="sort_options">
         <item>@string/sort_by_name</item>
         <item>@string/sort_by_created</item>
-        <!-- TODO: Add last modified filter. -->
+        <item>@string/sort_by_modified</item>
     </string-array>
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>

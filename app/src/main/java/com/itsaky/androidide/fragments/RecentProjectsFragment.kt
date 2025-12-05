@@ -123,11 +123,11 @@ class RecentProjectsFragment : BaseFragment() {
 		setupSortUI(sortDropdown, sortToggleBtn)
 		clearBtn.isVisible = viewModel.hasActiveFilters
 
-		// TODO: Add last modified filter.
 		sortDropdown.setOnItemClickListener { _, _, position, _ ->
 			selectedCriteria = when (position) {
 				0 -> SortCriteria.NAME
 				1 -> SortCriteria.DATE_CREATED
+				2 -> SortCriteria.DATE_MODIFIED
 				else -> SortCriteria.NAME
 			}
 
@@ -167,10 +167,10 @@ class RecentProjectsFragment : BaseFragment() {
 		sortDropdown: MaterialAutoCompleteTextView,
 		sortToggleBtn: MaterialButton
 	) {
-		// TODO: Add last modified filter.
 		val labelRes = when (selectedCriteria) {
 			SortCriteria.NAME -> R.string.sort_by_name
 			SortCriteria.DATE_CREATED -> R.string.sort_by_created
+			SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
 			null -> null
 		}
 

@@ -16,10 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-// TODO: Add last modified filter.
 enum class SortCriteria {
     NAME,
     DATE_CREATED,
+    DATE_MODIFIED
 }
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
@@ -47,12 +47,11 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
             val context = getApplication<Application>().applicationContext
 
-            allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, context) }
+            allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified, context) }
             applyFilters()
         }
     }
 
-    // TODO: Add last modified filter.
     private fun applyFilters() {
         var result = allProjects
 
@@ -63,7 +62,8 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         currentSort.let { criteria ->
             result = when (criteria) {
                 SortCriteria.NAME -> result.sortedBy { it.name.lowercase() }
-                SortCriteria.DATE_CREATED -> result.sortedBy { it.date }
+                SortCriteria.DATE_CREATED -> result.sortedBy { it.createdAt }
+                SortCriteria.DATE_MODIFIED -> result.sortedBy { it.lastModified }
                 else -> result
             }
             if (!isAscending) { result = result.reversed() }
