@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -20,10 +21,13 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.blankj.utilcode.util.ToastUtils;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+
+import org.apache.commons.io.FileUtils;
 import org.appdevforall.codeonthego.layouteditor.ProjectFile;
 import org.appdevforall.codeonthego.layouteditor.R;
 import org.appdevforall.codeonthego.layouteditor.adapters.DPIsListAdapter;
@@ -36,6 +40,7 @@ import org.appdevforall.codeonthego.layouteditor.tools.ImageConverter;
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil;
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +50,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import org.apache.commons.io.FileUtils;
 
 public class DrawableFragment extends Fragment {
 
