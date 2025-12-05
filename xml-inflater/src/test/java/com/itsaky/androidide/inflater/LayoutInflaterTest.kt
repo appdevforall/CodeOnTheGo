@@ -30,6 +30,7 @@ import com.itsaky.androidide.inflater.internal.ViewImpl
 import com.itsaky.androidide.inflater.internal.utils.IDTable
 import com.itsaky.androidide.inflater.utils.newAttribute
 import com.itsaky.androidide.projects.api.AndroidModule
+import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.projects.util.findAppModule
 import org.junit.Before
 import org.junit.Test
