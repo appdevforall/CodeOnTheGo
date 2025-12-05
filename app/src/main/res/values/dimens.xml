@@ -24,6 +24,7 @@
     <dimen name="faq_bottom_padding">24dp</dimen>
     <dimen name="_32sp">32sp</dimen>
     <dimen name="_16sp">16sp</dimen>
+    <dimen name="_12sp">12sp</dimen>
 
     <!-- Sidebar header logo dimensions -->
     <dimen name="sidebar_header_logo_size">44dp</dimen>
