@@ -1199,6 +1199,9 @@ open class EditorHandlerActivity :
 				runOnUiThread {
 					performCloseAllFiles(manualFinish = true)
 				}
+				recentProjectsViewModel.updateProjectModifiedDate(
+					editorViewModel.getProjectName(),
+				)
 			}
 		}
 

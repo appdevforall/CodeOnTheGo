@@ -54,7 +54,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		private set
 
 	val isLoaded: Boolean
-		get() = _isLoaded.acquire
+		get() = _isLoaded.get()
 
 	@OptIn(DelicateCoroutinesApi::class)
 	override fun load(app: IDEApplication) {
@@ -63,7 +63,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			return
 		}
 
-		_isLoaded.setRelease(true)
+		_isLoaded.set(true)
 
 		logger.info("Loading credential protected storage context components...")
 		application = app

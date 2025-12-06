@@ -4,10 +4,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DeleteProjectsItemBinding
+import com.itsaky.androidide.utils.formatDate
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class DeleteProjectListAdapter(
     private var projects: List<ProjectFile>,
@@ -36,12 +36,16 @@ class DeleteProjectListAdapter(
         notifyDataSetChanged()
     }
 
+    fun renderDate(binding: DeleteProjectsItemBinding, project: ProjectFile) {
+        binding.projectDate.text = project.renderDateText(binding.root.context)
+    }
+
     inner class ProjectViewHolder(private val binding: DeleteProjectsItemBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(project: ProjectFile) {
             binding.projectName.text = project.name
-            binding.projectDate.text = formatDate(project.date ?: "")
+            renderDate(binding, project)
             binding.icon.text = project.name.take(2).uppercase()
 
             binding.checkbox.visibility = View.VISIBLE
@@ -57,26 +61,6 @@ class DeleteProjectListAdapter(
             binding.checkbox.setOnLongClickListener {
                 onCheckboxLongPress()
             }
-        }
-    }
-
-    private fun formatDate(dateString: String): String {
-        return try {
-            val inputFormat =
-                SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.getDefault())
-            val date = inputFormat.parse(dateString)
-            val day = SimpleDateFormat("d", Locale.ENGLISH).format(date).toInt()
-            val suffix = when {
-                day in 11..13 -> "th"
-                day % 10 == 1 -> "st"
-                day % 10 == 2 -> "nd"
-                day % 10 == 3 -> "rd"
-                else -> "th"
-            }
-            val outputFormat = SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault())
-            outputFormat.format(date)
-        } catch (e: Exception) {
-            dateString.take(5)
         }
     }
 }
