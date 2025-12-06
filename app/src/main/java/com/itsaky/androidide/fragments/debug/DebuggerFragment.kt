@@ -48,27 +48,12 @@ import rikka.shizuku.Shizuku
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment :
+	EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private var tabs: Array<Pair<String, () -> Fragment>>? = null
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 	private val wadbViewModel by activityViewModels<WADBViewModel>()
 	private var mediator: TabLayoutMediator? = null
-
-	var currentView: Int
-		get() = viewModel.currentView
-		set(value) {
-			if (value == VIEW_WADB_PAIRING && !isAtLeastR()) {
-				// WADB pairing is not available on pre-Android11 devices
-				throw IllegalStateException("WADB pairing is not supported on this device")
-			}
-
-			if (value == VIEW_WADB_PAIRING && Shizuku.pingBinder()) {
-				logger.error("Attempt to set current view to pairing mode while Shizuku service is running")
-				return
-			}
-
-			viewModel.currentView = value
-		}
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(DebuggerFragment::class.java)
@@ -120,6 +105,13 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			repeatOnLifecycle(Lifecycle.State.CREATED) {
 				launch {
 					ShizukuState.serviceStatus.collectLatest { currentStatus ->
+						// update the empty state when the Shizuku connection state changes
+						// ensure that we don't try to access view model if the fragment is
+						// detached by using lifecycleScope here
+						lifecycleScope.launch {
+							emptyStateViewModel.setEmpty(shouldShowEmptyState())
+						}
+
 						withContext(Dispatchers.IO) {
 							onShizukuServiceStatusChange(currentStatus)
 						}
@@ -129,14 +121,14 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 		}
 
 		viewLifecycleScope.launch {
-			viewModel.setThreads(emptyList())
-
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-				emptyStateViewModel.isEmpty.collectLatest { isEmpty ->
-					if (isEmpty) {
-						withContext(Dispatchers.Main) {
-							binding.debuggerContents.threadLayoutSelector.spinnerText
-								.clearListSelection()
+				launch {
+					emptyStateViewModel.isEmpty.collectLatest { isEmpty ->
+						if (isEmpty) {
+							withContext(Dispatchers.Main) {
+								binding.debuggerContents.threadLayoutSelector.spinnerText
+									.clearListSelection()
+							}
 						}
 					}
 				}
@@ -146,33 +138,14 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 					notifyOn = Dispatchers.Main,
 				) { viewIndex ->
 					binding.root.displayedChild = viewIndex
-
-					// don't show debugger UI in the following cases
-					// 1. current view is not debugger UI
-					// 2. current view is debugger UI but not connected to a VM
-					// 3. current view is debugger UI but no thread data is available
-					val isDebuggerView = currentView == VIEW_DEBUGGER
-					val isShizukuConnected = Shizuku.pingBinder()
-					val isDebuggerDetached =
-						viewModel.connectionState.value < DebuggerConnectionState.ATTACHED
-					val hasThreadData = viewModel.allThreads.value.isNotEmpty()
-					emptyStateViewModel.setEmpty(isDebuggerView && (!isShizukuConnected || isDebuggerDetached || !hasThreadData))
+					emptyStateViewModel.setEmpty(shouldShowEmptyState(currentView = viewIndex))
 				}
 
 				viewModel.observeConnectionState(
 					scope = this,
 					notifyOn = Dispatchers.Main,
 				) { state ->
-					val showMessage =
-						// NOTE: Keep this in sync with getEmptyStateMessage
-						when (state) {
-							DebuggerConnectionState.DETACHED -> true
-							DebuggerConnectionState.ATTACHED -> true
-							DebuggerConnectionState.SUSPENDED -> false
-							DebuggerConnectionState.AWAITING_BREAKPOINT -> false
-						}
-
-					emptyStateViewModel.setEmpty(currentView == VIEW_DEBUGGER && showMessage)
+					emptyStateViewModel.setEmpty(shouldShowEmptyState(debuggerConnectionState = state))
 					emptyStateViewModel.setEmptyMessage(getEmptyStateMessage(debuggerConnectionState = state))
 				}
 
@@ -187,7 +160,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 							}.awaitAll()
 
 					withContext(Dispatchers.Main) {
-						emptyStateViewModel.setEmpty(currentView == VIEW_DEBUGGER && descriptors.isEmpty())
+						emptyStateViewModel.setEmpty(shouldShowEmptyState(hasThreadData = threads.isNotEmpty()))
 						binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
 							ThreadSelectorListAdapter(
 								requireContext(),
@@ -276,6 +249,44 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 
 	override fun onFragmentLongPressed() {
 		showToolTipDialog(DEBUG_NOT_CONNECTED)
+	}
+
+	private fun shouldShowEmptyState(
+		currentView: Int = viewModel.currentView,
+		debuggerConnectionState: DebuggerConnectionState = viewModel.connectionState.value,
+		isShizukuServiceRunning: Boolean = Shizuku.pingBinder(),
+		hasThreadData: Boolean = viewModel.allThreads.value.isNotEmpty(),
+	): Boolean {
+		val logMsg = "Showing empty state because: {}"
+		if (!isShizukuServiceRunning) {
+			// Shizuku server is not running. User can never use the debugger
+			// in this case.
+			logger.debug(logMsg, "Shizuku server is not running")
+			return true
+		}
+
+		if (debuggerConnectionState < DebuggerConnectionState.ATTACHED) {
+			// we're not debugging anything
+			logger.debug(logMsg, "No VM is attached.")
+			return true
+		}
+
+		if (!hasThreadData) {
+			// we don't have any thread data, even when we're connected to a VM
+			// We handle this by showing an alternative error message
+			logger.debug(logMsg, "No thread data is available.")
+			return true
+		}
+
+		val isDebuggerView = currentView == VIEW_DEBUGGER
+		if (!isDebuggerView) {
+			// we're not supposed to show the debugger view
+			logger.debug(logMsg, "Current view is not the debugger view.")
+			return true
+		}
+
+		// all conditions met, show the debugger view
+		return false
 	}
 
 	private fun getEmptyStateMessage(
