@@ -9,11 +9,12 @@ import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.utils.getCreatedTime
+import com.itsaky.androidide.utils.getLastModifiedTime
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.util.Date
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -31,7 +32,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
             val context = getApplication<Application>().applicationContext
             val projectFiles =
-                projectsFromDb.map { ProjectFile(it.location, it.createdAt, context) }
+                projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified, context) }
             _projects.postValue(projectFiles)
         }
     }
@@ -45,11 +46,14 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             // Check if the project already exists
             val existingProject = recentProjectDao.getProjectByName(name)
             if (existingProject == null) {
+                val createdAt = getCreatedTime(location)
+                val modifiedAt = getLastModifiedTime(location)
                 recentProjectDao.insert(
                     RecentProject(
                         location = location,
                         name = name,
-                        createdAt = Date().toString()
+                        createdAt = createdAt.toString(),
+                        lastModified = modifiedAt.toString()
                     )
                 )
             }
@@ -73,13 +77,28 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     fun updateProject(oldName: String, newName: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
+            val modifiedAt = System.currentTimeMillis().toString()
             recentProjectDao.updateNameAndLocation(
                 oldName = oldName,
                 newName = newName,
                 newLocation = location
             )
+            recentProjectDao.updateLastModified(
+                projectName = newName,
+                lastModified = modifiedAt
+            )
             loadProjects()
         }
+
+	fun updateProjectModifiedDate(name: String) =
+		viewModelScope.launch(Dispatchers.IO) {
+			val modifiedAt = System.currentTimeMillis()
+			recentProjectDao.updateLastModified(
+			    projectName = name,
+			    lastModified = modifiedAt.toString()
+			)
+			loadProjects()
+		}
 
     fun deleteSelectedProjects(selectedNames: List<String>) =
         viewModelScope.launch(Dispatchers.IO) {

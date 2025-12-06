@@ -262,7 +262,7 @@ tasks.named<Delete>("clean") {
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
     // TODO: Skip xml-inflater and llama-impl until bugs are fixed
-    val excludedProjects = setOf("xml-inflater")
+    val excludedProjects = emptySet<String>()
 
     // Depend only on testV8DebugUnitTest tasks in subprojects
     dependsOn(
