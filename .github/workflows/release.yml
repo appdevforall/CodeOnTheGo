@@ -415,7 +415,6 @@ jobs:
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Deploy to Firebase App Distribution
-        if: false
         id: firebase_upload
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
@@ -536,7 +535,7 @@ jobs:
             exit 1
           fi
           echo "Uploading $APK_PATH to $SSH_HOST..."
-          scp -o StrictHostKeyChecking=no "$APK_PATH" "$SSH_USER@$SSH_HOST:tmp/apk_repo/"
+          scp -o StrictHostKeyChecking=no "$APK_PATH" "$SSH_USER@$SSH_HOST:public_html/apk_repo/"
 
       - name: Clean up build folder after upload
         run: |
@@ -548,7 +547,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
-        if: false
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
           COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
