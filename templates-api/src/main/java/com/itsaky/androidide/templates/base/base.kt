@@ -69,6 +69,7 @@ inline fun baseProject(
     projectVersionData: ProjectVersionData = ProjectVersionData(),
     isToml: Boolean = false,
     showUseKts: Boolean = true,
+    showMinSdk: Boolean = true,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
     return ProjectTemplateBuilder().apply {
@@ -100,9 +101,12 @@ inline fun baseProject(
 
         widgets(
             TextFieldWidget(projectName), TextFieldWidget(packageName),
-            TextFieldWidget(saveLocation), SpinnerWidget(language),
-            SpinnerWidget(minSdk)
+            TextFieldWidget(saveLocation), SpinnerWidget(language)
         )
+
+        if (showMinSdk) {
+            widgets(SpinnerWidget(minSdk))
+        }
 
         if (showUseKts) {
             widgets(CheckBoxWidget(useKts))

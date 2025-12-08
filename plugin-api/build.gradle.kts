@@ -31,36 +31,9 @@ dependencies {
     compileOnly("com.google.android.material:material:1.11.0")
 }
 
-// Task to extract classes from AAR and create a JAR
-tasks.register<Jar>("createPluginApiJar") {
-    group = "publishing"
-    description = "Creates a JAR from the AAR for plugin developers"
-
-    archiveBaseName.set("plugin-api")
-    archiveVersion.set("1.0.0")
-    destinationDirectory.set(layout.buildDirectory.dir("libs"))
-
-    dependsOn("assembleRelease")
-
-    doFirst {
-        val aarFile = layout.buildDirectory.file("outputs/aar/plugin-api-release.aar").get().asFile
-        if (aarFile.exists()) {
-            val tempDir = temporaryDir
-            copy {
-                from(zipTree(aarFile))
-                into(tempDir)
-                include("classes.jar")
-            }
-
-            val classesJar = File(tempDir, "classes.jar")
-            if (classesJar.exists()) {
-                from(zipTree(classesJar))
-            }
-        }
-    }
-
-    doLast {
-        logger.lifecycle("Plugin API JAR created: ${archiveFile.get().asFile.absolutePath}")
-        logger.lifecycle("Plugin developers can add this JAR as a compileOnly dependency")
-    }
+tasks.register<Copy>("createPluginApiJar") {
+    dependsOn("assembleV8Release")
+    from(layout.buildDirectory.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar"))
+    into(layout.buildDirectory.dir("libs"))
+    rename { "plugin-api-1.0.0.jar" }
 }

@@ -108,6 +108,14 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
                                     zipInput.copyTo(output)
                                 }
                             }
+                            AssetsInstallationHelper.PLUGIN_API_JAR -> {
+                                logger.debug("Extracting '{}' to {}", entry.name, Environment.PLUGIN_API_JAR)
+                                Environment.PLUGIN_API_JAR.parentFile?.mkdirs()
+                                Environment.PLUGIN_API_JAR.outputStream().use { output ->
+                                    zipInput.copyTo(output)
+                                }
+                                logger.debug("Completed extracting '{}'", entry.name)
+                            }
 							else -> throw IllegalStateException("Unknown entry: $entryName")
 						}
 					}

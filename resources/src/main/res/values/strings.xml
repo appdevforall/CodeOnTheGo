@@ -94,6 +94,32 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
+	<string name="template_plugin">COGO Plugin</string>
+
+	<!-- Plugin Template Wizard -->
+	<string name="wizard_plugin_name">Plugin Name</string>
+	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
+	<string name="wizard_plugin_description">Plugin Description</string>
+	<string name="wizard_plugin_author">Author Name</string>
+	<string name="wizard_include_sample_code">Include sample code</string>
+	<string name="wizard_plugin_permissions">Permissions</string>
+	<string name="wizard_plugin_extensions">Extensions</string>
+	<string name="wizard_plugin_options">Options</string>
+
+	<!-- Plugin Permissions -->
+	<string name="perm_filesystem_read">Filesystem Read</string>
+	<string name="perm_filesystem_write">Filesystem Write</string>
+	<string name="perm_network_access">Network Access</string>
+	<string name="perm_system_commands">System Commands</string>
+	<string name="perm_ide_settings">IDE Settings</string>
+	<string name="perm_project_structure">Project Structure</string>
+
+	<!-- Plugin Extensions -->
+	<string name="ext_ui">UI Extension</string>
+	<string name="ext_editor_tab">Editor Tab Extension</string>
+	<string name="ext_documentation">Documentation Extension</string>
+	<string name="ext_editor">Editor Extension</string>
+	<string name="ext_project">Project Extension</string>
 
 	<!-- Files -->
 	<string name="save">Save</string>

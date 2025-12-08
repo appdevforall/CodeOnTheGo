@@ -482,6 +482,7 @@ fun createAssetsZip(arch: String) {
             "gradle-api-8.14.3.jar.zip",
             "documentation.db",
             bootstrapName,
+            "plugin-api.jar",
         ).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
 			if (!filePath.exists()) {
@@ -611,15 +612,22 @@ fun registerBundleLlamaAssetsTask(flavor: String, arch: String): TaskProvider<Ta
     }
 }
 
+tasks.register<Copy>("copyPluginApiJarToAssets") {
+    dependsOn(":plugin-api:createPluginApiJar")
+    from(project(":plugin-api").layout.buildDirectory.file("libs/plugin-api-1.0.0.jar"))
+    into(rootProject.file("assets"))
+    rename { "plugin-api.jar" }
+}
+
 tasks.register("assembleV8Assets") {
-    dependsOn(":llama-impl:assembleV8Release")
+    dependsOn(":llama-impl:assembleV8Release", "copyPluginApiJarToAssets")
 	doLast {
 		createAssetsZip("arm64-v8a")
 	}
 }
 
 tasks.register("assembleV7Assets") {
-    dependsOn(":llama-impl:assembleV7Release")
+    dependsOn(":llama-impl:assembleV7Release", "copyPluginApiJarToAssets")
 	doLast {
 		createAssetsZip("armeabi-v7a")
 	}

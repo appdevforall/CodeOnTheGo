@@ -72,6 +72,8 @@ public final class Environment {
 
 	public static File COGO_PLUGIN_JAR;
 
+	public static File PLUGIN_API_JAR;
+
 	public static File INIT_SCRIPT;
 	public static File GRADLE_USER_HOME;
 	public static File AAPT2;
@@ -135,6 +137,8 @@ public final class Environment {
 				"tooling-api-all.jar");
 		COGO_PLUGIN_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "plugin")),
 				"cogo-plugin.jar");
+		PLUGIN_API_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "plugin-api")),
+				"plugin-api.jar");
 		ANDROIDIDE_UI = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "ui"));
 
 		INIT_SCRIPT = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
