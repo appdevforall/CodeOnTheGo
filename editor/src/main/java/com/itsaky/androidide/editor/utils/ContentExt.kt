@@ -32,18 +32,16 @@ import io.github.rosemoe.sora.util.IntPair
  * @return The last line index after appending the given text.
  */
 fun Content.append(text: CharSequence?): Int {
-	if (lineCount <= 0) {
-		return 0
-	}
+    if (text.isNullOrEmpty() || lineCount <= 0) {
+        return maxOf(lineCount - 1, 0)
+    }
 
-	val line = lineCount - 1
-	var col = getColumnCount(line)
-	if (col < 0) {
-		col = 0
-	}
+    val line = lineCount - 1
+    val lineContent = getLine(line)
+    val col = lineContent.length.coerceAtLeast(0)
 
-	insert(line, col, text)
-	return line
+    insert(line, col, text)
+    return lineCount - 1
 }
 
 /**
@@ -62,13 +60,13 @@ fun Content.isNonBlankLine(line: Int): Boolean = !isBlankLine(line)
  * @return The index of the previous non-blank line or -1 if not found.
  */
 fun Content.previousNonBlankLine(line: Int): Int {
-	for (i in line - 1 downTo 0) {
-		if (isNonBlankLine(i)) {
-			return i
-		}
-	}
+    for (i in line - 1 downTo 0) {
+        if (isNonBlankLine(i)) {
+            return i
+        }
+    }
 
-	return -1
+    return -1
 }
 
 /**
@@ -77,59 +75,59 @@ fun Content.previousNonBlankLine(line: Int): Int {
  * @return The index of the next non-blank line or -1 if not found.
  */
 fun Content.nextNonBlankLine(line: Int): Int {
-	for (i in line + 1 until length) {
-		if (isNonBlankLine(i)) {
-			return i
-		}
-	}
+    for (i in line + 1 until length) {
+        if (isNonBlankLine(i)) {
+            return i
+        }
+    }
 
-	return -1
+    return -1
 }
 
 /**
  * Returns the first [TSNode] at the given line number. The leading indentation is ignored.
  */
 fun Content.getFirstNodeAtLine(
-	tree: TSTree,
-	line: Int,
-	col: Int = Int.MIN_VALUE,
+    tree: TSTree,
+    line: Int,
+    col: Int = Int.MIN_VALUE,
 ): TSNode? = getFirstNodeAtLine(tree.rootNode, line, col)
 
 /**
  * Returns the last [TSNode] at the given line number.
  */
 fun Content.getLastNodeAtLine(
-	tree: TSTree,
-	line: Int,
-	col: Int = Int.MIN_VALUE,
+    tree: TSTree,
+    line: Int,
+    col: Int = Int.MIN_VALUE,
 ): TSNode? = getLastNodeAtLine(tree.rootNode, line, col)
 
 /**
  * Returns the first [TSNode] at the given line number. The leading indentation is ignored.
  */
 fun Content.getFirstNodeAtLine(
-	node: TSNode,
-	line: Int,
-	col: Int = Int.MIN_VALUE,
+    node: TSNode,
+    line: Int,
+    col: Int = Int.MIN_VALUE,
 ): TSNode? {
-	if (line < 0 || line >= lineCount) {
-		return null
-	}
+    if (line < 0 || line >= lineCount) {
+        return null
+    }
 
-	var column = col
-	if (column == Int.MIN_VALUE) {
-		val contentLine = getLine(line)
-		val (spaces, tabs) =
-			TextUtils.countLeadingSpacesAndTabs(contentLine).let {
-				IntPair.getFirst(it) to IntPair.getSecond(it)
-			}
+    var column = col
+    if (column == Int.MIN_VALUE) {
+        val contentLine = getLine(line)
+        val (spaces, tabs) =
+            TextUtils.countLeadingSpacesAndTabs(contentLine).let {
+                IntPair.getFirst(it) to IntPair.getSecond(it)
+            }
 
-		column = (spaces + tabs) shl 1
-	}
+        column = (spaces + tabs) shl 1
+    }
 
-	// we need the byte offset in the line, so we need to multiply the char offset by 2 (shl 1)
-	// also, we need not to expand the tabs to spaces as that would result in incorrect offset
-	return node.getNodeAt(line, column)
+    // we need the byte offset in the line, so we need to multiply the char offset by 2 (shl 1)
+    // also, we need not to expand the tabs to spaces as that would result in incorrect offset
+    return node.getNodeAt(line, column)
 }
 
 /**
@@ -137,23 +135,23 @@ fun Content.getFirstNodeAtLine(
  * indentation into consideration.
  */
 fun Content.getLastNodeAtLine(
-	node: TSNode,
-	line: Int,
-	col: Int = Int.MIN_VALUE,
+    node: TSNode,
+    line: Int,
+    col: Int = Int.MIN_VALUE,
 ): TSNode? {
-	if (line < 0 || line >= lineCount) {
-		return null
-	}
+    if (line < 0 || line >= lineCount) {
+        return null
+    }
 
-	val contentLine = getLine(line)
+    val contentLine = getLine(line)
 
-	var column = col
-	if (column == Int.MIN_VALUE) {
-		column = (contentLine.length - 1) shl 1
-	}
+    var column = col
+    if (column == Int.MIN_VALUE) {
+        column = (contentLine.length - 1) shl 1
+    }
 
-	// we need the byte offset in the line, so we need to multiply the char offset by 2 (shl 1)
-	return node.getNodeAt(line, column)
+    // we need the byte offset in the line, so we need to multiply the char offset by 2 (shl 1)
+    return node.getNodeAt(line, column)
 }
 
 /**
@@ -161,10 +159,11 @@ fun Content.getLastNodeAtLine(
  * An XML attribute is identified by having an '=' sign after the selection.
  */
 fun IDEEditor.isXmlAttribute(): Boolean {
-	val cursor = text.cursor
-	val endLine = cursor.rightLine
-	val endCol = cursor.rightColumn
-	val lineText = text.getLine(endLine)
-	val nextChar = lineText.drop(endCol).firstOrNull { !it.isWhitespace() }
-	return nextChar == '='
+    val cursor = text.cursor
+    val endLine = cursor.rightLine
+    val endCol = cursor.rightColumn
+    val lineText = text.getLine(endLine)
+    val nextChar = lineText.drop(endCol).firstOrNull { !it.isWhitespace() }
+    return nextChar == '='
 }
+
