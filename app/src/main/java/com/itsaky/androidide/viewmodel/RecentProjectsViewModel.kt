@@ -14,6 +14,7 @@ import com.itsaky.androidide.utils.getLastModifiedTime
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
 enum class SortCriteria {
@@ -27,6 +28,8 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     private val _projects = MutableLiveData<List<ProjectFile>>()
     private var allProjects: List<ProjectFile> = emptyList()
     val projects: LiveData<List<ProjectFile>> = _projects
+    private val _filterEvents = MutableSharedFlow<Unit>()
+    val filterEvents = _filterEvents
     var didBootstrap = false
     private var currentQuery: String = ""
     private var currentSort: SortCriteria? = null
@@ -49,6 +52,12 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
             allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified, context) }
             applyFilters()
+        }
+    }
+
+    fun notifyFiltersSaved() {
+        viewModelScope.launch {
+            _filterEvents.emit(Unit)
         }
     }
 

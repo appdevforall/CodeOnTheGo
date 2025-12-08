@@ -6,7 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
-import androidx.core.widget.doOnTextChanged
+import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -31,8 +31,8 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.viewmodel.SortCriteria
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,9 +46,9 @@ class RecentProjectsFragment : BaseFragment() {
 	private val viewModel: RecentProjectsViewModel by activityViewModels()
 	private val mainViewModel: MainViewModel by activityViewModels()
 	private lateinit var adapter: RecentProjectsAdapter
-	private var searchJob: Job? = null
 	private var selectedCriteria: SortCriteria? = null
 	private var selectedAsc = true
+	private val searchQuery = MutableStateFlow("")
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -83,35 +83,29 @@ class RecentProjectsFragment : BaseFragment() {
 		val sheet = layoutInflater.inflate(R.layout.layout_project_filters_sheet, null)
 
 		dialog.setContentView(sheet)
+		setupFilters(sheet)
 
-		setupFilters(sheet, dialog)
+		viewLifecycleScope.launch {
+			viewModel.filterEvents.collect { dialog.dismiss() }
+		}
 
 		dialog.show()
 	}
 
+	@OptIn(kotlinx.coroutines.FlowPreview::class)
 	private fun setupSearchBar() {
-		binding.layoutFilters.searchProjectEditText.doOnTextChanged { text, _, _, _ ->
-			searchJob?.cancel()
-			searchJob = viewLifecycleScope.launch {
-				delay(300L)
-				viewModel.onSearchQuery(text.toString())
-			}
-		}
-	}
-
-	/**
-	 * Dismisses the filter dialog with a brief safety delay.
-	 * * The 50ms buffer ensures that the ViewModel state is successfully updated/saved
-	 * before the dialog is destroyed and the scope is cancelled.
-	 */
-	private fun dismissFilters(dialog: BottomSheetDialog) {
 		viewLifecycleScope.launch {
-    	delay(50)
-    	dialog.dismiss()
+			searchQuery
+				.debounce(300)
+				.collect { query -> viewModel.onSearchQuery(query) }
+		}
+
+		binding.layoutFilters.searchProjectEditText.addTextChangedListener { text ->
+			searchQuery.value = text?.toString().orEmpty()
 		}
 	}
 
-	private fun setupFilters(sheet: View, dialog: BottomSheetDialog) {
+	private fun setupFilters(sheet: View) {
 		val sortDropdown = sheet.findViewById<MaterialAutoCompleteTextView>(R.id.sort_dropdown)
 		val sortToggleBtn = sheet.findViewById<MaterialButton>(R.id.sort_toggle_btn)
 		val applyBtn = sheet.findViewById<MaterialButton>(R.id.apply_filters_btn)
@@ -142,7 +136,7 @@ class RecentProjectsFragment : BaseFragment() {
 		applyBtn.setOnClickListener {
 			selectedCriteria?.let { viewModel.onSortSelected(it) }
 			viewModel.onSortDirectionChanged(selectedAsc)
-			dismissFilters(dialog)
+			viewModel.notifyFiltersSaved()
 		}
 
 		clearBtn.setOnClickListener {
@@ -156,7 +150,7 @@ class RecentProjectsFragment : BaseFragment() {
 			clearBtn.isVisible = false
 			viewModel.clearFilters()
 
-			dismissFilters(dialog)
+			viewModel.notifyFiltersSaved()
 		}
 	}
 
