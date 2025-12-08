@@ -415,6 +415,7 @@ jobs:
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Deploy to Firebase App Distribution
+        if: false
         id: firebase_upload
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
