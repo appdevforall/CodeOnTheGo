@@ -184,6 +184,11 @@ jobs:
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
 
+          # If no Jira ticket found in branch name, check the commit message
+          if [ -z "$JIRA_TICKET" ]; then
+            JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1)
+          fi
+
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
           
