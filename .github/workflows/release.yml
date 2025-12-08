@@ -465,6 +465,78 @@ jobs:
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
+      - name: Set up SSH key
+        env:
+          SSH_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.GREENGEEKS_SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ vars.GREENGEEKS_SSH_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          if [ -z "$SSH_HOST" ]; then
+            echo "Error: SSH_HOST variable is not set"
+            exit 1
+          fi
+          # Write the SSH key, ensuring proper formatting
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          # Remove any trailing newlines and ensure proper key format
+          sed -i '' -e '$ { /^$/ d; }' ~/.ssh/id_rsa 2>/dev/null || sed -i '$ { /^$/ d; }' ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # Verify key format
+          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
+            echo "Error: SSH key does not appear to be in correct format"
+            exit 1
+          fi
+          # Configure SSH to use only the key file and disable other auth methods
+          cat > ~/.ssh/config <<EOF
+          Host *
+            IdentitiesOnly yes
+            PreferredAuthentications publickey
+            StrictHostKeyChecking no
+            UserKnownHostsFile ~/.ssh/known_hosts
+            PubkeyAuthentication yes
+            PasswordAuthentication no
+            ChallengeResponseAuthentication no
+            GSSAPIAuthentication no
+            GSSAPIKeyExchange no
+            GSSAPIDelegateCredentials no
+          Host $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/id_rsa
+            IdentitiesOnly yes
+            PreferredAuthentications publickey
+            PubkeyAuthentication yes
+            PasswordAuthentication no
+            ChallengeResponseAuthentication no
+            GSSAPIAuthentication no
+            GSSAPIKeyExchange no
+            GSSAPIDelegateCredentials no
+            NumberOfPasswordPrompts 0
+          EOF
+          chmod 600 ~/.ssh/config
+          # Disable SSH agent completely
+          unset SSH_AUTH_SOCK
+          unset SSH_AGENT_PID
+          # Remove any default SSH keys that might interfere
+          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null || true
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upload APK to server
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+          SSH_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
+          SSH_USER: ${{ vars.GREENGEEKS_SSH_USER }}
+        run: |
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: APK_PATH is not set"
+            exit 1
+          fi
+          if [ ! -f "$APK_PATH" ]; then
+            echo "Error: APK file not found at $APK_PATH"
+            exit 1
+          fi
+          echo "Uploading $APK_PATH to $SSH_HOST..."
+          scp -o StrictHostKeyChecking=no "$APK_PATH" "$SSH_USER@$SSH_HOST:tmp/apk_repo/"
+
       - name: Clean up build folder after upload
         run: |
           echo "Cleaning up build folder after Firebase upload..."
