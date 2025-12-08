@@ -1,12 +1,12 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
+import android.text.format.Formatter.formatFileSize
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -217,7 +217,7 @@ class RecentProjectsFragment : BaseFragment() {
 				adapter = RecentProjectsAdapter(
 					projects,
 					onProjectClick = ::openProject,
-                    onRemoveProjectClick = viewModel::deleteProject,
+          onRemoveProjectClick = viewModel::deleteProject,
 					onFileRenamed = viewModel::updateProject,
 					onInfoClick = { project -> openProjectInfo(project) }
 				)
@@ -278,7 +278,7 @@ class RecentProjectsFragment : BaseFragment() {
     }
 
 		private fun openProjectInfo(project: ProjectFile) {
-		    lifecycleScope.launch {
+		    viewLifecycleScope.launch {
 				    val recentProject = viewModel.getProjectByName(project.name)
 				    val details = loadProjectDetails(project.path)
 
@@ -296,11 +296,16 @@ class RecentProjectsFragment : BaseFragment() {
         withContext(Dispatchers.IO) {
             val root = File(projectPath)
             val appDir = root.toPath().resolve("app").toFile()
+            var sizeBytes = 0L
+            var fileCount = 0
 
-            val sizeBytes = root.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-            val sizeFormatted = android.text.format.Formatter.formatFileSize(requireContext(), sizeBytes)
-
-            val fileCount = root.walkTopDown().count { it.isFile }
+            root.walkTopDown().forEach { file ->
+						    if (file.isFile) {
+						        fileCount++
+						        sizeBytes += file.length()
+						    }
+						}
+            val sizeFormatted = formatFileSize(requireContext(), sizeBytes)
 
             ProjectDetails(
                 sizeFormatted = sizeFormatted,

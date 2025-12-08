@@ -38,14 +38,11 @@ import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.Template
 import com.itsaky.androidide.templates.impl.ConstraintVerifier
-import com.itsaky.androidide.templates.projectLanguageParameter
 import com.itsaky.androidide.utils.TemplateRecipeExecutor
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import moe.shizuku.manager.ktx.TAG
-import java.util.Date
 
 /**
  * A fragment which shows a wizard-like interface for creating templates.

@@ -134,10 +134,6 @@ class RecentProjectsAdapter(
 
         infoItem.setOnClickListener {
             popupWindow.dismiss()
-        }
-
-        infoItem.setOnClickListener {
-            popupWindow.dismiss()
             onInfoClick(project)
         }
 
