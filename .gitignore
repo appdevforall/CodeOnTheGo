@@ -132,3 +132,20 @@ tests/test-home
 
 # Release files
 *.zim
+
+# Other IDEs
+.cursor/
+.vscode/
+
+# bin directories
+annotation-processors-ksp/bin/
+annotation-processors/bin/
+annotations/bin/
+build-info/bin/
+composite-builds/**/bin/
+gradle-plugin/bin/
+logger/bin/
+lookup/bin/
+shared/bin/
+subprojects/**/bin/
+testing/**/bin/
