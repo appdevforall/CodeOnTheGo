@@ -172,3 +172,7 @@ interface IProjectManager {
 	 */
 	fun destroy()
 }
+
+fun IProjectManager.isPluginProject(): Boolean {
+	return File(projectDir, "libs/plugin-api.jar").exists()
+}

@@ -180,6 +180,69 @@ inline fun baseProject(
 }
 
 /**
+ * Setup base files for plugin project templates.
+ * @param block Function to configure the template.
+ */
+inline fun basePluginProject(
+    projectName: StringParameter = projectNameParameter(),
+    packageName: StringParameter = packageNameParameter(),
+    crossinline block: ProjectTemplateBuilder.() -> Unit
+): ProjectTemplate {
+    return ProjectTemplateBuilder().apply {
+        projectName.observe { name ->
+            val newPackage = AndroidUtils.appNameToPackageName(name.value, packageName.value)
+            packageName.setValue(newPackage)
+        }
+
+        Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
+
+        val saveLocation = stringParameter {
+            name = R.string.wizard_save_location
+            default = Environment.PROJECTS_DIR.absolutePath
+            endIcon = { R.drawable.ic_folder }
+            constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            maxLines = 1
+        }
+
+        projectName.doBeforeCreateView {
+            it.setValue(getNewProjectName(saveLocation.value, projectName.value))
+        }
+
+        widgets(
+            TextFieldWidget(projectName),
+            TextFieldWidget(packageName),
+            TextFieldWidget(saveLocation)
+        )
+
+        preRecipe = {
+            this@apply._executor = this
+            this@apply._data = ProjectTemplateData(
+                projectName.value,
+                File(saveLocation.value, projectName.value),
+                ProjectVersionData(),
+                language = Language.Kotlin,
+                useKts = true,
+                useToml = false
+            )
+
+            if (data.projectDir.exists() && data.projectDir.listFiles()?.isNotEmpty() == true) {
+                throw IllegalArgumentException("Project directory already exists")
+            }
+        }
+
+        postRecipe = {
+            gradleWrapper()
+            gitignore()
+            keystore()
+        }
+
+        block()
+    }.build() as ProjectTemplate
+}
+
+/**
  * Create a new module project in this project.
  *
  * @param block The module configurator.

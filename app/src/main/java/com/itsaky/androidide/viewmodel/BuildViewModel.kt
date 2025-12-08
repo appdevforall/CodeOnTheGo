@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.ApkMetadata
 import com.itsaky.androidide.project.AndroidModels
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,12 +44,29 @@ class BuildViewModel : ViewModel() {
 			}
 
 			try {
-				val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
+				val isPluginProject = IProjectManager.getInstance().isPluginProject()
+
+				val taskName = if (isPluginProject) {
+					val pluginTask = if (variant.name.contains("debug", ignoreCase = true)) {
+						"assemblePluginDebug"
+					} else {
+						"assemblePlugin"
+					}
+					"${module.path}:$pluginTask"
+				} else {
+					"${module.path}:${variant.mainArtifact.assembleTaskName}"
+				}
+
 				val message = TaskExecutionMessage(tasks = listOf(taskName))
 				val result = buildService.executeTasks(message).await()
 
 				if (result == null || !result.isSuccessful) {
 					throw RuntimeException("Task execution failed.")
+				}
+
+				if (isPluginProject) {
+					_buildState.value = BuildState.Idle
+					return@launch
 				}
 
 				val outputListingFile = variant.mainArtifact.assembleTaskOutputListingFile

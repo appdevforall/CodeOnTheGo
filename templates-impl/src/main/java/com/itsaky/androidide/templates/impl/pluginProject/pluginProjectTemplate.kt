@@ -10,7 +10,7 @@ import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.TemplateRecipe
 import com.itsaky.androidide.templates.TextFieldWidget
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
-import com.itsaky.androidide.templates.base.baseProject
+import com.itsaky.androidide.templates.base.basePluginProject
 import com.itsaky.androidide.templates.booleanParameter
 import com.itsaky.androidide.templates.impl.R
 import com.itsaky.androidide.templates.impl.base.ProjectTemplateRecipeResultImpl
@@ -40,11 +40,9 @@ private fun pluginProject(): ProjectTemplate {
 	val author = pluginAuthorParameter()
 	val includeSampleCode = includeSampleCodeParameter()
 
-	return baseProject(
+	return basePluginProject(
 		projectName = pluginName,
-		packageName = pluginId,
-		showUseKts = false,
-		showMinSdk = false
+		packageName = pluginId
 	) {
 		templateName = R.string.template_plugin
 		thumb = R.drawable.template_plugin
@@ -56,39 +54,23 @@ private fun pluginProject(): ProjectTemplate {
 		)
 
 		recipe = TemplateRecipe {
-			val permissions = setOf(
-				PluginPermission.FILESYSTEM_READ,
-				PluginPermission.FILESYSTEM_WRITE,
-				PluginPermission.PROJECT_STRUCTURE
+			executePluginRecipe(
+				pluginName.value,
+				pluginId.value,
+				description.value,
+				author.value,
+				includeSampleCode.value
 			)
-
-			val extensions = if (includeSampleCode.value) {
-				setOf(
-					PluginExtension.UI,
-					PluginExtension.EDITOR_TAB,
-					PluginExtension.DOCUMENTATION
-				)
-			} else {
-				emptySet()
-			}
-
-			val templateData = PluginTemplateData(
-				pluginName = pluginName.value,
-				pluginId = pluginId.value,
-				description = description.value,
-				author = author.value,
-				permissions = permissions,
-				extensions = extensions,
-				includeSampleCode = includeSampleCode.value
-			)
-
-			executePluginRecipe(templateData)
 		}
 	}
 }
 
 private fun ProjectTemplateBuilder.executePluginRecipe(
-	templateData: PluginTemplateData
+	pluginName: String,
+	pluginId: String,
+	description: String,
+	author: String,
+	includeSampleCode: Boolean
 ): ProjectTemplateRecipeResult {
 	if (!Environment.PLUGIN_API_JAR.exists()) {
 		throw IllegalStateException(
@@ -96,7 +78,29 @@ private fun ProjectTemplateBuilder.executePluginRecipe(
 		)
 	}
 
-	val projectDir = File(Environment.PROJECTS_DIR, templateData.pluginName.replace(" ", ""))
+	val permissions = setOf(
+		PluginPermission.FILESYSTEM_READ,
+		PluginPermission.FILESYSTEM_WRITE,
+		PluginPermission.PROJECT_STRUCTURE
+	)
+
+	val extensions = if (includeSampleCode) {
+		setOf(PluginExtension.UI, PluginExtension.EDITOR_TAB, PluginExtension.DOCUMENTATION)
+	} else {
+		emptySet()
+	}
+
+	val templateData = PluginTemplateData(
+		pluginName = pluginName,
+		pluginId = pluginId,
+		description = description,
+		author = author,
+		permissions = permissions,
+		extensions = extensions,
+		includeSampleCode = includeSampleCode
+	)
+
+	val projectDir = data.projectDir
 	projectDir.mkdirs()
 
 	val srcDir = File(projectDir, "src/main/kotlin/${templateData.packagePath}")
@@ -104,7 +108,6 @@ private fun ProjectTemplateBuilder.executePluginRecipe(
 
 	val resDir = File(projectDir, "src/main/res")
 	resDir.mkdirs()
-
 	File(resDir, "layout").mkdirs()
 	File(resDir, "values").mkdirs()
 
@@ -113,6 +116,7 @@ private fun ProjectTemplateBuilder.executePluginRecipe(
 
 	File(projectDir, "build.gradle.kts").writeText(pluginBuildGradleKts(templateData))
 	File(projectDir, "settings.gradle.kts").writeText(pluginSettingsGradleKts(templateData))
+	File(projectDir, "gradle.properties").writeText(pluginGradleProperties())
 	File(projectDir, "proguard-rules.pro").writeText(pluginProguardRules())
 	File(projectDir, "src/main/AndroidManifest.xml").writeText(pluginAndroidManifest(templateData))
 

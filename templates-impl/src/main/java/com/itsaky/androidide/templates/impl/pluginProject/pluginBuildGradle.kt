@@ -1,21 +1,29 @@
-
-
 package com.itsaky.androidide.templates.impl.pluginProject
+
+import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
+import org.adfa.constants.COMPILE_SDK_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
+import org.adfa.constants.JAVA_SOURCE_VERSION
+import org.adfa.constants.JAVA_TARGET_VERSION
+import org.adfa.constants.KOTLIN_VERSION
+import org.adfa.constants.TARGET_SDK_VERSION
+
+const val PLUGIN_MIN_SDK = 28
 
 fun pluginBuildGradleKts(data: PluginTemplateData): String = """
 plugins {
-    id("com.android.application") version "8.8.2"
-    id("org.jetbrains.kotlin.android") version "2.1.21"
+    id("com.android.application") version "$ANDROID_GRADLE_PLUGIN_VERSION"
+    id("org.jetbrains.kotlin.android") version "$KOTLIN_VERSION"
 }
 
 android {
     namespace = "${data.pluginId}"
-    compileSdk = 34
+    compileSdk = ${COMPILE_SDK_VERSION.api}
 
     defaultConfig {
         applicationId = "${data.pluginId}"
-        minSdk = 26
-        targetSdk = 34
+        minSdk = $PLUGIN_MIN_SDK
+        targetSdk = ${TARGET_SDK_VERSION.api}
         versionCode = 1
         versionName = "1.0.0"
     }
@@ -28,12 +36,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_$JAVA_SOURCE_VERSION
+        targetCompatibility = JavaVersion.VERSION_$JAVA_TARGET_VERSION
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "$JAVA_TARGET_VERSION"
     }
 
     packaging {
@@ -56,11 +64,11 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.10.0")
     implementation("androidx.fragment:fragment-ktx:1.8.8")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:$KOTLIN_VERSION")
 }
 
 tasks.wrapper {
-    gradleVersion = "8.10.2"
+    gradleVersion = "$GRADLE_DISTRIBUTION_VERSION"
     distributionType = Wrapper.DistributionType.BIN
 }
 
@@ -70,12 +78,14 @@ tasks.register<Copy>("assemblePlugin") {
 
     dependsOn("assembleRelease")
 
-    from(layout.buildDirectory.file("outputs/apk/release/${data.pluginId.substringAfterLast(".")}-release-unsigned.apk"))
+    from(layout.buildDirectory.dir("outputs/apk/release")) {
+        include("*.apk")
+    }
     into(layout.buildDirectory.dir("plugin"))
     rename { "${data.className.lowercase()}.cgp" }
 
     doLast {
-        logger.lifecycle("Plugin CGP created: ${"$"}{layout.buildDirectory.get().asFile.absolutePath}/plugin/${data.className.lowercase()}.cgp")
+        logger.lifecycle("Plugin CGP created in: ${"$"}{layout.buildDirectory.get().asFile.absolutePath}/plugin/")
     }
 }
 
@@ -85,12 +95,14 @@ tasks.register<Copy>("assemblePluginDebug") {
 
     dependsOn("assembleDebug")
 
-    from(layout.buildDirectory.file("outputs/apk/debug/${data.pluginId.substringAfterLast(".")}-debug.apk"))
+    from(layout.buildDirectory.dir("outputs/apk/debug")) {
+        include("*.apk")
+    }
     into(layout.buildDirectory.dir("plugin"))
     rename { "${data.className.lowercase()}-debug.cgp" }
 
     doLast {
-        logger.lifecycle("Debug plugin CGP created: ${"$"}{layout.buildDirectory.get().asFile.absolutePath}/plugin/${data.className.lowercase()}-debug.cgp")
+        logger.lifecycle("Debug plugin CGP created in: ${"$"}{layout.buildDirectory.get().asFile.absolutePath}/plugin/")
     }
 }
 """.trimIndent()
@@ -113,6 +125,12 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "${data.pluginName}"
+""".trimIndent()
+
+fun pluginGradleProperties(): String = """
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+kotlin.code.style=official
 """.trimIndent()
 
 fun pluginProguardRules(): String = """
