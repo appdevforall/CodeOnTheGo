@@ -15,6 +15,8 @@ import java.net.Socket
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Date
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.net.URLDecoder
@@ -488,14 +490,22 @@ WHERE  path = ?
 
         val javacPath = "$directoryPath/usr/bin/javac"
         val javaPath = "$directoryPath/usr/bin/java"
+        val timeoutSeconds = 5L
 
         val javac = ProcessBuilder(javacPath, playgroundFilePath)
             .directory(dir)
             .redirectErrorStream(true)
             .start()
 
+        val didJavacFinish = javac.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+
+        if (!didJavacFinish) {
+            javac.destroyForcibly()
+            javac.waitFor()
+            return "Compilation failed: Timed out after $timeoutSeconds seconds."
+        }
+
         val compileOutput = javac.inputStream.bufferedReader().readText()
-        javac.waitFor()
 
         if (!classFile.exists()) {
             return "Compilation failed:\n$compileOutput"
@@ -510,16 +520,27 @@ WHERE  path = ?
             .directory(dir)
             .redirectErrorStream(true)
             .start()
-        val runOutput = java.inputStream.bufferedReader().readText()
-        java.waitFor()
 
-        Files.delete(Paths.get(classFile.path))
+        val didJavaFinish = java.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+
+        if (!didJavaFinish) {
+            java.destroyForcibly()
+            java.waitFor()
+            Files.deleteIfExists(Paths.get(classFile.path))
+            return if (compileOutput.isNotBlank()) {
+                "Compile output\n $compileOutput\n Program execution timed out after $timeoutSeconds seconds."
+            } else {
+                "Program execution timed out after $timeoutSeconds seconds."
+            }
+        }
+
+        val runOutput = java.inputStream.bufferedReader().readText()
+        Files.deleteIfExists(Paths.get(classFile.path))
 
         return if (compileOutput.isNotBlank()) {
             "Compile output\n $compileOutput\n Program output\n$runOutput"
         } else {
             "Program output\n $runOutput"
         }
-
     }
 }
