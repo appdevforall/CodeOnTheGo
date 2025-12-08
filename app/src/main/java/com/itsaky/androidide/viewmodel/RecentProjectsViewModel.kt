@@ -45,10 +45,10 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     }
 
     suspend fun getProjectByName(name: String): RecentProject? {
-			return withContext(Dispatchers.IO) {
-				recentProjectDao.getProjectByName(name)
-			}
-		}
+        return withContext(Dispatchers.IO) {
+            recentProjectDao.getProjectByName(name)
+        }
+    }
 
     fun insertProjectFromFolder(name: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
