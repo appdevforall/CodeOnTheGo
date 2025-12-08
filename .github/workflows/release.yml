@@ -547,6 +547,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
+        if: false
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
           COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
