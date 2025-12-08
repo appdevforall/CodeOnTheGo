@@ -9,7 +9,6 @@ import androidx.core.view.ViewCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.idetooltips.TooltipCategory
-import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipManager.showTooltip
 import com.itsaky.androidide.utils.setupGestureHandling
 import org.appdevforall.codeonthego.layouteditor.R
