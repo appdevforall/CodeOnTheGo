@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
-import org.appdevforall.codeonthego.layouteditor.LayoutEditor.Companion.instance
 
 class PreferencesManager(val context: Context) {
 
