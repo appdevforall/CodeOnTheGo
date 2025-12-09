@@ -23,15 +23,14 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
-import java.net.URL
 
 
 class IDETooltipWebviewFragment : Fragment() {
@@ -67,12 +66,11 @@ class IDETooltipWebviewFragment : Fragment() {
                 }
             })
 
-        website = arguments?.getString(/* key = */ MainFragment.KEY_TOOLTIP_URL).toString()
+        website = arguments?.getString(MainFragment.KEY_TOOLTIP_URL).toString()
 
-        // Inflate the layout for this fragment
-        val view = inflater.inflate(R.layout.fragment_idetooltipwebview, container, false)
+        val safeContext = ContextThemeWrapper(requireContext().applicationContext, requireContext().theme)
+        val view = LayoutInflater.from(safeContext).inflate(R.layout.fragment_idetooltipwebview, container, false)
 
-        // Initialize the WebView
         webView = view.findViewById(R.id.IDETooltipWebView)
 
         // Set a WebViewClient to handle loading pages
