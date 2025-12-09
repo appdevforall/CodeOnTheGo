@@ -47,12 +47,11 @@ class BuildViewModel : ViewModel() {
 				val isPluginProject = IProjectManager.getInstance().isPluginProject()
 
 				val taskName = if (isPluginProject) {
-					val pluginTask = if (variant.name.contains("debug", ignoreCase = true)) {
-						"assemblePluginDebug"
+					if (variant.name.contains("debug", ignoreCase = true)) {
+						":assemblePluginDebug"
 					} else {
-						"assemblePlugin"
+						":assemblePlugin"
 					}
-					"${module.path}:$pluginTask"
 				} else {
 					"${module.path}:${variant.mainArtifact.assembleTaskName}"
 				}

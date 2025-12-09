@@ -105,6 +105,15 @@ tasks.register<Copy>("assemblePluginDebug") {
         logger.lifecycle("Debug plugin CGP created in: ${"$"}{layout.buildDirectory.get().asFile.absolutePath}/plugin/")
     }
 }
+
+tasks.matching {
+    it.name.contains("checkDebugAarMetadata") ||
+    it.name.contains("checkReleaseAarMetadata") ||
+    it.name.contains("mapDebugSourceSetPaths") ||
+    it.name.contains("mapReleaseSourceSetPaths")
+}.configureEach {
+    enabled = false
+}
 """.trimIndent()
 
 fun pluginSettingsGradleKts(data: PluginTemplateData): String = """
