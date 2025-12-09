@@ -45,7 +45,7 @@
     <uses-permission android:name="${applicationId}.debug.RECEIVE_WADB_PAIR_RESULT" />
     
     <application
-        android:name=".app.IDEApplication"
+        android:name="com.itsaky.androidide.app.IDEApplication"
         android:allowBackup="false"
         android:allowNativeHeapPointerTagging="false"
         android:enableOnBackInvokedCallback="true"
