@@ -54,8 +54,8 @@ suspend fun readJavaVersion(root: File): String = withContext(Dispatchers.IO) {
 
 	val text = file.readText()
 
-	// Regex: sourceCompatibility = JavaVersion.VERSION_17
-	val regex = Regex("""sourceCompatibility\s*=\s*JavaVersion\.VERSION_([0-9]+)""")
+	// Regex: sourceCompatibility = JavaVersion.VERSION_17 | JavaVersion.VERSION_1_8
+	val regex = Regex("""sourceCompatibility\s*=\s*JavaVersion\.VERSION_([0-9_]+)""")
 	val match = regex.find(text)
 
 	return@withContext match?.groupValues?.get(1) ?: "Unknown"

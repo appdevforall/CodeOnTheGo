@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
-import android.text.format.Formatter.formatFileSize
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -24,11 +23,7 @@ import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
-import com.itsaky.androidide.ui.ProjectDetails
 import com.itsaky.androidide.ui.ProjectInfoBottomSheet
-import com.itsaky.androidide.utils.readGradleVersion
-import com.itsaky.androidide.utils.readJavaVersion
-import com.itsaky.androidide.utils.readKotlinVersion
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
@@ -279,42 +274,12 @@ class RecentProjectsFragment : BaseFragment() {
 
 		private fun openProjectInfo(project: ProjectFile) {
 		    viewLifecycleScope.launch {
-				    val recentProject = viewModel.getProjectByName(project.name)
-				    val details = loadProjectDetails(project.path)
+		        val recentProject = viewModel.getProjectByName(project.name)
 
-				    val sheet = ProjectInfoBottomSheet(
-				    	project = project,
-				    	recentProject = recentProject,
-				    	details = details
-				    )
-
-				    sheet.show(parentFragmentManager, "project_info_sheet")
-				}
+		        val sheet = ProjectInfoBottomSheet.newInstance(project, recentProject)
+		        sheet.show(parentFragmentManager, "project_info_sheet")
+		    }
 		}
-
-    private suspend fun loadProjectDetails(projectPath: String): ProjectDetails =
-        withContext(Dispatchers.IO) {
-            val root = File(projectPath)
-            val appDir = root.toPath().resolve("app").toFile()
-            var sizeBytes = 0L
-            var fileCount = 0
-
-            root.walkTopDown().forEach { file ->
-						    if (file.isFile) {
-						        fileCount++
-						        sizeBytes += file.length()
-						    }
-						}
-            val sizeFormatted = formatFileSize(requireContext(), sizeBytes)
-
-            ProjectDetails(
-                sizeFormatted = sizeFormatted,
-                numberOfFiles = fileCount,
-                gradleVersion = readGradleVersion(root),
-                kotlinVersion = readKotlinVersion(appDir),
-                javaVersion = readJavaVersion(appDir)
-            )
-        }
 
     private fun setupClickListeners() {
         binding.newProjectButton.setOnClickListener {
