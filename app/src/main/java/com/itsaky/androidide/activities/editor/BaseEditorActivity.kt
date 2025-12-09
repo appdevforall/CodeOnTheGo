@@ -850,13 +850,6 @@ abstract class BaseEditorActivity :
 
     open fun handleSearchResults(map: Map<File, List<SearchResult>>?) {
         val results = map ?: emptyMap()
-        setSearchResultAdapter(SearchListAdapter(results, { file ->
-            doOpenFile(file, null)
-            hideBottomSheet()
-        }) { match ->
-            doOpenFile(match.file, match)
-            hideBottomSheet()
-        })
         editorViewModel.onSearchResultsReady(results)
 
         bottomSheetViewModel.setSheetState(

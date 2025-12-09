@@ -52,7 +52,6 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
-import com.itsaky.androidide.fragments.SearchResultFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
