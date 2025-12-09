@@ -21,7 +21,6 @@ import android.app.Activity
 import android.content.Context
 import android.text.TextUtils
 import android.util.AttributeSet
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewTreeObserver
@@ -66,6 +65,7 @@ import com.itsaky.androidide.utils.Symbols.forFile
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -431,7 +431,22 @@ constructor(
 	}
 
 	fun setSearchResultAdapter(adapter: SearchListAdapter) {
-		runOnUiThread { pagerAdapter.searchResultFragment?.setAdapter(adapter) }
+        viewModel.setSheetState(
+            sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+            currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT
+        )
+
+        (context as? FragmentActivity)?.lifecycleScope?.launch {
+            repeat(10) {
+                val fragment = pagerAdapter.searchResultFragment
+                if (fragment != null && fragment.isAdded && !fragment.isDetached) {
+                    fragment.setAdapter(adapter)
+                    fragment.isEmpty = adapter.itemCount == 0
+                    return@launch
+                }
+                delay(50)
+            }
+        }
 	}
 
 	fun refreshSymbolInput(editor: CodeEditorView) {

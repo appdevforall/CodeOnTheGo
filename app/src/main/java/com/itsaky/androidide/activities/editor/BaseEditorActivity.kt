@@ -858,7 +858,6 @@ abstract class BaseEditorActivity :
             hideBottomSheet()
         })
 
-		bottomSheetViewModel.setSheetState(currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT)
         doDismissSearchProgress()
     }
 
