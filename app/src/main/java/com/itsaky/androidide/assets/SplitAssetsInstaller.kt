@@ -3,6 +3,7 @@ package com.itsaky.androidide.assets
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.app.configuration.CpuArch
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 	): Unit =
 		withContext(Dispatchers.IO) {
 			val entry = zipFile.getEntry(entryName)
-			?: throw FileNotFoundException("Entry '$entryName' not found in assets zip file")
+			?: throw FileNotFoundException(context.getString(R.string.err_asset_entry_not_found, entryName))
 			val time =
 				measureTimeMillis {
 					zipFile.getInputStream(entry).use { zipInput ->
