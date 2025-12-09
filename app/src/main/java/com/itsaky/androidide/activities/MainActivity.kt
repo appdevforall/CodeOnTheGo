@@ -336,7 +336,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         }
     }
 
-    private fun startWebServer() {
+    public fun startWebServer() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val dbFile = Environment.DOC_DB
