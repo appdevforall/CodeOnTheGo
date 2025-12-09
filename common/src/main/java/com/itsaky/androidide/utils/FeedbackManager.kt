@@ -20,7 +20,9 @@ import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileOutputStream
@@ -181,7 +183,7 @@ object FeedbackManager {
 
 
 	fun captureScreenshot(context: Context, callback: (File?) -> Unit) {
-		val activity = context as? Activity
+		val activity = context as? AppCompatActivity
 		if (activity == null) {
 			logger.warn("Cannot capture screenshot: Context is not an Activity")
 			callback(null)
@@ -210,14 +212,16 @@ object FeedbackManager {
 	}
 
 	private fun captureWithPixelCopy(
-		activity: Activity,
+		activity: AppCompatActivity,
 		rootView: View,
 		screenshotFile: File,
 		callback: (File?) -> Unit
 	) {
 
-        runCatching {
-			val bitmap = createBitmap(rootView.width, rootView.height)
+        var bitmap: Bitmap? = null
+
+        try {
+            bitmap = createBitmap(rootView.width, rootView.height)
 			val locationOfViewInWindow = IntArray(2)
 			rootView.getLocationInWindow(locationOfViewInWindow)
 
@@ -232,29 +236,39 @@ object FeedbackManager {
 				bitmap,
 				{ result ->
 					if (result == PixelCopy.SUCCESS) {
-						saveScreenshot(bitmap, screenshotFile, callback)
-					}
+                        activity.lifecycleScope.launch {
+                            saveScreenshot(bitmap, screenshotFile, callback)
+                        }
+                    } else {
+                        logger.error("PixelCopy failed with result code: $result")
+                        bitmap.recycle()
+                        callback(null)
+                    }
 				},
 				Handler(Looper.getMainLooper())
 			)
-		}.onFailure {
-			logger.error("PixelCopy exception, falling back to Canvas", it)
+		} catch (e: Exception) {
+			logger.error("PixelCopy exception, falling back to Canvas", e)
+            bitmap?.recycle()
+            callback(null)
 		}
 	}
 
 
-	private fun saveScreenshot(bitmap: Bitmap, file: File, callback: (File?) -> Unit) {
-		runCatching {
-			FileOutputStream(file).use { out ->
-				bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
-			}
-			bitmap.recycle()
-			callback(file)
-		}.onFailure {
-			logger.error("Failed to save screenshot", it)
-			callback(null)
-		}
-	}
+    private suspend fun saveScreenshot(bitmap: Bitmap, file: File, callback: (File?) -> Unit) {
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                FileOutputStream(file).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+                }
+                file
+            }.onFailure {
+                logger.error("Failed to save screenshot", it)
+            }.getOrNull()
+        }
+        bitmap.recycle()
+        callback(result)
+    }
 
 
 	private fun launchIntentChooser(
