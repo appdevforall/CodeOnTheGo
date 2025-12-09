@@ -67,22 +67,22 @@ class MainScreenTest {
             .perform(checkTextAtIndex(0, "Create project"))
 
         onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(0, "Create project"))
-
-        onView(withId(R.id.actions))
             .perform(checkTextAtIndex(1, "Open a saved project"))
 
         onView(withId(R.id.actions))
             .perform(checkTextAtIndex(2, "Delete a saved project"))
 
-        onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(3, "Terminal"))
+		onView(withId(R.id.actions))
+			.perform(checkTextAtIndex(3, "Clone git repository"))
 
         onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(4, "Preferences"))
+            .perform(checkTextAtIndex(4, "Terminal"))
 
         onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(5, "Documentation"))
+            .perform(checkTextAtIndex(5, "Preferences"))
+
+        onView(withId(R.id.actions))
+            .perform(checkTextAtIndex(6, "Documentation"))
 
     }
 
