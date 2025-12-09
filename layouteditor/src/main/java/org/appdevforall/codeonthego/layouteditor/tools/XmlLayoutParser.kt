@@ -5,13 +5,16 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addNewId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
+import org.appdevforall.codeonthego.layouteditor.utils.Constants.ATTR_INITIAL_POS
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.createView
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.invokeMethod
@@ -21,194 +24,280 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.IOException
 import java.io.StringReader
 
-class XmlLayoutParser(context: Context) {
+class XmlLayoutParser(
+	context: Context,
+) {
+	val viewAttributeMap: HashMap<View, AttributeMap> = HashMap()
 
-    val viewAttributeMap: HashMap<View, AttributeMap> = HashMap()
+	private val initializer: AttributeInitializer
+	private val listViews: MutableList<View> = ArrayList()
 
-    private val initializer: AttributeInitializer
-    private val listViews: MutableList<View> = ArrayList()
+	companion object {
+    const val MARKER_IS_INCLUDE = "tools:is_xml_include"
+	}
 
-    init {
-        val attributes = Gson()
-            .fromJson<HashMap<String, List<HashMap<String, Any>>>>(
-                FileUtil.readFromAsset(Constants.ATTRIBUTES_FILE, context),
-                object : TypeToken<HashMap<String, List<HashMap<String, Any>>>>() {}.type
-            )
-        val parentAttributes = Gson()
-            .fromJson<HashMap<String, List<HashMap<String, Any>>>>(
-                FileUtil.readFromAsset(Constants.PARENT_ATTRIBUTES_FILE, context),
-                object : TypeToken<HashMap<String, List<HashMap<String, Any>>>>() {}.type
-            )
-        initializer = AttributeInitializer(context, attributes, parentAttributes)
-    }
+	init {
+		val attributes =
+			Gson()
+				.fromJson<HashMap<String, List<HashMap<String, Any>>>>(
+					FileUtil.readFromAsset(Constants.ATTRIBUTES_FILE, context),
+					object : TypeToken<HashMap<String, List<HashMap<String, Any>>>>() {}.type,
+				)
+		val parentAttributes =
+			Gson()
+				.fromJson<HashMap<String, List<HashMap<String, Any>>>>(
+					FileUtil.readFromAsset(Constants.PARENT_ATTRIBUTES_FILE, context),
+					object : TypeToken<HashMap<String, List<HashMap<String, Any>>>>() {}.type,
+				)
+		initializer = AttributeInitializer(context, attributes, parentAttributes)
+	}
 
-    val root: View?
-        get() = listViews.getOrNull(0)
+	val root: View?
+		get() = listViews.getOrNull(0)
 
-    fun parseFromXml(xml: String, context: Context) {
-        listViews.clear()
-        viewAttributeMap.clear()
-        clear()
+	fun parseFromXml(
+		xml: String,
+		context: Context,
+	) {
+		listViews.clear()
+		viewAttributeMap.clear()
+		clear()
 
-        try {
-            val factory = XmlPullParserFactory.newInstance()
-            val parser = factory.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
-            parser.setInput(StringReader(xml))
-            parseFromXml(parser, context)
-        } catch (e: XmlPullParserException) {
-            e.printStackTrace()
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
+		try {
+			val factory = XmlPullParserFactory.newInstance()
+			val parser = factory.newPullParser()
+			parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+			parser.setInput(StringReader(xml))
+			parseFromXml(parser, context)
+		} catch (e: XmlPullParserException) {
+			e.printStackTrace()
+		} catch (e: IOException) {
+			e.printStackTrace()
+		}
 
-        for ((view, map) in viewAttributeMap) {
-            if (map.contains("android:id")) {
-                addNewId(view, map.getValue("android:id"))
-            }
-            applyAttributes(view, map)
-        }
-    }
+		for ((view, map) in viewAttributeMap) {
+			if (map.contains("android:id")) {
+				addNewId(view, map.getValue("android:id"))
+			}
+			applyAttributes(view, map)
+		}
+	}
 
-    private fun parseFromXml(parser: XmlPullParser, context: Context) {
-        while (parser.eventType != XmlPullParser.END_DOCUMENT) {
-            when (parser.eventType) {
-                XmlPullParser.START_TAG -> {
-                    val tagName = parser.name
+	private fun parseFromXml(
+		parser: XmlPullParser,
+		context: Context,
+	) {
+		while (parser.eventType != XmlPullParser.END_DOCUMENT) {
+			when (parser.eventType) {
+				XmlPullParser.START_TAG -> {
+					val tagName = parser.name
 
-                    // Skip NavigationView to avoid invalid parent crash
-                    if (tagName == "com.google.android.material.navigation.NavigationView") {
-                        Log.w(
-                            "XmlParser",
-                            "Skipping NavigationView tag to avoid drawer hierarchy crash"
-                        )
-                        parser.next()
-                        continue
-                    }
+					// Skip NavigationView to avoid invalid parent crash
+					if (tagName == "com.google.android.material.navigation.NavigationView") {
+						Log.w(
+							"XmlParser",
+							"Skipping NavigationView tag to avoid drawer hierarchy crash",
+						)
+						parser.next()
+						continue
+					}
 
-                    var view: View? = null
+					var view: View? = null
 
-                    when (tagName) {
-                        "fragment" -> {
-                            view = FrameLayout(context).apply {
-                                id = View.generateViewId()
-                                layoutParams = ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                )
-                            }
-                            listViews.add(view)
-                        }
+					when (tagName) {
+						"fragment" -> {
+							view =
+								FrameLayout(context).apply {
+									id = View.generateViewId()
+									layoutParams =
+										ViewGroup.LayoutParams(
+											ViewGroup.LayoutParams.MATCH_PARENT,
+											ViewGroup.LayoutParams.MATCH_PARENT,
+										)
+								}
+							listViews.add(view)
+						}
 
-                        "include" -> {
-                            val layoutAttr = parser.getAttributeValue(null, "layout")
-                            val layoutName = layoutAttr?.removePrefix("@layout/")
+						"include" -> {
+							val placeholder = View(context)
 
-                            if (!layoutName.isNullOrBlank()) {
-                                val resId = context.resources.getIdentifier(
-                                    layoutName,
-                                    "layout",
-                                    context.packageName
-                                )
-                                if (resId != 0) {
-                                    val includedParser = context.resources.getLayout(resId)
-                                    parseFromXml(includedParser, context)
-                                } else {
-                                    Log.e("XmlParser", "Unknown included layout: $layoutName")
-                                }
-                            }
-                            parser.next()
-                            continue
-                        }
+							val attrs = AttributeMap()
 
-                        "merge" -> {
-                            Log.d("XmlParser", "Encountered <merge> tag, skipping itself")
-                        }
+							for (i in 0 until parser.attributeCount) {
+                attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
+              }
 
-                        else -> {
-                            val result = createView(tagName, context)
-                            if (result is Exception) throw result
-                            else {
-                                view = result as? View
-                                view?.let { listViews.add(it) }
-                            }
-                        }
-                    }
+              attrs.putValue(MARKER_IS_INCLUDE, "true")
 
-                    val map = AttributeMap()
-                    for (i in 0 until parser.attributeCount) {
-                        val fullName = parser.getAttributeName(i)
-                        val value = parser.getAttributeValue(i)
-                        map.putValue(fullName, value)
-                    }
-                    view?.let { viewAttributeMap[it] = map }
-                }
+              viewAttributeMap[placeholder] = attrs
+              listViews.add(placeholder)
 
-                /**
-                 * This method is responsible for:
-                 * 1) Finding ViewGroups.(that's why we are looking for end tag)
-                 * 2) Adding view to ViewGroup as a child.(viewGroup.addView)
-                 * 3) Removing the view that was added to it's parent from the list. As it is now stored in the parent,
-                 * and we do not need it in the list anymore.
-                 * END_TAG event is triggered when we reach the end of each ViewGroup. Top to bottom. Root ViewGroup is
-                 * triggered last.
-                 *
-                 * * Min XML depth for this scenario is 2. File = 0 -> ViewGroup = 1 -> View = 2
-                 *
-                 * Therefore we are not interested in anything with depth < 2.
-                 *
-                 * Let's assume depth is 3. File -> LinearLayout -> ConstraintLayout -> View
-                 * depth - 2 = 1. This will bring us to the correct parent.
-                 * depth - 1 = 1. This will bring us to correct child.
-                 *
-                 * After adding View to ConstraintLayout, View is removed from the listViews and is considered finished.
-                 * This process will repeat until all Views and ViewGroups will be added to corresponding parents and list
-                 * view will become empty.
-                 */
+              parser.next()
+              continue
+						}
 
-                XmlPullParser.END_TAG -> {
-                    val depth = parser.depth
-                    if (depth >= 2 && listViews.size >= 2) {
-                        val parent = listViews.getOrNull(depth - 2) ?: return
-                        val child = listViews.getOrNull(depth - 1) ?: return
-                        if (parent is ViewGroup) {
-                            parent.addView(child)
-                            listViews.removeAt(depth - 1)
-                        }
-                    }
-                }
-            }
-            parser.next()
-        }
-    }
+						"merge" -> {
+							Log.d("XmlParser", "Encountered <merge> tag, skipping itself")
+						}
 
-    private fun applyAttributes(target: View, attributeMap: AttributeMap) {
-        val allAttrs = initializer.getAllAttributesForView(target)
+						else -> {
+							val result = createView(tagName, context)
+							if (result is Exception) {
+								throw result
+							} else {
+								view = result as? View
+								view?.let { listViews.add(it) }
+							}
+						}
+					}
 
-        val keys = attributeMap.keySet()
+          if (view != null && tagName != "fragment") {
+						val map = AttributeMap()
+						for (i in 0 until parser.attributeCount) {
+							val fullName = parser.getAttributeName(i)
+							val value = parser.getAttributeValue(i)
+							map.putValue(fullName, value)
+						}
+						viewAttributeMap[view] = map
+					}
+				}
 
-        for (i in keys.indices.reversed()) {
-            val key = keys[i]
+				/**
+				 * This method is responsible for:
+				 * 1) Finding ViewGroups.(that's why we are looking for end tag)
+				 * 2) Adding view to ViewGroup as a child.(viewGroup.addView)
+				 * 3) Removing the view that was added to it's parent from the list. As it is now stored in the parent,
+				 * and we do not need it in the list anymore.
+				 * END_TAG event is triggered when we reach the end of each ViewGroup. Top to bottom. Root ViewGroup is
+				 * triggered last.
+				 *
+				 * * Min XML depth for this scenario is 2. File = 0 -> ViewGroup = 1 -> View = 2
+				 *
+				 * Therefore we are not interested in anything with depth < 2.
+				 *
+				 * Let's assume depth is 3. File -> LinearLayout -> ConstraintLayout -> View
+				 * depth - 2 = 1. This will bring us to the correct parent.
+				 * depth - 1 = 1. This will bring us to correct child.
+				 *
+				 * After adding View to ConstraintLayout, View is removed from the listViews and is considered finished.
+				 * This process will repeat until all Views and ViewGroups will be added to corresponding parents and list
+				 * view will become empty.
+				 */
 
-            if (key == "android:id") {
-                continue
-            }
+				XmlPullParser.END_TAG -> {
+					val depth = parser.depth
+					if (depth >= 2 && listViews.size >= 2) {
+						val parent = listViews.getOrNull(depth - 2) ?: return
+						val child = listViews.getOrNull(depth - 1) ?: return
+						if (parent is ViewGroup) {
+							parent.addView(child)
+							listViews.removeAt(depth - 1)
+						}
+					}
+				}
+			}
+			parser.next()
+		}
 
-            val attr = initializer.getAttributeFromKey(key, allAttrs)
-            if (attr == null) {
-                Log.w(
-                    "XmlParser",
-                    "Could not find attribute $key for view ${target.javaClass.simpleName}"
-                )
-                continue
-            }
+		root?.let {
+			restorePositionsAfterLoad(it, viewAttributeMap)
+		}
+	}
 
-            val methodName = attr[Constants.KEY_METHOD_NAME].toString()
-            val className = attr[Constants.KEY_CLASS_NAME].toString()
-            val value = attributeMap.getValue(key)
+	private fun applyAttributes(
+		target: View,
+		attributeMap: AttributeMap,
+	) {
+		val allAttrs = initializer.getAllAttributesForView(target)
 
-            Log.d("applyAttributes", "Applying attribute $key to view $target with value $value")
-            invokeMethod(methodName, className, target, value, target.context)
-        }
-    }
+		val keys = attributeMap.keySet()
+		val initialPosition = attributeMap.getValue(ATTR_INITIAL_POS)
+		attributeMap.removeValue(ATTR_INITIAL_POS)
+
+		if (shouldCenter(initialPosition, target)) {
+			applyBaseCenterConstraints(target, attributeMap)
+			centerAfterLayout(target, attributeMap)
+		}
+
+		for (i in keys.indices.reversed()) {
+			val key = keys[i]
+
+			if (key == "android:id") {
+				continue
+			}
+
+			val attr = initializer.getAttributeFromKey(key, allAttrs)
+			if (attr == null) {
+				Log.w(
+					"XmlParser",
+					"Could not find attribute $key for view ${target.javaClass.simpleName}",
+				)
+				continue
+			}
+
+			val methodName = attr[Constants.KEY_METHOD_NAME].toString()
+			val className = attr[Constants.KEY_CLASS_NAME].toString()
+			val value = attributeMap.getValue(key)
+
+			Log.d("applyAttributes", "Applying attribute $key to view $target with value $value")
+			invokeMethod(methodName, className, target, value, target.context)
+		}
+	}
+
+	private fun shouldCenter(initialPosition: String?, target: View): Boolean {
+		return initialPosition == "center" && target.parent is ConstraintLayout
+	}
+
+	private fun applyBaseCenterConstraints(
+	  target: View,
+	  attributeMap: AttributeMap
+	) {
+		val params = (target.layoutParams as? ConstraintLayout.LayoutParams) ?: return
+
+		params.apply {
+			startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+			topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+			endToEnd = ConstraintLayout.LayoutParams.UNSET
+			bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+			setMargins(0, 0, 0, 0)
+		}
+		target.layoutParams = params
+
+		attributeMap.apply {
+			putValue("app:layout_constraintStart_toStartOf", "parent")
+			putValue("app:layout_constraintTop_toTopOf", "parent")
+
+			removeValue("app:layout_constraintEnd_toEndOf")
+			removeValue("app:layout_constraintBottom_toBottomOf")
+			removeValue("app:layout_constraintHorizontal_bias")
+			removeValue("app:layout_constraintVertical_bias")
+		}
+	}
+
+	private fun centerAfterLayout(
+	  target: View,
+	  attributeMap: AttributeMap
+	) {
+		target.post {
+			val parent = target.parent as View
+			if (parent.width <= 0 || parent.height <= 0) return@post
+
+			val centeredX = (parent.width - target.width) / 2
+			val centeredY = (parent.height - target.height) / 2
+
+			val layoutParams = (target.layoutParams as? ConstraintLayout.LayoutParams) ?: return@post
+
+			layoutParams.apply {
+				marginStart = centeredX
+				topMargin = centeredY
+			}.also { target.layoutParams = it }
+
+			val density = target.resources.displayMetrics.density
+			val startDp = (centeredX / density).toInt()
+			val topDp = (centeredY / density).toInt()
+
+			attributeMap.putValue("android:layout_marginStart", "${startDp}dp")
+			attributeMap.putValue("android:layout_marginTop", "${topDp}dp")
+		}
+	}
 }

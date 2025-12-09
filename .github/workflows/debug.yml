@@ -184,6 +184,11 @@ jobs:
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
 
+          # If no Jira ticket found in branch name, check the commit message
+          if [ -z "$JIRA_TICKET" ]; then
+            JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1)
+          fi
+
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
           
@@ -291,6 +296,12 @@ jobs:
           fi
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+
+      - name: Clean up build folder after upload
+        run: |
+          echo "Cleaning up build folder after Firebase upload..."
+          rm -rf app/build/
+          echo "Build folder cleanup completed"
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq

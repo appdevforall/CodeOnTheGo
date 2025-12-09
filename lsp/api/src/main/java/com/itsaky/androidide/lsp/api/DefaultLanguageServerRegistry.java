@@ -21,7 +21,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.itsaky.androidide.eventbus.events.project.ProjectInitializedEvent;
 import com.itsaky.androidide.lsp.debug.IDebugClient;
-import com.itsaky.androidide.projects.api.Project;
+import com.itsaky.androidide.projects.api.Workspace;
 import com.itsaky.androidide.utils.ILogger;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,106 +39,106 @@ import org.greenrobot.eventbus.ThreadMode;
  */
 public class DefaultLanguageServerRegistry extends ILanguageServerRegistry {
 
-  private final Map<String, ILanguageServer> mRegister = new HashMap<>();
-  private final ReadWriteLock lock = new ReentrantReadWriteLock();
+	private final Map<String, ILanguageServer> mRegister = new HashMap<>();
+	private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
-  @Override
-  public void register(@NonNull final ILanguageServer server) {
-    if (!EventBus.getDefault().isRegistered(this)) {
-      EventBus.getDefault().register(this);
-    }
-    lock.writeLock().lock();
-    try {
-      final var old = mRegister.put(server.getServerId(), server);
-      if (old != null) {
-        mRegister.put(old.getServerId(), old);
-      }
-    } finally {
-      lock.writeLock().unlock();
-    }
-  }
+	@Override
+	public void connectClient(@NonNull final ILanguageClient client) {
+		Objects.requireNonNull(client);
+		lock.readLock().lock();
+		try {
+			for (final var server : mRegister.values()) {
+				server.connectClient(client);
+			}
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 
-  @Override
-  public void connectClient(@NonNull final ILanguageClient client) {
-    Objects.requireNonNull(client);
-    lock.readLock().lock();
-    try {
-      for (final var server : mRegister.values()) {
-        server.connectClient(client);
-      }
-    } finally {
-      lock.readLock().unlock();
-    }
-  }
+	@Override
+	public void connectDebugClient(@NonNull final IDebugClient client) {
+		Objects.requireNonNull(client);
+		lock.readLock().lock();
+		try {
+			for (final var server : mRegister.values()) {
+				server.connectDebugClient(client);
+			}
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 
-  @Override
-  public void connectDebugClient(@NonNull final IDebugClient client) {
-    Objects.requireNonNull(client);
-    lock.readLock().lock();
-    try {
-      for (final var server : mRegister.values()) {
-        server.connectDebugClient(client);
-      }
-    } finally {
-      lock.readLock().unlock();
-    }
-  }
+	@Override
+	public void destroy() {
+		EventBus.getDefault().unregister(this);
+		lock.readLock().lock();
+		try {
+			for (var server : mRegister.values()) {
+				server.shutdown();
+			}
+		} finally {
+			lock.readLock().unlock();
+		}
 
-  @Override
-  public void unregister(@NonNull final String serverId) {
-    lock.writeLock().lock();
-    try {
-      final var registered = mRegister.remove(serverId);
-      if (registered == null) {
-        throw new IllegalStateException("No server found for the given server ID");
-      }
-    } finally {
-      lock.writeLock().unlock();
-    }
-  }
+		lock.writeLock().lock();
+		try {
+			mRegister.clear();
+		} finally {
+			lock.writeLock().unlock();
+		}
+	}
 
-  @Override
-  public void destroy() {
-    EventBus.getDefault().unregister(this);
-    lock.readLock().lock();
-    try {
-      for (var server : mRegister.values()) {
-        server.shutdown();
-      }
-    } finally {
-      lock.readLock().unlock();
-    }
+	@Nullable
+	@Override
+	public ILanguageServer getServer(@NonNull final String serverId) {
+		lock.readLock().lock();
+		try {
+			return mRegister.get(serverId);
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 
-    lock.writeLock().lock();
-    try {
-      mRegister.clear();
-    } finally {
-      lock.writeLock().unlock();
-    }
-  }
+	@Subscribe(threadMode = ThreadMode.BACKGROUND)
+	@SuppressWarnings("unused")
+	public void onProjectInitialized(ProjectInitializedEvent event) {
+		final var project = event.get(Workspace.class);
+		if (project == null) {
+			return;
+		}
 
-  @Nullable
-  @Override
-  public ILanguageServer getServer(@NonNull final String serverId) {
-    lock.readLock().lock();
-    try {
-      return mRegister.get(serverId);
-    } finally {
-      lock.readLock().unlock();
-    }
-  }
+		ILogger.ROOT.debug("Dispatching ProjectInitializedEvent to language servers...");
+		for (final var server : mRegister.values()) {
+			server.setupWithProject(project);
+		}
+	}
 
-  @Subscribe(threadMode = ThreadMode.BACKGROUND)
-  @SuppressWarnings("unused")
-  public void onProjectInitialized(ProjectInitializedEvent event) {
-    final var project = event.get(Project.class);
-    if (project == null) {
-      return;
-    }
+	@Override
+	public void register(@NonNull final ILanguageServer server) {
+		if (!EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().register(this);
+		}
+		lock.writeLock().lock();
+		try {
+			final var old = mRegister.put(server.getServerId(), server);
+			if (old != null) {
+				mRegister.put(old.getServerId(), old);
+			}
+		} finally {
+			lock.writeLock().unlock();
+		}
+	}
 
-    ILogger.ROOT.debug("Dispatching ProjectInitializedEvent to language servers...");
-    for (final var server : mRegister.values()) {
-      server.setupWithProject(project);
-    }
-  }
+	@Override
+	public void unregister(@NonNull final String serverId) {
+		lock.writeLock().lock();
+		try {
+			final var registered = mRegister.remove(serverId);
+			if (registered == null) {
+				throw new IllegalStateException("No server found for the given server ID");
+			}
+		} finally {
+			lock.writeLock().unlock();
+		}
+	}
 }

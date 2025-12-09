@@ -31,13 +31,12 @@ env:
   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
-  build_apk:
-    name: Build Release APK
+  merge_stage_to_main:
+    name: Merge stage to main
     runs-on: self-hosted
-    timeout-minutes: 60
+    timeout-minutes: 10
 
     steps:
-
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
@@ -58,18 +57,14 @@ jobs:
         run: |
           git fetch origin stage
           git checkout main
-          
-          # Attempt merge - if it fails due to conflicts, send notification and stop workflow
+
           if ! git merge origin/stage --no-ff -m "Daily merge from stage to main"; then
             echo "Merge failed due to conflicts. Sending notification and stopping workflow."
-            
-            # Get conflicted files for notification
+
             CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
-            
-            # Reset to clean state
+
             git merge --abort
-            
-            # Send Slack notification
+
             jq -n \
               --arg conflicted_files "$CONFLICTED_FILES" \
               '{
@@ -132,22 +127,213 @@ jobs:
                   }
                 ]
               }' > conflict_payload.json
-            
+
             curl -X POST -H "Content-type: application/json" --data @conflict_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
             rm -f conflict_payload.json
-            
+
             echo "Merge conflicts detected in files: $CONFLICTED_FILES"
             exit 1
           fi
-          
-          # If merge succeeds, push to main
+
           git push origin main
           echo "Merge completed successfully"
+
+  download_documentation:
+    name: Download pre-compressed documentation DB
+    runs-on: self-hosted
+    timeout-minutes: 5
+    needs: merge_stage_to_main
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Authenticate to Google Cloud for Drive access
+        id: auth_drive
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.IDENTITY_EMAIL }}
+          token_format: 'access_token'
+          access_token_scopes: 'https://www.googleapis.com/auth/drive.readonly'
+
+      - name: Download pre-compressed documentation.db.br from Google Drive
+        run: |
+          FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
+          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
+
+          if [ -z "$FILE_ID" ]; then
+            echo "ERROR: DOCUMENTATION_BR_FILE_ID secret not set"
+            exit 1
+          fi
+
+          echo "Downloading documentation.db.br from Google Drive..."
+
+          mkdir -p assets/release/common/database
+          curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
+            -o assets/release/common/database/documentation.db.br
+
+          if [ ! -f assets/release/common/database/documentation.db.br ]; then
+            echo "ERROR: Failed to download documentation.db.br"
+            exit 1
+          fi
+
+          BR_MD5_FILE_ID="${{ secrets.DOCUMENTATION_BR_MD5_FILE_ID }}"
+          if [ -n "$BR_MD5_FILE_ID" ]; then
+            echo "Verifying MD5 checksum..."
+
+            EXPECTED_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+              "https://www.googleapis.com/drive/v3/files/${BR_MD5_FILE_ID}?alt=media" \
+              | tr -d '\n')
+
+            ACTUAL_MD5=$(md5sum assets/release/common/database/documentation.db.br | awk '{print $1}')
+
+            echo "Expected MD5: $EXPECTED_MD5"
+            echo "Actual MD5:   $ACTUAL_MD5"
+
+            if [ "$ACTUAL_MD5" != "$EXPECTED_MD5" ]; then
+              echo "ERROR: MD5 checksum mismatch"
+
+              jq -n \
+                --arg expected "$EXPECTED_MD5" \
+                --arg actual "$ACTUAL_MD5" \
+                '{
+                  blocks: [
+                    {
+                      type: "header",
+                      text: {
+                        type: "plain_text",
+                        text: ":x: Release Build Failed - Documentation DB Integrity Check Failed",
+                        emoji: true
+                      }
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: "@here The daily release build failed because *documentation.db.br* failed integrity verification."
+                      }
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: "*Checksum Mismatch:*\n• Expected: `\($expected)`\n• Actual: `\($actual)`"
+                      }
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: "*Possible Causes:*\n• File was corrupted during download\n• File on Google Drive was modified after compression\n• MD5 file on Drive is out of sync"
+                      }
+                    },
+                    {
+                      type: "section",
+                      text: {
+                        type: "mrkdwn",
+                        text: "*Action Required:*\n1. Re-run the compress_docdb workflow to regenerate the file and MD5\n2. Verify both files uploaded successfully to Google Drive"
+                      }
+                    }
+                  ]
+                }' > error_payload.json
+
+              curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+              rm -f error_payload.json
+              exit 1
+            fi
+
+            echo "MD5 checksum verified successfully"
+          fi
+
+          FILE_SIZE_BYTES=$(stat -c%s assets/release/common/database/documentation.db.br 2>/dev/null || stat -f%z assets/release/common/database/documentation.db.br 2>/dev/null)
+          FILE_SIZE_HUMAN=$(du -h assets/release/common/database/documentation.db.br | cut -f1)
+
+          if [ "$FILE_SIZE_BYTES" -lt 100000 ]; then
+            echo "ERROR: Downloaded file is too small ($FILE_SIZE_HUMAN)"
+
+            jq -n '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":x: Release Build Failed - Documentation DB Download Error",
+                    emoji: true
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "@here The daily release build failed because *documentation.db.br* could not be downloaded from Google Drive."
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Possible Causes:*\n• compress_docdb workflow has not run yet\n• File not found or incorrect file ID\n• Service account does not have access to the file"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Action Required:*\n1. Verify compress_docdb workflow ran successfully\n2. Check that DOCUMENTATION_BR_FILE_ID secret is correct\n3. Ensure service account has Viewer access to the file"
+                  }
+                }
+              ]
+            }' > error_payload.json
+
+            curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+            rm -f error_payload.json
+            exit 1
+          fi
+
+          echo "Successfully downloaded documentation.db.br ($FILE_SIZE_HUMAN)"
+
+      - name: Upload compressed documentation DB
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-db
+          path: assets/release/common/database/documentation.db.br
+          retention-days: 1
+
+  build_apk:
+    name: Build Release APK
+    runs-on: self-hosted
+    timeout-minutes: 60
+    needs: [merge_stage_to_main, download_documentation]
+    strategy:
+      matrix:
+        include:
+          - variant: v8
+            build_type: "RELEASE 64-bit"
+          - variant: v7
+            build_type: "RELEASE 32-bit"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
 
       - name: Set branch to main for build
         id: determine_branch
         run: |
           echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
+
+      - name: Download compressed documentation DB
+        uses: actions/download-artifact@v4
+        with:
+          name: documentation-db
+          path: assets/release/common/database
 
       - name: Install Git LFS
         run: |
@@ -185,7 +371,8 @@ jobs:
 
       - name: Assemble Release APK
         run: |
-          flox activate -d flox/base -- ./gradlew :app:assembleV8Release --no-daemon \
+          variant_upper=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
+          flox activate -d flox/base -- ./gradlew :app:assemble${variant_upper}Release --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
@@ -194,7 +381,7 @@ jobs:
       - name: Find APK file
         id: find_apk
         run: |
-          apk_path=$(find app/build/outputs/apk/ -path "*v8*/release/*.apk" | head -n 1)
+          apk_path=$(find app/build/outputs/apk/ -path "*${{ matrix.variant }}*/release/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
 
       - name: Set branch name and build type
@@ -202,7 +389,7 @@ jobs:
           BRANCH_NAME=${{ steps.determine_branch.outputs.BRANCH_TO_CHECKOUT }}
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           
-          BUILD_TYPE="RELEASE"
+          BUILD_TYPE="${{ matrix.build_type }}"
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
       - name: Get Commit Information
@@ -232,7 +419,7 @@ jobs:
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          BUILD_TYPE: ${{ env.BUILD_TYPE }}
+          BUILD_TYPE: ${{ matrix.build_type }}
           COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
         run: |
           echo "Starting Firebase deployment..."
@@ -278,6 +465,11 @@ jobs:
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
+      - name: Clean up build folder after upload
+        run: |
+          echo "Cleaning up build folder after Firebase upload..."
+          rm -rf app/build/
+          echo "Build folder cleanup completed"
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -290,8 +482,8 @@ jobs:
           FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
         run: |          
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
-          BUILD_TYPE="${{ env.BUILD_TYPE }}"
-          
+          BUILD_TYPE="${{ matrix.build_type }}"
+                    
           jq -n \
             --arg commit_msg "$COMMIT_MSG" \
             --arg build_type "$BUILD_TYPE" \

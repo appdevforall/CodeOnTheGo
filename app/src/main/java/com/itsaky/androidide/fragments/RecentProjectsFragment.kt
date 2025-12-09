@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
-
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,8 +8,6 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
-
-
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.databinding.FragmentSavedProjectsBinding
@@ -20,42 +17,111 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
+import com.itsaky.androidide.utils.Environment.PROJECTS_DIR
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import io.sentry.Sentry
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
-
+	@Suppress("ktlint:standard:backing-property-naming")
     private var _binding: FragmentSavedProjectsBinding? = null
     private val binding get() = _binding!!
 
-    private val viewModel: RecentProjectsViewModel by activityViewModels()
-    private val mainViewModel: MainViewModel by activityViewModels()
-    private lateinit var adapter: RecentProjectsAdapter
+	private val viewModel: RecentProjectsViewModel by activityViewModels()
+	private val mainViewModel: MainViewModel by activityViewModels()
+	private lateinit var adapter: RecentProjectsAdapter
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentSavedProjectsBinding.inflate(inflater, container, false)
-        return binding.root
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		_binding = FragmentSavedProjectsBinding.inflate(inflater, container, false)
+		return binding.root
+	}
+
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		setupRecyclerView()
+		setupObservers()
+		setupClickListeners()
+        bootstrapFromFixedFolderIfNeeded()
+	}
+
+	private fun setupRecyclerView() {
+		binding.listProjects.layoutManager = LinearLayoutManager(requireContext())
+		binding.listProjects.addItemDecoration(
+			CustomDividerItemDecoration(requireContext(), R.drawable.custom_list_divider),
+		)
+	}
+
+    private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
+
+    private fun bootstrapFromFixedFolderIfNeeded() {
+        if (viewModel.didBootstrap) return
+        viewModel.didBootstrap = true
+
+        viewLifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val validProjects = findValidProjects(PROJECTS_DIR)
+                if (validProjects.isEmpty()) return@launch
+
+                loadProjectsIntoViewModel(validProjects)
+
+                if (GeneralPreferences.autoOpenProjects) {
+                    val lastOpenedPath = GeneralPreferences.lastOpenedProject
+
+                    val projectToOpen = validProjects.find {
+                        it.absolutePath == lastOpenedPath
+                    }
+
+                    if (projectToOpen != null) {
+                        withContext(Dispatchers.Main) { openProject(projectToOpen) }
+                        return@launch
+                    }
+
+                    val lastCreated = validProjects.maxByOrNull { it.lastModified() }
+
+                    if (lastCreated != null) {
+                        withContext(Dispatchers.Main) { openProject(lastCreated) }
+                    }
+                }
+            } catch (e: Throwable) {
+                Sentry.captureException(e)
+            }
+        }
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        setupRecyclerView()
-        setupObservers()
-        setupClickListeners()
+    private fun findValidProjects(projectsRoot: File): List<File> {
+        if (!projectsRoot.isProjectCandidateDir()) return emptyList()
+
+        val subdirs = projectsRoot.listFiles()
+            ?.filter { it.isProjectCandidateDir() }
+            .orEmpty()
+        if (subdirs.isEmpty()) return emptyList()
+
+        return subdirs.filter { dir -> isValidProjectDirectory(dir) }
     }
 
-    private fun setupRecyclerView() {
-        binding.listProjects.layoutManager = LinearLayoutManager(requireContext())
-        binding.listProjects.addItemDecoration(
-            CustomDividerItemDecoration(requireContext(), R.drawable.custom_list_divider)
-        )
+    private suspend fun loadProjectsIntoViewModel(projects: List<File>) {
+        val jobs = projects.map { dir ->
+            viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
+        }
+        jobs.joinAll()
+
+        val loadJob = viewModel.loadProjects()
+        loadJob.join()
     }
 
 	private fun pickProjectDirectory(
@@ -69,10 +135,11 @@ class RecentProjectsFragment : BaseFragment() {
 		pickDirectory { selectedDir ->
 			if (!isValidProjectOrContainerDirectory(selectedDir)) {
 				flashError(
-					msg = requireContext().getString(
-						R.string.project_directory_invalid,
-						selectedDir.name
-					)
+					msg =
+						requireContext().getString(
+							R.string.project_directory_invalid,
+							selectedDir.name,
+						),
 				)
 				return@pickDirectory
 			}
@@ -82,6 +149,11 @@ class RecentProjectsFragment : BaseFragment() {
 	}
 
     private fun onProjectDirectoryPicked(directory: File) {
+			if (!directory.isProjectCandidateDir()) {
+				flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+				return
+			}
+
 			// Is the current folder a valid android project?
 			// Yes: Then open it.
 			if (isValidProjectDirectory(directory)) {
@@ -106,7 +178,7 @@ class RecentProjectsFragment : BaseFragment() {
 					return
 			}
 
-			val validSubDirs = subFolders.filter { it.isDirectory }
+			val validSubDirs = subFolders.filter { it.isProjectCandidateDir() }
 
 			val validProjects = validSubDirs.filter { isValidProjectDirectory(it) }
 			val invalidProjects = validSubDirs - validProjects.toSet()
@@ -184,12 +256,16 @@ class RecentProjectsFragment : BaseFragment() {
      *  2. A container that includes one or more valid Android projects.
      */
     fun isValidProjectOrContainerDirectory(selectedDir: File): Boolean {
+        if (!selectedDir.isProjectCandidateDir()) {
+            return false
+        }
+
         if (isValidProjectDirectory(selectedDir)) {
             return true
         }
 
         // Check if it contains valid Android projects as subdirectories
-        val subDirs = selectedDir.listFiles()?.filter { it.isDirectory } ?: return false
+        val subDirs = selectedDir.listFiles()?.filter { it.isProjectCandidateDir() } ?: return false
         return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
 
@@ -224,14 +300,7 @@ class RecentProjectsFragment : BaseFragment() {
         _binding = null
     }
 
-    override fun onResume() {
-        super.onResume()
-        viewModel.loadProjects()
-    }
-
-    private fun showToolTip(tag: String) {
-        TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
-    }
-
+	private fun showToolTip(tag: String) {
+		TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
+	}
 }
-

@@ -29,7 +29,11 @@ import com.itsaky.androidide.plugins.manager.documentation.PluginDocumentationMa
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
+import com.itsaky.androidide.actions.SidebarSlotManager
+import com.itsaky.androidide.actions.SidebarSlotExceededException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -48,7 +52,7 @@ class PluginManager private constructor(
     /**
      * Interface for providing the current Activity context for UI operations
      */
-    interface ActivityProvider {
+    fun interface ActivityProvider {
         fun getCurrentActivity(): Activity?
     }
     
@@ -131,9 +135,6 @@ class PluginManager private constructor(
     suspend fun loadPlugins() = withContext(Dispatchers.IO) {
         logger.info("Loading plugins from directory: ${pluginsDir.absolutePath}")
 
-        // Initialize documentation tracking table
-        documentationManager.initializePluginTracking()
-
         // Load plugin states first
         loadPluginStates()
 
@@ -141,7 +142,7 @@ class PluginManager private constructor(
         verifyDocumentationForLoadedPlugins()
 
         val pluginFiles = pluginsDir.listFiles { file ->
-            file.isFile && (file.name.endsWith(".") || file.name.endsWith(".cgp"))
+            file.isFile && file.name.endsWith(".cgp", ignoreCase = true)
         } ?: return@withContext
 
         logger.info("Found ${pluginFiles.size} plugin files")
@@ -213,8 +214,8 @@ class PluginManager private constructor(
             return Result.failure(IllegalArgumentException(error))
         }
 
-        if (!pluginFile.name.endsWith(".") && !pluginFile.name.endsWith(".cgp")) {
-            val error = "Only /CGP plugins are supported. File: ${pluginFile.name}"
+        if (!pluginFile.name.endsWith(".cgp", ignoreCase = true)) {
+            val error = "Only CGP plugins are supported. File: ${pluginFile.name}"
             logger.error(error)
             return Result.failure(IllegalArgumentException(error))
         }
@@ -242,6 +243,7 @@ class PluginManager private constructor(
      * Load plugin with full resource support
      */
     fun loadPlugin(file: File): Result<IPlugin> {
+        var reservedSlotsPluginId: String? = null
         return try {
             logger.debug("Loading plugin from: ${file.absolutePath}")
 
@@ -271,6 +273,18 @@ class PluginManager private constructor(
                 return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
             }
 
+            // Validate sidebar slots BEFORE loading plugin code
+            if (manifest.sidebarItems > 0) {
+                val available = SidebarSlotManager.getAvailableSlotsForPlugins()
+                if (manifest.sidebarItems > available) {
+                    return Result.failure(
+                        SidebarSlotExceededException(manifest.sidebarItems, available, manifest.id)
+                    )
+                }
+                SidebarSlotManager.reservePluginSlots(manifest.id, manifest.sidebarItems)
+                reservedSlotsPluginId = manifest.id
+            }
+
             // Parse permissions
             val permissions = executeWithErrorHandling("parse permissions", manifest.id) {
                 manifest.permissions.mapNotNull { permissionStr ->
@@ -284,21 +298,40 @@ class PluginManager private constructor(
             // Load plugin classes
             val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!)
             if (classLoader == null) {
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
                 return Result.failure(RuntimeException("Failed to create class loader for  plugin: ${manifest.id}"))
             }
 
             logger.debug("Loading main class: ${manifest.mainClass}")
             val pluginClass = executeWithErrorHandling("load main class ${manifest.mainClass}", manifest.id) {
                 classLoader.loadClass(manifest.mainClass)
-            }.getOrElse { return Result.failure(it) }
+            }.getOrElse {
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(it)
+            }
 
             logger.debug("Creating plugin instance for: ${manifest.id}")
             val plugin = executeWithErrorHandling("create plugin instance", manifest.id) {
                 pluginClass.getDeclaredConstructor().newInstance() as IPlugin
-            }.getOrElse { return Result.failure(it) }
+            }.getOrElse {
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(it)
+            }
 
             // Create plugin context with  resources
-            val ctx = pluginLoader.createPluginContext() ?: return Result.failure(RuntimeException("Failed to create plugin context for: ${manifest.id}"))
+            val ctx = pluginLoader.createPluginContext()
+            if (ctx == null) {
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(RuntimeException("Failed to create plugin context for: ${manifest.id}"))
+            }
 
             val pluginContext = createPluginContextWithResources(manifest.id, classLoader, permissions, ctx)
 
@@ -307,6 +340,9 @@ class PluginManager private constructor(
                 plugin.initialize(pluginContext)
             } catch (e: Exception) {
                 logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
                 return Result.failure(e)
             }
 
@@ -353,9 +389,15 @@ class PluginManager private constructor(
                 Result.success(plugin)
             } else {
                 logger.warn(" plugin initialization returned false for: ${manifest.id}")
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
                 Result.failure(RuntimeException(" plugin initialization failed for: ${manifest.id}"))
             }
         } catch (e: Exception) {
+            reservedSlotsPluginId?.let { pluginId ->
+                SidebarSlotManager.releasePluginSlots(pluginId)
+            }
             logger.error("Failed to load  plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
             Result.failure(RuntimeException("Error loading  plugin: ${e.message}", e))
         }
@@ -399,6 +441,9 @@ class PluginManager private constructor(
     fun uninstallPlugin(pluginId: String): Boolean {
         logger.info("=== Starting uninstall for plugin: $pluginId ===")
 
+        // Release sidebar slots reserved by this plugin
+        SidebarSlotManager.releasePluginSlots(pluginId)
+
         // Clean up sidebar actions BEFORE unloading the plugin
         cleanupSidebarActions(pluginId)
 
@@ -410,9 +455,9 @@ class PluginManager private constructor(
             logger.info("Successfully unloaded plugin from memory: $pluginId")
         }
 
-        // Find and delete the plugin file (/CGP)
+        // Find and delete the plugin file (CGP)
         val pluginFiles = pluginsDir.listFiles { file ->
-            file.isFile && (file.name.endsWith(".") || file.name.endsWith(".cgp"))
+            file.isFile && file.name.endsWith(".cgp", ignoreCase = true)
         }
 
         if (pluginFiles == null || pluginFiles.isEmpty()) {
@@ -499,7 +544,13 @@ class PluginManager private constructor(
             .map { it.plugin }
             .filterIsInstance<com.itsaky.androidide.plugins.extensions.UIExtension>()
     }
-    
+
+    fun getPluginIdForInstance(plugin: IPlugin): String? {
+        return loadedPlugins.entries
+            .find { it.value.plugin === plugin }
+            ?.key
+    }
+
     fun enablePlugin(pluginId: String): Boolean {
         val loadedPlugin = loadedPlugins[pluginId] ?: return false
         
@@ -686,7 +737,7 @@ class PluginManager private constructor(
             pluginId,
             "build"
         ) {
-            IdeBuildServiceImpl()
+            IdeBuildServiceImpl.getInstance()
         }
 
         // Tooltip service for showing help documentation
@@ -727,6 +778,16 @@ class PluginManager private constructor(
                     }
                 }
             )
+        }
+
+        // Sidebar service for plugin sidebar slot management
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSidebarService::class.java,
+            pluginId,
+            "sidebar"
+        ) {
+            IdeSidebarServiceImpl(pluginId)
         }
 
         // Create PluginContext with resource context
@@ -791,7 +852,7 @@ class PluginManager private constructor(
             pluginId,
             "build"
         ) {
-            IdeBuildServiceImpl()
+            IdeBuildServiceImpl.getInstance()
         }
 
         // Tooltip service for showing documentation tooltips
@@ -833,9 +894,19 @@ class PluginManager private constructor(
             )
         }
 
+        // Sidebar service for plugin sidebar slot management
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSidebarService::class.java,
+            pluginId,
+            "sidebar"
+        ) {
+            IdeSidebarServiceImpl(pluginId)
+        }
+
         // Copy other services from global registry
         // TODO: Add mechanism to copy global services to plugin-specific registry
-        
+
         return PluginContextImpl(
             androidContext = context,
             services = pluginServiceRegistry,

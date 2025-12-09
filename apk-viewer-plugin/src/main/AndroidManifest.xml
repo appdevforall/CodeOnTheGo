@@ -2,17 +2,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
-        android:label="Sample Plugin"
+        android:label="APK Viewer"
         android:theme="@style/Theme.AppCompat">
 
         <!-- Plugin metadata -->
         <meta-data
             android:name="plugin.id"
-            android:value="com.example.sampleplugin" />
+            android:value="com.example.apkviewer" />
 
         <meta-data
             android:name="plugin.name"
-            android:value="Sample Plugin" />
+            android:value="APK Viewer" />
 
         <meta-data
             android:name="plugin.version"
@@ -20,7 +20,7 @@
 
         <meta-data
             android:name="plugin.description"
-            android:value="A comprehensive sample plugin demonstrating all CodeOnTheGo plugin capabilities" />
+            android:value="Analyze APK structure, contents, and metadata. View file sizes, native libraries, resources, and compression details." />
 
         <meta-data
             android:name="plugin.author"
@@ -36,7 +36,11 @@
 
         <meta-data
             android:name="plugin.main_class"
-            android:value="com.example.sampleplugin.SamplePlugin" />
+            android:value="com.example.sampleplugin.ApkViewer" />
+
+        <meta-data
+            android:name="plugin.sidebar_items"
+            android:value="1" />
 
     </application>
 

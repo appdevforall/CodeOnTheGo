@@ -21,12 +21,11 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.inflater.utils.endParse
 import com.itsaky.androidide.inflater.utils.startParse
-import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
-import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.util.findAppModule
 import com.itsaky.androidide.testing.tooling.ToolingApiTestLauncher
+import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Ignore
 import org.robolectric.Robolectric
@@ -34,33 +33,30 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 @Ignore("Test utility provider")
 object XmlInflaterTest {
+	private var init = AtomicBoolean(false)
+	internal val activity by lazy { Robolectric.buildActivity(AppCompatActivity::class.java).get() }
 
-  private var init = AtomicBoolean(false)
-  internal val activity by lazy { Robolectric.buildActivity(AppCompatActivity::class.java).get() }
+	fun initIfNeeded() {
+		if (init.get()) {
+			return
+		}
 
-  fun initIfNeeded() {
-    if (init.get()) {
-      return
-    }
-
-    ToolingApiTestLauncher.launchServer {
-      assertThat(result?.isSuccessful).isTrue()
-
-      Lookup.getDefault().register(BuildService.KEY_PROJECT_PROXY, project)
-      runBlocking { IProjectManager.getInstance().setupProject(project) }
-      init.set(true)
-    }
-  }
+		ToolingApiTestLauncher.launchServer {
+			assertThat(result is InitializeResult.Success).isTrue()
+			runBlocking { IProjectManager.getInstance().setup(gradleBuild.get()) }
+			init.set(true)
+		}
+	}
 }
 
 fun inflaterTest(block: (AndroidModule) -> Unit) {
-  XmlInflaterTest.initIfNeeded()
-  val app = findAppModule()!!
-  startParse(app)
-  block(app)
-  endParse()
+	XmlInflaterTest.initIfNeeded()
+	val app = findAppModule()!!
+	startParse(app)
+	block(app)
+	endParse()
 }
 
 fun requiresActivity(block: AppCompatActivity.() -> Unit) {
-  XmlInflaterTest.activity.block()
+	XmlInflaterTest.activity.block()
 }

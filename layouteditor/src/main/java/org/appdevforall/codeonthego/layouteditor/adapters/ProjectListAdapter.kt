@@ -63,7 +63,7 @@ class ProjectListAdapter(private val projects: MutableList<ProjectFile>) :
       holder.itemView.context, R.anim.project_list_animation
     )
     holder.projectName.text = projects[position].name
-    holder.projectDate.text = projects[position].date
+    holder.projectDate.text = projects[position].createdAt
 
     TooltipCompat.setTooltipText(holder.menu, context.getString(string.options))
     TooltipCompat.setTooltipText(holder.binding.root, projects[position].name)

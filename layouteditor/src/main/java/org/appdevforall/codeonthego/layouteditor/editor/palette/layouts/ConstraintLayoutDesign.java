@@ -4,14 +4,12 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.drawable.Drawable;
 import android.view.View;
-import androidx.appcompat.content.res.AppCompatResources;
+
 import androidx.constraintlayout.widget.ConstraintLayout;
-import androidx.constraintlayout.widget.ConstraintSet;
-import org.appdevforall.codeonthego.layouteditor.utils.Utils;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
+import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 
 public class ConstraintLayoutDesign extends ConstraintLayout {
   private boolean drawStrokeEnabled;
