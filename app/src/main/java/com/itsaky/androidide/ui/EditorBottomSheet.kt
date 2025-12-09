@@ -52,6 +52,7 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
+import com.itsaky.androidide.fragments.SearchResultFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -430,24 +431,9 @@ constructor(
 		runOnUiThread { pagerAdapter.diagnosticsFragment?.setAdapter(adapter) }
 	}
 
-	fun setSearchResultAdapter(adapter: SearchListAdapter) {
-        viewModel.setSheetState(
-            sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
-            currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT
-        )
-
-        (context as? FragmentActivity)?.lifecycleScope?.launch {
-            repeat(10) {
-                val fragment = pagerAdapter.searchResultFragment
-                if (fragment != null && fragment.isAdded && !fragment.isDetached) {
-                    fragment.setAdapter(adapter)
-                    fragment.isEmpty = adapter.itemCount == 0
-                    return@launch
-                }
-                delay(50)
-            }
-        }
-	}
+    fun setSearchResultAdapter(adapter: SearchListAdapter) {
+        runOnUiThread { pagerAdapter.searchResultFragment?.setAdapter(adapter) }
+    }
 
 	fun refreshSymbolInput(editor: CodeEditorView) {
 		binding.symbolInput.refresh(editor.editor, forFile(editor.file))

@@ -857,7 +857,12 @@ abstract class BaseEditorActivity :
             doOpenFile(match.file, match)
             hideBottomSheet()
         })
+        editorViewModel.onSearchResultsReady(results)
 
+        bottomSheetViewModel.setSheetState(
+            sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+            currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT
+        )
         doDismissSearchProgress()
     }
 
