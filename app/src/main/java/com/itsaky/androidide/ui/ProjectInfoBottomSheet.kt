@@ -44,49 +44,71 @@ class ProjectInfoBottomSheet(
     // -----------------------------
     private fun bindGeneral() {
         val unknown = getString(R.string.unknown)
-        binding.infoName.setLabel(getString(R.string.project_info_name))
-        binding.infoName.setValue(project.name)
+        binding.infoName.setLabelAndValue(
+            getString(R.string.project_info_name),
+            project.name
+        )
 
-        binding.infoLocation.setLabel(getString(R.string.project_info_path))
-        binding.infoLocation.setValue(project.path)
+        binding.infoLocation.setLabelAndValue(
+            getString(R.string.project_info_path),
+            project.path
+				)
         binding.infoLocation.setOnClickListener { copyToClipboard(project.path) }
 
-        binding.infoTemplate.setLabel(getString(R.string.project_info_template))
-        binding.infoTemplate.setValue(recentProject?.templateName ?: unknown)
+        binding.infoTemplate.setLabelAndValue(
+            getString(R.string.project_info_template),
+            recentProject?.templateName ?: unknown
+				)
 
-        binding.infoCreatedAt.setLabel(getString(R.string.date_created_label))
-        binding.infoCreatedAt.setValue(formatDate(project.createdAt ?: unknown))
+        binding.infoCreatedAt.setLabelAndValue(
+            getString(R.string.date_created_label),
+            formatDate(project.createdAt ?: unknown)
+				)
 
-        binding.infoModifiedAt.setLabel(getString(R.string.date_modified_label))
-        binding.infoModifiedAt.setValue(formatDate(project.lastModified ?: unknown))
+        binding.infoModifiedAt.setLabelAndValue(
+            getString(R.string.date_modified_label),
+            formatDate(project.lastModified ?: unknown)
+				)
     }
 
     // -----------------------------
     // STRUCTURE
     // -----------------------------
     private fun bindStructure() {
-        binding.infoSize.setLabel(getString(R.string.project_info_size))
-        binding.infoSize.setValue(details.sizeFormatted)
+        binding.infoSize.setLabelAndValue(
+            getString(R.string.project_info_size),
+            details.sizeFormatted
+				)
 
-        binding.infoFilesCount.setLabel(getString(R.string.project_info_files_count))
-        binding.infoFilesCount.setValue(details.numberOfFiles.toString())
+        binding.infoFilesCount.setLabelAndValue(
+            getString(R.string.project_info_files_count),
+            details.numberOfFiles.toString()
+				)
     }
 
     // -----------------------------
     // BUILD SETUP
     // -----------------------------
     private fun bindBuildSetup() {
-        binding.infoLanguage.setLabel(getString(R.string.wizard_language))
-        binding.infoLanguage.setValue(recentProject?.language ?: getString(R.string.unknown))
+        binding.infoLanguage.setLabelAndValue(
+            getString(R.string.wizard_language),
+            recentProject?.language ?: getString(R.string.unknown)
+				)
 
-        binding.infoGradleVersion.setLabel(getString(R.string.project_info_gradle_v))
-        binding.infoGradleVersion.setValue(details.gradleVersion)
+        binding.infoGradleVersion.setLabelAndValue(
+            getString(R.string.project_info_gradle_v),
+            details.gradleVersion
+				)
 
-        binding.infoKotlinVersion.setLabel(getString(R.string.project_info_kotlin_v))
-        binding.infoKotlinVersion.setValue(details.kotlinVersion)
+        binding.infoKotlinVersion.setLabelAndValue(
+            getString(R.string.project_info_kotlin_v),
+            details.kotlinVersion
+				)
 
-        binding.infoJavaVersion.setLabel(getString(R.string.project_info_java_v))
-        binding.infoJavaVersion.setValue(details.javaVersion)
+        binding.infoJavaVersion.setLabelAndValue(
+            getString(R.string.project_info_java_v),
+            details.javaVersion
+				)
     }
 
     // -----------------------------

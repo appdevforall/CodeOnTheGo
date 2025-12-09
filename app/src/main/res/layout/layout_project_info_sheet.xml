@@ -37,7 +37,6 @@
                 app:tint="@android:color/black" />
         </LinearLayout>
 
-        <!-- GENERAL -->
         <TextView
 		    android:text="@string/project_info_general_title"
 		    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
@@ -74,7 +73,6 @@
 
         <include layout="@layout/layout_project_info_divider" />
 
-        <!-- STRUCTURE -->
         <TextView
 		    android:text="@string/project_info_structure_title"
 		    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
@@ -96,7 +94,6 @@
 
         <include layout="@layout/layout_project_info_divider" />
 
-		<!-- BUILD -->
 		<TextView
 		    android:text="@string/project_info_build_title"
 		    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"

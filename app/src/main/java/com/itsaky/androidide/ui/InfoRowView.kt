@@ -49,4 +49,9 @@ class InfoRowView @JvmOverloads constructor(
     fun setValue(text: String) {
         valueView.text = text
     }
+
+    fun setLabelAndValue(label: String, value: String) {
+        setLabel(label)
+        setValue(value)
+    }
 }
