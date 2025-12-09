@@ -5,17 +5,19 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import org.appdevforall.codeonthego.layouteditor.editor.positioning.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addNewId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
+import org.appdevforall.codeonthego.layouteditor.utils.Constants.ATTR_INITIAL_POS
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.createView
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.invokeMethod
-import org.appdevforall.codeonthego.layouteditor.utils.restorePositionsAfterLoad
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
@@ -29,6 +31,10 @@ class XmlLayoutParser(
 
 	private val initializer: AttributeInitializer
 	private val listViews: MutableList<View> = ArrayList()
+
+	companion object {
+    const val MARKER_IS_INCLUDE = "tools:is_xml_include"
+	}
 
 	init {
 		val attributes =
@@ -113,25 +119,21 @@ class XmlLayoutParser(
 						}
 
 						"include" -> {
-							val layoutAttr = parser.getAttributeValue(null, "layout")
-							val layoutName = layoutAttr?.removePrefix("@layout/")
+							val placeholder = View(context)
 
-							if (!layoutName.isNullOrBlank()) {
-								val resId =
-									context.resources.getIdentifier(
-										layoutName,
-										"layout",
-										context.packageName,
-									)
-								if (resId != 0) {
-									val includedParser = context.resources.getLayout(resId)
-									parseFromXml(includedParser, context)
-								} else {
-									Log.e("XmlParser", "Unknown included layout: $layoutName")
-								}
-							}
-							parser.next()
-							continue
+							val attrs = AttributeMap()
+
+							for (i in 0 until parser.attributeCount) {
+                attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
+              }
+
+              attrs.putValue(MARKER_IS_INCLUDE, "true")
+
+              viewAttributeMap[placeholder] = attrs
+              listViews.add(placeholder)
+
+              parser.next()
+              continue
 						}
 
 						"merge" -> {
@@ -149,13 +151,15 @@ class XmlLayoutParser(
 						}
 					}
 
-					val map = AttributeMap()
-					for (i in 0 until parser.attributeCount) {
-						val fullName = parser.getAttributeName(i)
-						val value = parser.getAttributeValue(i)
-						map.putValue(fullName, value)
+          if (view != null && tagName != "fragment") {
+						val map = AttributeMap()
+						for (i in 0 until parser.attributeCount) {
+							val fullName = parser.getAttributeName(i)
+							val value = parser.getAttributeValue(i)
+							map.putValue(fullName, value)
+						}
+						viewAttributeMap[view] = map
 					}
-					view?.let { viewAttributeMap[it] = map }
 				}
 
 				/**
@@ -207,6 +211,13 @@ class XmlLayoutParser(
 		val allAttrs = initializer.getAllAttributesForView(target)
 
 		val keys = attributeMap.keySet()
+		val initialPosition = attributeMap.getValue(ATTR_INITIAL_POS)
+		attributeMap.removeValue(ATTR_INITIAL_POS)
+
+		if (shouldCenter(initialPosition, target)) {
+			applyBaseCenterConstraints(target, attributeMap)
+			centerAfterLayout(target, attributeMap)
+		}
 
 		for (i in keys.indices.reversed()) {
 			val key = keys[i]
@@ -230,6 +241,63 @@ class XmlLayoutParser(
 
 			Log.d("applyAttributes", "Applying attribute $key to view $target with value $value")
 			invokeMethod(methodName, className, target, value, target.context)
+		}
+	}
+
+	private fun shouldCenter(initialPosition: String?, target: View): Boolean {
+		return initialPosition == "center" && target.parent is ConstraintLayout
+	}
+
+	private fun applyBaseCenterConstraints(
+	  target: View,
+	  attributeMap: AttributeMap
+	) {
+		val params = (target.layoutParams as? ConstraintLayout.LayoutParams) ?: return
+
+		params.apply {
+			startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+			topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+			endToEnd = ConstraintLayout.LayoutParams.UNSET
+			bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+			setMargins(0, 0, 0, 0)
+		}
+		target.layoutParams = params
+
+		attributeMap.apply {
+			putValue("app:layout_constraintStart_toStartOf", "parent")
+			putValue("app:layout_constraintTop_toTopOf", "parent")
+
+			removeValue("app:layout_constraintEnd_toEndOf")
+			removeValue("app:layout_constraintBottom_toBottomOf")
+			removeValue("app:layout_constraintHorizontal_bias")
+			removeValue("app:layout_constraintVertical_bias")
+		}
+	}
+
+	private fun centerAfterLayout(
+	  target: View,
+	  attributeMap: AttributeMap
+	) {
+		target.post {
+			val parent = target.parent as View
+			if (parent.width <= 0 || parent.height <= 0) return@post
+
+			val centeredX = (parent.width - target.width) / 2
+			val centeredY = (parent.height - target.height) / 2
+
+			val layoutParams = (target.layoutParams as? ConstraintLayout.LayoutParams) ?: return@post
+
+			layoutParams.apply {
+				marginStart = centeredX
+				topMargin = centeredY
+			}.also { target.layoutParams = it }
+
+			val density = target.resources.displayMetrics.density
+			val startDp = (centeredX / density).toInt()
+			val topDp = (centeredY / density).toInt()
+
+			attributeMap.putValue("android:layout_marginStart", "${startDp}dp")
+			attributeMap.putValue("android:layout_marginTop", "${topDp}dp")
 		}
 	}
 }

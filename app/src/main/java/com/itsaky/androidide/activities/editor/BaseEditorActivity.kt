@@ -82,7 +82,7 @@ import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
-import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
@@ -123,6 +123,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
@@ -176,6 +177,8 @@ abstract class BaseEditorActivity :
 
 	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
 	val editorViewModel by viewModels<EditorViewModel>()
+
+	val recentProjectsViewModel by viewModels<RecentProjectsViewModel>()
 	val debuggerViewModel by viewModels<DebuggerViewModel>()
 	val wadbViewModel by viewModels<WADBViewModel>()
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
@@ -479,7 +482,7 @@ abstract class BaseEditorActivity :
 	}
 
 	@Subscribe(threadMode = MAIN)
-	open fun onInstallationResult(event: InstallationResultEvent) {
+	open fun onInstallationResult(event: InstallationEvent.InstallationResultEvent) {
 		val intent = event.intent
 		if (isDestroying) {
 			return

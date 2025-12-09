@@ -12,7 +12,7 @@
         "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.buttons.ImageButtonDesign",
         "iconName": "ic_palette_image_button",
         "defaultAttributes": {
-            "android:src": "@drawable/default_image"
+            "android:src": "@drawable/ic_launcher_round"
         }
     },
     {

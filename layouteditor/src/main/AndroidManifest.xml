@@ -9,13 +9,6 @@
   <uses-permission android:name="android.permission.VIBRATE" />
 
   <application>
-
-    <activity
-      android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
-      android:theme="@style/AppTheme.Licence" />
-    <activity
-      android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
-      android:theme="@style/AppTheme.Licence" />
     <activity
       android:name=".activities.EditorActivity"
       android:exported="true" />
@@ -37,7 +30,6 @@
       android:name=".activities.PreviewDrawableActivity"
       android:exported="true"
       android:parentActivityName=".activities.ResourceManagerActivity" />
-    <activity android:name=".activities.HelpActivity"/>
   </application>
 
 </manifest>
