@@ -66,7 +66,7 @@ class IDETooltipWebviewFragment : Fragment() {
                 }
             })
 
-        website = arguments?.getString(MainFragment.KEY_TOOLTIP_URL).toString()
+        website = arguments?.getString(MainFragment.KEY_TOOLTIP_URL).orEmpty()
 
         val safeContext = ContextThemeWrapper(requireContext().applicationContext, requireContext().theme)
         val view = LayoutInflater.from(safeContext).inflate(R.layout.fragment_idetooltipwebview, container, false)
