@@ -50,6 +50,12 @@ class RecentProjectsFragment : BaseFragment() {
 	private var selectedAsc = true
 	private val searchQuery = MutableStateFlow("")
 
+	data class SortToggleStyle(
+		val iconRes: Int,
+		val colorRes: Int,
+		val textRes: Int
+	)
+
 	override fun onCreateView(
 		inflater: LayoutInflater,
 		container: ViewGroup?,
@@ -181,19 +187,19 @@ class RecentProjectsFragment : BaseFragment() {
 	 * Updates the arrow icon, the background color and the text based on ascending state.
 	 */
 	private fun setupSortToggle(button: MaterialButton, asc: Boolean) {
-		val (iconRes, colorRes, textRes) = if (asc) {
-			Triple(
+		val style = if (asc) {
+			SortToggleStyle(
 				R.drawable.ic_arrow_up, R.color._blue_wave_light_colorPrimaryDark, R.string.sort_ascending
 			)
 		} else {
-			Triple(
+			SortToggleStyle(
 				R.drawable.ic_arrow_down, R.color._blue_wave_dark_colorOnSecondary, R.string.sort_descending
 			)
 		}
 		button.apply {
-			setIconResource(iconRes)
-			backgroundTintList = ContextCompat.getColorStateList(context, colorRes)
-			setText(textRes)
+			setIconResource(style.iconRes)
+			backgroundTintList = ContextCompat.getColorStateList(context, style.colorRes)
+			setText(style.textRes)
 		}
 	}
 
