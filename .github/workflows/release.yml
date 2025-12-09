@@ -645,8 +645,6 @@ jobs:
         run: |
           # Remove SSH key
           rm -f ~/.ssh/id_rsa
-          # Remove downloaded log files
-          rm -rf r0-download-statistics/work
           # Clean up SSH known_hosts (remove the entry for this host)
           SSH_HOST="${{ vars.GREENGEEKS_SSH_HOST }}"
           if [ -n "$SSH_HOST" ]; then
