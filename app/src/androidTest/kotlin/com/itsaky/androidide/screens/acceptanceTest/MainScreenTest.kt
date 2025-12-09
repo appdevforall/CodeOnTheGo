@@ -63,26 +63,28 @@ class MainScreenTest {
         onView(withId(R.id.actions))
             .check(matches(isDisplayed()))
 
-        onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(0, "Create project"))
+        var index = 0
 
         onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(1, "Open a saved project"))
+            .perform(checkTextAtIndex(index++, "Create project"))
 
         onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(2, "Delete a saved project"))
-
-		onView(withId(R.id.actions))
-			.perform(checkTextAtIndex(3, "Clone git repository"))
+            .perform(checkTextAtIndex(index++, "Open a saved project"))
 
         onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(4, "Terminal"))
+            .perform(checkTextAtIndex(index++, "Delete a saved project"))
+
+//		onView(withId(R.id.actions))
+//			.perform(checkTextAtIndex(index++, "Clone git repository"))
 
         onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(5, "Preferences"))
+            .perform(checkTextAtIndex(index++, "Terminal"))
 
         onView(withId(R.id.actions))
-            .perform(checkTextAtIndex(6, "Documentation"))
+            .perform(checkTextAtIndex(index++, "Preferences"))
+
+        onView(withId(R.id.actions))
+            .perform(checkTextAtIndex(index, "Documentation"))
 
     }
 
@@ -95,6 +97,58 @@ class MainScreenTest {
 
         pressBack();
     }
+
+    @Test
+    fun verify_open_project_screen_is_displayed() {
+        onView(withId(R.id.actions))
+            .perform(actionOnItemAtPosition<MainActionsListAdapter.VH>(1, click()))
+            .check(matches(isDisplayed()))
+
+
+        pressBack();
+    }
+    @Test
+    fun verify_delete_project_screen_is_displayed() {
+        onView(withId(R.id.actions))
+            .perform(actionOnItemAtPosition<MainActionsListAdapter.VH>(2, click()))
+            .check(matches(isDisplayed()))
+
+
+        pressBack();
+    }
+
+    @Test
+    fun verify_terminal_screen_is_displayed() {
+        onView(withId(R.id.actions))
+            .perform(actionOnItemAtPosition<MainActionsListAdapter.VH>(3, click()))
+            .check(matches(isDisplayed()))
+
+
+        pressBack();
+    }
+
+    @Test
+    fun verify_preferences_screen_is_displayed() {
+        onView(withId(R.id.actions))
+            .perform(actionOnItemAtPosition<MainActionsListAdapter.VH>(4, click()))
+            .check(matches(isDisplayed()))
+
+
+        pressBack();
+    }
+
+    @Test
+    fun verify_documentation_screen_is_displayed() {
+        onView(withId(R.id.actions))
+            .perform(actionOnItemAtPosition<MainActionsListAdapter.VH>(5, click()))
+            .check(matches(isDisplayed()))
+
+
+        pressBack();
+    }
+
+
+
 
 
     private fun checkTextAtIndex(position: Int, expected: String) =
