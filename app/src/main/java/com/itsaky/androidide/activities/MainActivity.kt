@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.activities
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
@@ -30,7 +29,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -117,19 +115,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         openLastProject()
 
-        lifecycleScope.launch {
-            val experimentsEnabled = withContext(Dispatchers.IO) {
-                FeatureFlags.isExperimentsEnabled()
-            }
-            if (experimentsEnabled) {
-                binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
-            }
-        }
+		if (FeatureFlags.isExperimentsEnabled) {
+			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+		}
 
         feedbackButtonManager = FeedbackButtonManager(
             activity = this,
             feedbackFab = binding.fabFeedback,
         )
+
         feedbackButtonManager?.setupDraggableFab()
 
         viewModel.currentScreen.observe(this) { screen ->

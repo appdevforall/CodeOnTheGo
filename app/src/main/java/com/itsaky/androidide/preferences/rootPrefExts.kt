@@ -40,7 +40,7 @@ class ConfigurationPreferences(
     addPreference(TermuxPreferences())
 
     // Only show Plugin Manager when experimental features are enabled
-    if (FeatureFlags.isExperimentsEnabled()) {
+    if (FeatureFlags.isExperimentsEnabled) {
       addPreference(PluginManagerEntry())
     }
     

@@ -33,7 +33,7 @@ class GreetingFragment :
         super.onViewCreated(view, savedInstanceState)
 
         // EXPERIMENTAL MODE - Crash app in order to capture exception on Sentry
-        if (FeatureFlags.isExperimentsEnabled()) {
+        if (FeatureFlags.isExperimentsEnabled) {
             binding.icon.setOnLongClickListener {
                 crashApp()
                 true

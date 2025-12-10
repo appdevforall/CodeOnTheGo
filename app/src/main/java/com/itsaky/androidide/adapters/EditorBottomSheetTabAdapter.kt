@@ -32,7 +32,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
 
@@ -111,7 +110,7 @@ class EditorBottomSheetTabAdapter(
 				),
 			)
 
-			if (isExperimentsEnabled()) {
+			if (isExperimentsEnabled) {
 				add(
 					Tab(
 						title = fragmentActivity.getString(R.string.title_agent),

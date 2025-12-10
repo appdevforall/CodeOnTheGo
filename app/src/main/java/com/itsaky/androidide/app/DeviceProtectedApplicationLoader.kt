@@ -21,7 +21,6 @@ import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
 import io.sentry.SentryReplayOptions.SentryReplayQuality
 import io.sentry.android.core.SentryAndroid
-import io.sentry.android.core.SentryAndroidOptions
 import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.koin.android.ext.koin.androidContext
@@ -50,17 +49,15 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
         // Enable StrictMode for debug builds
         if (BuildConfig.DEBUG) {
-            CoroutineScope(Dispatchers.Main).launch {
-                val reprieve = withContext(Dispatchers.IO) {
-                    FeatureFlags.isReprieveEnabled()
-                }
-
+            app.coroutineScope.launch(Dispatchers.Main) {
+                val reprieve = FeatureFlags.isReprieveEnabled
                 StrictMode.setThreadPolicy(
                     StrictMode.ThreadPolicy.Builder()
                         .detectAll()
                         .apply { if (reprieve) penaltyLog() else penaltyDeath() }
                         .build()
                 )
+
                 StrictMode.setVmPolicy(
                     StrictMode.VmPolicy.Builder()
                         .detectAll()

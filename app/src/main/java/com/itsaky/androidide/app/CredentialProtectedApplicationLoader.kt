@@ -17,6 +17,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
+import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.VMUtils
 import io.sentry.Sentry
@@ -56,7 +57,6 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	val isLoaded: Boolean
 		get() = _isLoaded.get()
 
-	@OptIn(DelicateCoroutinesApi::class)
 	override fun load(app: IDEApplication) {
 		if (isLoaded) {
 			logger.warn("Attempt to perform multiple loads of the application. Ignoring.")
@@ -67,6 +67,12 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 		logger.info("Loading credential protected storage context components...")
 		application = app
+
+		app.coroutineScope.launch {
+			// need to access file system to determine values for feature flags
+			// so we do it in credential protected application loader
+			FeatureFlags.initialize()
+		}
 
 		EventBus.getDefault().register(this)
 
@@ -85,7 +91,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 		initializePluginSystem()
 
-		GlobalScope.launch {
+		app.coroutineScope.launch {
 			IDEColorSchemeProvider.init()
 		}
 
