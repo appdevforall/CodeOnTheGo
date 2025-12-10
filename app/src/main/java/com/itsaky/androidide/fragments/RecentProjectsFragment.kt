@@ -52,8 +52,7 @@ class RecentProjectsFragment : BaseFragment() {
 
 	data class SortToggleStyle(
 		val iconRes: Int,
-		val colorRes: Int,
-		val textRes: Int
+		val colorRes: Int
 	)
 
 	override fun onCreateView(
@@ -189,17 +188,16 @@ class RecentProjectsFragment : BaseFragment() {
 	private fun setupSortToggle(button: MaterialButton, asc: Boolean) {
 		val style = if (asc) {
 			SortToggleStyle(
-				R.drawable.ic_arrow_up, R.color._blue_wave_light_colorPrimaryDark, R.string.sort_ascending
+				R.drawable.ic_arrow_up, R.color._blue_wave_light_colorPrimaryDark
 			)
 		} else {
 			SortToggleStyle(
-				R.drawable.ic_arrow_down, R.color._blue_wave_dark_colorOnSecondary, R.string.sort_descending
+				R.drawable.ic_arrow_down, R.color._blue_wave_dark_colorOnSecondary
 			)
 		}
 		button.apply {
 			setIconResource(style.iconRes)
 			backgroundTintList = ContextCompat.getColorStateList(context, style.colorRes)
-			setText(style.textRes)
 		}
 	}
 

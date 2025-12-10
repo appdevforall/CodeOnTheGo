@@ -8,7 +8,7 @@
     android:layout_height="wrap_content">
 
     <TextView
-        android:text="@string/filters_and_sorting"
+        android:text="@string/sort_projects_label"
         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
@@ -40,18 +40,13 @@
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/sort_toggle_btn"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/Widget.Material3.Button.OutlinedButton.Icon"
             android:backgroundTint="@color/_blue_wave_light_colorPrimaryDark"
-            android:layout_width="100dp"
+            android:layout_width="50dp"
             android:layout_height="match_parent"
-            android:textSize="@dimen/_12sp"
             android:layout_marginStart="12dp"
-            android:text="@string/sort_ascending"
-            android:textColor="@android:color/white"
-            app:cornerRadius="18dp"
             app:icon="@drawable/ic_arrow_up"
-            app:iconTint="@android:color/white"
-            app:iconGravity="textStart" />
+            app:iconTint="@android:color/primary_text_dark" />
     </LinearLayout>
 
     <LinearLayout
@@ -69,9 +64,9 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
             android:visibility="gone"
-            android:text="@string/clear_filters"
+            android:text="@string/reset_sorting"
             app:iconTint="@color/white"
             app:icon="@drawable/ic_close" />
 
@@ -83,7 +78,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:text="@string/apply_filters" />
+            android:text="@string/apply_sorting" />
     </LinearLayout>
 
 </LinearLayout>

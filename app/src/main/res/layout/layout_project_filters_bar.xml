@@ -31,5 +31,5 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="6dp"
-        app:icon="@drawable/ic_filter" />
+        app:icon="@drawable/ic_sort" />
 </LinearLayout>
