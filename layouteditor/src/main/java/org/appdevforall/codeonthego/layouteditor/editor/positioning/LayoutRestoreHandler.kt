@@ -17,7 +17,7 @@ import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
 import kotlin.sequences.forEach
 
 
-fun ConstraintLayout.cloneWithIds(): ConstraintSet {
+private fun ConstraintLayout.cloneWithIds(): ConstraintSet {
 	children.forEach { child ->
 		if (child.id == View.NO_ID) {
 			child.id = View.generateViewId()
