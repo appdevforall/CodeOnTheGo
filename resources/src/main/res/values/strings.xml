@@ -659,7 +659,10 @@
 	<string name="msg_cannot_access_folder">Cannot access folder %1$s. Check storage permissions.</string>
 	<string name="msg_no_subfolders">The folder %1$s does not contain any subfolders.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
-	<string name="date">Date</string>
+	<string name="date">%1$s: %2$s</string>
+	<string name="date_created_label">Created</string>
+	<string name="date_modified_label">Modified</string>
+	<string name="loading_project">Loading project…</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
 	<string name="open_from_folder">Open from folder</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
