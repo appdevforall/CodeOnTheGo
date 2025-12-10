@@ -139,8 +139,10 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 
 		applyBtn.setOnClickListener {
-			selectedCriteria?.let { viewModel.onSortSelected(it) }
-			viewModel.onSortDirectionChanged(selectedAsc)
+			viewLifecycleScope.launch {
+				selectedCriteria?.let { viewModel.onSortSelected(it) }
+				viewModel.onSortDirectionChanged(selectedAsc)
+			}
 			viewModel.notifyFiltersSaved()
 		}
 
@@ -153,7 +155,9 @@ class RecentProjectsFragment : BaseFragment() {
 			binding.layoutFilters.searchProjectEditText.text?.clear()
 
 			clearBtn.isVisible = false
-			viewModel.clearFilters()
+			viewLifecycleScope.launch {
+				viewModel.clearFilters()
+			}
 
 			viewModel.notifyFiltersSaved()
 		}

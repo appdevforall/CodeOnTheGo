@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class SortCriteria {
     NAME,
@@ -61,41 +62,45 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    private fun applyFilters() {
-        var result = allProjects
+    private suspend fun applyFilters() {
+        withContext(Dispatchers.Default) {
+            var result = allProjects
 
-        if (currentQuery.isNotEmpty()) {
-            result = result.filter { it.name.contains(currentQuery, ignoreCase = true) }
-        }
-
-        currentSort.let { criteria ->
-            result = when (criteria) {
-                SortCriteria.NAME -> result.sortedBy { it.name.lowercase() }
-                SortCriteria.DATE_CREATED -> result.sortedBy { it.createdAt }
-                SortCriteria.DATE_MODIFIED -> result.sortedBy { it.lastModified }
-                else -> result
+            if (currentQuery.isNotEmpty()) {
+                result = result.filter { it.name.contains(currentQuery, ignoreCase = true) }
             }
-            if (!isAscending) { result = result.reversed() }
+
+            currentSort.let { criteria ->
+                result = when (criteria) {
+                    SortCriteria.NAME -> result.sortedBy { it.name.lowercase() }
+                    SortCriteria.DATE_CREATED -> result.sortedBy { it.createdAt }
+                    SortCriteria.DATE_MODIFIED -> result.sortedBy { it.lastModified }
+                    else -> result
+                }
+                if (!isAscending) {
+                    result = result.reversed()
+                }
+            }
+            _projects.postValue(result)
         }
-        _projects.postValue(result)
     }
 
-    fun onSearchQuery(query: String) {
+    suspend fun onSearchQuery(query: String) {
         currentQuery = query.trim()
         applyFilters()
     }
 
-    fun onSortSelected(criteria: SortCriteria?) {
+    suspend fun onSortSelected(criteria: SortCriteria?) {
         currentSort = criteria
         applyFilters()
     }
 
-    fun onSortDirectionChanged(ascending: Boolean) {
+    suspend fun onSortDirectionChanged(ascending: Boolean) {
         isAscending = ascending
         applyFilters()
     }
 
-    fun clearFilters() {
+    suspend fun clearFilters() {
         currentSort = null
         isAscending = true
         currentQuery = ""
