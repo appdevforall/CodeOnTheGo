@@ -27,6 +27,7 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/open_filters_btn"
+        android:contentDescription="@string/sort_projects_label"
         style="@style/Widget.Material3.Button.IconButton.Filled"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
