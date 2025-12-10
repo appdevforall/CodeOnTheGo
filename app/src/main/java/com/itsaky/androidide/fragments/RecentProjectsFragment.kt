@@ -111,10 +111,10 @@ class RecentProjectsFragment : BaseFragment() {
 	}
 
 	private fun setupFilters(sheet: View) {
-		val sortDropdown = sheet.findViewById<MaterialAutoCompleteTextView>(R.id.sort_dropdown)
-		val sortToggleBtn = sheet.findViewById<MaterialButton>(R.id.sort_toggle_btn)
-		val applyBtn = sheet.findViewById<MaterialButton>(R.id.apply_filters_btn)
-		val clearBtn = sheet.findViewById<MaterialButton>(R.id.clear_filters_btn)
+		val sortDropdown = sheet.requireViewById<MaterialAutoCompleteTextView>(R.id.sort_dropdown)
+		val sortToggleBtn = sheet.requireViewById<MaterialButton>(R.id.sort_toggle_btn)
+		val applyBtn = sheet.requireViewById<MaterialButton>(R.id.apply_filters_btn)
+		val clearBtn = sheet.requireViewById<MaterialButton>(R.id.clear_filters_btn)
 
 		selectedCriteria = viewModel.currentSortCriteria
 		selectedAsc = viewModel.currentSortAscending
