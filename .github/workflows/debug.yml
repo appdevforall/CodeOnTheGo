@@ -307,20 +307,23 @@ jobs:
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          FEATURE_BRANCH: ${{ github.head_ref }}
           NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
         run: |
-          # Extract Jira ticket from feature branch name
-          # Note: github.head_ref is only set for pull_request events.
-          # For push events (merge to stage), use github.ref (the merged branch)
-          BRANCH_NAME="${FEATURE_BRANCH:-${GITHUB_REF#refs/heads/}}"
-          JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+          # Try to get Jira ticket from extract_jira step output first (handles branch name and commit message)
+          JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           
-          if [ -z "$JIRA_TICKET" ]; then
-            echo "ERROR: No Jira ticket found in branch name: $BRANCH_NAME"
-            echo "Branch name must contain a Jira ticket in format ADFA-XXXX"
+          # If extract_jira didn't find a ticket (returned "N/A"), try merge commit message
+          if [ "$JIRA_TICKET" == "N/A" ] || [ -z "$JIRA_TICKET" ]; then
+            MERGE_COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "")
+            JIRA_TICKET=$(echo "$MERGE_COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1 || echo "")
+          fi
+          
+          if [ -z "$JIRA_TICKET" ] || [ "$JIRA_TICKET" == "N/A" ]; then
+            echo "ERROR: No Jira ticket found in branch name, commit message, or merge commit"
+            echo "Branch name or commit message must contain a Jira ticket in format ADFA-XXXX"
             exit 1
           fi
+          
           echo "Found Jira ticket: $JIRA_TICKET"
           
           # Validate NEXT_RELEASE_VERSION exists and exactly two digits, dot, two digits
