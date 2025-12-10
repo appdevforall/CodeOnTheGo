@@ -131,7 +131,7 @@
 	<string name="new_xml_resource">New XML resource</string>
 	<string name="new_folder">New folder</string>
 	<string name="title_confirm_delete">Confirm delete</string>
-	<string name="msg_confirm_delete">Are you sure you want to delete \n%s?</string>
+	<string name="msg_confirm_delete">Are you sure you want to delete: \n%s?</string>
 	<string name="copied">Copied successfully!</string>
 	<string name="msg_rename_file">Enter a new name for the file/folder.</string>
 	<string name="renamed">Renamed successfully</string>
@@ -463,7 +463,7 @@
 	<!-- GitHub -->
 	<string name="title_warning">Warning</string>
 	<string name="title_github" translatable="false">GitHub</string>
-	<string name="choose_different_location">Choose different location</string>
+	<string name="choose_different_location">Choose a different location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
 	<string name="error_deleting_directory">Error while deleting the directory: %s</string>
@@ -655,7 +655,7 @@
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_no_valid_projects">No valid Android projects found in %1$s</string>
-	<string name="msg_skipped_invalid_projects">Some folders were skipped because they are valid Android project folders.</string>
+	<string name="msg_skipped_invalid_projects">Some folders were skipped because they are not valid Android project folders.</string>
 	<string name="msg_cannot_access_folder">Cannot access folder %1$s. Check storage permissions.</string>
 	<string name="msg_no_subfolders">The folder %1$s does not contain any subfolders.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
@@ -793,9 +793,9 @@
 	<!-- Error message displayed when the application cannot connect to the wireless debugging service port. -->
 	<string name="cannot_connect_port">Can\'t connect to wireless debugging service.</string>
 
-	<!-- Error message displayed when the KeyStore mechanism on the device is broken, preventing key generation for wireless
+	<!-- Error message displayed when the Keystore mechanism on the device is broken, preventing key generation for wireless
 		debugging. -->
-	<string name="adb_error_key_store">Unable to generate key for wireless debugging.\The device may have a broken KeyStore mechanism on this device.</string>
+	<string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThe device may have a broken Keystore mechanism.</string>
 
 	<!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
 	<string name="dialog_adb_pairing_paring_code">Pairing code</string>
@@ -812,7 +812,7 @@
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
-	<string name="adb_pair_required">Please enable wireless debugging and pair the device with the service.</string>
+	<string name="adb_pair_required">Please enable wireless debugging and follow the intructions to pair the debugger.</string>
 
 	<!-- Status message indicating that the application is searching for the ADB connection port. Placeholder %1$d represents
 		the number of times the IDE has tried to find the port. Placeholder %2$d represents the maximum number of attempts to find
