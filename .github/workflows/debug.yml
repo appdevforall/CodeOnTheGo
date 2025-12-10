@@ -339,6 +339,7 @@ jobs:
           JIRA_API_URL="${JIRA_BASE_URL}/rest/api/3/issue/${JIRA_TICKET}"
           
           # Prepare JSON payload for fixVersions update
+          # Assumes NEXT_RELEASE_VERSION has already been created in Jira.
           JSON_PAYLOAD=$(jq -n \
             --arg version "$NEXT_RELEASE_VERSION" \
             '{
