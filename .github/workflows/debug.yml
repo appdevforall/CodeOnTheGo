@@ -298,21 +298,23 @@ jobs:
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
       - name: Update Jira Fix Version
-        if: github.event.pull_request.base.ref == 'stage'
+        if: github.ref == 'refs/heads/stage'
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          FEATURE_BRANCH: ${{ github.head_ref }}
         run: |
           # Extract Jira ticket from feature branch name
-          FEATURE_BRANCH="${{ github.head_ref }}"
-          JIRA_TICKET=$(echo "$FEATURE_BRANCH" | grep -o 'ADFA-[0-9]\+' | head -1)
+          # Note: github.head_ref is only set for pull_request events.
+          # For push events (merge to stage), use github.ref (the merged branch)
+          BRANCH_NAME="${FEATURE_BRANCH:-${GITHUB_REF#refs/heads/}}"
+          JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
           
           if [ -z "$JIRA_TICKET" ]; then
-            echo "ERROR: No Jira ticket found in branch name: $FEATURE_BRANCH"
+            echo "ERROR: No Jira ticket found in branch name: $BRANCH_NAME"
             echo "Branch name must contain a Jira ticket in format ADFA-XXXX"
             exit 1
           fi
-          
           echo "Found Jira ticket: $JIRA_TICKET"
           
           # Get and validate NEXT_RELEASE_VERSION
