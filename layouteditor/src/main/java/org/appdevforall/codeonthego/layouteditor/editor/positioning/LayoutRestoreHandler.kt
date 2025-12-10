@@ -11,9 +11,20 @@ import android.widget.TableRow
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.view.children
 import androidx.core.view.doOnLayout
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import kotlin.sequences.forEach
 
+
+fun ConstraintLayout.cloneWithIds(): ConstraintSet {
+	children.forEach { child ->
+		if (child.id == View.NO_ID) {
+			child.id = View.generateViewId()
+		}
+	}
+	return ConstraintSet().apply { clone(this@cloneWithIds) }
+}
 
 /**
  * Executes the core positioning logic for a **single view**.
@@ -73,8 +84,7 @@ private fun applyConstraintChanges(changesByContainer: Map<ConstraintLayout, Lis
     changesByContainer.forEach { (container, changeList) ->
         if (changeList.isEmpty()) return@forEach
 
-        val constraintSet = ConstraintSet()
-        constraintSet.clone(container)
+        val constraintSet = container.cloneWithIds()
         changeList.forEach { change ->
             modifyConstraintsForView(
                 constraintSet,
