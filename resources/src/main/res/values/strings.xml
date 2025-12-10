@@ -10,11 +10,11 @@
 	<string name="about_option_website">Website</string>
 	<string name="about_footer_alternate" translatable="false">Code on the Go v\u2022 %s</string>
 	<string name="about_footer">Code on the Go %1$s for %2$s</string>
-	<string name="about_subtitle">Simply, an IDE for Android</string>
-	<string name="msg_get_package_failed">Failed to extract package name!</string>
-	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
+	<string name="about_subtitle">No computer? No Internet? No problem. Code apps anywhere.</string>
+	<string name="msg_get_package_failed">Failed to extract package name.</string>
+	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
 	<string name="download_codeonthego_message">Download Code on the Go from the official website to get the latest features and updates.</string>
-	<string name="download_codeonthego_url">https://appdevforall.org/downloads</string>
+	<string name="download_codeonthego_url">https://appdevforall.org/codeonthego</string>
 	<string name="msg_invalid_url">Invalid URL provided.</string>
 	<string name="msg_no_browser_found">No browser found to handle the request.</string>
 	<string name="need_help">Need Help?</string>
@@ -45,9 +45,9 @@
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="err_asset_entry_not_found">Entry \'%1$s\' not found in assets zip file</string>
-	<string name="msg_picked_isnt_dir">The picked file is not a directory!</string>
+	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
-	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the Internal Storage partition. You currently have %2$.1fGB available.</string>
+	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
 
 	<!-- Project Builder -->
 	<string name="title_unsupported_device">This device is not supported</string>
@@ -58,7 +58,7 @@
 	<string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
 	<string name="preparing">Preparing</string>
 	<string name="preparing_first">Initializing a project may take a few moments.</string>
-	<string name="msg_installing_gradlew">Gradle Wrapper is not available!\nInstalling default one. Gradle v7.4 will be downloaded if necessary.</string>
+	<string name="msg_installing_gradlew">Gradle wrapper is not available.\nInstalling a default one. Gradle v7.4 will be downloaded if necessary.</string>
 	<string name="run">Run</string>
 	<string name="gradle" translatable="false">Gradle</string>
 	<string name="action_start_debugger">Debug</string>
@@ -74,13 +74,13 @@
 	<string name="project_app_name">App name</string>
 	<string name="msg_create_new_project_greeting">Read the Quick Start guide</string>
 	<string name="title_confirm_open_project">Open last project?</string>
-	<string name="msg_confirm_open_project">Do you want to open the last opened project? Opened project was:\n%s</string>
+	<string name="msg_confirm_open_project">Do you want to open the last opened project? The project was:\n%s</string>
 	<string name="title_close_project">Close this project</string>
-	<string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist!</string>
+	<string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist.</string>
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>
-	<string name="msg_delete_existing_project_failed">Failed to delete existing project</string>
+	<string name="msg_delete_existing_project_failed">Failed to delete existing project.</string>
 	<string name="title_confirm_project_close">Close project</string>
 	<string name="cancel_project_text">Cancel</string>
 	<string name="close_without_saving">Close without saving files</string>
@@ -131,9 +131,9 @@
 	<string name="new_xml_resource">New XML resource</string>
 	<string name="new_folder">New folder</string>
 	<string name="title_confirm_delete">Confirm delete</string>
-	<string name="msg_confirm_delete">Are you sure you want to delete:\n%s?</string>
+	<string name="msg_confirm_delete">Are you sure you want to delete \n%s?</string>
 	<string name="copied">Copied successfully!</string>
-	<string name="msg_rename_file">Enter new name for file/folder.</string>
+	<string name="msg_rename_file">Enter a new name for the file/folder.</string>
 	<string name="renamed">Renamed successfully</string>
 	<string name="rename_failed">Unable to rename file</string>
 	<string name="deleted">Deleted successfully</string>
@@ -201,17 +201,17 @@
 	<string name="title_viewaction_delete">Delete</string>
 	<string name="msg_yesno_def_title">Please confirm</string>
 	<string name="msg_yesno_def_message">Are you sure?</string>
-	<string name="msg_empty_ui_layout">No views have been added. Click to add.</string>
+	<string name="msg_empty_ui_layout">No views have been added. Click to add a view.</string>
 	<string name="msg_generate_xml_failed">Failed to generate XML code</string>
 	<string name="title_generating_xml">Generating XML code</string>
 	<string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
 
 	<!-- Crash Screen -->
 	<string name="msg_ide_crashed">Code on the Go crashed</string>
-	<string name="msg_crash_info">An internal error has occurred.\n\nDetails that will
+	<string name="msg_crash_info">An internal error has occurred.\n\nDetails to
 		help us fix the problem have been saved and will be sent securely the next time your
-		device is online.\n\nWhen you press OK, the app will close. Any unsaved changes may
-		be lost. Please restart the app to continue.\n\nIf this happens again, try restarting
+		device is online.\n\nWhen you press OK, the app will close and any unsaved changes may
+		be lost. Please restart the app to continue.\n\nIf the error happens again, try restarting
 		your device. If the problem persists, please %1$s</string>
 	<string name="contact_support_team">contact our support team.</string>
 	<string name="crash_email_subject">App Crash Report</string>
@@ -288,7 +288,7 @@
 	<string name="configure">Configure</string>
 	<string name="about">About</string>
 	<string name="idepref_channel_summary">Subscribe for latest updates.</string>
-	<string name="idepref_group_summary">Discuss features, bugs and improvements here.</string>
+	<string name="idepref_group_summary">Discuss features, bugs, and improvements here.</string>
 	<string name="idepref_changelog_summary">What\'s new in this version?</string>
 	<string name="idepref_about_summary">More about Code on the Go</string>
 	<string name="idepref_general_summary">General IDE configuration</string>
@@ -343,8 +343,8 @@
 	<string name="msg_package_is_to_long">Package name is to long</string>
 	<string name="msg_package_not_valid_char_1">The character \'_\' cannot be the first character in a package segment</string>
 	<string name="msg_package_not_use_digit_first">A digit cannot be the first character in a package segment</string>
-	<string name="msg_package_not_valid_char_2">The character "%1$s" is not allowed in Android application package names</string>
-	<string name="msg_package_mus_have_dot">The package must have at least one \'.\' separator</string>
+	<string name="msg_package_not_valid_char_2">The character "%1$s" is not allowed in Android application package names.</string>
+	<string name="msg_package_mus_have_dot">The package must have at least one \'.\' separator.</string>
 
 	<string name="action_import_classes">Import class(es)</string>
 	<string name="action_generate_setters_getters">Generate setters/getters</string>
@@ -386,7 +386,7 @@
 	<string name="hint_search_tasks">Search tasks…</string>
 	<string name="msg_err_select_tasks">Please select tasks to run</string>
 	<string name="title_confirmation">Confirmation</string>
-	<string name="msg_tasks_to_run">The following tasks will be run, in order. Click the \'Run\' button again to confirm.\n\n%1$s</string>
+	<string name="msg_tasks_to_run">The following tasks will be run in order. Click the \'Run\' button again to confirm.\n\n%1$s</string>
 	<string name="msg_loading_tasks">Loading tasks…</string>
 
 	<string name="ui_category_widgets" translatable="false">Widgets</string>
@@ -463,7 +463,7 @@
 	<!-- GitHub -->
 	<string name="title_warning">Warning</string>
 	<string name="title_github" translatable="false">GitHub</string>
-	<string name="choose_different_location">Choose Different Location</string>
+	<string name="choose_different_location">Choose different location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
 	<string name="error_deleting_directory">Error while deleting the directory: %s</string>
@@ -476,7 +476,7 @@
 	<string name="title_class_chooser">Which %1$s?</string>
 
 	<string name="permlab_bind_logger_service">bind to log service</string>
-	<string name="permdesc_bind_logger_service">Allows this application to bind to Code on the Go\'s logging service. This permission is required for Code on the Go to read logs of this application.</string>
+	<string name="permdesc_bind_logger_service">Allows this app to bind to Code on the Go\'s logging service. This permission is required for Code on the Go to read this app's logs.</string>
 	<string name="wizard_module_name">Module name</string>
 	<string name="wizard_module_type">Module type</string>
 	<string name="msg_invalid_module_name">Invalid Gradle module name</string>
@@ -566,7 +566,7 @@
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
 	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
-	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions. All of these permissions are required for Code on the Go to work.</string>
+	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions.</string>
 	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
 	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
 	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
@@ -586,7 +586,7 @@
 	<string name="hin_jdk_version">JDK version</string>
 	<string name="action_install_git">Install Git</string>
 	<string name="action_install_openssh">Install OpenSSH</string>
-	<string name="msg_terminal_new_sessions_disabled">Cannot create session. New sessions are disabled!</string>
+	<string name="msg_terminal_new_sessions_disabled">Cannot create session. New sessions are disabled.</string>
 	<string name="title_install_location_error">Install location error</string>
 	<string name="title_unsupported_user">Unsupported user</string>
 	<string name="title_socials">Socials</string>
@@ -625,7 +625,7 @@
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
 	<string name="debugger_state_not_paired">The app is not paired. Tap the debugger button to start wireless ADB pairing.</string>
-	<string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
+	<string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version.</string>
 
 	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
 	<string name="debugger_value_error">&lt;error&gt;</string>
@@ -655,7 +655,7 @@
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_no_valid_projects">No valid Android projects found in %1$s</string>
-	<string name="msg_skipped_invalid_projects">Some folders were skipped because they are not valid Android projects.</string>
+	<string name="msg_skipped_invalid_projects">Some folders were skipped because they are valid Android project folders.</string>
 	<string name="msg_cannot_access_folder">Cannot access folder %1$s. Check storage permissions.</string>
 	<string name="msg_no_subfolders">The folder %1$s does not contain any subfolders.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
@@ -795,7 +795,7 @@
 
 	<!-- Error message displayed when the KeyStore mechanism on the device is broken, preventing key generation for wireless
 		debugging. -->
-	<string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this device is broken.</string>
+	<string name="adb_error_key_store">Unable to generate key for wireless debugging.\The device may have a broken KeyStore mechanism on this device.</string>
 
 	<!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
 	<string name="dialog_adb_pairing_paring_code">Pairing code</string>
@@ -841,14 +841,14 @@
 
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
-	<string name="err_debugger_requires_a11">The debugger features require Android 11 to work.</string>
+	<string name="err_debugger_requires_a11">The debugger requires Android 11 or higher to work.</string>
 
 	<!-- Title of the dialog shown to ask the user to complete the pairing process -->
 	<string name="debugger_setup_title">Wireless debugging pairing</string>
 
 	<!-- Text shown to the user in the ADB pairing dialog asking the user to follow the steps -->
 	<string name="debugger_setup_description_header"><![CDATA[<a href="http://localhost:6174/i/debug-enable.html">Read the full debugger setup guide</a>.
-	To use the debugger in this project, you must enable developer options. When you’re ready to pair with the debugger:]]></string>
+	To use the debugger, you must enable developer options. When you’re ready to pair with the debugger:]]></string>
 
 	<!-- Steps shown to the user in an ordered list in the ADB pairing dialog -->
 	<string-array name="debugger_setup_pairing_steps">
