@@ -176,7 +176,6 @@ class PermissionsFragment :
 			is InstallationState.InstallationError -> {
                 enableFinishButton()
 				finishButton?.text = getString(R.string.finish_installation)
-				activity?.flashError(getString(state.errorMessageResId))
 			}
 		}
 	}
@@ -220,8 +219,7 @@ class PermissionsFragment :
 					builder.title(getString(R.string.ide_setup_in_progress))
 				},
 			) { flashbar, _ ->
-				// Launch progress collector as a child coroutine
-				launch(Dispatchers.Main) {
+				val progressJob = launch(Dispatchers.Main) {
 					viewModel.installationProgress.collect { progress ->
 						if (progress.isNotEmpty()) {
 							flashbar.flashbarView.setMessage(progress)
@@ -231,17 +229,21 @@ class PermissionsFragment :
 
 				viewModel.startIdeSetup(requireContext())
 
-				viewModel.state.first { state ->
-					when (state) {
-						is InstallationState.InstallationComplete -> {
-							withContext(Dispatchers.Main) {
-								(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
+				try {
+					viewModel.state.first { state ->
+						when (state) {
+							is InstallationState.InstallationComplete -> {
+								withContext(Dispatchers.Main) {
+									(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
+								}
+								true
 							}
-							true
+							is InstallationState.InstallationError -> true
+							else -> false
 						}
-						is InstallationState.InstallationError -> true
-						else -> false
 					}
+				} finally {
+					progressJob.cancel()
 				}
 			}
 		}
