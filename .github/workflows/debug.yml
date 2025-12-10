@@ -159,6 +159,11 @@ jobs:
           fi
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+    
       - name: Get PR and Commit Information
         id: pr_info
         run: |
@@ -377,9 +382,6 @@ jobs:
           echo "Cleaning up build folder after Firebase upload..."
           rm -rf app/build/
           echo "Build folder cleanup completed"
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
         env:
