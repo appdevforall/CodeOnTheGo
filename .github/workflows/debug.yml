@@ -315,8 +315,7 @@ jobs:
           # If extract_jira didn't find a ticket (returned "N/A"), try merge commit message
           if [ "$JIRA_TICKET" == "N/A" ] || [ -z "$JIRA_TICKET" ]; then
             MERGE_COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "")
-            MERGED_BRANCH=$(echo "$MERGE_COMMIT_MSG" | grep -oE "branch '[^']*'" | head -1 | sed "s/branch '//;s/'//" || echo "")
-            JIRA_TICKET=$(echo "$MERGED_BRANCH" | grep -o 'ADFA-[0-9]\+' | head -1 || echo "")
+            JIRA_TICKET=$(echo "$MERGE_COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1 || echo "")
           fi
           
           if [ -z "$JIRA_TICKET" ] || [ "$JIRA_TICKET" == "N/A" ]; then
