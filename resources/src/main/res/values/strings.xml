@@ -491,7 +491,7 @@
 	<string name="title_privacy">Privacy</string>
 
 	<string name="privacy_disclosure_title">Privacy &amp; analytics</string>
-	<string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and Sentry to help us improve the app.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is used. \n\nSentry helps us track and fix errors.\n\nNo personal information is collected or shared. All data is processed in accordance with our privacy policy to ensure your privacy is protected.</string>
+	<string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and Sentry to help us improve the app.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is used. \n\nSentry helps us track and fix errors.\n\nNo personal information is collected or shared. All data is processed in accordance with our privacy policy.</string>
 	<string name="privacy_disclosure_accept">I understand</string>
 	<string name="privacy_disclosure_learn_more">Learn more</string>
 
