@@ -308,6 +308,7 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           FEATURE_BRANCH: ${{ github.head_ref }}
+          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
         run: |
           # Extract Jira ticket from feature branch name
           # Note: github.head_ref is only set for pull_request events.
@@ -322,18 +323,15 @@ jobs:
           fi
           echo "Found Jira ticket: $JIRA_TICKET"
           
-          # Get and validate NEXT_RELEASE_VERSION
-          NEXT_RELEASE_VERSION="${{ vars.NEXT_RELEASE_VERSION }}"
-          
+          # Validate NEXT_RELEASE_VERSION exists and exactly two digits, dot, two digits
           if [ -z "$NEXT_RELEASE_VERSION" ]; then
             echo "ERROR: NEXT_RELEASE_VERSION variable is not set"
             exit 1
           fi
           
-          # Validate format: exactly two digits, dot, two digits
           if [[ ! "$NEXT_RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]]; then
             echo "ERROR: NEXT_RELEASE_VERSION format is invalid: $NEXT_RELEASE_VERSION"
-            echo "Expected format: XX.XX (two digits, dot, two digits, e.g., 12.34)"
+            echo "Expected format: YY.ww (two digits, dot, two digits, e.g., 25.50)"
             exit 1
           fi
           
