@@ -82,7 +82,6 @@ class InstallationViewModel : ViewModel() {
 
 						when (result) {
 							is AssetsInstallationHelper.Result.Success -> {
-								// Reload JDK distributions after installation
 								val distributionProvider = IJdkDistributionProvider.getInstance()
 								distributionProvider.loadDistributions()
 
@@ -90,8 +89,13 @@ class InstallationViewModel : ViewModel() {
 							}
 							is AssetsInstallationHelper.Result.Failure -> {
 								result.cause?.let { Sentry.captureException(it) }
+								val errorMsg = result.errorMessage
+									?: context.getString(R.string.title_installation_failed)
+								viewModelScope.launch {
+									_events.emit(InstallationEvent.ShowError(errorMsg))
+								}
 								_state.update {
-									InstallationError(R.string.title_installation_failed)
+									InstallationError(errorMsg)
 								}
 							}
 						}
@@ -99,8 +103,12 @@ class InstallationViewModel : ViewModel() {
 				} catch (e: Exception) {
 					Sentry.captureException(e)
 					log.error("IDE setup installation failed", e)
+					val errorMsg = e.message ?: context.getString(R.string.unknown_error)
+					viewModelScope.launch {
+						_events.emit(InstallationEvent.ShowError(errorMsg))
+					}
 					_state.update {
-						InstallationError(R.string.unknown_error)
+						InstallationError(errorMsg)
 					}
 				}
 			}
