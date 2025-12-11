@@ -22,7 +22,7 @@ object TermuxApplicationLoader : ApplicationLoader {
 
 	private val logger = LoggerFactory.getLogger(TermuxApplicationLoader::class.java)
 
-	override fun load(app: IDEApplication) {
+	override suspend fun load(app: IDEApplication) {
 
 		// Set log config for the app
 		setLogConfig(app)

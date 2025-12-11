@@ -261,7 +261,7 @@ class WADBPermissionFragment :
 					AdbKey(
 						adbKeyStore =
 							PreferenceAdbKeyStore(
-								preference = ShizukuSettings.getPreferences(),
+								preference = ShizukuSettings.getSharedPreferences(),
 							),
 					)
 				}

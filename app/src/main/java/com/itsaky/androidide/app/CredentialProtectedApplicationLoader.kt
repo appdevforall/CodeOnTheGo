@@ -57,7 +57,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	val isLoaded: Boolean
 		get() = _isLoaded.get()
 
-	override fun load(app: IDEApplication) {
+	override suspend fun load(app: IDEApplication) {
 		if (isLoaded) {
 			logger.warn("Attempt to perform multiple loads of the application. Ignoring.")
 			return
@@ -68,11 +68,8 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		logger.info("Loading credential protected storage context components...")
 		application = app
 
-		app.coroutineScope.launch {
-			// need to access file system to determine values for feature flags
-			// so we do it in credential protected application loader
-			FeatureFlags.initialize()
-		}
+		// read feature flags, if we didn't already
+		FeatureFlags.initialize()
 
 		EventBus.getDefault().register(this)
 

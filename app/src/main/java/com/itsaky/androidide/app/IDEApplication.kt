@@ -37,6 +37,7 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
@@ -54,9 +55,10 @@ class IDEApplication : BaseApplication() {
 		override fun onReceive(context: Context?, intent: Intent?) {
 			if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
 				runCatching { unregisterReceiver(this) }
-
-				logger.info("Device unlocked! Loading all components...")
-				CredentialProtectedApplicationLoader.load(this@IDEApplication)
+				coroutineScope.launch {
+					logger.info("Device unlocked! Loading all components...")
+					CredentialProtectedApplicationLoader.load(this@IDEApplication)
+				}
 			}
 		}
 	}
@@ -141,19 +143,20 @@ class IDEApplication : BaseApplication() {
 		// https://appdevforall.atlassian.net/browse/ADFA-2026
 		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
 
+		coroutineScope.launch(Dispatchers.Default) {
+			// load common stuff, which doesn't depend on access to
+			// credential protected storage
+			DeviceProtectedApplicationLoader.load(instance)
 
-		// load common stuff, which doesn't depend on access to
-		// credential protected storage
-		DeviceProtectedApplicationLoader.load(this)
-
-		// if we can access credential-protected storage, then initialize
-		// other components right away, otherwise wait for the user to unlock
-		// the device
-		if (isUserUnlocked) {
-			CredentialProtectedApplicationLoader.load(this)
-		} else {
-			logger.info("Device in Direct Boot Mode: postponing initialization...")
-			registerReceiver(deviceUnlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+			// if we can access credential-protected storage, then initialize
+			// other components right away, otherwise wait for the user to unlock
+			// the device
+			if (isUserUnlocked) {
+				CredentialProtectedApplicationLoader.load(instance)
+			} else {
+				logger.info("Device in Direct Boot Mode: postponing initialization...")
+				registerReceiver(deviceUnlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+			}
 		}
 	}
 

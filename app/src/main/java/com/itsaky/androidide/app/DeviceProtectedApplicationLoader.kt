@@ -15,6 +15,7 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
+import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
@@ -31,8 +32,6 @@ import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
 import kotlinx.coroutines.*
 
-
-
 /**
  * @author Akash Yadav
  */
@@ -44,8 +43,15 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 	private val crashEventSubscriber = CrashEventSubscriber()
 	val analyticsManager: IAnalyticsManager by inject()
 
-	override fun load(app: IDEApplication) {
+	override suspend fun load(app: IDEApplication) {
 		logger.info("Loading device protected storage context components...")
+
+		runCatching {
+			// try to initialize feature flags
+			// this may fail when running in direct boot mode, so we wrap this
+			// in runCatching and ignore errors, if any
+			FeatureFlags.initialize()
+		}
 
         // Enable StrictMode for debug builds
         if (BuildConfig.DEBUG) {
@@ -98,7 +104,14 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
 		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
 
-		initializeAnalytics()
+		app.coroutineScope.launch(Dispatchers.IO) {
+			// early-init theme manager since it may need to perform disk reads
+			IThemeManager.getInstance()
+		}
+
+		withContext(Dispatchers.Main) {
+			initializeAnalytics()
+		}
 	}
 
 	private fun initializeAnalytics() {

@@ -74,14 +74,19 @@ object FeatureFlags {
 
 		fun checkFlag(fileName: String) = File(downloadsDir, fileName).exists()
 
-		logger.info("Loading feature flags...")
 		flags = withContext(Dispatchers.IO) {
-			FlagsCache(
-				experimentsEnabled = checkFlag(EXPERIMENTS_FILE_NAME),
-				debugLoggingEnabled = checkFlag(LOGD_FILE_NAME),
-				emulatorUseEnabled = checkFlag(EMULATOR_FILE_NAME),
-				reprieveEnabled = checkFlag(REPRIEVE_FILE_NAME),
-			)
+			runCatching {
+				logger.info("Loading feature flags...")
+				FlagsCache(
+					experimentsEnabled = checkFlag(EXPERIMENTS_FILE_NAME),
+					debugLoggingEnabled = checkFlag(LOGD_FILE_NAME),
+					emulatorUseEnabled = checkFlag(EMULATOR_FILE_NAME),
+					reprieveEnabled = checkFlag(REPRIEVE_FILE_NAME),
+				)
+			}.getOrElse { error ->
+				logger.error("Failed to load feature flags. Falling back to default values.", error)
+				FlagsCache.DEFAULT
+			}
 		}
 	}
 }

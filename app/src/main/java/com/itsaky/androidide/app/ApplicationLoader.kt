@@ -13,5 +13,5 @@ internal interface ApplicationLoader {
 	 *
 	 * @param app The application instance to initialize.
 	 */
-	fun load(app: IDEApplication)
+	suspend fun load(app: IDEApplication)
 }
