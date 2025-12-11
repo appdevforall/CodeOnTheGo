@@ -33,8 +33,9 @@
 				android:src="@drawable/ic_close"
 				android:contentDescription="@string/close"
 				android:clickable="true"
+				android:focusable="true"
 				android:foreground="?android:attr/selectableItemBackgroundBorderless"
-				app:tint="@android:color/black" />
+				app:tint="?android:attr/textColorPrimary" />
 		</LinearLayout>
 
 		<TextView
