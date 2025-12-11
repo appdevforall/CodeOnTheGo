@@ -14,33 +14,53 @@ suspend fun readGradleVersion(root: File): String = withContext(Dispatchers.IO) 
 }
 
 suspend fun readKotlinVersion(root: File): String = withContext(Dispatchers.IO) {
-	val buildGradle = File(root, "build.gradle")
-	val buildGradleKts = File(root, "build.gradle.kts")
+	val appDir = File(root, "app")
+	val buildGradle = File(appDir, "build.gradle")
+	val buildGradleKts = File(appDir, "build.gradle.kts")
+	val libsToml = File(root, "gradle/libs.versions.toml")
 
 	val file = when {
 		buildGradle.exists() -> buildGradle
 		buildGradleKts.exists() -> buildGradleKts
-		else -> return@withContext "Unknown"
+		else -> null
 	}
 
-	val text = file.readText()
+	if (file != null) {
+		val text = file.readText()
 
-	// 1. kotlin_version = "1.9.22"
-	val varMatch = Regex("""kotlin_version\s*=\s*"([^"]+)"""").find(text)
-	if (varMatch != null) return@withContext varMatch.groupValues[1]
+		// 1. kotlin_version = "1.9.22"
+		val varMatch = Regex("""kotlin_version\s*=\s*"([^"]+)"""").find(text)
+		if (varMatch != null) return@withContext varMatch.groupValues[1]
 
-	// 2. id("org.jetbrains.kotlin.jvm") version "1.9.22"
-	val pluginMatch = Regex("""id\(["']org.jetbrains.kotlin[^"']+["']\)\s*version\s*"([^"]+)"""")
-		.find(text)
-	if (pluginMatch != null) return@withContext pluginMatch.groupValues[1]
+		// 2. id("org.jetbrains.kotlin.jvm") version "1.9.22"
+		val pluginMatch = Regex("""id\(["']org.jetbrains.kotlin[^"']+["']\)\s*version\s*"([^"]+)"""")
+			.find(text)
+		if (pluginMatch != null) return@withContext pluginMatch.groupValues[1]
 
-	// 3. force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
-	val forceMatch = Regex("""force\(["']org.jetbrains.kotlin:kotlin-stdlib:([^"']+)["']\)""")
-		.find(text)
-	if (forceMatch != null) return@withContext forceMatch.groupValues[1]
+		// 3. force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+		val forceMatch = Regex("""force\(["']org.jetbrains.kotlin:kotlin-stdlib:([^"']+)["']\)""")
+			.find(text)
+		if (forceMatch != null) return@withContext forceMatch.groupValues[1]
+	}
+
+	if (libsToml.exists()) {
+		val toml = libsToml.readText()
+
+		val direct = Regex("""kotlin\s*=\s*"([^"]+)"""").find(toml)
+		if (direct != null) return@withContext direct.groupValues[1]
+
+		val ref = Regex("""version\.ref\s*=\s*"([^"]+)"""").find(toml)
+		if (ref != null) {
+			val refName = ref.groupValues[1]
+			val refMatch = Regex("""$refName\s*=\s*"([^"]+)"""").find(toml)
+			if (refMatch != null) return@withContext refMatch.groupValues[1]
+		}
+	}
 
 	return@withContext "Unknown"
 }
+
+
 
 suspend fun readJavaVersion(root: File): String = withContext(Dispatchers.IO) {
 	val buildGradle = File(root, "build.gradle")

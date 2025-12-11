@@ -37,7 +37,7 @@ suspend fun loadProjectDetails(projectPath: String, context: Context): ProjectDe
             sizeFormatted = sizeFormatted,
             numberOfFiles = fileCount,
             gradleVersion = readGradleVersion(root),
-            kotlinVersion = readKotlinVersion(appDir),
+            kotlinVersion = readKotlinVersion(root),
             javaVersion = readJavaVersion(appDir)
         )
     }
