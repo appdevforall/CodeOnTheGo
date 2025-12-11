@@ -75,17 +75,10 @@ object DimensionUtil {
    * @return dimension value without suffix
    */
   @JvmStatic
-  fun getDimenWithoutSuffix(input: String): String {
-    val matcher = pattern.matcher(input)
-    var dimen = DP
-
-    // Finding dimension unit type from input string
-    while (matcher.find()) {
-      dimen = input.substring(matcher.start(), matcher.end())
-    }
-
-    // Getting dimension number from input string
-    return input.substring(0, input.lastIndexOf(dimen))
+  fun getDimenWithoutSuffix(input: String): String = when {
+    input.endsWith(DP) -> input.removeSuffix(DP)
+    input.endsWith(SP) -> input.removeSuffix(SP)
+    else -> input
   }
 
   /**

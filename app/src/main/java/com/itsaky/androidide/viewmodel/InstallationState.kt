@@ -1,8 +1,6 @@
 
 package com.itsaky.androidide.viewmodel
 
-import androidx.annotation.StringRes
-
 sealed class InstallationState {
     object InstallationPending : InstallationState()
 
@@ -12,5 +10,5 @@ sealed class InstallationState {
 
     object InstallationComplete : InstallationState()
 
-    data class InstallationError(@StringRes val errorMessageResId: Int) : InstallationState()
+    data class InstallationError(val errorMessage: String) : InstallationState()
 }

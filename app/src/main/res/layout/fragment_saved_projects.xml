@@ -26,6 +26,10 @@
             android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
             android:transitionName="title" />
 
+        <include
+            android:id="@+id/layout_filters"
+            layout="@layout/layout_project_filters_bar" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/list_projects"
             android:layout_width="match_parent"
