@@ -516,7 +516,7 @@
 	<string name="title_preview_data">Preview data</string>
 	<string name="title_android_version">Android version</string>
 	<string name="btn_opt_in">Opt-in</string>
-	<string name="title_developer_options">Developer options</string>
+	<string name="title_developer_options">Developer Options</string>
 	<string name="idepref_devOptions_summary">Experimental/debugging options for Code on the Go</string>
 	<string name="idepref_group_debugging">Debugging</string>
 	<string name="idepref_devOptions_dumpLogs_title">Dump logs</string>
