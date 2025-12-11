@@ -19,11 +19,9 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 object TermuxApplicationLoader : ApplicationLoader {
-
 	private val logger = LoggerFactory.getLogger(TermuxApplicationLoader::class.java)
 
 	override suspend fun load(app: IDEApplication) {
-
 		// Set log config for the app
 		setLogConfig(app)
 
@@ -37,7 +35,6 @@ object TermuxApplicationLoader : ApplicationLoader {
 
 		// Set NightMode.APP_NIGHT_MODE
 		TermuxThemeUtils.setAppNightMode(properties.nightMode)
-
 
 		// Check and create termux files directory. If failed to access it like in case of secondary
 		// user or external sd card installation, then don't run files directory related code

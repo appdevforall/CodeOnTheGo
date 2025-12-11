@@ -42,7 +42,6 @@ import kotlin.system.exitProcess
  * @author Akash Yadav
  */
 internal object CredentialProtectedApplicationLoader : ApplicationLoader {
-
 	private val logger = LoggerFactory.getLogger(CredentialProtectedApplicationLoader::class.java)
 
 	private val _isLoaded = AtomicBoolean(false)
@@ -99,7 +98,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 	fun handleUncaughtException(
 		thread: Thread,
-		exception: Throwable
+		exception: Throwable,
 	) {
 		writeException(exception)
 		Sentry.captureException(exception)
@@ -110,7 +109,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			intent.action = CrashHandlerActivity.REPORT_ACTION
 			intent.putExtra(
 				CrashHandlerActivity.TRACE_KEY,
-				ThrowableUtils.getFullStackTrace(exception)
+				ThrowableUtils.getFullStackTrace(exception),
 			)
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			IDEApplication.instance.startActivity(intent)
@@ -126,14 +125,16 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		exitProcess(EXIT_CODE_CRASH)
 	}
 
-	private fun writeException(throwable: Throwable?) = runCatching { // ignore errors
-		File(FileUtil.getExternalStorageDir(), "idelog.txt")
-			.writer()
-			.buffered()
-			.use { outputStream ->
-				outputStream.write(ThrowableUtils.getFullStackTrace(throwable))
-			}
-	}
+	private fun writeException(throwable: Throwable?) =
+		runCatching {
+			// ignore errors
+			File(FileUtil.getExternalStorageDir(), "idelog.txt")
+				.writer()
+				.buffered()
+				.use { outputStream ->
+					outputStream.write(ThrowableUtils.getFullStackTrace(throwable))
+				}
+		}
 
 	private fun startLogcatReader() {
 		if (ideLogcatReader != null) {

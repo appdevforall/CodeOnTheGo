@@ -9,18 +9,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object ShizukuSettings {
-
 	const val NAME: String = "settings"
 
 	private var preferences: SharedPreferences? = null
 
-	suspend fun setLastLaunchMode(@LaunchMethod mode: Int) {
+	suspend fun setLastLaunchMode(
+		@LaunchMethod mode: Int,
+	) {
 		getSharedPreferences().edit { putInt("mode", mode) }
 	}
 
-	suspend fun getLastLaunchMode(): Int {
-		return getSharedPreferences().getInt("mode", LaunchMethod.UNKNOWN)
-	}
+	suspend fun getLastLaunchMode(): Int = getSharedPreferences().getInt("mode", LaunchMethod.UNKNOWN)
 
 	suspend fun getSharedPreferences(): SharedPreferences {
 		initialize()
@@ -29,10 +28,11 @@ object ShizukuSettings {
 
 	suspend fun initialize() {
 		if (preferences == null) {
-			preferences = withContext(Dispatchers.IO) {
-				settingsStorageContext
-					.getSharedPreferences(NAME, Context.MODE_PRIVATE)
-			}
+			preferences =
+				withContext(Dispatchers.IO) {
+					settingsStorageContext
+						.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+				}
 		}
 	}
 
@@ -42,7 +42,7 @@ object ShizukuSettings {
 	@IntDef(
 		LaunchMethod.UNKNOWN,
 		LaunchMethod.ROOT,
-		LaunchMethod.ADB
+		LaunchMethod.ADB,
 	)
 	@Retention(AnnotationRetention.SOURCE)
 	annotation class LaunchMethod {

@@ -22,6 +22,9 @@ import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
 import io.sentry.SentryReplayOptions.SentryReplayQuality
 import io.sentry.android.core.SentryAndroid
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.koin.android.ext.koin.androidContext
@@ -30,14 +33,14 @@ import org.koin.core.component.inject
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
-import kotlinx.coroutines.*
 
 /**
  * @author Akash Yadav
  */
-internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLifecycleObserver,
+internal object DeviceProtectedApplicationLoader :
+	ApplicationLoader,
+	DefaultLifecycleObserver,
 	KoinComponent {
-
 	private val logger = LoggerFactory.getLogger(DeviceProtectedApplicationLoader::class.java)
 
 	private val crashEventSubscriber = CrashEventSubscriber()
@@ -53,27 +56,29 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 			FeatureFlags.initialize()
 		}
 
-        // Enable StrictMode for debug builds
-        if (BuildConfig.DEBUG) {
-            app.coroutineScope.launch(Dispatchers.Main) {
-                val reprieve = FeatureFlags.isReprieveEnabled
-                StrictMode.setThreadPolicy(
-                    StrictMode.ThreadPolicy.Builder()
-                        .detectAll()
-                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
-                        .build()
-                )
+		// Enable StrictMode for debug builds
+		if (BuildConfig.DEBUG) {
+			app.coroutineScope.launch(Dispatchers.Main) {
+				val reprieve = FeatureFlags.isReprieveEnabled
+				StrictMode.setThreadPolicy(
+					StrictMode.ThreadPolicy
+						.Builder()
+						.detectAll()
+						.apply { if (reprieve) penaltyLog() else penaltyDeath() }
+						.build(),
+				)
 
-                StrictMode.setVmPolicy(
-                    StrictMode.VmPolicy.Builder()
-                        .detectAll()
-                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
-                        .build()
-                )
-            }
-        }
+				StrictMode.setVmPolicy(
+					StrictMode.VmPolicy
+						.Builder()
+						.detectAll()
+						.apply { if (reprieve) penaltyLog() else penaltyDeath() }
+						.build(),
+				)
+			}
+		}
 
-        startKoin {
+		startKoin {
 			androidContext(app)
 			modules(coreModule, pluginModule)
 		}
@@ -126,7 +131,7 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
 	fun handleUncaughtException(
 		thread: Thread,
-		exception: Throwable
+		exception: Throwable,
 	) {
 		// we can't write logs to files, nor we can show the crash handler
 		// activity to the user. Just report to Sentry and exit.

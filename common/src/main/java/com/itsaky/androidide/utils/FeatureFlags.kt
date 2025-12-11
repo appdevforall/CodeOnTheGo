@@ -15,7 +15,6 @@ private data class FlagsCache(
 	val reprieveEnabled: Boolean = false,
 ) {
 	companion object {
-
 		/**
 		 * Default flags.
 		 */
@@ -24,7 +23,6 @@ private data class FlagsCache(
 }
 
 object FeatureFlags {
-
 	private const val EXPERIMENTS_FILE_NAME = "CodeOnTheGo.exp"
 	private const val LOGD_FILE_NAME = "CodeOnTheGo.logd"
 	private const val EMULATOR_FILE_NAME = "S153.txt"
@@ -66,27 +64,29 @@ object FeatureFlags {
 	 * Initialize feature flag values. This is thread-safe and idempotent i.e.
 	 * subsequent calls do not access disk.
 	 */
-	suspend fun initialize(): Unit = mutex.withLock {
-		if (flags !== FlagsCache.DEFAULT) {
-			// already initialized
-			return@withLock
-		}
-
-		fun checkFlag(fileName: String) = File(downloadsDir, fileName).exists()
-
-		flags = withContext(Dispatchers.IO) {
-			runCatching {
-				logger.info("Loading feature flags...")
-				FlagsCache(
-					experimentsEnabled = checkFlag(EXPERIMENTS_FILE_NAME),
-					debugLoggingEnabled = checkFlag(LOGD_FILE_NAME),
-					emulatorUseEnabled = checkFlag(EMULATOR_FILE_NAME),
-					reprieveEnabled = checkFlag(REPRIEVE_FILE_NAME),
-				)
-			}.getOrElse { error ->
-				logger.error("Failed to load feature flags. Falling back to default values.", error)
-				FlagsCache.DEFAULT
+	suspend fun initialize(): Unit =
+		mutex.withLock {
+			if (flags !== FlagsCache.DEFAULT) {
+				// already initialized
+				return@withLock
 			}
+
+			fun checkFlag(fileName: String) = File(downloadsDir, fileName).exists()
+
+			flags =
+				withContext(Dispatchers.IO) {
+					runCatching {
+						logger.info("Loading feature flags...")
+						FlagsCache(
+							experimentsEnabled = checkFlag(EXPERIMENTS_FILE_NAME),
+							debugLoggingEnabled = checkFlag(LOGD_FILE_NAME),
+							emulatorUseEnabled = checkFlag(EMULATOR_FILE_NAME),
+							reprieveEnabled = checkFlag(REPRIEVE_FILE_NAME),
+						)
+					}.getOrElse { error ->
+						logger.error("Failed to load feature flags. Falling back to default values.", error)
+						FlagsCache.DEFAULT
+					}
+				}
 		}
-	}
 }

@@ -1,9 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.annotation.SuppressLint
-import android.app.AppOpsManager
-import android.app.ForegroundServiceStartNotAllowedException
-import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -13,7 +10,6 @@ import android.os.Bundle
 import android.view.View
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.startForegroundService
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -21,9 +17,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.databinding.FragmentWadbConnectionBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.DeviceUtils
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.isAtLeastS
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.utils.viewLifecycleScopeOrNull
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
@@ -45,7 +39,6 @@ import moe.shizuku.manager.adb.AdbKeyException
 import moe.shizuku.manager.adb.AdbMdns
 import moe.shizuku.manager.adb.AdbPairingService
 import moe.shizuku.manager.adb.PreferenceAdbKeyStore
-import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.net.ConnectException
@@ -55,8 +48,7 @@ import javax.net.ssl.SSLProtocolException
  * Fragment to request wireless ADB permissions.
  */
 @RequiresApi(Build.VERSION_CODES.R)
-class WADBPermissionFragment :
-	FragmentWithBinding<FragmentWadbConnectionBinding>(FragmentWadbConnectionBinding::inflate) {
+class WADBPermissionFragment : FragmentWithBinding<FragmentWadbConnectionBinding>(FragmentWadbConnectionBinding::inflate) {
 	companion object {
 		const val VIEW_PAIRING = 0
 		const val VIEW_CONNECTING = 1
@@ -83,7 +75,7 @@ class WADBPermissionFragment :
 				when (intent?.action) {
 					AdbPairingService.ACTION_PAIR_SUCCEEDED,
 					AdbPairingService.ACTION_PAIR_FAILED,
-						-> onPairResult(intent)
+					-> onPairResult(intent)
 				}
 			}
 		}
@@ -111,12 +103,18 @@ class WADBPermissionFragment :
 			}
 
 		ContextCompat.registerReceiver(
-			/* context = */ requireContext(),
-			/* receiver = */ pairingBroadcastReceiver,
-			/* filter = */ filter,
-			/* broadcastPermission = */ AdbPairingService.PERMISSION_RECEIVE_WADB_PAIR_RESULT,
-			/* scheduler = */ null,
-			/* flags = */ ContextCompat.RECEIVER_NOT_EXPORTED,
+			// context =
+			requireContext(),
+			// receiver =
+			pairingBroadcastReceiver,
+			// filter =
+			filter,
+			// broadcastPermission =
+			AdbPairingService.PERMISSION_RECEIVE_WADB_PAIR_RESULT,
+			// scheduler =
+			null,
+			// flags =
+			ContextCompat.RECEIVER_NOT_EXPORTED,
 		)
 	}
 
@@ -293,9 +291,10 @@ class WADBPermissionFragment :
 						onUpdateConnectionState(state)
 					}
 				}.onFailure { error ->
-					val isCertificateError = error.message?.let { message ->
-						message.contains("error:10000416") || message.contains("SSLV3_ALERT_CERTIFICATE_UNKNOWN")
-					} ?: false
+					val isCertificateError =
+						error.message?.let { message ->
+							message.contains("error:10000416") || message.contains("SSLV3_ALERT_CERTIFICATE_UNKNOWN")
+						} ?: false
 					if (error is SSLProtocolException && isCertificateError) {
 						// Suppress error caused because of the OS not recognizing our certificate,
 						// which happens when all of the following conditions are met :

@@ -8,14 +8,18 @@ internal val logger = LoggerFactory.getLogger("StrictModeExts")
 
 inline fun copyThreadPolicy(
 	source: StrictMode.ThreadPolicy,
-	crossinline builder: StrictMode.ThreadPolicy.Builder.() -> Unit
-): StrictMode.ThreadPolicy = StrictMode.ThreadPolicy.Builder(source).apply(builder).build()
+	crossinline builder: StrictMode.ThreadPolicy.Builder.() -> Unit,
+): StrictMode.ThreadPolicy =
+	StrictMode.ThreadPolicy
+		.Builder(source)
+		.apply(builder)
+		.build()
 
 inline fun <R> permitThreadPolicy(
 	action: String,
 	reason: String,
 	crossinline task: () -> R,
-	crossinline configurePolicy: StrictMode.ThreadPolicy.Builder.() -> Unit
+	crossinline configurePolicy: StrictMode.ThreadPolicy.Builder.() -> Unit,
 ): R {
 	val currentPolicy = StrictMode.getThreadPolicy()
 	val newPolicy = copyThreadPolicy(currentPolicy, configurePolicy)
@@ -35,5 +39,7 @@ inline fun <R> permitThreadPolicy(
  * @param task The task to perform.
  * @return The result of the task.
  */
-inline fun <R> allowThreadDiskReads(reason: String, crossinline task: () -> R): R =
-	permitThreadPolicy("disk read", reason, task) { permitDiskReads() }
+inline fun <R> allowThreadDiskReads(
+	reason: String,
+	crossinline task: () -> R,
+): R = permitThreadPolicy("disk read", reason, task) { permitDiskReads() }

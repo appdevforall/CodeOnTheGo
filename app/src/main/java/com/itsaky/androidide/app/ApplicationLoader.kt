@@ -7,7 +7,6 @@ package com.itsaky.androidide.app
  * @author Akash Yadav
  */
 internal interface ApplicationLoader {
-
 	/**
 	 * Called to perform application initialization with this loader.
 	 *

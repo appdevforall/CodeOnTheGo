@@ -45,23 +45,26 @@ import java.lang.Thread.UncaughtExceptionHandler
 const val EXIT_CODE_CRASH = 1
 
 class IDEApplication : BaseApplication() {
-
 	val coroutineScope = CoroutineScope(Dispatchers.Default + CoroutineName("ApplicationScope"))
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var currentActivity: Activity? = null
 
-	private val deviceUnlockReceiver = object : BroadcastReceiver() {
-		override fun onReceive(context: Context?, intent: Intent?) {
-			if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
-				runCatching { unregisterReceiver(this) }
-				coroutineScope.launch {
-					logger.info("Device unlocked! Loading all components...")
-					CredentialProtectedApplicationLoader.load(this@IDEApplication)
+	private val deviceUnlockReceiver =
+		object : BroadcastReceiver() {
+			override fun onReceive(
+				context: Context?,
+				intent: Intent?,
+			) {
+				if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
+					runCatching { unregisterReceiver(this) }
+					coroutineScope.launch {
+						logger.info("Device unlocked! Loading all components...")
+						CredentialProtectedApplicationLoader.load(this@IDEApplication)
+					}
 				}
 			}
 		}
-	}
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(IDEApplication::class.java)
