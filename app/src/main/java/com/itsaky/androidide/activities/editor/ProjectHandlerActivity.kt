@@ -88,7 +88,7 @@ import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okio.FileNotFoundException
+import java.io.FileNotFoundException
 import org.adfa.constants.CONTENT_KEY
 import java.io.File
 import java.util.concurrent.CompletableFuture
