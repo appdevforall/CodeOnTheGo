@@ -17,8 +17,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import com.blankj.utilcode.util.ToastUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,12 +32,14 @@ import org.appdevforall.codeonthego.layouteditor.adapters.DrawableResourceAdapte
 import org.appdevforall.codeonthego.layouteditor.adapters.models.DrawableFile
 import org.appdevforall.codeonthego.layouteditor.databinding.DialogSelectDpisBinding
 import org.appdevforall.codeonthego.layouteditor.databinding.FragmentResourcesBinding
+import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
 import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager.Companion.instance
 import org.appdevforall.codeonthego.layouteditor.tools.ImageConverter
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil.getLastSegmentFromPath
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker
 import org.appdevforall.codeonthego.layouteditor.utils.Utils
+import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -77,7 +81,15 @@ class DrawableFragment : Fragment {
         loadDrawables()
         mRecyclerView = binding!!.recyclerView
         // Create the adapter and set it to the RecyclerView
-        adapter = DrawableResourceAdapter(drawableList)
+        adapter = DrawableResourceAdapter(drawableList, object : DrawableResourceAdapter.OnDrawableActionListener {
+            override fun onRenameRequested(position: Int, holder: DrawableResourceAdapter.VH, view: View) {
+                showRenameDialog(position, holder)
+            }
+
+            override fun onDeleteRequested(position: Int) {
+                deleteDrawable(position)
+            }
+        })
         mRecyclerView!!.setAdapter(adapter)
         mRecyclerView!!.setLayoutManager(
             LinearLayoutManager(requireContext(), RecyclerView.VERTICAL, false)
@@ -250,6 +262,119 @@ class DrawableFragment : Fragment {
         if (editText.text?.isNotEmpty() == true) {
             editText.setSelection(0, editText.text!!.length)
         }
+    }
+
+    private fun showRenameDialog(position: Int, holder: DrawableResourceAdapter.VH) {
+        val drawableFile = drawableList[position]
+        val segment = getLastSegmentFromPath(drawableFile.path)
+
+        val fileName = segment.substring(0, segment.lastIndexOf("."))
+        val extension = segment.substring(segment.lastIndexOf("."))
+
+        val builder = MaterialAlertDialogBuilder(requireContext())
+        val bind = TextinputlayoutBinding.inflate(builder.create().layoutInflater)
+        val editText = bind.textinputEdittext
+
+        editText.setText(fileName)
+        builder.setTitle(R.string.rename_drawable)
+        builder.setView(bind.root)
+        builder.setNegativeButton(R.string.cancel, null)
+        builder.setPositiveButton(R.string.rename) { _, _ ->
+            lifecycleScope.launch {
+                renameDrawable(position, holder, editText.text.toString(), extension)
+            }
+        }
+
+        val dialog = builder.create()
+        dialog.window!!.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        dialog.show()
+    }
+
+    private suspend fun renameDrawable(
+        position: Int,
+        holder: DrawableResourceAdapter.VH,
+        newName: String,
+        extension: String
+    ) = withContext(Dispatchers.IO) {
+
+        val drawable = drawableList[position]
+        val oldPath = drawable.path
+        val oldName = drawable.name.substring(0, drawable.name.lastIndexOf("."))
+
+        val oldFile = File(oldPath)
+        val newPath = project!!.drawablePath + newName + extension
+        val newFile = File(newPath)
+
+        oldFile.renameTo(newFile)
+
+        EventBus.getDefault().post(FileRenameEvent(oldFile, newFile))
+
+        val projectRoot = File(project!!.path).parentFile!!
+        renameDrawableReferences(
+            projectRoot,
+            oldName = oldName,
+            newName = newName
+        )
+
+        // 4. Load the new drawable
+        val updatedDrawable =
+            if (newName.endsWith(".xml") || newName.endsWith(".svg"))
+                VectorDrawableCompat.createFromPath(newPath)
+            else
+                Drawable.createFromPath(newPath)
+
+        drawable.path = newPath
+        drawable.name = newName + extension
+
+        withContext(Dispatchers.Main) {
+            holder.drawableName.text = newName
+            holder.drawable.setImageDrawable(updatedDrawable)
+            adapter?.notifyItemChanged(position)
+        }
+    }
+
+    private suspend fun renameDrawableReferences(
+        projectRoot: File,
+        oldName: String,
+        newName: String
+    ) = withContext(Dispatchers.IO) {
+
+        val xmlFiles = projectRoot.walkTopDown()
+            .filter { it.isFile && it.extension.lowercase() == "xml" }
+            .toList()
+
+        val codeFiles = projectRoot.walkTopDown()
+            .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
+            .toList()
+
+        val xmlPattern = "@drawable/$oldName"
+        val xmlReplacement = "@drawable/$newName"
+
+        val codePattern = "R.drawable.$oldName"
+        val codeReplacement = "R.drawable.$newName"
+
+        // Update XML references
+        xmlFiles.forEach { file ->
+            val text = file.readText()
+            if (text.contains(xmlPattern)) {
+                file.writeText(text.replace(xmlPattern, xmlReplacement))
+            }
+        }
+
+        // Update Kotlin/Java references
+        codeFiles.forEach { file ->
+            val text = file.readText()
+            if (text.contains(codePattern)) {
+                file.writeText(text.replace(codePattern, codeReplacement))
+            }
+        }
+    }
+
+    private fun deleteDrawable(position: Int) {
+        val file = File(drawableList[position].path)
+        file.delete()
+        drawableList.removeAt(position)
+        adapter?.notifyItemRemoved(position)
     }
 
 }
