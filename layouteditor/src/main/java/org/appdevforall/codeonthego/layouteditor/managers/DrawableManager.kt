@@ -8,7 +8,7 @@ import org.appdevforall.codeonthego.layouteditor.utils.Utils
 import java.io.File
 
 object DrawableManager {
-    private val items = HashMap<String?, String?>()
+    private val items = HashMap<String, String>()
 
     fun loadFromFiles(files: Array<File>) {
         items.clear()
@@ -36,10 +36,6 @@ object DrawableManager {
             Utils.getVectorDrawableAsync(context, Uri.fromFile(File(items[key].toString())))
         else
             Drawable.createFromPath(items[key])
-    }
-
-    fun keySet(): MutableSet<String?> {
-        return items.keys
     }
 
     fun clear() {
