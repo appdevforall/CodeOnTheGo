@@ -29,6 +29,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.viewmodel.SortCriteria
+import com.itsaky.androidide.ui.ProjectInfoBottomSheet
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -358,8 +360,9 @@ class RecentProjectsFragment : BaseFragment() {
 				adapter = RecentProjectsAdapter(
 					projects,
 					onProjectClick = ::openProject,
-                    onRemoveProjectClick = viewModel::deleteProject,
+          onRemoveProjectClick = viewModel::deleteProject,
 					onFileRenamed = viewModel::updateProject,
+					onInfoClick = { project -> openProjectInfo(project) }
 				)
 				binding.listProjects.adapter = adapter
 			} else {
@@ -416,6 +419,15 @@ class RecentProjectsFragment : BaseFragment() {
         val subDirs = selectedDir.listFiles()?.filter { it.isProjectCandidateDir() } ?: return false
         return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
+
+		private fun openProjectInfo(project: ProjectFile) {
+		    viewLifecycleScope.launch {
+		        val recentProject = viewModel.getProjectByName(project.name)
+
+		        val sheet = ProjectInfoBottomSheet.newInstance(project, recentProject)
+		        sheet.show(parentFragmentManager, "project_info_sheet")
+		    }
+		}
 
     private fun setupClickListeners() {
         binding.newProjectButton.setOnClickListener {
