@@ -20,6 +20,7 @@ import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_INFO_TOOLTIP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_RENAME
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
@@ -37,6 +38,7 @@ class RecentProjectsAdapter(
     private val onProjectClick: (File) -> Unit,
     private val onRemoveProjectClick: (ProjectFile) -> Unit,
     private val onFileRenamed: (RenamedFile) -> Unit,
+    private val onInfoClick: (ProjectFile) -> Unit,
 ) : RecyclerView.Adapter<RecentProjectsAdapter.ProjectViewHolder>() {
 
 	private var projectOptionsPopup: PopupWindow? = null
@@ -126,8 +128,24 @@ class RecentProjectsAdapter(
 
 		val popupWindow = projectOptionsPopup!!
 
+        val infoItem = popupView.findViewById<View>(R.id.menu_info)
         val renameItem = popupView.findViewById<View>(R.id.menu_rename)
         val deleteItem = popupView.findViewById<View>(R.id.menu_delete)
+
+        infoItem.setOnClickListener {
+            popupWindow.dismiss()
+            onInfoClick(project)
+        }
+
+        infoItem.setOnLongClickListener {
+            popupWindow.dismiss()
+            TooltipManager.showIdeCategoryTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = PROJECT_INFO_TOOLTIP
+            )
+            true
+        }
 
         renameItem.setOnClickListener {
             promptRenameProject(view, project, position)
