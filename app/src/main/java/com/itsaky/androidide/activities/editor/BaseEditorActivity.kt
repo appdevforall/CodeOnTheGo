@@ -850,15 +850,12 @@ abstract class BaseEditorActivity :
 
     open fun handleSearchResults(map: Map<File, List<SearchResult>>?) {
         val results = map ?: emptyMap()
-        setSearchResultAdapter(SearchListAdapter(results, { file ->
-            doOpenFile(file, null)
-            hideBottomSheet()
-        }) { match ->
-            doOpenFile(match.file, match)
-            hideBottomSheet()
-        })
+        editorViewModel.onSearchResultsReady(results)
 
-		bottomSheetViewModel.setSheetState(currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT)
+        bottomSheetViewModel.setSheetState(
+            sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+            currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT
+        )
         doDismissSearchProgress()
     }
 
