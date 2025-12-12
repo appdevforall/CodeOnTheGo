@@ -8,7 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 
-@Database(entities = [RecentProject::class], version = 2, exportSchema = false)
+@Database(entities = [RecentProject::class], version = 3, exportSchema = false)
 abstract class RecentProjectRoomDatabase : RoomDatabase() {
 
     abstract fun recentProjectDao(): RecentProjectDao
@@ -32,6 +32,19 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE recent_project_table " +
+                    "ADD COLUMN template_name TEXT NOT NULL DEFAULT 'unknown'"
+                )
+                db.execSQL(
+                "ALTER TABLE recent_project_table " +
+                    "ADD COLUMN language TEXT NOT NULL DEFAULT 'unknown'"
+                )
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): RecentProjectRoomDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -40,7 +53,7 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
                     "RecentProject_database"
                 )
                     .addCallback(RecentProjectRoomDatabaseCallback(context, scope))
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }
