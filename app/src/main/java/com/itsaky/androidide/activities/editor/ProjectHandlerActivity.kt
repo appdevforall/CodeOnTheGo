@@ -435,8 +435,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 		}
 
-    startActivity(intent)
-    this@ProjectHandlerActivity.finish()
+		startActivity(intent)
+		this@ProjectHandlerActivity.finish()
 	}
 
 	/**
