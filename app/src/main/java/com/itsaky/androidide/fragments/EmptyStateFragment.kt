@@ -65,6 +65,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	private val gestureListener =
 		object : GestureDetector.SimpleOnGestureListener() {
 			override fun onLongPress(e: MotionEvent) {
+				if (currentEditor?.isReadOnlyContext == true) return
 				onFragmentLongPressed(e.x, e.y)
 			}
 		}

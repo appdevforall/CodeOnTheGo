@@ -47,7 +47,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
             enabled = false
             return
         }
-        visible = editor.cursor.isSelected
+        visible = editor.cursor?.isSelected == true
         enabled = visible
     }
 

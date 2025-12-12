@@ -1140,6 +1140,7 @@ constructor(
 
             val line = (packedPos ushr 32).toInt()
             val column = (packedPos and 0xffffffffL).toInt()
+            if (line < 0 || column < 0) return
 
             setSelection(line, column)
         } catch (e: Exception) {
