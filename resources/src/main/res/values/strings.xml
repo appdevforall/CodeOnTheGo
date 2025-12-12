@@ -94,7 +94,7 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
-	<string name="template_plugin">COGO Plugin</string>
+	<string name="template_plugin">Code on the Go Plugin</string>
 
 	<!-- Plugin Template Wizard -->
 	<string name="wizard_plugin_name">Plugin Name</string>
@@ -777,6 +777,13 @@
 	<string name="info_build_cancelled">Build was cancelled by the user.</string>
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
+	<string name="status_installing_plugin">Installing plugin…</string>
+	<string name="title_install_plugin">Install Plugin</string>
+	<string name="msg_install_plugin_prompt">Plugin \'%1$s\' built successfully. Would you like to install it now?</string>
+	<string name="btn_install">Install</string>
+	<string name="btn_later">Later</string>
+	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
+	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->

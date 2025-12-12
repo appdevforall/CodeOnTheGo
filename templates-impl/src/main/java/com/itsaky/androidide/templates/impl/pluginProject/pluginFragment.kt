@@ -1,5 +1,3 @@
-
-
 package com.itsaky.androidide.templates.impl.pluginProject
 
 fun pluginFragmentKt(data: PluginTemplateData): String = """
@@ -13,11 +11,21 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import ${data.pluginId}.R
+import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 
 class ${data.className}Fragment : Fragment() {
 
+    companion object {
+        private const val PLUGIN_ID = "${data.pluginId}"
+    }
+
     private var statusText: TextView? = null
     private var actionButton: Button? = null
+
+    override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
+        val inflater = super.onGetLayoutInflater(savedInstanceState)
+        return PluginFragmentHelper.getPluginInflater(PLUGIN_ID, inflater)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -29,7 +37,6 @@ class ${data.className}Fragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         statusText = view.findViewById(R.id.statusText)
         actionButton = view.findViewById(R.id.actionButton)
 

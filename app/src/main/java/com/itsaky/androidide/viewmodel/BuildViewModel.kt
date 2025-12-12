@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
+import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 
 class BuildViewModel : ViewModel() {
@@ -64,7 +65,14 @@ class BuildViewModel : ViewModel() {
 				}
 
 				if (isPluginProject) {
-					_buildState.value = BuildState.Idle
+					val projectRoot = IProjectManager.getInstance().projectDirPath
+					val cgpFile = findPluginCgpFile(projectRoot, variant)
+					if (cgpFile != null) {
+						_buildState.value = BuildState.AwaitingPluginInstall(cgpFile)
+					} else {
+						log.warn("Plugin built successfully but .cgp file not found")
+						_buildState.value = BuildState.Idle
+					}
 					return@launch
 				}
 
@@ -96,5 +104,21 @@ class BuildViewModel : ViewModel() {
 		if (_buildState.value is BuildState.AwaitingInstall) {
 			_buildState.value = BuildState.Idle
 		}
+	}
+
+	/** Call this after the plugin installation attempt to reset the state. */
+	fun pluginInstallationAttempted() {
+		if (_buildState.value is BuildState.AwaitingPluginInstall) {
+			_buildState.value = BuildState.Idle
+		}
+	}
+
+	private fun findPluginCgpFile(projectRoot: String, variant: AndroidModels.AndroidVariant): File? {
+		val pluginDir = File(projectRoot, "build/plugin")
+		if (!pluginDir.exists()) return null
+
+		val isDebug = variant.name.contains("debug", ignoreCase = true)
+		return pluginDir.listFiles { file -> file.extension.equals("cgp", ignoreCase = true) }
+			?.firstOrNull { it.name.contains("-debug") == isDebug }
 	}
 }

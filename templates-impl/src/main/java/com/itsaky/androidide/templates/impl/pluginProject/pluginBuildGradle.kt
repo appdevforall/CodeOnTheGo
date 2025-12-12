@@ -5,15 +5,15 @@ import org.adfa.constants.COMPILE_SDK_VERSION
 import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import org.adfa.constants.JAVA_SOURCE_VERSION
 import org.adfa.constants.JAVA_TARGET_VERSION
-import org.adfa.constants.KOTLIN_VERSION
 import org.adfa.constants.TARGET_SDK_VERSION
 
 const val PLUGIN_MIN_SDK = 28
+const val PLUGIN_KOTLIN_VERSION = "2.1.0"
 
 fun pluginBuildGradleKts(data: PluginTemplateData): String = """
 plugins {
     id("com.android.application") version "$ANDROID_GRADLE_PLUGIN_VERSION"
-    id("org.jetbrains.kotlin.android") version "$KOTLIN_VERSION"
+    id("org.jetbrains.kotlin.android") version "$PLUGIN_KOTLIN_VERSION"
 }
 
 android {
@@ -64,7 +64,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.10.0")
     implementation("androidx.fragment:fragment-ktx:1.8.8")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:$KOTLIN_VERSION")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:$PLUGIN_KOTLIN_VERSION")
 }
 
 tasks.wrapper {
@@ -108,9 +108,7 @@ tasks.register<Copy>("assemblePluginDebug") {
 
 tasks.matching {
     it.name.contains("checkDebugAarMetadata") ||
-    it.name.contains("checkReleaseAarMetadata") ||
-    it.name.contains("mapDebugSourceSetPaths") ||
-    it.name.contains("mapReleaseSourceSetPaths")
+    it.name.contains("checkReleaseAarMetadata")
 }.configureEach {
     enabled = false
 }

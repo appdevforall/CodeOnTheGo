@@ -4,6 +4,7 @@ package com.itsaky.androidide.templates.impl.pluginProject
 
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
+import com.itsaky.androidide.templates.ParameterConstraint
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.StringParameter
@@ -138,7 +139,7 @@ private fun ProjectTemplateBuilder.executePluginRecipe(
 
 private fun pluginDescriptionParameter(): StringParameter = stringParameter {
 	name = R.string.wizard_plugin_description
-	default = "A COGO plugin"
+	default = "A Code on the Go plugin"
 	constraints = emptyList()
 	inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
 	imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
@@ -148,7 +149,7 @@ private fun pluginDescriptionParameter(): StringParameter = stringParameter {
 private fun pluginAuthorParameter(): StringParameter = stringParameter {
 	name = R.string.wizard_plugin_author
 	default = ""
-	constraints = emptyList()
+	constraints = listOf(ParameterConstraint.NONEMPTY)
 	inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
 	imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
 	maxLines = 1

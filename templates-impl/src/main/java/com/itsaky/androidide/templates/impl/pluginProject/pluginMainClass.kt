@@ -209,7 +209,7 @@ private fun documentationExtensionMethods(data: PluginTemplateData): String = ""
             PluginTooltipEntry(
                 tag = "${data.pluginId.replace(".", "_")}.overview",
                 summary = "<b>${data.pluginName}</b><br>${data.description}",
-                detail = \"\"\"
+                detail = ${"\"\"\""}
                     <h3>${data.pluginName}</h3>
                     <p>${data.description}</p>
 
@@ -224,7 +224,7 @@ private fun documentationExtensionMethods(data: PluginTemplateData): String = ""
                         <li>Step 1 - Describe how to use</li>
                         <li>Step 2 - Describe how to use</li>
                     </ol>
-                \"\"\".trimIndent(),
+                ${"\"\"\""}.trimIndent(),
                 buttons = emptyList()
             )
         )
