@@ -394,6 +394,10 @@ object ProjectSyncHelper {
 		includeChecksum: Boolean = false,
 		projectModelInfo: SyncMetaModels.ProjectModelInfo? = null,
 	): SyncMetaModels.SyncMeta {
+		if (!Files.exists(projectDir)) {
+			logger.warn("Project directory does not exist: {}", projectDir)
+			throw FileNotFoundException("Project directory missing: $projectDir")
+		}
 		val projectDir = projectDir.toRealPath()
 		return SyncMeta(
 			metaVersion = "1",
