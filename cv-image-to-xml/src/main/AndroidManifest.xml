@@ -27,7 +27,7 @@
         android:theme="@style/Theme.Images"
         tools:targetApi="31">
         <activity
-            android:name=".ComputerVisionActivity"
+            android:name="appdevforall.codeonthego.computervision.presentation.ui.ComputerVisionActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

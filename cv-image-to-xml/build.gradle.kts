@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.images"
+    namespace = "org.appdevforall.codeonthego.computervision"
 
     defaultConfig {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -31,6 +31,12 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.constraintlayout)
+
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.common.kotlin.coroutines.android)
+
+    implementation("io.insert-koin:koin-android:3.5.3")
 
     implementation("org.tensorflow:tensorflow-lite:2.14.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")

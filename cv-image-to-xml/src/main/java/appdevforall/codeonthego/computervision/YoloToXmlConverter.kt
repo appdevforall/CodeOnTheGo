@@ -1,6 +1,6 @@
-package com.example.images
+package appdevforall.codeonthego.computervision
 
-import java.lang.StringBuilder
+import appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -29,7 +29,7 @@ object YoloToXmlConverter {
     )
 
     fun generateXmlLayout(
-        detections: List<ComputerVisionActivity.DetectionResult>,
+        detections: List<DetectionResult>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,
@@ -44,7 +44,7 @@ object YoloToXmlConverter {
     }
 
     private fun scaleDetection(
-        detection: ComputerVisionActivity.DetectionResult,
+        detection: DetectionResult,
         sourceWidth: Int,
         sourceHeight: Int,
         targetW: Int,

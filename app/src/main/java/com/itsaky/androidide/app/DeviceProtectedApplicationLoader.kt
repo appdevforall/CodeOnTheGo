@@ -3,6 +3,7 @@ package com.itsaky.androidide.app
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import appdevforall.codeonthego.computervision.di.computerVisionModule
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.di.coreModule
@@ -45,7 +46,7 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
 		startKoin {
 			androidContext(app)
-			modules(coreModule, pluginModule)
+			modules(coreModule, pluginModule, computerVisionModule)
 		}
 
 		SentryAndroid.init(app) { options ->
