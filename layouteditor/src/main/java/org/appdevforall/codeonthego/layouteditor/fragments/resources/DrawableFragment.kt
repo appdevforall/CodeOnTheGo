@@ -38,6 +38,7 @@ import org.appdevforall.codeonthego.layouteditor.tools.ImageConverter
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil.getLastSegmentFromPath
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker
+import org.appdevforall.codeonthego.layouteditor.utils.SBUtils
 import org.appdevforall.codeonthego.layouteditor.utils.Utils
 import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
@@ -392,10 +393,16 @@ class DrawableFragment(
     }
 
     private fun deleteDrawable(position: Int) {
-        val file = File(drawableList[position].path)
-        file.delete()
-        drawableList.removeAt(position)
-        adapter?.notifyItemRemoved(position)
+        lifecycleScope.launch {
+            val file = File(drawableList[position].path)
+            val deleted = withContext(Dispatchers.IO) { file.delete() }
+            if (deleted) {
+                drawableList.removeAt(position)
+                adapter?.notifyItemRemoved(position)
+            } else {
+                ToastUtils.showLong(R.string.delete_failed)
+            }
+        }
     }
 
 }
