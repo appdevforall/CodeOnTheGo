@@ -16,8 +16,10 @@ object DrawableManager {
         for (f in files) {
             val path = f.path
             var name = getLastSegmentFromPath(path)
-            name = name.substring(0, name.lastIndexOf("."))
-
+            val dotIndex = name.lastIndexOf(".")
+            if (dotIndex > 0) {
+                name = name.substring(0, dotIndex)
+            }
             items.put(name, path)
         }
     }
@@ -29,7 +31,8 @@ object DrawableManager {
 
     @JvmStatic
     fun getDrawable(context: Context?, key: String?): Drawable? {
-        return if (items[key]!!.endsWith(".xml"))
+        val path = items[key] ?: return null
+        return if (path.endsWith(".xml"))
             Utils.getVectorDrawableAsync(context, Uri.fromFile(File(items[key].toString())))
         else
             Drawable.createFromPath(items[key])

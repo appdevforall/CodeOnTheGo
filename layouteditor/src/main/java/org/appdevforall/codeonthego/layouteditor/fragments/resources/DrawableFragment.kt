@@ -44,29 +44,20 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 
-class DrawableFragment : Fragment {
+class DrawableFragment(
+    private var drawableList: MutableList<DrawableFile>
+) : Fragment() {
     private var binding: FragmentResourcesBinding? = null
+    private var mRecyclerView: RecyclerView? = null
+
+    private var project: ProjectFile? = null
+
     private var adapter: DrawableResourceAdapter? = null
     var dpiAdapter: DPIsListAdapter? = null
-    private var project: ProjectFile? = null
-    private var mRecyclerView: RecyclerView? = null
-    var drawableList: MutableList<DrawableFile> = ArrayList()
-    private var dpiList: MutableList<String?>? = null
+    private var dpiList = mutableListOf("ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi")
 
     private val logger = LoggerFactory.getLogger(DrawableFragment::class.java)
 
-    constructor(drawableList: MutableList<DrawableFile>) {
-        this.drawableList = drawableList
-        dpiList = ArrayList<String?>()
-        dpiList!!.add("ldpi")
-        dpiList!!.add("mdpi")
-        dpiList!!.add("hdpi")
-        dpiList!!.add("xhdpi")
-        dpiList!!.add("xxhdpi")
-        dpiList!!.add("xxxhdpi")
-    }
-
-    constructor()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -81,15 +72,21 @@ class DrawableFragment : Fragment {
         loadDrawables()
         mRecyclerView = binding!!.recyclerView
         // Create the adapter and set it to the RecyclerView
-        adapter = DrawableResourceAdapter(drawableList, object : DrawableResourceAdapter.OnDrawableActionListener {
-            override fun onRenameRequested(position: Int, holder: DrawableResourceAdapter.VH, view: View) {
-                showRenameDialog(position, holder)
-            }
+        adapter = DrawableResourceAdapter(
+            drawableList,
+            object : DrawableResourceAdapter.OnDrawableActionListener {
+                override fun onRenameRequested(
+                    position: Int,
+                    holder: DrawableResourceAdapter.VH,
+                    view: View
+                ) {
+                    showRenameDialog(position, holder)
+                }
 
-            override fun onDeleteRequested(position: Int) {
-                deleteDrawable(position)
-            }
-        })
+                override fun onDeleteRequested(position: Int) {
+                    deleteDrawable(position)
+                }
+            })
         mRecyclerView!!.setAdapter(adapter)
         mRecyclerView!!.setLayoutManager(
             LinearLayoutManager(requireContext(), RecyclerView.VERTICAL, false)
@@ -120,19 +117,18 @@ class DrawableFragment : Fragment {
 
                             val drawable = if (name.endsWith(".xml")) {
                                 Utils.getVectorDrawableAsync(
-                                    appContext,          // <-- FIX
+                                    appContext,
                                     Uri.fromFile(file)
                                 )
                             } else {
                                 Drawable.createFromPath(file.path)
                             }
 
-                            dpiList?.forEachIndexed { i, dpi ->
+                            dpiList.forEachIndexed { i, dpi ->
                                 val dpiFolder = File(project!!.path + "/drawable-$dpi/")
                                 if (dpiFolder.exists()) {
                                     val matching = File(dpiFolder, name)
                                     if (matching.exists()) {
-                                        Drawable.createFromPath(matching.path)
                                         version = i
                                     }
                                 }
@@ -213,7 +209,8 @@ class DrawableFragment : Fragment {
                                     BitmapFactory.decodeFile(path),
                                     selectedDPIs
                                 )
-                            } catch (_: IOException) { }
+                            } catch (_: IOException) {
+                            }
                             version = i
                         }
                     }
@@ -223,15 +220,20 @@ class DrawableFragment : Fragment {
 
                     val drawable =
                         if (lastSegment.endsWith(".xml"))
-                            Utils.getVectorDrawableAsync(requireContext(), Uri.fromFile(File(toPath)))
+                            Utils.getVectorDrawableAsync(
+                                requireContext(),
+                                Uri.fromFile(File(toPath))
+                            )
                         else
                             Drawable.createFromPath(toPath)
 
-                    DrawableFile(version + 1, drawable!!, toPath)
+                    drawable?.let { DrawableFile(version + 1, it, toPath) }
                 }
 
-                drawableList.add(newDrawableFile)
-                adapter?.notifyDataSetChanged()
+                newDrawableFile?.let {
+                    drawableList.add(it)
+                    adapter?.notifyDataSetChanged()
+                }
             }
         }
 
@@ -316,7 +318,6 @@ class DrawableFragment : Fragment {
             newName = newName
         )
 
-        // 4. Load the new drawable
         val updatedDrawable =
             if (newName.endsWith(".xml") || newName.endsWith(".svg"))
                 VectorDrawableCompat.createFromPath(newPath)
