@@ -11,6 +11,8 @@ data class RecentProject(
     @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "create_at") val createdAt: String,
     @ColumnInfo(name = "location") val location: String,
-    @ColumnInfo(name = "last_modified") val lastModified: String = "0"
+    @ColumnInfo(name = "last_modified") val lastModified: String = "0",
+    @ColumnInfo(name = "template_name") val templateName: String = "unknown",
+    @ColumnInfo(name = "language") val language: String = "unknown"
 )
 
