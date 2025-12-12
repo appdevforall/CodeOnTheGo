@@ -317,7 +317,7 @@ class DrawableFragment(
         val oldName = drawable.name.substring(0, drawable.name.lastIndexOf("."))
 
         val oldFile = File(oldPath)
-        val newPath = project!!.drawablePath + newName + extension
+        val newPath = project?.drawablePath + newName + extension
         val newFile = File(newPath)
 
         if (!oldFile.renameTo(newFile)) {
@@ -329,12 +329,14 @@ class DrawableFragment(
 
         EventBus.getDefault().post(FileRenameEvent(oldFile, newFile))
 
-        val projectRoot = File(project!!.path).parentFile!!
-        renameDrawableReferences(
-            projectRoot,
-            oldName = oldName,
-            newName = newName
-        )
+        val projectRoot = project?.let { File(it.path) }?.parentFile
+        projectRoot?.let {
+            renameDrawableReferences(
+                it,
+                oldName = oldName,
+                newName = newName
+            )
+        }
 
         val updatedDrawable =
             if (extension.equals(".xml", ignoreCase = true) || extension.equals(".svg", ignoreCase = true))
