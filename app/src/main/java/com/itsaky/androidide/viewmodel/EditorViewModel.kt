@@ -25,12 +25,16 @@ import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.FileUtils
 import com.google.gson.GsonBuilder
 import com.itsaky.androidide.models.OpenedFilesCache
+import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ILogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -54,6 +58,12 @@ class EditorViewModel : ViewModel() {
     private val _openedFiles = MutableLiveData<OpenedFilesCache>()
     private val _isBoundToBuildService = MutableLiveData(false)
     private val _files = MutableLiveData<MutableList<File>>(ArrayList())
+
+    private val _searchResults = MutableStateFlow<Map<File, List<SearchResult>>>(emptyMap())
+    val searchResults: StateFlow<Map<File, List<SearchResult>>> = _searchResults.asStateFlow()
+    fun onSearchResultsReady(results: Map<File, List<SearchResult>>) {
+        _searchResults.value = results
+    }
 
     /**
      * Holds information about the currently selected editor fragment. First value in the pair is the
