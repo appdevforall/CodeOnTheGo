@@ -7,11 +7,10 @@ package com.itsaky.androidide.app
  * @author Akash Yadav
  */
 internal interface ApplicationLoader {
-
 	/**
 	 * Called to perform application initialization with this loader.
 	 *
 	 * @param app The application instance to initialize.
 	 */
-	fun load(app: IDEApplication)
+	suspend fun load(app: IDEApplication)
 }

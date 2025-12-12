@@ -32,10 +32,9 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
+import com.itsaky.androidide.utils.FeatureFlags
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
-
 
 class EditorBottomSheetTabAdapter(
 	fragmentActivity: FragmentActivity,
@@ -52,7 +51,7 @@ class EditorBottomSheetTabAdapter(
 		const val TAB_DIAGNOSTICS = 3
 		const val TAB_SEARCH_RESULTS = 4
 		const val TAB_DEBUGGER = 5
-        const val TAB_AGENT = 6
+		const val TAB_AGENT = 6
 	}
 
 	private val allTabs =
@@ -111,7 +110,7 @@ class EditorBottomSheetTabAdapter(
 				),
 			)
 
-			if (isExperimentsEnabled()) {
+			if (FeatureFlags.isExperimentsEnabled) {
 				add(
 					Tab(
 						title = fragmentActivity.getString(R.string.title_agent),
@@ -326,7 +325,7 @@ class EditorBottomSheetTabAdapter(
 						logger.debug(
 							"Plugin {} contributed {} tab items",
 							plugin.javaClass.simpleName,
-							tabItems.size
+							tabItems.size,
 						)
 
 						for (tabItem in tabItems) {
@@ -341,7 +340,7 @@ class EditorBottomSheetTabAdapter(
 						"Error registering plugin tabs for {}: {}",
 						plugin.javaClass.simpleName,
 						e.message,
-						e
+						e,
 					)
 				}
 			}
@@ -352,12 +351,13 @@ class EditorBottomSheetTabAdapter(
 			// Add plugin tabs to the adapter at the end
 			val startIndex = allTabs.size
 			for ((index, tabItem) in pluginTabs.withIndex()) {
-				val tab = Tab(
-					title = tabItem.title,
-					fragmentClass = Fragment::class.java, // Placeholder, actual fragment from factory
-					itemId = startIndex + index + 1000L, // Offset to avoid conflicts
-					tooltipTag = null
-				)
+				val tab =
+					Tab(
+						title = tabItem.title,
+						fragmentClass = Fragment::class.java, // Placeholder, actual fragment from factory
+						itemId = startIndex + index + 1000L, // Offset to avoid conflicts
+						tooltipTag = null,
+					)
 
 				// Store the fragment factory for later use
 				pluginFragmentFactories[tab.itemId] = tabItem.fragmentFactory
@@ -367,10 +367,8 @@ class EditorBottomSheetTabAdapter(
 
 				logger.debug("Registered plugin tab at index {}: {}", startIndex + index, tabItem.title)
 			}
-
 		} catch (e: Exception) {
 			logger.error("Error in plugin tab integration: {}", e.message, e)
 		}
 	}
-
 }

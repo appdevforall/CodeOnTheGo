@@ -15,13 +15,16 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
+import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
 import io.sentry.SentryReplayOptions.SentryReplayQuality
 import io.sentry.android.core.SentryAndroid
-import io.sentry.android.core.SentryAndroidOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.koin.android.ext.koin.androidContext
@@ -30,47 +33,52 @@ import org.koin.core.component.inject
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
-import kotlinx.coroutines.*
-
-
 
 /**
  * @author Akash Yadav
  */
-internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLifecycleObserver,
+internal object DeviceProtectedApplicationLoader :
+	ApplicationLoader,
+	DefaultLifecycleObserver,
 	KoinComponent {
-
 	private val logger = LoggerFactory.getLogger(DeviceProtectedApplicationLoader::class.java)
 
 	private val crashEventSubscriber = CrashEventSubscriber()
 	val analyticsManager: IAnalyticsManager by inject()
 
-	override fun load(app: IDEApplication) {
+	override suspend fun load(app: IDEApplication) {
 		logger.info("Loading device protected storage context components...")
 
-        // Enable StrictMode for debug builds
-        if (BuildConfig.DEBUG) {
-            CoroutineScope(Dispatchers.Main).launch {
-                val reprieve = withContext(Dispatchers.IO) {
-                    FeatureFlags.isReprieveEnabled()
-                }
+		runCatching {
+			// try to initialize feature flags
+			// this may fail when running in direct boot mode, so we wrap this
+			// in runCatching and ignore errors, if any
+			FeatureFlags.initialize()
+		}
 
-                StrictMode.setThreadPolicy(
-                    StrictMode.ThreadPolicy.Builder()
-                        .detectAll()
-                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
-                        .build()
-                )
-                StrictMode.setVmPolicy(
-                    StrictMode.VmPolicy.Builder()
-                        .detectAll()
-                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
-                        .build()
-                )
-            }
-        }
+		// Enable StrictMode for debug builds
+		if (BuildConfig.DEBUG) {
+			app.coroutineScope.launch(Dispatchers.Main) {
+				val reprieve = FeatureFlags.isReprieveEnabled
+				StrictMode.setThreadPolicy(
+					StrictMode.ThreadPolicy
+						.Builder()
+						.detectAll()
+						.apply { if (reprieve) penaltyLog() else penaltyDeath() }
+						.build(),
+				)
 
-        startKoin {
+				StrictMode.setVmPolicy(
+					StrictMode.VmPolicy
+						.Builder()
+						.detectAll()
+						.apply { if (reprieve) penaltyLog() else penaltyDeath() }
+						.build(),
+				)
+			}
+		}
+
+		startKoin {
 			androidContext(app)
 			modules(coreModule, pluginModule)
 		}
@@ -101,7 +109,14 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
 		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
 
-		initializeAnalytics()
+		app.coroutineScope.launch(Dispatchers.IO) {
+			// early-init theme manager since it may need to perform disk reads
+			IThemeManager.getInstance()
+		}
+
+		withContext(Dispatchers.Main) {
+			initializeAnalytics()
+		}
 	}
 
 	private fun initializeAnalytics() {
@@ -116,7 +131,7 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
 	fun handleUncaughtException(
 		thread: Thread,
-		exception: Throwable
+		exception: Throwable,
 	) {
 		// we can't write logs to files, nor we can show the crash handler
 		// activity to the user. Just report to Sentry and exit.

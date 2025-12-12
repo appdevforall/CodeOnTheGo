@@ -12,6 +12,7 @@ import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.ShizukuSettings.LaunchMethod
 import moe.shizuku.manager.ShizukuStarter
@@ -46,7 +47,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
 			return
 		}
 
-		val lastLaunchMode = ShizukuSettings.getLastLaunchMode()
+		val lastLaunchMode = runBlocking { ShizukuSettings.getLastLaunchMode() }
 		logger.info("Boot completed. Last launch mode: {}", lastLaunchMode)
 
 		if (lastLaunchMode == LaunchMethod.ROOT) {
@@ -88,6 +89,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
 		val pending = goAsync()
 		CoroutineScope(Dispatchers.IO).launch {
 			val latch = CountDownLatch(1)
+			val sharedPrefs = ShizukuSettings.getSharedPreferences()
 
 			val adbMdns =
 				AdbMdns(context, AdbMdns.TLS_CONNECT) { port ->
@@ -96,7 +98,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
 
 					try {
 						logger.info("Connecting to WADB on port {}...", port)
-						val keystore = PreferenceAdbKeyStore(ShizukuSettings.getPreferences())
+						val keystore = PreferenceAdbKeyStore(sharedPrefs)
 						val key = AdbKey(keystore)
 						val client = AdbClient("127.0.0.1", port, key)
 						client.connect()
