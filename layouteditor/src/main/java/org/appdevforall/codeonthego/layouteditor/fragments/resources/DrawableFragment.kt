@@ -97,57 +97,8 @@ class DrawableFragment(
         val appContext = requireContext().applicationContext
 
         lifecycleScope.launch {
-
             try {
-                val result = withContext(Dispatchers.IO) {
-
-                    val list = mutableListOf<DrawableFile>()
-                    val baseDrawableFolder = File(project!!.path + "/drawable/")
-
-                    if (baseDrawableFolder.exists()) {
-                        val drawables = FileUtils.listFiles(
-                            baseDrawableFolder,
-                            arrayOf("png", "jpg", "jpeg", "gif", "xml"),
-                            false
-                        )
-
-                        for (file in drawables) {
-                            var version = 0
-                            val name = file.name
-
-                            val drawable = if (name.endsWith(".xml")) {
-                                Utils.getVectorDrawableAsync(
-                                    appContext,
-                                    Uri.fromFile(file)
-                                )
-                            } else {
-                                Drawable.createFromPath(file.path)
-                            }
-
-                            dpiList.forEachIndexed { i, dpi ->
-                                val dpiFolder = File(project!!.path + "/drawable-$dpi/")
-                                if (dpiFolder.exists()) {
-                                    val matching = File(dpiFolder, name)
-                                    if (matching.exists()) {
-                                        version = i
-                                    }
-                                }
-                            }
-
-                            drawable?.let {
-                                list.add(
-                                    DrawableFile(
-                                        version + 1,
-                                        it,
-                                        file.path
-                                    )
-                                )
-                            }
-                        }
-                    }
-
-                    list
-                }
+                val result = loadDrawableFiles(appContext)
 
                 drawableList.clear()
                 drawableList.addAll(result)
@@ -156,6 +107,64 @@ class DrawableFragment(
             } catch (e: Exception) {
                 logger.error("Error loading drawables", e)
             }
+        }
+    }
+
+    private suspend fun loadDrawableFiles(context: Context): List<DrawableFile> {
+        val currentProject = project ?: return emptyList()
+
+        return withContext(Dispatchers.IO) {
+            val projectDir = File(currentProject.path)
+            val baseDrawableFolder = File(projectDir, "drawable")
+
+            if (!baseDrawableFolder.exists()) {
+                return@withContext emptyList()
+            }
+
+            val dpiVersionMap = buildDpiVersionMap(projectDir)
+
+            val drawableFiles = FileUtils.listFiles(
+                baseDrawableFolder,
+                arrayOf("png", "jpg", "jpeg", "gif", "xml"),
+                false
+            )
+
+            drawableFiles.mapNotNull { file ->
+                createDrawableFile(context, file, dpiVersionMap)
+            }
+        }
+    }
+
+    private fun buildDpiVersionMap(projectDir: File): Map<String, Int> {
+        val dpiMap = mutableMapOf<String, Int>()
+        dpiList.forEachIndexed { index, dpi ->
+            val dpiFolder = File(projectDir, "drawable-$dpi")
+            dpiFolder.listFiles()?.forEach { fileInDpiFolder ->
+                dpiMap[fileInDpiFolder.name] = index
+            }
+        }
+        return dpiMap
+    }
+
+    private fun createDrawableFile(
+        context: Context,
+        file: File,
+        dpiVersionMap: Map<String, Int>
+    ): DrawableFile? {
+        val drawable = if (file.extension.equals("xml", ignoreCase = true)) {
+            Utils.getVectorDrawableAsync(context, Uri.fromFile(file))
+        } else {
+            Drawable.createFromPath(file.path)
+        }
+
+        val versionIndex = dpiVersionMap[file.name] ?: 0
+
+        return drawable?.let {
+            DrawableFile(
+                versions = versionIndex + 1,
+                drawable = it,
+                path = file.path
+            )
         }
     }
 
@@ -194,32 +203,32 @@ class DrawableFragment(
         builder.setNegativeButton(R.string.cancel, null)
 
         builder.setPositiveButton(R.string.add) { _, _ ->
+            val drawableName = editText.text.toString()
+            val selectedDPIs = dpiAdapter?.selectedItems ?: emptyList()
+            val isXml = lastSegment.endsWith(".xml")
+
             lifecycleScope.launch {
                 val newDrawableFile = withContext(Dispatchers.IO) {
-                    val drawablePath = project!!.drawablePath
-                    var version = 0
+                    val drawablePath = project?.drawablePath ?: return@withContext null
 
-                    if (!lastSegment.endsWith(".xml") && dpiAdapter != null) {
-                        val selectedDPIs = dpiAdapter!!.selectedItems
+                    if (!isXml && selectedDPIs.isNotEmpty()) {
 
-                        selectedDPIs.forEachIndexed { i, dpi ->
-                            try {
-                                ImageConverter.convertToDrawableDpis(
-                                    editText.text.toString() + extension,
-                                    BitmapFactory.decodeFile(path),
-                                    selectedDPIs
-                                )
-                            } catch (_: IOException) {
-                            }
-                            version = i
+                        try {
+                            ImageConverter.convertToDrawableDpis(
+                                drawableName + extension,
+                                BitmapFactory.decodeFile(path),
+                                selectedDPIs
+                            )
+                        } catch (e: IOException) {
+                            logger.error("Error converting drawable to different DPIs", e)
                         }
                     }
 
-                    val toPath = drawablePath + editText.text.toString() + extension
+                    val toPath = drawablePath + drawableName + extension
                     FileUtil.copyFile(uri, toPath, requireContext())
 
                     val drawable =
-                        if (lastSegment.endsWith(".xml"))
+                        if (isXml)
                             Utils.getVectorDrawableAsync(
                                 requireContext(),
                                 Uri.fromFile(File(toPath))
@@ -227,12 +236,16 @@ class DrawableFragment(
                         else
                             Drawable.createFromPath(toPath)
 
-                    drawable?.let { DrawableFile(version + 1, it, toPath) }
+                    val version = selectedDPIs.size + 1
+                    drawable?.let {
+                        DrawableFile(version, it, toPath)
+                    }
                 }
 
                 newDrawableFile?.let {
+                    val insertPosition = drawableList.size
                     drawableList.add(it)
-                    adapter?.notifyDataSetChanged()
+                    adapter?.notifyItemInserted(insertPosition)
                 }
             }
         }
