@@ -30,13 +30,25 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
     EditorRelatedAction() {
-    override val id: String = "ide.editor.code.text.format"
+    override val id: String = "ide.editor.code.text.show_tooltip"
     override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
     private var htmlString: String = ""
 
     init {
         label = context.getString(R.string.title_show_tooltip)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
+    }
+
+    override fun prepare(data: ActionData) {
+        super.prepare(data)
+        val editor = data.getEditor()
+        if (editor == null) {
+            visible = false
+            enabled = false
+            return
+        }
+        visible = editor.cursor.isSelected
+        enabled = visible
     }
 
     override suspend fun execAction(data: ActionData): Any {

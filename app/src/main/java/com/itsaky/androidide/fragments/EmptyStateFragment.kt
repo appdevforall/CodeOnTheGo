@@ -1,6 +1,7 @@
 package com.itsaky.androidide.fragments
 
 import android.annotation.SuppressLint
+import android.graphics.Color
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.LayoutInflater
@@ -13,6 +14,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewbinding.ViewBinding
 import com.itsaky.androidide.databinding.FragmentEmptyStateBinding
 import com.itsaky.androidide.editor.ui.EditorLongPressEvent
+import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.EmptyStateFragmentViewModel
@@ -40,16 +42,30 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	@Volatile
 	private var cachedIsEmpty: Boolean = true
 
+	open val currentEditor: IDEEditor? get() = null
+
 	/**
 	 * Called when a long press is detected on the fragment's root view.
 	 * Subclasses must implement this to define the action (e.g., show a tooltip).
 	 */
-	protected abstract fun onFragmentLongPressed()
+	open fun onFragmentLongPressed(x: Float = -1f, y: Float = -1f) {
+		currentEditor?.let { editor ->
+    	if (x >= 0 && y >= 0) {
+    		editor.setSelectionFromPoint(x, y)
+			}
+		}
+		onFragmentLongPressed()
+	}
+
+	open fun onFragmentLongPressed() {
+		val currentEditor = currentEditor ?: return
+		currentEditor.selectCurrentWord()
+	}
 
 	private val gestureListener =
 		object : GestureDetector.SimpleOnGestureListener() {
 			override fun onLongPress(e: MotionEvent) {
-				onFragmentLongPressed()
+				onFragmentLongPressed(e.x, e.y)
 			}
 		}
 
@@ -160,6 +176,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	// This method will be called when an EditorLongPressEvent is posted
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onEditorLongPressed(event: EditorLongPressEvent) {
-		onFragmentLongPressed()
+		val motionEvent = event.motionEvent
+		onFragmentLongPressed(motionEvent.x, motionEvent.y)
 	}
 }

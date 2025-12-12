@@ -20,12 +20,10 @@ import android.os.Bundle
 import android.view.View
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.editor.ui.IDEEditor
 
 class BuildOutputFragment : NonEditableEditorFragment() {
-	override fun onFragmentLongPressed() {
-		showTooltipDialog(TooltipTag.PROJECT_BUILD_OUTPUT)
-	}
+	override val currentEditor: IDEEditor? get() = editor
 
 	private val unsavedLines: MutableList<String?> = ArrayList()
 
