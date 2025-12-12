@@ -33,9 +33,9 @@ object DrawableManager {
     fun getDrawable(context: Context?, key: String?): Drawable? {
         val path = items[key] ?: return null
         return if (path.endsWith(".xml"))
-            Utils.getVectorDrawableAsync(context, Uri.fromFile(File(items[key].toString())))
+            Utils.getVectorDrawableAsync(context, Uri.fromFile(File(path)))
         else
-            Drawable.createFromPath(items[key])
+            Drawable.createFromPath(path)
     }
 
     fun clear() {

@@ -320,7 +320,12 @@ class DrawableFragment(
         val newPath = project!!.drawablePath + newName + extension
         val newFile = File(newPath)
 
-        oldFile.renameTo(newFile)
+        if (!oldFile.renameTo(newFile)) {
+            withContext(Dispatchers.Main) {
+                ToastUtils.showLong(R.string.rename_failed)
+            }
+            return@withContext
+        }
 
         EventBus.getDefault().post(FileRenameEvent(oldFile, newFile))
 
@@ -332,7 +337,7 @@ class DrawableFragment(
         )
 
         val updatedDrawable =
-            if (newName.endsWith(".xml") || newName.endsWith(".svg"))
+            if (extension.equals(".xml", ignoreCase = true) || extension.equals(".svg", ignoreCase = true))
                 VectorDrawableCompat.createFromPath(newPath)
             else
                 Drawable.createFromPath(newPath)
