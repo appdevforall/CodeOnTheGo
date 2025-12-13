@@ -65,7 +65,9 @@ data class ThreadDescriptor(
     val name: String,
     val group: String,
     val state: ThreadState,
-)
+) {
+	override fun toString(): String = "'$name'@$id in group '$group': ${state.name}"
+}
 
 /**
  * Information about a thread.
