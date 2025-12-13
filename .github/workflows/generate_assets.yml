@@ -20,13 +20,6 @@ jobs:
         with:
           ref: stage
 
-      - name: Install Git LFS
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-lfs
-          git lfs install
-          git lfs pull
-
       - name: Check if Nix is installed
         id: check_nix
         run: |
@@ -57,6 +50,14 @@ jobs:
           service_account: ${{ secrets.IDENTITY_EMAIL }}
           token_format: 'access_token'
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
+
+      - name: Download debug assets
+        run: |
+          flox activate -d flox/base -- ./gradlew :app:assetsDownloadDebug --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
+            -Dandroid.aapt2.daemonHeapSize=4096M \
+            -Dorg.gradle.workers.max=1 \
+            -Dorg.gradle.parallel=false
 
       - name: Download latest documentation.db from Google Drive
         run: |

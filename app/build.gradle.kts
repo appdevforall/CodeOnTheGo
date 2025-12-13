@@ -11,6 +11,7 @@ import java.io.BufferedOutputStream
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 import java.nio.file.Files
@@ -23,7 +24,10 @@ import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import java.security.MessageDigest
 import kotlin.reflect.jvm.javaMethod
+
+val isWindows = System.getProperty("os.name").lowercase().contains("windows")
 
 fun TaskContainer.registerD8Task(
     taskName: String,
@@ -32,7 +36,9 @@ fun TaskContainer.registerD8Task(
 ): org.gradle.api.tasks.TaskProvider<Exec> {
     val androidSdkDir = android.sdkDirectory.absolutePath
     val buildToolsVersion = android.buildToolsVersion // Gets the version from your project
-    val d8Executable = File("$androidSdkDir/build-tools/$buildToolsVersion/d8")
+    val d8Executable = File("$androidSdkDir/build-tools/$buildToolsVersion/"+
+            if (isWindows) "d8.bat" else "d8"
+    )
 
     if (!d8Executable.exists()) {
         throw FileNotFoundException("D8 executable not found at: ${d8Executable.absolutePath}")
@@ -440,7 +446,9 @@ fun createAssetsZip(arch: String) {
     project.exec {
         val androidSdkDir = android.sdkDirectory.absolutePath
         val buildToolsVersion = android.buildToolsVersion
-        val d8Executable = File("$androidSdkDir/build-tools/$buildToolsVersion/d8")
+        val d8Executable = File("$androidSdkDir/build-tools/$buildToolsVersion/"+
+                if (isWindows) "d8.bat" else "d8"
+        )
 
         // 1. Start building the command arguments list
         val d8Command = mutableListOf<String>()
@@ -613,6 +621,10 @@ fun registerBundleLlamaAssetsTask(flavor: String, arch: String): TaskProvider<Ta
 
 tasks.register("assembleV8Assets") {
     dependsOn(":llama-impl:assembleV8Release")
+    if (!isCiCd) {
+        dependsOn("assetsDownloadDebug")
+    }
+
 	doLast {
 		createAssetsZip("arm64-v8a")
 	}
@@ -620,6 +632,10 @@ tasks.register("assembleV8Assets") {
 
 tasks.register("assembleV7Assets") {
     dependsOn(":llama-impl:assembleV7Release")
+    if (!isCiCd) {
+        dependsOn("assetsDownloadDebug")
+    }
+
 	doLast {
 		createAssetsZip("armeabi-v7a")
 	}
@@ -669,6 +685,9 @@ afterEvaluate {
 		}
 
         dependsOn(bundleLlamaV8Assets)
+        if (!isCiCd) {
+            dependsOn("assetsDownloadRelease")
+        }
 	}
 
 	tasks.named("assembleV7Release").configure {
@@ -683,6 +702,9 @@ afterEvaluate {
 		}
 
         dependsOn(bundleLlamaV7Assets)
+        if (!isCiCd) {
+            dependsOn("assetsDownloadDebug")
+        }
 	}
 
   tasks.named("assembleV8Debug").configure {
@@ -839,3 +861,148 @@ fun signApk(apkFile: File) {
 		}
 	}
 }
+
+
+// git lfs avoidance
+data class Asset(
+    val localPath: String,
+    val url: String,
+    val variant: String
+)
+
+// --- Debug assets ---
+val debugAssets = listOf(
+    Asset("assets/android-sdk-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip", "debug"),
+    Asset("assets/android-sdk-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-armeabi-v7a.zip", "debug"),
+    Asset("assets/bootstrap-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/bootstrap-arm64-v8a.zip", "debug"),
+    Asset("assets/bootstrap-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/bootstrap-armeabi-v7a.zip", "debug"),
+    Asset("assets/documentation.db", "https://appdevforall.org/dev-assets/debug/documentation.db", "debug"),
+    Asset("assets/gradle-8.14.3-bin.zip", "https://appdevforall.org/dev-assets/debug/gradle-8.14.3-bin.zip", "debug"),
+    Asset("assets/gradle-api-8.14.3.jar.zip", "https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip", "debug"),
+    Asset("assets/localMvnRepository.zip", "https://appdevforall.org/dev-assets/debug/localMvnRepository.zip", "debug")
+)
+
+// --- Release assets ---
+val releaseAssets = listOf(
+    Asset("assets/release/common/data/common/gradle-8.14.3-bin.zip.br", "https://appdevforall.org/dev-assets/release/gradle-8.14.3-bin.zip.br", "release"),
+    Asset("assets/release/common/data/common/gradle-api-8.14.3.jar.br", "https://appdevforall.org/dev-assets/release/gradle-api-8.14.3.jar.br", "release"),
+    Asset("assets/release/common/data/common/localMvnRepository.zip.br", "https://appdevforall.org/dev-assets/release/localMvnRepository.zip.br", "release"),
+    Asset("assets/release/common/database/documentation.db.br", "https://appdevforall.org/dev-assets/release/documentation.db.br", "release"),
+    Asset("assets/release/v7/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v7/android-sdk.zip.br", "release"),
+    Asset("assets/release/v7/data/common/bootstrap.zip.br", "https://appdevforall.org/dev-assets/release/v7/bootstrap.zip.br", "release"),
+    Asset("assets/release/v8/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v8/android-sdk.zip.br", "release"),
+    Asset("assets/release/v8/data/common/bootstrap.zip.br", "https://appdevforall.org/dev-assets/release/v8/bootstrap.zip.br", "release")
+)
+
+fun assetsFileDownload(assetUrl: String, target: File) {
+    val url = URL(assetUrl)
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "GET"
+    conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+    conn.instanceFollowRedirects = true
+    conn.connectTimeout = 10_000
+    conn.readTimeout = 10_000
+
+    try {
+        val status = conn.responseCode
+        if (status == HttpURLConnection.HTTP_OK) {
+            // Stream the response body into the target file
+            conn.inputStream.use { input ->
+                target.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            project.logger.lifecycle("Downloaded $assetUrl → ${target.absolutePath}")
+        } else {
+            throw GradleException("Failed to download $assetUrl (HTTP $status: ${conn.responseMessage})")
+        }
+    } finally {
+        conn.disconnect()
+    }
+}
+
+fun assetsFileChecksum(assetUrl: String): String? {
+    val checksumUrl = assetUrl + ".md5"
+    val conn = URL(checksumUrl).openConnection() as HttpURLConnection
+    conn.requestMethod = "GET"
+    conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+    conn.instanceFollowRedirects = true
+    conn.connectTimeout = 10_000
+    conn.readTimeout = 10_000
+
+    return try {
+        val status = conn.responseCode
+
+        if (status == HttpURLConnection.HTTP_OK) {
+            conn.inputStream.bufferedReader().use { it.readText().trim() }
+        } else {
+            throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
+        }
+    } finally {
+        conn.disconnect()
+    }
+}
+
+
+// --- Helper function ---
+fun assetsDownload(assets: List<Asset>, projectDir: File) {
+    val checksumDir = File(projectDir, ".checksum")
+    checksumDir.mkdirs()
+
+    assets.forEach { asset ->
+        val target = File(projectDir, asset.localPath)
+        target.parentFile.mkdirs()
+
+        // Path for checksum file
+        val canonicalName = asset.localPath.replace("/", "_")
+        val checksumFile = File(checksumDir, "${asset.variant}-${canonicalName}.md5")
+
+        // Load previous checksum (empty string if missing)
+        val previousChecksum: String = if (checksumFile.exists()) {
+            checksumFile.readText()
+        } else ""
+
+        // Fetch remote checksum
+        val remoteChecksum = assetsFileChecksum(asset.url)
+
+        // Decide whether to download
+        val needsDownload = (previousChecksum != remoteChecksum) || previousChecksum.isEmpty()
+
+        if (needsDownload) {
+            project.logger.lifecycle("Downloading ${asset.url} → ${asset.localPath}")
+
+            assetsFileDownload(asset.url, File(rootProject.projectDir, asset.localPath))
+            // Recompute checksum after download
+            val digest = MessageDigest.getInstance("MD5")
+            target.inputStream().use { input ->
+                val buffer = ByteArray(8192)
+                var read: Int
+                while (input.read(buffer).also { read = it } > 0) {
+                    digest.update(buffer, 0, read)
+                }
+            }
+            val newChecksum = digest.digest().joinToString("") { "%02x".format(it) }
+            if (!remoteChecksum.isNullOrEmpty() && newChecksum != remoteChecksum) {
+                throw GradleException("Check sum mismatch for ${asset.localPath} (expected ${remoteChecksum}, got ${newChecksum})")
+            }
+
+            checksumFile.writeText(newChecksum)
+            project.logger.lifecycle("Updated checksum stored: ${checksumFile.absolutePath}")
+        } else {
+            project.logger.lifecycle("File ${asset.localPath} is up-to-date (checksum matches).")
+        }
+    }
+}
+
+tasks.register("assetsDownloadDebug") {
+    group = "setup"
+    description = "Download and verify debug assets"
+    doLast { assetsDownload(debugAssets, rootProject.projectDir) }
+}
+
+tasks.register("assetsDownloadRelease") {
+    group = "setup"
+    description = "Download and verify release assets"
+    doLast { assetsDownload(releaseAssets, rootProject.projectDir) }
+}
+
