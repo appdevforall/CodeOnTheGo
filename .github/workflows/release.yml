@@ -54,6 +54,7 @@ jobs:
           git config user.email "dev-team@appdevforall.org"
 
       - name: Merge stage to main
+        if: false
         run: |
           git fetch origin stage
           git checkout main
@@ -138,11 +139,53 @@ jobs:
           git push origin main
           echo "Merge completed successfully"
 
+  download_assets:
+    name: Download release assets
+    runs-on: self-hosted
+    timeout-minutes: 10
+    needs: merge_stage_to_main
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Download release assets
+        run: |
+          flox activate -d flox/base -- ./gradlew :app:assetsDownloadRelease --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
+            -Dandroid.aapt2.daemonHeapSize=4096M \
+            -Dorg.gradle.workers.max=1 \
+            -Dorg.gradle.parallel=false
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: assets
+          path: assets/
+          retention-days: 1
+
   download_documentation:
     name: Download pre-compressed documentation DB
     runs-on: self-hosted
     timeout-minutes: 5
-    needs: merge_stage_to_main
+    needs: download_assets
 
     steps:
       - name: Checkout repository
@@ -299,7 +342,7 @@ jobs:
       - name: Upload compressed documentation DB
         uses: actions/upload-artifact@v4
         with:
-          name: documentation-db
+          name: assets
           path: assets/release/common/database/documentation.db.br
           retention-days: 1
 
@@ -307,7 +350,7 @@ jobs:
     name: Build Release APK
     runs-on: self-hosted
     timeout-minutes: 60
-    needs: [merge_stage_to_main, download_documentation]
+    needs: [merge_stage_to_main, download_assets, download_documentation]
     strategy:
       matrix:
         include:
@@ -332,15 +375,8 @@ jobs:
       - name: Download compressed documentation DB
         uses: actions/download-artifact@v4
         with:
-          name: documentation-db
-          path: assets/release/common/database
-
-      - name: Install Git LFS
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-lfs
-          git lfs install
-          git lfs pull
+          name: assets
+          path: assets/
 
       - name: Initialize submodules
         run: |
@@ -415,6 +451,7 @@ jobs:
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Deploy to Firebase App Distribution
+        if: false
         id: firebase_upload
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
@@ -547,6 +584,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
+        if: false
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
           COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
