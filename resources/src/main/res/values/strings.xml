@@ -44,6 +44,7 @@
 	<string name="msg_no_references">No references found</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
+	<string name="err_asset_entry_not_found">Entry \'%1$s\' not found in assets zip file</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory!</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the Internal Storage partition. You currently have %2$.1fGB available.</string>
@@ -84,6 +85,32 @@
 	<string name="cancel_project_text">Cancel</string>
 	<string name="close_without_saving">Close without saving files</string>
 	<string name="save_and_close">Save files and close project</string>
+	<string name="search_projects_hint">Search projects by name…</string>
+    <string name="sort_projects_label">Sort projects</string>
+    <string name="reset_sorting">Reset</string>
+    <string name="apply_sorting">Sort</string>
+    <string name="sort_by_hint">Sort by</string>
+    <string name="sort_by_name">Name</string>
+    <string name="sort_by_created">Created</string>
+    <string name="sort_by_modified">Edited</string>
+    <string-array name="sort_options">
+        <item>@string/sort_by_name</item>
+        <item>@string/sort_by_created</item>
+        <item>@string/sort_by_modified</item>
+    </string-array>
+	<string name="project_info">Info</string>
+	<string name="project_info_title">Basic project info</string>
+	<string name="project_info_general_title">General</string>
+	<string name="project_info_structure_title">Structure</string>
+	<string name="project_info_build_title">Build</string>
+	<string name="project_info_name">Project name</string>
+	<string name="project_info_path">Project path</string>
+	<string name="project_info_template">Base template</string>
+	<string name="project_info_size">Project size</string>
+	<string name="project_info_files_count">Number of files</string>
+	<string name="project_info_gradle_v">Gradle version</string>
+	<string name="project_info_kotlin_v">Kotlin version</string>
+	<string name="project_info_java_v">Java version</string>
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
@@ -94,6 +121,7 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
+	<string name="unknown">Unknown</string>
 
 	<!-- Files -->
 	<string name="save">Save</string>
@@ -502,7 +530,7 @@
 	<string name="title_preview_data">Preview data</string>
 	<string name="title_android_version">Android version</string>
 	<string name="btn_opt_in">Opt-in</string>
-	<string name="title_developer_options">Developer options</string>
+	<string name="title_developer_options">Developer Options</string>
 	<string name="idepref_devOptions_summary">Experimental/debugging options for Code on the Go</string>
 	<string name="idepref_group_debugging">Debugging</string>
 	<string name="idepref_devOptions_dumpLogs_title">Dump logs</string>
@@ -658,7 +686,10 @@
 	<string name="msg_cannot_access_folder">Cannot access folder %1$s. Check storage permissions.</string>
 	<string name="msg_no_subfolders">The folder %1$s does not contain any subfolders.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
-	<string name="date">Date</string>
+	<string name="date">%1$s: %2$s</string>
+	<string name="date_created_label">Created</string>
+	<string name="date_modified_label">Modified</string>
+	<string name="loading_project">Loading project…</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
 	<string name="open_from_folder">Open from folder</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
