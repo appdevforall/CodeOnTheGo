@@ -898,7 +898,14 @@ fun assetsFileDownload(assetUrl: String, target: File) {
     val url = URL(assetUrl)
     val conn = url.openConnection() as HttpURLConnection
     conn.requestMethod = "GET"
-    conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+    conn.setRequestProperty(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+        "AppleWebKit/537.36 (KHTML, like Gecko) " +
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+    conn.setRequestProperty("Accept", "*/*")
+    conn.setRequestProperty("Connection", "keep-alive")
     conn.instanceFollowRedirects = true
     conn.connectTimeout = 10_000
     conn.readTimeout = 10_000
