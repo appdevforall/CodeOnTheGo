@@ -51,6 +51,11 @@ jobs:
           token_format: 'access_token'
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
+      - name: Test asset URL
+        run: |
+          curl -vL -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+              'https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip.md5'
+
       - name: Download debug assets
         run: |
           flox activate -d flox/base -- ./gradlew :app:assetsDownloadDebug --no-daemon \
