@@ -81,6 +81,8 @@ class EditorActivity : BaseActivity() {
 	private lateinit var layoutAdapter: LayoutListAdapter
 
 	private val updateMenuIconsState: Runnable = Runnable { undoRedo!!.updateButtons() }
+	private var originalProductionXml: String? = null
+	private var originalDesignXml: String? = null
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -654,6 +656,9 @@ class EditorActivity : BaseActivity() {
 	}
 
     private fun openLayout(layoutFile: LayoutFile) {
+    originalProductionXml = layoutFile.readLayoutFile()
+    originalDesignXml = layoutFile.readDesignFile()
+
 		var contentToParse = layoutFile.readDesignFile()
 
 		if (contentToParse.isNullOrBlank()) {
@@ -713,7 +718,21 @@ class EditorActivity : BaseActivity() {
 				saveXml()
 				finishAfterTransition()
 			}.setNegativeButton(R.string.discard_changes_and_exit) { _, _ ->
-				binding.editorLayout.markAsSaved() // Reset modified flag
+				val layoutFile = project.currentLayout as? LayoutFile ?: run {
+        	finishAfterTransition()
+        	return@setNegativeButton
+    		}
+
+				val xmlToRestore = originalDesignXml ?: originalProductionXml
+				if (!xmlToRestore.isNullOrBlank()) {
+					binding.editorLayout.loadLayoutFromParser(xmlToRestore)
+				}
+
+				val prettyXml = XmlLayoutGenerator().generate(binding.editorLayout, true)
+				layoutFile.saveLayout(prettyXml)
+
+				val designXml = XmlLayoutGenerator().generate(binding.editorLayout, false)
+				layoutFile.saveDesignFile(designXml)
 				finishAfterTransition()
 			}.setNeutralButton(R.string.cancel_and_stay_in_editor) { dialog, _ ->
 				dialog.dismiss()
