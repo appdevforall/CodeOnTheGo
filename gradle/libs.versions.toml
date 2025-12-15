@@ -3,6 +3,7 @@ activityKtx = "1.8.2"
 agp = "8.8.2"
 agp-tooling = "8.11.0"
 appcompat = "1.6.1"
+appcompatVersion = "1.7.1"
 bcprovJdk18on = "1.80"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
@@ -10,14 +11,19 @@ commonsText = "1.11.0"
 commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
+coreKtxVersion = "1.17.0"
+desugar_jdk_libs = "2.1.5"
 googleGenai = "1.16.0"
 fragment = "1.8.8"
 gradle-tooling = "8.6"
 gson = "2.10.1"
 junit-jupiter = "5.10.2"
 anroidx-test-core = "2.2.0"
+koinAndroid = "4.1.1"
 kotlin = "2.1.21"
 kotlin-coroutines = "1.9.0"
+kotlinxCoroutinesCore = "1.10.2"
+kotlinxSerializationJson = "1.9.0"
 lifecycleViewmodelKtx = "2.7.0"
 paletteKtx = "1.0.0"
 playServicesOssLicenses = "17.1.0"
@@ -69,9 +75,10 @@ protoc-gen-kotlin-ext = "1.1.0"
 
 # Dependencies in composite build
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "activityKtx" }
-androidx-appcompat-v161 = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-appcompat-v171 = { module = "androidx.appcompat:appcompat", version.ref = "appcompatVersion" }
 androidx-constraintlayout-v214 = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
 androidx-core-ktx-v1120 = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-core-ktx-v1170 = { module = "androidx.core:core-ktx", version.ref = "coreKtxVersion" }
 androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycleViewmodelKtx" }
 androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycleViewmodelKtx" }
@@ -100,9 +107,13 @@ composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" 
 composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
+desugar_jdk_libs-v215 = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
 google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
 gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
+koin-android = { module = "io.insert-koin:koin-android", version.ref = "koinAndroid" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }

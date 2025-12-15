@@ -177,7 +177,9 @@ include(
 	":testing:unit",
 	":plugin-api",
 	":plugin-manager",
-    ":cv-image-to-xml"
+    ":cv-image-to-xml",
+    ":llama-api",
+    ":llama-impl"
 )
 
 object FDroidConfig {

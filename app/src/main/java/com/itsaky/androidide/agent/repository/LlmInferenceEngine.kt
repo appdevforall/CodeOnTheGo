@@ -1,8 +1,9 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
-import android.llama.cpp.LLamaAndroid
 import androidx.core.net.toUri
+import com.itsaky.androidide.llamacpp.api.ILlamaController // Ensure you have this interface
+import com.itsaky.androidide.utils.DynamicLibraryLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -14,36 +15,74 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * A wrapper class for the LLamaAndroid library to abstract away direct interactions
- * and manage model state and execution contexts.
+ * A wrapper class for the LLamaAndroid library, loaded dynamically.
+ * This class manages loading the library, the model, running inference, and releasing resources.
+ * An instance of this class should be managed as a singleton by a provider.
  *
- * This class is designed to be instantiated and used as a dependency, for example,
- * within a repository. It handles threading for long-running operations.
- *
- * @param llama The underlying LLamaAndroid instance. Defaults to the singleton instance.
  * @param ioDispatcher The coroutine dispatcher for blocking I/O and CPU-intensive operations.
  */
 class LlmInferenceEngine(
-    private val llama: LLamaAndroid = LLamaAndroid.instance(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val log = LoggerFactory.getLogger(LlmInferenceEngine::class.java)
+
+    private var llamaController: ILlamaController? = null
+    private var isInitialized = false
+
     var isModelLoaded: Boolean = false
         private set
     var loadedModelName: String? = null
-    var currentModelFamily: ModelFamily = ModelFamily.UNKNOWN
-
+        private set
     var loadedModelPath: String? = null
         private set
+    var currentModelFamily: ModelFamily = ModelFamily.UNKNOWN
+        private set
 
+    /**
+     * Initializes the Llama controller by dynamically loading the library.
+     * This must be called once on the instance before any other methods are used.
+     * @return true if initialization was successful, false otherwise.
+     */
+    suspend fun initialize(context: Context): Boolean = withContext(ioDispatcher) {
+        if (isInitialized) return@withContext true
+
+        log.info("Initializing Llama Inference Engine...")
+        val classLoader = DynamicLibraryLoader.getLlamaClassLoader(context)
+        if (classLoader == null) {
+            log.error("Failed to create Llama ClassLoader. The library might not be installed.")
+            return@withContext false
+        }
+
+        try {
+            val llamaAndroidClass = classLoader.loadClass("android.llama.cpp.LLamaAndroid")
+            val instanceMethod = llamaAndroidClass.getMethod("instance")
+            val llamaInstance = instanceMethod.invoke(null) // 'null' for static method
+
+            llamaController = llamaInstance as ILlamaController
+            isInitialized = true
+            log.info("Llama Inference Engine initialized successfully.")
+            true
+        } catch (e: Exception) {
+            log.error("Failed to initialize Llama class via reflection", e)
+            false
+        }
+    }
+
+    /**
+     * Copies a model from a URI to the app's cache and loads it.
+     * If the engine is not initialized, it will attempt to initialize it first.
+     */
     suspend fun initModelFromFile(context: Context, modelUriString: String): Boolean {
+        if (!isInitialized && !initialize(context)) {
+            log.error("Engine initialization failed. Cannot load model.")
+            return false
+        }
         if (isModelLoaded) {
             unloadModel()
         }
         return withContext(ioDispatcher) {
             try {
                 val modelUri = modelUriString.toUri()
-                // Helper to get a display name from the URI
                 val displayName =
                     context.contentResolver.query(modelUri, null, null, null, null)?.use { cursor ->
                         val nameIndex =
@@ -61,7 +100,7 @@ class LlmInferenceEngine(
                 }
                 log.info("Model copied to cache at {}", destinationFile.path)
 
-                llama.load(destinationFile.path)
+                llamaController?.load(destinationFile.path)
                 isModelLoaded = true
                 loadedModelPath = destinationFile.path
                 loadedModelName = displayName
@@ -79,13 +118,10 @@ class LlmInferenceEngine(
         }
     }
 
-    /**
-     * Unloads the currently loaded model and releases its resources.
-     */
     suspend fun unloadModel() {
         if (!isModelLoaded) return
         withContext(ioDispatcher) {
-            llama.unload()
+            llamaController?.unload()
         }
         isModelLoaded = false
         loadedModelPath = null
@@ -93,72 +129,34 @@ class LlmInferenceEngine(
         currentModelFamily = ModelFamily.UNKNOWN
     }
 
-    /**
-     * Runs a non-streaming inference, returning the complete model response as a single string.
-     * This method clears the KV cache before execution.
-     *
-     * @param prompt The input prompt for the model.
-     * @param stopStrings A list of strings that will cause the generation to stop.
-     * @return The complete generated text.
-     */
     suspend fun runInference(prompt: String, stopStrings: List<String> = emptyList()): String {
+        val controller = llamaController ?: throw IllegalStateException("Engine not initialized.")
         if (!isModelLoaded) throw IllegalStateException("Model is not loaded.")
-        llama.clearKvCache()
+
         return withContext(ioDispatcher) {
-            llama.send(prompt, stop = stopStrings).reduce { acc, s -> acc + s }
+            controller.clearKvCache()
+            controller.send(prompt, stop = stopStrings).reduce { acc, s -> acc + s }
         }
     }
 
-    /**
-     * Runs a streaming inference, returning a Flow of response chunks.
-     * This method clears the KV cache before execution.
-     * The Flow is configured to emit on the provided IO dispatcher.
-     *
-     * @param prompt The input prompt for the model.
-     * @param stopStrings A list of strings that will cause the generation to stop.
-     * @return A Flow<String> that emits text chunks as they are generated.
-     */
     suspend fun runStreamingInference(
         prompt: String,
         stopStrings: List<String> = emptyList()
     ): Flow<String> {
+        val controller = llamaController ?: throw IllegalStateException("Engine not initialized.")
         if (!isModelLoaded) throw IllegalStateException("Model is not loaded.")
-        llama.clearKvCache()
-        return llama.send(prompt, stop = stopStrings).flowOn(ioDispatcher)
+
+        controller.clearKvCache()
+        return controller.send(prompt, stop = stopStrings).flowOn(ioDispatcher)
     }
 
-    /**
-     * Runs a benchmark on the loaded model.
-     *
-     * @param pp Prompt processing batch size.
-     * @param tg Token generation batch size.
-     * @param pl Parallel decoding count.
-     * @param nr Number of runs.
-     * @return A string containing the benchmark results.
-     */
-    suspend fun bench(pp: Int, tg: Int, pl: Int, nr: Int = 1): String {
-        if (!isModelLoaded) throw IllegalStateException("Model is not loaded.")
-        return withContext(ioDispatcher) {
-            llama.bench(pp, tg, pl, nr)
-        }
-    }
-
-    /**
-     * @return The context size of the currently loaded model in tokens, or 0 if no model is loaded.
-     */
-    suspend fun getContextSize(): Int {
-        return if (isModelLoaded) {
-            llama.getContextSize()
-        } else {
-            0
-        }
-    }
-
-    /**
-     * Immediately stops any ongoing inference.
-     */
     fun stop() {
-        llama.stop()
+        if (!isInitialized) return
+        try {
+            llamaController?.stop()
+        } catch (e: Exception) {
+            log.error("Error calling stop on the native library", e)
+        }
     }
 
     private fun detectModelFamily(path: String): ModelFamily {

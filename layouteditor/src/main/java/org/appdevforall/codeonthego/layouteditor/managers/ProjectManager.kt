@@ -3,13 +3,11 @@ package org.appdevforall.codeonthego.layouteditor.managers
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import org.appdevforall.codeonthego.layouteditor.LayoutEditor
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import java.lang.reflect.Type
 import java.util.Locale
-import java.util.Objects
 import java.util.concurrent.CompletableFuture
 
 class ProjectManager private constructor() {

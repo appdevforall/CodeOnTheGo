@@ -20,6 +20,7 @@ import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_INFO_TOOLTIP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_RENAME
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
@@ -31,14 +32,13 @@ import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class RecentProjectsAdapter(
     private var projects: List<ProjectFile>,
     private val onProjectClick: (File) -> Unit,
     private val onRemoveProjectClick: (ProjectFile) -> Unit,
     private val onFileRenamed: (RenamedFile) -> Unit,
+    private val onInfoClick: (ProjectFile) -> Unit,
 ) : RecyclerView.Adapter<RecentProjectsAdapter.ProjectViewHolder>() {
 
 	private var projectOptionsPopup: PopupWindow? = null
@@ -68,12 +68,18 @@ class RecentProjectsAdapter(
         notifyDataSetChanged()
     }
 
+    fun renderDate(binding: SavedRecentProjectItemBinding, project: ProjectFile) {
+      binding.projectDate.text = project.renderDateText(binding.root.context)
+    }
+
     inner class ProjectViewHolder(private val binding: SavedRecentProjectItemBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(project: ProjectFile, position: Int) {
             binding.projectName.text = project.name
-            binding.projectDate.text = formatDate(project.date ?: "")
+
+            renderDate(binding, project)
+
             binding.icon.text = project.name
                 .split(" ")
                 .mapNotNull { it.firstOrNull()?.uppercaseChar() }
@@ -103,26 +109,7 @@ class RecentProjectsAdapter(
                 showPopupMenu(view, project, position)
 			}
 		}
-
-        private fun formatDate(dateString: String): String {
-            return try {
-                val inputFormat =
-                    SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.getDefault())
-                val date = inputFormat.parse(dateString)
-                val day = SimpleDateFormat("d", Locale.ENGLISH).format(date).toInt()
-                val suffix = when {
-                    day in 11..13 -> "th"
-                    day % 10 == 1 -> "st"
-                    day % 10 == 2 -> "nd"
-                    day % 10 == 3 -> "rd"
-                    else -> "th"
-                }
-                SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault()).format(date)
-            } catch (_: Exception) {
-                dateString.take(5)
-            }
-        }
-    }
+	}
 
     private fun showPopupMenu(view: View, project: ProjectFile, position: Int) {
         val inflater = LayoutInflater.from(view.context)
@@ -141,8 +128,24 @@ class RecentProjectsAdapter(
 
 		val popupWindow = projectOptionsPopup!!
 
+        val infoItem = popupView.findViewById<View>(R.id.menu_info)
         val renameItem = popupView.findViewById<View>(R.id.menu_rename)
         val deleteItem = popupView.findViewById<View>(R.id.menu_delete)
+
+        infoItem.setOnClickListener {
+            popupWindow.dismiss()
+            onInfoClick(project)
+        }
+
+        infoItem.setOnLongClickListener {
+            popupWindow.dismiss()
+            TooltipManager.showIdeCategoryTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = PROJECT_INFO_TOOLTIP
+            )
+            true
+        }
 
         renameItem.setOnClickListener {
             promptRenameProject(view, project, position)

@@ -1,8 +1,10 @@
 package org.appdevforall.codeonthego.layouteditor.editor.palette.containers;
 
-import androidx.viewpager.widget.ViewPager;
 import android.content.Context;
 import android.graphics.Canvas;
+
+import androidx.viewpager.widget.ViewPager;
+
 import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.Utils;
 
