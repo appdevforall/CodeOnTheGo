@@ -874,6 +874,8 @@ data class Asset(
 
 // --- Debug assets ---
 val debugAssets = listOf(
+    Asset("assets/localMvnRepository.zip", "https://appdevforall.org/dev-assets/debug/localMvnRepository.zip",
+        "public_html/dev-assets/debug/localMvnRepository.zip", "debug"),
     Asset("assets/android-sdk-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip",
         "public_html/dev-assets/debug/android-sdk-arm64-v8a.zip","debug"),
     Asset("assets/android-sdk-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-armeabi-v7a.zip",
@@ -888,8 +890,6 @@ val debugAssets = listOf(
         "public_html/dev-assets/debug/gradle-8.14.3-bin.zip", "debug"),
     Asset("assets/gradle-api-8.14.3.jar.zip", "https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip",
         "public_html/dev-assets/debug/gradle-api-8.14.3.jar.zip", "debug"),
-    Asset("assets/localMvnRepository.zip", "https://appdevforall.org/dev-assets/debug/localMvnRepository.zip",
-        "public_html/dev-assets/debug/localMvnRepository.zip", "debug")
 )
 
 // --- Release assets ---
@@ -1026,10 +1026,6 @@ fun assetsDownload(assets: List<Asset>, projectDir: File) {
 
             checksumFile.writeText(newChecksum)
             project.logger.lifecycle("Updated checksum stored: ${checksumFile.absolutePath}")
-            if (isCiCd) {
-                // sleep for 30 seconds to avoid tripping hosting limits
-                Thread.sleep(30000)
-            }
         } else {
             project.logger.lifecycle("File ${asset.localPath} is up-to-date (checksum matches).")
         }
