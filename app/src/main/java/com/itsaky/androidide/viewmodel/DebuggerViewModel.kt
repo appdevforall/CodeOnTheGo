@@ -253,7 +253,16 @@ class DebuggerViewModel : ViewModel() {
 							descriptor.state.isInteractable
 						}
 
-				var threadIndex = selectedThreadIndex
+				var threadIndex =
+					if (selectedThreadIndex >= 0 && selectedThreadIndex < threads.size) {
+						// Find the matching thread in the filtered list by ID
+						val targetThreadId =
+							threads.getOrNull(selectedThreadIndex)?.descriptor()?.id
+						resolvableThreads.indexOfFirst { it.resolvedOrNull?.id == targetThreadId }
+					} else {
+						-1
+					}
+
 				if (threadIndex < 0) {
 					threadIndex =
 						resolvableThreads.indexOfFirst { it.resolvedOrNull?.state?.isInteractable == true }
