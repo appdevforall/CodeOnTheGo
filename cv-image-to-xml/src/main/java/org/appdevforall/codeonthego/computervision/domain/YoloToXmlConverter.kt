@@ -1,6 +1,6 @@
-package appdevforall.codeonthego.computervision
+package org.appdevforall.codeonthego.computervision.domain
 
-import appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt

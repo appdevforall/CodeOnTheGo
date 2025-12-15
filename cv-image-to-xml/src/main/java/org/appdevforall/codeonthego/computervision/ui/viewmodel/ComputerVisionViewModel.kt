@@ -1,4 +1,4 @@
-package appdevforall.codeonthego.computervision.presentation.ui.viewmodel
+package org.appdevforall.codeonthego.computervision.ui.viewmodel
 
 import android.content.ContentResolver
 import android.graphics.Bitmap
@@ -7,11 +7,11 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
-import appdevforall.codeonthego.computervision.presentation.ui.ComputerVisionEffect
-import appdevforall.codeonthego.computervision.presentation.ui.ComputerVisionEvent
-import appdevforall.codeonthego.computervision.presentation.ui.ComputerVisionUiState
-import appdevforall.codeonthego.computervision.presentation.ui.CvOperation
+import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEvent
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionUiState
+import org.appdevforall.codeonthego.computervision.ui.CvOperation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

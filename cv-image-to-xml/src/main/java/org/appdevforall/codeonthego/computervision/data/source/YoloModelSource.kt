@@ -1,9 +1,9 @@
-package appdevforall.codeonthego.computervision.data.source
+package org.appdevforall.codeonthego.computervision.data.source
 
 import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.graphics.RectF
-import appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.ops.CastOp

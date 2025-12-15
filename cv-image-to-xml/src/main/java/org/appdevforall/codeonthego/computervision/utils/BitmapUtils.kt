@@ -1,4 +1,4 @@
-package appdevforall.codeonthego.computervision.utils
+package org.appdevforall.codeonthego.computervision.utils
 
 import android.graphics.Bitmap
 import android.graphics.Color

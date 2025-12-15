@@ -1,4 +1,4 @@
-package appdevforall.codeonthego.computervision.data.source
+package org.appdevforall.codeonthego.computervision.data.source
 import android.graphics.Bitmap
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text

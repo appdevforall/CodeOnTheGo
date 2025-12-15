@@ -1,4 +1,4 @@
-package appdevforall.codeonthego.computervision.utils
+package org.appdevforall.codeonthego.computervision.utils
 
 object TextCleaner {
 

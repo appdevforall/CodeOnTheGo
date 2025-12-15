@@ -1,8 +1,8 @@
-package appdevforall.codeonthego.computervision
+package org.appdevforall.codeonthego.computervision.domain
 
 import android.graphics.RectF
-import appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import com.google.mlkit.vision.text.Text
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 
 /**
  * A dedicated, robust class to safely merge YOLO detections with ML Kit text results.

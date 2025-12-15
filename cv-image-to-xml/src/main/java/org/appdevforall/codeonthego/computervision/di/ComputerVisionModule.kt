@@ -1,9 +1,9 @@
-package appdevforall.codeonthego.computervision.di
-import appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
-import appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepositoryImpl
-import appdevforall.codeonthego.computervision.data.source.OcrSource
-import appdevforall.codeonthego.computervision.data.source.YoloModelSource
-import appdevforall.codeonthego.computervision.presentation.ui.viewmodel.ComputerVisionViewModel
+package org.appdevforall.codeonthego.computervision.di
+import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
+import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepositoryImpl
+import org.appdevforall.codeonthego.computervision.data.source.OcrSource
+import org.appdevforall.codeonthego.computervision.data.source.YoloModelSource
+import org.appdevforall.codeonthego.computervision.ui.viewmodel.ComputerVisionViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module

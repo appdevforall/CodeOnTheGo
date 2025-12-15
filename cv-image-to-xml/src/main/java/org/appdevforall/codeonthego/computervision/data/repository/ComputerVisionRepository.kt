@@ -1,6 +1,6 @@
-package appdevforall.codeonthego.computervision.data.repository
+package org.appdevforall.codeonthego.computervision.data.repository
 import android.graphics.Bitmap
-import appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import com.google.mlkit.vision.text.Text
 
 interface ComputerVisionRepository {

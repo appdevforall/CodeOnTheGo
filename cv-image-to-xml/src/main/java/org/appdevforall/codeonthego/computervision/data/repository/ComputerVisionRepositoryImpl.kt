@@ -1,14 +1,14 @@
-package appdevforall.codeonthego.computervision.data.repository
+package org.appdevforall.codeonthego.computervision.data.repository
 
 import android.content.res.AssetManager
 import android.graphics.Bitmap
-import appdevforall.codeonthego.computervision.DetectionMerger
-import appdevforall.codeonthego.computervision.YoloToXmlConverter
-import appdevforall.codeonthego.computervision.data.source.OcrSource
-import appdevforall.codeonthego.computervision.data.source.YoloModelSource
-import appdevforall.codeonthego.computervision.domain.model.DetectionResult
-import appdevforall.codeonthego.computervision.utils.BitmapUtils
-import appdevforall.codeonthego.computervision.utils.TextCleaner
+import org.appdevforall.codeonthego.computervision.domain.DetectionMerger
+import org.appdevforall.codeonthego.computervision.domain.YoloToXmlConverter
+import org.appdevforall.codeonthego.computervision.data.source.OcrSource
+import org.appdevforall.codeonthego.computervision.data.source.YoloModelSource
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.utils.BitmapUtils
+import org.appdevforall.codeonthego.computervision.utils.TextCleaner
 import com.google.mlkit.vision.text.Text
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

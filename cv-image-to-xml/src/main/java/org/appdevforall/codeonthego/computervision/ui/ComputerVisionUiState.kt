@@ -1,8 +1,8 @@
-package appdevforall.codeonthego.computervision.presentation.ui
+package org.appdevforall.codeonthego.computervision.ui
 
 import android.graphics.Bitmap
 import android.net.Uri
-import appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 
 
 data class ComputerVisionUiState(

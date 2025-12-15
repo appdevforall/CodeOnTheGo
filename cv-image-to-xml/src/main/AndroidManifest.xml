@@ -2,18 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!--
-      Declare that the app uses the camera feature. This helps the Google Play
-      Store filter your app for devices that have a camera.
-    -->
     <uses-feature
         android:name="android.hardware.camera"
         android:required="true" />
 
-    <!--
-      Request the CAMERA permission. This is essential for your runtime
-      permission request to function.
-    -->
     <uses-permission android:name="android.permission.CAMERA" />
 
     <application
@@ -27,14 +19,7 @@
         android:theme="@style/Theme.Images"
         tools:targetApi="31">
         <activity
-            android:name="appdevforall.codeonthego.computervision.presentation.ui.ComputerVisionActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:name=".ui.ComputerVisionActivity"
+            android:exported="true"/>
     </application>
-
 </manifest>

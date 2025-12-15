@@ -3,7 +3,7 @@ import android.content.Context
 import android.content.Intent
 import android.view.MenuItem
 import androidx.core.content.ContextCompat
-import appdevforall.codeonthego.computervision.presentation.ui.ComputerVisionActivity
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionActivity
 import com.android.aaptcompiler.AaptResourceType.LAYOUT
 import com.android.aaptcompiler.extractPathData
 import com.blankj.utilcode.util.KeyboardUtils
@@ -31,7 +31,7 @@ class GenerateXMLAction(context: Context, override val order: Int) : EditorRelat
 
   init {
     label = context.getString(R.string.title_preview_layout)
-    icon = ContextCompat.getDrawable(context, R.drawable.fat_pen)
+    icon = ContextCompat.getDrawable(context, R.drawable.ic_computer_vision)
   }
 
   override fun prepare(data: ActionData) {

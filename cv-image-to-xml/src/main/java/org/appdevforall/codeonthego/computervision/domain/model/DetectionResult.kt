@@ -1,4 +1,4 @@
-package appdevforall.codeonthego.computervision.domain.model
+package org.appdevforall.codeonthego.computervision.domain.model
 
 import android.graphics.RectF
 
