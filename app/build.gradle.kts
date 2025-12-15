@@ -1026,6 +1026,10 @@ fun assetsDownload(assets: List<Asset>, projectDir: File) {
 
             checksumFile.writeText(newChecksum)
             project.logger.lifecycle("Updated checksum stored: ${checksumFile.absolutePath}")
+            if (isCiCd) {
+                // sleep for 30 seconds to avoid tripping hosting limits
+                Thread.sleep(30000)
+            }
         } else {
             project.logger.lifecycle("File ${asset.localPath} is up-to-date (checksum matches).")
         }
