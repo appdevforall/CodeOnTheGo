@@ -38,6 +38,12 @@ import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.flashError
 import java.io.File
 
+inline fun Fragment.ifAttached(block: () -> Unit) {
+	if (isAdded && context != null) {
+		block()
+	}
+}
+
 open class BaseFragment
 	@JvmOverloads
 	constructor(

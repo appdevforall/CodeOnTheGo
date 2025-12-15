@@ -21,6 +21,9 @@ import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.flashbarBuilder
+import com.itsaky.androidide.utils.errorIcon
+import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -162,7 +165,10 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     private fun handleUiEffect(effect: PluginManagerUiEffect) {
         when (effect) {
             is PluginManagerUiEffect.ShowError -> {
-                flashError(effect.message)
+                flashbarBuilder(duration = 5000L)
+                    .errorIcon()
+                    .message(effect.message)
+                    .showOnUiThread()
             }
             is PluginManagerUiEffect.ShowSuccess -> {
                 flashSuccess(effect.message)

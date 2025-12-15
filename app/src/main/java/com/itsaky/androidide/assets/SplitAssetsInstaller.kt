@@ -3,6 +3,7 @@ package com.itsaky.androidide.assets
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.app.configuration.CpuArch
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 	): Unit =
 		withContext(Dispatchers.IO) {
 			val entry = zipFile.getEntry(entryName)
+			?: throw FileNotFoundException(context.getString(R.string.err_asset_entry_not_found, entryName))
 			val time =
 				measureTimeMillis {
 					zipFile.getInputStream(entry).use { zipInput ->
@@ -98,7 +100,16 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 								}
 								logger.debug("Completed extracting '{}' to {}", DOCUMENTATION_DB, Environment.DOC_DB)
 							}
+                            AssetsInstallationHelper.LLAMA_AAR -> {
+                                val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
+                                destDir.mkdirs()
+                                val destFile = File(destDir, "llama.aar")
 
+                                logger.debug("Extracting '{}' to {}", entry.name, destFile.absolutePath)
+                                destFile.outputStream().use { output ->
+                                    zipInput.copyTo(output)
+                                }
+                            }
 							else -> throw IllegalStateException("Unknown entry: $entryName")
 						}
 					}

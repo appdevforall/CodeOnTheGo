@@ -305,11 +305,7 @@ class IDEDebugClientImpl(
             selectedThreadIndex = 0
         }
 
-        viewModel.setThreads(threads)
-
-        if (selectedThreadIndex >= 0) {
-            viewModel.setSelectedThreadIndex(selectedThreadIndex)
-        }
+        viewModel.setThreads(threads, selectedThreadIndex)
     }
 
     private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)
@@ -317,6 +313,11 @@ class IDEDebugClientImpl(
     private suspend fun openLocation(location: Location) {
         val file = location.source.path
         val position = Position(location.line, 0)
+
+        if (!IDELanguageClientImpl.isInitialized()) {
+            logger.error("Cannot open {}:{} because language client is not initialized", file, position.line)
+            return
+        }
 
         val activity = IDELanguageClientImpl.getInstance().activity
 
