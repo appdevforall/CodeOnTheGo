@@ -76,12 +76,8 @@ class DrawableFragment(
         adapter = DrawableResourceAdapter(
             drawableList,
             object : DrawableResourceAdapter.OnDrawableActionListener {
-                override fun onRenameRequested(
-                    position: Int,
-                    holder: DrawableResourceAdapter.VH,
-                    view: View
-                ) {
-                    showRenameDialog(position, holder)
+                override fun onRenameRequested(position: Int) {
+                    showRenameDialog(position)
                 }
 
                 override fun onDeleteRequested(position: Int) {
@@ -280,7 +276,7 @@ class DrawableFragment(
         }
     }
 
-    private fun showRenameDialog(position: Int, holder: DrawableResourceAdapter.VH) {
+    private fun showRenameDialog(position: Int) {
         val drawableFile = drawableList[position]
         val segment = getLastSegmentFromPath(drawableFile.path)
 
@@ -297,7 +293,7 @@ class DrawableFragment(
         builder.setNegativeButton(R.string.cancel, null)
         builder.setPositiveButton(R.string.rename) { _, _ ->
             lifecycleScope.launch {
-                renameDrawable(position, holder, editText.text.toString(), extension)
+                renameDrawable(position, editText.text.toString(), extension)
             }
         }
 
@@ -308,7 +304,6 @@ class DrawableFragment(
 
     private suspend fun renameDrawable(
         position: Int,
-        holder: DrawableResourceAdapter.VH,
         newName: String,
         extension: String
     ) = withContext(Dispatchers.IO) {
@@ -349,8 +344,10 @@ class DrawableFragment(
         drawable.name = newName + extension
 
         withContext(Dispatchers.Main) {
-            holder.drawableName.text = newName
-            holder.drawable.setImageDrawable(updatedDrawable)
+            val item = adapter?.getItemAt(position)
+            if (updatedDrawable != null) {
+                item?.drawable = updatedDrawable
+            }
             adapter?.notifyItemChanged(position)
         }
     }

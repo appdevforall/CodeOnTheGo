@@ -24,7 +24,7 @@ class DrawableResourceAdapter(
     RecyclerView.Adapter<DrawableResourceAdapter.VH>() {
 
     interface OnDrawableActionListener {
-        fun onRenameRequested(position: Int, holder: VH, view: View)
+        fun onRenameRequested(position: Int)
         fun onDeleteRequested(position: Int)
     }
 
@@ -108,7 +108,7 @@ class DrawableResourceAdapter(
           }
 
           R.id.menu_rename -> {
-              listener.onRenameRequested(position, holder, v)
+              listener.onRenameRequested(position)
               true
           }
 
@@ -118,5 +118,9 @@ class DrawableResourceAdapter(
 
     popupMenu.show()
   }
+
+    fun getItemAt(position: Int): DrawableFile {
+        return drawableList[position]
+    }
 
 }
