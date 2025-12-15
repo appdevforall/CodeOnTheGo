@@ -8,6 +8,9 @@ permissions:
 on:
   workflow_dispatch:
 
+env:
+  SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
+
 jobs:
   generate_assets:
     name: Generate Assets Zips
@@ -107,8 +110,6 @@ jobs:
           ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Download debug assets
-        env:
-          SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
         run: |
           flox activate -d flox/base -- ./gradlew :app:assetsDownloadDebug --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
@@ -256,3 +257,15 @@ jobs:
         run: |
           rm -f app/google-services.json
           echo "google-services.json cleaned up successfully"
+
+      - name: Cleanup ssh
+        if: always()
+        run: |
+          # Remove SSH key
+          rm -f ~/.ssh/id_rsa
+          # Clean up SSH known_hosts (remove the entry for this host)
+          if [ -n "$SCP_HOST" ]; then
+            ssh-keygen -R "$SCP_HOST" 2>/dev/null || true
+          fi
+          # Remove entire .ssh directory if empty
+          rmdir ~/.ssh 2>/dev/null || true
