@@ -107,7 +107,8 @@ jobs:
           ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Download debug assets
-        SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
+        env:
+          SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
         run: |
           flox activate -d flox/base -- ./gradlew :app:assetsDownloadDebug --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
