@@ -203,6 +203,7 @@ class DrawableFragment(
             val drawableName = editText.text.toString()
             val selectedDPIs = dpiAdapter?.selectedItems ?: emptyList()
             val isXml = lastSegment.endsWith(".xml")
+            val appContext = requireContext().applicationContext
 
             lifecycleScope.launch {
                 val newDrawableFile = withContext(Dispatchers.IO) {
@@ -222,12 +223,12 @@ class DrawableFragment(
                     }
 
                     val toPath = drawablePath + drawableName + extension
-                    FileUtil.copyFile(uri, toPath, requireContext())
+                    FileUtil.copyFile(uri, toPath, appContext)
 
                     val drawable =
                         if (isXml)
                             Utils.getVectorDrawableAsync(
-                                requireContext(),
+                                appContext,
                                 Uri.fromFile(File(toPath))
                             )
                         else
