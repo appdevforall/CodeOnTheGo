@@ -26,6 +26,9 @@ import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
@@ -200,6 +203,7 @@ open class EditorHandlerActivity :
 		ActionContextProvider.clearActivity()
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
+            saveAllAsync(notify = false)
 		}
 	}
 
@@ -511,11 +515,13 @@ open class EditorHandlerActivity :
 		progressConsumer: ((Int, Int) -> Unit)?,
 		runAfter: (() -> Unit)?,
 	) {
-		editorActivityScope.launch {
-			saveAll(notify, requestSync, processResources, progressConsumer)
-			runAfter?.invoke()
-		}
-	}
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                saveAll(notify, requestSync, processResources, progressConsumer)
+                runAfter?.invoke()
+            }
+        }
+    }
 
 	override suspend fun saveAll(
 		notify: Boolean,
