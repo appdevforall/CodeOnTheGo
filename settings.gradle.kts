@@ -177,11 +177,18 @@ include(
 	":testing:unit",
 	":plugin-api",
 	":plugin-manager",
+<<<<<<< .merge_file_SlcMd6
+<<<<<<< HEAD
+    ":cv-image-to-xml"
+=======
     ":llama-api",
     ":llama-impl",
     ":cv-image-to-xml",
     ":llama-api",
     ":llama-impl"
+>>>>>>> e73e8325810f6bad9276f0bd87c2bcff8b174bc4
+=======
+>>>>>>> .merge_file_sBn87Y
 )
 
 object FDroidConfig {
