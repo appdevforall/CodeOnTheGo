@@ -172,6 +172,7 @@ jobs:
           echo "ASSETS_PATH=$assets_path" >> $GITHUB_OUTPUT
 
       - name: Upload asset zips to Google Drive
+        if: false
         run: |
           echo "Uploading assets v8 and v7 to Google Drive..."
 
@@ -209,6 +210,7 @@ jobs:
           echo "Upload complete."
 
       - name: Send Rich Slack Notification
+        if: false
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |

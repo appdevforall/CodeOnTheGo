@@ -888,8 +888,8 @@ val debugAssets = listOf(
         "public_html/dev-assets/debug/documentation.db", "debug"),
     Asset("assets/gradle-8.14.3-bin.zip", "https://appdevforall.org/dev-assets/debug/gradle-8.14.3-bin.zip",
         "public_html/dev-assets/debug/gradle-8.14.3-bin.zip", "debug"),
-    Asset("assets/gradle-api-8.14.3.jar.zip", "https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip",
-        "public_html/dev-assets/debug/gradle-api-8.14.3.jar.zip", "debug"),
+//    Asset("assets/gradle-api-8.14.3.jar.zip", "https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip",
+//        "public_html/dev-assets/debug/gradle-api-8.14.3.jar.zip", "debug"),
 )
 
 // --- Release assets ---
