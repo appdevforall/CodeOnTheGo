@@ -630,7 +630,7 @@ jobs:
             exit 1
           fi
           echo "Uploading $APK_PATH to $GREENGEEKS_HOST..."
-#jm          scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:public_html/apk_repo/"
+          #jm scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:public_html/apk_repo/"
           scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:tmp/apk_repo/"
 
       - name: Clean up build folder after upload
