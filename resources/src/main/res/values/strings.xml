@@ -812,7 +812,7 @@
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
-	<string name="adb_pair_required">Please enable wireless debugging and follow the intructions to pair the debugger.</string>
+	<string name="adb_pair_required">Please enable wireless debugging and follow the instructions to pair the debugger.</string>
 
 	<!-- Status message indicating that the application is searching for the ADB connection port. Placeholder %1$d represents
 		the number of times the IDE has tried to find the port. Placeholder %2$d represents the maximum number of attempts to find
