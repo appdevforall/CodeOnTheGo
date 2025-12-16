@@ -279,7 +279,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		}
 
 		if (TextUtils.isEmpty(openedProject)) {
-			app
 			flashInfo(string.msg_opened_project_does_not_exist)
 			return
 		}
