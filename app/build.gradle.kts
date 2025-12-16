@@ -885,7 +885,7 @@ val debugAssets = listOf(
     Asset("assets/documentation.db", "https://appdevforall.org/dev-assets/debug/documentation.db",
         "documentation.db", "debug"),
     Asset("assets/gradle-8.14.3-bin.zip", "https://appdevforall.org/dev-assets/debug/gradle-8.14.3-bin.zip",
-        "debug/gradle-8.14.3-bin.zip", "debug"),
+        "gradle-8.14.3-bin.zip", "debug"),
     Asset("assets/gradle-api-8.14.3.jar.zip", "https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip",
         "gradle-api-8.14.3.jar.zip", "debug"),
     Asset("assets/localMvnRepository.zip", "https://appdevforall.org/dev-assets/debug/localMvnRepository.zip",
