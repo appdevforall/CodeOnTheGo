@@ -18,7 +18,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: stage
+#          ref: stage
+          ref: task/ADFA-2286
 
       - name: Check if Nix is installed
         id: check_nix
