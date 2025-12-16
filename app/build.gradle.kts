@@ -872,7 +872,6 @@ data class Asset(
     val variant: String
 )
 
-// --- Debug assets ---
 val debugAssets = listOf(
     Asset("assets/android-sdk-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip",
         "android-sdk-arm64-v8a.zip","debug"),
@@ -892,7 +891,6 @@ val debugAssets = listOf(
         "localMvnRepository.zip", "debug"),
 )
 
-// --- Release assets ---
 val releaseAssets = listOf(
     Asset("assets/release/common/data/common/gradle-8.14.3-bin.zip.br", "https://appdevforall.org/dev-assets/release/gradle-8.14.3-bin.zip.br",
         "gradle-8.14.3-bin.zip.br", "release"),
@@ -925,7 +923,6 @@ fun assetsBatch(projectDir: File, project: Project, variant: String) {
 }
 
 
-// --- Helpers to resolve staged files ---
 fun stagedFileFor(asset: Asset, projectDir: File): File {
     val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
     return File(variantDir, asset.remotePath)
@@ -1011,7 +1008,6 @@ fun assetsFileChecksum(asset: Asset): String? {
 }
 
 
-// --- Helper function ---
 fun assetsDownload(assets: List<Asset>, projectDir: File) {
     val checksumDir = File(projectDir, ".checksum")
     checksumDir.mkdirs()
