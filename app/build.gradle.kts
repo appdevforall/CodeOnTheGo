@@ -916,6 +916,7 @@ fun assetsBatch(projectDir: File, project: Project, variant: String) {
     if (isCiCd) {
         val tmpDir = File(projectDir, ".tmp/assets/${variant}")
         tmpDir.mkdirs()
+        project.logger.lifecycle("Downloaded ${variant} assets → ${tmpDir.absolutePath}")
         project.exec {
             commandLine("scp", "-r", "$scpServer:public_html/dev-assets/${variant}/", tmpDir.absolutePath)
         }
@@ -938,7 +939,7 @@ fun stagedChecksumFor(asset: Asset, projectDir: File): File {
 
 fun assetsFileDownload(asset: Asset, target: File) {
     if (isCiCd) {
-        val stagedFile = stagedFileFor(asset, project.projectDir)
+        val stagedFile = stagedFileFor(asset, rootProject.projectDir)
         if (!stagedFile.exists()) {
             throw GradleException("Staged file not found: ${stagedFile.absolutePath}")
         }
@@ -980,7 +981,7 @@ fun assetsFileDownload(asset: Asset, target: File) {
 
 fun assetsFileChecksum(asset: Asset): String? {
     return if (isCiCd) {
-        val stagedChecksum = stagedChecksumFor(asset, project.projectDir)
+        val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
         if (stagedChecksum.exists()) {
             stagedChecksum.readText().trim()
         } else {
