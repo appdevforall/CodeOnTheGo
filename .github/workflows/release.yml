@@ -440,7 +440,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: assets-db
-          path: assets/release/common/database/documentation.db.br
+          path: assets/release/common/database
 
       - name: Initialize submodules
         run: |
