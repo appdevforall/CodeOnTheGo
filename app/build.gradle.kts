@@ -914,9 +914,10 @@ val releaseAssets = listOf(
 
 fun assetsBatch(projectDir: File, project: Project, variant: String) {
     if (isCiCd) {
-        val tmpDir = File(projectDir, ".tmp/assets/${variant}")
+        // val tmpDir = File(projectDir, ".tmp/assets/${variant}")
+        val tmpDir = File(projectDir, ".tmp/assets")
         tmpDir.mkdirs()
-        project.logger.lifecycle("Downloaded ${variant} assets → ${tmpDir.absolutePath}")
+        project.logger.lifecycle("Downloading ${variant} assets → ${tmpDir.absolutePath}")
         project.exec {
             commandLine("scp", "-r", "$scpServer:public_html/dev-assets/${variant}/", tmpDir.absolutePath)
         }
