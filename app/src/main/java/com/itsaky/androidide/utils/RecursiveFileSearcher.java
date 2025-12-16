@@ -102,7 +102,9 @@ public class RecursiveFileSearcher {
           }
           final Content content = new Content(text);
           final List<SearchResult> ranges = new ArrayList<>();
-          Matcher matcher = Pattern.compile(Pattern.quote(this.query)).matcher(text);
+          Matcher matcher = Pattern
+            .compile(Pattern.quote(this.query), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
+            .matcher(text);
           while (matcher.find()) {
             final Range range = new Range();
             final CharPosition start = content.getIndexer().getCharPosition(matcher.start());
