@@ -118,10 +118,10 @@ jobs:
             -Dorg.gradle.parallel=false
 
       - name: List downloaded files
-        if: always
+        if: always()
         run: |
           ls -lR .tmp/
-#          ls -lR assets/
+          ls -lR assets/
 
       - name: Download latest documentation.db from Google Drive
         run: |
