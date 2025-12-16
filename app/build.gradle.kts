@@ -895,21 +895,21 @@ val debugAssets = listOf(
 // --- Release assets ---
 val releaseAssets = listOf(
     Asset("assets/release/common/data/common/gradle-8.14.3-bin.zip.br", "https://appdevforall.org/dev-assets/release/gradle-8.14.3-bin.zip.br",
-        "public_html/dev-assets/release/gradle-8.14.3-bin.zip.br", "release"),
+        "gradle-8.14.3-bin.zip.br", "release"),
     Asset("assets/release/common/data/common/gradle-api-8.14.3.jar.br", "https://appdevforall.org/dev-assets/release/gradle-api-8.14.3.jar.br",
-        "public_html/dev-assets/release/gradle-api-8.14.3.jar.br", "release"),
+        "gradle-api-8.14.3.jar.br", "release"),
     Asset("assets/release/common/data/common/localMvnRepository.zip.br", "https://appdevforall.org/dev-assets/release/localMvnRepository.zip.br",
-        "public_html/dev-assets/release/localMvnRepository.zip.br", "release"),
+        "localMvnRepository.zip.br", "release"),
     Asset("assets/release/common/database/documentation.db.br", "https://appdevforall.org/dev-assets/release/documentation.db.br",
-        "public_html/dev-assets/release/documentation.db.br", "release"),
+        "documentation.db.br", "release"),
     Asset("assets/release/v7/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v7/android-sdk.zip.br",
-        "public_html/dev-assets/release/v7/android-sdk.zip.br", "release"),
+        "v7/android-sdk.zip.br", "release"),
     Asset("assets/release/v7/data/common/bootstrap.zip.br", "https://appdevforall.org/dev-assets/release/v7/bootstrap.zip.br",
-        "public_html/dev-assets/release/v7/bootstrap.zip.br", "release"),
+        "v7/bootstrap.zip.br", "release"),
     Asset("assets/release/v8/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v8/android-sdk.zip.br",
-        "public_html/dev-assets/release/v8/android-sdk.zip.br", "release"),
+        "v8/android-sdk.zip.br", "release"),
     Asset("assets/release/v8/data/common/bootstrap.zip.br", "https://appdevforall.org/dev-assets/release/v8/bootstrap.zip.br",
-        "public_html/dev-assets/release/v8/bootstrap.zip.br", "release")
+        "v8/bootstrap.zip.br", "release")
 )
 
 fun assetsBatch(projectDir: File, project: Project, variant: String) {
