@@ -117,12 +117,6 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
-      - name: List downloaded files
-        if: always()
-        run: |
-          ls -lR .tmp/
-          ls -lR assets/
-
       - name: Download latest documentation.db from Google Drive
         run: |
           DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
@@ -164,7 +158,6 @@ jobs:
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
-          ls -lR app/build/outputs/assets
 
       - name: V8 Assets Path
         id: assets_v8
@@ -179,7 +172,6 @@ jobs:
           echo "ASSETS_PATH=$assets_path" >> $GITHUB_OUTPUT
 
       - name: Upload asset zips to Google Drive
-        if: false
         run: |
           echo "Uploading assets v8 and v7 to Google Drive..."
 
@@ -217,7 +209,6 @@ jobs:
           echo "Upload complete."
 
       - name: Send Rich Slack Notification
-        if: false
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
