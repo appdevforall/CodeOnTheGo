@@ -31,6 +31,7 @@ object Main {
 
 	@Volatile
 	var client: IToolingApiClient? = null
+
 	@Volatile
 	var future: Future<Void?>? = null
 
@@ -114,13 +115,5 @@ object Main {
 		}
 	}
 
-	fun progressUpdateTypes(): MutableSet<OperationType?> {
-		val types = HashSet<OperationType?>()
-
-		// AndroidIDE currently does not handle any other type of events
-		types.add(OperationType.TASK)
-		types.add(OperationType.PROJECT_CONFIGURATION)
-
-		return types
-	}
+	fun progressUpdateTypes() = setOf(OperationType.TASK, OperationType.PROJECT_CONFIGURATION)
 }
