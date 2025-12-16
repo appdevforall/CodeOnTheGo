@@ -217,8 +217,8 @@ jobs:
           unset SSH_AUTH_SOCK
           unset SSH_AGENT_PID
           # Remove any default SSH keys that might interfere
-          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null || true
-          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null
+          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Download release assets
         env:
@@ -236,6 +236,25 @@ jobs:
           name: assets
           path: assets/release
           retention-days: 1
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: |
+          rm -f app/google-services.json
+          echo "google-services.json cleaned up successfully"
+
+      - name: Cleanup ssh
+        if: always()
+        run: |
+          # Remove SSH key
+          rm -f ~/.ssh/id_rsa
+          # Clean up SSH known_hosts (remove the entry for this host)
+          SSH_HOST="${{ vars.GREENGEEKS_SSH_HOST }}"
+          if [ -n "$SSH_HOST" ]; then
+            ssh-keygen -R "$SSH_HOST" 2>/dev/null
+          fi
+          # Remove entire .ssh directory if empty
+          rmdir ~/.ssh 2>/dev/null
 
   download_documentation:
     name: Download pre-compressed documentation DB
@@ -615,8 +634,8 @@ jobs:
           unset SSH_AUTH_SOCK
           unset SSH_AGENT_PID
           # Remove any default SSH keys that might interfere
-          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null || true
-          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null
+          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Upload APK to server
         env:
@@ -746,7 +765,7 @@ jobs:
           # Clean up SSH known_hosts (remove the entry for this host)
           SSH_HOST="${{ vars.GREENGEEKS_SSH_HOST }}"
           if [ -n "$SSH_HOST" ]; then
-            ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
+            ssh-keygen -R "$SSH_HOST" 2>/dev/null
           fi
           # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null || true
+          rmdir ~/.ssh 2>/dev/null
