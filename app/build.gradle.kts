@@ -875,21 +875,21 @@ data class Asset(
 // --- Debug assets ---
 val debugAssets = listOf(
     Asset("assets/android-sdk-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip",
-        "public_html/dev-assets/debug/android-sdk-arm64-v8a.zip","debug"),
+        "android-sdk-arm64-v8a.zip","debug"),
     Asset("assets/android-sdk-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-armeabi-v7a.zip",
-        "public_html/dev-assets/debug/android-sdk-armeabi-v7a.zip", "debug"),
+        "android-sdk-armeabi-v7a.zip", "debug"),
     Asset("assets/bootstrap-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/bootstrap-arm64-v8a.zip",
-        "public_html/dev-assets/debug/bootstrap-arm64-v8a.zip", "debug"),
+        "bootstrap-arm64-v8a.zip", "debug"),
     Asset("assets/bootstrap-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/bootstrap-armeabi-v7a.zip",
-        "public_html/dev-assets/debug/bootstrap-armeabi-v7a.zip", "debug"),
+        "bootstrap-armeabi-v7a.zip", "debug"),
     Asset("assets/documentation.db", "https://appdevforall.org/dev-assets/debug/documentation.db",
-        "public_html/dev-assets/debug/documentation.db", "debug"),
+        "documentation.db", "debug"),
     Asset("assets/gradle-8.14.3-bin.zip", "https://appdevforall.org/dev-assets/debug/gradle-8.14.3-bin.zip",
-        "public_html/dev-assets/debug/gradle-8.14.3-bin.zip", "debug"),
+        "debug/gradle-8.14.3-bin.zip", "debug"),
     Asset("assets/gradle-api-8.14.3.jar.zip", "https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip",
-        "public_html/dev-assets/debug/gradle-api-8.14.3.jar.zip", "debug"),
+        "gradle-api-8.14.3.jar.zip", "debug"),
     Asset("assets/localMvnRepository.zip", "https://appdevforall.org/dev-assets/debug/localMvnRepository.zip",
-        "public_html/dev-assets/debug/localMvnRepository.zip", "debug"),
+        "localMvnRepository.zip", "debug"),
 )
 
 // --- Release assets ---

@@ -149,7 +149,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-#          ref: main
+#jm          ref: main
           ref: task/ADFA-2286
 
       - name: Check if Nix is installed
@@ -232,17 +232,11 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
-      - name: List downloaded files
-        if: always()
-        run: |
-          ls -lR .tmp/
-          ls -lR assets/
-
       - name: Upload release assets
         uses: actions/upload-artifact@v4
         with:
           name: assets
-          path: assets/
+          path: assets/release
           retention-days: 1
 
   download_documentation:
@@ -636,7 +630,8 @@ jobs:
             exit 1
           fi
           echo "Uploading $APK_PATH to $GREENGEEKS_HOST..."
-          scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:public_html/apk_repo/"
+#jm          scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:public_html/apk_repo/"
+          scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:tmp/apk_repo/"
 
       - name: Clean up build folder after upload
         run: |
