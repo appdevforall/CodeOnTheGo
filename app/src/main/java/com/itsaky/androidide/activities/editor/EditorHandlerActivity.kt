@@ -516,11 +516,9 @@ open class EditorHandlerActivity :
 		runAfter: (() -> Unit)?,
 	) {
         lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
                 saveAll(notify, requestSync, processResources, progressConsumer)
                 runAfter?.invoke()
             }
-        }
     }
 
 	override suspend fun saveAll(
