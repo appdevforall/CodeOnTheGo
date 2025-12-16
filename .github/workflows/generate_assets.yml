@@ -8,9 +8,6 @@ permissions:
 on:
   workflow_dispatch:
 
-env:
-  SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
-
 jobs:
   generate_assets:
     name: Generate Assets Zips
@@ -21,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: task/ADFA-2286
+          ref: stage
 
       - name: Check if Nix is installed
         id: check_nix
@@ -53,61 +50,6 @@ jobs:
           service_account: ${{ secrets.IDENTITY_EMAIL }}
           token_format: 'access_token'
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
-
-      - name: Set up SSH key
-        env:
-          GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
-          GREENGEEKS_KEY: ${{ secrets.GREENGEEKS_SSH_PRIVATE_KEY }}
-          GREENGEEKS_USER: ${{ vars.GREENGEEKS_SSH_USER }}
-        run: |
-          mkdir -p ~/.ssh
-          if [ -z "$GREENGEEKS_HOST" ]; then
-            echo "Error: SSH_HOST variable is not set"
-            exit 1
-          fi
-          # Write the SSH key, ensuring proper formatting
-          echo "$GREENGEEKS_KEY" > ~/.ssh/id_rsa
-          # Remove any trailing newlines and ensure proper key format
-          sed -i '' -e '$ { /^$/ d; }' ~/.ssh/id_rsa 2>/dev/null || sed -i '$ { /^$/ d; }' ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # Verify key format
-          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
-            echo "Error: SSH key does not appear to be in correct format"
-            exit 1
-          fi
-          # Configure SSH to use only the key file and disable other auth methods
-          cat > ~/.ssh/config <<EOF
-          Host *
-            IdentitiesOnly yes
-            PreferredAuthentications publickey
-            StrictHostKeyChecking no
-            UserKnownHostsFile ~/.ssh/known_hosts
-            PubkeyAuthentication yes
-            PasswordAuthentication no
-            ChallengeResponseAuthentication no
-            GSSAPIAuthentication no
-            GSSAPIKeyExchange no
-            GSSAPIDelegateCredentials no
-          Host $GREENGEEKS_HOST
-            User $GREENGEEKS_USER
-            IdentityFile ~/.ssh/id_rsa
-            IdentitiesOnly yes
-            PreferredAuthentications publickey
-            PubkeyAuthentication yes
-            PasswordAuthentication no
-            ChallengeResponseAuthentication no
-            GSSAPIAuthentication no
-            GSSAPIKeyExchange no
-            GSSAPIDelegateCredentials no
-            NumberOfPasswordPrompts 0
-          EOF
-          chmod 600 ~/.ssh/config
-          # Disable SSH agent completely
-          unset SSH_AUTH_SOCK
-          unset SSH_AGENT_PID
-          # Remove any default SSH keys that might interfere
-          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null || true
-          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Download debug assets
         run: |
@@ -172,7 +114,6 @@ jobs:
           echo "ASSETS_PATH=$assets_path" >> $GITHUB_OUTPUT
 
       - name: Upload asset zips to Google Drive
-        if: false
         run: |
           echo "Uploading assets v8 and v7 to Google Drive..."
 
@@ -210,7 +151,6 @@ jobs:
           echo "Upload complete."
 
       - name: Send Rich Slack Notification
-        if: false
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
@@ -259,15 +199,3 @@ jobs:
         run: |
           rm -f app/google-services.json
           echo "google-services.json cleaned up successfully"
-
-      - name: Cleanup ssh
-        if: always()
-        run: |
-          # Remove SSH key
-          rm -f ~/.ssh/id_rsa
-          # Clean up SSH known_hosts (remove the entry for this host)
-          if [ -n "$SCP_HOST" ]; then
-            ssh-keygen -R "$SCP_HOST" 2>/dev/null || true
-          fi
-          # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null || true
