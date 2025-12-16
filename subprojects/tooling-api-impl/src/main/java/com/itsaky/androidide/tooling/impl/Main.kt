@@ -20,7 +20,6 @@ import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher.newServerLauncher
 import org.gradle.tooling.events.OperationType
 import org.slf4j.LoggerFactory
-import java.lang.management.ManagementFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
@@ -30,8 +29,8 @@ import kotlin.system.exitProcess
 object Main {
 	private val logger = LoggerFactory.getLogger(Main::class.java)
 
-	var client: IToolingApiClient? = null
-	var future: Future<Void?>? = null
+	@Volatile var client: IToolingApiClient? = null
+	@Volatile var future: Future<Void?>? = null
 
 	fun checkGradleWrapper() {
 		logger.info("Checking gradle wrapper availability...")
