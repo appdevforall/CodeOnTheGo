@@ -928,12 +928,12 @@ fun assetsBatch(projectDir: File, project: Project, variant: String) {
 // --- Helpers to resolve staged files ---
 fun stagedFileFor(asset: Asset, projectDir: File): File {
     val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
-    return File(variantDir, File(asset.remotePath).name)
+    return File(variantDir, asset.remotePath)
 }
 
 fun stagedChecksumFor(asset: Asset, projectDir: File): File {
     val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
-    return File(variantDir, File(asset.remotePath).name + ".md5")
+    return File(variantDir, asset.remotePath + ".md5")
 }
 
 
