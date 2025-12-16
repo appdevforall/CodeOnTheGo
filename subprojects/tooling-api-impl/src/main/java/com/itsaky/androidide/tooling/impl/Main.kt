@@ -29,8 +29,10 @@ import kotlin.system.exitProcess
 object Main {
 	private val logger = LoggerFactory.getLogger(Main::class.java)
 
-	@Volatile var client: IToolingApiClient? = null
-	@Volatile var future: Future<Void?>? = null
+	@Volatile
+	var client: IToolingApiClient? = null
+	@Volatile
+	var future: Future<Void?>? = null
 
 	fun checkGradleWrapper() {
 		logger.info("Checking gradle wrapper availability...")
@@ -62,7 +64,8 @@ object Main {
 		val launcher = newServerLauncher(server, System.`in`, System.out, executorService)
 
 		val future = launcher.startListening()
-		val client = launcher.getRemoteProxy() as IToolingApiClient
+		val client = launcher.getRemoteProxy() as? IToolingApiClient
+			?: error("Failed to get IToolingApiClient proxy from launcher")
 
 		this.client = client
 		this.future = future
