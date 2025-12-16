@@ -1,4 +1,5 @@
 package com.itsaky.androidide.actions.etc
+
 import android.content.Context
 import android.content.Intent
 import android.view.MenuItem
@@ -13,92 +14,100 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.resources.R
+import io.sentry.Sentry
 
 
 import java.io.File
 
 class GenerateXMLAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
-  override val id: String = ID
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
-  override var requiresUIThread: Boolean = false
+    override val id: String = ID
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
+    override var requiresUIThread: Boolean = false
 
-  companion object {
-    const val ID = "ide.editor.generatexml"
-    const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
-    const val EXTRA_LAYOUT_FILE_NAME = "com.example.images.LAYOUT_FILE_NAME"
-  }
-
-  init {
-    label = context.getString(R.string.title_preview_layout)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_computer_vision)
-  }
-
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-
-    val viewModel = data.requireActivity().editorViewModel
-    if (viewModel.isInitializing) {
-      visible = true
-      enabled = false
-      return
+    companion object {
+        const val ID = "ide.editor.generatexml"
+        const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
+        const val EXTRA_LAYOUT_FILE_NAME = "com.example.images.LAYOUT_FILE_NAME"
     }
 
-    if (!visible) {
-      return
+    init {
+        label = context.getString(R.string.title_preview_layout)
+        icon = ContextCompat.getDrawable(context, R.drawable.ic_computer_vision)
     }
 
-    val editor = data.requireEditor()
-    val file = editor.file!!
+    override fun prepare(data: ActionData) {
+        super.prepare(data)
 
-    val isXml = file.name.endsWith(".xml")
+        runCatching {
+            val viewModel = data.requireActivity().editorViewModel
+            if (viewModel.isInitializing) {
+                visible = true
+                enabled = false
+                return
+            }
 
-    if (!isXml) {
-      markInvisible()
-      return
+            if (!visible) {
+                return
+            }
+
+            val editor = data.requireEditor()
+            val file = editor.file
+            file?.let {
+                val isXml = file.name.endsWith(".xml")
+
+                if (!isXml) {
+                    markInvisible()
+                    return
+                }
+
+                val type = try {
+                    extractPathData(file).type
+                } catch (err: Throwable) {
+                    markInvisible()
+                    return
+                }
+                visible = type == LAYOUT
+                enabled = visible
+            }
+        }.onFailure {
+            Sentry.captureException(it)
+        }
+
     }
 
-    val type = try {
-      extractPathData(file).type
-    } catch (err: Throwable) {
-      markInvisible()
-      return
+    override suspend fun execAction(data: ActionData): Any {
+        return true
     }
 
-    visible = type == LAYOUT
-    enabled = visible
-  }
-
-  override fun getShowAsActionFlags(data: ActionData): Int {
-    val activity = data.getActivity() ?: return super.getShowAsActionFlags(data)
-    return if (KeyboardUtils.isSoftInputVisible(activity)) {
-      MenuItem.SHOW_AS_ACTION_IF_ROOM
-    } else {
-      MenuItem.SHOW_AS_ACTION_ALWAYS
+    override fun getShowAsActionFlags(data: ActionData): Int {
+        val activity = data.getActivity() ?: return super.getShowAsActionFlags(data)
+        return if (KeyboardUtils.isSoftInputVisible(activity)) {
+            MenuItem.SHOW_AS_ACTION_IF_ROOM
+        } else {
+            MenuItem.SHOW_AS_ACTION_ALWAYS
+        }
     }
-  }
 
-  override suspend fun execAction(data: ActionData): Boolean {
-    val activity = data.requireActivity()
-    activity.saveAll()
-    return true
-  }
 
-  override fun postExec(data: ActionData, result: Any) {
-    val activity = data.requireActivity()
-    activity.navigateComputerVisionActivity(data.requireEditor().file!!)
-  }
-
-  private fun EditorHandlerActivity.navigateComputerVisionActivity(file: File) {
-    val intent = Intent(this, ComputerVisionActivity::class.java).apply {
-      putExtra(EXTRA_LAYOUT_FILE_PATH, file.absolutePath)
-      putExtra(EXTRA_LAYOUT_FILE_NAME, file.name)
+    override fun postExec(data: ActionData, result: Any) {
+        val activity = data.requireActivity()
+        activity.let {
+            activity.navigateComputerVisionActivity(data.requireEditor().file!!)
+        }
     }
-    uiDesignerResultLauncher?.launch(intent)
-  }
 
-  private fun ActionData.requireEditor(): IDEEditor {
-    return this.getEditor() ?: throw IllegalArgumentException(
-      "An editor instance is required but none was provided")
-  }
+    private fun EditorHandlerActivity.navigateComputerVisionActivity(file: File) {
+        val intent = Intent(this, ComputerVisionActivity::class.java).apply {
+            putExtra(EXTRA_LAYOUT_FILE_PATH, file.absolutePath)
+            putExtra(EXTRA_LAYOUT_FILE_NAME, file.name)
+        }
+        uiDesignerResultLauncher?.launch(intent)
+    }
+
+    private fun ActionData.requireEditor(): IDEEditor {
+        return this.getEditor() ?: throw IllegalArgumentException(
+            "An editor instance is required but none was provided"
+        )
+    }
 }

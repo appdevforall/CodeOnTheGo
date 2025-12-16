@@ -36,7 +36,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.common.kotlin.coroutines.android)
 
-    implementation("io.insert-koin:koin-android:3.5.3")
+    implementation(libs.koin.android)
 
     implementation("org.tensorflow:tensorflow-lite:2.14.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")

@@ -5,7 +5,7 @@ import org.appdevforall.codeonthego.computervision.data.source.OcrSource
 import org.appdevforall.codeonthego.computervision.data.source.YoloModelSource
 import org.appdevforall.codeonthego.computervision.ui.viewmodel.ComputerVisionViewModel
 import org.koin.android.ext.koin.androidContext
-import org.koin.androidx.viewmodel.dsl.viewModel
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val computerVisionModule = module {
