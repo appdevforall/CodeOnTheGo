@@ -33,6 +33,7 @@ env:
 jobs:
   merge_stage_to_main:
     name: Merge stage to main
+    if: false
     runs-on: self-hosted
     timeout-minutes: 10
 
