@@ -48,6 +48,7 @@ object AssetsInstallationHelper {
 
 		data class Failure(
 			val cause: Throwable?,
+			val errorMessage: String? = cause?.message,
 		) : Result
 	}
 

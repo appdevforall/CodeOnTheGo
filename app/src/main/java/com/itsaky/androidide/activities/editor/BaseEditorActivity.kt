@@ -123,6 +123,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
@@ -176,6 +177,8 @@ abstract class BaseEditorActivity :
 
 	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
 	val editorViewModel by viewModels<EditorViewModel>()
+
+	val recentProjectsViewModel by viewModels<RecentProjectsViewModel>()
 	val debuggerViewModel by viewModels<DebuggerViewModel>()
 	val wadbViewModel by viewModels<WADBViewModel>()
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
@@ -847,15 +850,12 @@ abstract class BaseEditorActivity :
 
     open fun handleSearchResults(map: Map<File, List<SearchResult>>?) {
         val results = map ?: emptyMap()
-        setSearchResultAdapter(SearchListAdapter(results, { file ->
-            doOpenFile(file, null)
-            hideBottomSheet()
-        }) { match ->
-            doOpenFile(match.file, match)
-            hideBottomSheet()
-        })
+        editorViewModel.onSearchResultsReady(results)
 
-		bottomSheetViewModel.setSheetState(currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT)
+        bottomSheetViewModel.setSheetState(
+            sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+            currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT
+        )
         doDismissSearchProgress()
     }
 

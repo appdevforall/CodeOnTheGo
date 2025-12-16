@@ -43,7 +43,6 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import java.util.Date
 
 /**
  * A fragment which shows a wizard-like interface for creating templates.
@@ -130,11 +129,15 @@ class TemplateDetailsFragment :
                 viewModel.setScreen(MainViewModel.SCREEN_MAIN)
                 flashSuccess(string.project_created_successfully)
 
+                val now = System.currentTimeMillis().toString()
                 recentProjectsViewModel.insertProject(
                     RecentProject(
                         location = result.data.projectDir.path,
                         name = result.data.name,
-                        createdAt = Date().toString()
+                        createdAt = now,
+                        lastModified = now,
+                        templateName = getString(template.templateName),
+                        language = result.data.language.name
                     )
                 )
 

@@ -68,6 +68,7 @@ import com.itsaky.androidide.tooling.api.messages.result.failure
 import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
+import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.RecursiveFileSearcher
@@ -587,7 +588,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	protected open fun onProjectInitialized(result: InitializeResult.Success) {
 		editorActivityScope.launch(Dispatchers.IO) {
 			val manager = ProjectManagerImpl.getInstance()
-			val gradleBuildResult = manager.readGradleBuild()
+			val gradleBuildResult = ProjectSyncHelper.readGradleBuild(result.cacheFile)
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
