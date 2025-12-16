@@ -1067,7 +1067,9 @@ tasks.register("assetsDownloadDebug") {
 tasks.register("assetsDownloadRelease") {
     group = "setup"
     description = "Download and verify release assets"
-    assetsBatch(rootProject.projectDir, project, "release")
-    doLast { assetsDownload(releaseAssets, rootProject.projectDir) }
+    doLast {
+        assetsBatch(rootProject.projectDir, project, "release")
+        assetsDownload(releaseAssets, rootProject.projectDir)
+    }
 }
 
