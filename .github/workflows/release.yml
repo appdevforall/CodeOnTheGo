@@ -54,7 +54,6 @@ jobs:
           git config user.email "dev-team@appdevforall.org"
 
       - name: Merge stage to main
-        if: false
         run: |
           git fetch origin stage
           git checkout main
@@ -149,8 +148,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-#jm          ref: main
-          ref: task/ADFA-2286
+          ref: main
 
       - name: Check if Nix is installed
         id: check_nix
@@ -515,7 +513,6 @@ jobs:
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Deploy to Firebase App Distribution
-        if: false
         id: firebase_upload
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
@@ -636,8 +633,7 @@ jobs:
             exit 1
           fi
           echo "Uploading $APK_PATH to $GREENGEEKS_HOST..."
-          #jm scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:public_html/apk_repo/"
-          scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:tmp/apk_repo/"
+          scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:public_html/apk_repo/"
 
       - name: Clean up build folder after upload
         run: |
@@ -649,7 +645,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
-        if: false
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
           COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
