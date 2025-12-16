@@ -160,6 +160,7 @@ jobs:
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
+          ls -lR app/build/outputs/assets
 
       - name: V8 Assets Path
         id: assets_v8
