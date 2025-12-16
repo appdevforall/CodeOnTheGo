@@ -106,8 +106,8 @@ jobs:
           unset SSH_AUTH_SOCK
           unset SSH_AGENT_PID
           # Remove any default SSH keys that might interfere
-          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null || true
-          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null
+          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Download debug assets
         run: |
@@ -265,7 +265,7 @@ jobs:
           rm -f ~/.ssh/id_rsa
           # Clean up SSH known_hosts (remove the entry for this host)
           if [ -n "$SCP_HOST" ]; then
-            ssh-keygen -R "$SCP_HOST" 2>/dev/null || true
+            ssh-keygen -R "$SCP_HOST" 2>/dev/null
           fi
           # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null || true
+          rmdir ~/.ssh 2>/dev/null
