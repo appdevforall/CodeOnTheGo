@@ -400,7 +400,7 @@ jobs:
       - name: Upload compressed documentation DB
         uses: actions/upload-artifact@v4
         with:
-          name: assets
+          name: assets-db
           path: assets/release/common/database/documentation.db.br
           retention-days: 1
 
@@ -430,11 +430,17 @@ jobs:
         run: |
           echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
 
-      - name: Download compressed documentation DB
+      - name: Download release assets
         uses: actions/download-artifact@v4
         with:
           name: assets
-          path: assets/
+          path: assets/release
+
+      - name: Download compressed documentation DB
+        uses: actions/download-artifact@v4
+        with:
+          name: assets-db
+          path: assets/release/common/database/documentation.db.br
 
       - name: Initialize submodules
         run: |
