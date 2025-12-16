@@ -116,6 +116,10 @@ jobs:
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
+
+      - name: List downloaded files
+        if: always
+        run: |
           ls -lR .tmp/
           ls -lR assets/
 
