@@ -862,84 +862,150 @@ fun signApk(apkFile: File) {
 	}
 }
 
+val scpServer: String = propOrEnv("SCP_HOST")
 
 // git lfs avoidance
 data class Asset(
     val localPath: String,
     val url: String,
+    val remotePath: String,
     val variant: String
 )
 
 // --- Debug assets ---
 val debugAssets = listOf(
-    Asset("assets/android-sdk-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip", "debug"),
-    Asset("assets/android-sdk-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-armeabi-v7a.zip", "debug"),
-    Asset("assets/bootstrap-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/bootstrap-arm64-v8a.zip", "debug"),
-    Asset("assets/bootstrap-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/bootstrap-armeabi-v7a.zip", "debug"),
-    Asset("assets/documentation.db", "https://appdevforall.org/dev-assets/debug/documentation.db", "debug"),
-    Asset("assets/gradle-8.14.3-bin.zip", "https://appdevforall.org/dev-assets/debug/gradle-8.14.3-bin.zip", "debug"),
-    Asset("assets/gradle-api-8.14.3.jar.zip", "https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip", "debug"),
-    Asset("assets/localMvnRepository.zip", "https://appdevforall.org/dev-assets/debug/localMvnRepository.zip", "debug")
+    Asset("assets/android-sdk-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip",
+        "public_html/dev-assets/debug/android-sdk-arm64-v8a.zip","debug"),
+    Asset("assets/android-sdk-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/android-sdk-armeabi-v7a.zip",
+        "public_html/dev-assets/debug/android-sdk-armeabi-v7a.zip", "debug"),
+    Asset("assets/bootstrap-arm64-v8a.zip", "https://appdevforall.org/dev-assets/debug/bootstrap-arm64-v8a.zip",
+        "public_html/dev-assets/debug/bootstrap-arm64-v8a.zip", "debug"),
+    Asset("assets/bootstrap-armeabi-v7a.zip", "https://appdevforall.org/dev-assets/debug/bootstrap-armeabi-v7a.zip",
+        "public_html/dev-assets/debug/bootstrap-armeabi-v7a.zip", "debug"),
+    Asset("assets/documentation.db", "https://appdevforall.org/dev-assets/debug/documentation.db",
+        "public_html/dev-assets/debug/documentation.db", "debug"),
+    Asset("assets/gradle-8.14.3-bin.zip", "https://appdevforall.org/dev-assets/debug/gradle-8.14.3-bin.zip",
+        "public_html/dev-assets/debug/gradle-8.14.3-bin.zip", "debug"),
+    Asset("assets/gradle-api-8.14.3.jar.zip", "https://appdevforall.org/dev-assets/debug/gradle-api-8.14.3.jar.zip",
+        "public_html/dev-assets/debug/gradle-api-8.14.3.jar.zip", "debug"),
+    Asset("assets/localMvnRepository.zip", "https://appdevforall.org/dev-assets/debug/localMvnRepository.zip",
+        "public_html/dev-assets/debug/localMvnRepository.zip", "debug"),
 )
 
 // --- Release assets ---
 val releaseAssets = listOf(
-    Asset("assets/release/common/data/common/gradle-8.14.3-bin.zip.br", "https://appdevforall.org/dev-assets/release/gradle-8.14.3-bin.zip.br", "release"),
-    Asset("assets/release/common/data/common/gradle-api-8.14.3.jar.br", "https://appdevforall.org/dev-assets/release/gradle-api-8.14.3.jar.br", "release"),
-    Asset("assets/release/common/data/common/localMvnRepository.zip.br", "https://appdevforall.org/dev-assets/release/localMvnRepository.zip.br", "release"),
-    Asset("assets/release/common/database/documentation.db.br", "https://appdevforall.org/dev-assets/release/documentation.db.br", "release"),
-    Asset("assets/release/v7/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v7/android-sdk.zip.br", "release"),
-    Asset("assets/release/v7/data/common/bootstrap.zip.br", "https://appdevforall.org/dev-assets/release/v7/bootstrap.zip.br", "release"),
-    Asset("assets/release/v8/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v8/android-sdk.zip.br", "release"),
-    Asset("assets/release/v8/data/common/bootstrap.zip.br", "https://appdevforall.org/dev-assets/release/v8/bootstrap.zip.br", "release")
+    Asset("assets/release/common/data/common/gradle-8.14.3-bin.zip.br", "https://appdevforall.org/dev-assets/release/gradle-8.14.3-bin.zip.br",
+        "public_html/dev-assets/release/gradle-8.14.3-bin.zip.br", "release"),
+    Asset("assets/release/common/data/common/gradle-api-8.14.3.jar.br", "https://appdevforall.org/dev-assets/release/gradle-api-8.14.3.jar.br",
+        "public_html/dev-assets/release/gradle-api-8.14.3.jar.br", "release"),
+    Asset("assets/release/common/data/common/localMvnRepository.zip.br", "https://appdevforall.org/dev-assets/release/localMvnRepository.zip.br",
+        "public_html/dev-assets/release/localMvnRepository.zip.br", "release"),
+    Asset("assets/release/common/database/documentation.db.br", "https://appdevforall.org/dev-assets/release/documentation.db.br",
+        "public_html/dev-assets/release/documentation.db.br", "release"),
+    Asset("assets/release/v7/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v7/android-sdk.zip.br",
+        "public_html/dev-assets/release/v7/android-sdk.zip.br", "release"),
+    Asset("assets/release/v7/data/common/bootstrap.zip.br", "https://appdevforall.org/dev-assets/release/v7/bootstrap.zip.br",
+        "public_html/dev-assets/release/v7/bootstrap.zip.br", "release"),
+    Asset("assets/release/v8/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v8/android-sdk.zip.br",
+        "public_html/dev-assets/release/v8/android-sdk.zip.br", "release"),
+    Asset("assets/release/v8/data/common/bootstrap.zip.br", "https://appdevforall.org/dev-assets/release/v8/bootstrap.zip.br",
+        "public_html/dev-assets/release/v8/bootstrap.zip.br", "release")
 )
 
-fun assetsFileDownload(assetUrl: String, target: File) {
-    val url = URL(assetUrl)
-    val conn = url.openConnection() as HttpURLConnection
-    conn.requestMethod = "GET"
-    conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-    conn.instanceFollowRedirects = true
-    conn.connectTimeout = 10_000
-    conn.readTimeout = 10_000
-
-    try {
-        val status = conn.responseCode
-        if (status == HttpURLConnection.HTTP_OK) {
-            // Stream the response body into the target file
-            conn.inputStream.use { input ->
-                target.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-            project.logger.lifecycle("Downloaded $assetUrl → ${target.absolutePath}")
-        } else {
-            throw GradleException("Failed to download $assetUrl (HTTP $status: ${conn.responseMessage})")
+fun assetsBatch(projectDir: File, project: Project, variant: String) {
+    if (isCiCd) {
+        val tmpDir = File(projectDir, ".tmp/assets/${variant}")
+        tmpDir.mkdirs()
+        project.exec {
+            commandLine("scp", "-r", "$scpServer:public_html/dev-assets/${variant}/", tmpDir.absolutePath)
         }
-    } finally {
-        conn.disconnect()
+        project.logger.lifecycle("SCP batch downloaded ${variant} assets → ${tmpDir.absolutePath}")
     }
 }
 
-fun assetsFileChecksum(assetUrl: String): String? {
-    val checksumUrl = assetUrl + ".md5"
-    val conn = URL(checksumUrl).openConnection() as HttpURLConnection
-    conn.requestMethod = "GET"
-    conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-    conn.instanceFollowRedirects = true
-    conn.connectTimeout = 10_000
-    conn.readTimeout = 10_000
 
-    return try {
-        val status = conn.responseCode
+// --- Helpers to resolve staged files ---
+fun stagedFileFor(asset: Asset, projectDir: File): File {
+    val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
+    return File(variantDir, File(asset.remotePath).name)
+}
 
-        if (status == HttpURLConnection.HTTP_OK) {
-            conn.inputStream.bufferedReader().use { it.readText().trim() }
-        } else {
-            throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
+fun stagedChecksumFor(asset: Asset, projectDir: File): File {
+    val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
+    return File(variantDir, File(asset.remotePath).name + ".md5")
+}
+
+
+fun assetsFileDownload(asset: Asset, target: File) {
+    if (isCiCd) {
+        val stagedFile = stagedFileFor(asset, project.projectDir)
+        if (!stagedFile.exists()) {
+            throw GradleException("Staged file not found: ${stagedFile.absolutePath}")
         }
-    } finally {
-        conn.disconnect()
+        target.parentFile.mkdirs()
+        stagedFile.copyTo(target, overwrite = true)
+        project.logger.lifecycle("Copied staged ${stagedFile.absolutePath} → ${target.absolutePath}")
+    } else {
+        val url = URL(asset.url)
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "GET"
+        conn.setRequestProperty(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        conn.setRequestProperty("Accept", "*/*")
+        conn.setRequestProperty("Connection", "keep-alive")
+        conn.instanceFollowRedirects = true
+        conn.connectTimeout = 10_000
+        conn.readTimeout = 10_000
+
+        try {
+            val status = conn.responseCode
+            if (status == HttpURLConnection.HTTP_OK) {
+                // Stream the response body into the target file
+                conn.inputStream.use { input ->
+                    target.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                project.logger.lifecycle("Downloaded ${asset.url} → ${target.absolutePath}")
+            } else {
+                throw GradleException("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
+            }
+        } finally {
+            conn.disconnect()
+        }
+    }
+}
+
+fun assetsFileChecksum(asset: Asset): String? {
+    return if (isCiCd) {
+        val stagedChecksum = stagedChecksumFor(asset, project.projectDir)
+        if (stagedChecksum.exists()) {
+            stagedChecksum.readText().trim()
+        } else {
+            throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
+        }
+    } else {
+        val checksumUrl = asset.url + ".md5"
+        val conn = URL(checksumUrl).openConnection() as HttpURLConnection
+        conn.requestMethod = "GET"
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+        conn.instanceFollowRedirects = true
+        conn.connectTimeout = 10_000
+        conn.readTimeout = 10_000
+
+        return try {
+            val status = conn.responseCode
+
+            if (status == HttpURLConnection.HTTP_OK) {
+                conn.inputStream.bufferedReader().use { it.readText().trim() }
+            } else {
+                throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
+            }
+        } finally {
+            conn.disconnect()
+        }
     }
 }
 
@@ -962,16 +1028,14 @@ fun assetsDownload(assets: List<Asset>, projectDir: File) {
             checksumFile.readText()
         } else ""
 
-        // Fetch remote checksum
-        val remoteChecksum = assetsFileChecksum(asset.url)
+        val remoteChecksum = assetsFileChecksum(asset)
 
-        // Decide whether to download
         val needsDownload = (previousChecksum != remoteChecksum) || previousChecksum.isEmpty()
 
         if (needsDownload) {
             project.logger.lifecycle("Downloading ${asset.url} → ${asset.localPath}")
 
-            assetsFileDownload(asset.url, File(rootProject.projectDir, asset.localPath))
+            assetsFileDownload(asset, File(rootProject.projectDir, asset.localPath))
             // Recompute checksum after download
             val digest = MessageDigest.getInstance("MD5")
             target.inputStream().use { input ->
@@ -997,12 +1061,16 @@ fun assetsDownload(assets: List<Asset>, projectDir: File) {
 tasks.register("assetsDownloadDebug") {
     group = "setup"
     description = "Download and verify debug assets"
-    doLast { assetsDownload(debugAssets, rootProject.projectDir) }
+    doLast {
+        assetsBatch(rootProject.projectDir, project, "debug")
+        assetsDownload(debugAssets, rootProject.projectDir)
+    }
 }
 
 tasks.register("assetsDownloadRelease") {
     group = "setup"
     description = "Download and verify release assets"
+    assetsBatch(rootProject.projectDir, project, "release")
     doLast { assetsDownload(releaseAssets, rootProject.projectDir) }
 }
 
