@@ -7,7 +7,9 @@ import androidx.annotation.StringRes
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.openApplicationModuleChooser
 import com.itsaky.androidide.project.AndroidModels
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
+import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.BuildViewModel
@@ -22,6 +24,21 @@ abstract class AbstractModuleAssemblerAction(
 	@DrawableRes private val iconRes: Int,
 ) : AbstractCancellableRunAction(context, labelRes, iconRes) {
 	override fun doExec(data: ActionData): Boolean {
+		val projectManager = IProjectManager.getInstance()
+
+		if (projectManager.isPluginProject()) {
+			val module = projectManager.getAndroidModules().firstOrNull()
+			if (module != null) {
+				val variant = module.getSelectedVariant()
+				if (variant != null) {
+					onModuleSelected(data, module, variant)
+					return true
+				}
+			}
+			data.requireActivity().flashError(R.string.err_selected_variant_not_found)
+			return false
+		}
+
 		openApplicationModuleChooser(data) { module ->
 			val activity = data.requireActivity()
 
