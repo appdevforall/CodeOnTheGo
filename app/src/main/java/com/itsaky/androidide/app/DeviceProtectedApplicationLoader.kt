@@ -1,11 +1,12 @@
 package com.itsaky.androidide.app
 
-import android.os.StrictMode
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
+import com.itsaky.androidide.app.strictmode.StrictModeConfig
+import com.itsaky.androidide.app.strictmode.StrictModeManager
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.events.AppEventsIndex
@@ -57,26 +58,12 @@ internal object DeviceProtectedApplicationLoader :
 		}
 
 		// Enable StrictMode for debug builds
-		if (BuildConfig.DEBUG) {
-			app.coroutineScope.launch(Dispatchers.Main) {
-				val reprieve = FeatureFlags.isReprieveEnabled
-				StrictMode.setThreadPolicy(
-					StrictMode.ThreadPolicy
-						.Builder()
-						.detectAll()
-						.apply { if (reprieve) penaltyLog() else penaltyDeath() }
-						.build(),
-				)
-
-				StrictMode.setVmPolicy(
-					StrictMode.VmPolicy
-						.Builder()
-						.detectAll()
-						.apply { if (reprieve) penaltyLog() else penaltyDeath() }
-						.build(),
-				)
-			}
-		}
+		StrictModeManager.install(
+			StrictModeConfig(
+				enabled = BuildConfig.DEBUG,
+				isReprieveEnabled = FeatureFlags.isReprieveEnabled,
+			)
+		)
 
 		startKoin {
 			androidContext(app)

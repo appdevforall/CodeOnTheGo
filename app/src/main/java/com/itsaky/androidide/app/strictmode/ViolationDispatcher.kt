@@ -1,5 +1,6 @@
 package com.itsaky.androidide.app.strictmode
 
+import androidx.annotation.Keep
 import android.os.strictmode.Violation as StrictModeViolation
 
 typealias StackFrame = StackTraceElement
@@ -14,6 +15,7 @@ object ViolationDispatcher {
 	/**
 	 * Violation types.
 	 */
+	@Keep
 	enum class ViolationType {
 
 		/**
@@ -57,9 +59,8 @@ object ViolationDispatcher {
 
 	private fun dispatch(violation: StrictModeViolation, type: ViolationType) {
 		val violation = Violation(violation, type)
-		val decision = WhitelistEngine.evaluate(violation)
-		when (decision) {
-			WhitelistEngine.Decision.Allow -> return
+		when (val decision = WhitelistEngine.evaluate(violation)) {
+			is WhitelistEngine.Decision.Allow -> ViolationHandler.allow(violation, decision.reason)
 			WhitelistEngine.Decision.Log -> ViolationHandler.log(violation)
 			WhitelistEngine.Decision.Crash -> ViolationHandler.crash(violation)
 		}

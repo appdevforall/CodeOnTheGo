@@ -14,7 +14,6 @@ class RuleBuilder {
 
 	private var violationType: Class<out Violation>? = null
 	private var matcher: StackMatcher? = null
-	private var reason: String? = null
 	private var decision: WhitelistEngine.Decision = WhitelistEngine.Decision.Crash
 
 	/**
@@ -61,21 +60,19 @@ class RuleBuilder {
 	}
 
 	/**
+	 * Allows the violation and sets the reason for allowing the violation.
+	 *
+	 * @param reason The reason for allowing the violation.
+	 */
+	fun allow(reason: String) = decision(WhitelistEngine.Decision.Allow(reason))
+
+	/**
 	 * Sets the decision to take when the violation is matched.
 	 *
 	 * @param decision The decision to take.
 	 */
 	fun decision(decision: WhitelistEngine.Decision) {
 		this.decision = decision
-	}
-
-	/**
-	 * Sets the reason for the whitelist.
-	 *
-	 * @param reason The reason for the whitelist.
-	 */
-	fun reason(reason: String) {
-		this.reason = reason
 	}
 
 	/* ---- Build ---- */
@@ -89,21 +86,12 @@ class RuleBuilder {
 			"Stack matcher must be specified"
 		}
 
-		val reason = requireNotNull(reason) {
-			"Reason must be specified"
-		}
-
 		matcher.checkPreconditions()
-
-		require(reason.isNotBlank()) {
-			"Reason must not be blank"
-		}
 
 		return WhitelistEngine.Rule(
 			type = type,
 			matcher = matcher,
 			decision = decision,
-			whitelistReason = reason
 		)
 	}
 }

@@ -1,8 +1,8 @@
 package com.itsaky.androidide.app.strictmode
 
 import android.os.strictmode.DiskReadViolation
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.classAndMethod
-import com.itsaky.androidide.utils.FeatureFlags
 import android.os.strictmode.Violation as StrictModeViolation
 
 /**
@@ -16,13 +16,11 @@ object WhitelistEngine {
 	 * @property type The type of violation to match.
 	 * @property matcher The matcher to use to match the violation.
 	 * @property decision The decision to take when the violation is matched.
-	 * @property whitelistReason The reason for the whitelist.
 	 */
 	data class Rule(
 		val type: Class<out StrictModeViolation>,
 		val matcher: StackMatcher,
 		val decision: Decision,
-		val whitelistReason: String,
 	)
 
 	/**
@@ -32,41 +30,90 @@ object WhitelistEngine {
 
 		/**
 		 * Whitelist engine decision to allow the violation.
+		 *
+		 * @property reason The reason for allowing the violation.
 		 */
-		data object Allow: Decision
+		data class Allow(val reason: String) : Decision
 
 		/**
 		 * Whitelist engine decision to log the violation.
 		 */
-		data object Log: Decision
+		data object Log : Decision
 
 		/**
 		 * Whitelist engine decision to crash the process upon violation.
 		 */
-		data object Crash: Decision
+		data object Crash : Decision
 	}
 
-	private val rules = buildStrictModeWhitelist {
+	@VisibleForTesting
+	internal val rules = buildStrictModeWhitelist {
+
+		// When adding a new rule, add rules to the bottom of the whitelist and ensure it is covered
+		// by test cases in WhitelistRulesTest.kt
+
 		rule {
 			ofType<DiskReadViolation>()
-			decision(Decision.Allow)
+			allow(
+				"""
+				Firebase's UserUnlockReceiver tries to access shared preferences after device reboot,
+				which may happen on the main thread, resulting in a DiskReadViolation. Since we can't
+				control when UserUnlockReceiver is called, we allow this violation.
+			""".trimIndent()
+			)
 
 			matchAdjacentFramesInOrder(
 				listOf(
 					listOf(
 						classAndMethod("android.app.ContextImpl", "getSharedPreferences"),
-						classAndMethod("com.google.firebase.internal.DataCollectionConfigStorage", "<init>")
+						classAndMethod(
+							"com.google.firebase.internal.DataCollectionConfigStorage",
+							"<init>"
+						)
 					),
 					listOf(
-						classAndMethod("com.google.firebase.FirebaseApp\$UserUnlockReceiver", "onReceive")
+						classAndMethod(
+							"com.google.firebase.FirebaseApp\$UserUnlockReceiver",
+							"onReceive"
+						)
 					)
 				)
 			)
+		}
 
-			reason("""
-				Firebase tries to access shared preferences after device reboot, which may happen on
-				the main thread, resulting in a DiskReadViolation.
+		rule {
+			ofType<DiskReadViolation>()
+			allow(
+				"""
+				MIUI's TextView implementation has a MultiLangHelper which is invoked during draw.
+				For some reason, it tries to check whether a file exists, resulting in a
+				DiskReadViolation. Since we can't control when MultiLangHelper is called, we allow
+				this violation.
+			""".trimIndent()
+			)
+
+			matchAdjacentFrames(
+				classAndMethod("miui.util.font.MultiLangHelper", "initMultiLangInfo"),
+				classAndMethod("miui.util.font.MultiLangHelper", "<clinit>"),
+				classAndMethod("android.graphics.LayoutEngineStubImpl", "drawTextBegin"),
+				classAndMethod("android.widget.TextView", "onDraw")
+			)
+		}
+
+		rule {
+			ofType<DiskReadViolation>()
+			allow("""
+				On MediaTek devices, the 'ScnModule' is primarily used for scenario detection and
+				power management, like detecting whether a running app is a game. When doing this
+				check, it tries to read a file, resulting in a DiskReadViolation. Since we can't
+				control when ScnModule is called, we allow this violation.
 			""".trimIndent())
+
+			matchAdjacentFrames(
+				classAndMethod("java.io.File", "length"),
+				classAndMethod("com.mediatek.scnmodule.ScnModule", "isGameAppFileSize"),
+				classAndMethod("com.mediatek.scnmodule.ScnModule", "isGameApp")
+			)
 		}
 	}
 
@@ -83,7 +130,7 @@ object WhitelistEngine {
 			false
 		}
 
-		if (FeatureFlags.isReprieveEnabled) {
+		if (StrictModeManager.config.isReprieveEnabled) {
 			return Decision.Log
 		}
 
