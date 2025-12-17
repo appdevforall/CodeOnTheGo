@@ -126,7 +126,7 @@ object WhitelistEngine {
 	fun evaluate(violation: ViolationDispatcher.Violation): Decision {
 		val frames = violation.frames
 		rules.firstOrNull { rule ->
-			if (rule.matcher.matches(frames)) {
+			if (rule.type.isInstance(violation.violation) && rule.matcher.matches(frames)) {
 				return rule.decision
 			}
 
