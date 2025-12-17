@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.app.Application
+import android.database.SQLException
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -23,7 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.IOException
-import java.sql.SQLException
 
 enum class SortCriteria {
     NAME,
@@ -47,7 +47,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     val currentSortAscending: Boolean get() = isAscending
     val hasActiveFilters: Boolean
         get() = currentSort != null || !isAscending || currentQuery.isNotEmpty()
-    private val _deletionStatus = MutableSharedFlow<Boolean>()
+    private val _deletionStatus = MutableSharedFlow<Boolean>(replay = 1)
     val deletionStatus = _deletionStatus.asSharedFlow()
 
     companion object {
@@ -171,6 +171,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             if (success) {
                 // Update LiveData
                 val currentList = _projects.value ?: emptyList()
+                allProjects = allProjects.filter { it.name != name }
                 _projects.value = currentList.filter { it.name != name }
                 _deletionStatus.emit(true)
             } else {
@@ -182,6 +183,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             _deletionStatus.emit(false)
         } catch (e: SQLException) {
             logger.error("A database error occurred during project deletion", e)
+            _deletionStatus.emit(false)
+        } catch (e: SecurityException) {
+            logger.error("Security error during project deletion", e)
             _deletionStatus.emit(false)
         }
     }
@@ -225,9 +229,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             try {
                 withContext(Dispatchers.IO) {
                     // Find the full project details for the selected project names
-                    val allProjectsInDb = recentProjectDao.dumpAll() ?: emptyList()
-                    val projectsToDelete = allProjectsInDb.filter { it.name in selectedNames }
-
+                    val projectsToDelete = recentProjectDao.getProjectsByNames(selectedNames)
                     val successfullyDeletedNames = mutableListOf<String>()
 
                     for (project in projectsToDelete) {
