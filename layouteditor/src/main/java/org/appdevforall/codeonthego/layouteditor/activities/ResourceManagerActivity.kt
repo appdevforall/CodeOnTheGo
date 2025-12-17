@@ -67,7 +67,7 @@ class ResourceManagerActivity : BaseActivity() {
     val adapter = PagerAdapter(supportFragmentManager, lifecycle)
     adapter.setup(binding!!.pager, binding!!.tabLayout)
     adapter.addFragmentToAdapter(
-      DrawableFragment(drawableList),
+      DrawableFragment(drawableList.toMutableList()),
       getString(R.string.drawable),
       getDrawable(R.drawable.image_outline)!!
     )
