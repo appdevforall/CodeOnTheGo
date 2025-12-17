@@ -4,10 +4,6 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
-import java.io.File
-import java.io.IOException
-import kotlin.io.path.exists
 
 @Dao
 interface RecentProjectDao {
@@ -42,24 +38,4 @@ interface RecentProjectDao {
     @Query("SELECT COUNT(*) FROM recent_project_table")
     suspend fun getCount(): Int
 
-    /**
-     * Deletes projects from the database and their corresponding files from storage
-     * within a single transaction. If file deletion fails, the database
-     * operation will be rolled back.
-     */
-    @Transaction
-    suspend fun deleteProjectsAndFiles(names: List<String>) {
-        val projectsToDelete = getProjectsByNames(names)
-
-        // Delete files from device storage
-        for (project in projectsToDelete) {
-            val projectDir = File(project.location)
-            if (projectDir.exists() && !projectDir.deleteRecursively()) {
-                throw IOException("Failed to delete project directory: ${project.location}")
-            }
-        }
-
-        // Delete from the database
-        deleteByNames(names)
-    }
 }

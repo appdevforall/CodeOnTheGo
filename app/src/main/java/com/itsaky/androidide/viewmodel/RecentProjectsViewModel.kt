@@ -24,7 +24,6 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.sql.SQLException
-import java.util.Date
 
 enum class SortCriteria {
     NAME,
@@ -220,39 +219,41 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             if (selectedNames.isEmpty()) {
                 return@launch
             }
+
+            var allDeletionsSucceeded = true
+
             try {
-                // Delete from storage and database
-                recentProjectDao.deleteProjectsAndFiles(selectedNames)
+                withContext(Dispatchers.IO) {
+                    // Find the full project details for the selected project names
+                    val allProjectsInDb = recentProjectDao.dumpAll() ?: emptyList()
+                    val projectsToDelete = allProjectsInDb.filter { it.name in selectedNames }
 
-                // Update LiveData after successful deletion
-                withContext(Dispatchers.Main) {
-                    val currentProjects = _projects.value ?: emptyList()
-                    _projects.value = currentProjects.filterNot { it.name in selectedNames }
+                    val successfullyDeletedNames = mutableListOf<String>()
+
+                    for (project in projectsToDelete) {
+                        // Delete from storage
+                        val isDeletedFromStorage = File(project.location).deleteRecursively()
+
+                        if (isDeletedFromStorage) {
+                            successfullyDeletedNames.add(project.name)
+                        } else {
+                            logger.warn("Failed to delete project files from storage: ${project.location}")
+                            allDeletionsSucceeded = false
+                        }
+                    }
+
+                    if (successfullyDeletedNames.isNotEmpty()) {
+                        // Delete from database
+                        recentProjectDao.deleteByNames(successfullyDeletedNames)
+                    }
                 }
 
-                // Find the full project details for the selected project names
-                val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
-                val projectsToDelete = projectsFromDb.filter { it.name in selectedNames }
+                loadProjects().join()
 
-                // Delete the selected projects from the database
-                recentProjectDao.deleteByNames(selectedNames)
+                _deletionStatus.emit(allDeletionsSucceeded)
 
-                // Delete the selected projects from device storage
-                projectsToDelete.forEach { project ->
-                    File(project.location).deleteRecursively()
-                }
-
-
-
-                // Reload the project list to update the UI
-                loadProjects()
-
-                // Update the LiveData to remove the deleted projects
-                _projects.postValue(_projects.value?.filterNot { it.name in selectedNames })
-
-                _deletionStatus.emit(true)
             } catch (e: Exception) {
-                logger.error("Failed to delete projects", e)
+                logger.error("An exception occurred during project deletion", e)
                 _deletionStatus.emit(false)
             }
         }
