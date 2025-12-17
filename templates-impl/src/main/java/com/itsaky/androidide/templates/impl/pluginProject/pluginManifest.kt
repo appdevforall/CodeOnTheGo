@@ -25,7 +25,7 @@ fun pluginAndroidManifest(data: PluginTemplateData): String {
 
         <meta-data
             android:name="plugin.version"
-            android:value="1.0.0" />
+            android:value="${data.version}" />
 
         <meta-data
             android:name="plugin.description"
@@ -37,7 +37,7 @@ fun pluginAndroidManifest(data: PluginTemplateData): String {
 
         <meta-data
             android:name="plugin.min_ide_version"
-            android:value="1.0.0" />
+            android:value="${data.minIdeVersion}" />
 
         <!--
             Available permissions (comma-separated):
@@ -54,7 +54,7 @@ fun pluginAndroidManifest(data: PluginTemplateData): String {
 
         <meta-data
             android:name="plugin.main_class"
-            android:value="${data.pluginId}.${data.className}Plugin" />
+            android:value="${data.pluginId}.${data.className}" />
 
         <meta-data
             android:name="plugin.sidebar_items"

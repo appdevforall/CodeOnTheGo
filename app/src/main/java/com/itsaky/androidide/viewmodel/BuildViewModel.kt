@@ -71,7 +71,7 @@ class BuildViewModel : ViewModel() {
 						_buildState.value = BuildState.AwaitingPluginInstall(cgpFile)
 					} else {
 						log.warn("Plugin built successfully but .cgp file not found")
-						_buildState.value = BuildState.Idle
+						_buildState.value = BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin")
 					}
 					return@launch
 				}
@@ -119,6 +119,7 @@ class BuildViewModel : ViewModel() {
 
 		val isDebug = variant.name.contains("debug", ignoreCase = true)
 		return pluginDir.listFiles { file -> file.extension.equals("cgp", ignoreCase = true) }
-			?.firstOrNull { it.name.contains("-debug") == isDebug }
+			?.filter { it.name.contains("-debug") == isDebug }
+			?.maxByOrNull { it.lastModified() }
 	}
 }

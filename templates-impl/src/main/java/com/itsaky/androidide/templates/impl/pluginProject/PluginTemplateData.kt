@@ -8,9 +8,11 @@ data class PluginTemplateData(
 	val author: String,
 	val permissions: Set<PluginPermission>,
 	val extensions: Set<PluginExtension>,
-	val includeSampleCode: Boolean
+	val includeSampleCode: Boolean,
+	val version: String = "1.0.0",
+	val minIdeVersion: String = "1.0.0"
 ) {
-	val className: String = pluginName.replace(" ", "")
+	val className: String = pluginName.replace(Regex("[^a-zA-Z0-9]"), "")
 	val packagePath: String = pluginId.replace(".", "/")
 }
 

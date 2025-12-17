@@ -1,5 +1,6 @@
 package com.itsaky.androidide.templates.impl.pluginProject
 
+import com.itsaky.androidide.utils.Environment
 import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
 import org.adfa.constants.COMPILE_SDK_VERSION
 import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
@@ -9,6 +10,9 @@ import org.adfa.constants.TARGET_SDK_VERSION
 
 const val PLUGIN_MIN_SDK = 28
 const val PLUGIN_KOTLIN_VERSION = "2.1.0"
+const val APPCOMPAT_VERSION = "1.6.1"
+const val MATERIAL_VERSION = "1.10.0"
+const val FRAGMENT_KTX_VERSION = "1.8.8"
 
 fun pluginBuildGradleKts(data: PluginTemplateData): String = """
 plugins {
@@ -59,11 +63,11 @@ android {
 }
 
 dependencies {
-    compileOnly(files("libs/plugin-api.jar"))
+    compileOnly(files("${Environment.PLUGIN_API_JAR_RELATIVE_PATH}"))
 
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.10.0")
-    implementation("androidx.fragment:fragment-ktx:1.8.8")
+    implementation("androidx.appcompat:appcompat:$APPCOMPAT_VERSION")
+    implementation("com.google.android.material:material:$MATERIAL_VERSION")
+    implementation("androidx.fragment:fragment-ktx:$FRAGMENT_KTX_VERSION")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:$PLUGIN_KOTLIN_VERSION")
 }
 

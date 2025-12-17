@@ -44,7 +44,7 @@ class ${data.className}Fragment : Fragment() {
             onActionButtonClicked()
         }
 
-        updateStatus("${data.pluginName} is ready!")
+        updateStatus("${data.pluginName.replace("\"", "\\\"")} is ready!")
     }
 
     private fun onActionButtonClicked() {

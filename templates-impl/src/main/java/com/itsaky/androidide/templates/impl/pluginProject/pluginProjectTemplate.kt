@@ -121,7 +121,7 @@ private fun ProjectTemplateBuilder.executePluginRecipe(
 	File(projectDir, "proguard-rules.pro").writeText(pluginProguardRules())
 	File(projectDir, "src/main/AndroidManifest.xml").writeText(pluginAndroidManifest(templateData))
 
-	File(srcDir, "${templateData.className}Plugin.kt").writeText(pluginMainClassKt(templateData))
+	File(srcDir, "${templateData.className}.kt").writeText(pluginMainClassKt(templateData))
 
 	if (templateData.includeSampleCode && templateData.extensions.contains(PluginExtension.UI)) {
 		val fragmentsDir = File(srcDir, "fragments")
@@ -132,7 +132,8 @@ private fun ProjectTemplateBuilder.executePluginRecipe(
 
 	File(resDir, "values/strings.xml").writeText(pluginStringsXml(templateData))
 
-	Environment.PLUGIN_API_JAR.copyTo(File(libsDir, "plugin-api.jar"), overwrite = true)
+	val pluginApiJarName = Environment.PLUGIN_API_JAR_RELATIVE_PATH.substringAfterLast('/')
+	Environment.PLUGIN_API_JAR.copyTo(File(libsDir, pluginApiJarName), overwrite = true)
 
 	return ProjectTemplateRecipeResultImpl(data)
 }
@@ -148,7 +149,7 @@ private fun pluginDescriptionParameter(): StringParameter = stringParameter {
 
 private fun pluginAuthorParameter(): StringParameter = stringParameter {
 	name = R.string.wizard_plugin_author
-	default = ""
+	default = "Author"
 	constraints = listOf(ParameterConstraint.NONEMPTY)
 	inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
 	imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT

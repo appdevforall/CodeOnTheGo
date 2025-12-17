@@ -243,6 +243,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	private fun showPluginInstallDialog(cgpFile: File) {
+		if (!cgpFile.exists()) {
+			flashError(getString(string.msg_plugin_file_not_found))
+			buildViewModel.pluginInstallationAttempted()
+			return
+		}
 		val pluginName = cgpFile.nameWithoutExtension
 		newMaterialDialogBuilder(this)
 			.setTitle(string.title_install_plugin)
@@ -270,6 +275,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			}.onFailure { error ->
 				flashError(getString(string.msg_plugin_install_failed, error.message ?: "Unknown error"))
 			}
+			setStatus("")
 			buildViewModel.pluginInstallationAttempted()
 		}
 	}

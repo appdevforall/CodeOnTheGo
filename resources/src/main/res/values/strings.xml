@@ -815,6 +815,7 @@
 	<string name="btn_later">Later</string>
 	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
+	<string name="msg_plugin_file_not_found">Plugin file not found</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->

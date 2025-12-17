@@ -71,33 +71,33 @@ package ${data.pluginId}
 
 $imports
 
-class ${data.className}Plugin : $interfaces {
+class ${data.className} : $interfaces {
 
     private lateinit var context: PluginContext
 
     override fun initialize(context: PluginContext): Boolean {
         return try {
             this.context = context
-            context.logger.info("${data.className}Plugin initialized successfully")
+            context.logger.info("${data.className} initialized successfully")
             true
         } catch (e: Exception) {
-            context.logger.error("${data.className}Plugin initialization failed", e)
+            context.logger.error("${data.className} initialization failed", e)
             false
         }
     }
 
     override fun activate(): Boolean {
-        context.logger.info("${data.className}Plugin: Activating plugin")
+        context.logger.info("${data.className}: Activating plugin")
         return true
     }
 
     override fun deactivate(): Boolean {
-        context.logger.info("${data.className}Plugin: Deactivating plugin")
+        context.logger.info("${data.className}: Deactivating plugin")
         return true
     }
 
     override fun dispose() {
-        context.logger.info("${data.className}Plugin: Disposing plugin")
+        context.logger.info("${data.className}: Disposing plugin")
     }
 $methodImplementations
 }
