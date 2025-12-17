@@ -23,8 +23,7 @@ object ShizukuSettings {
 		getSharedPreferences().edit { putInt("mode", mode) }
 	}
 
-	suspend fun getLastLaunchMode(): Int =
-		getSharedPreferences().getInt("mode", LaunchMethod.UNKNOWN)
+	suspend fun getLastLaunchMode(): Int = getSharedPreferences().getInt("mode", LaunchMethod.UNKNOWN)
 
 	suspend fun getSharedPreferences(): SharedPreferences {
 		initialize()

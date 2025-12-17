@@ -6,7 +6,6 @@ package com.itsaky.androidide.app.strictmode
  * @author Akash Yadav
  */
 sealed interface StackMatcher {
-
 	/**
 	 * Checks preconditions for the matcher.
 	 */
@@ -23,9 +22,8 @@ sealed interface StackMatcher {
 	 * @property matchers The matchers to use.
 	 */
 	class Adjacent(
-		private val matchers: List<FrameMatcher>
+		private val matchers: List<FrameMatcher>,
 	) : StackMatcher {
-
 		override fun checkPreconditions() {
 			check(matchers.size >= 2) {
 				"Adjacent matcher requires at least 2 frame matchers"
@@ -53,16 +51,14 @@ sealed interface StackMatcher {
 		}
 	}
 
-
 	/**
 	 * Match N frames in order, but not necessarily adjacent.
 	 *
 	 * @property matchers The matchers to use.
 	 */
 	class InOrder(
-		private val matchers: List<FrameMatcher>
+		private val matchers: List<FrameMatcher>,
 	) : StackMatcher {
-
 		override fun checkPreconditions() {
 			check(matchers.size >= 2) {
 				"InOrder matcher requires at least 2 frame matchers"
@@ -87,16 +83,14 @@ sealed interface StackMatcher {
 		}
 	}
 
-
 	/**
 	 * Match multiple adjacent groups, each group in order, groups themselves in order.
 	 *
 	 * @property groups The groups to match.
 	 */
 	class AdjacentInOrder(
-		private val groups: List<List<FrameMatcher>>
+		private val groups: List<List<FrameMatcher>>,
 	) : StackMatcher {
-
 		override fun checkPreconditions() {
 			check(groups.size >= 2) {
 				"AdjacentInOrder matcher requires at least 2 groups"
@@ -143,5 +137,4 @@ sealed interface StackMatcher {
 			return true
 		}
 	}
-
 }

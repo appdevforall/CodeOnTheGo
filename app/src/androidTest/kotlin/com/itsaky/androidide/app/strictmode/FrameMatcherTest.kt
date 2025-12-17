@@ -7,14 +7,13 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class FrameMatcherTest {
-
 	private val frame =
 		stackTraceElement(
 			className = "com.example.foo.BarService",
-			methodName = "doWork"
+			methodName = "doWork",
 		)
 
-	/* ---------- Class matchers ---------- */
+	// ---------- Class matchers ----------
 
 	@Test
 	fun classEquals_matches_exact_class_name() {
@@ -52,7 +51,7 @@ class FrameMatcherTest {
 		assertThat(matcher.matches(frame)).isFalse()
 	}
 
-	/* ---------- Method matchers ---------- */
+	// ---------- Method matchers ----------
 
 	@Test
 	fun methodEquals_matches_exact_method_name() {
@@ -90,86 +89,94 @@ class FrameMatcherTest {
 		assertThat(matcher.matches(frame)).isFalse()
 	}
 
-	/* ---------- Combined matchers ---------- */
+	// ---------- Combined matchers ----------
 
 	@Test
 	fun classAndMethod_matches_when_both_match() {
-		val matcher = FrameMatcher.classAndMethod(
-			"com.example.foo.BarService",
-			"doWork"
-		)
+		val matcher =
+			FrameMatcher.classAndMethod(
+				"com.example.foo.BarService",
+				"doWork",
+			)
 
 		assertThat(matcher.matches(frame)).isTrue()
 	}
 
 	@Test
 	fun classAndMethod_fails_when_class_mismatches() {
-		val matcher = FrameMatcher.classAndMethod(
-			"com.example.Other",
-			"doWork"
-		)
+		val matcher =
+			FrameMatcher.classAndMethod(
+				"com.example.Other",
+				"doWork",
+			)
 
 		assertThat(matcher.matches(frame)).isFalse()
 	}
 
 	@Test
 	fun classStartsWithAndMethod_matches_prefix_and_exact_method() {
-		val matcher = FrameMatcher.classStartsWithAndMethod(
-			"com.example.foo",
-			"doWork"
-		)
+		val matcher =
+			FrameMatcher.classStartsWithAndMethod(
+				"com.example.foo",
+				"doWork",
+			)
 
 		assertThat(matcher.matches(frame)).isTrue()
 	}
 
 	@Test
 	fun classStartsWithAndMethod_fails_when_method_differs() {
-		val matcher = FrameMatcher.classStartsWithAndMethod(
-			"com.example.foo",
-			"run"
-		)
+		val matcher =
+			FrameMatcher.classStartsWithAndMethod(
+				"com.example.foo",
+				"run",
+			)
 
 		assertThat(matcher.matches(frame)).isFalse()
 	}
 
-	/* ---------- Composition ---------- */
+	// ---------- Composition ----------
 
 	@Test
 	fun anyOf_matches_when_any_matcher_matches() {
-		val matcher = FrameMatcher.anyOf(
-			FrameMatcher.classEquals("wrong.Class"),
-			FrameMatcher.methodEquals("doWork")
-		)
+		val matcher =
+			FrameMatcher.anyOf(
+				FrameMatcher.classEquals("wrong.Class"),
+				FrameMatcher.methodEquals("doWork"),
+			)
 
 		assertThat(matcher.matches(frame)).isTrue()
 	}
 
 	@Test
 	fun anyOf_fails_when_no_matcher_matches() {
-		val matcher = FrameMatcher.anyOf(
-			FrameMatcher.classEquals("wrong.Class"),
-			FrameMatcher.methodEquals("run")
-		)
+		val matcher =
+			FrameMatcher.anyOf(
+				FrameMatcher.classEquals("wrong.Class"),
+				FrameMatcher.methodEquals("run"),
+			)
 
 		assertThat(matcher.matches(frame)).isFalse()
 	}
 
 	@Test
 	fun allOf_matches_when_all_matchers_match() {
-		val matcher = FrameMatcher.allOf(
-			FrameMatcher.classContains("Bar"),
-			FrameMatcher.methodStartsWith("do")
-		)
+		val matcher =
+			FrameMatcher.allOf(
+				FrameMatcher.classContains("Bar"),
+				FrameMatcher.methodStartsWith("do"),
+			)
 
 		assertThat(matcher.matches(frame)).isTrue()
 	}
 
 	@Test
 	fun allOf_fails_when_any_matcher_fails() {
-		val matcher = FrameMatcher.allOf(
-			FrameMatcher.classContains("Bar"),
-			FrameMatcher.methodEquals("run")
-		)
+		val matcher =
+			FrameMatcher.allOf(
+				FrameMatcher.classContains("Bar"),
+				FrameMatcher.methodEquals("run"),
+			)
 
 		assertThat(matcher.matches(frame)).isFalse()
 	}

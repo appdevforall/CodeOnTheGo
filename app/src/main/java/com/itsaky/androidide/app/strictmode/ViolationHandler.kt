@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 object ViolationHandler {
-
 	private val logger = LoggerFactory.getLogger(ViolationHandler::class.java)
 
 	private const val ALLOW_VIOLATION_MESSAGE = "StrictMode violation '{}' allowed because: {}"
@@ -20,7 +19,10 @@ object ViolationHandler {
 	 *
 	 * @param violation The violation that was detected.
 	 */
-	fun allow(violation: ViolationDispatcher.Violation, reason: String) {
+	fun allow(
+		violation: ViolationDispatcher.Violation,
+		reason: String,
+	) {
 		logger.info(ALLOW_VIOLATION_MESSAGE, violation.violation.javaClass.simpleName, reason)
 	}
 

@@ -12,7 +12,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class WhitelistRulesTest {
-
 	@Test
 	fun allow_DiskRead_on_FirebaseUserUnlockRecvSharedPrefAccess() {
 		assertAllowed<DiskReadViolation>(

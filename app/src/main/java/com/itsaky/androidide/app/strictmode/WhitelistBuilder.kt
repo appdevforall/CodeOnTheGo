@@ -11,7 +11,6 @@ private annotation class WhitelistRuleBuilderDsl
 
 @WhitelistRuleBuilderDsl
 class RuleBuilder {
-
 	private var violationType: Class<out Violation>? = null
 	private var matcher: StackMatcher? = null
 	private var decision: WhitelistEngine.Decision = WhitelistEngine.Decision.Crash
@@ -30,7 +29,7 @@ class RuleBuilder {
 	 *
 	 * @param T The violation type to match.
 	 */
-	inline fun <reified T: Violation> ofType() = ofType(T::class.java)
+	inline fun <reified T : Violation> ofType() = ofType(T::class.java)
 
 	/**
 	 * Matches the given adjacent frames.
@@ -75,16 +74,18 @@ class RuleBuilder {
 		this.decision = decision
 	}
 
-	/* ---- Build ---- */
+	// ---- Build ----
 
 	fun build(): WhitelistEngine.Rule {
-		val type = requireNotNull(violationType) {
-			"Violation type must be specified"
-		}
+		val type =
+			requireNotNull(violationType) {
+				"Violation type must be specified"
+			}
 
-		val matcher = requireNotNull(matcher) {
-			"Stack matcher must be specified"
-		}
+		val matcher =
+			requireNotNull(matcher) {
+				"Stack matcher must be specified"
+			}
 
 		matcher.checkPreconditions()
 
@@ -96,10 +97,8 @@ class RuleBuilder {
 	}
 }
 
-
 @WhitelistBuilderDsl
 class WhitelistBuilder {
-
 	private val rules = mutableListOf<WhitelistEngine.Rule>()
 
 	/**
@@ -123,5 +122,4 @@ class WhitelistBuilder {
  * @param block The builder block.
  */
 @WhitelistBuilderDsl
-fun buildStrictModeWhitelist(block: WhitelistBuilder.() -> Unit): List<WhitelistEngine.Rule> =
-	WhitelistBuilder().apply(block).build()
+fun buildStrictModeWhitelist(block: WhitelistBuilder.() -> Unit): List<WhitelistEngine.Rule> = WhitelistBuilder().apply(block).build()

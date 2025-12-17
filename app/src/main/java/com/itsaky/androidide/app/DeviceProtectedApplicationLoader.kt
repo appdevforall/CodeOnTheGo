@@ -62,7 +62,7 @@ internal object DeviceProtectedApplicationLoader :
 			StrictModeConfig(
 				enabled = BuildConfig.DEBUG,
 				isReprieveEnabled = FeatureFlags.isReprieveEnabled,
-			)
+			),
 		)
 
 		startKoin {

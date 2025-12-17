@@ -6,9 +6,9 @@ import android.os.strictmode.Violation
 /**
  * @author Akash Yadav
  */
-class ViolationListener : StrictMode.OnThreadViolationListener,
+class ViolationListener :
+	StrictMode.OnThreadViolationListener,
 	StrictMode.OnVmViolationListener {
-
 	override fun onThreadViolation(v: Violation) {
 		TODO("Not yet implemented")
 	}

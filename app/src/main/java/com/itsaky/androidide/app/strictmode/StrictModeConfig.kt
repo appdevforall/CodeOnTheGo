@@ -15,10 +15,9 @@ import java.util.concurrent.Executors
 data class StrictModeConfig(
 	val enabled: Boolean,
 	val isReprieveEnabled: Boolean = FeatureFlags.isReprieveEnabled,
-	val executorService: ExecutorService = Executors.newSingleThreadExecutor()
+	val executorService: ExecutorService = Executors.newSingleThreadExecutor(),
 ) {
 	companion object {
-
 		/**
 		 * The default strict mode configuration.
 		 */

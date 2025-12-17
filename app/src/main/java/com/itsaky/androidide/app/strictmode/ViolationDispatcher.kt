@@ -11,13 +11,11 @@ typealias StackFrame = StackTraceElement
  * @author Akash Yadav
  */
 object ViolationDispatcher {
-
 	/**
 	 * Violation types.
 	 */
 	@Keep
 	enum class ViolationType {
-
 		/**
 		 * Violation in a thread.
 		 */
@@ -26,7 +24,7 @@ object ViolationDispatcher {
 		/**
 		 * Violation in the VM.
 		 */
-		VM
+		VM,
 	}
 
 	/**
@@ -57,7 +55,10 @@ object ViolationDispatcher {
 	 */
 	fun onVmViolation(violation: StrictModeViolation) = dispatch(violation, ViolationType.VM)
 
-	private fun dispatch(violation: StrictModeViolation, type: ViolationType) {
+	private fun dispatch(
+		violation: StrictModeViolation,
+		type: ViolationType,
+	) {
 		val wrappedViolation = Violation(violation, type)
 		when (val decision = WhitelistEngine.evaluate(wrappedViolation)) {
 			is WhitelistEngine.Decision.Allow -> ViolationHandler.allow(wrappedViolation, decision.reason)

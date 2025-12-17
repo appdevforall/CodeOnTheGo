@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 object StrictModeManager {
-
 	private val logger = LoggerFactory.getLogger(StrictModeManager::class.java)
 
 	@Volatile
@@ -29,38 +28,39 @@ object StrictModeManager {
 	 *
 	 * @param config The strict mode configuration to install.
 	 */
-	suspend fun install(config: StrictModeConfig) = mutex.withLock {
-		if (_config !== StrictModeConfig.DEFAULT) {
-			logger.warn("Attempt to re-install StrictMode configuration. Ignoring.")
-			return@withLock
+	suspend fun install(config: StrictModeConfig) =
+		mutex.withLock {
+			if (_config !== StrictModeConfig.DEFAULT) {
+				logger.warn("Attempt to re-install StrictMode configuration. Ignoring.")
+				return@withLock
+			}
+
+			this._config = config
+
+			if (!config.enabled) {
+				// strict mode is disabled
+				return@withLock
+			}
+
+			withContext(Dispatchers.Main.immediate) {
+				// install strict mode on the main thread, so that the thread policy
+				// applies to the main thread only
+
+				StrictMode.setThreadPolicy(
+					StrictMode.ThreadPolicy
+						.Builder()
+						.detectAll()
+						.penaltyListener(config.executorService, ViolationDispatcher::onThreadViolation)
+						.build(),
+				)
+
+				StrictMode.setVmPolicy(
+					StrictMode.VmPolicy
+						.Builder()
+						.detectAll()
+						.penaltyListener(config.executorService, ViolationDispatcher::onVmViolation)
+						.build(),
+				)
+			}
 		}
-
-		this._config = config
-
-		if (!config.enabled) {
-			// strict mode is disabled
-			return@withLock
-		}
-
-		withContext(Dispatchers.Main.immediate) {
-			// install strict mode on the main thread, so that the thread policy
-			// applies to the main thread only
-
-			StrictMode.setThreadPolicy(
-				StrictMode.ThreadPolicy
-					.Builder()
-					.detectAll()
-					.penaltyListener(config.executorService, ViolationDispatcher::onThreadViolation)
-					.build(),
-			)
-
-			StrictMode.setVmPolicy(
-				StrictMode.VmPolicy
-					.Builder()
-					.detectAll()
-					.penaltyListener(config.executorService, ViolationDispatcher::onVmViolation)
-					.build(),
-			)
-		}
-	}
 }

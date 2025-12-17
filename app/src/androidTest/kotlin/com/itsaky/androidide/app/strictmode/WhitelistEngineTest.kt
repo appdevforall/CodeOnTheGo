@@ -14,7 +14,6 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class WhitelistEngineTest {
-
 	@Before
 	fun install() {
 		runBlocking {
@@ -22,37 +21,38 @@ class WhitelistEngineTest {
 				StrictModeConfig(
 					enabled = true,
 					isReprieveEnabled = false, // disable reprieve so that 'Crash' is the default decision
-				)
+				),
 			)
 		}
 	}
 
 	@Test
 	fun evaluateReturnsAllowForWhitelistedViolation() {
-
 		// add a custom whitelist rule
 		mockkObject(WhitelistEngine)
-		every { WhitelistEngine.rules } returns buildStrictModeWhitelist {
-			rule {
-				ofType<CustomViolation>()
-				allow("")
-				matchFramesInOrder(
-					FrameMatcher.classAndMethod("com.example.SomeClass", "someMethod")
-				)
+		every { WhitelistEngine.rules } returns
+			buildStrictModeWhitelist {
+				rule {
+					ofType<CustomViolation>()
+					allow("")
+					matchFramesInOrder(
+						FrameMatcher.classAndMethod("com.example.SomeClass", "someMethod"),
+					)
+				}
 			}
-		}
 
 		// create a frame that matches the whitelist rule
-		val violatingFrames = listOf(
-			stackTraceElement(
-				"com.example.SomeOtherClass",
-				"someOtherMethod",
-				"SomeOtherClass.java",
-				1
-			),
-			stackTraceElement("com.example.SomeClass", "someMethod", "SomeClass.java", 1),
-			stackTraceElement("com.example.AnotherClass", "anotherMethod", "AnotherClass.java", 1)
-		)
+		val violatingFrames =
+			listOf(
+				stackTraceElement(
+					"com.example.SomeOtherClass",
+					"someOtherMethod",
+					"SomeOtherClass.java",
+					1,
+				),
+				stackTraceElement("com.example.SomeClass", "someMethod", "SomeClass.java", 1),
+				stackTraceElement("com.example.AnotherClass", "anotherMethod", "AnotherClass.java", 1),
+			)
 
 		// verify that the violation is allowed
 		val violation = createViolation<DiskReadViolation>(violatingFrames)
@@ -62,19 +62,19 @@ class WhitelistEngineTest {
 
 	@Test
 	fun evaluateReturnsCrashForNonWhitelistedViolation() {
-
 		// disable the whitelist
 		mockkObject(WhitelistEngine)
 		every { WhitelistEngine.rules } returns emptyList()
 
-		val frames = listOf(
-			stackTraceElement(
-				className = "com.example.SomeClass",
-				methodName = "someMethod",
-				fileName = "SomeClass.java",
-				lineNumber = 1
+		val frames =
+			listOf(
+				stackTraceElement(
+					className = "com.example.SomeClass",
+					methodName = "someMethod",
+					fileName = "SomeClass.java",
+					lineNumber = 1,
+				),
 			)
-		)
 
 		val violation = createViolation<DiskReadViolation>(frames)
 		val decision = WhitelistEngine.evaluate(violation)
