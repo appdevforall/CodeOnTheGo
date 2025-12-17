@@ -264,28 +264,16 @@ object FileUtil {
    */
   @JvmStatic
   fun writeFile(path: String, str: String?) {
-    // Create a new file.
-    Files.createDirectories(Paths.get(path).parent)
-    createNewFile(path)
-    var fileWriter: FileWriter? = null
+    val filePath = Paths.get(path)
 
     try {
-      // Create a filewriter object with given path
-      // and false to overwrite the existing file.
-      fileWriter = FileWriter(File(path), false)
-      // Write the given string in file.
-      fileWriter.write(str)
-      // Flush the filewriter object.
-      fileWriter.flush()
+    	filePath.parent?.let { Files.createDirectories(it) }
+
+    	FileWriter(filePath.toFile(), false).use { writer ->
+    	  writer.write(str ?: "")
+    	}
     } catch (e: IOException) {
       e.printStackTrace()
-    } finally {
-      try {
-        // Close the filewriter object.
-        fileWriter?.close()
-      } catch (e: IOException) {
-        e.printStackTrace()
-      }
     }
   }
 
