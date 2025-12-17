@@ -189,9 +189,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
   private suspend fun vacuumDatabase() {
     withContext(Dispatchers.IO) {
-      runCatching {
-        recentProjectDatabase.openHelper.writableDatabase.execSQL("VACUUM")
-      }
+      runCatching { recentProjectDatabase.vacuum() }
     }
   }
 }
