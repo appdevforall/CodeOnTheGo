@@ -703,7 +703,7 @@ afterEvaluate {
 
         dependsOn(bundleLlamaV7Assets)
         if (!isCiCd) {
-            dependsOn("assetsDownloadDebug")
+            dependsOn("assetsDownloadRelease")
         }
 	}
 
