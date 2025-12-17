@@ -6,12 +6,16 @@ import androidx.annotation.IntDef
 import androidx.core.content.edit
 import com.itsaky.androidide.app.BaseApplication.Companion.baseInstance
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 object ShizukuSettings {
 	const val NAME: String = "settings"
 
+	@Volatile
 	private var preferences: SharedPreferences? = null
+	private val mutex = Mutex()
 
 	suspend fun setLastLaunchMode(
 		@LaunchMethod mode: Int,
@@ -19,7 +23,8 @@ object ShizukuSettings {
 		getSharedPreferences().edit { putInt("mode", mode) }
 	}
 
-	suspend fun getLastLaunchMode(): Int = getSharedPreferences().getInt("mode", LaunchMethod.UNKNOWN)
+	suspend fun getLastLaunchMode(): Int =
+		getSharedPreferences().getInt("mode", LaunchMethod.UNKNOWN)
 
 	suspend fun getSharedPreferences(): SharedPreferences {
 		initialize()
@@ -27,7 +32,9 @@ object ShizukuSettings {
 	}
 
 	suspend fun initialize() {
-		if (preferences == null) {
+		if (preferences != null) return
+
+		mutex.withLock {
 			preferences =
 				withContext(Dispatchers.IO) {
 					settingsStorageContext

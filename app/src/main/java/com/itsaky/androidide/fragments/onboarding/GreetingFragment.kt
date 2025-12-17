@@ -26,7 +26,8 @@ import com.itsaky.androidide.utils.FeatureFlags
 /**
  * @author Akash Yadav
  */
-class GreetingFragment : FragmentWithBinding<FragmentOnboardingGreetingBinding>(FragmentOnboardingGreetingBinding::inflate) {
+class GreetingFragment :
+	FragmentWithBinding<FragmentOnboardingGreetingBinding>(FragmentOnboardingGreetingBinding::inflate) {
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
@@ -42,5 +43,6 @@ class GreetingFragment : FragmentWithBinding<FragmentOnboardingGreetingBinding>(
 		}
 	}
 
-	private fun crashApp(): Unit = throw RuntimeException()
+	private fun crashApp(): Unit =
+		throw RuntimeException("Intentional crash triggered via experiments")
 }

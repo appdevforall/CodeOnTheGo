@@ -58,11 +58,11 @@ object ViolationDispatcher {
 	fun onVmViolation(violation: StrictModeViolation) = dispatch(violation, ViolationType.VM)
 
 	private fun dispatch(violation: StrictModeViolation, type: ViolationType) {
-		val violation = Violation(violation, type)
-		when (val decision = WhitelistEngine.evaluate(violation)) {
-			is WhitelistEngine.Decision.Allow -> ViolationHandler.allow(violation, decision.reason)
-			WhitelistEngine.Decision.Log -> ViolationHandler.log(violation)
-			WhitelistEngine.Decision.Crash -> ViolationHandler.crash(violation)
+		val wrappedViolation = Violation(violation, type)
+		when (val decision = WhitelistEngine.evaluate(wrappedViolation)) {
+			is WhitelistEngine.Decision.Allow -> ViolationHandler.allow(wrappedViolation, decision.reason)
+			WhitelistEngine.Decision.Log -> ViolationHandler.log(wrappedViolation)
+			WhitelistEngine.Decision.Crash -> ViolationHandler.crash(wrappedViolation)
 		}
 	}
 }

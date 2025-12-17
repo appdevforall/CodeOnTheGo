@@ -73,13 +73,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val analyticsManager: IAnalyticsManager by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-	companion object {
-		private var instance: MainActivity? = null
-
-		// This method will be used to get access to MainActivity instance
-		fun getInstance(): MainActivity? = instance
-	}
-
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
@@ -155,8 +148,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		if (comparisonDate.after(targetDate)) {
 			showWarningDialog()
 		}
-
-		instance = this
 	}
 
 	private fun showWarningDialog() {
@@ -332,6 +323,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		try {
 			FileDeleteUtils.deleteRecursive(root)
 		} catch (e: Exception) {
+			log.error("Failed to delete project", e)
 			flashInfo(string.msg_delete_existing_project_failed)
 		}
 	}
