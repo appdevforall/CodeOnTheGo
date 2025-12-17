@@ -267,11 +267,11 @@ object FileUtil {
     val filePath = Paths.get(path)
 
     try {
-    	filePath.parent?.let { Files.createDirectories(it) }
+      filePath.parent?.let { Files.createDirectories(it) }
 
-    	FileWriter(filePath.toFile(), false).use { writer ->
-    	  writer.write(str ?: "")
-    	}
+      FileWriter(filePath.toFile(), false).use { writer ->
+        writer.write(str ?: "")
+      }
     } catch (e: IOException) {
       e.printStackTrace()
     }
