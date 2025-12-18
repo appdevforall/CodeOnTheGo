@@ -149,3 +149,9 @@ lookup/bin/
 shared/bin/
 subprojects/**/bin/
 testing/**/bin/
+
+# checksum files
+.checksum/
+
+# assets files
+assets/
