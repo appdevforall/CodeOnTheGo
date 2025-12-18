@@ -253,8 +253,8 @@ jobs:
           if [ -n "$SSH_HOST" ]; then
             ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
           fi
-          # Remove entire .ssh directory if empty || true
-          rmdir ~/.ssh 2>/dev/null
+          # Remove entire .ssh directory if empty
+          rmdir ~/.ssh 2>/dev/null || true
 
   download_documentation:
     name: Download pre-compressed documentation DB
