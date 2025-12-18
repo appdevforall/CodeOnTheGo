@@ -28,6 +28,7 @@ import com.itsaky.androidide.editor.language.treesitter.LogLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
+import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.LOG_FREQUENCY
 import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.MAX_CHUNK_SIZE
@@ -126,6 +127,8 @@ abstract class LogViewFragment :
 			}
 		}
 
+	override val currentEditor: IDEEditor? get() = _binding?.editor
+
 	fun appendLog(line: LogLine) {
 		val lineString =
 			if (isSimpleFormattingEnabled()) {
@@ -222,6 +225,7 @@ abstract class LogViewFragment :
 		editor.typefaceText = jetbrainsMono()
 		editor.isEnsurePosAnimEnabled = false
 		editor.includeDebugInfoOnCopy = true
+		editor.tag = tooltipTag
 		editor.cursorAnimator =
 			object : CursorAnimator {
 				override fun markStartPos() {}
@@ -279,9 +283,5 @@ abstract class LogViewFragment :
 		_binding?.editor?.setText("")?.also {
 			emptyStateViewModel.setEmpty(true)
 		}
-	}
-
-	override fun onFragmentLongPressed() {
-		showTooltipDialog(tooltipTag)
 	}
 }

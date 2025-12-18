@@ -67,16 +67,17 @@ class ProjectFile : Parcelable {
   val layoutDesignPath: String
     get() = "$path/layout/design/"
 
-  val drawables: Array<out File>?
-    get() {
-      val file = File("$path/drawable/")
+    val drawables: Array<File>
+        get() {
+            val file = File("$path/drawable")
 
-      if (!file.exists()) {
-        FileUtil.makeDir("$path/drawable/")
-      }
+            if (!file.exists()) {
+                file.mkdirs()
+                return emptyArray()
+            }
 
-      return file.listFiles()
-    }
+            return file.listFiles() ?: emptyArray()
+        }
 
   val fonts: Array<out File>?
     get() {
