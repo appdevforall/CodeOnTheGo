@@ -153,7 +153,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
 	fun deleteProject(project: ProjectFile) = deleteProject(project.name)
 
-    private fun deleteProject(name: String) = viewModelScope.launch {
+    fun deleteProject(name: String) = viewModelScope.launch {
         try {
             val success = withContext(Dispatchers.IO) {
                 // Delete files from storage first
