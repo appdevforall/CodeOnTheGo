@@ -265,7 +265,7 @@ jobs:
           rm -f ~/.ssh/id_rsa
           # Clean up SSH known_hosts (remove the entry for this host)
           if [ -n "$SCP_HOST" ]; then
-            ssh-keygen -R "$SCP_HOST" 2>/dev/null
+            ssh-keygen -R "$SCP_HOST" 2>/dev/null || true
           fi
           # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null
+          rmdir ~/.ssh 2>/dev/null || true

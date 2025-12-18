@@ -251,10 +251,10 @@ jobs:
           # Clean up SSH known_hosts (remove the entry for this host)
           SSH_HOST="${{ vars.GREENGEEKS_SSH_HOST }}"
           if [ -n "$SSH_HOST" ]; then
-            ssh-keygen -R "$SSH_HOST" 2>/dev/null
+            ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
           fi
           # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null
+          rmdir ~/.ssh 2>/dev/null || true
 
   download_documentation:
     name: Download pre-compressed documentation DB
@@ -765,7 +765,7 @@ jobs:
           # Clean up SSH known_hosts (remove the entry for this host)
           SSH_HOST="${{ vars.GREENGEEKS_SSH_HOST }}"
           if [ -n "$SSH_HOST" ]; then
-            ssh-keygen -R "$SSH_HOST" 2>/dev/null
+            ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
           fi
           # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null
+          rmdir ~/.ssh 2>/dev/null || true
