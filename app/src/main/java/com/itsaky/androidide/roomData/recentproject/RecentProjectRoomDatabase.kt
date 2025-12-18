@@ -14,7 +14,9 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
     abstract fun recentProjectDao(): RecentProjectDao
 
     fun vacuum() {
-        openHelper.writableDatabase.execSQL("VACUUM")
+        val db = openHelper.writableDatabase
+        db.execSQL("PRAGMA wal_checkpoint(FULL)")
+        db.execSQL("VACUUM")
     }
 
     private class RecentProjectRoomDatabaseCallback(
