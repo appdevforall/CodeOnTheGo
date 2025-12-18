@@ -30,10 +30,16 @@ object Main {
 	private val logger = LoggerFactory.getLogger(Main::class.java)
 
 	@Volatile
-	var client: IToolingApiClient? = null
+	private var _client: IToolingApiClient? = null
 
 	@Volatile
-	var future: Future<Void?>? = null
+	private var _future: Future<Void?>? = null
+
+	val client: IToolingApiClient?
+		get() = _client
+
+	val future: Future<Void?>?
+		get() = _future
 
 	fun checkGradleWrapper() {
 		logger.info("Checking gradle wrapper availability...")
@@ -54,10 +60,6 @@ object Main {
 
 	@JvmStatic
 	fun main(args: Array<String>) {
-		// disable the JVM std.err appender
-
-//		System.setProperty(JvmStdErrAppender.PROP_JVM_STDERR_APPENDER_ENABLED, "false")
-
 		logger.debug("Starting Tooling API server...")
 
 		val server = ToolingApiServerImpl()
@@ -68,8 +70,8 @@ object Main {
 		val client = launcher.getRemoteProxy() as? IToolingApiClient
 			?: error("Failed to get IToolingApiClient proxy from launcher")
 
-		this.client = client
-		this.future = future
+		_client = client
+		_future = future
 
 		server.connect(client)
 
@@ -100,8 +102,8 @@ object Main {
 			} catch (e: Throwable) {
 				logger.error("An error occurred while shutting down tooling API server", e)
 			} finally {
-				Main.client = null
-				Main.future = null
+				_client = null
+				_future = null
 
 				runCatching {
 					future.cancel(true)
