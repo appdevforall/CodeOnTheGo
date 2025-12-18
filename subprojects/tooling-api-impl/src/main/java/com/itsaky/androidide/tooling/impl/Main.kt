@@ -98,7 +98,8 @@ object Main {
 
 				executorService.shutdownNow()
 			} catch (e: InterruptedException) {
-				logger.error("An error occurred while shutting down tooling API server", e)
+				logger.error("Main thread interrupted while shutting down tooling API server", e)
+				Thread.currentThread().interrupt()
 			} catch (e: Throwable) {
 				logger.error("An error occurred while shutting down tooling API server", e)
 			} finally {
