@@ -723,18 +723,30 @@ class EditorActivity : BaseActivity() {
 			.show()
 	}
 
-	private suspend fun saveXml() {
-		val currentLayoutFile = project.currentLayout as? LayoutFile ?: return
+	private fun currentLayoutFileOrNull(): LayoutFile? =
+		project.currentLayout as? LayoutFile
 
-		try {
+	private fun restoreOriginalXmlIfNeeded() {
+		val xmlToRestore = originalDesignXml ?: originalProductionXml
+		if (!xmlToRestore.isNullOrBlank()) {
+			binding.editorLayout.loadLayoutFromParser(xmlToRestore)
+		}
+	}
+
+	/**
+	 * Writes the current editor state to disk.
+	 * - Generates XML on the current thread (UI-safe)
+	 * - Performs file I/O on Dispatchers.IO
+	 * - No UI side-effects (no toast / no markAsSaved) to keep it reusable
+	 */
+	private suspend fun persistEditorLayout(layoutFile: LayoutFile): Boolean {
+		return runCatching {
 			if (binding.editorLayout.isEmpty()) {
 				withContext(Dispatchers.IO) {
-					currentLayoutFile.saveLayout("")
-					currentLayoutFile.saveDesignFile("")
+					layoutFile.saveLayout("")
+					layoutFile.saveDesignFile("")
 				}
-				binding.editorLayout.markAsSaved()
-				ToastUtils.showShort(getString(string.layout_saved))
-				return
+				return@runCatching
 			}
 
 			val generator = XmlLayoutGenerator()
@@ -742,17 +754,25 @@ class EditorActivity : BaseActivity() {
 			val designXml = generator.generate(binding.editorLayout, false)
 
 			withContext(Dispatchers.IO) {
-				currentLayoutFile.saveLayout(productionXml)
-				currentLayoutFile.saveDesignFile(designXml)
+				layoutFile.saveLayout(productionXml)
+				layoutFile.saveDesignFile(designXml)
 			}
+		}.isSuccess
+	}
 
-			binding.editorLayout.markAsSaved()
-			ToastUtils.showShort(getString(string.layout_saved))
-		} catch (t: Throwable) {
+	private suspend fun saveXml() {
+		val layoutFile = currentLayoutFileOrNull() ?: return
+
+		val success = persistEditorLayout(layoutFile)
+		if (!success) {
 			withContext(Dispatchers.Main) {
 				ToastUtils.showShort(getString(string.failed_to_save_layout))
 			}
+			return
 		}
+
+		binding.editorLayout.markAsSaved()
+		ToastUtils.showShort(getString(string.layout_saved))
 	}
 
 	private fun showSaveChangesDialog() {
@@ -765,22 +785,15 @@ class EditorActivity : BaseActivity() {
 					finishAfterTransition()
 				}
 			}.setNegativeButton(R.string.discard_changes_and_exit) { _, _ ->
-				val layoutFile = project.currentLayout as? LayoutFile ?: run {
-        	finishAfterTransition()
-        	return@setNegativeButton
-    		}
-
-				val xmlToRestore = originalDesignXml ?: originalProductionXml
-				if (!xmlToRestore.isNullOrBlank()) {
-					binding.editorLayout.loadLayoutFromParser(xmlToRestore)
+				lifecycleScope.launch {
+					val layoutFile = currentLayoutFileOrNull() ?: run {
+						finishAfterTransition()
+						return@launch
+					}
+					restoreOriginalXmlIfNeeded()
+					persistEditorLayout(layoutFile)
+					finishAfterTransition()
 				}
-
-				val prettyXml = XmlLayoutGenerator().generate(binding.editorLayout, true)
-				layoutFile.saveLayout(prettyXml)
-
-				val designXml = XmlLayoutGenerator().generate(binding.editorLayout, false)
-				layoutFile.saveDesignFile(designXml)
-				finishAfterTransition()
 			}.setNeutralButton(R.string.cancel_and_stay_in_editor) { dialog, _ ->
 				dialog.dismiss()
 			}.setCancelable(false)
