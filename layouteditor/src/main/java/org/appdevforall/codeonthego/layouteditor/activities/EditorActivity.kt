@@ -457,11 +457,13 @@ class EditorActivity : BaseActivity() {
 				if (result.isEmpty()) {
 					showNothingDialog()
 				} else {
-					saveXml()
-					startActivity(
-						Intent(this, PreviewLayoutActivity::class.java)
-							.putExtra(Constants.EXTRA_KEY_LAYOUT, project.currentLayout),
-					)
+					lifecycleScope.launch {
+						saveXml()
+						startActivity(
+							Intent(this@EditorActivity, PreviewLayoutActivity::class.java)
+								.putExtra(Constants.EXTRA_KEY_LAYOUT, project.currentLayout),
+						)
+					}
 				}
 				return true
 			}
@@ -553,8 +555,10 @@ class EditorActivity : BaseActivity() {
 				if (binding.editorLayout.isLayoutModified()) {
 					showSaveChangesDialog()
 				} else {
-					saveXml()
-					finishAfterTransition()
+					lifecycleScope.launch {
+						saveXml()
+						finishAfterTransition()
+					}
 				}
 				return true
 			}
@@ -594,8 +598,10 @@ class EditorActivity : BaseActivity() {
 		if (result.isEmpty()) {
 			showNothingDialog()
 		} else {
-			saveXml()
-			finish()
+			lifecycleScope.launch {
+				saveXml()
+				finish()
+			}
 		}
 	}
 
@@ -717,35 +723,34 @@ class EditorActivity : BaseActivity() {
 			.show()
 	}
 
-	private fun saveXml() {
+	private suspend fun saveXml() {
 		val currentLayoutFile = project.currentLayout as? LayoutFile ?: return
 
-		if (binding.editorLayout.isEmpty()) {
-			currentLayoutFile.saveLayout("")
-			currentLayoutFile.saveDesignFile("")
-			binding.editorLayout.markAsSaved()
-			ToastUtils.showShort(getString(string.layout_saved))
-			return
-		}
-
-		lifecycleScope.launch {
-			try {
-				val generator = XmlLayoutGenerator()
-
-				val productionXml = generator.generate(binding.editorLayout, true)
-				val designXml = generator.generate(binding.editorLayout, false)
-
+		try {
+			if (binding.editorLayout.isEmpty()) {
 				withContext(Dispatchers.IO) {
-					currentLayoutFile.saveLayout(productionXml)
-					currentLayoutFile.saveDesignFile(designXml)
+					currentLayoutFile.saveLayout("")
+					currentLayoutFile.saveDesignFile("")
 				}
-
 				binding.editorLayout.markAsSaved()
 				ToastUtils.showShort(getString(string.layout_saved))
-			} catch (t: Throwable) {
-				withContext(Dispatchers.Main) {
-					ToastUtils.showShort(getString(string.failed_to_save_layout))
-				}
+				return
+			}
+
+			val generator = XmlLayoutGenerator()
+			val productionXml = generator.generate(binding.editorLayout, true)
+			val designXml = generator.generate(binding.editorLayout, false)
+
+			withContext(Dispatchers.IO) {
+				currentLayoutFile.saveLayout(productionXml)
+				currentLayoutFile.saveDesignFile(designXml)
+			}
+
+			binding.editorLayout.markAsSaved()
+			ToastUtils.showShort(getString(string.layout_saved))
+		} catch (t: Throwable) {
+			withContext(Dispatchers.Main) {
+				ToastUtils.showShort(getString(string.failed_to_save_layout))
 			}
 		}
 	}
@@ -755,8 +760,10 @@ class EditorActivity : BaseActivity() {
 			.setTitle(R.string.save_changes)
 			.setMessage(R.string.msg_save_changes_to_layout)
 			.setPositiveButton(R.string.save_changes_and_exit) { _, _ ->
-				saveXml()
-				finishAfterTransition()
+				lifecycleScope.launch {
+					saveXml()
+					finishAfterTransition()
+				}
 			}.setNegativeButton(R.string.discard_changes_and_exit) { _, _ ->
 				val layoutFile = project.currentLayout as? LayoutFile ?: run {
         	finishAfterTransition()
