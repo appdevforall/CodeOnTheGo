@@ -103,6 +103,6 @@ class ForwardingProgressListener : ProgressListener {
           }
       }
 
-    Main.client.onProgressEvent(ideEvent)
+    Main.client?.onProgressEvent(ideEvent)
   }
 }
