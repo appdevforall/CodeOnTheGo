@@ -32,7 +32,7 @@ class GenerateXMLAction(context: Context, override val order: Int) : EditorRelat
     }
 
     init {
-        label = context.getString(R.string.title_preview_layout)
+        label = context.getString(R.string.title_image_to_layout)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_computer_vision)
     }
 

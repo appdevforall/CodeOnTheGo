@@ -944,4 +944,5 @@
     <string name="type_a_message_or_prompt">Type a message or prompt…</string>
     <string name="ai_setting_initializing_engine">Initializing engine</string>
     <string name="ai_setting_engine_ready">Engine is ready.</string>
+	<string name="title_image_to_layout">Image to Layout</string>
 </resources>
