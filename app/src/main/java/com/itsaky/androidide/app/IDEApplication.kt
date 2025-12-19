@@ -33,7 +33,10 @@ import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
 import com.topjohnwu.superuser.Shell
 import io.sentry.Sentry
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.plus
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
@@ -41,6 +44,8 @@ import java.lang.Thread.UncaughtExceptionHandler
 const val EXIT_CODE_CRASH = 1
 
 class IDEApplication : BaseApplication() {
+
+	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var currentActivity: Activity? = null
