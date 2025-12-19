@@ -170,7 +170,6 @@ internal class ToolingServerRunner(
 							}
 						}
 
-					processJob.join()
 					joinAll(serverJob, processJob)
 				} catch (e: Throwable) {
 					if (e !is CancellationException) {
