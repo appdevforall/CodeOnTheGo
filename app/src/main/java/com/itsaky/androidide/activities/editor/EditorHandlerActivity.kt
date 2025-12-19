@@ -26,7 +26,9 @@ import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
@@ -194,7 +196,6 @@ open class EditorHandlerActivity :
 
 	override fun onPause() {
 		super.onPause()
-
 		// Record timestamps for all currently open files before saving the cache
 		val openFiles = editorViewModel.getOpenedFiles()
 		lifecycleScope.launch(Dispatchers.IO) {
@@ -203,10 +204,10 @@ open class EditorHandlerActivity :
 				fileTimestamps[file.absolutePath] = file.lastModified()
 			}
 		}
-
 		ActionContextProvider.clearActivity()
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
+			saveAllAsync(notify = false)
 		}
 	}
 
@@ -281,7 +282,6 @@ open class EditorHandlerActivity :
 		lifecycleScope.launch {
 			try {
 				val prefs = (application as BaseApplication).prefManager
-
 				val jsonCache = withContext(Dispatchers.IO) {
 					prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
 				} ?: return@launch
@@ -289,11 +289,10 @@ open class EditorHandlerActivity :
 				val cache = withContext(Dispatchers.Default) {
 					Gson().fromJson(jsonCache, OpenedFilesCache::class.java)
 				}
-
 				onReadOpenedFilesCache(cache)
 
 				// Clear the preference so it's only loaded once on startup
-				withContext(Dispatchers.IO) {	prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null) }
+				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null) }
 			} catch (err: Throwable) {
 				log.error("Failed to reopen recently opened files", err)
 			}
@@ -538,7 +537,7 @@ open class EditorHandlerActivity :
 		progressConsumer: ((Int, Int) -> Unit)?,
 		runAfter: (() -> Unit)?,
 	) {
-		editorActivityScope.launch {
+		lifecycleScope.launch {
 			saveAll(notify, requestSync, processResources, progressConsumer)
 			runAfter?.invoke()
 		}
