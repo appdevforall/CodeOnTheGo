@@ -30,7 +30,7 @@ data class ServerConfig(
             "/Download/documentation.db",
     val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/CodeOnTheGo.webserver.debug",
-    val applicationContext: Context
+    val fileDirPath: String
 )
 
 class WebServer(private val config: ServerConfig) {
@@ -42,8 +42,8 @@ class WebServer(private val config: ServerConfig) {
     private val encodingHeader: String = "Accept-Encoding"
     private var brotliSupported = false
     private val brotliCompression: String = "br"
-    private val directoryPath = config.applicationContext.filesDir
-    private val playgroundFilePath = "$directoryPath/Playground.java"
+    // private val directoryPath = context.filesDir
+    private val playgroundFilePath = "${config.fileDirPath}/Playground.java"
     private val truncationLimit = 10000
 
 
@@ -527,8 +527,8 @@ WHERE  path = ?
         val fileName = sourceFile.nameWithoutExtension
         val classFile = File(dir, "$fileName.class")
 
-        val javacPath = "$directoryPath/usr/bin/javac"
-        val javaPath = "$directoryPath/usr/bin/java"
+        val javacPath = "${config.fileDirPath}/usr/bin/javac"
+        val javaPath = "${config.fileDirPath}/usr/bin/java"
         val timeoutSeconds = 5L
 
         // Compilation
