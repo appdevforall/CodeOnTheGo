@@ -363,14 +363,14 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 			// cancelling this future will finish the Tooling API server process
 			// see com.itsaky.androidide.tooling.impl.Main.main(String[])
+			log.info("Cancelling awaiting future...")
 			Main.future?.cancel(true)
 
 			this.client = null
 			this.buildCancellationToken = null // connector.disconnect() cancels any running builds
 			this.lastInitParams = null
-			Main.future = null
-			Main.client = null
 
+			log.info("Shutdown request completed.")
 			null
 		}
 

@@ -83,6 +83,7 @@ import org.eclipse.lsp4j.jsonrpc.Launcher
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
@@ -225,19 +226,21 @@ object ToolingApiLauncher {
 		client: IToolingApiClient,
 		`in`: InputStream?,
 		out: OutputStream?,
-	): Launcher<Any> = newIoLauncher(arrayOf(client), arrayOf(IToolingApiServer::class.java), `in`, out)
+		executorService: ExecutorService = Executors.newCachedThreadPool(),
+	): Launcher<Any> = newIoLauncher(arrayOf(client), arrayOf(IToolingApiServer::class.java), `in`, out, executorService)
 
 	fun newIoLauncher(
 		locals: Array<Any>,
 		remotes: Array<Class<*>?>,
 		`in`: InputStream?,
 		out: OutputStream?,
+		executorService: ExecutorService = Executors.newCachedThreadPool(),
 	): Launcher<Any> =
 		Launcher
 			.Builder<Any>()
 			.setInput(`in`)
 			.setOutput(out)
-			.setExecutorService(Executors.newCachedThreadPool())
+			.setExecutorService(executorService)
 			.setLocalServices(listOf(*locals))
 			.setRemoteInterfaces(listOf(*remotes))
 			.configureGson { configureGson(it) }
@@ -249,6 +252,7 @@ object ToolingApiLauncher {
 		server: IToolingApiServer,
 		`in`: InputStream?,
 		out: OutputStream?,
+		executorService: ExecutorService = Executors.newCachedThreadPool(),
 	): Launcher<Any> =
 		newIoLauncher(
 			arrayOf(server),
@@ -257,5 +261,6 @@ object ToolingApiLauncher {
 			),
 			`in`,
 			out,
+			executorService,
 		)
 }
