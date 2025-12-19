@@ -214,9 +214,7 @@ object RootModelBuilder :
 		val logger = LoggerFactory.getLogger("RootModelBuilder")
 		logger.warn("Starting build. See build output for more details...")
 
-		if (Main.client != null) {
-			Main.client.logOutput("Starting build...")
-		}
+		Main.client?.logOutput("Starting build...")
 
 		val cacheFile = executor.run()
 		logger.debug("Build action executed")
