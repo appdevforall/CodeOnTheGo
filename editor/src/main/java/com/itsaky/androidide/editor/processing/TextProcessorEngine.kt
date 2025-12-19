@@ -21,6 +21,7 @@ class TextProcessorEngine {
 
         // We check the line where the cursor was *before* the Enter key was pressed.
         val lineToProcess = context.cursor.leftLine - 1
+        if (lineToProcess < 0) return null
         val lineContent = context.content.getLineString(lineToProcess)
         val cursorCol = context.content.getLine(lineToProcess).length
 

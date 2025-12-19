@@ -36,6 +36,10 @@ class XmlLayoutParser(
     const val MARKER_IS_INCLUDE = "tools:is_xml_include"
 	}
 
+	enum class CustomAttrs(val key: String) {
+		INITIAL_POS(ATTR_INITIAL_POS),
+	}
+
 	init {
 		val attributes =
 			Gson()
@@ -204,6 +208,30 @@ class XmlLayoutParser(
 		}
 	}
 
+	private fun applyInitialPosition(target: View, attrs: AttributeMap) {
+		if (attrs.contains("android:layout_marginStart")) return
+
+		val initialPosition = attrs.getValue(ATTR_INITIAL_POS)
+		if (shouldCenter(initialPosition, target)) {
+			applyBaseCenterConstraints(target, attrs)
+			centerAfterLayout(target, attrs)
+		}
+	}
+
+	private fun applyCustomAttributes(
+    target: View,
+    attributeMap: AttributeMap
+	) {
+		CustomAttrs.entries.forEach { attr ->
+			if (!attributeMap.contains(attr.key)) return@forEach
+
+			when (attr) {
+				CustomAttrs.INITIAL_POS ->
+					applyInitialPosition(target, attributeMap)
+			}
+		}
+	}
+
 	private fun applyAttributes(
 		target: View,
 		attributeMap: AttributeMap,
@@ -211,13 +239,8 @@ class XmlLayoutParser(
 		val allAttrs = initializer.getAllAttributesForView(target)
 
 		val keys = attributeMap.keySet()
-		val initialPosition = attributeMap.getValue(ATTR_INITIAL_POS)
-		attributeMap.removeValue(ATTR_INITIAL_POS)
 
-		if (shouldCenter(initialPosition, target)) {
-			applyBaseCenterConstraints(target, attributeMap)
-			centerAfterLayout(target, attributeMap)
-		}
+		applyCustomAttributes(target, attributeMap)
 
 		for (i in keys.indices.reversed()) {
 			val key = keys[i]
