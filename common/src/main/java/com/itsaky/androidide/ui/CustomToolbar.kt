@@ -19,28 +19,31 @@ class CustomToolbar @JvmOverloads constructor(
 ) : MaterialToolbar(context, attrs) {
 
     init {
-        // Navigation icon is no longer used in CustomToolbar
-        // It's now handled by the title toolbar
-        // Remove any navigation icon that might be set
-        navigationIcon = null
+        this.post {
+            var navButton: ImageButton? = null
+            for (i in 0 until this.childCount) {
+                val child = this.getChildAt(i)
+                if (child is ImageButton && child.contentDescription == this.navigationContentDescription) {
+                    navButton = child
+                    break
+                }
+            }
+
+            navButton?.setOnLongClickListener {
+                onNavIconLongClick?.invoke()
+                true
+            }
+
+        }
     }
 
     private val binding: CustomToolbarBinding =
         CustomToolbarBinding.inflate(LayoutInflater.from(context), this, true)
 
-    init {
-        // Remove all padding from the root toolbar
-        setPadding(0, 0, 0, 0)
-        // Remove all padding from the menu container
-        binding.menuContainer.setPadding(0, 0, 0, 0)
-        // Also set padding on the HorizontalScrollView
-        binding.horizontalScrollView.setPadding(0, 0, 0, 0)
-    }
-
-    @Deprecated("Title is now displayed separately. Use the title_text TextView in content_editor.xml instead.")
     fun setTitleText(title: String) {
-        // Title is now handled separately in content_editor.xml
-        // This method is kept for backward compatibility but does nothing
+        binding.titleText.apply {
+            text = title
+        }
     }
 
     fun addMenuItem(
