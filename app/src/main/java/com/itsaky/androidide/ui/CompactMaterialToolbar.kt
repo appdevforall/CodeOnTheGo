@@ -23,6 +23,14 @@ class CompactMaterialToolbar @JvmOverloads constructor(
         setContentInsetsRelative(0, 0)
     }
 
+    /**
+     * Measures the toolbar and, when a title TextView is present, constrains the toolbar's height to match that TextView's measured height.
+     *
+     * If no TextView child is found the measured dimensions remain as determined by the superclass.
+     *
+     * @param widthMeasureSpec horizontal space requirements as imposed by the parent.
+     * @param heightMeasureSpec vertical space requirements as imposed by the parent.
+     */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // First, measure children to get their desired height
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
@@ -44,6 +52,12 @@ class CompactMaterialToolbar @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Reapplies zero padding and content insets, and aligns the navigation icon's top edge with the toolbar title's top.
+     *
+     * If both a title TextView and the navigation ImageButton (identified by matching `navigationContentDescription`) are present,
+     * the navigation button is repositioned so its top equals the title's top while preserving its measured height.
+     */
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
         // Ensure padding is still 0 after layout
@@ -75,4 +89,3 @@ class CompactMaterialToolbar @JvmOverloads constructor(
         }
     }
 }
-

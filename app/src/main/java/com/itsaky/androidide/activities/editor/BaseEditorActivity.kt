@@ -465,6 +465,15 @@ abstract class BaseEditorActivity :
 		}
 	}
 
+	/**
+	 * Apply system bar insets to the editor UI and propagate them to child components.
+	 *
+	 * Updates the stored top inset, applies it to the editor app bar layout, resets content
+	 * inset and padding for the in-layout toolbars, and forwards the insets to the drawer
+	 * sidebar fragment if present.
+	 *
+	 * @param insets System window insets (status/navigation bar); the top inset is used for app bar padding.
+	 */
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		editorAppBarInsetTop = insets.top
@@ -540,6 +549,11 @@ abstract class BaseEditorActivity :
 		builder.show()
 	}
 
+    /**
+     * Initializes the activity: restores project path if available, registers language servers and lifecycle observers,
+     * configures toolbars, drawers, tabs, views, containers, diagnostic UI, bottom sheet and result launchers,
+     * and starts memory watching, feedback, file-operation observation, and gesture handling required by the editor.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         mLifecycleObserver = EditorActivityLifecyclerObserver()
@@ -597,6 +611,12 @@ abstract class BaseEditorActivity :
 
     }
 
+    /**
+     * Configure the editor activity toolbar: set the project title, install and sync the drawer toggle,
+     * adjust toolbar and child padding, and attach a long-press tooltip to the navigation icon.
+     *
+     * The installed drawer toggle will hide the keyboard and dismiss editor windows when the drawer opens.
+     */
     private fun setupToolbar() {
         // Set the project name in the title TextView
         content.root.findViewById<android.widget.TextView>(R.id.title_text)?.apply {
@@ -662,6 +682,13 @@ abstract class BaseEditorActivity :
         }
     }
 
+    /**
+     * Updates UI layout values as the bottom sheet swipe-to-reveal gesture progresses.
+     *
+     * Adjusts the content card animation progress, interpolates the top padding of the editor app bar
+     * based on system top inset and gesture progress, and shifts the memory usage chart's top margin
+     * to follow the reveal motion.
+     */
     private fun onSwipeRevealDragProgress(progress: Float) {
         _binding?.apply {
             contentCard.progress = progress
@@ -964,6 +991,13 @@ abstract class BaseEditorActivity :
         }
     }
 
+    /**
+     * Processes the result from the UI Designer activity and appends the generated XML into the
+     * currently open editor.
+     *
+     * If the result is not OK, contains no data, or the generated XML is empty, the function
+     * performs no changes. If there is no currently open editor, the function performs no changes.
+     */
     private fun handleUiDesignerResult(result: ActivityResult) {
         if (result.resultCode != RESULT_OK || result.data == null) {
             log.warn(
@@ -988,6 +1022,12 @@ abstract class BaseEditorActivity :
         text.replace(0, 0, endLine, text.getColumnCount(endLine), generated)
     }
 
+    /**
+     * Configures the editor drawer layout's translation behavior and scrim color.
+     *
+     * Sets the content-child id for the drawer, uses full translation for both
+     * start and end edges, and makes the drawer scrim transparent.
+     */
     private fun setupDrawers() {
         // Note: Drawer toggle is now set up in setupToolbar() on the title toolbar
         // This method only sets up the drawer layout behavior

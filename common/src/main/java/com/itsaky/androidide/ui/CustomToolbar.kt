@@ -37,12 +37,31 @@ class CustomToolbar @JvmOverloads constructor(
         binding.horizontalScrollView.setPadding(0, 0, 0, 0)
     }
 
+    /**
+     * Preserves the legacy API for setting the toolbar title for backward compatibility.
+     *
+     * This method is a no-op; the toolbar title is managed separately (see the `title_text` TextView
+     * in content_editor.xml).
+     *
+     * @param title The title to set; this value is ignored.
+     */
     @Deprecated("Title is now displayed separately. Use the title_text TextView in content_editor.xml instead.")
     fun setTitleText(title: String) {
         // Title is now handled separately in content_editor.xml
         // This method is kept for backward compatibility but does nothing
     }
 
+    /**
+     * Adds a circular icon button to the toolbar's menu area.
+     *
+     * The created button is added to the internal menu container and wired with the provided click and long-click handlers.
+     *
+     * @param icon The drawable to display in the button, or `null` for no image.
+     * @param hint The tooltip text shown for the button.
+     * @param onClick Action invoked when the button is clicked.
+     * @param onLongClick Action invoked when the button is long-clicked; the long-click event is consumed.
+     * @param shouldAddMargin If `true`, adds end margin to the button for spacing between menu items.
+     */
     fun addMenuItem(
         icon: Drawable?,
         hint: String,
