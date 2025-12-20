@@ -477,9 +477,6 @@ abstract class BaseEditorActivity :
 					top = insets.top,
 				)
 				customToolbar.setContentInsetsRelative(0, 0)
-				customToolbar.setPadding(0, 0, 0, 0)
-				titleToolbar.setContentInsetsRelative(0, 0)
-				titleToolbar.setPadding(0, 0, 0, 0)
 			}
 		}
 	}
@@ -598,32 +595,13 @@ abstract class BaseEditorActivity :
     }
 
     private fun setupToolbar() {
-        // Set the project name in the title TextView
-        content.root.findViewById<android.widget.TextView>(R.id.title_text)?.apply {
-            text = editorViewModel.getProjectName()
-            // Remove any internal padding that might come from the style
-            setPadding(paddingLeft, 0, paddingRight, 0)
-        }
-        
-        // Set up the drawer toggle on the title toolbar (where the hamburger menu should be)
-        content.titleToolbar.apply {
-            setContentInsetsRelative(0, 0)
-            setPadding(0, 0, 0, 0)
-            // Also remove padding from all child views
-            post {
-                for (i in 0 until childCount) {
-                    val child = getChildAt(i)
-                    if (child is android.widget.TextView) {
-                        // Keep only the top padding we set in XML (8dp)
-                        // Remove any other padding that might be added
-                    }
-                }
-            }
-            
+        content.customToolbar.apply {
+            setTitleText(editorViewModel.getProjectName())
+
             val toggle = object : ActionBarDrawerToggle(
                 this@BaseEditorActivity,
                 binding.editorDrawerLayout,
-                this,
+                content.customToolbar,
                 string.app_name,
                 string.app_name
             ) {
@@ -639,27 +617,11 @@ abstract class BaseEditorActivity :
             drawerToggle = toggle
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
-            
-            // Set up long click listener for tooltip on the navigation icon
-            post {
-                var navButton: android.widget.ImageButton? = null
-                for (i in 0 until childCount) {
-                    val child = getChildAt(i)
-                    if (child is android.widget.ImageButton && child.contentDescription == navigationContentDescription) {
-                        navButton = child
-                        break
-                    }
-                }
-                navButton?.apply {
-                    // Remove top padding to align with TextView
-                    setPadding(paddingLeft, 0, paddingRight, paddingBottom)
-                    setOnLongClickListener {
-                        showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
-                        true
-                    }
-                }
+            setOnNavIconLongClickListener {
+                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
             }
         }
+
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
@@ -989,8 +951,25 @@ abstract class BaseEditorActivity :
     }
 
     private fun setupDrawers() {
-        // Note: Drawer toggle is now set up in setupToolbar() on the title toolbar
-        // This method only sets up the drawer layout behavior
+        val toggle = object : ActionBarDrawerToggle(
+            this,
+            binding.editorDrawerLayout,
+            content.customToolbar,
+            string.app_name,
+            string.app_name
+        ) {
+            override fun onDrawerOpened(drawerView: View) {
+                super.onDrawerOpened(drawerView)
+                // Hide the keyboard when the drawer opens.
+                closeKeyboard()
+                // Dismiss autocomplete and other editor windows
+                provideCurrentEditor()?.editor?.ensureWindowsDismissed()
+            }
+        }
+
+
+        binding.editorDrawerLayout.addDrawerListener(toggle)
+        toggle.syncState()
         binding.apply {
             editorDrawerLayout.apply {
                 childId = contentCard.id
