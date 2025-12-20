@@ -1,9 +1,7 @@
 rootProject.name = "apk-viewer-plugin"
 
-include(":plugin-api")
-project(":plugin-api").projectDir = file("../plugin-api")
-
 pluginManagement {
+    includeBuild("../plugin-api/gradle-plugin")
     repositories {
         google()
         mavenCentral()
@@ -19,3 +17,6 @@ dependencyResolutionManagement {
         gradlePluginPortal()
     }
 }
+
+include(":plugin-api")
+project(":plugin-api").projectDir = file("../plugin-api")

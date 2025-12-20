@@ -18,6 +18,11 @@ fun pluginBuildGradleKts(data: PluginTemplateData): String = """
 plugins {
     id("com.android.application") version "$ANDROID_GRADLE_PLUGIN_VERSION"
     id("org.jetbrains.kotlin.android") version "$PLUGIN_KOTLIN_VERSION"
+    id("com.itsaky.androidide.plugins.build")
+}
+
+pluginBuilder {
+    pluginName = "${data.className.lowercase()}"
 }
 
 android {
@@ -74,40 +79,6 @@ dependencies {
 tasks.wrapper {
     gradleVersion = "$GRADLE_DISTRIBUTION_VERSION"
     distributionType = Wrapper.DistributionType.BIN
-}
-
-tasks.register<Copy>("assemblePlugin") {
-    group = "build"
-    description = "Builds and packages the plugin as a .cgp file"
-
-    dependsOn("assembleRelease")
-
-    from(layout.buildDirectory.dir("outputs/apk/release")) {
-        include("*.apk")
-    }
-    into(layout.buildDirectory.dir("plugin"))
-    rename { "${data.className.lowercase()}.cgp" }
-
-    doLast {
-        logger.lifecycle("Plugin CGP created in: ${"$"}{layout.buildDirectory.get().asFile.absolutePath}/plugin/")
-    }
-}
-
-tasks.register<Copy>("assemblePluginDebug") {
-    group = "build"
-    description = "Builds and packages the debug plugin as a .cgp file"
-
-    dependsOn("assembleDebug")
-
-    from(layout.buildDirectory.dir("outputs/apk/debug")) {
-        include("*.apk")
-    }
-    into(layout.buildDirectory.dir("plugin"))
-    rename { "${data.className.lowercase()}-debug.cgp" }
-
-    doLast {
-        logger.lifecycle("Debug plugin CGP created in: ${"$"}{layout.buildDirectory.get().asFile.absolutePath}/plugin/")
-    }
 }
 
 tasks.matching {
