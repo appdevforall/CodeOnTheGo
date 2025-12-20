@@ -30,6 +30,7 @@ import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
@@ -63,6 +64,8 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
@@ -72,8 +75,8 @@ import java.io.InputStream
 import java.util.Objects
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * A foreground service that handles interaction with the Gradle Tooling API.
@@ -235,7 +238,9 @@ class GradleBuildService :
 				// send the shutdown request but do not wait for the server to respond
 				// the service should not block the onDestroy call in order to avoid timeouts
 				// the tooling server must release resources and exit automatically
-				server.shutdown().get(1, TimeUnit.SECONDS)
+				IDEApplication.instance.coroutineScope.launch(Dispatchers.IO) {
+					server.shutdown().await()
+				}
 			} catch (e: Throwable) {
 				if (e !is TimeoutException) {
 					log.error("Failed to shutdown Tooling API server", e)
@@ -640,6 +645,7 @@ class GradleBuildService :
 				try {
 					reader.forEachLine { line ->
 						SERVER_System_err.error(line)
+						if (!isActive) throw CancellationException()
 					}
 				} catch (e: Throwable) {
 					e.ifCancelledOrInterrupted(suppress = true) {

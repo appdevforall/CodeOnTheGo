@@ -12,28 +12,28 @@ import java.nio.charset.StandardCharsets
 private val logger = LoggerFactory.getLogger("GradleBuildExts")
 
 fun ConfigurableLauncher<*>.configureFrom(
-    buildParams: GradleBuildParams? = null
+	buildParams: GradleBuildParams? = null
 ) {
-    val out = LoggingOutputStream()
-    setStandardError(out)
-    setStandardOutput(out)
-    setStandardInput(ByteArrayInputStream("NoOp".toByteArray(StandardCharsets.UTF_8)))
-    addProgressListener(ForwardingProgressListener(), Main.progressUpdateTypes())
+	val out = LoggingOutputStream()
+	setStandardError(out)
+	setStandardOutput(out)
+	setStandardInput(ByteArrayInputStream("NoOp".toByteArray(StandardCharsets.UTF_8)))
+	addProgressListener(ForwardingProgressListener(), Main.progressUpdateTypes())
 
-    Main.client?.also { client ->
-        val clientGradleArgs = client.getBuildArguments().get().filter(String::isNotBlank)
-        logger.debug("Client Gradle args: {}", clientGradleArgs)
-        addArguments(clientGradleArgs)
-    }
+	Main.client?.also { client ->
+		val clientGradleArgs = client.getBuildArguments().get().filter(String::isNotBlank)
+		logger.debug("Client Gradle args: {}", clientGradleArgs)
+		addArguments(clientGradleArgs)
+	}
 
-    if (buildParams != null) {
-        val gradleArgs = buildParams.gradleArgs.filter(String::isNotBlank)
-        logger.debug("Build Gradle args: {}", gradleArgs)
+	if (buildParams != null) {
+		val gradleArgs = buildParams.gradleArgs.filter(String::isNotBlank)
+		logger.debug("Build Gradle args: {}", gradleArgs)
 
-        val jvmArgs = buildParams.jvmArgs.filter(String::isNotBlank)
-        logger.debug("Build JVM args: {}", jvmArgs)
+		val jvmArgs = buildParams.jvmArgs.filter(String::isNotBlank)
+		logger.debug("Build JVM args: {}", jvmArgs)
 
-        addArguments(gradleArgs)
-        addJvmArguments(jvmArgs)
-    }
+		addArguments(gradleArgs)
+		addJvmArguments(jvmArgs)
+	}
 }
