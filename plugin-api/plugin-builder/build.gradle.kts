@@ -5,12 +5,6 @@ plugins {
 group = "com.itsaky.androidide.plugins"
 version = "1.0.0"
 
-repositories {
-    google()
-    mavenCentral()
-    gradlePluginPortal()
-}
-
 dependencies {
     implementation("com.android.tools.build:gradle:8.8.2")
 }

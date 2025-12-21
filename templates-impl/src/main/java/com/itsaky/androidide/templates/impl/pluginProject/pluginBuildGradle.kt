@@ -16,8 +16,8 @@ const val FRAGMENT_KTX_VERSION = "1.8.8"
 
 fun pluginBuildGradleKts(data: PluginTemplateData): String = """
 plugins {
-    id("com.android.application") version "$ANDROID_GRADLE_PLUGIN_VERSION"
-    id("org.jetbrains.kotlin.android") version "$PLUGIN_KOTLIN_VERSION"
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
     id("com.itsaky.androidide.plugins.build")
 }
 
@@ -95,6 +95,19 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+    }
+}
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath(files("${Environment.PLUGIN_API_JAR_RELATIVE_PATH}"))
+        classpath(files("libs/gradle-plugin.jar"))
+        classpath("com.android.tools.build:gradle:$ANDROID_GRADLE_PLUGIN_VERSION")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$PLUGIN_KOTLIN_VERSION")
     }
 }
 

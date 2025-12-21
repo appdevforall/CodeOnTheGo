@@ -1,7 +1,7 @@
 rootProject.name = "keystore-generator-plugin"
 
 pluginManagement {
-    includeBuild("../plugin-api/gradle-plugin")
+    includeBuild("../plugin-api/plugin-builder")
     repositories {
         google()
         mavenCentral()

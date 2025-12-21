@@ -57,7 +57,7 @@ object AssetsInstallationHelper {
 	)
 
     const val LLAMA_AAR = "dynamic_libs/llama.aar"
-    const val PLUGIN_API_JAR = "plugin-api.jar"
+    const val PLUGIN_ARTIFACTS_ZIP = "plugin-artifacts.zip"
     private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
 	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
 	const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
@@ -99,7 +99,7 @@ object AssetsInstallationHelper {
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
                 LLAMA_AAR,
-                PLUGIN_API_JAR
+                PLUGIN_ARTIFACTS_ZIP
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())

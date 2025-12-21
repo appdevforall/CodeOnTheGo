@@ -135,6 +135,11 @@ private fun ProjectTemplateBuilder.executePluginRecipe(
 	val pluginApiJarName = Environment.PLUGIN_API_JAR_RELATIVE_PATH.substringAfterLast('/')
 	Environment.PLUGIN_API_JAR.copyTo(File(libsDir, pluginApiJarName), overwrite = true)
 
+	val gradlePluginJar = File(Environment.PLUGIN_API_JAR.parentFile, "gradle-plugin.jar")
+	if (gradlePluginJar.exists()) {
+		gradlePluginJar.copyTo(File(libsDir, "gradle-plugin.jar"), overwrite = true)
+	}
+
 	return ProjectTemplateRecipeResultImpl(data)
 }
 
