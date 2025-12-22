@@ -19,7 +19,6 @@ package com.itsaky.androidide.ui
 
 import android.app.Activity
 import android.content.Context
-import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
@@ -57,17 +56,15 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.tasks.TaskExecutor.CallbackWithError
-import com.itsaky.androidide.tasks.TaskExecutor.executeAsync
-import com.itsaky.androidide.tasks.TaskExecutor.executeAsyncProvideError
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -76,7 +73,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption.CREATE_NEW
 import java.nio.file.StandardOpenOption.WRITE
-import java.util.concurrent.Callable
 import kotlin.math.roundToInt
 
 /**
@@ -116,6 +112,7 @@ constructor(
 	private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 	private val apkViewModel by (context as FragmentActivity).viewModels<ApkInstallationViewModel>()
 	private lateinit var mediator: TabLayoutMediator
+	private var shareJob: kotlinx.coroutines.Job? = null
 
 	companion object {
 		private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
@@ -190,26 +187,33 @@ constructor(
 		)
 
 		binding.shareOutputFab.setOnClickListener {
-			val fragment =
-				pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
-
+			val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
 			if (fragment !is ShareableOutputFragment) {
 				log.error("Unknown fragment: {}", fragment)
 				return@setOnClickListener
 			}
 
+			if (shareJob?.isActive == true) return@setOnClickListener
+
 			val filename = fragment.getShareableFilename()
 
-			@Suppress("DEPRECATION")
-			val progress =
-				android.app.ProgressDialog.show(
-					context,
-					null,
-					context.getString(string.please_wait),
-				)
-			executeAsync(fragment::getShareableContent) {
-				progress.dismiss()
-				shareText(it, filename)
+			binding.shareOutputFab.isEnabled = false
+			binding.clearFab.isEnabled = false
+
+			shareJob = context.lifecycleScope.launch {
+				try {
+					val content = withContext(Dispatchers.IO) {
+						fragment.getShareableContent()
+					}
+
+					shareText(text = content, type = filename)
+				} catch (t: Throwable) {
+					log.warn("Share failed", t)
+					flashError(context.getString(R.string.unknown_error))
+				} finally {
+					binding.shareOutputFab.isEnabled = true
+					binding.clearFab.isEnabled = true
+				}
 			}
 		}
 		binding.shareOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SHARE_EXTERNAL))
@@ -475,34 +479,20 @@ constructor(
 		shareFile(context, file, "text/plain")
 	}
 
-	@Suppress("DEPRECATION")
-	private fun shareText(
+	private suspend fun shareText(
 		text: String?,
 		type: String,
 	) {
-		if (text == null || TextUtils.isEmpty(text)) {
+		val content = text?.takeIf { it.isNotBlank() } ?: run {
 			flashError(context.getString(string.msg_output_text_extraction_failed))
 			return
 		}
-		val pd =
-			android.app.ProgressDialog.show(
-				context,
-				null,
-				context.getString(string.please_wait),
-				true,
-				false,
-			)
-		executeAsyncProvideError(
-			Callable { writeTempFile(text, type) },
-			CallbackWithError<File> { result: File?, error: Throwable? ->
-				pd.dismiss()
-				if (result == null || error != null) {
-					log.warn("Unable to share output", error)
-					return@CallbackWithError
-				}
-				shareFile(result)
-			},
-		)
+
+		val file = withContext(Dispatchers.IO) {
+			writeTempFile(content, type)
+		}
+
+		shareFile(file)
 	}
 
 	private fun writeTempFile(
