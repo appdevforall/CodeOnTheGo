@@ -54,20 +54,35 @@ class CustomToolbar @JvmOverloads constructor(
             tooltipText = hint
             setImageDrawable(icon)
             addCircleRipple()
+            // Remove any default padding from ImageButton
+            setPadding(0, 0, 0, 0)
             // Set layout params for width and height
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                // Add margin to the right for spacing between items except for last item
-                if (shouldAddMargin) {
-                    marginEnd = resources.getDimensionPixelSize(R.dimen.toolbar_item_spacing)
-                }
+                // Apply uniform spacing to all buttons for consistent appearance
+                // Use a smaller spacing value for tighter button layout
+                marginEnd = resources.getDimensionPixelSize(R.dimen.toolbar_item_spacing) / 2
             }
             setOnClickListener { onClick() }
             setOnLongClickListener {
                 onLongClick()
                 true
+            }
+            // Prevent DrawerLayout from intercepting touch events on this button
+            setOnTouchListener { view, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        // Request that parent views (like DrawerLayout) don't intercept touch events
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        // Allow parent to intercept again after the touch is done
+                        parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+                false // Don't consume the event, let the click/long-click listeners handle it
             }
         }
         binding.menuContainer.addView(item)

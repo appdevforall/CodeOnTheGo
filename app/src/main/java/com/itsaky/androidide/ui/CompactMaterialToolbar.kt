@@ -50,29 +50,9 @@ class CompactMaterialToolbar @JvmOverloads constructor(
         setPadding(0, 0, 0, 0)
         setContentInsetsRelative(0, 0)
         
-        // Find the TextView and navigation icon, then align them at the top
-        var textView: TextView? = null
-        var navButton: View? = null
-        
-        for (i in 0 until childCount) {
-            val child = getChildAt(i)
-            when {
-                child is TextView -> textView = child
-                child is android.widget.ImageButton && child.contentDescription == navigationContentDescription -> navButton = child
-            }
-        }
-        
-        // If we have both, align the navigation icon with the TextView at the top
-        if (textView != null && navButton != null) {
-            val textViewTop = textView.top
-            val navButtonHeight = navButton.height
-            navButton.layout(
-                navButton.left,
-                textViewTop,
-                navButton.right,
-                textViewTop + navButtonHeight
-            )
-        }
+        // Don't manually reposition the navigation button here as it can interfere
+        // with touch handling. The alignment is handled in BaseEditorActivity by
+        // setting padding on the navigation button.
     }
 }
 
