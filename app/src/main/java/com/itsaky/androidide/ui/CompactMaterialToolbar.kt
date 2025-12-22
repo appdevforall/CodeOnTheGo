@@ -2,9 +2,7 @@ package com.itsaky.androidide.ui
 
 import android.content.Context
 import android.util.AttributeSet
-import android.view.View
 import android.view.View.MeasureSpec
-import android.widget.TextView
 import com.google.android.material.appbar.MaterialToolbar
 
 /**
@@ -24,24 +22,8 @@ class CompactMaterialToolbar @JvmOverloads constructor(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        // First, measure children to get their desired height
+        // Let the toolbar size itself naturally based on its children
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-        
-        // Find the TextView child (title_text)
-        var textViewHeight = 0
-        for (i in 0 until childCount) {
-            val child = getChildAt(i)
-            if (child is TextView) {
-                textViewHeight = child.measuredHeight
-                break
-            }
-        }
-        
-        // If we found a TextView, force the toolbar height to match it exactly
-        if (textViewHeight > 0) {
-            val width = MeasureSpec.getSize(widthMeasureSpec)
-            setMeasuredDimension(width, textViewHeight)
-        }
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
@@ -49,10 +31,5 @@ class CompactMaterialToolbar @JvmOverloads constructor(
         // Ensure padding is still 0 after layout
         setPadding(0, 0, 0, 0)
         setContentInsetsRelative(0, 0)
-        
-        // Don't manually reposition the navigation button here as it can interfere
-        // with touch handling. The alignment is handled in BaseEditorActivity by
-        // setting padding on the navigation button.
     }
 }
-
