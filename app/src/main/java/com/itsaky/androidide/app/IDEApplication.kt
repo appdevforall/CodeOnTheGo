@@ -34,8 +34,9 @@ import com.itsaky.androidide.utils.isTestMode
 import com.topjohnwu.superuser.Shell
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -45,7 +46,8 @@ import java.lang.Thread.UncaughtExceptionHandler
 const val EXIT_CODE_CRASH = 1
 
 class IDEApplication : BaseApplication() {
-	val coroutineScope = CoroutineScope(Dispatchers.Default + CoroutineName("ApplicationScope"))
+
+	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var currentActivity: Activity? = null
@@ -147,8 +149,8 @@ class IDEApplication : BaseApplication() {
 		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
 
 		coroutineScope.launch(Dispatchers.Default) {
-			// load common stuff, which doesn't depend on access to
-			// credential protected storage
+		// load common stuff, which doesn't depend on access to
+		// credential protected storage
 			DeviceProtectedApplicationLoader.load(instance)
 
 			// if we can access credential-protected storage, then initialize
