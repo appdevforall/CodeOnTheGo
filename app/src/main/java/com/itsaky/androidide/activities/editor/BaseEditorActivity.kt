@@ -609,16 +609,6 @@ abstract class BaseEditorActivity :
         content.titleToolbar.apply {
             setContentInsetsRelative(0, 0)
             setPadding(0, 0, 0, 0)
-            // Also remove padding from all child views
-            post {
-                for (i in 0 until childCount) {
-                    val child = getChildAt(i)
-                    if (child is android.widget.TextView) {
-                        // Keep only the top padding we set in XML (8dp)
-                        // Remove any other padding that might be added
-                    }
-                }
-            }
             
             val toggle = object : ActionBarDrawerToggle(
                 this@BaseEditorActivity,
