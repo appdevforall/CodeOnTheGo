@@ -62,6 +62,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -112,7 +113,7 @@ constructor(
 	private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 	private val apkViewModel by (context as FragmentActivity).viewModels<ApkInstallationViewModel>()
 	private lateinit var mediator: TabLayoutMediator
-	private var shareJob: kotlinx.coroutines.Job? = null
+	private var shareJob: Job? = null
 
 	companion object {
 		private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
@@ -192,27 +193,28 @@ constructor(
 				log.error("Unknown fragment: {}", fragment)
 				return@setOnClickListener
 			}
-
 			if (shareJob?.isActive == true) return@setOnClickListener
-
-			val filename = fragment.getShareableFilename()
 
 			binding.shareOutputFab.isEnabled = false
 			binding.clearFab.isEnabled = false
 
 			shareJob = context.lifecycleScope.launch {
 				try {
-					val content = withContext(Dispatchers.IO) {
-						fragment.getShareableContent()
-					}
+					val filename = fragment.getShareableFilename()
+					val content = fragment.getShareableContent()
 
+					if (!isAttachedToWindow) return@launch
 					shareText(text = content, type = filename)
 				} catch (t: Throwable) {
-					log.warn("Share failed", t)
-					flashError(context.getString(R.string.unknown_error))
+					if (isAttachedToWindow) {
+						log.warn("Share failed", t)
+						flashError(context.getString(R.string.unknown_error))
+					}
 				} finally {
-					binding.shareOutputFab.isEnabled = true
-					binding.clearFab.isEnabled = true
+					if (isAttachedToWindow) {
+						binding.shareOutputFab.isEnabled = true
+						binding.clearFab.isEnabled = true
+					}
 				}
 			}
 		}
@@ -241,6 +243,8 @@ constructor(
 	}
 
   override fun onDetachedFromWindow() {
+  	shareJob?.cancel()
+  	shareJob = null
     if (this::mediator.isInitialized) {
         mediator.detach()
     }
