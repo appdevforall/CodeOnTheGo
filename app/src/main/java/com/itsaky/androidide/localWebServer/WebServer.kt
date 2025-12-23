@@ -42,7 +42,6 @@ class WebServer(private val config: ServerConfig) {
     private val encodingHeader: String = "Accept-Encoding"
     private var brotliSupported = false
     private val brotliCompression: String = "br"
-    // private val directoryPath = context.filesDir
     private val playgroundFilePath = "${config.fileDirPath}/Playground.java"
     private val truncationLimit = 10000
 
@@ -192,9 +191,6 @@ FROM   LastChange
 
             if (requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-                // if (parts.size == 0) {
-                //     break
-                // }
                 brotliSupported = parts.contains(brotliCompression)
             }
         }
@@ -274,7 +270,7 @@ FROM   LastChange
             return
         }
 
-        //check to see if there is a newer version of the documentation.db database on the sdcard
+        // Check to see if there is a newer version of the documentation.db database on the sdcard
         // if there is use that for our responses
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
         if (debugDatabaseTimestamp > databaseTimestamp) {
@@ -520,7 +516,6 @@ WHERE  path = ?
         }
         return file
     }
-// ... (The JavaExecutionResult data class is assumed to be here) ...
 
     private fun compileAndRunJava(sourceFile: File): JavaExecutionResult {
         val dir = sourceFile.parentFile
