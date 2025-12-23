@@ -193,19 +193,15 @@ class ColorResourceAdapter(
         val newValue = binding.textinputValue.text.toString()
         val item = colorList[pos]
 
-        val isDefaultColor = item.name == "default_color"
-        val isRenamingDefault = isDefaultColor && newName != "default_color"
-
-        if (isRenamingDefault) {
+        if (item.name == "default_color" && newName != "default_color") {
             SBUtils.make(v, v.context.getString(R.string.msg_cannot_rename_default, "color"))
                 .setFadeAnimation()
                 .setType(SBUtils.Type.INFO)
                 .show()
+            return
         }
 
-        if (!isRenamingDefault) {
-            item.name = newName
-        }
+        item.name = newName
         item.value = newValue
 
         notifyItemChanged(pos)
