@@ -361,6 +361,7 @@
 
 	<string name="title_gradle_service_notification_channel">Code on the Go Gradle build service</string>
 	<string name="msg_hex_color_code">Hex color code</string>
+	<string name="msg_unsupported_color_format">Unsupported color format: %s</string>
 	<string name="msg_color_picker_pick">Pick</string>
 	<string name="msg_chmod_exec">Setting executable permissions…</string>
 	<string name="msg_linking">Linking %1$s to %2$s</string>
