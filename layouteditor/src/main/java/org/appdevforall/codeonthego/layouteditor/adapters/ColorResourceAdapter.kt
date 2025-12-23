@@ -29,51 +29,84 @@ import org.appdevforall.codeonthego.layouteditor.tools.ColorPickerDialogFlag
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils
+import androidx.core.graphics.toColorInt
 
+/**
+ * Adapter class for managing and displaying a list of color resources in a RecyclerView.
+ * Handles binding color data to views, editing, deleting, and generating the XML file.
+ *
+ * @property project The project file containing the resources.
+ * @property colorList The mutable list of color values.
+ */
 class ColorResourceAdapter(
   private val project: ProjectFile,
   private val colorList: MutableList<ValuesItem>
 ) : RecyclerView.Adapter<ColorResourceAdapter.VH>() {
 
-  class VH(var binding: LayoutColorItemBinding) : RecyclerView.ViewHolder(
-    binding.root
-  ) {
+  class VH(var binding: LayoutColorItemBinding) : RecyclerView.ViewHolder(binding.root) {
     val colorName: TextView = binding.colorName
     val colorValue: TextView = binding.colorValue
     val colorPreview = binding.colorPreview
   }
 
+  /**
+   * Inflates the layout for the color item view.
+   *
+   * @param parent The ViewGroup into which the new View will be added.
+   * @param viewType The view type of the new View.
+   * @return A new ViewHolder that holds a View of the given view type.
+   */
   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
     return VH(
       LayoutColorItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
     )
   }
 
+  /**
+   * Binds the data to the view holder.
+   * Handles safe color parsing to prevent crashes if the color value is invalid.
+   *
+   * @param holder The ViewHolder which should be updated.
+   * @param position The position of the item within the adapter's data set.
+   */
   override fun onBindViewHolder(holder: VH, position: Int) {
     holder.itemView.animation = AnimationUtils.loadAnimation(
       holder.itemView.context, R.anim.project_list_animation
     )
 
-    holder.colorName.text = colorList[position].name
-    holder.colorValue.text = colorList[position].value
+    val item = colorList[position]
+    holder.colorName.text = item.name
+    holder.colorValue.text = item.value
 
-    holder.colorPreview.setImageDrawable(
-      drawCircle(
-        Color.parseColor(colorList[position].value)
-      )
-    )
+    val colorInt = getSafeColorInt(item.value)
 
-    TooltipCompat.setTooltipText(holder.itemView, colorList[position].name)
+    if (colorInt != null) {
+        holder.colorValue.setTextColor(Color.DKGRAY)
+        holder.colorPreview.setImageDrawable(drawCircle(colorInt))
+    } else {
+        holder.colorValue.text = "${item.value} (Error)"
+        holder.colorValue.setTextColor(Color.RED)
+        holder.colorPreview.setImageDrawable(drawCircle(Color.LTGRAY))
+    }
+
+    TooltipCompat.setTooltipText(holder.itemView, item.name)
     TooltipCompat.setTooltipText(holder.binding.menu, "Options")
 
     holder.binding.menu.setOnClickListener { showOptions(it, position) }
     holder.itemView.setOnClickListener { editColor(it, position) }
   }
 
-  override fun getItemCount(): Int {
-    return colorList.size
-  }
+  /**
+   * Returns the total number of items in the data set held by the adapter.
+   *
+   * @return The total number of items.
+   */
+  override fun getItemCount(): Int = colorList.size
 
+  /**
+   * Generates the content for the colors.xml file based on the current list
+   * and writes it to the project's file system.
+   */
   fun generateColorsXml() {
     val colorsPath = project.colorsPath
     val sb = StringBuilder()
@@ -90,37 +123,32 @@ class ColorResourceAdapter(
     FileUtil.writeFile(colorsPath, sb.toString().trim { it <= ' ' })
   }
 
+  /**
+   * Shows a popup menu with options for the selected item (Copy Name, Delete).
+   *
+   * @param v The view that anchored the popup menu.
+   * @param position The adapter position of the item.
+   */
   private fun showOptions(v: View, position: Int) {
     val popupMenu = PopupMenu(v.context, v)
     popupMenu.inflate(R.menu.menu_values)
     popupMenu.setOnMenuItemClickListener {
-      val id = it.itemId
-      when (id) {
+      when (it.itemId) {
         R.id.menu_copy_name -> {
           ClipboardUtils.copyText(colorList[position].name)
-          SBUtils.make(
-            v, "${v.context.getString(R.string.copied)} ${colorList[position].name}"
-          ).setSlideAnimation().showAsSuccess()
+          SBUtils.make(v, "${v.context.getString(R.string.copied)} ${colorList[position].name}")
+            .setSlideAnimation().showAsSuccess()
           true
         }
-
         R.id.menu_delete -> {
           MaterialAlertDialogBuilder(v.context)
             .setTitle("Remove Color")
             .setMessage("Do you want to remove ${colorList[position].name}?")
             .setNegativeButton(R.string.no, null)
-            .setPositiveButton(
-              R.string.yes
-            ) { _, _ ->
-              val name = colorList[position].name
-              if (name == "default_color") {
-                SBUtils.make(
-                  v,
-                  v.context
-                    .getString(
-                      R.string.msg_cannot_delete_default, "color"
-                    )
-                ).setFadeAnimation().setType(SBUtils.Type.INFO).show()
+            .setPositiveButton(R.string.yes) { _, _ ->
+              if (colorList[position].name == "default_color") {
+                SBUtils.make(v, v.context.getString(R.string.msg_cannot_delete_default, "color"))
+                  .setFadeAnimation().setType(SBUtils.Type.INFO).show()
               } else {
                 colorList.removeAt(position)
                 notifyItemRemoved(position)
@@ -130,27 +158,37 @@ class ColorResourceAdapter(
             .show()
           true
         }
-
         else -> false
       }
     }
     popupMenu.show()
   }
 
+  /**
+   * Opens a dialog to edit the name and value of a color resource.
+   * Validates inputs, handles the color picker, and updates the XML file upon confirmation.
+   *
+   * @param v The view that triggered the edit action.
+   * @param pos The adapter position of the item being edited.
+   */
   @SuppressLint("SetTextI18n")
   private fun editColor(v: View, pos: Int) {
     val builder = MaterialAlertDialogBuilder(v.context)
     builder.setTitle("Edit Color")
+
     val bind = LayoutValuesItemDialogBinding.inflate(builder.create().layoutInflater)
     val ilName = bind.textInputLayoutName
     val etName = bind.textinputName
     val etValue = bind.textinputValue
+
     etName.setText(colorList[pos].name)
     etValue.setText(colorList[pos].value)
     etValue.isFocusable = false
-    builder.setView(bind.getRoot())
+
+    builder.setView(bind.root)
+
     etValue.setOnClickListener {
-      val dialog: ColorPickerDialog.Builder = ColorPickerDialog.Builder(v.context)
+      val dialogBuilder = ColorPickerDialog.Builder(v.context)
         .setTitle("Choose Color")
         .setPositiveButton(v.context.getString(R.string.confirm),
           ColorEnvelopeListener { envelope, _ ->
@@ -162,59 +200,84 @@ class ColorResourceAdapter(
         .attachBrightnessSlideBar(true)
         .setBottomSpace(12)
 
-      val colorView = dialog.colorPickerView
+      val colorView = dialogBuilder.colorPickerView
       colorView.setFlagView(ColorPickerDialogFlag(v.context))
-      colorView.setInitialColor(Color.parseColor(colorList[pos].value))
-      dialog.show()
+
+      val initialColor = getSafeColorInt(colorList[pos].value) ?: Color.WHITE
+      colorView.setInitialColor(initialColor)
+
+      dialogBuilder.show()
     }
-    builder.setPositiveButton(
-      R.string.okay
-    ) { _, _ ->
-      if (colorList[pos].name == "default_color" && etName.getText()
-          .toString() != "default_color"
-      ) {
+
+    builder.setPositiveButton(R.string.okay) { _, _ ->
+      val newName = etName.text.toString()
+      if (colorList[pos].name == "default_color" && newName != "default_color") {
         SBUtils.make(v, v.context.getString(R.string.msg_cannot_rename_default, "color"))
-          .setFadeAnimation()
-          .setType(SBUtils.Type.INFO)
-          .show()
+          .setFadeAnimation().setType(SBUtils.Type.INFO).show()
       } else {
-        // Update position
-        colorList[pos].name = etName.getText().toString()
+        colorList[pos].name = newName
       }
-      // Update position
-      colorList[pos].value = etValue.getText().toString()
+      colorList[pos].value = etValue.text.toString()
       notifyItemChanged(pos)
       // Generate code from all colors in list
       generateColorsXml()
     }
     builder.setNegativeButton(R.string.cancel, null)
+
     val dialog = builder.create()
     dialog.show()
-    etName.addTextChangedListener(
-      object : TextWatcher {
-        override fun beforeTextChanged(p1: CharSequence, p2: Int, p3: Int, p4: Int) {}
-        override fun onTextChanged(p1: CharSequence, p2: Int, p3: Int, p4: Int) {}
-        override fun afterTextChanged(p1: Editable) {
-          NameErrorChecker.checkForValues(
-            etName.getText().toString(), ilName, dialog, colorList, pos
-          )
-        }
-      })
-    NameErrorChecker.checkForValues(etName.getText().toString(), ilName, dialog, colorList, pos)
+
+    val textWatcher = object : TextWatcher {
+      override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+      override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+      override fun afterTextChanged(s: Editable?) {
+        NameErrorChecker.checkForValues(etName.text.toString(), ilName, dialog, colorList, pos)
+      }
+    }
+    etName.addTextChangedListener(textWatcher)
+    NameErrorChecker.checkForValues(etName.text.toString(), ilName, dialog, colorList, pos)
   }
 
+  /**
+   * Creates a circular drawable with the specified background color.
+   * Automatically calculates a contrasting stroke color (border) based on luminance.
+   *
+   * @param backgroundColor The color to fill the circle with.
+   * @return A GradientDrawable representing the colored circle.
+   */
   private fun drawCircle(@ColorInt backgroundColor: Int): Drawable {
     return GradientDrawable().apply {
       shape = GradientDrawable.OVAL
       cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
       setColor(backgroundColor)
-      setStroke(
-        2, if (ColorUtils.calculateLuminance(backgroundColor) >= 0.5) {
-          Color.parseColor("#FF313131")
-        } else {
-          Color.parseColor("#FFD9D9D9")
+      setStroke(2, if (ColorUtils.calculateLuminance(backgroundColor) >= 0.5) {
+        "#FF313131".toColorInt()
+			} else {
+			  "#FFD9D9D9".toColorInt()
+			})
+    }
+  }
+
+  /**
+   * Safely parses a string value into a Color Int.
+   * Attempts to handle cases where the hash symbol (#) is missing.
+   *
+   * @param value The color string to parse (e.g., "#FFFFFF" or "FFFFFF").
+   * @return The parsed color int, or null if the string is not a valid color.
+   */
+  private fun getSafeColorInt(value: String): Int? {
+    return try {
+      value.toColorInt()
+    } catch (e: Exception) {
+      if (!value.startsWith("#")) {
+        try {
+          return "#$value".toColorInt()
+        } catch (_: Exception) {
+          null
         }
-      )
+      } else {
+        null
+      }
     }
   }
 }

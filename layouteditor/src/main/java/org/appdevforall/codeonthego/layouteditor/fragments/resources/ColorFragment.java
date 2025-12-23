@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.layouteditor.fragments.resources;
 
 import android.annotation.SuppressLint;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -107,6 +108,7 @@ public class ColorFragment extends Fragment {
                     .setPositiveButton(getString(R.string.confirm),
                             (ColorEnvelopeListener) (envelope, fromUser) -> {
                                 etValue.setText("#" + envelope.getHexCode());
+                                ilValue.setError(null);
                             })
                     .setNegativeButton(getString(R.string.cancel),
                             (d, i) -> d.dismiss())
@@ -115,41 +117,132 @@ public class ColorFragment extends Fragment {
                     .setBottomSpace(12);
             var colorView = dialog.getColorPickerView();
             colorView.setFlagView(new ColorPickerDialogFlag(requireContext()));
+            try {
+              colorView.setInitialColor(Color.parseColor(etValue.getText().toString()));
+            } catch (Exception ignored) {}
             dialog.show();
         });
 
         builder.setView(bind.getRoot());
 
-        builder.setPositiveButton(
-                R.string.add,
-                (dlg, i) -> {
-                    // Create new ColorItem(ValuesItem) instance
-                    var colorItem = new ValuesItem(etName.getText().toString(), etValue.getText().toString());
-                    // Add colorItem in stringList
-                    colorList.add(colorItem);
-                    adapter.notifyItemInserted(colorList.indexOf(colorItem));
-                    // Generate code from all colors in list
-                    adapter.generateColorsXml();
-                });
+        builder.setPositiveButton(R.string.add, null);
         builder.setNegativeButton(R.string.cancel, null);
 
         AlertDialog dialog = builder.create();
         dialog.show();
 
-        etName.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence p1, int p2, int p3, int p4) {
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            Editable editableName = etName.getText();
+            Editable editableValue = etValue.getText();
+            String name = editableName != null ? editableName.toString().trim() : "";
+            String value = editableValue != null ? editableValue.toString().trim() : "";
+
+            if (name.isEmpty()) {
+                ilName.setError("Name required");
+                return;
             }
 
-            @Override
-            public void onTextChanged(CharSequence p1, int p2, int p3, int p4) {
-            }
+            try {
+                String finalValue = getSafeColor(value);
 
-            @Override
-            public void afterTextChanged(Editable p1) {
-                NameErrorChecker.checkForValues(etName.getText().toString(), ilName, dialog, colorList);
+                ilValue.setError(null);
+
+                var colorItem = new ValuesItem(name, finalValue);
+                colorList.add(colorItem);
+                adapter.notifyItemInserted(colorList.indexOf(colorItem));
+                adapter.generateColorsXml();
+
+                dialog.dismiss();
+            } catch (IllegalArgumentException e) {
+                ilValue.setError("Invalid color (e.g. #FF0000)");
             }
         });
-        NameErrorChecker.checkForValues(etName.getText().toString(), ilName, dialog, colorList);
+
+        etName.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                Editable editable = etName.getText();
+                String name = editable != null ? editable.toString() : "";
+                NameErrorChecker.checkForValues(name, ilName, dialog, colorList);
+                validateColorAndSyncButton(dialog, etValue, ilValue);
+            }
+        });
+        etValue.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                Editable editable = etName.getText();
+                String name = editable != null ? editable.toString() : "";
+                NameErrorChecker.checkForValues(name, ilName, dialog, colorList);
+                validateColorAndSyncButton(dialog, etValue, ilValue);
+            }
+        });
+    }
+
+    /**
+     * Validates the input text as a color and synchronizes the dialog's positive button state.
+     * This method checks if the text in [etValue] is a valid color (hexadecimal).
+     * If invalid, it sets an error on [ilValue] and disables the positive button of the [dialog].
+     * If the field is empty, it clears errors but treats the state as invalid.
+     *
+     * @param dialog The AlertDialog containing the button to synchronize.
+     * @param etValue The TextInputEditText containing the color string to validate.
+     * @param ilValue The TextInputLayout used to display visual error messages.
+     */
+    private void validateColorAndSyncButton(AlertDialog dialog, TextInputEditText etValue, TextInputLayout ilValue) {
+        Editable editable = etValue.getText();
+        String color = editable != null ? editable.toString() : "";
+        String colorHex = color.trim();
+        boolean isColorValid;
+
+        if (colorHex.isEmpty()) {
+            ilValue.setError(null);
+            ilValue.setErrorEnabled(false);
+            isColorValid = false;
+        } else {
+            try {
+                getSafeColor(colorHex);
+                ilValue.setError(null);
+                ilValue.setErrorEnabled(false);
+                isColorValid = true;
+            } catch (IllegalArgumentException | StringIndexOutOfBoundsException e) {
+                ilValue.setError("Invalid color");
+                isColorValid = false;
+            }
+        }
+
+        if (!isColorValid) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+        }
+    }
+
+    /**
+     * Attempts to parse an input string and return a safe hexadecimal color string.
+     * It first tries to parse the [input] as is. If that fails, it checks if the "#" prefix
+     * is missing. If missing, it appends it and tries to parse again.
+     *
+     * @param input The raw color string (e.g., "FFFFFF" or "#FFFFFF").
+     * @return The valid color string (including the "#" prefix if it was needed).
+     * @throws IllegalArgumentException If the input cannot be parsed as a valid color even after correction.
+     */
+    private String getSafeColor(String input) throws IllegalArgumentException {
+        try {
+            Color.parseColor(input);
+            return input;
+        } catch (IllegalArgumentException e) {
+            if (!input.startsWith("#")) {
+                String fixed = "#" + input;
+                Color.parseColor(fixed);
+                return fixed;
+            }
+            throw e;
+        }
     }
 }
