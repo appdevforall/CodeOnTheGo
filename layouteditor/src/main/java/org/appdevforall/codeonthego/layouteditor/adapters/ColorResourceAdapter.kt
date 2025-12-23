@@ -12,9 +12,11 @@ import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.widget.TextView
 import androidx.annotation.ColorInt
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.TooltipCompat
 import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.toColorInt
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ClipboardUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -29,15 +31,7 @@ import org.appdevforall.codeonthego.layouteditor.tools.ColorPickerDialogFlag
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils
-import androidx.core.graphics.toColorInt
 
-/**
- * Adapter class for managing and displaying a list of color resources in a RecyclerView.
- * Handles binding color data to views, editing, deleting, and generating the XML file.
- *
- * @property project The project file containing the resources.
- * @property colorList The mutable list of color values.
- */
 class ColorResourceAdapter(
   private val project: ProjectFile,
   private val colorList: MutableList<ValuesItem>
@@ -164,120 +158,153 @@ class ColorResourceAdapter(
     popupMenu.show()
   }
 
-  /**
-   * Opens a dialog to edit the name and value of a color resource.
-   * Validates inputs, handles the color picker, and updates the XML file upon confirmation.
-   *
-   * @param v The view that triggered the edit action.
-   * @param pos The adapter position of the item being edited.
-   */
-  @SuppressLint("SetTextI18n")
-  private fun editColor(v: View, pos: Int) {
-    val builder = MaterialAlertDialogBuilder(v.context)
-    builder.setTitle("Edit Color")
+    @SuppressLint("SetTextI18n")
+    private fun editColor(v: View, pos: Int) {
+        val context = v.context
+        val binding = LayoutValuesItemDialogBinding.inflate(LayoutInflater.from(context))
+        val item = colorList[pos]
 
-    val bind = LayoutValuesItemDialogBinding.inflate(builder.create().layoutInflater)
-    val ilName = bind.textInputLayoutName
-    val etName = bind.textinputName
-    val etValue = bind.textinputValue
+        // 1. Setup Views
+        binding.textinputName.setText(item.name)
+        binding.textinputValue.setText(item.value)
 
-    etName.setText(colorList[pos].name)
-    etValue.setText(colorList[pos].value)
-    etValue.isFocusable = false
+        // 2. Setup Dialog
+        val dialog = MaterialAlertDialogBuilder(context)
+            .setTitle("Edit Color")
+            .setView(binding.root)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.okay) { _, _ ->
+                performSaveColor(v, pos, binding)
+            }
+            .create()
 
-    builder.setView(bind.root)
+        // 3. Setup Logic Components
+        setupColorPickerInteraction(v, binding)
+        setupValidation(dialog, binding, pos)
 
-    etValue.setOnClickListener {
-      val dialogBuilder = ColorPickerDialog.Builder(v.context)
-        .setTitle("Choose Color")
-        .setPositiveButton(v.context.getString(R.string.confirm),
-          ColorEnvelopeListener { envelope, _ ->
-            etValue.setText("#${envelope.hexCode}")
-          }
-        )
-        .setNegativeButton(v.context.getString(R.string.cancel)) { d, _ -> d.dismiss() }
-        .attachAlphaSlideBar(true)
-        .attachBrightnessSlideBar(true)
-        .setBottomSpace(12)
+        dialog.show()
 
-      val colorView = dialogBuilder.colorPickerView
-      colorView.setFlagView(ColorPickerDialogFlag(v.context))
-
-      val initialColor = getSafeColorInt(colorList[pos].value) ?: Color.WHITE
-      colorView.setInitialColor(initialColor)
-
-      dialogBuilder.show()
+        // Initial Check (Trigger validation immediately to set button state)
+        validateEditForm(dialog, binding, pos)
     }
 
-    builder.setPositiveButton(R.string.okay) { _, _ ->
-      val newName = etName.text.toString()
-      if (colorList[pos].name == "default_color" && newName != "default_color") {
-        SBUtils.make(v, v.context.getString(R.string.msg_cannot_rename_default, "color"))
-          .setFadeAnimation().setType(SBUtils.Type.INFO).show()
-      } else {
-        colorList[pos].name = newName
-      }
-      colorList[pos].value = etValue.text.toString()
-      notifyItemChanged(pos)
-      // Generate code from all colors in list
-      generateColorsXml()
-    }
-    builder.setNegativeButton(R.string.cancel, null)
+    private fun performSaveColor(v: View, pos: Int, binding: LayoutValuesItemDialogBinding) {
+        val newName = binding.textinputName.text.toString()
+        val newValue = binding.textinputValue.text.toString()
+        val item = colorList[pos]
 
-    val dialog = builder.create()
-    dialog.show()
+        val isDefaultColor = item.name == "default_color"
+        val isRenamingDefault = isDefaultColor && newName != "default_color"
 
-    val textWatcher = object : TextWatcher {
-      override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-      override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-      override fun afterTextChanged(s: Editable?) {
-        NameErrorChecker.checkForValues(etName.text.toString(), ilName, dialog, colorList, pos)
-      }
-    }
-    etName.addTextChangedListener(textWatcher)
-    NameErrorChecker.checkForValues(etName.text.toString(), ilName, dialog, colorList, pos)
-  }
-
-  /**
-   * Creates a circular drawable with the specified background color.
-   * Automatically calculates a contrasting stroke color (border) based on luminance.
-   *
-   * @param backgroundColor The color to fill the circle with.
-   * @return A GradientDrawable representing the colored circle.
-   */
-  private fun drawCircle(@ColorInt backgroundColor: Int): Drawable {
-    return GradientDrawable().apply {
-      shape = GradientDrawable.OVAL
-      cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
-      setColor(backgroundColor)
-      setStroke(2, if (ColorUtils.calculateLuminance(backgroundColor) >= 0.5) {
-        "#FF313131".toColorInt()
-			} else {
-			  "#FFD9D9D9".toColorInt()
-			})
-    }
-  }
-
-  /**
-   * Safely parses a string value into a Color Int.
-   * Attempts to handle cases where the hash symbol (#) is missing.
-   *
-   * @param value The color string to parse (e.g., "#FFFFFF" or "FFFFFF").
-   * @return The parsed color int, or null if the string is not a valid color.
-   */
-  private fun getSafeColorInt(value: String): Int? {
-    return try {
-      value.toColorInt()
-    } catch (e: Exception) {
-      if (!value.startsWith("#")) {
-        try {
-          return "#$value".toColorInt()
-        } catch (_: Exception) {
-          null
+        if (isRenamingDefault) {
+            SBUtils.make(v, v.context.getString(R.string.msg_cannot_rename_default, "color"))
+                .setFadeAnimation()
+                .setType(SBUtils.Type.INFO)
+                .show()
         }
-      } else {
-        null
-      }
+
+        if (!isRenamingDefault) {
+            item.name = newName
+        }
+        item.value = newValue
+
+        notifyItemChanged(pos)
+        generateColorsXml()
     }
-  }
+
+    private fun setupColorPickerInteraction(v: View, binding: LayoutValuesItemDialogBinding) {
+        binding.textInputLayoutValue.setEndIconOnClickListener {
+            val initialColorInt = getSafeColorInt(binding.textinputValue.text.toString()) ?: Color.WHITE
+
+            val builder = ColorPickerDialog.Builder(v.context)
+                .setTitle("Choose Color")
+                .setPositiveButton(v.context.getString(R.string.confirm),
+                    ColorEnvelopeListener { envelope, _ ->
+                        binding.textinputValue.setText("#${envelope.hexCode}")
+                        binding.textInputLayoutValue.error = null
+                    }
+                )
+                .setNegativeButton(v.context.getString(R.string.cancel)) { d, _ -> d.dismiss() }
+                .attachAlphaSlideBar(true)
+                .attachBrightnessSlideBar(true)
+                .setBottomSpace(12)
+
+            builder.colorPickerView.apply {
+                setFlagView(ColorPickerDialogFlag(v.context))
+                setInitialColor(initialColorInt)
+            }
+            builder.show()
+        }
+    }
+
+    /**
+     * Sets up listeners for both Name and Value fields.
+     */
+    private fun setupValidation(dialog: AlertDialog, binding: LayoutValuesItemDialogBinding, pos: Int) {
+        val textWatcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+            override fun afterTextChanged(s: Editable?) {
+                // Call the central validation method whenever text changes in EITHER field
+                validateEditForm(dialog, binding, pos)
+            }
+        }
+
+        binding.textinputName.addTextChangedListener(textWatcher)
+        binding.textinputValue.addTextChangedListener(textWatcher)
+    }
+
+    /**
+     * Central validation logic. Checks both Name and Value validity.
+     * Updates UI errors and Button state.
+     */
+    private fun validateEditForm(dialog: AlertDialog, binding: LayoutValuesItemDialogBinding, pos: Int) {
+        val nameInput = binding.textinputName.text.toString()
+        val valueInput = binding.textinputValue.text.toString()
+
+        // 1. Check Name (Using helper)
+        NameErrorChecker.checkForValues(nameInput, binding.textInputLayoutName, dialog, colorList, pos)
+        // NameErrorChecker sets the error on the layout, so we check if error is null
+        val isNameValid = binding.textInputLayoutName.error == null && nameInput.isNotBlank()
+
+        // 2. Check Color Value
+        val isValidColor = getSafeColorInt(valueInput) != null
+        if (isValidColor) {
+            binding.textInputLayoutValue.error = null
+            binding.textInputLayoutValue.isErrorEnabled = false
+        } else {
+            binding.textInputLayoutValue.error = "Invalid color"
+        }
+
+        // 3. Update Button State (Only enabled if BOTH are valid)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = isNameValid && isValidColor
+    }
+
+    private fun drawCircle(@ColorInt backgroundColor: Int): Drawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
+            setColor(backgroundColor)
+            setStroke(2, getContrastStrokeColor(backgroundColor))
+        }
+    }
+
+    private fun getContrastStrokeColor(@ColorInt color: Int): Int {
+        if (ColorUtils.calculateLuminance(color) >= 0.5) {
+            return "#FF313131".toColorInt()
+        }
+        return "#FFD9D9D9".toColorInt()
+    }
+
+    private fun getSafeColorInt(value: String): Int? {
+        val directParse = runCatching { value.toColorInt() }.getOrNull()
+        if (directParse != null) return directParse
+
+        if (!value.startsWith("#")) {
+            val fixedParse = runCatching { "#$value".toColorInt() }.getOrNull()
+            if (fixedParse != null) return fixedParse
+        }
+        return null
+    }
 }

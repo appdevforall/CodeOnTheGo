@@ -39,6 +39,7 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @authors: @raredeveloperofc and @itsvks19;
@@ -85,142 +86,135 @@ public class ColorFragment extends Fragment {
         colorList = colorParser.getValuesList();
     }
 
-    public void addColor() {
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext());
-        builder.setTitle("New Color");
-
-        LayoutValuesItemDialogBinding bind = LayoutValuesItemDialogBinding.inflate(getLayoutInflater());
-        TextInputLayout ilName = bind.textInputLayoutName;
-        TextInputLayout ilValue = bind.textInputLayoutValue;
-        TextInputEditText etName = bind.textinputName;
+    private void setupDialogViews(LayoutValuesItemDialogBinding bind) {
         TextInputEditText etValue = bind.textinputValue;
-
-        // Allow user to type the hex code.
         etValue.setFocusable(true);
         etValue.setFocusableInTouchMode(true);
         etValue.setOnClickListener(null);
+    }
 
-        // Set a click listener on the end icon (suffix) to bring up the color picker.
-        ilValue.setEndIconOnClickListener(v -> {
-            @SuppressLint("SetTextI18n")
-            var dialog = new ColorPickerDialog.Builder(requireContext())
-                    .setTitle("Choose Color")
-                    .setPositiveButton(getString(R.string.confirm),
-                            (ColorEnvelopeListener) (envelope, fromUser) -> {
-                                etValue.setText("#" + envelope.getHexCode());
-                                ilValue.setError(null);
-                            })
-                    .setNegativeButton(getString(R.string.cancel),
-                            (d, i) -> d.dismiss())
-                    .attachAlphaSlideBar(true)
-                    .attachBrightnessSlideBar(true)
-                    .setBottomSpace(12);
-            var colorView = dialog.getColorPickerView();
-            colorView.setFlagView(new ColorPickerDialogFlag(requireContext()));
-            try {
-              colorView.setInitialColor(Color.parseColor(etValue.getText().toString()));
-            } catch (Exception ignored) {}
-            dialog.show();
-        });
+    private void setupColorPicker(TextInputLayout ilValue, TextInputEditText etValue) {
+        ilValue.setEndIconOnClickListener(v -> showColorPickerDialog(etValue, ilValue));
+    }
 
-        builder.setView(bind.getRoot());
+    private void setupInputValidation(AlertDialog dialog, LayoutValuesItemDialogBinding bind) {
+        TextWatcher validator = new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override
+            public void afterTextChanged(Editable s) {
+                validateInputs(dialog, bind);
+            }
+        };
 
-        builder.setPositiveButton(R.string.add, null);
-        builder.setNegativeButton(R.string.cancel, null);
+        bind.textinputName.addTextChangedListener(validator);
+        bind.textinputValue.addTextChangedListener(validator);
+    }
 
-        AlertDialog dialog = builder.create();
+    private void validateInputs(AlertDialog dialog, LayoutValuesItemDialogBinding bind) {
+        String name = Objects.requireNonNull(bind.textinputName.getText()).toString();
+        String value = Objects.requireNonNull(bind.textinputValue.getText()).toString();
+
+        NameErrorChecker.checkForValues(name, bind.textInputLayoutName, dialog, colorList);
+        boolean isNameValid = bind.textInputLayoutName.getError() == null && !name.trim().isEmpty();
+
+        boolean isColorValid = checkColorValidity(value, bind.textInputLayoutValue);
+
+        boolean isFormValid = isNameValid && isColorValid;
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(isFormValid);
+    }
+
+    private boolean checkColorValidity(String colorHex, TextInputLayout ilValue) {
+        if (colorHex.trim().isEmpty()) {
+            ilValue.setError(null);
+            return false;
+        }
+
+        try {
+            getSafeColor(colorHex);
+            ilValue.setError(null);
+            ilValue.setErrorEnabled(false);
+            return true;
+        } catch (IllegalArgumentException e) {
+            ilValue.setError("Invalid color");
+            return false;
+        }
+    }
+
+    private void setupSaveButton(AlertDialog dialog, LayoutValuesItemDialogBinding bind) {
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> handleSaveColor(dialog, bind));
+    }
+
+    private void handleSaveColor(AlertDialog dialog, LayoutValuesItemDialogBinding bind) {
+        String name = Objects.requireNonNull(bind.textinputName.getText()).toString().trim();
+        String value = Objects.requireNonNull(bind.textinputValue.getText()).toString().trim();
+
+        if (name.isEmpty()) {
+            bind.textInputLayoutName.setError("Name required");
+            return;
+        }
+
+        try {
+            String finalValue = getSafeColor(value);
+            bind.textInputLayoutValue.setError(null);
+
+            ValuesItem colorItem = new ValuesItem(name, finalValue);
+            colorList.add(colorItem);
+            adapter.notifyItemInserted(colorList.indexOf(colorItem));
+            adapter.generateColorsXml();
+
+            dialog.dismiss();
+        } catch (IllegalArgumentException e) {
+            bind.textInputLayoutValue.setError("Invalid color (e.g. #FF0000)");
+        }
+    }
+
+    public void addColor() {
+        LayoutValuesItemDialogBinding dialogBinding = LayoutValuesItemDialogBinding.inflate(getLayoutInflater());
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
+            .setTitle("New Color")
+            .setView(dialogBinding.getRoot())
+            .setPositiveButton(R.string.add, null)
+            .setNegativeButton(R.string.cancel, null)
+            .create();
+
+        setupDialogViews(dialogBinding);
         dialog.show();
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
 
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            Editable editableName = etName.getText();
-            Editable editableValue = etValue.getText();
-            String name = editableName != null ? editableName.toString().trim() : "";
-            String value = editableValue != null ? editableValue.toString().trim() : "";
-
-            if (name.isEmpty()) {
-                ilName.setError("Name required");
-                return;
-            }
-
-            try {
-                String finalValue = getSafeColor(value);
-
-                ilValue.setError(null);
-
-                var colorItem = new ValuesItem(name, finalValue);
-                colorList.add(colorItem);
-                adapter.notifyItemInserted(colorList.indexOf(colorItem));
-                adapter.generateColorsXml();
-
-                dialog.dismiss();
-            } catch (IllegalArgumentException e) {
-                ilValue.setError("Invalid color (e.g. #FF0000)");
-            }
-        });
-
-        etName.addTextChangedListener(new TextWatcher() {
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                Editable editable = etName.getText();
-                String name = editable != null ? editable.toString() : "";
-                NameErrorChecker.checkForValues(name, ilName, dialog, colorList);
-                validateColorAndSyncButton(dialog, etValue, ilValue);
-            }
-        });
-        etValue.addTextChangedListener(new TextWatcher() {
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                Editable editable = etName.getText();
-                String name = editable != null ? editable.toString() : "";
-                NameErrorChecker.checkForValues(name, ilName, dialog, colorList);
-                validateColorAndSyncButton(dialog, etValue, ilValue);
-            }
-        });
+        setupColorPicker(dialogBinding.textInputLayoutValue, dialogBinding.textinputValue);
+        setupInputValidation(dialog, dialogBinding);
+        setupSaveButton(dialog, dialogBinding);
     }
 
-    /**
-     * Validates the input text as a color and synchronizes the dialog's positive button state.
-     * This method checks if the text in [etValue] is a valid color (hexadecimal).
-     * If invalid, it sets an error on [ilValue] and disables the positive button of the [dialog].
-     * If the field is empty, it clears errors but treats the state as invalid.
-     *
-     * @param dialog The AlertDialog containing the button to synchronize.
-     * @param etValue The TextInputEditText containing the color string to validate.
-     * @param ilValue The TextInputLayout used to display visual error messages.
-     */
-    private void validateColorAndSyncButton(AlertDialog dialog, TextInputEditText etValue, TextInputLayout ilValue) {
-        Editable editable = etValue.getText();
-        String color = editable != null ? editable.toString() : "";
-        String colorHex = color.trim();
-        boolean isColorValid;
+    private void showColorPickerDialog(TextInputEditText etValue, TextInputLayout ilValue) {
+        @SuppressLint("SetTextI18n")
+        ColorPickerDialog.Builder builder = new ColorPickerDialog.Builder(requireContext())
+                .setTitle("Choose Color")
+                .setPositiveButton(getString(R.string.confirm), (ColorEnvelopeListener) (envelope, fromUser) -> {
+                    etValue.setText("#" + envelope.getHexCode());
+                    ilValue.setError(null);
+                })
+                .setNegativeButton(getString(R.string.cancel), (d, i) -> d.dismiss())
+                .attachAlphaSlideBar(true)
+                .attachBrightnessSlideBar(true)
+                .setBottomSpace(12);
 
-        if (colorHex.isEmpty()) {
-            ilValue.setError(null);
-            ilValue.setErrorEnabled(false);
-            isColorValid = false;
-        } else {
-            try {
-                getSafeColor(colorHex);
-                ilValue.setError(null);
-                ilValue.setErrorEnabled(false);
-                isColorValid = true;
-            } catch (IllegalArgumentException | StringIndexOutOfBoundsException e) {
-                ilValue.setError("Invalid color");
-                isColorValid = false;
+        var colorView = builder.getColorPickerView();
+        colorView.setFlagView(new ColorPickerDialogFlag(requireContext()));
+
+        // Try to set initial color safely
+        try {
+            String colorStr = Objects.requireNonNull(etValue.getText()).toString();
+            if (!colorStr.isEmpty()) {
+                colorView.setInitialColor(Color.parseColor(getSafeColor(colorStr)));
             }
-        }
+        } catch (Exception ignored) {}
 
-        if (!isColorValid) {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
-        }
+        builder.show();
     }
 
     /**
@@ -236,13 +230,23 @@ public class ColorFragment extends Fragment {
         try {
             Color.parseColor(input);
             return input;
-        } catch (IllegalArgumentException e) {
-            if (!input.startsWith("#")) {
-                String fixed = "#" + input;
+        } catch (IllegalArgumentException ignored) {}
+
+        String fixed = hexPrefixValidation(input);
+        if (fixed != null) return fixed;
+
+        throw new IllegalArgumentException("Unknown color");
+    }
+
+    @Nullable
+    private static String hexPrefixValidation(String input) {
+        if (!input.startsWith("#")) {
+            String fixed = "#" + input;
+            try {
                 Color.parseColor(fixed);
                 return fixed;
-            }
-            throw e;
+            } catch (IllegalArgumentException ignored) {}
         }
+        return null;
     }
 }
