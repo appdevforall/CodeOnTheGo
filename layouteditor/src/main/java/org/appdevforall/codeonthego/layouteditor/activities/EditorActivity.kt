@@ -19,6 +19,7 @@ import androidx.appcompat.widget.TooltipCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.isEmpty
 import androidx.drawerlayout.widget.DrawerLayout
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ToastUtils
@@ -28,6 +29,9 @@ import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.utils.getCreatedTime
+import com.itsaky.androidide.utils.getLastModifiedTime
+import kotlinx.coroutines.launch
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
@@ -77,6 +81,8 @@ class EditorActivity : BaseActivity() {
 	private lateinit var layoutAdapter: LayoutListAdapter
 
 	private val updateMenuIconsState: Runnable = Runnable { undoRedo!!.updateButtons() }
+	private var originalProductionXml: String? = null
+	private var originalDesignXml: String? = null
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -132,14 +138,28 @@ class EditorActivity : BaseActivity() {
 			intent.getStringExtra(Constants.EXTRA_KEY_FILE_PATH),
 			intent.getStringExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME),
 		) { filePath, fileName ->
-			projectManager.openProject(ProjectFile(filePath, "0", this, mainLayoutName = fileName))
-			project = projectManager.openedProject!!
-			androidToDesignConversion(
-				Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
-			)
+			supportActionBar?.title = getString(string.loading_project)
+			lifecycleScope.launch {
+				val createdAt = getCreatedTime(filePath).toString()
+				val modifiedAt = getLastModifiedTime(filePath).toString()
 
-			supportActionBar?.title = project.name
-			layoutAdapter = LayoutListAdapter(project)
+				projectManager.openProject(
+					ProjectFile(
+						filePath,
+						createdAt,
+						modifiedAt,
+						this@EditorActivity,
+						mainLayoutName = fileName
+					)
+				)
+				project = projectManager.openedProject!!
+				androidToDesignConversion(
+					Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
+				)
+
+				supportActionBar?.title = project.name
+				layoutAdapter = LayoutListAdapter(project)
+			}
 		} ?: showNothingDialog()
 
 		binding.editorLayout.setBackgroundColor(
@@ -526,9 +546,9 @@ class EditorActivity : BaseActivity() {
 
 	override fun onResume() {
 		super.onResume()
-		project.drawables?.let {
-			DrawableManager.loadFromFiles(it)
-		}
+        if (::project.isInitialized) {
+            DrawableManager.loadFromFiles(project.drawables)
+        }
 		if (undoRedo != null) undoRedo!!.updateButtons()
 		feedbackButtonManager?.loadFabPosition()
 	}
@@ -634,6 +654,9 @@ class EditorActivity : BaseActivity() {
 	}
 
     private fun openLayout(layoutFile: LayoutFile) {
+    originalProductionXml = layoutFile.readLayoutFile()
+    originalDesignXml = layoutFile.readDesignFile()
+
 		var contentToParse = layoutFile.readDesignFile()
 
 		if (contentToParse.isNullOrBlank()) {
@@ -693,7 +716,21 @@ class EditorActivity : BaseActivity() {
 				saveXml()
 				finishAfterTransition()
 			}.setNegativeButton(R.string.discard_changes_and_exit) { _, _ ->
-				binding.editorLayout.markAsSaved() // Reset modified flag
+				val layoutFile = project.currentLayout as? LayoutFile ?: run {
+        	finishAfterTransition()
+        	return@setNegativeButton
+    		}
+
+				val xmlToRestore = originalDesignXml ?: originalProductionXml
+				if (!xmlToRestore.isNullOrBlank()) {
+					binding.editorLayout.loadLayoutFromParser(xmlToRestore)
+				}
+
+				val prettyXml = XmlLayoutGenerator().generate(binding.editorLayout, true)
+				layoutFile.saveLayout(prettyXml)
+
+				val designXml = XmlLayoutGenerator().generate(binding.editorLayout, false)
+				layoutFile.saveDesignFile(designXml)
 				finishAfterTransition()
 			}.setNeutralButton(R.string.cancel_and_stay_in_editor) { dialog, _ ->
 				dialog.dismiss()

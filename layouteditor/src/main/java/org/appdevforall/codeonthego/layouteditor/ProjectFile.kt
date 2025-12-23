@@ -7,6 +7,7 @@ import android.os.Parcelable.Creator
 import org.appdevforall.codeonthego.layouteditor.managers.PreferencesManager
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
+import com.itsaky.androidide.utils.formatDate
 import org.jetbrains.annotations.Contract
 import java.io.File
 import java.nio.file.Files
@@ -21,15 +22,20 @@ class ProjectFile : Parcelable {
   var name: String
 
   @JvmField
-  var date: String? = null
+  var createdAt: String? = null
+
+  @JvmField
+  var lastModified: String? = null
 
   private val mainLayoutName: String
   private lateinit var preferencesManager: PreferencesManager
 
-  constructor(path: String, date: String?, context: Context,
+  constructor(path: String, createdAt: String?, lastModified: String?, context: Context,
     mainLayoutName: String = "layout_main") {
+
     this.path = path
-    this.date = date
+    this.createdAt = createdAt
+    this.lastModified = lastModified
     this.name = FileUtil.getLastSegmentFromPath(path)
     this.mainLayoutName = mainLayoutName
     this.preferencesManager = PreferencesManager(context = context)
@@ -61,16 +67,17 @@ class ProjectFile : Parcelable {
   val layoutDesignPath: String
     get() = "$path/layout/design/"
 
-  val drawables: Array<out File>?
-    get() {
-      val file = File("$path/drawable/")
+    val drawables: Array<File>
+        get() {
+            val file = File("$path/drawable")
 
-      if (!file.exists()) {
-        FileUtil.makeDir("$path/drawable/")
-      }
+            if (!file.exists()) {
+                file.mkdirs()
+                return emptyArray()
+            }
 
-      return file.listFiles()
-    }
+            return file.listFiles() ?: emptyArray()
+        }
 
   val fonts: Array<out File>?
     get() {
@@ -156,6 +163,22 @@ class ProjectFile : Parcelable {
     path = parcel.readString().toString()
     name = parcel.readString().toString()
     this.mainLayoutName = mainLayoutName
+  }
+
+  fun renderDateText(context: Context): String {
+    val showModified = createdAt != lastModified
+    val renderDate = if (showModified) lastModified else createdAt
+
+    val label = if (showModified)
+      context.getString(R.string.date_modified_label)
+    else
+      context.getString(R.string.date_created_label)
+
+    return context.getString(
+      R.string.date,
+      label,
+      formatDate(renderDate ?: "")
+    )
   }
 
   companion object {

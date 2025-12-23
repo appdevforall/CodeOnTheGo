@@ -159,6 +159,11 @@ jobs:
           fi
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+    
       - name: Get PR and Commit Information
         id: pr_info
         run: |
@@ -183,6 +188,11 @@ jobs:
           COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+
+          # If no Jira ticket found in branch name, check the commit message
+          if [ -z "$JIRA_TICKET" ]; then
+            JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1)
+          fi
 
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
@@ -292,14 +302,87 @@ jobs:
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
+      - name: Update Jira Fix Version
+        if: github.ref == 'refs/heads/stage'
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
+        run: |
+          # Try to get Jira ticket from extract_jira step output first (handles branch name and commit message)
+          JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
+          
+          # If extract_jira didn't find a ticket (returned "N/A"), try merge commit message
+          if [ "$JIRA_TICKET" == "N/A" ] || [ -z "$JIRA_TICKET" ]; then
+            MERGE_COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "")
+            JIRA_TICKET=$(echo "$MERGE_COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1 || echo "")
+          fi
+          
+          if [ -z "$JIRA_TICKET" ] || [ "$JIRA_TICKET" == "N/A" ]; then
+            echo "ERROR: No Jira ticket found in branch name, commit message, or merge commit"
+            echo "Branch name or commit message must contain a Jira ticket in format ADFA-XXXX"
+            exit 1
+          fi
+          
+          echo "Found Jira ticket: $JIRA_TICKET"
+          
+          # Validate NEXT_RELEASE_VERSION exists and exactly two digits, dot, two digits
+          if [ -z "$NEXT_RELEASE_VERSION" ]; then
+            echo "ERROR: NEXT_RELEASE_VERSION variable is not set"
+            exit 1
+          fi
+          
+          if [[ ! "$NEXT_RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]]; then
+            echo "ERROR: NEXT_RELEASE_VERSION format is invalid: $NEXT_RELEASE_VERSION"
+            echo "Expected format: YY.ww (two digits, dot, two digits, e.g., 25.50)"
+            exit 1
+          fi
+          
+          echo "Validated NEXT_RELEASE_VERSION: $NEXT_RELEASE_VERSION"
+          
+          # Update Jira fix version via API
+          JIRA_BASE_URL="https://appdevforall.atlassian.net"
+          JIRA_API_URL="${JIRA_BASE_URL}/rest/api/3/issue/${JIRA_TICKET}"
+          
+          # Prepare JSON payload for fixVersions update
+          # Assumes NEXT_RELEASE_VERSION has already been created in Jira.
+          JSON_PAYLOAD=$(jq -n \
+            --arg version "$NEXT_RELEASE_VERSION" \
+            '{
+              fields: {
+                fixVersions: [{
+                  name: $version
+                }]
+              }
+            }')
+          
+          echo "Updating Jira ticket $JIRA_TICKET with fix version $NEXT_RELEASE_VERSION..."
+          
+          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X PUT \
+            -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            "$JIRA_API_URL")
+          
+          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -n '1p')
+          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | sed -n '2p')
+          
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Successfully updated Jira ticket $JIRA_TICKET with fix version $NEXT_RELEASE_VERSION"
+          else
+            echo "ERROR: Failed to update Jira ticket"
+            echo "HTTP Status: $HTTP_STATUS"
+            echo "Response: $HTTP_BODY"
+            exit 1
+          fi
+
       - name: Clean up build folder after upload
         run: |
           echo "Cleaning up build folder after Firebase upload..."
           rm -rf app/build/
           echo "Build folder cleanup completed"
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
         env:
