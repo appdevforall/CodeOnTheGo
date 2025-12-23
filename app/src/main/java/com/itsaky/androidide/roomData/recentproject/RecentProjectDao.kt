@@ -20,6 +20,8 @@ interface RecentProjectDao {
     @Query("SELECT * FROM recent_project_table WHERE name = :name LIMIT 1")
     suspend fun getProjectByName(name: String): RecentProject?
 
+    @Query("SELECT * FROM recent_project_table WHERE name IN (:names)")
+    suspend fun getProjectsByNames(names: List<String>): List<RecentProject>
 
     @Query("DELETE FROM recent_project_table")
     suspend fun deleteAll()
@@ -35,4 +37,5 @@ interface RecentProjectDao {
 
     @Query("SELECT COUNT(*) FROM recent_project_table")
     suspend fun getCount(): Int
+
 }

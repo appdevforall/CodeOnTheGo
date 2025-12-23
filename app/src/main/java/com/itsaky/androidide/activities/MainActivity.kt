@@ -44,7 +44,6 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FileDeleteUtils
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -325,15 +324,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         }
 
         startActivity(intent)
-    }
-
-    internal fun deleteProject(root: File) {
-        ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-        try {
-            FileDeleteUtils.deleteRecursive(root)
-        } catch (e: Exception) {
-            flashInfo(string.msg_delete_existing_project_failed)
-        }
     }
 
     private fun startWebServer() {

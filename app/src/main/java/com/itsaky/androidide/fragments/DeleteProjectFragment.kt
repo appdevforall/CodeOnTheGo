@@ -6,10 +6,10 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
-import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.DeleteProjectListAdapter
 import com.itsaky.androidide.databinding.FragmentDeleteProjectBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -25,7 +25,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import java.io.File
+import kotlinx.coroutines.launch
 
 class DeleteProjectFragment : BaseFragment() {
 
@@ -48,6 +48,7 @@ class DeleteProjectFragment : BaseFragment() {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
         observeProjects()
+        observeDeletionStatus()
         setupClickListeners()
     }
 
@@ -87,6 +88,18 @@ class DeleteProjectFragment : BaseFragment() {
             } else {
                 binding.delete.text = getString(R.string.delete_project)
                 updateDeleteButtonState(adapter?.getSelectedProjects()?.isNotEmpty() ?: false)
+            }
+        }
+    }
+
+    private fun observeDeletionStatus() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            recentProjectsViewModel.deletionStatus.collect { status ->
+                if (status) {
+                    flashSuccess(R.string.deleted)
+                } else {
+                    flashError(R.string.delete_failed)
+                }
             }
         }
     }
@@ -131,10 +144,6 @@ class DeleteProjectFragment : BaseFragment() {
         }
     }
 
-    private fun deleteProject(root: File) {
-        (requireActivity() as MainActivity).deleteProject(root)
-    }
-
     fun showToolTip(
         tag: String,
         anchorView: View? = null
@@ -153,20 +162,11 @@ class DeleteProjectFragment : BaseFragment() {
             .setMessage(R.string.msg_delete_selected_project)
             .setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
             .setPositiveButton(R.string.yes) { _, _ ->
-                try {
-                    adapter?.getSelectedProjects().let { locations ->
-                        locations?.forEach {
-                            deleteProject(File(it.path))
-                        }
-                        val names = locations?.map { it.name }
-                        if (names != null) {
-                            recentProjectsViewModel.deleteSelectedProjects(names)
-                        }
-                        flashSuccess(R.string.deleted)
+                    adapter?.getSelectedProjects().let { projectFiles ->
+                        recentProjectsViewModel.deleteSelectedProjects(
+                            projectFiles?.map { it.name } ?: emptyList()
+                        )
                     }
-                } catch (e: Exception) {
-                    flashError(R.string.delete_failed)
-                }
             }
             .show()
 
