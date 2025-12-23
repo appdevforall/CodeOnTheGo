@@ -8,6 +8,7 @@ import android.text.InputFilter;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.SeekBar;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.AppCompatSeekBar;
@@ -104,23 +105,37 @@ public class ColorDialog extends AttributeDialog
     rEdittext.setFilters(new InputFilter[] {new InputFilter.LengthFilter(3)});
     gEdittext.setFilters(new InputFilter[] {new InputFilter.LengthFilter(3)});
     bEdittext.setFilters(new InputFilter[] {new InputFilter.LengthFilter(3)});
-    if (!savedValue.isEmpty()) {
+
+    if (savedValue.isEmpty()) return;
+
+    try {
       colorPreview.setColor(Color.parseColor(savedValue));
-      aEdittext.setText(String.valueOf(Color.alpha(colorPreview.getColor())));
-      aEdittext.setTextColor(colorPreview.getInvertedRGB());
-      rEdittext.setText(String.valueOf(Color.red(colorPreview.getColor())));
-      rEdittext.setTextColor(colorPreview.getInvertedRGB());
-      gEdittext.setText(String.valueOf(Color.green(colorPreview.getColor())));
-      gEdittext.setTextColor(colorPreview.getInvertedRGB());
-      bEdittext.setText(String.valueOf(Color.blue(colorPreview.getColor())));
-      bEdittext.setTextColor(colorPreview.getInvertedRGB());
-      updateARGB(colorPreview.getColor());
-      updateSeekbars(colorPreview.getColor());
-      updateEditText();
+    } catch (IllegalArgumentException e) {
+      colorPreview.setColor(Color.BLUE);
+      showUnsupportedColorMsg(savedValue, colorPreview.getContext());
     }
+    aEdittext.setText(String.valueOf(Color.alpha(colorPreview.getColor())));
+    aEdittext.setTextColor(colorPreview.getInvertedRGB());
+    rEdittext.setText(String.valueOf(Color.red(colorPreview.getColor())));
+    rEdittext.setTextColor(colorPreview.getInvertedRGB());
+    gEdittext.setText(String.valueOf(Color.green(colorPreview.getColor())));
+    gEdittext.setTextColor(colorPreview.getInvertedRGB());
+    bEdittext.setText(String.valueOf(Color.blue(colorPreview.getColor())));
+    bEdittext.setTextColor(colorPreview.getInvertedRGB());
+    updateARGB(colorPreview.getColor());
+    updateSeekbars(colorPreview.getColor());
+    updateEditText();
   }
 
-  /** Sets TextWatcher on EditText */
+  private void showUnsupportedColorMsg(@NonNull String savedValue, @NonNull Context context) {
+    Toast.makeText(
+      context,
+      context.getString(R.string.msg_unsupported_color_format, savedValue),
+      Toast.LENGTH_SHORT
+    ).show();
+  }
+
+    /** Sets TextWatcher on EditText */
   private void setTextWatcherOnEditText() {
     editText.addTextChangedListener(
         new TextWatcher() {
