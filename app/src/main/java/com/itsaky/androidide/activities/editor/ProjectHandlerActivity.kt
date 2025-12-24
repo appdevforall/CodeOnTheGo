@@ -77,6 +77,7 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.repositories.PluginRepository
@@ -271,7 +272,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			setStatus(getString(string.status_installing_plugin))
 			val result = pluginRepository.installPluginFromFile(cgpFile)
 			result.onSuccess {
-				flashSuccess(getString(string.msg_plugin_installed_restart))
+				showRestartPrompt(this@ProjectHandlerActivity)
 			}.onFailure { error ->
 				flashError(getString(string.msg_plugin_install_failed, error.message ?: "Unknown error"))
 			}
