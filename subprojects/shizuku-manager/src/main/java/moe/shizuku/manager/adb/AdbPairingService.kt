@@ -181,7 +181,7 @@ class AdbPairingService : Service() {
 
 			val key =
 				try {
-					AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getPreferences()))
+					AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getSharedPreferences()))
 				} catch (e: Throwable) {
 					e.printStackTrace()
 					return@launch
