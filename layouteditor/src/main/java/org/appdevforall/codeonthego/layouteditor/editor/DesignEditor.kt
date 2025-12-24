@@ -1070,19 +1070,25 @@ class DesignEditor : LinearLayout {
 	}
 
 	/**
-	 * Extracts the simple class name from a fully qualified string and removes the "Design" suffix.
-	 * e.g., "com.example.DrawerLayoutDesign" -> "DrawerLayout"
+	 * Extracts the simple class name from a string (fully qualified or simple)
+	 * and removes the "Design" suffix.
+	 *
+	 * Usage:
+	 * "com.example.DrawerLayoutDesign".cleanWidgetName() // Returns "DrawerLayout"
 	 */
 	private fun String.cleanWidgetName(): String {
-		return this.substringAfterLast('.').replace("Design", "")
+	    return this.substringAfterLast('.').removeSuffix("Design")
 	}
 
 	/**
 	 * Returns the object's simple class name, stripping the "Design" suffix if present.
-	 * e.g., ToolbarDesign instance -> "Toolbar"
+	 * This is a convenience wrapper that delegates to [String.cleanWidgetName].
+	 *
+	 * Usage:
+	 * myToolbarInstance.cleanWidgetName() // Returns "Toolbar"
 	 */
-	private fun Any.cleanSimpleName(): String {
-		return this.javaClass.simpleName.replace("Design", "")
+	private fun Any.cleanWidgetName(): String {
+	    return this.javaClass.name.cleanWidgetName()
 	}
 
 	/**
@@ -1090,7 +1096,7 @@ class DesignEditor : LinearLayout {
 	 */
 	private fun showIncompatibilityError(childName: String, parent: ViewGroup) {
 		val cleanChild = childName.cleanWidgetName()
-		val cleanParent = parent.cleanSimpleName()
+		val cleanParent = parent.cleanWidgetName()
 
 		Toast.makeText(
 			parent.context,
