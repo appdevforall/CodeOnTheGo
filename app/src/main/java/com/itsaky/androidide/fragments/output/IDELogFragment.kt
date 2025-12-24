@@ -39,7 +39,7 @@ class IDELogFragment :
 	override val tooltipTag = TooltipTag.PROJECT_IDE_LOGS
 
 	override val logLevel: Level
-		get() = if (FeatureFlags.isDebugLoggingEnabled()) Level.DEBUG else Level.INFO
+		get() = if (FeatureFlags.isDebugLoggingEnabled) Level.DEBUG else Level.INFO
 
 	override fun onViewCreated(
 		view: View,
