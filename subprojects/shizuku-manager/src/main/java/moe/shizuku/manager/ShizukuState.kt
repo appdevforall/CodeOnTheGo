@@ -59,7 +59,7 @@ object ShizukuState {
 	/**
 	 * Load the current status of the Shizuku service.
 	 */
-	private fun loadServiceStatus(): ServiceStatus {
+	private suspend fun loadServiceStatus(): ServiceStatus {
 		if (!Shizuku.pingBinder()) {
 			logger.debug("Shizuku service not running")
 			return ServiceStatus.EMPTY
