@@ -235,6 +235,7 @@ tasks.named<Delete>("clean") {
 
 sonar {
 	properties {
+		property("sonar.host.url", "https://sonarcloud.io")
 		property("sonar.projectKey", "appdevforall_CodeOnTheGo")
 		property("sonar.organization", "app-dev-for-all")
 	}
