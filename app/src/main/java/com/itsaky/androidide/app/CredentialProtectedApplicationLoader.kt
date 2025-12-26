@@ -22,8 +22,10 @@ import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.VMUtils
 import io.sentry.Sentry
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -79,10 +81,12 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			startLogcatReader()
 		}
 
-		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		withContext(Dispatchers.Main) {
+			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
-		if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-			DynamicColors.applyToActivitiesIfAvailable(app)
+			if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+				DynamicColors.applyToActivitiesIfAvailable(app)
+			}
 		}
 
 		initializePluginSystem()
