@@ -562,6 +562,7 @@ class EditorActivity : BaseActivity() {
 		menu.findItem(R.id.export_as_image)?.isEnabled = isReady
 		menu.findItem(R.id.save_xml)?.isEnabled = isReady
 		menu.findItem(R.id.edit_xml)?.isEnabled = isReady
+		menu.findItem(R.id.exit_editor)?.isEnabled = isReady
 		return super.onPrepareOptionsMenu(menu)
 	}
 
