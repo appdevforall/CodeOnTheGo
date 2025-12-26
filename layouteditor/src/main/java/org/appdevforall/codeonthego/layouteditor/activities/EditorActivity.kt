@@ -384,7 +384,7 @@ class EditorActivity : BaseActivity() {
 		binding.listView.adapter = adapter
 	}
 
-	private fun ensureProjectReady(): Boolean {
+	private fun isProjectReady(): Boolean {
 		if (!::project.isInitialized) {
 			ToastUtils.showShort(getString(R.string.loading_project))
 			return false
@@ -405,7 +405,7 @@ class EditorActivity : BaseActivity() {
 			R.id.save_xml,
 			R.id.exit_editor,
 			R.id.edit_xml -> {
-				if (!ensureProjectReady()) return true
+				if (!isProjectReady()) return false
 			}
 		}
 
@@ -555,13 +555,13 @@ class EditorActivity : BaseActivity() {
 	}
 
 	override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-		val ready = ::project.isInitialized
-		menu.findItem(R.id.resources_manager)?.isEnabled = ready
-		menu.findItem(R.id.preview)?.isEnabled = ready
-		menu.findItem(R.id.export_xml)?.isEnabled = ready
-		menu.findItem(R.id.export_as_image)?.isEnabled = ready
-		menu.findItem(R.id.save_xml)?.isEnabled = ready
-		menu.findItem(R.id.edit_xml)?.isEnabled = ready
+		val isReady = ::project.isInitialized
+		menu.findItem(R.id.resources_manager)?.isEnabled = isReady
+		menu.findItem(R.id.preview)?.isEnabled = isReady
+		menu.findItem(R.id.export_xml)?.isEnabled = isReady
+		menu.findItem(R.id.export_as_image)?.isEnabled = isReady
+		menu.findItem(R.id.save_xml)?.isEnabled = isReady
+		menu.findItem(R.id.edit_xml)?.isEnabled = isReady
 		return super.onPrepareOptionsMenu(menu)
 	}
 
