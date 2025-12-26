@@ -153,6 +153,7 @@ class EditorActivity : BaseActivity() {
 					)
 				)
 				project = projectManager.openedProject!!
+				invalidateOptionsMenu()
 				androidToDesignConversion(
 					Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
 				)
@@ -383,10 +384,31 @@ class EditorActivity : BaseActivity() {
 		binding.listView.adapter = adapter
 	}
 
+	private fun ensureProjectReady(): Boolean {
+		if (!::project.isInitialized) {
+			ToastUtils.showShort(getString(R.string.loading_project))
+			return false
+		}
+		return true
+	}
+
 	override fun onOptionsItemSelected(item: MenuItem): Boolean {
 		val id = item.itemId
 		undoRedo!!.updateButtons()
 		if (actionBarDrawerToggle!!.onOptionsItemSelected(item)) return true
+
+		when (id) {
+			R.id.resources_manager,
+			R.id.preview,
+			R.id.export_xml,
+			R.id.export_as_image,
+			R.id.save_xml,
+			R.id.exit_editor,
+			R.id.edit_xml -> {
+				if (!ensureProjectReady()) return true
+			}
+		}
+
 		when (id) {
 			android.R.id.home -> {
 				drawerLayout.openDrawer(GravityCompat.START)
@@ -530,6 +552,17 @@ class EditorActivity : BaseActivity() {
 
 			else -> return false
 		}
+	}
+
+	override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+		val ready = ::project.isInitialized
+		menu.findItem(R.id.resources_manager)?.isEnabled = ready
+		menu.findItem(R.id.preview)?.isEnabled = ready
+		menu.findItem(R.id.export_xml)?.isEnabled = ready
+		menu.findItem(R.id.export_as_image)?.isEnabled = ready
+		menu.findItem(R.id.save_xml)?.isEnabled = ready
+		menu.findItem(R.id.edit_xml)?.isEnabled = ready
+		return super.onPrepareOptionsMenu(menu)
 	}
 
 	override fun onConfigurationChanged(config: Configuration) {
