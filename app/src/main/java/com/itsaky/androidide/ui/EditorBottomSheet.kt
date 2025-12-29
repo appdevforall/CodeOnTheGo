@@ -492,11 +492,15 @@ constructor(
 			return
 		}
 
-		val file = withContext(Dispatchers.IO) {
-			writeTempFile(content, type)
+		try {
+			val file = withContext(Dispatchers.IO) {
+				writeTempFile(content, type)
+			}
+			shareFile(file)
+		} catch (e: IOException) {
+			e.printStackTrace()
+			flashError(context.getString(string.msg_output_text_extraction_failed))
 		}
-
-		shareFile(file)
 	}
 
 	private fun writeTempFile(
@@ -504,15 +508,12 @@ constructor(
 		type: String,
 	): File {
 		// use a common name to avoid multiple files
-		val file: Path = context.filesDir.toPath().resolve("$type.txt")
-		try {
-			if (Files.exists(file)) {
-				Files.delete(file)
-			}
-			Files.write(file, text.toByteArray(StandardCharsets.UTF_8), CREATE_NEW, WRITE)
-		} catch (e: IOException) {
-			log.error("Unable to write output to file", e)
+		val path: Path = context.filesDir.toPath().resolve("$type.txt")
+		if (Files.exists(path)) {
+			Files.delete(path)
 		}
-		return file.toFile()
+		Files.write(path, text.toByteArray(StandardCharsets.UTF_8), CREATE_NEW, WRITE)
+
+		return path.toFile()
 	}
 }
