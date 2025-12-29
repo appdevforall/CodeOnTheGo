@@ -1,8 +1,11 @@
 package org.appdevforall.codeonthego.layouteditor.managers
 
 import android.content.Context
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
@@ -21,13 +24,19 @@ class ProjectManager private constructor() {
         CompletableFuture.runAsync { initPalette(context) }
     }
 
-    fun openProject(project: ProjectFile?) {
-        openedProject = project
-        openedProject!!.drawables.let { DrawableManager.loadFromFiles(it) }
-        openedProject!!.layoutDesigns // just for the sake of creating folder
-        openedProject!!.fonts?.let {
-            FontManager.loadFromFiles(it)
-        }
+    suspend fun openProject(project: ProjectFile?) = withContext(Dispatchers.IO) {
+        val safeProject = project ?: return@withContext
+
+        runCatching {
+				    safeProject.drawables.let { DrawableManager.loadFromFiles(it) }
+				    safeProject.layoutDesigns // just for the sake of creating folder
+				    safeProject.fonts?.let { FontManager.loadFromFiles(it) }
+				}.onSuccess {
+				    openedProject = safeProject
+				}.onFailure {
+				    Log.e("ProjectManager", "Failed to load project resources", it)
+				    throw it
+				}
     }
 
     fun closeProject() {
