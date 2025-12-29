@@ -265,6 +265,7 @@ sonar {
         property("sonar.host.url", "https://sonarcloud.io")
         property("sonar.projectKey", "appdevforall_CodeOnTheGo")
         property("sonar.organization", "app-dev-for-all")
+        property("sonar.androidVariant", "v8Debug")
     }
 }
 
