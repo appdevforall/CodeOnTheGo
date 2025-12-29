@@ -138,7 +138,7 @@ public class ColorFragment extends Fragment {
             ilValue.setErrorEnabled(false);
             return true;
         } catch (IllegalArgumentException e) {
-            ilValue.setError("Invalid color");
+            ilValue.setError(getString(R.string.error_invalid_color));
             return false;
         }
     }
@@ -152,7 +152,7 @@ public class ColorFragment extends Fragment {
         String value = Objects.requireNonNull(bind.textinputValue.getText()).toString().trim();
 
         if (name.isEmpty()) {
-            bind.textInputLayoutName.setError("Name required");
+            bind.textInputLayoutName.setError(getString(R.string.error_color_name_required));
             return;
         }
 
@@ -174,7 +174,7 @@ public class ColorFragment extends Fragment {
     public void addColor() {
         LayoutValuesItemDialogBinding dialogBinding = LayoutValuesItemDialogBinding.inflate(getLayoutInflater());
         AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
-            .setTitle("New Color")
+            .setTitle(R.string.new_color_dialog_title)
             .setView(dialogBinding.getRoot())
             .setPositiveButton(R.string.add, null)
             .setNegativeButton(R.string.cancel, null)
@@ -193,7 +193,7 @@ public class ColorFragment extends Fragment {
     private void showColorPickerDialog(TextInputEditText etValue, TextInputLayout ilValue) {
         @SuppressLint("SetTextI18n")
         ColorPickerDialog.Builder builder = new ColorPickerDialog.Builder(requireContext())
-                .setTitle("Choose Color")
+                .setTitle(R.string.color_picker_dialog_title)
                 .setPositiveButton(getString(R.string.confirm), (ColorEnvelopeListener) (envelope, fromUser) -> {
                     etValue.setText("#" + envelope.getHexCode());
                     ilValue.setError(null);

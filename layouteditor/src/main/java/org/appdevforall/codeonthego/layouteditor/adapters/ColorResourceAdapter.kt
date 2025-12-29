@@ -122,8 +122,8 @@ class ColorResourceAdapter(
         }
         R.id.menu_delete -> {
           MaterialAlertDialogBuilder(v.context)
-            .setTitle("Remove Color")
-            .setMessage("Do you want to remove ${colorList[position].name}?")
+            .setTitle(R.string.remove_color_dialog_title)
+            .setMessage(v.context.getString(R.string.msg_confirm_remove_color, colorList[position].name))
             .setNegativeButton(R.string.no, null)
             .setPositiveButton(R.string.yes) { _, _ ->
               if (colorList[position].name == "default_color") {
@@ -199,7 +199,7 @@ class ColorResourceAdapter(
             val initialColorInt = getSafeColorInt(binding.textinputValue.text.toString()) ?: Color.WHITE
 
             val builder = ColorPickerDialog.Builder(v.context)
-                .setTitle("Choose Color")
+                .setTitle(R.string.color_picker_dialog_title)
                 .setPositiveButton(v.context.getString(R.string.confirm),
                     ColorEnvelopeListener { envelope, _ ->
                         binding.textinputValue.setText("#${envelope.hexCode}")
