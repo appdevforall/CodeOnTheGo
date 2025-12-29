@@ -23,7 +23,7 @@ import com.itsaky.androidide.utils.FeatureFlags
 import java.io.File
 
 fun pluginProjectTemplate(): ProjectTemplate? {
-	if (!FeatureFlags.isExperimentsEnabled()) {
+	if (!FeatureFlags.isExperimentsEnabled) {
 		return null
 	}
 
