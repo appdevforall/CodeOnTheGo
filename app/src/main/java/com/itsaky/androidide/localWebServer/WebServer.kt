@@ -44,11 +44,7 @@ class WebServer(private val config: ServerConfig) {
     private val brotliCompression: String = "br"
     private val playgroundFilePath = "${config.fileDirPath}/Playground.java"
     private val truncationLimit = 10000
-
-    // Name of POST data field that contains submitted code
     private val postDataFieldName = "data"
-
-    // Endpoint URL for the playground handler
     private val playgroundEndpoint = "playground/execute"
 
     //function to obtain the last modified date of a documentation.db database
