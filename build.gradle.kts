@@ -67,14 +67,6 @@ subprojects {
         toolVersion = "0.8.11"
     }
 
-    plugins.withId("com.android.library") {
-        sonar {
-            properties {
-                property("sonar.androidVariant", "v8Debug")
-            }
-        }
-    }
-
     // Always load the F-Droid config
 	FDroidConfig.load(project)
 
@@ -270,41 +262,11 @@ tasks.named<Delete>("clean") {
 
 sonar {
     properties {
-        val binaries = subprojects.flatMap { subproj ->
-            val dirs = listOf(
-                subproj.layout.buildDirectory.dir("classes/java/main").get().asFile,
-                subproj.layout.buildDirectory.dir("classes/kotlin/main").get().asFile,
-
-                subproj.layout.buildDirectory.dir("intermediates/javac/v8Debug/classes").get().asFile,
-                subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug").get().asFile
-            )
-
-            // include directories that actually exist
-            dirs.filter { it.exists() }.map { it.absolutePath }
-        }
-
-        property("sonar.java.binaries", binaries.joinToString(","))
-
-        property("sonar.c.file.suffixes", "-")
-        property("sonar.cpp.file.suffixes", "-")
-        property("sonar.objc.file.suffixes", "-")
-
-        property("sonar.coverage.jacoco.xmlReportPaths",
-            project.layout.buildDirectory
-                .dir("reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml").get().asFile.absolutePath
-        )
-
-
         property("sonar.host.url", "https://sonarcloud.io")
         property("sonar.projectKey", "appdevforall_CodeOnTheGo")
         property("sonar.organization", "app-dev-for-all")
         property("sonar.androidVariant", "v8Debug")
-        property("sonar.login", System.getenv("SONAR_TOKEN"))
     }
-}
-
-tasks.named("sonarqube") {
-    dependsOn("jacocoAggregateReport")
 }
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
