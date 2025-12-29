@@ -511,7 +511,7 @@ jobs:
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble sonar --info
+        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonar --info -x lint
 
       - name: Cleanup google-services.json
         if: always()
