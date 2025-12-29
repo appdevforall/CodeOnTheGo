@@ -266,7 +266,7 @@ sonar {
         property("sonar.projectKey", "appdevforall_CodeOnTheGo")
         property("sonar.organization", "app-dev-for-all")
         property("sonar.androidVariant", "v8Debug")
-        property("sonar.login", System.getenv("SONAR_TOKEN"))
+        property("sonar.token", System.getenv("SONAR_TOKEN"))
     }
 }
 
