@@ -12,10 +12,10 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.widget.TooltipCompat
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.isEmpty
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -45,6 +45,10 @@ import org.appdevforall.codeonthego.layouteditor.editor.dialogs.StringDialog
 import org.appdevforall.codeonthego.layouteditor.editor.dialogs.ViewDialog
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
+import org.appdevforall.codeonthego.layouteditor.editor.palette.containers.HorizontalScrollViewDesign
+import org.appdevforall.codeonthego.layouteditor.editor.palette.containers.ScrollViewDesign
+import org.appdevforall.codeonthego.layouteditor.editor.palette.containers.ToolbarDesign
+import org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.FrameLayoutDesign
 import org.appdevforall.codeonthego.layouteditor.editor.positioning.positionAtDrop
 import org.appdevforall.codeonthego.layouteditor.editor.positioning.restoreSingleViewPosition
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager
@@ -321,6 +325,16 @@ class DesignEditor : LinearLayout {
 
 					DragEvent.ACTION_DROP -> {
 						removeWidget(shadow)
+
+						val dragData = event.localState as? HashMap<*, *>
+						val className = dragData?.get(Constants.KEY_CLASS_NAME).toString()
+						if (draggedView == null && dragData != null) {
+							if (isIncompatibleHierarchy(className, parent)) {
+								showIncompatibilityError(childName = className, parent = parent)
+								return@OnDragListener true
+							}
+						}
+
 						if (childCount >= 1) {
 							if (getChildAt(0) !is ViewGroup) {
 								Toast
@@ -1036,6 +1050,59 @@ class DesignEditor : LinearLayout {
 			getAttributes(context),
 			getParentAttributes(context)
 		)
+	}
+
+	private fun isIncompatibleHierarchy(childClassName: String, parent: ViewGroup): Boolean {
+		return when {
+			childClassName.contains("DrawerLayout", ignoreCase = true) -> parent.isRestrictiveParent()
+
+			childClassName.contains("ScrollView", ignoreCase = true) -> parent is ScrollView
+
+			else -> false
+		}
+	}
+
+	private fun ViewGroup.isRestrictiveParent(): Boolean {
+		return this is ToolbarDesign ||
+			this is ScrollViewDesign ||
+			this is FrameLayoutDesign ||
+			this is HorizontalScrollViewDesign
+	}
+
+	/**
+	 * Extracts the simple class name from a string (fully qualified or simple)
+	 * and removes the "Design" suffix.
+	 *
+	 * Usage:
+	 * "com.example.DrawerLayoutDesign".cleanWidgetName() // Returns "DrawerLayout"
+	 */
+	private fun String.cleanWidgetName(): String {
+	    return this.substringAfterLast('.').removeSuffix("Design")
+	}
+
+	/**
+	 * Returns the object's simple class name, stripping the "Design" suffix if present.
+	 * This is a convenience wrapper that delegates to [String.cleanWidgetName].
+	 *
+	 * Usage:
+	 * myToolbarInstance.cleanWidgetName() // Returns "Toolbar"
+	 */
+	private fun Any.cleanWidgetName(): String {
+	    return this.javaClass.name.cleanWidgetName()
+	}
+
+	/**
+	 * Displays a Toast error indicating that the [childName] is incompatible with the [parent].
+	 */
+	private fun showIncompatibilityError(childName: String, parent: ViewGroup) {
+		val cleanChild = childName.cleanWidgetName()
+		val cleanParent = parent.cleanWidgetName()
+
+		Toast.makeText(
+			parent.context,
+			context.getString(R.string.error_incompatible_hierarchy, cleanChild, cleanParent),
+			Toast.LENGTH_LONG
+		).show()
 	}
 
 	enum class ViewType {
