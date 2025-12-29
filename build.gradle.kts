@@ -44,6 +44,7 @@ plugins {
 	alias(libs.plugins.rikka.refine) apply false
 	alias(libs.plugins.google.protobuf) apply false
 	alias(libs.plugins.spotless)
+    alias(libs.plugins.sonarqube)
     id("jacoco")
 }
 
@@ -56,7 +57,6 @@ buildscript {
 		classpath(libs.kotlin.gradle.plugin)
 		classpath(libs.nav.safe.args.gradle.plugin)
 		classpath(libs.kotlin.serialization.plugin)
-		classpath(libs.nav.safe.args.gradle.plugin)
 	}
 }
 
@@ -219,6 +219,7 @@ spotless {
 			".githooks/**/*",
 			"scripts/**/*",
 		)
+        targetExclude("scripts/debug-keystore/adfa-keystore.jks")
 	}
 }
 
@@ -259,6 +260,13 @@ tasks.named<Delete>("clean") {
 	}
 }
 
+sonar {
+    properties {
+        property("sonar.host.url", "https://sonarcloud.io")
+        property("sonar.projectKey", "appdevforall_CodeOnTheGo")
+        property("sonar.organization", "app-dev-for-all")
+    }
+}
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
     // TODO: Skip xml-inflater and llama-impl until bugs are fixed
