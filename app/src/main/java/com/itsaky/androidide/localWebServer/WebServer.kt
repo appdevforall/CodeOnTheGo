@@ -45,6 +45,11 @@ class WebServer(private val config: ServerConfig) {
     private val playgroundFilePath = "${config.fileDirPath}/Playground.java"
     private val truncationLimit = 10000
 
+    // Name of POST data field that contains submitted code
+    private val postDataFieldName = "data"
+
+    // Endpoint URL for the playground handler
+    private val playgroundEndpoint = "playground/execute"
 
     //function to obtain the last modified date of a documentation.db database
     // this is used to see if there is a newer version of the database on the sdcard
@@ -195,8 +200,12 @@ FROM   LastChange
             }
         }
 
-        if (method == "POST") {
+        if (method == "POST" && path != playgroundEndpoint) {
+            log.debug("Received POST request to an invalid endpoint: " + path)
+            return sendError(writer, 404, "Not found")
+        }
 
+        if (method == "POST" && path == playgroundEndpoint) {
             val data = CharArray(contentLength)
 
             var bytesRead = 0
@@ -210,9 +219,15 @@ FROM   LastChange
                 bytesRead += readResult
             }
 
-            log.debug("Concat data = '${data}'")
+            log.debug("Received data, length='${data.size}'")
 
             val file = createFileFromPost(data)
+
+            // If no code data is received, tell client that their request was invalid
+            if (file.length() == 0L) {
+                return sendError(writer, 400, "Bad Request")
+            }
+
             // Call the revised function that returns a data class
             val result = compileAndRunJava(file)
 
@@ -225,10 +240,9 @@ FROM   LastChange
                 appendLine("<title>Java Code Execution Result</title>")
                 // Link to the CSS file that must be in the database
                 appendLine("<link rel='stylesheet' type='text/css' href='playground_response_style.css'>")
-                appendLine("<button onclick=\"window.history.back()\">Back to code editor</button>")
                 appendLine("</head>")
                 appendLine("<body>")
-
+                appendLine("<button onclick=\"window.history.back()\">Back to code editor</button>")
                 // Program Output Section
                 appendLine("<div id='program-output-container'>")
                 appendLine("<h2>Program Output</h2>")
@@ -505,8 +519,17 @@ WHERE  path = ?
 
 
     private fun createFileFromPost(input: CharArray): File {
-        val inputAsString =
-            URLDecoder.decode(String(input), StandardCharsets.UTF_8.name()).substring(5)
+        val decoded =
+            URLDecoder.decode(String(input), StandardCharsets.UTF_8.name())
+
+        val inputAsString = if (decoded.startsWith(postDataFieldName)) {
+            // Add 1 to substring start index to handle the "=" between the POST data
+            // field name and the POST data field data.
+            decoded.substring(postDataFieldName.length + 1)
+        } else{
+            log.warn("Expecting a data field named " + postDataFieldName)
+            ""
+        }
 
         val file = File(playgroundFilePath)
         try {
