@@ -91,6 +91,8 @@
     <string name="copy_name">Copy Name</string>
     <string name="import_resource">Import</string>
     <string name="color_scheme">Color Scheme</string>
+    <string name="edit_color_dialog_title">Edit Color</string>
+    <string name="error_invalid_color">Invalid color (e.g. #FF0000)</string>
     <string name="select">Select</string>
     <string name="palette">Palette</string>
     <string name="common">Common</string>

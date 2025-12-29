@@ -93,8 +93,8 @@ public class ColorFragment extends Fragment {
         etValue.setOnClickListener(null);
     }
 
-    private void setupColorPicker(TextInputLayout ilValue, TextInputEditText etValue) {
-        ilValue.setEndIconOnClickListener(v -> showColorPickerDialog(etValue, ilValue));
+    private void setupColorPicker(TextInputLayout valueInputLayout, TextInputEditText valueEditText) {
+        valueInputLayout.setEndIconOnClickListener(v -> showColorPickerDialog(valueEditText, valueInputLayout));
     }
 
     private void setupInputValidation(AlertDialog dialog, LayoutValuesItemDialogBinding bind) {
@@ -167,7 +167,7 @@ public class ColorFragment extends Fragment {
 
             dialog.dismiss();
         } catch (IllegalArgumentException e) {
-            bind.textInputLayoutValue.setError("Invalid color (e.g. #FF0000)");
+            bind.textInputLayoutValue.setError(getString(R.string.error_invalid_color));
         }
     }
 

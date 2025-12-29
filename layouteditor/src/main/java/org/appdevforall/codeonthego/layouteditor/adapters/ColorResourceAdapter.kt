@@ -43,26 +43,12 @@ class ColorResourceAdapter(
     val colorPreview = binding.colorPreview
   }
 
-  /**
-   * Inflates the layout for the color item view.
-   *
-   * @param parent The ViewGroup into which the new View will be added.
-   * @param viewType The view type of the new View.
-   * @return A new ViewHolder that holds a View of the given view type.
-   */
   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
     return VH(
       LayoutColorItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
     )
   }
 
-  /**
-   * Binds the data to the view holder.
-   * Handles safe color parsing to prevent crashes if the color value is invalid.
-   *
-   * @param holder The ViewHolder which should be updated.
-   * @param position The position of the item within the adapter's data set.
-   */
   override fun onBindViewHolder(holder: VH, position: Int) {
     holder.itemView.animation = AnimationUtils.loadAnimation(
       holder.itemView.context, R.anim.project_list_animation
@@ -159,8 +145,8 @@ class ColorResourceAdapter(
   }
 
     @SuppressLint("SetTextI18n")
-    private fun editColor(v: View, pos: Int) {
-        val context = v.context
+    private fun editColor(itemView: View, pos: Int) {
+        val context = itemView.context
         val binding = LayoutValuesItemDialogBinding.inflate(LayoutInflater.from(context))
         val item = colorList[pos]
 
@@ -170,16 +156,16 @@ class ColorResourceAdapter(
 
         // 2. Setup Dialog
         val dialog = MaterialAlertDialogBuilder(context)
-            .setTitle("Edit Color")
+            .setTitle(R.string.edit_color_dialog_title)
             .setView(binding.root)
             .setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.okay) { _, _ ->
-                performSaveColor(v, pos, binding)
+                performSaveColor(itemView, pos, binding)
             }
             .create()
 
         // 3. Setup Logic Components
-        setupColorPickerInteraction(v, binding)
+        setupColorPickerInteraction(itemView, binding)
         setupValidation(dialog, binding, pos)
 
         dialog.show()
