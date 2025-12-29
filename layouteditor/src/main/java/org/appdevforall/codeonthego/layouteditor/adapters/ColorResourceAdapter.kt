@@ -256,7 +256,7 @@ class ColorResourceAdapter(
             binding.textInputLayoutValue.error = null
             binding.textInputLayoutValue.isErrorEnabled = false
         } else {
-            binding.textInputLayoutValue.error = "Invalid color"
+            binding.textInputLayoutValue.error = dialog.context.getString(R.string.error_invalid_color)
         }
 
         // 3. Update Button State (Only enabled if BOTH are valid)
