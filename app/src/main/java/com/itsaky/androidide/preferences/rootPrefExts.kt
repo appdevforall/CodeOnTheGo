@@ -22,30 +22,28 @@ import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.parcelize.Parcelize
 
 internal fun IDEPreferences.addRootPreferences() {
-  addPreference(ConfigurationPreferences())
-  addPreference(DeveloperOptionsScreen())
+	addPreference(ConfigurationPreferences())
+	addPreference(DeveloperOptionsScreen())
 }
 
 @Parcelize
 class ConfigurationPreferences(
-  override val key: String = "idepref_configure",
-  override val title: Int = string.configure,
-  override val children: List<IPreference> = mutableListOf()
+	override val key: String = "idepref_configure",
+	override val title: Int = string.configure,
+	override val children: List<IPreference> = mutableListOf()
 ) : IPreferenceGroup() {
 
-  init {
-    addPreference(GeneralPreferencesScreen())
-    addPreference(EditorPreferencesScreen())
-    addPreference(BuildAndRunPreferences())
-    addPreference(TermuxPreferences())
+	init {
+		addPreference(GeneralPreferencesScreen())
+		addPreference(EditorPreferencesScreen())
+		addPreference(BuildAndRunPreferences())
+		addPreference(TermuxPreferences())
 
-    // Only show Plugin Manager when experimental features are enabled
-    if (FeatureFlags.isExperimentsEnabled()) {
-      addPreference(PluginManagerEntry())
-    }
-    
-    addPreference(about)
-  }
+		// Only show Plugin Manager when experimental features are enabled
+		if (FeatureFlags.isExperimentsEnabled) {
+			addPreference(PluginManagerEntry())
+		}
+
+		addPreference(about)
+	}
 }
-
-
