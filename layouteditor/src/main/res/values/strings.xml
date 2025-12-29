@@ -7,6 +7,7 @@
     <string name="project_saved">Project saved.</string>
     <string name="new_project">New project</string>
     <string name="layout_saved">Layout Saved</string>
+    <string name="failed_to_save_layout">Failed to save layout</string>
     <string name="new_layout">New Layout</string>
     <string name="layout_empty">Layout empty! Add a view before saving&#8230;</string>
     <string name="add_new">Add new</string>
