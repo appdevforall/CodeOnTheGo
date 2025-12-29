@@ -22,6 +22,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
@@ -30,13 +31,14 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.R.string
+import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
+import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.FindActionDialog
@@ -89,6 +91,7 @@ import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
 import org.adfa.constants.CONTENT_KEY
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -466,6 +469,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		initializeProject(buildVariants = selectedVariants, forceSync = forceSync)
 	}
 
+	private fun showToast(message: String) {
+		Toast.makeText(this@ProjectHandlerActivity, message, Toast.LENGTH_LONG).show()
+	}
+
+	private suspend fun handleMissingProjectDirectory(projectName: String) = withContext(Dispatchers.Main) {
+		recentProjectsViewModel.deleteProject(projectName)
+		showToast(getString(string.msg_project_dir_doesnt_exist))
+
+		val intent = Intent(this@ProjectHandlerActivity, MainActivity::class.java).apply {
+			addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+		}
+
+		startActivity(intent)
+		this@ProjectHandlerActivity.finish()
+	}
+
 	/**
 	 * Initialize (sync) the project.
 	 *
@@ -479,10 +498,21 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val projectDir = File(manager.projectPath)
 		if (!projectDir.exists()) {
 			log.error("GradleProject directory does not exist. Cannot initialize project")
+			handleMissingProjectDirectory(projectDir.name)
 			return@launch
 		}
 
-		val needsSync = forceSync || manager.isGradleSyncNeeded(projectDir)
+		val needsSync = try {
+			forceSync || manager.isGradleSyncNeeded(projectDir)
+		} catch (e: Exception) {
+			when (e) {
+				is FileNotFoundException -> {
+					handleMissingProjectDirectory(projectDir.name)
+					return@launch
+				}
+				else -> throw e
+			}
+		}
 
 		withContext(Dispatchers.Main.immediate) {
 			preProjectInit()

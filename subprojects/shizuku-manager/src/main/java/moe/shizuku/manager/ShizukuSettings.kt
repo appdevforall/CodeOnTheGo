@@ -1,54 +1,61 @@
-package moe.shizuku.manager;
+package moe.shizuku.manager
 
-import static java.lang.annotation.RetentionPolicy.SOURCE;
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.annotation.IntDef
+import androidx.core.content.edit
+import com.itsaky.androidide.app.BaseApplication.Companion.baseInstance
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
-import android.content.Context;
-import android.content.SharedPreferences;
-import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
-import com.itsaky.androidide.app.BaseApplication;
-import java.lang.annotation.Retention;
+object ShizukuSettings {
+	const val NAME: String = "settings"
 
-public class ShizukuSettings {
+	@Volatile
+	private var preferences: SharedPreferences? = null
+	private val mutex = Mutex()
 
-	public static final String NAME = "settings";
-
-	private static SharedPreferences sPreferences;
-
-	@LaunchMethod
-	public static int getLastLaunchMode() {
-		return getPreferences().getInt("mode", LaunchMethod.UNKNOWN);
+	suspend fun setLastLaunchMode(
+		@LaunchMethod mode: Int,
+	) {
+		getSharedPreferences().edit { putInt("mode", mode) }
 	}
 
-	public static SharedPreferences getPreferences() {
-		return sPreferences;
+	suspend fun getLastLaunchMode(): Int = getSharedPreferences().getInt("mode", LaunchMethod.UNKNOWN)
+
+	suspend fun getSharedPreferences(): SharedPreferences {
+		initialize()
+		return preferences!!
 	}
 
-	public static void initialize() {
-		if (sPreferences == null) {
-			sPreferences = getSettingsStorageContext()
-					.getSharedPreferences(NAME, Context.MODE_PRIVATE);
+	suspend fun initialize() {
+		if (preferences != null) return
+
+		mutex.withLock {
+			preferences =
+				withContext(Dispatchers.IO) {
+					settingsStorageContext
+						.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+				}
 		}
 	}
 
-	public static void setLastLaunchMode(@LaunchMethod int method) {
-		getPreferences().edit().putInt("mode", method).apply();
-	}
+	private val settingsStorageContext: Context
+		get() = baseInstance.getSafeContext(true)
 
-	@NonNull
-	private static Context getSettingsStorageContext() {
-		return BaseApplication.getBaseInstance().getSafeContext(true);
-	}
-
-	@IntDef({
-			LaunchMethod.UNKNOWN,
-			LaunchMethod.ROOT,
-			LaunchMethod.ADB,
-	})
-	@Retention(SOURCE)
-	public @interface LaunchMethod {
-		int UNKNOWN = -1;
-		int ROOT = 0;
-		int ADB = 1;
+	@IntDef(
+		LaunchMethod.UNKNOWN,
+		LaunchMethod.ROOT,
+		LaunchMethod.ADB,
+	)
+	@Retention(AnnotationRetention.SOURCE)
+	annotation class LaunchMethod {
+		companion object {
+			const val UNKNOWN: Int = -1
+			const val ROOT: Int = 0
+			const val ADB: Int = 1
+		}
 	}
 }
