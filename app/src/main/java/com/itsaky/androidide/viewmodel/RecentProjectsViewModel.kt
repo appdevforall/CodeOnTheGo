@@ -45,8 +45,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
 
     // Get the database and DAO instance
-    private val recentProjectDao: RecentProjectDao =
-        RecentProjectRoomDatabase.getDatabase(application, viewModelScope).recentProjectDao()
+    private val recentProjectDatabase: RecentProjectRoomDatabase =
+        RecentProjectRoomDatabase.getDatabase(application, viewModelScope)
+    private val recentProjectDao: RecentProjectDao = recentProjectDatabase.recentProjectDao()
 
     fun loadProjects(): Job {
         return viewModelScope.launch(Dispatchers.IO) {
@@ -145,11 +146,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
         recentProjectDao.deleteByName(name)
-        // Update the LiveData by removing the deleted project
-        _projects.value?.let { currentList ->
-            val updatedList = currentList.filter { it.name != name }
-            _projects.postValue(updatedList)
-        }
+        vacuumDatabase()
         loadProjects()
     }
 
@@ -181,10 +178,20 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 			loadProjects()
 		}
 
-    fun deleteSelectedProjects(selectedNames: List<String>) =
-        viewModelScope.launch(Dispatchers.IO) {
-            // Delete the selected projects from the database
-            recentProjectDao.deleteByNames(selectedNames)
-            loadProjects()
-        }
+  fun deleteSelectedProjects(selectedNames: List<String>) =
+    viewModelScope.launch(Dispatchers.IO) {
+      if (selectedNames.isEmpty()) return@launch
+      // Delete the selected projects from the database
+      recentProjectDao.deleteByNames(selectedNames)
+      vacuumDatabase()
+      loadProjects()
+    }
+
+  private suspend fun vacuumDatabase() {
+    withContext(Dispatchers.IO) {
+      runCatching {
+      	recentProjectDatabase.vacuum()
+			}
+    }
+  }
 }
