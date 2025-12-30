@@ -1,7 +1,6 @@
 package com.itsaky.androidide.viewmodel
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -20,7 +19,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 enum class SortCriteria {
     NAME,
@@ -189,26 +187,10 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
       loadProjects()
     }
 
-	private fun logDatabaseSizes(tag: String) {
-    val context = getApplication<Application>()
-    val dbFile = context.getDatabasePath("RecentProject_database")
-    val walFile = File(dbFile.absolutePath + "-wal")
-
-    val dbSize = if (dbFile.exists()) dbFile.length() else 0L
-    val walSize = if (walFile.exists()) walFile.length() else 0L
-
-    Log.i(
-        "DB_VACUUM",
-        "$tag | db=${dbSize} bytes, wal=${walSize} bytes"
-    )
-	}
-
   private suspend fun vacuumDatabase() {
     withContext(Dispatchers.IO) {
       runCatching {
-				logDatabaseSizes("BEFORE")
       	recentProjectDatabase.vacuum()
-				logDatabaseSizes("AFTER")
 			}
     }
   }
