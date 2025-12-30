@@ -13,6 +13,12 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
 
     abstract fun recentProjectDao(): RecentProjectDao
 
+    fun vacuum() {
+        val db = openHelper.writableDatabase
+        db.execSQL("PRAGMA wal_checkpoint(FULL)")
+        db.execSQL("VACUUM")
+    }
+
     private class RecentProjectRoomDatabaseCallback(
         private val context: Context,
         private val scope: CoroutineScope
