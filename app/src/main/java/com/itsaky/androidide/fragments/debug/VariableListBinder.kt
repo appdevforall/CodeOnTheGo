@@ -276,7 +276,11 @@ class VariableListBinder(
                     logger.error("Failed to precompute text", e)
                     withContext(Dispatchers.Main) {
                         if (dialog.isShowing) {
-                            binding.input.setText(text)
+                            val truncationMsg = binding.root.context.getString(R.string.debugger_variable_truncated)
+                            val safeText = if (text.length > HUGE_TEXT_THRESHOLD) {
+                                text.take(HUGE_TEXT_THRESHOLD) + "\n\n[$truncationMsg]"
+                            } else { text }
+                            binding.input.setText(safeText)
                             finalizeDialogUI(binding, text, isHugeText)
                         }
                     }

@@ -677,6 +677,7 @@
 	<string name="debugger_status_resolving">Resolving…</string>
 	<string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
 	<string name="debugger_loading_variable_value">Loading variable value</string>
+	<string name="debugger_variable_truncated">Truncated due to size</string>
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
