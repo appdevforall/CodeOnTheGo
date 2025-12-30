@@ -476,10 +476,7 @@ abstract class BaseEditorActivity :
 				editorAppBarLayout.updatePadding(
 					top = insets.top,
 				)
-				customToolbar.setContentInsetsRelative(0, 0)
-				customToolbar.setPadding(0, 0, 0, 0)
-				titleToolbar.setContentInsetsRelative(0, 0)
-				titleToolbar.setPadding(0, 0, 0, 0)
+				projectActionsToolbar.setContentInsetsRelative(0, 0)
 			}
 		}
 	}
@@ -601,8 +598,6 @@ abstract class BaseEditorActivity :
         // Set the project name in the title TextView
         content.root.findViewById<android.widget.TextView>(R.id.title_text)?.apply {
             text = editorViewModel.getProjectName()
-            // Remove any internal padding that might come from the style
-            setPadding(paddingLeft, 0, paddingRight, 0)
         }
         
         // Set up the drawer toggle on the title toolbar (where the hamburger menu should be)
@@ -1289,7 +1284,7 @@ abstract class BaseEditorActivity :
     private fun showTooltip(tag: String) {
         TooltipManager.showIdeCategoryTooltip(
             context = this,
-            anchorView = content.customToolbar,
+            anchorView = content.projectActionsToolbar,
             tag = tag,
         )
     }

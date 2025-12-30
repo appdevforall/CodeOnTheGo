@@ -10,38 +10,26 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.itsaky.androidide.common.R
-import com.itsaky.androidide.common.databinding.CustomToolbarBinding
+import com.itsaky.androidide.common.databinding.ProjectActionsToolbarBinding
 
-class CustomToolbar @JvmOverloads constructor(
+class ProjectActionsToolbar @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     var onNavIconLongClick: (() -> Unit)? = null
 ) : MaterialToolbar(context, attrs) {
 
     init {
-        // Navigation icon is no longer used in CustomToolbar
+        // Navigation icon is no longer used in ProjectActionsToolbar
         // It's now handled by the title toolbar
         // Remove any navigation icon that might be set
         navigationIcon = null
     }
 
-    private val binding: CustomToolbarBinding =
-        CustomToolbarBinding.inflate(LayoutInflater.from(context), this, true)
-
-    init {
-        // Remove all padding from the root toolbar
-        setPadding(0, 0, 0, 0)
-        // Remove all padding from the menu container
-        binding.menuContainer.setPadding(0, 0, 0, 0)
-        // Also set padding on the HorizontalScrollView
-        binding.horizontalScrollView.setPadding(0, 0, 0, 0)
-    }
+    private val binding: ProjectActionsToolbarBinding =
+        ProjectActionsToolbarBinding.inflate(LayoutInflater.from(context), this, true)
 
     @Deprecated("Title is now displayed separately. Use the title_text TextView in content_editor.xml instead.")
-    fun setTitleText(title: String) {
-        // Title is now handled separately in content_editor.xml
-        // This method is kept for backward compatibility but does nothing
-    }
+    fun setTitleText(title: String) = Unit
 
     fun addMenuItem(
         icon: Drawable?,
@@ -105,3 +93,4 @@ class CustomToolbar @JvmOverloads constructor(
         this.onNavIconLongClick = listener
     }
 }
+

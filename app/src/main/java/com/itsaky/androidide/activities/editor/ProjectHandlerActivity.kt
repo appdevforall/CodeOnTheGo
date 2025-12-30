@@ -120,7 +120,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val registry = getInstance() as DefaultActionsRegistry
 
 		return FindActionDialog(
-			anchor = content.customToolbar.findViewById(R.id.menu_container),
+			anchor = content.projectActionsToolbar.findViewById(R.id.menu_container),
 			context = this,
 			actionData = actionData,
 			shouldShowFindInFileAction = shouldHideFindInFileAction,

@@ -15,12 +15,6 @@ class CompactMaterialToolbar @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : MaterialToolbar(context, attrs, defStyleAttr) {
 
-    init {
-        // Remove all padding
-        setPadding(0, 0, 0, 0)
-        setContentInsetsRelative(0, 0)
-    }
-
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // Let the toolbar size itself naturally based on its children
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)

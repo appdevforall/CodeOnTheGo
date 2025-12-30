@@ -18,6 +18,7 @@
         android:scrollbars="horizontal"
         android:fillViewport="true"
         android:paddingTop="0dp"
+        android:paddingHorizontal="10dp"
         android:paddingBottom="0dp">
 
         <LinearLayout
@@ -33,3 +34,4 @@
             android:minHeight="0dp" />
     </HorizontalScrollView>
 </com.google.android.material.appbar.MaterialToolbar>
+
