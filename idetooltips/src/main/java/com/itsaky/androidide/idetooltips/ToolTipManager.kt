@@ -215,16 +215,12 @@ object TooltipManager {
     }
 
     private fun canShowPopup(context: Context, view: View): Boolean {
-        // Helper function to unwrap ContextWrappers (like ContextThemeWrapper)
-        fun Context.findActivity(): Activity? {
-            var currentContext = this
-            while (currentContext is ContextWrapper) {
-                if (currentContext is Activity) {
-                    return currentContext
-                }
-                currentContext = currentContext.baseContext
+        tailrec fun Context.findActivity(): Activity? {
+            return when (this) {
+                is Activity -> this
+                is ContextWrapper -> baseContext?.findActivity()
+                else -> null
             }
-            return null
         }
 
         // Use the helper to find the real Activity
