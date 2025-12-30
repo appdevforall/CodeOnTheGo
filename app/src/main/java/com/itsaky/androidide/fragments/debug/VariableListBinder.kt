@@ -1,11 +1,14 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.content.Context
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.text.PrecomputedTextCompat
+import androidx.core.widget.TextViewCompat
 import com.itsaky.androidide.databinding.DebuggerSetVariableValueBinding
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -36,6 +39,16 @@ class VariableListBinder(
 
     companion object {
         private val logger = LoggerFactory.getLogger(VariableListBinder::class.java)
+
+        /* Visual limit for the list (RecyclerView).
+         * If larger than this, we truncate with "..." to avoid scroll lag.
+         */
+        private const val MAX_PREVIEW_LENGTH = 100
+
+        /* Threshold to switch rendering strategy in the editor dialog.
+         * If exceeded, we disable line wrapping (Word Wrap) and HW acceleration to prevent ANRs.
+         */
+        private const val HUGE_TEXT_THRESHOLD = 5000
     }
 
     override fun createView(parent: ViewGroup, viewType: Int): View {
@@ -84,6 +97,8 @@ class VariableListBinder(
             val descriptor = data.resolve()
             val strValue = data.resolvedValue()?.toString()
                 ?: context.getString(R.string.debugger_value_unavailable)
+            val previewValue = if (strValue.length > MAX_PREVIEW_LENGTH)
+                strValue.take(MAX_PREVIEW_LENGTH) + "..." else strValue
 
             withContext(Dispatchers.Main) {
                 binding.apply {
@@ -97,7 +112,7 @@ class VariableListBinder(
 
                     // noinspection SetTextI18n
                     label.text =
-                        "${descriptor.name}: ${descriptor.typeName} = $strValue"
+                        "${descriptor.name}: ${descriptor.typeName} = $previewValue"
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
@@ -156,45 +171,126 @@ class VariableListBinder(
 
         val inflater = LayoutInflater.from(context)
         val binding = DebuggerSetVariableValueBinding.inflate(inflater)
-        binding.input.setText(currentValue)
-        if (currentValue.isNotEmpty()) {
-            binding.input.selectAll()
-        }
+        val isHugeText = currentValue.length > HUGE_TEXT_THRESHOLD
 
-        DialogUtils.newMaterialDialogBuilder(context)
+        setupInputEditor(binding.input, isHugeText)
+        binding.loadingIndicator.visibility = View.VISIBLE
+        binding.inputLayout.visibility = View.INVISIBLE
+
+        val dialog = DialogUtils.newMaterialDialogBuilder(context)
             .setTitle(title)
             .setView(binding.root)
             .setPositiveButton(context.getString(R.string.debugger_dialog_button_set), null)
             .setNegativeButton(context.getString(android.R.string.cancel), null)
             .setCancelable(true)
             .create()
-            .apply {
-                setOnShowListener { dialog ->
-                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        val inputLayout = binding.inputLayout
-                        val input = binding.input
-                        val newValue = input.text?.toString()?.takeIf(String::isNotBlank) ?: run {
-                            binding.inputLayout.error = context.getString(R.string.debugger_variable_value_invalid)
-                            return@setOnClickListener
-                        }
 
-                        coroutineScope.launch(Dispatchers.IO) {
-                            val isSet = variable.setValue(newValue)
-                            withContext(Dispatchers.Main) {
-                                if (isSet) {
-                                    inputLayout.error = null
-                                    dialog.dismiss()
-                                    viewModel.refreshState()
-                                } else {
-                                    inputLayout.error =
-                                        context.getString(R.string.debugger_variable_value_invalid)
-                                }
-                            }
-                        }
+        dialog.setOnShowListener { dialog ->
+            (dialog as? AlertDialog)?.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+                handleSaveAction(binding, variable, dialog)
+            }
+        }
+
+        dialog.show()
+
+        loadTextAsync(binding, dialog, currentValue, isHugeText)
+    }
+
+    /**
+     * Configures the EditText properties to avoid ANRs with large text.
+     */
+    private fun setupInputEditor(input: android.widget.EditText, isHugeText: Boolean) {
+        val baseInputType = InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+
+        input.apply {
+            if (isHugeText) {
+                inputType = baseInputType or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                isSingleLine = true
+                setHorizontallyScrolling(true)
+                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+            } else {
+                inputType = baseInputType
+                isSingleLine = false
+                setHorizontallyScrolling(false)
+            }
+        }
+    }
+
+    /**
+     * Handles value saving logic, validation, and visual feedback.
+     */
+    private fun handleSaveAction(
+        binding: DebuggerSetVariableValueBinding,
+        variable: ResolvableVariable<*>,
+        dialog: AlertDialog
+    ) {
+        val newValue = binding.input.text?.toString()
+
+        if (newValue.isNullOrBlank()) {
+            binding.inputLayout.error = binding.root.context.getString(R.string.debugger_variable_value_invalid)
+            return
+        }
+
+        coroutineScope.launch(Dispatchers.IO) {
+            val isSet = variable.setValue(newValue)
+            withContext(Dispatchers.Main) {
+                if (isSet) {
+                    binding.inputLayout.error = null
+                    dialog.dismiss()
+                    viewModel.refreshState()
+                } else {
+                    binding.inputLayout.error =
+                        binding.root.context.getString(R.string.debugger_variable_value_invalid)
+                }
+            }
+        }
+    }
+
+    /**
+     * Calculates text layout in background and assigns it when ready.
+     */
+    private fun loadTextAsync(
+        binding: DebuggerSetVariableValueBinding,
+        dialog: AlertDialog,
+        text: String,
+        isHugeText: Boolean
+    ) {
+        binding.input.post {
+            if (!dialog.isShowing) return@post
+
+            val params = TextViewCompat.getTextMetricsParams(binding.input)
+
+            coroutineScope.launch(Dispatchers.Default) {
+                val precomputedText = PrecomputedTextCompat.create(text, params)
+
+                withContext(Dispatchers.Main) {
+                    if (dialog.isShowing) {
+                        TextViewCompat.setPrecomputedText(binding.input, precomputedText)
+                        finalizeDialogUI(binding, text, isHugeText)
                     }
                 }
             }
-            .show()
+        }
+    }
+
+    private fun finalizeDialogUI(
+        binding: DebuggerSetVariableValueBinding,
+        currentValue: String,
+        isHugeText: Boolean
+    ) {
+        binding.loadingIndicator.visibility = View.GONE
+        binding.inputLayout.visibility = View.VISIBLE
+        binding.input.requestFocus()
+
+        if (currentValue.isEmpty()) return
+
+        if (!isHugeText) {
+            binding.input.selectAll()
+            return
+        }
+        binding.input.setSelection(0)
     }
 }
 
