@@ -6,6 +6,17 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
 
 class PreferencesManager(val context: Context) {
+  val prefs: SharedPreferences by lazy {
+		PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
+	}
+
+	/**
+	 * Forces the lazy initialization of [prefs] to trigger the underlying disk I/O.
+	 * Call this on a background thread (e.g., Dispatchers.IO) to prevent UI jank on first access.
+	 */
+	fun warmUp() {
+		prefs
+	}
 
   val isEnableVibration: Boolean
     get() = prefs.getBoolean(SharedPreferencesKeys.KEY_VIBRATION, false)
@@ -22,7 +33,4 @@ class PreferencesManager(val context: Context) {
       "Dark" -> AppCompatDelegate.MODE_NIGHT_YES
       else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
     }
-
-  val prefs: SharedPreferences
-    get() = PreferenceManager.getDefaultSharedPreferences(context)
 }

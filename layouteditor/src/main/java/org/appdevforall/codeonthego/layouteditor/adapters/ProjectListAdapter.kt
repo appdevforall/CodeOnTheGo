@@ -1,10 +1,12 @@
 package org.appdevforall.codeonthego.layouteditor.adapters
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.MenuItem
@@ -14,12 +16,18 @@ import android.view.WindowManager
 import android.view.animation.AnimationUtils
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.TooltipCompat
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.layouteditor.LayoutEditor.Companion.instance
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.R
@@ -34,10 +42,11 @@ import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils.Companion.make
 import java.io.File
+import androidx.core.content.edit
+import androidx.lifecycle.LifecycleOwner
 
 class ProjectListAdapter(private val projects: MutableList<ProjectFile>) :
   RecyclerView.Adapter<ProjectListAdapter.ViewHolder>() {
-  private lateinit var preferencesManager:PreferencesManager
 
   var onDeleteCallback: ((Int) -> Unit)? = null
 
@@ -223,23 +232,40 @@ class ProjectListAdapter(private val projects: MutableList<ProjectFile>) :
   }
 
   private fun openProject(v: View, position: Int) {
-    val intent = Intent(v.context, EditorActivity::class.java)
-    preferencesManager = PreferencesManager(v.context)
-    ProjectManager.instance.openProject(projects[position])
+    val lifecycleOwner = v.findViewTreeLifecycleOwner() ?: (v.context as? LifecycleOwner)
+    val scope = lifecycleOwner?.lifecycleScope ?: return
 
-    val projectDir =
-      "${FileUtil.getPackageDataDir(instance!!.context)}/projects/${projects[position].name}"
+    v.isEnabled = false
 
-    if (!preferencesManager.prefs.getBoolean("copyAssets", false)
-      && !(File("$projectDir/values/colors.xml").exists())
-    ) {
-      FileUtil.makeDir("$projectDir/values/")
-      // FileUtil.makeDir(projectDir + "/drawable/");
-      // FileUtil.copyFileFromAsset("default_image.png", projectDir + "/drawable");
-      FileUtil.copyFileFromAsset("colors.xml", "$projectDir/values")
-      preferencesManager.prefs.edit().putBoolean("copyAssets", true).apply()
+    scope.launch {
+      try {
+        withContext(Dispatchers.IO) {
+          ProjectManager.instance.openProject(projects[position])
+          val prefsManager = PreferencesManager(v.context)
+
+          val projectDir =
+            "${FileUtil.getPackageDataDir(instance!!.context)}/projects/${projects[position].name}"
+          val checkFile = File("$projectDir/values/colors.xml")
+
+          if (!prefsManager.prefs.getBoolean("copyAssets", false) && !checkFile.exists()) {
+            FileUtil.makeDir("$projectDir/values/")
+            FileUtil.copyFileFromAsset("colors.xml", "$projectDir/values")
+            prefsManager.prefs.edit { putBoolean("copyAssets", true) }
+          }
+        }
+        val intent = Intent(v.context, EditorActivity::class.java)
+        v.context.startActivity(intent)
+			} catch (e: Exception) {
+			  withContext(Dispatchers.Main) {
+			    Toast.makeText(v.context, v.context.getString(R.string.msg_error_opening_project), Toast.LENGTH_SHORT).show()
+			  }
+			  Log.e("ProjectListAdapter", "Error opening project", e)
+			} finally {
+				if (v.context is Activity && !(v.context as Activity).isFinishing) {
+				  v.isEnabled = true
+				}
+			}
     }
-    v.context.startActivity(intent)
   }
 
   private fun previewLayout(v: View, position: Int) {
