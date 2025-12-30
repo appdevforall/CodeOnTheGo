@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.itsaky.androidide.FeedbackButtonManager
 import kotlinx.coroutines.launch
 import org.koin.core.parameter.parametersOf
 import java.io.File
@@ -33,7 +34,7 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 class ComputerVisionActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityComputerVisionBinding
-
+    private var feedbackButtonManager: FeedbackButtonManager? = null
     private val viewModel: ComputerVisionViewModel by viewModel {
         parametersOf(
             intent.getStringExtra(EXTRA_LAYOUT_FILE_PATH),
@@ -94,6 +95,7 @@ class ComputerVisionActivity : AppCompatActivity() {
         setupToolbar()
         setupClickListeners()
         observeViewModel()
+        setupFeedbackButton()
     }
 
     private fun setupToolbar() {
@@ -134,7 +136,14 @@ class ComputerVisionActivity : AppCompatActivity() {
             }
         }
     }
-
+    private fun setupFeedbackButton(){
+        feedbackButtonManager =
+            FeedbackButtonManager(
+                activity = this,
+                feedbackFab = binding.fabFeedback,
+            )
+        feedbackButtonManager?.setupDraggableFab()
+    }
     private fun updateUi(state: ComputerVisionUiState) {
         val displayBitmap = if (state.hasDetections && state.currentBitmap != null) {
             visualizeDetections(state.currentBitmap, state.detections)
@@ -235,6 +244,10 @@ class ComputerVisionActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
+    }
     private fun launchCamera() {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.TITLE, getString(R.string.camera_picture_title))
