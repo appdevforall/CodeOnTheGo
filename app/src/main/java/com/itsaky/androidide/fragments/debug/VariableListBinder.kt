@@ -263,12 +263,22 @@ class VariableListBinder(
             val params = TextViewCompat.getTextMetricsParams(binding.input)
 
             coroutineScope.launch(Dispatchers.Default) {
-                val precomputedText = PrecomputedTextCompat.create(text, params)
+                try {
+                    val precomputedText = PrecomputedTextCompat.create(text, params)
 
-                withContext(Dispatchers.Main) {
-                    if (dialog.isShowing) {
-                        TextViewCompat.setPrecomputedText(binding.input, precomputedText)
-                        finalizeDialogUI(binding, text, isHugeText)
+                    withContext(Dispatchers.Main) {
+                        if (dialog.isShowing) {
+                            TextViewCompat.setPrecomputedText(binding.input, precomputedText)
+                            finalizeDialogUI(binding, text, isHugeText)
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.error("Failed to precompute text", e)
+                    withContext(Dispatchers.Main) {
+                        if (dialog.isShowing) {
+                            binding.input.setText(text)
+                            finalizeDialogUI(binding, text, isHugeText)
+                        }
                     }
                 }
             }

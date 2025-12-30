@@ -14,6 +14,7 @@
         android:layout_height="wrap_content"
         android:visibility="gone"
         android:elevation="10dp"
+        android:contentDescription="@string/debugger_loading_variable_value"
         app:layout_constraintBottom_toBottomOf="@+id/input_layout"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
