@@ -48,67 +48,45 @@ fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
 
 @SuppressLint("ClickableViewAccessibility")
 fun View.setupGestureHandling(
-	onLongPress: (View) -> Unit,
-	onDrag: (View) -> Unit,
+    onLongPress: (View) -> Unit,
+    onDrag: (View) -> Unit
 ) {
-	val handler = Handler(Looper.getMainLooper())
-	var isDragging = false
-	var longPressFired = false
-	val touchSlop = ViewConfiguration.get(this.context).scaledTouchSlop
-	var downX = 0f
-	var downY = 0f
+    val handler = Handler(Looper.getMainLooper())
+    var isTooltipStarted = false
+    var startTime = 0L
 
-	val longPressRunnable =
-		Runnable {
-			if (!isDragging) {
-				longPressFired = true
-				this.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-				onLongPress(this)
-			}
-		}
+    setOnTouchListener { view, event ->
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                isTooltipStarted = false
+                startTime = System.currentTimeMillis()
 
-	this.setOnTouchListener { view, event ->
-		when (event.action) {
-			MotionEvent.ACTION_DOWN -> {
-				isDragging = false
-				longPressFired = false
-				downX = event.x
-				downY = event.y
+                // Trigger long press after 800ms
+                handler.postDelayed({
+                    if (!isTooltipStarted) {
+                        isTooltipStarted = true
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        onLongPress(view)
+                    }
+                }, 800)
+            }
 
-				view.parent.requestDisallowInterceptTouchEvent(true)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                handler.removeCallbacksAndMessages(null)
+                val holdDuration = System.currentTimeMillis() - startTime
 
-				handler.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout().toLong())
-				true
-			}
-
-			MotionEvent.ACTION_MOVE -> {
-				if (!isDragging && (abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop)) {
-					isDragging = true
-					handler.removeCallbacks(longPressRunnable)
-					onDrag(view)
-				}
-				isDragging
-			}
-
-			MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-				view.parent.requestDisallowInterceptTouchEvent(false)
-
-				val wasDragging = isDragging
-				val wasLongPressed = longPressFired
-
-				if (!wasDragging && !wasLongPressed) {
-					view.performClick()
-				}
-
-				handler.removeCallbacks(longPressRunnable)
-				isDragging = false
-				longPressFired = false
-				true
-			}
-
-			else -> false
-		}
-	}
+                if (!isTooltipStarted) {
+                    if (holdDuration >= 600) {
+                        // Medium hold for drag (600-800ms)
+                        onDrag(view)
+                    } else {
+                        view.performClick()
+                    }
+                }
+            }
+        }
+        true
+    }
 }
 
 /**
