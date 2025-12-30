@@ -20,6 +20,7 @@ package com.itsaky.androidide.ui
 import android.app.Activity
 import android.content.Context
 import android.util.AttributeSet
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewTreeObserver
@@ -207,7 +208,7 @@ constructor(
 					shareText(text = content, type = filename)
 				} catch (t: Throwable) {
 					if (isAttachedToWindow) {
-						log.warn("Share failed", t)
+						Log.w("EditorBottomSheet", "Share failed", t)
 						flashError(context.getString(R.string.unknown_error))
 					}
 				} finally {
@@ -498,7 +499,7 @@ constructor(
 			}
 			shareFile(file)
 		} catch (e: IOException) {
-			e.printStackTrace()
+			Log.w("EditorBottomSheet", "Failed to write temp file for sharing", e)
 			flashError(context.getString(string.msg_output_text_extraction_failed))
 		}
 	}
