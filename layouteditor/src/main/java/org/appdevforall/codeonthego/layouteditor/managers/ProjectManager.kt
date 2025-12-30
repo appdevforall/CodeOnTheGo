@@ -27,16 +27,19 @@ class ProjectManager private constructor() {
     suspend fun openProject(project: ProjectFile?) = withContext(Dispatchers.IO) {
         val safeProject = project ?: return@withContext
 
-        runCatching {
-				    safeProject.drawables.let { DrawableManager.loadFromFiles(it) }
-				    safeProject.layoutDesigns // just for the sake of creating folder
-				    safeProject.fonts?.let { FontManager.loadFromFiles(it) }
-				}.onSuccess {
-				    openedProject = safeProject
-				}.onFailure {
-				    Log.e("ProjectManager", "Failed to load project resources", it)
-				    throw it
-				}
+        val loadingResult = runCatching {
+            safeProject.drawables.let { DrawableManager.loadFromFiles(it) }
+            safeProject.layoutDesigns // just for the sake of creating folder
+            safeProject.fonts?.let { FontManager.loadFromFiles(it) }
+        }
+        withContext(Dispatchers.Main) {
+            loadingResult.onSuccess {
+                openedProject = safeProject
+            }.onFailure {
+                Log.e("ProjectManager", "Failed to load project resources", it)
+                throw it
+            }
+        }
     }
 
     fun closeProject() {
