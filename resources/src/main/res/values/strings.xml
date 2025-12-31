@@ -282,7 +282,7 @@
 	<string name="msg_replacement">Replacement</string>
 	<string name="title_sync_project">Sync project</string>
 	<string name="wizard_save_location">Save location</string>
-	<string name="wizard_language">Project Language</string>
+	<string name="wizard_language">Project language</string>
 	<string name="next">Next</string>
 	<string name="exit">Exit</string>
 	<string name="idepref_title_customGradleInstallation">Custom Gradle installation</string>
