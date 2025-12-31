@@ -86,6 +86,39 @@ object WhitelistEngine {
 				ofType<DiskReadViolation>()
 				allow(
 					"""
+					Firebase's DataCollectionConfigStorage reads the 'auto data collection' flag from
+					SharedPreferences during initialization triggered by UserUnlockReceiver. This causes
+					a DiskReadViolation on the main thread. Since this is an internal behavior of the
+					Firebase SDK that we cannot control, we allow this violation.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFramesInOrder(
+					listOf(
+						listOf(
+							classAndMethod(
+								"com.google.firebase.internal.DataCollectionConfigStorage",
+								"readAutoDataCollectionEnabled"
+							),
+							classAndMethod(
+								"com.google.firebase.internal.DataCollectionConfigStorage",
+								"<init>"
+							),
+						),
+						listOf(
+							classAndMethod(
+								"com.google.firebase.FirebaseApp\$UserUnlockReceiver",
+								"onReceive"
+							),
+						),
+					),
+				)
+    	}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
 					MIUI's TextView implementation has a MultiLangHelper which is invoked during draw.
 					For some reason, it tries to check whether a file exists, resulting in a
 					DiskReadViolation. Since we can't control when MultiLangHelper is called, we allow
