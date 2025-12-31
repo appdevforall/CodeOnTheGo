@@ -113,7 +113,7 @@ object WhitelistEngine {
 						),
 					),
 				)
-    	}
+			}
 
 			rule {
 				ofType<DiskReadViolation>()
