@@ -16,6 +16,7 @@
  */
 package com.itsaky.androidide.utils
 
+import android.app.Activity
 import android.content.Context
 import android.content.DialogInterface.OnClickListener
 import android.view.LayoutInflater
@@ -163,5 +164,19 @@ object DialogUtils {
       }
       .setNegativeButton(android.R.string.cancel, null)
       .setCancelable(cancelable)
+  }
+
+  @JvmStatic
+  @JvmOverloads
+  fun showRestartPrompt(activity: Activity, cancelable: Boolean = true) {
+    newMaterialDialogBuilder(activity)
+      .setTitle(string.title_restart_required)
+      .setMessage(string.msg_restart_for_plugin_changes)
+      .setPositiveButton(string.btn_restart_now) { _, _ ->
+        activity.restartApp()
+      }
+      .setNegativeButton(string.btn_later, null)
+      .setCancelable(cancelable)
+      .show()
   }
 }

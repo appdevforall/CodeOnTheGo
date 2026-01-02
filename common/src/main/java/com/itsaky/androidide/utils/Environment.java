@@ -44,6 +44,8 @@ public final class Environment {
 	private static final String ANDROIDIDE_PROJECT_CACHE_DIR = SharedEnvironment.PROJECT_CACHE_DIR_NAME;
 	private static final String DATABASE_NAME = "documentation.db";
 
+	public static final String PLUGIN_API_JAR_RELATIVE_PATH = "libs/plugin-api.jar";
+
 	private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
 	public static File ROOT;
 	public static File PREFIX;
@@ -71,6 +73,8 @@ public final class Environment {
 	public static File TOOLING_API_JAR;
 
 	public static File COGO_PLUGIN_JAR;
+
+	public static File PLUGIN_API_JAR;
 
 	public static File INIT_SCRIPT;
 	public static File GRADLE_USER_HOME;
@@ -135,6 +139,8 @@ public final class Environment {
 				"tooling-api-all.jar");
 		COGO_PLUGIN_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "plugin")),
 				"cogo-plugin.jar");
+		PLUGIN_API_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "plugin-api")),
+				"plugin-api.jar");
 		ANDROIDIDE_UI = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "ui"));
 
 		INIT_SCRIPT = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "init")), "init.gradle");

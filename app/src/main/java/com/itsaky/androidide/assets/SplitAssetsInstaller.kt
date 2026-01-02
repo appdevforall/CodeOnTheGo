@@ -19,6 +19,7 @@ import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import kotlin.system.measureTimeMillis
 
 data object SplitAssetsInstaller : BaseAssetsInstaller() {
@@ -109,6 +110,27 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
                                 destFile.outputStream().use { output ->
                                     zipInput.copyTo(output)
                                 }
+                            }
+                            AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
+                                logger.debug("Extracting plugin artifacts from '{}'", entry.name)
+                                val pluginDir = Environment.PLUGIN_API_JAR.parentFile
+                                    ?: throw IllegalStateException("Plugin API parent directory is null")
+                                pluginDir.mkdirs()
+
+                                ZipInputStream(zipInput).use { pluginZip ->
+                                    var pluginEntry = pluginZip.nextEntry
+                                    while (pluginEntry != null) {
+                                        if (!pluginEntry.isDirectory) {
+                                            val targetFile = pluginDir.resolve(pluginEntry.name)
+                                            logger.debug("Extracting '{}' to {}", pluginEntry.name, targetFile)
+                                            targetFile.outputStream().use { output ->
+                                                pluginZip.copyTo(output)
+                                            }
+                                        }
+                                        pluginEntry = pluginZip.nextEntry
+                                    }
+                                }
+                                logger.debug("Completed extracting plugin artifacts")
                             }
 							else -> throw IllegalStateException("Unknown entry: $entryName")
 						}

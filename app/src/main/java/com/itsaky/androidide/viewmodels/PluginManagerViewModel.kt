@@ -127,9 +127,7 @@ class PluginManagerViewModel(
                     if (success) {
                         Log.d(TAG, "Plugin enabled successfully: $pluginId")
                         _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess("Plugin enabled"))
-                        loadPlugins() // Refresh the list
-                        // Show restart prompt to apply changes
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+                        loadPlugins()
                     } else {
                         Log.w(TAG, "Failed to enable plugin: $pluginId")
                         _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to enable plugin"))
@@ -156,9 +154,7 @@ class PluginManagerViewModel(
                     if (success) {
                         Log.d(TAG, "Plugin disabled successfully: $pluginId")
                         _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess("Plugin disabled"))
-                        loadPlugins() // Refresh the list
-                        // Show restart prompt to apply changes
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+                        loadPlugins()
                     } else {
                         Log.w(TAG, "Failed to disable plugin: $pluginId")
                         _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to disable plugin"))

@@ -230,9 +230,8 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 				}
 			}
 		}
-
-		flavorDimensions("abi")
-
+        if (project.path != ":plugin-api") {
+            flavorDimensions("abi")
 		productFlavors {
 			create("v7") {
 				dimension = "abi"
@@ -247,7 +246,7 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 				ndk.abiFilters.clear()
 				ndk.abiFilters += "arm64-v8a"
 			}
-		}
+		} }
 
 		buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
 			initWith(buildTypes.getByName("debug"))

@@ -193,7 +193,19 @@ class PluginManager private constructor(
     suspend fun verifyAllPluginDocumentation() = withContext(Dispatchers.IO) {
         verifyDocumentationForLoadedPlugins()
     }
-    
+
+    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> {
+        if (!pluginFile.exists()) {
+            return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
+        }
+        if (!pluginFile.canRead()) {
+            return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
+        }
+        val pluginLoader = PluginLoader(context, pluginFile)
+        val manifest = pluginLoader.getPluginMetadata()
+            ?: return Result.failure(IllegalArgumentException("Plugin manifest not found in: ${pluginFile.name}"))
+        return Result.success(manifest)
+    }
 
     /**
      * Load plugin and return both the plugin instance and its metadata

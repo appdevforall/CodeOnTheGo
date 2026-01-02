@@ -7,6 +7,7 @@ sealed class BuildState {
     object Idle : BuildState()
     object InProgress : BuildState()
     data class AwaitingInstall(val apkFile: File, val launchInDebugMode: Boolean) : BuildState()
+    data class AwaitingPluginInstall(val cgpFile: File) : BuildState()
     data class Success(val message: String) : BuildState()
     data class Error(val reason: String) : BuildState()
 }

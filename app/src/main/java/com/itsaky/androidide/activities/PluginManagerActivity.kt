@@ -24,6 +24,7 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.errorIcon
 import com.itsaky.androidide.utils.showOnUiThread
+import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -183,7 +184,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
                 showUninstallConfirmation(effect.plugin)
             }
             is PluginManagerUiEffect.ShowRestartPrompt -> {
-                showRestartPrompt()
+                showRestartPrompt(this, cancelable = false)
             }
         }
     }
@@ -244,23 +245,4 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             .show()
     }
 
-    private fun showRestartPrompt() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Restart Required")
-            .setMessage("Plugin changes will take effect after restarting the app. Do you want to restart now?")
-            .setPositiveButton("Restart Now") { _, _ ->
-                restartApp()
-            }
-            .setNegativeButton("Later", null)
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun restartApp() {
-        val intent = packageManager.getLaunchIntentForPackage(packageName)
-        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        startActivity(intent)
-        finishAffinity()
-    }
 }

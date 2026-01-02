@@ -17,12 +17,17 @@
 
 package com.itsaky.androidide.utils
 
+import android.app.Activity
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources.Theme
 import android.provider.Settings
 import android.util.TypedValue
+import kotlin.system.exitProcess
 
 /**
  * Check if the given accessibility service is enabled.
@@ -59,3 +64,12 @@ fun Theme.resolveAttr(id: Int, resolveRefs: Boolean = true): Int =
     resolveAttribute(id, it, resolveRefs)
     it.data
   }
+
+fun Activity.restartApp() {
+    val intent = packageManager.getLaunchIntentForPackage(packageName)
+    intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+    intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    startActivity(intent)
+    finishAffinity()
+    exitProcess(0)
+}
