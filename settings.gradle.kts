@@ -176,6 +176,7 @@ include(
 	":testing:tooling",
 	":testing:unit",
 	":plugin-api",
+	":plugin-api:plugin-builder",
 	":plugin-manager",
     ":llama-api",
     ":llama-impl"

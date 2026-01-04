@@ -79,11 +79,14 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
+import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
+import org.koin.android.ext.android.inject
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -99,6 +102,7 @@ import java.util.stream.Collectors
 @Suppress("MemberVisibilityCanBePrivate")
 abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	protected val buildVariantsViewModel by viewModels<BuildVariantsViewModel>()
+	private val pluginRepository: PluginRepository by inject()
 
 	protected var mSearchingProgress: ProgressSheet? = null
 	protected var mFindInProjectDialog: AlertDialog? = null
@@ -225,6 +229,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				installApk(state)
 				buildViewModel.installationAttempted()
 			}
+
+			is BuildState.AwaitingPluginInstall -> {
+				showPluginInstallDialog(state.cgpFile)
+			}
 		}
 		// Refresh the toolbar icons (e.g., the run/stop button).
 		invalidateOptionsMenu()
@@ -236,6 +244,44 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
 		)
+	}
+
+	private fun showPluginInstallDialog(cgpFile: File) {
+		if (!cgpFile.exists()) {
+			flashError(getString(string.msg_plugin_file_not_found))
+			buildViewModel.pluginInstallationAttempted()
+			return
+		}
+		val pluginName = cgpFile.nameWithoutExtension
+		newMaterialDialogBuilder(this)
+			.setTitle(string.title_install_plugin)
+			.setMessage(getString(string.msg_install_plugin_prompt, pluginName))
+			.setPositiveButton(string.btn_install) { dialog, _ ->
+				dialog.dismiss()
+				installPlugin(cgpFile)
+			}
+			.setNegativeButton(string.btn_later) { dialog, _ ->
+				dialog.dismiss()
+				buildViewModel.pluginInstallationAttempted()
+			}
+			.setOnCancelListener {
+				buildViewModel.pluginInstallationAttempted()
+			}
+			.show()
+	}
+
+	private fun installPlugin(cgpFile: File) {
+		lifecycleScope.launch {
+			setStatus(getString(string.status_installing_plugin))
+			val result = pluginRepository.installPluginFromFile(cgpFile)
+			result.onSuccess {
+				showRestartPrompt(this@ProjectHandlerActivity)
+			}.onFailure { error ->
+				flashError(getString(string.msg_plugin_install_failed, error.message ?: "Unknown error"))
+			}
+			setStatus("")
+			buildViewModel.pluginInstallationAttempted()
+		}
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {

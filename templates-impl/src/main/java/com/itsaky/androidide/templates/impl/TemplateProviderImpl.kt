@@ -28,6 +28,7 @@ import com.itsaky.androidide.templates.impl.emptyActivity.emptyActivityProject
 import com.itsaky.androidide.templates.impl.navDrawerActivity.navDrawerActivityProject
 import com.itsaky.androidide.templates.impl.noActivity.noActivityProjectTemplate
 import com.itsaky.androidide.templates.impl.noAndroidXActivity.noAndroidXActivityProject
+import com.itsaky.androidide.templates.impl.pluginProject.pluginProjectTemplate
 import com.itsaky.androidide.templates.impl.tabbedActivity.tabbedActivityProject
 
 /**
@@ -47,7 +48,7 @@ class TemplateProviderImpl : ITemplateProvider {
 
   private fun templates() =
     //@formatter:off
-    arrayOf(
+    listOfNotNull(
       noActivityProjectTemplate(),
       emptyActivityProject(),
       basicActivityProject(),
@@ -55,7 +56,8 @@ class TemplateProviderImpl : ITemplateProvider {
       bottomNavActivityProject(),
       tabbedActivityProject(),
       noAndroidXActivityProject(),
-      composeActivityProject()
+      composeActivityProject(),
+      pluginProjectTemplate()
     )
 
   private fun initializeTemplates() {
