@@ -73,54 +73,44 @@ class PluginRepositoryImpl(
             val manager = pluginManager
                 ?: throw IllegalStateException("Plugin system not available")
 
-            // Load plugin with metadata to validate and get plugin info
-            val loadResult = manager.loadPluginWithMetadata(pluginFile)
-
-            if (loadResult.isSuccess) {
-                val (_, metadata) = loadResult.getOrNull() ?: (null to null)
-                val pluginId = metadata?.id
-
-                if (pluginId != null) {
-                    // Uninstall existing version if it exists
-                    try {
-                        manager.uninstallPlugin(pluginId)
-                        Log.d(TAG, "Uninstalled existing version of plugin: $pluginId")
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Error uninstalling existing plugin: ${e.message}")
-                    }
-
-                    // Move file to plugins directory with proper naming convention
-                    val fileExtension = if (pluginFile.name.endsWith(".cgp")) ".cgp" else ".apk"
-                    val finalFileName = "${pluginId}$fileExtension"
-
-                    // Ensure plugins directory exists
-                    if (!pluginsDir.exists()) {
-                        pluginsDir.mkdirs()
-                    }
-
-                    val finalFile = File(pluginsDir, finalFileName)
-
-                    // Copy the file to the plugins directory
-                    try {
-                        pluginFile.copyTo(finalFile, overwrite = true)
-                        Log.d(TAG, "Plugin file copied to: ${finalFile.absolutePath}")
-
-                        // Delete the temporary file
-                        pluginFile.delete()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to copy plugin file to plugins directory", e)
-                        throw e
-                    }
-                }
-
-                // Reload plugins to pick up the new installation
-                manager.loadPlugins()
-            } else {
+            val metadataResult = manager.getPluginMetadataOnly(pluginFile)
+            if (metadataResult.isFailure) {
                 if (pluginFile.exists()) {
                     pluginFile.delete()
                 }
-                throw Exception("Failed to load plugin: ${loadResult.exceptionOrNull()?.message}")
+                throw metadataResult.exceptionOrNull()
+                    ?: Exception("Failed to read plugin metadata")
             }
+
+            val metadata = metadataResult.getOrNull()!!
+            val pluginId = metadata.id
+
+            try {
+                manager.uninstallPlugin(pluginId)
+                Log.d(TAG, "Uninstalled existing version of plugin: $pluginId")
+            } catch (e: Exception) {
+                Log.w(TAG, "Error uninstalling existing plugin: ${e.message}")
+            }
+
+            val fileExtension = if (pluginFile.name.endsWith(".cgp")) ".cgp" else ".apk"
+            val finalFileName = "${pluginId}$fileExtension"
+
+            if (!pluginsDir.exists()) {
+                pluginsDir.mkdirs()
+            }
+
+            val finalFile = File(pluginsDir, finalFileName)
+
+            try {
+                pluginFile.copyTo(finalFile, overwrite = true)
+                Log.d(TAG, "Plugin file copied to: ${finalFile.absolutePath}")
+                pluginFile.delete()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to copy plugin file to plugins directory", e)
+                throw e
+            }
+
+            manager.loadPlugins()
         }.onFailure { exception ->
             Log.e(TAG, "Failed to install plugin from file: ${pluginFile.absolutePath}", exception)
         }
