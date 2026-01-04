@@ -18,6 +18,8 @@ import androidx.core.view.setPadding
 import com.google.android.material.textview.MaterialTextView
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.HelpActivity
+import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.resources.R
@@ -58,6 +60,12 @@ class DebugAction(
 
 	override fun prepare(data: ActionData) {
 		super.prepare(data)
+
+		if (IProjectManager.getInstance().isPluginProject()) {
+			visible = false
+			return
+		}
+
 		val buildIsInProgress = data.getActivity().isBuildInProgress()
 
 		// should be enabled if Shizuku is not running

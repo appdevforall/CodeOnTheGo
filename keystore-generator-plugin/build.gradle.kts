@@ -1,6 +1,11 @@
 plugins {
     id("com.android.application") version "8.8.2"
     id("org.jetbrains.kotlin.android") version "2.1.21"
+    id("com.itsaky.androidide.plugins.build")
+}
+
+pluginBuilder {
+    pluginName = "keystore-generator"
 }
 
 android {
@@ -45,14 +50,8 @@ android {
 }
 
 dependencies {
-    // AndroidIDE Plugin API
-    compileOnly(project(":plugin-api")) {
-        attributes {
-            attribute(Attribute.of("abi", String::class.java), "v8")
-        }
-    }
+    compileOnly(project(":plugin-api"))
 
-    // Android and Kotlin dependencies
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.10.0")
     implementation("androidx.fragment:fragment-ktx:1.8.8")
@@ -67,36 +66,4 @@ dependencies {
 tasks.wrapper {
     gradleVersion = "8.10.2"
     distributionType = Wrapper.DistributionType.BIN
-}
-
-// Task to copy the plugin APK as CGP (CodeOnTheGo Plugin)
-tasks.register<Copy>("assemblePlugin") {
-    group = "build"
-    description = "Builds and packages the plugin as a .cgp file"
-
-    dependsOn("assembleRelease")
-
-    from(layout.buildDirectory.file("outputs/apk/release/keystore-generator-plugin-release-unsigned.apk"))
-    into(layout.buildDirectory.dir("plugin"))
-    rename { "keystore-generator.cgp" }
-
-    doLast {
-        logger.lifecycle("Plugin CGP created: ${layout.buildDirectory.get().asFile.absolutePath}/plugin/keystore-generator.cgp")
-    }
-}
-
-// Also create a debug CGP for testing
-tasks.register<Copy>("assemblePluginDebug") {
-    group = "build"
-    description = "Builds and packages the debug plugin as a .cgp file"
-
-    dependsOn("assembleDebug")
-
-    from(layout.buildDirectory.file("outputs/apk/debug/keystore-generator-plugin-debug.apk"))
-    into(layout.buildDirectory.dir("plugin"))
-    rename { "keystore-generator-debug.cgp" }
-
-    doLast {
-        logger.lifecycle("Debug plugin CGP created: ${layout.buildDirectory.get().asFile.absolutePath}/plugin/keystore-generator-debug.cgp")
-    }
 }
