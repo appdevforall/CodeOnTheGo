@@ -31,21 +31,27 @@ import io.github.rosemoe.sora.text.TextUtils
  */
 abstract class TSBracketsHandler(private val language: TreeSitterLanguage) : BaseNewlineHandler() {
 
+  private val maxIndentColumns = 500
+
   override fun handleNewline(
     text: Content,
     position: CharPosition,
     style: Styles?,
     tabSize: Int
   ): NewlineHandleResult {
-    val count = TextUtils.countLeadingSpaceCount(text.getLine(position.line), tabSize)
+    val currentLine = text.getLine(position.line)
+    val count = TextUtils.countLeadingSpaceCount(currentLine, tabSize)
+
+    val safeCount = count.coerceIn(0, maxIndentColumns)
+    val indentPlusTab = (safeCount + tabSize).coerceIn(0, maxIndentColumns)
     var txt: String
-    val sb =
-      StringBuilder("\n")
-        .append(TextUtils.createIndent(count + tabSize, tabSize, language.useTab()))
-        .append("\n")
-        .append(
-          TextUtils.createIndent(count, tabSize, language.useTab()).also { txt = it }
-        )
+    val sb = StringBuilder(indentPlusTab + safeCount + 2)
+      .append("\n")
+      .append(TextUtils.createIndent(indentPlusTab, tabSize, language.useTab()))
+      .append("\n")
+      .append(
+        TextUtils.createIndent(safeCount, tabSize, language.useTab()).also { txt = it }
+      )
     return NewlineHandleResult(sb, txt.length + 1)
   }
 }
