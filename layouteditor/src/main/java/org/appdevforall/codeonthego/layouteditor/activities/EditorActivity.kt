@@ -734,7 +734,7 @@ class EditorActivity : BaseActivity() {
 	}
 
   private suspend fun openLayout(layoutFile: LayoutFile) {
-    val ioResult = withContext(Dispatchers.IO) {
+    val (production, design, layoutName) = withContext(Dispatchers.IO) {
       val production = layoutFile.readLayoutFile()
       var design = layoutFile.readDesignFile()
 
@@ -749,14 +749,13 @@ class EditorActivity : BaseActivity() {
       }
       Triple(production, design, layoutFile.name)
     }
-    originalProductionXml = ioResult.first
-    originalDesignXml = ioResult.second
+    originalProductionXml = production
+    originalDesignXml = design
 
-		val contentToParse = ioResult.second
-		binding.editorLayout.loadLayoutFromParser(contentToParse)
+		binding.editorLayout.loadLayoutFromParser(design)
 
 		project.currentLayout = layoutFile
-		supportActionBar?.subtitle = ioResult.third
+		supportActionBar?.subtitle = layoutName
 
 		if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
 			drawerLayout.closeDrawer(GravityCompat.START)
