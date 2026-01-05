@@ -26,14 +26,6 @@ class PreferencesManager private constructor(context: Context) {
 		}
 	}
 
-	/**
-	 * Forces the lazy initialization of [prefs] to trigger the underlying disk I/O.
-	 * Call this on a background thread (e.g., Dispatchers.IO) to prevent UI jank on first access.
-	 */
-	fun warmUp() {
-		prefs
-	}
-
   val isEnableVibration: Boolean
     get() = prefs.getBoolean(SharedPreferencesKeys.KEY_VIBRATION, false)
 

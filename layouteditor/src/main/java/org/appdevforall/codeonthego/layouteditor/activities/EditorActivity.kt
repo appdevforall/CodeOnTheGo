@@ -735,7 +735,6 @@ class EditorActivity : BaseActivity() {
 
   private suspend fun openLayout(layoutFile: LayoutFile) {
     val ioResult = withContext(Dispatchers.IO) {
-      PreferencesManager.getInstance(this@EditorActivity).warmUp()
       val production = layoutFile.readLayoutFile()
       var design = layoutFile.readDesignFile()
 
