@@ -3,7 +3,6 @@ package com.itsaky.androidide.idetooltips
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
