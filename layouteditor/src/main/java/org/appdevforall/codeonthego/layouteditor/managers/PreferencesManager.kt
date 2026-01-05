@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
 
-class PreferencesManager private constructor(val context: Context) {
+class PreferencesManager private constructor(context: Context) {
 	private val appContext = context.applicationContext
 
   val prefs: SharedPreferences by lazy {
