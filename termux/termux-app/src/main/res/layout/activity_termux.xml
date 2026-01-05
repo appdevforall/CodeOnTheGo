@@ -1,4 +1,5 @@
 <com.termux.app.terminal.TermuxActivityRootView xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
   android:id="@+id/activity_termux_root_view"
   android:layout_width="match_parent"
@@ -105,7 +106,8 @@
         android:layout_margin="16dp"
         android:elevation="16dp"
         android:contentDescription="@string/send_feedback"
-        android:src="@drawable/baseline_feedback_64" />
+        android:src="@drawable/baseline_feedback_64"
+        app:fabCustomSize="32dp" />
 
   </FrameLayout>
 
