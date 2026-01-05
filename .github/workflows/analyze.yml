@@ -7,7 +7,7 @@ permissions:
 
 on:
   schedule:
-    - cron: '19 7 * * *'  # Daily at 7:00 AM UTC
+    - cron: '19 7 * * *'  # Daily at 7:19 AM UTC
   workflow_dispatch:
 
 env:
@@ -73,6 +73,11 @@ jobs:
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
+      - name: Stop Gradle daemons
+        run: |
+          flox activate -d flox/base -- ./gradlew --stop
+          echo "Gradle daemons stopped"
+
       - name: Cache SonarQube packages
         uses: actions/cache@v4
         with:
@@ -90,7 +95,7 @@ jobs:
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube -Dsonar.androidVariant=v8Debug --info -x lint --continue
+        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info -x lint --continue
 
       - name: Cleanup google-services.json
         if: always()

@@ -67,6 +67,14 @@ subprojects {
         toolVersion = "0.8.11"
     }
 
+    plugins.withId("com.android.library") {
+        sonar {
+            properties {
+                property("sonar.androidVariant", "v8Debug")
+            }
+        }
+    }
+
     // Always load the F-Droid config
 	FDroidConfig.load(project)
 
@@ -291,16 +299,15 @@ sonar {
         property("sonar.projectKey", "appdevforall_CodeOnTheGo")
         property("sonar.organization", "app-dev-for-all")
         property("sonar.androidVariant", "v8Debug")
-        property("sonar.login", System.getenv("SONAR_TOKEN"))
+        property("sonar.token", System.getenv("SONAR_TOKEN"))
     }
 }
 
-tasks.named("sonar") {
+tasks.named("sonarqube") {
     dependsOn("jacocoAggregateReport")
 }
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
-    // TODO: Skip xml-inflater and llama-impl until bugs are fixed
     val excludedProjects = emptySet<String>()
 
     // Depend only on testV8DebugUnitTest tasks in subprojects
