@@ -72,6 +72,7 @@ import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -537,9 +538,13 @@ open class EditorHandlerActivity :
 		progressConsumer: ((Int, Int) -> Unit)?,
 		runAfter: (() -> Unit)?,
 	) {
-		lifecycleScope.launch {
-			saveAll(notify, requestSync, processResources, progressConsumer)
-			runAfter?.invoke()
+		lifecycleScope.launch(Dispatchers.IO) {
+			withContext(NonCancellable) {
+				saveAll(notify, requestSync, processResources, progressConsumer)
+			}
+			withContext(Dispatchers.Main) {
+				runAfter?.invoke()
+			}
 		}
 	}
 
