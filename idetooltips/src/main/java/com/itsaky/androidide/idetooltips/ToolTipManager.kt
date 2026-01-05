@@ -3,6 +3,7 @@ package com.itsaky.androidide.idetooltips
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
@@ -263,9 +264,15 @@ object TooltipManager {
         val hexColor = textColor.toHexColor()
 
         val tooltipHtmlContent = when (level) {
-            0 -> tooltipItem.summary
+            0 -> {
+                val rawSummary = tooltipItem.summary
+                // Escape HTML characters so they're displayed correctly in the WebView
+                Html.escapeHtml(rawSummary)
+            }
             1 -> {
-                val detailContent = if (tooltipItem.detail.isNotBlank()) tooltipItem.detail else ""
+                val detailContent = if (tooltipItem.detail.isNotBlank()) {
+                    Html.escapeHtml(tooltipItem.detail)
+                } else ""
                 if (tooltipItem.buttons.isNotEmpty()) {
                     val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
                         context.getString(R.string.tooltip_links_html_template, url, label)
