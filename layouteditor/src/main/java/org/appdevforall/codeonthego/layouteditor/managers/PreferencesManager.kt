@@ -5,9 +5,23 @@ import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
 
-class PreferencesManager(val context: Context) {
+class PreferencesManager private constructor(val context: Context) {
   val prefs: SharedPreferences by lazy {
 		PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
+	}
+
+	companion object {
+		@Volatile
+		private var INSTANCE: PreferencesManager? = null
+		fun getInstance(context: Context): PreferencesManager {
+			return INSTANCE ?: synchronized(this) {
+				INSTANCE ?: PreferencesManager(context).also { INSTANCE = it }
+			}
+		}
+
+		operator fun invoke(context: Context): PreferencesManager {
+			return getInstance(context)
+		}
 	}
 
 	/**

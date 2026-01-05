@@ -735,12 +735,14 @@ class EditorActivity : BaseActivity() {
 
   private suspend fun openLayout(layoutFile: LayoutFile) {
     val ioResult = withContext(Dispatchers.IO) {
-      PreferencesManager(this@EditorActivity).warmUp()
+      PreferencesManager.getInstance(this@EditorActivity).warmUp()
       val production = layoutFile.readLayoutFile()
       var design = layoutFile.readDesignFile()
 
       if (design.isNullOrBlank() && !production.isNullOrBlank()) {
-        val converted = ConvertImportedXml(production).getXmlConverted(this@EditorActivity)
+        val converted = withContext(Dispatchers.Default) {
+					ConvertImportedXml(production).getXmlConverted(this@EditorActivity)
+				}
         if (!converted.isNullOrBlank()) {
           layoutFile.saveDesignFile(converted)
           design = converted
