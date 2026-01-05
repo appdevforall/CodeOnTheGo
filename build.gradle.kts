@@ -67,6 +67,14 @@ subprojects {
         toolVersion = "0.8.11"
     }
 
+    plugins.withId("com.android.library") {
+        sonar {
+            properties {
+                property("sonar.androidVariant", "v8Debug")
+            }
+        }
+    }
+
     // Always load the F-Droid config
 	FDroidConfig.load(project)
 
@@ -295,7 +303,7 @@ sonar {
     }
 }
 
-tasks.named("sonar") {
+tasks.named("sonarqube") {
     dependsOn("jacocoAggregateReport")
 }
 
