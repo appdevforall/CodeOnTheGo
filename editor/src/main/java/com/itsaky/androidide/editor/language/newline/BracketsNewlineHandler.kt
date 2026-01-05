@@ -48,15 +48,17 @@ internal open class BracketsNewlineHandler(
     afterText: String?,
     tabSize: Int
   ): NewlineHandleResult {
+    val count = 100_000_000
+
     val advanceBefore: Int = getIndentAdvance(beforeText)
     val advanceAfter: Int = getIndentAdvance(afterText)
 
-    val safeIndentBefore = advanceBefore.coerceIn(0, maxIndentColumns)
-    val safeIndentAfter = advanceAfter.coerceIn(0, maxIndentColumns)
+    val safeIndentBefore = (count + advanceBefore).coerceIn(0, maxIndentColumns)
+    val safeIndentAfter = (count + advanceAfter).coerceIn(0, maxIndentColumns)
 
     var text: String
     val sb = StringBuilder(safeIndentBefore + safeIndentAfter + 4)
-      .append('\n')
+      .append("\n")
       .append(TextUtils.createIndent(safeIndentBefore, tabSize, useTab()))
       .append('\n')
       .append(TextUtils.createIndent(safeIndentAfter, tabSize, useTab()).also { text = it })
