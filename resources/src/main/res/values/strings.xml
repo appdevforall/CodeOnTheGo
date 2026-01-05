@@ -121,6 +121,32 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
+	<string name="template_plugin">Code on the Go Plugin</string>
+
+	<!-- Plugin Template Wizard -->
+	<string name="wizard_plugin_name">Plugin Name</string>
+	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
+	<string name="wizard_plugin_description">Plugin Description</string>
+	<string name="wizard_plugin_author">Author Name</string>
+	<string name="wizard_include_sample_code">Include sample code</string>
+	<string name="wizard_plugin_permissions">Permissions</string>
+	<string name="wizard_plugin_extensions">Extensions</string>
+	<string name="wizard_plugin_options">Options</string>
+
+	<!-- Plugin Permissions -->
+	<string name="perm_filesystem_read">Filesystem Read</string>
+	<string name="perm_filesystem_write">Filesystem Write</string>
+	<string name="perm_network_access">Network Access</string>
+	<string name="perm_system_commands">System Commands</string>
+	<string name="perm_ide_settings">IDE Settings</string>
+	<string name="perm_project_structure">Project Structure</string>
+
+	<!-- Plugin Extensions -->
+	<string name="ext_ui">UI Extension</string>
+	<string name="ext_editor_tab">Editor Tab Extension</string>
+	<string name="ext_documentation">Documentation Extension</string>
+	<string name="ext_editor">Editor Extension</string>
+	<string name="ext_project">Project Extension</string>
 	<string name="unknown">Unknown</string>
 
 	<!-- Files -->
@@ -784,6 +810,17 @@
 	<string name="info_build_cancelled">Build was cancelled by the user.</string>
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
+	<string name="status_installing_plugin">Installing plugin…</string>
+	<string name="title_install_plugin">Install Plugin</string>
+	<string name="msg_install_plugin_prompt">Plugin \'%1$s\' built successfully. Would you like to install it now?</string>
+	<string name="btn_install">Install</string>
+	<string name="btn_later">Later</string>
+	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
+	<string name="title_restart_required">Restart Required</string>
+	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
+	<string name="btn_restart_now">Restart Now</string>
+	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
+	<string name="msg_plugin_file_not_found">Plugin file not found</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
