@@ -26,7 +26,7 @@
                 android:id="@+id/swipe_reveal"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                app:dragHandle="@id/custom_toolbar">
+                app:dragHandle="@id/project_actions_toolbar">
 
                 <include
                     android:id="@+id/mem_usage_view"
@@ -75,6 +75,7 @@
       android:layout_margin="16dp"
       android:elevation="16dp"
       android:src="@drawable/baseline_feedback_64"
+      app:fabCustomSize="32dp"
       app:layout_constraintBottom_toBottomOf="parent"
       app:layout_constraintStart_toStartOf="parent" />
 
