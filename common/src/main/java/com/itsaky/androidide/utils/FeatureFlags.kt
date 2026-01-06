@@ -63,7 +63,7 @@ object FeatureFlags {
 		get() = flags.reprieveEnabled
 
     /**
-     * Whether reprieve is enabled or not.
+     * Whether pardon is enabled or not.
      */
     val isPardonEnabled: Boolean
         get() = flags.pardonEnabled
