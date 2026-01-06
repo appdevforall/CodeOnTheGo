@@ -190,9 +190,7 @@ object AssetsInstallationHelper {
                             appendLine("--------------------")
                             appendLine("Progress: ${formatPercent(percent)}")
                             appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
-                            if (freeStorage >= 0) {
-                                appendLine("Remaining storage: ${formatBytes(freeStorage)}")
-                            }
+                            appendLine("Remaining storage: ${formatBytes(freeStorage)}")
                         }
 
                     if (snapshot != previousSnapshot) {
