@@ -31,7 +31,7 @@
         android:fitsSystemWindows="false"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior">
 
-        <com.itsaky.androidide.ui.CompactMaterialToolbar
+        <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/title_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -54,7 +54,7 @@
                 android:maxLines="1"
                 android:ellipsize="end" />
 
-        </com.itsaky.androidide.ui.CompactMaterialToolbar>
+        </com.google.android.material.appbar.MaterialToolbar>
 
         <com.itsaky.androidide.ui.ProjectActionsToolbar
             android:id="@+id/project_actions_toolbar"
