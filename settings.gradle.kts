@@ -23,6 +23,9 @@ pluginManagement {
 	includeBuild("composite-builds/build-logic") {
 		name = "build-logic"
 	}
+	includeBuild("plugin-api/plugin-builder") {
+		name = "plugin-builder"
+	}
 
 	repositories {
 		gradlePluginPortal()
