@@ -68,15 +68,15 @@ fun View.setupGestureHandling(
                         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         onLongPress(view)
                     }
-                }, 800)
+                }, LONG_PRESS_TIMEOUT_MS)
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacksAndMessages(null)
-                val holdDuration = System.currentTimeMillis() - startTime
 
                 if (!isTooltipStarted) {
-                    if (holdDuration >= 600) {
+                    val holdDuration = System.currentTimeMillis() - startTime
+                    if (holdDuration >= HOLD_DURATION_MS) {
                         // Medium hold for drag (600-800ms)
                         onDrag(view)
                     } else {
@@ -120,7 +120,6 @@ fun View.handleLongClicksAndDrag(
 	var longPressFired = false
 
 	val handler = Handler(Looper.getMainLooper())
-	val longPressTimeout = 800L
 
 	val longPressRunnable =
 		Runnable {
@@ -144,7 +143,7 @@ fun View.handleLongClicksAndDrag(
 				viewInitialX = view.x
 				viewInitialY = view.y
 
-				handler.postDelayed(longPressRunnable, longPressTimeout)
+				handler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT_MS)
 				true
 			}
 
@@ -197,3 +196,6 @@ fun View.handleLongClicksAndDrag(
 		}
 	}
 }
+
+const val HOLD_DURATION_MS = 600L
+const val LONG_PRESS_TIMEOUT_MS = 800L
