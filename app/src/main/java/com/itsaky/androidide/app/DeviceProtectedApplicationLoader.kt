@@ -60,7 +60,7 @@ internal object DeviceProtectedApplicationLoader :
 		// Enable StrictMode for debug builds
 		StrictModeManager.install(
 			StrictModeConfig(
-				enabled = BuildConfig.DEBUG,
+				enabled = BuildConfig.DEBUG && !FeatureFlags.isPardonEnabled,
 				isReprieveEnabled = FeatureFlags.isReprieveEnabled,
 			),
 		)
