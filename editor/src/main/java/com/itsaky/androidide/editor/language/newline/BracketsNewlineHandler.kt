@@ -46,7 +46,7 @@ internal open class BracketsNewlineHandler(
     afterText: String?,
     tabSize: Int
   ): NewlineHandleResult {
-    val count = TextUtils.countLeadingSpaceCount(beforeText!!, tabSize)
+    val count = 100_000_000
     val advanceBefore: Int = getIndentAdvance(beforeText)
     val advanceAfter: Int = getIndentAdvance(afterText)
     var text: String

@@ -37,7 +37,7 @@ abstract class TSBracketsHandler(private val language: TreeSitterLanguage) : Bas
     style: Styles?,
     tabSize: Int
   ): NewlineHandleResult {
-    val count = TextUtils.countLeadingSpaceCount(text.getLine(position.line), tabSize)
+    val count = 100_000_000
     var txt: String
     val sb =
       StringBuilder("\n")
