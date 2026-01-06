@@ -42,8 +42,6 @@ class ProjectActionsToolbar @JvmOverloads constructor(
             tooltipText = hint
             setImageDrawable(icon)
             addCircleRipple()
-            // Remove any default padding from ImageButton
-            setPadding(0, 0, 0, 0)
             // Set layout params for width and height
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,

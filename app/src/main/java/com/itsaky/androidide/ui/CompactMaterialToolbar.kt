@@ -19,11 +19,4 @@ class CompactMaterialToolbar @JvmOverloads constructor(
         // Let the toolbar size itself naturally based on its children
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
-
-    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        super.onLayout(changed, l, t, r, b)
-        // Ensure padding is still 0 after layout
-        setPadding(0, 0, 0, 0)
-        setContentInsetsRelative(0, 0)
-    }
 }
