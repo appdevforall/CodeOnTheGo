@@ -627,18 +627,8 @@ tasks.register<Copy>("copyPluginApiJarToAssets") {
     rename { "plugin-api.jar" }
 }
 
-// Register a task to build the plugin-builder jar from the included build
-// This defers access to the included build until execution time, avoiding classloader locking issues
-val buildPluginBuilder = tasks.register("buildPluginBuilder") {
-    description = "Builds the plugin-builder jar from the included build"
-    doLast {
-        // Access included build task only during execution to avoid classloader locking
-        gradle.includedBuild("plugin-builder").task(":jar").get()
-    }
-}
-
 tasks.register<Zip>("createPluginArtifactsZip") {
-    dependsOn("copyPluginApiJarToAssets", buildPluginBuilder)
+    dependsOn("copyPluginApiJarToAssets")
 
     from(rootProject.file("assets/plugin-api.jar"))
     from(rootProject.file("plugin-api/plugin-builder/build/libs/plugin-builder-1.0.0.jar")) {
@@ -647,6 +637,15 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 
     archiveFileName.set("plugin-artifacts.zip")
     destinationDirectory.set(rootProject.file("assets"))
+}
+
+// Add the dependency to the included build task after projects are evaluated
+// This avoids accessing the included build during the initial configuration phase, preventing classloader locking issues
+afterEvaluate {
+    tasks.named("createPluginArtifactsZip").configure {
+        // Access included build task only after evaluation to avoid classloader locking
+        dependsOn(gradle.includedBuild("plugin-builder").task(":jar"))
+    }
 }
 
 tasks.register("assembleV8Assets") {
