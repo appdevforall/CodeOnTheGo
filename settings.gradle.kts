@@ -23,6 +23,9 @@ pluginManagement {
 	includeBuild("composite-builds/build-logic") {
 		name = "build-logic"
 	}
+	includeBuild("plugin-api/plugin-builder") {
+		name = "plugin-builder"
+	}
 
 	repositories {
 		gradlePluginPortal()
@@ -176,7 +179,6 @@ include(
 	":testing:tooling",
 	":testing:unit",
 	":plugin-api",
-	":plugin-api:plugin-builder",
 	":plugin-manager",
     ":llama-api",
     ":llama-impl"
