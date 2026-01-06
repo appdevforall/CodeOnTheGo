@@ -65,6 +65,12 @@ class JavaStackFrame(
 						frame.location() == location
 					}?.run {
 						val variables = mutableListOf<AbstractJavaVariable<*>>()
+
+						try {
+							logger.info("QA TEST: Waiting 5s... KILL THE APP!")
+							Thread.sleep(5000)
+						} catch (e: Exception) {}
+
 						val thisObject = this.thisObject()
 						if (thisObject != null) {
 							variables.add(
