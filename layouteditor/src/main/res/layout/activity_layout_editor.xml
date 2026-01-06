@@ -176,6 +176,7 @@
         android:elevation="16dp"
         android:contentDescription="@string/send_feedback"
         android:src="@drawable/baseline_feedback_64"
+        app:fabCustomSize="32dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>
