@@ -14,98 +14,109 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
+package com.itsaky.androidide.tooling.impl
 
-package com.itsaky.androidide.tooling.impl;
+import com.itsaky.androidide.tooling.api.IToolingApiClient
+import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher.newServerLauncher
+import org.gradle.tooling.events.OperationType
+import org.slf4j.LoggerFactory
+import java.util.concurrent.CancellationException
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import kotlin.system.exitProcess
 
-import com.itsaky.androidide.logging.JvmStdErrAppender;
-import com.itsaky.androidide.tooling.api.IToolingApiClient;
-import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import org.gradle.tooling.events.OperationType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+object Main {
+	private val logger = LoggerFactory.getLogger(Main::class.java)
 
-public class Main {
+	@Volatile
+	private var _client: IToolingApiClient? = null
 
-	private static final Logger LOG = LoggerFactory.getLogger(Main.class);
-	public static IToolingApiClient client;
-	public static Future<Void> future;
+	@Volatile
+	private var _future: Future<Void?>? = null
 
-	public static void checkGradleWrapper() {
-		if (client != null) {
-			LOG.info("Checking gradle wrapper availability...");
-			try {
-				if (!client.checkGradleWrapperAvailability().get().isAvailable()) {
-					LOG.warn(
-							"Gradle wrapper is not available."
-									+ " Client might have failed to ensure availability."
-									+ " Build might fail.");
-				} else {
-					LOG.info("Gradle wrapper is available");
-				}
-			} catch (Throwable e) {
-				LOG.warn("Unable to get Gradle wrapper availability from client", e);
+	val client: IToolingApiClient?
+		get() = _client
+
+	val future: Future<Void?>?
+		get() = _future
+
+	fun checkGradleWrapper() {
+		logger.info("Checking gradle wrapper availability...")
+		try {
+			if (client?.checkGradleWrapperAvailability()?.get()?.isAvailable != true) {
+				logger.warn(
+					("Gradle wrapper is not available."
+							+ " Client might have failed to ensure availability."
+							+ " Build might fail.")
+				)
+			} else {
+				logger.info("Gradle wrapper is available")
 			}
+		} catch (e: Throwable) {
+			logger.warn("Unable to get Gradle wrapper availability from client", e)
 		}
 	}
 
-	public static void main(String[] args) {
+	@JvmStatic
+	fun main(args: Array<String>) {
+		logger.debug("Starting Tooling API server...")
 
-		// disable the JVM std.err appender
-		System.setProperty(JvmStdErrAppender.PROP_JVM_STDERR_APPENDER_ENABLED, "false");
+		val server = ToolingApiServerImpl()
+		val executorService = Executors.newCachedThreadPool()
+		val launcher = newServerLauncher(server, System.`in`, System.out, executorService)
 
-		LOG.debug("Starting Tooling API server...");
-		final var server = new ToolingApiServerImpl();
-		final var launcher = ToolingApiLauncher.newServerLauncher(server, System.in, System.out);
-		Main.future = launcher.startListening();
-		Main.client = (IToolingApiClient) launcher.getRemoteProxy();
-		server.connect(client);
+		val future = launcher.startListening()
+		val client = launcher.getRemoteProxy() as? IToolingApiClient
+			?: error("Failed to get IToolingApiClient proxy from launcher")
 
-		LOG.debug("Server started. Will run until shutdown message is received...");
-		LOG.debug("Running on Java version: {}", System.getProperty("java.version", "<unknown>"));
+		_client = client
+		_future = future
+
+		server.connect(client)
+
+		logger.debug("Server started. Will run until shutdown message is received...")
+		logger.debug("Running on Java version: {}", System.getProperty("java.version", "<unknown>"))
 
 		try {
-			Main.future.get();
-		} catch (CancellationException cancellationException) {
+			future.get()
+		} catch (_: CancellationException) {
 			// ignored
-		} catch (InterruptedException | ExecutionException e) {
-			LOG.error("An error occurred while waiting for shutdown message", e);
-			if (e instanceof InterruptedException) {
-				// set the interrupt flag
-				Thread.currentThread().interrupt();
-			}
-
+		} catch (e: InterruptedException) {
+			logger.error("Main thread interrupted while waiting for shutdown message", e)
+			Thread.currentThread().interrupt()
+		} catch (e: ExecutionException) {
+			logger.error("An error occurred while waiting for shutdown message", e)
 		} finally {
-
 			// Cleanup should be performed in ToolingApiServerImpl.shutdown()
 			// this is to make sure that the daemons are stopped in case the client doesn't call shutdown()
 			try {
-				if (server.isInitialized() || server.isConnected()) {
-					LOG.warn("Connection to tooling server closed without shutting it down!");
-					server.shutdown().get();
+				if (server.isInitialized || server.isConnected) {
+					logger.warn("Connection to tooling server closed without shutting it down!")
+					server.shutdown().get()
 				}
-			} catch (InterruptedException | ExecutionException e) {
-				LOG.error("An error occurred while shutting down tooling API server", e);
-			} finally {
-				Main.future = null;
-				Main.client = null;
 
-				LOG.info("Tooling API server shutdown complete");
+				executorService.shutdownNow()
+			} catch (e: InterruptedException) {
+				logger.error("Main thread interrupted while shutting down tooling API server", e)
+				Thread.currentThread().interrupt()
+			} catch (e: Throwable) {
+				logger.error("An error occurred while shutting down tooling API server", e)
+			} finally {
+				_client = null
+				_future = null
+
+				runCatching {
+					future.cancel(true)
+				}.onFailure { error ->
+					logger.error("Failed to cancel launcher future", error)
+				}
+
+				logger.info("Tooling API server shutdown complete")
+				exitProcess(0)
 			}
 		}
 	}
 
-	public static Set<OperationType> progressUpdateTypes() {
-		final Set<OperationType> types = new HashSet<>();
-
-		// AndroidIDE currently does not handle any other type of events
-		types.add(OperationType.TASK);
-		types.add(OperationType.PROJECT_CONFIGURATION);
-
-		return types;
-	}
+	fun progressUpdateTypes() = setOf(OperationType.TASK, OperationType.PROJECT_CONFIGURATION)
 }

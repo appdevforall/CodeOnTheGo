@@ -21,6 +21,7 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
+import com.itsaky.androidide.resources.R
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -57,6 +58,7 @@ object AssetsInstallationHelper {
 	)
 
     const val LLAMA_AAR = "dynamic_libs/llama.aar"
+    const val PLUGIN_ARTIFACTS_ZIP = "plugin-artifacts.zip"
     private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
 	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
 	const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
@@ -66,6 +68,17 @@ object AssetsInstallationHelper {
 		onProgress: AssetsInstallerProgressConsumer = {},
 	): Result =
 		withContext(Dispatchers.IO) {
+			val rootDir = File(DEFAULT_ROOT)
+			if (!rootDir.exists() || !rootDir.canWrite()) {
+				val errorMsg = context.getString(R.string.storage_not_accessible)
+				logger.error("Storage not accessible: {}", DEFAULT_ROOT)
+				onProgress(Progress(errorMsg))
+				return@withContext Result.Failure(
+					IllegalStateException(errorMsg),
+					errorMsg
+				)
+			}
+
 			val result =
 				runCatching {
 					doInstall(context, onProgress)
@@ -97,7 +110,8 @@ object AssetsInstallationHelper {
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
-                LLAMA_AAR
+                LLAMA_AAR,
+                PLUGIN_ARTIFACTS_ZIP
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
@@ -166,7 +180,6 @@ object AssetsInstallationHelper {
                         (installedSize * 100.0 / totalSize)
                     } else 0.0
 
-                    // determine the storage left
                     val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
                     val snapshot =
@@ -177,7 +190,9 @@ object AssetsInstallationHelper {
                             appendLine("--------------------")
                             appendLine("Progress: ${formatPercent(percent)}")
                             appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
-                            appendLine("Remaining storage: ${formatBytes(freeStorage)}")
+                            if (freeStorage >= 0) {
+                                appendLine("Remaining storage: ${formatBytes(freeStorage)}")
+                            }
                         }
 
                     if (snapshot != previousSnapshot) {
@@ -232,8 +247,13 @@ object AssetsInstallationHelper {
 	}
 
     private fun getAvailableStorage(path: File): Long {
-        val stat = StatFs(path.absolutePath)
-        return stat.availableBytes
+        return try {
+            val stat = StatFs(path.absolutePath)
+            stat.availableBytes
+        } catch (e: Exception) {
+            logger.warn("Failed to get available storage for {}: {}", path, e.message)
+            -1L
+        }
     }
 
     private fun formatBytes(bytes: Long): String {

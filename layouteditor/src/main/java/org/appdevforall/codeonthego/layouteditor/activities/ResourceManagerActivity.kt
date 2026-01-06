@@ -17,9 +17,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.Companion.isPhotoPickerAvailable
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
 import androidx.annotation.RequiresApi
+import androidx.lifecycle.lifecycleScope
 import androidx.viewpager2.widget.ViewPager2
 import com.blankj.utilcode.util.ToastUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.adapters.PagerAdapter
@@ -46,7 +48,6 @@ class ResourceManagerActivity : BaseActivity() {
   private var pickMedia: ActivityResultLauncher<PickVisualMediaRequest>? = null
   private var requestPermission: ActivityResultLauncher<String>? = null
 
-  @SuppressLint("UseCompatLoadingForDrawables")
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     binding = ActivityResourceManagerBinding.inflate(
@@ -56,38 +57,23 @@ class ResourceManagerActivity : BaseActivity() {
     setSupportActionBar(binding!!.topAppBar)
     supportActionBar!!.setTitle(R.string.res_manager)
     binding!!.topAppBar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
-    if (ProjectManager.instance.openedProject == null) {
-      val extras = intent.extras
-      if (extras != null && extras.containsKey(Constants.EXTRA_KEY_PROJECT)) {
-        ProjectManager.instance
-          .openProject(extras.getParcelable(Constants.EXTRA_KEY_PROJECT))
+    lifecycleScope.launch {
+      try {
+        if (ProjectManager.instance.openedProject == null) {
+          val extras = intent.extras
+          if (extras != null && extras.containsKey(Constants.EXTRA_KEY_PROJECT)) {
+            ProjectManager.instance
+              .openProject(extras.getParcelable(Constants.EXTRA_KEY_PROJECT))
+          }
+        }
+        if (ProjectManager.instance.openedProject == null) return@launch
+        setupViewPager()
+      } catch (e: Exception) {
+        ToastUtils.showShort(R.string.msg_error_opening_project)
+        Log.e("ResourcesManagerActivity", "Error loading project", e)
+        finish()
       }
     }
-    // loadDrawables()
-    val adapter = PagerAdapter(supportFragmentManager, lifecycle)
-    adapter.setup(binding!!.pager, binding!!.tabLayout)
-    adapter.addFragmentToAdapter(
-      DrawableFragment(drawableList),
-      getString(R.string.drawable),
-      getDrawable(R.drawable.image_outline)!!
-    )
-    adapter.addFragmentToAdapter(
-      ColorFragment(),
-      getString(R.string.color),
-      getDrawable(R.drawable.palette_outline)!!
-    )
-    adapter.addFragmentToAdapter(
-      StringFragment(),
-      getString(R.string.string),
-      getDrawable(R.drawable.format_letter_case)!!
-    )
-    adapter.addFragmentToAdapter(
-      FontFragment(),
-      getString(R.string.font),
-      getDrawable(R.drawable.format_font)!!
-    )
-    adapter.setupPager(ViewPager2.ORIENTATION_HORIZONTAL)
-    adapter.setupMediatorWithIcon()
     requestPermission = registerForActivityResult(
       ActivityResultContracts.RequestPermission()
     ) { onRequestPermission(it) }
@@ -111,6 +97,34 @@ class ResourceManagerActivity : BaseActivity() {
         onPickPhoto(uri)
       }
   }
+
+  @SuppressLint("UseCompatLoadingForDrawables")
+	private fun setupViewPager() {
+		val adapter = PagerAdapter(supportFragmentManager, lifecycle)
+    adapter.setup(binding!!.pager, binding!!.tabLayout)
+    adapter.addFragmentToAdapter(
+      DrawableFragment(drawableList.toMutableList()),
+      getString(R.string.drawable),
+      getDrawable(R.drawable.image_outline)!!
+    )
+    adapter.addFragmentToAdapter(
+      ColorFragment(),
+      getString(R.string.color),
+      getDrawable(R.drawable.palette_outline)!!
+    )
+    adapter.addFragmentToAdapter(
+      StringFragment(),
+      getString(R.string.string),
+      getDrawable(R.drawable.format_letter_case)!!
+    )
+    adapter.addFragmentToAdapter(
+      FontFragment(),
+      getString(R.string.font),
+      getDrawable(R.drawable.format_font)!!
+    )
+    adapter.setupPager(ViewPager2.ORIENTATION_HORIZONTAL)
+    adapter.setupMediatorWithIcon()
+	}
 
   override fun onCreateOptionsMenu(menu: Menu): Boolean {
     menuInflater.inflate(R.menu.menu_resource_manager, menu)
