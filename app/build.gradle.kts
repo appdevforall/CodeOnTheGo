@@ -628,10 +628,11 @@ tasks.register<Copy>("copyPluginApiJarToAssets") {
 }
 
 tasks.register<Zip>("createPluginArtifactsZip") {
-    dependsOn("copyPluginApiJarToAssets", ":plugin-api:plugin-builder:jar")
+    dependsOn("copyPluginApiJarToAssets")
+    dependsOn(gradle.includedBuild("plugin-builder").task(":jar"))
 
     from(rootProject.file("assets/plugin-api.jar"))
-    from(project(":plugin-api:plugin-builder").layout.buildDirectory.file("libs/plugin-builder-1.0.0.jar")) {
+    from(rootProject.file("plugin-api/plugin-builder/build/libs/plugin-builder-1.0.0.jar")) {
         rename { "gradle-plugin.jar" }
     }
 
