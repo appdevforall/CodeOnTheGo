@@ -147,6 +147,7 @@ gradle-plugin/bin/
 logger/bin/
 lookup/bin/
 shared/bin/
+llama-api/bin/
 subprojects/**/bin/
 testing/**/bin/
 

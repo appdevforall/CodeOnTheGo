@@ -476,7 +476,6 @@ abstract class BaseEditorActivity :
 				editorAppBarLayout.updatePadding(
 					top = insets.top,
 				)
-				customToolbar.setContentInsetsRelative(0, 0)
 			}
 		}
 	}
@@ -595,13 +594,17 @@ abstract class BaseEditorActivity :
     }
 
     private fun setupToolbar() {
-        content.customToolbar.apply {
-            setTitleText(editorViewModel.getProjectName())
-
+        // Set the project name in the title TextView
+        content.root.findViewById<android.widget.TextView>(R.id.title_text)?.apply {
+            text = editorViewModel.getProjectName()
+        }
+        
+        // Set up the drawer toggle on the title toolbar (where the hamburger menu should be)
+        content.titleToolbar.apply {
             val toggle = object : ActionBarDrawerToggle(
                 this@BaseEditorActivity,
                 binding.editorDrawerLayout,
-                content.customToolbar,
+                this,
                 string.app_name,
                 string.app_name
             ) {
@@ -617,11 +620,27 @@ abstract class BaseEditorActivity :
             drawerToggle = toggle
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
-            setOnNavIconLongClickListener {
-                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
+            
+            // Set up long click listener for tooltip on the navigation icon
+            post {
+                var navButton: android.widget.ImageButton? = null
+                for (i in 0 until childCount) {
+                    val child = getChildAt(i)
+                    if (child is android.widget.ImageButton && child.contentDescription == navigationContentDescription) {
+                        navButton = child
+                        break
+                    }
+                }
+                navButton?.apply {
+                    // Remove top padding to align with TextView
+                    setPadding(paddingLeft, 0, paddingRight, paddingBottom)
+                    setOnLongClickListener {
+                        showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
+                        true
+                    }
+                }
             }
         }
-
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
@@ -951,25 +970,8 @@ abstract class BaseEditorActivity :
     }
 
     private fun setupDrawers() {
-        val toggle = object : ActionBarDrawerToggle(
-            this,
-            binding.editorDrawerLayout,
-            content.customToolbar,
-            string.app_name,
-            string.app_name
-        ) {
-            override fun onDrawerOpened(drawerView: View) {
-                super.onDrawerOpened(drawerView)
-                // Hide the keyboard when the drawer opens.
-                closeKeyboard()
-                // Dismiss autocomplete and other editor windows
-                provideCurrentEditor()?.editor?.ensureWindowsDismissed()
-            }
-        }
-
-
-        binding.editorDrawerLayout.addDrawerListener(toggle)
-        toggle.syncState()
+        // Note: Drawer toggle is now set up in setupToolbar() on the title toolbar
+        // This method only sets up the drawer layout behavior
         binding.apply {
             editorDrawerLayout.apply {
                 childId = contentCard.id
@@ -1278,7 +1280,7 @@ abstract class BaseEditorActivity :
     private fun showTooltip(tag: String) {
         TooltipManager.showIdeCategoryTooltip(
             context = this,
-            anchorView = content.customToolbar,
+            anchorView = content.projectActionsToolbar,
             tag = tag,
         )
     }
