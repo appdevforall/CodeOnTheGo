@@ -490,6 +490,7 @@ fun createAssetsZip(arch: String) {
             "gradle-api-8.14.3.jar.zip",
             "documentation.db",
             bootstrapName,
+            "plugin-artifacts.zip",
         ).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
 			if (!filePath.exists()) {
@@ -619,23 +620,41 @@ fun registerBundleLlamaAssetsTask(flavor: String, arch: String): TaskProvider<Ta
     }
 }
 
+tasks.register<Copy>("copyPluginApiJarToAssets") {
+    dependsOn(":plugin-api:createPluginApiJar")
+    from(project(":plugin-api").layout.buildDirectory.file("libs/plugin-api-1.0.0.jar"))
+    into(rootProject.file("assets"))
+    rename { "plugin-api.jar" }
+}
+
+tasks.register<Zip>("createPluginArtifactsZip") {
+    dependsOn("copyPluginApiJarToAssets")
+    dependsOn(gradle.includedBuild("plugin-builder").task(":jar"))
+
+    from(rootProject.file("assets/plugin-api.jar"))
+    from(rootProject.file("plugin-api/plugin-builder/build/libs/plugin-builder-1.0.0.jar")) {
+        rename { "gradle-plugin.jar" }
+    }
+
+    archiveFileName.set("plugin-artifacts.zip")
+    destinationDirectory.set(rootProject.file("assets"))
+}
+
 tasks.register("assembleV8Assets") {
-    dependsOn(":llama-impl:assembleV8Release")
+    dependsOn(":llama-impl:assembleV8Release", "createPluginArtifactsZip")
     if (!isCiCd) {
         dependsOn("assetsDownloadDebug")
     }
-
 	doLast {
 		createAssetsZip("arm64-v8a")
 	}
 }
 
 tasks.register("assembleV7Assets") {
-    dependsOn(":llama-impl:assembleV7Release")
+    dependsOn(":llama-impl:assembleV7Release", "createPluginArtifactsZip")
     if (!isCiCd) {
         dependsOn("assetsDownloadDebug")
     }
-
 	doLast {
 		createAssetsZip("armeabi-v7a")
 	}

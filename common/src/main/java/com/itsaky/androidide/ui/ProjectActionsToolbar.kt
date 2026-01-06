@@ -10,41 +10,26 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.itsaky.androidide.common.R
-import com.itsaky.androidide.common.databinding.CustomToolbarBinding
+import com.itsaky.androidide.common.databinding.ProjectActionsToolbarBinding
 
-class CustomToolbar @JvmOverloads constructor(
+class ProjectActionsToolbar @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     var onNavIconLongClick: (() -> Unit)? = null
 ) : MaterialToolbar(context, attrs) {
 
     init {
-        this.post {
-            var navButton: ImageButton? = null
-            for (i in 0 until this.childCount) {
-                val child = this.getChildAt(i)
-                if (child is ImageButton && child.contentDescription == this.navigationContentDescription) {
-                    navButton = child
-                    break
-                }
-            }
-
-            navButton?.setOnLongClickListener {
-                onNavIconLongClick?.invoke()
-                true
-            }
-
-        }
+        // Navigation icon is no longer used in ProjectActionsToolbar
+        // It's now handled by the title toolbar
+        // Remove any navigation icon that might be set
+        navigationIcon = null
     }
 
-    private val binding: CustomToolbarBinding =
-        CustomToolbarBinding.inflate(LayoutInflater.from(context), this, true)
+    private val binding: ProjectActionsToolbarBinding =
+        ProjectActionsToolbarBinding.inflate(LayoutInflater.from(context), this, true)
 
-    fun setTitleText(title: String) {
-        binding.titleText.apply {
-            text = title
-        }
-    }
+    @Deprecated("Title is now displayed separately. Use the title_text TextView in content_editor.xml instead.")
+    fun setTitleText(title: String) = Unit
 
     fun addMenuItem(
         icon: Drawable?,
@@ -62,15 +47,28 @@ class CustomToolbar @JvmOverloads constructor(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                // Add margin to the right for spacing between items except for last item
-                if (shouldAddMargin) {
-                    marginEnd = resources.getDimensionPixelSize(R.dimen.toolbar_item_spacing)
-                }
+                // Apply uniform spacing to all buttons for consistent appearance
+                // Use a smaller spacing value for tighter button layout
+                marginEnd = resources.getDimensionPixelSize(R.dimen.toolbar_item_spacing) / 2
             }
             setOnClickListener { onClick() }
             setOnLongClickListener {
                 onLongClick()
                 true
+            }
+            // Prevent DrawerLayout from intercepting touch events on this button
+            setOnTouchListener { view, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        // Request that parent views (like DrawerLayout) don't intercept touch events
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        // Allow parent to intercept again after the touch is done
+                        parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+                false // Don't consume the event, let the click/long-click listeners handle it
             }
         }
         binding.menuContainer.addView(item)
@@ -93,3 +91,4 @@ class CustomToolbar @JvmOverloads constructor(
         this.onNavIconLongClick = listener
     }
 }
+

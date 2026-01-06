@@ -44,6 +44,7 @@ plugins {
 	alias(libs.plugins.rikka.refine) apply false
 	alias(libs.plugins.google.protobuf) apply false
 	alias(libs.plugins.spotless)
+    alias(libs.plugins.sonarqube)
     id("jacoco")
 }
 
@@ -56,7 +57,6 @@ buildscript {
 		classpath(libs.kotlin.gradle.plugin)
 		classpath(libs.nav.safe.args.gradle.plugin)
 		classpath(libs.kotlin.serialization.plugin)
-		classpath(libs.nav.safe.args.gradle.plugin)
 	}
 }
 
@@ -219,6 +219,7 @@ spotless {
 			".githooks/**/*",
 			"scripts/**/*",
 		)
+        targetExclude("scripts/debug-keystore/adfa-keystore.jks")
 	}
 }
 
@@ -259,9 +260,46 @@ tasks.named<Delete>("clean") {
 	}
 }
 
+sonar {
+    properties {
+        val binaries = subprojects.flatMap { subproj ->
+            val dirs = listOf(
+                subproj.layout.buildDirectory.dir("classes/java/main").get().asFile,
+                subproj.layout.buildDirectory.dir("classes/kotlin/main").get().asFile,
+
+                subproj.layout.buildDirectory.dir("intermediates/javac/v8Debug/classes").get().asFile,
+                subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug").get().asFile
+            )
+
+            // include directories that actually exist
+            dirs.filter { it.exists() }.map { it.absolutePath }
+        }
+
+        property("sonar.java.binaries", binaries.joinToString(","))
+
+        property("sonar.c.file.suffixes", "-")
+        property("sonar.cpp.file.suffixes", "-")
+        property("sonar.objc.file.suffixes", "-")
+
+        property("sonar.coverage.jacoco.xmlReportPaths",
+            project.layout.buildDirectory
+                .dir("reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml").get().asFile.absolutePath
+        )
+
+
+        property("sonar.host.url", "https://sonarcloud.io")
+        property("sonar.projectKey", "appdevforall_CodeOnTheGo")
+        property("sonar.organization", "app-dev-for-all")
+        property("sonar.androidVariant", "v8Debug")
+        property("sonar.token", System.getenv("SONAR_TOKEN"))
+    }
+}
+
+tasks.named("sonarqube") {
+    dependsOn("jacocoAggregateReport")
+}
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
-    // TODO: Skip xml-inflater and llama-impl until bugs are fixed
     val excludedProjects = emptySet<String>()
 
     // Depend only on testV8DebugUnitTest tasks in subprojects

@@ -72,6 +72,7 @@ import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -323,7 +324,7 @@ open class EditorHandlerActivity :
 	fun prepareOptionsMenu() {
 		val registry = getInstance() as DefaultActionsRegistry
 		val data = createToolbarActionData()
-		content.customToolbar.clearMenu()
+		content.projectActionsToolbar.clearMenu()
 
 		val actions = getInstance().getActions(EDITOR_TOOLBAR)
 		actions.onEachIndexed { index, entry ->
@@ -337,14 +338,14 @@ open class EditorHandlerActivity :
 				alpha = if (action.enabled) 255 else 76
 			}
 
-			content.customToolbar.addMenuItem(
+			content.projectActionsToolbar.addMenuItem(
 				icon = action.icon,
 				hint = action.label,
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
 					TooltipManager.showIdeCategoryTooltip(
 						context = this,
-						anchorView = content.customToolbar,
+						anchorView = content.projectActionsToolbar,
 						tag = action.retrieveTooltipTag(false),
 					)
 				},
@@ -537,9 +538,13 @@ open class EditorHandlerActivity :
 		progressConsumer: ((Int, Int) -> Unit)?,
 		runAfter: (() -> Unit)?,
 	) {
-		lifecycleScope.launch {
-			saveAll(notify, requestSync, processResources, progressConsumer)
-			runAfter?.invoke()
+		lifecycleScope.launch(Dispatchers.IO) {
+			withContext(NonCancellable) {
+				saveAll(notify, requestSync, processResources, progressConsumer)
+			}
+			withContext(Dispatchers.Main) {
+				runAfter?.invoke()
+			}
 		}
 	}
 
