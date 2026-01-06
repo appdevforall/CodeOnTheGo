@@ -43,7 +43,7 @@ class VariableListBinder(
         /* Visual limit for the list (RecyclerView).
          * If larger than this, we truncate with "..." to avoid scroll lag.
          */
-        private const val MAX_PREVIEW_LENGTH = 100
+        private const val MAX_PREVIEW_LENGTH = 50
 
         /* Threshold to switch rendering strategy in the editor dialog.
          * If exceeded, we disable line wrapping (Word Wrap) and HW acceleration to prevent ANRs.
@@ -226,12 +226,7 @@ class VariableListBinder(
         variable: ResolvableVariable<*>,
         dialog: AlertDialog
     ) {
-        val newValue = binding.input.text?.toString()
-
-        if (newValue.isNullOrBlank()) {
-            binding.inputLayout.error = binding.root.context.getString(R.string.debugger_variable_value_invalid)
-            return
-        }
+        val newValue = binding.input.text?.toString() ?: ""
 
         coroutineScope.launch(Dispatchers.IO) {
             val isSet = variable.setValue(newValue)
