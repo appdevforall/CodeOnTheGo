@@ -476,7 +476,6 @@ abstract class BaseEditorActivity :
 				editorAppBarLayout.updatePadding(
 					top = insets.top,
 				)
-				projectActionsToolbar.setContentInsetsRelative(0, 0)
 			}
 		}
 	}
@@ -602,8 +601,6 @@ abstract class BaseEditorActivity :
         
         // Set up the drawer toggle on the title toolbar (where the hamburger menu should be)
         content.titleToolbar.apply {
-            setContentInsetsRelative(0, 0)
-            
             val toggle = object : ActionBarDrawerToggle(
                 this@BaseEditorActivity,
                 binding.editorDrawerLayout,
