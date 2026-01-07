@@ -161,7 +161,7 @@ jobs:
 
       - name: Create Release Assets
         run: |
-          flox activate -d flox/base -- ./gradlew :app:bundleV7LlamaAssets :app:bundleV8LlamaAssets :app:bundlePluginArtifactsForRelease --no-daemon \
+          flox activate -d flox/base -- ./gradlew :app:bundleV7LlamaAssets :app:bundleV8LlamaAssets --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
@@ -207,19 +207,13 @@ jobs:
           compress_file "assets/gradle-api-8.14.3.jar.zip" "$TEMP_DIR/release/gradle-api-8.14.3.jar.br" &
           compress_file "assets/localMvnRepository.zip" "$TEMP_DIR/release/localMvnRepository.zip.br" &
           compress_file "assets/documentation.db" "$TEMP_DIR/release/documentation.db.br" &
+          compress_file "assets/plugin-artifacts.zip" "$TEMP_DIR/release/plugin-artifacts.zip.br" &
           compress_file "assets/android-sdk-armeabi-v7a.zip" "$TEMP_DIR/release/v7/android-sdk.zip.br" &
           compress_file "assets/bootstrap-armeabi-v7a.zip" "$TEMP_DIR/release/v7/bootstrap.zip.br" &
           compress_file "assets/android-sdk-arm64-v8a.zip" "$TEMP_DIR/release/v8/android-sdk.zip.br" &
           compress_file "assets/bootstrap-arm64-v8a.zip" "$TEMP_DIR/release/v8/bootstrap.zip.br" &
 
           wait
-          
-          # Copy plugin-artifacts.zip.br from Gradle task output (already compressed)
-          if [ -f "assets/release/common/data/common/plugin-artifacts.zip.br" ]; then
-            cp "assets/release/common/data/common/plugin-artifacts.zip.br" "$TEMP_DIR/release/plugin-artifacts.zip.br"
-            md5sum "$TEMP_DIR/release/plugin-artifacts.zip.br" | awk '{print $1}' > "$TEMP_DIR/release/plugin-artifacts.zip.br.md5"
-            echo "Copied plugin-artifacts.zip.br -> $TEMP_DIR/release/plugin-artifacts.zip.br"
-          fi
           
           # Upload the flattened structure
           echo "Uploading release assets to server..."
