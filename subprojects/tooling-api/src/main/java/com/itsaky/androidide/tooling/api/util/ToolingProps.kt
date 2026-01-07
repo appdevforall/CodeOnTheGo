@@ -20,26 +20,52 @@ package com.itsaky.androidide.tooling.api.util
 import com.itsaky.androidide.utils.AndroidPluginVersion
 
 /**
- * System properties for configuring the toolign API.
+ * System properties for configuring the tooling API server.
  *
  * @author Akash Yadav
  */
 object ToolingProps {
+	private fun propName(
+		cat: String,
+		name: String,
+	) = "ide.tooling.$cat.$name"
 
-  val TESTING_IS_TEST_ENV = propName("testing", "isTestEnv")
-  val TESTING_LATEST_AGP_VERSION = propName("testing", "latestAgpVersion")
+	/**
+	 * Whether the current environment is a test environment.
+	 *
+	 * Internal API. For testing purposes only.
+	 */
+	val TESTING_IS_TEST_ENV = propName("testing", "isTestEnv")
 
-  val isTestEnv: Boolean
-    get() = System.getProperty(TESTING_IS_TEST_ENV).toBoolean()
+	/**
+	 * The latest AGP version known to the tooling API.
+	 *
+	 * Internal API. For testing purposes only.
+	 */
+	val TESTING_LATEST_AGP_VERSION = propName("testing", "latestAgpVersion")
 
-  val latestTestedAgpVersion: AndroidPluginVersion
-    get() {
-      if (!isTestEnv) {
-        return AndroidPluginVersion.LATEST_TESTED
-      }
-      return System.getProperty(TESTING_LATEST_AGP_VERSION)?.let { AndroidPluginVersion.parse(it) }
-        ?: AndroidPluginVersion.LATEST_TESTED
-    }
+	/**
+	 * Whether the current environment is a test environment.
+	 *
+	 * Internal API. For testing purposes only.
+	 */
+	val isTestEnv: Boolean
+		get() = System.getProperty(TESTING_IS_TEST_ENV).toBoolean()
 
-  fun propName(cat: String, name: String) = "ide.tooling.$cat.$name"
+	/**
+	 * The latest AGP version known to the tooling API.
+	 *
+	 * Internal API. For testing purposes only.
+	 */
+	val latestTestedAgpVersion: AndroidPluginVersion
+		get() {
+			if (!isTestEnv) {
+				return AndroidPluginVersion.LATEST_TESTED
+			}
+
+			return System
+				.getProperty(TESTING_LATEST_AGP_VERSION)
+				?.let { AndroidPluginVersion.parse(it) }
+				?: AndroidPluginVersion.LATEST_TESTED
+		}
 }
