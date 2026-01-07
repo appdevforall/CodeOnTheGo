@@ -26,6 +26,8 @@ import io.github.dingyi222666.view.treeview.TreeView
 import io.github.dingyi222666.view.treeview.TreeViewBinder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -51,9 +53,21 @@ class VariableListBinder(
         private const val HUGE_TEXT_THRESHOLD = 5000
     }
 
+    /**
+     * Helper class to hold the binding and the async job specifically for this view.
+     * Stored in view.tag to survive recycling.
+     */
+    private data class ViewHolderState(
+        val binding: DebuggerVariableItemBinding,
+        var currentJob: Job? = null
+    )
+
     override fun createView(parent: ViewGroup, viewType: Int): View {
         val inflater = LayoutInflater.from(parent.context)
         val binding = DebuggerVariableItemBinding.inflate(inflater, parent, false)
+
+        binding.root.tag = ViewHolderState(binding)
+
         return binding.root
     }
 
@@ -64,8 +78,16 @@ class VariableListBinder(
         node: TreeNode<ResolvableVariable<*>>,
         listener: TreeNodeEventListener<ResolvableVariable<*>>
     ) {
-        val binding = DebuggerVariableItemBinding.bind(holder.itemView)
-        val context = binding.root.context
+        val state = holder.itemView.tag as? ViewHolderState
+            ?: ViewHolderState(DebuggerVariableItemBinding.bind(holder.itemView)).also {
+                holder.itemView.tag = it
+            }
+
+        val itemBinding = state.binding
+
+        state.currentJob?.cancel()
+
+        val context = itemBinding.root.context
 
         if (treeIndent == 0) {
             treeIndent = context.resources.getDimensionPixelSize(
@@ -73,7 +95,7 @@ class VariableListBinder(
             )
         }
 
-        binding.apply {
+        itemBinding.apply {
             root.setPaddingRelative(
                 /* start = */ node.depth * treeIndent,
                 /* top = */ root.paddingTop,
@@ -82,10 +104,10 @@ class VariableListBinder(
             )
 
             chevron.rotation = if (node.isExpanded) 90f else 0f
-        }
 
-        if (node.data?.isResolved != true) {
-            binding.label.text = context.getString(R.string.debugger_status_resolving)
+            if (node.data?.isResolved != true) {
+                label.text = context.getString(R.string.debugger_status_resolving)
+            }
         }
 
         val data = node.data ?: run {
@@ -93,15 +115,20 @@ class VariableListBinder(
             return
         }
 
-        coroutineScope.launch(Dispatchers.IO) {
+        state.currentJob = coroutineScope.launch(Dispatchers.IO) {
             val descriptor = data.resolve()
+
+            ensureActive()
+
             val strValue = data.resolvedValue()?.toString()
                 ?: context.getString(R.string.debugger_value_unavailable)
             val previewValue = if (strValue.length > MAX_PREVIEW_LENGTH)
                 strValue.take(MAX_PREVIEW_LENGTH) + "..." else strValue
 
             withContext(Dispatchers.Main) {
-                binding.apply {
+                ensureActive()
+
+                itemBinding.apply {
                     if (descriptor == null) {
                         logger.error("Unable to resolve node: {}", data)
                         label.text = context.getString(R.string.debugger_value_error)
@@ -111,16 +138,15 @@ class VariableListBinder(
                     val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
 
                     // noinspection SetTextI18n
-                    label.text =
-                        "${descriptor.name}: ${descriptor.typeName} = $previewValue"
+                    label.text = "${descriptor.name}: ${descriptor.typeName} = $previewValue"
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    showSetValueDialogOnClick(binding, data, descriptor, strValue)
+                    showSetValueDialogOnClick(itemBinding, data, descriptor, strValue)
 
-                    binding.root.setOnLongClickListener {
-                        TooltipManager.showIdeCategoryTooltip(context, binding.root, DEBUG_OUTPUT_VARIABLES)
+                    root.setOnLongClickListener {
+                        TooltipManager.showIdeCategoryTooltip(context, root, DEBUG_OUTPUT_VARIABLES)
                         true
                     }
                 }
@@ -129,20 +155,20 @@ class VariableListBinder(
     }
 
     private fun showSetValueDialogOnClick(
-        binding: DebuggerVariableItemBinding,
+        itemBinding: DebuggerVariableItemBinding,
         variable: ResolvableVariable<*>,
         descriptor: VariableDescriptor,
         currentValue: String
     ) {
-        val context = binding.root.context
-        binding.root.setOnClickListener {
+        val context = itemBinding.root.context
+        itemBinding.root.setOnClickListener {
             if (!descriptor.isMutable) {
                 // variable is immutable
                 flashError(context.getString(R.string.debugger_error_immutable_variable, descriptor.name))
                 return@setOnClickListener
             }
 
-            val labelText = binding.label.text?.toString()
+            val labelText = itemBinding.label.text?.toString()
 
             if (labelText.isNullOrBlank()) return@setOnClickListener
 
@@ -170,30 +196,30 @@ class VariableListBinder(
         )
 
         val inflater = LayoutInflater.from(context)
-        val binding = DebuggerSetVariableValueBinding.inflate(inflater)
+        val dialogBinding = DebuggerSetVariableValueBinding.inflate(inflater)
         val isHugeText = currentValue.length > HUGE_TEXT_THRESHOLD
 
-        setupInputEditor(binding.input, isHugeText)
-        binding.loadingIndicator.visibility = View.VISIBLE
-        binding.inputLayout.visibility = View.INVISIBLE
+        setupInputEditor(dialogBinding.input, isHugeText)
+        dialogBinding.loadingIndicator.visibility = View.VISIBLE
+        dialogBinding.inputLayout.visibility = View.INVISIBLE
 
         val dialog = DialogUtils.newMaterialDialogBuilder(context)
             .setTitle(title)
-            .setView(binding.root)
+            .setView(dialogBinding.root)
             .setPositiveButton(context.getString(R.string.debugger_dialog_button_set), null)
             .setNegativeButton(context.getString(android.R.string.cancel), null)
             .setCancelable(true)
             .create()
 
-        dialog.setOnShowListener { dialog ->
-            (dialog as? AlertDialog)?.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
-                handleSaveAction(binding, variable, dialog)
+        dialog.setOnShowListener { d ->
+            (d as? AlertDialog)?.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+                handleSaveAction(dialogBinding, variable, d)
             }
         }
 
         dialog.show()
 
-        loadTextAsync(binding, dialog, currentValue, isHugeText)
+        loadTextAsync(dialogBinding, dialog, currentValue, isHugeText)
     }
 
     /**
@@ -222,22 +248,22 @@ class VariableListBinder(
      * Handles value saving logic, validation, and visual feedback.
      */
     private fun handleSaveAction(
-        binding: DebuggerSetVariableValueBinding,
+        dialogBinding: DebuggerSetVariableValueBinding,
         variable: ResolvableVariable<*>,
         dialog: AlertDialog
     ) {
-        val newValue = binding.input.text?.toString() ?: ""
+        val newValue = dialogBinding.input.text?.toString() ?: ""
 
         coroutineScope.launch(Dispatchers.IO) {
             val isSet = variable.setValue(newValue)
             withContext(Dispatchers.Main) {
                 if (isSet) {
-                    binding.inputLayout.error = null
+                    dialogBinding.inputLayout.error = null
                     dialog.dismiss()
                     viewModel.refreshState()
                 } else {
-                    binding.inputLayout.error =
-                        binding.root.context.getString(R.string.debugger_variable_value_invalid)
+                    dialogBinding.inputLayout.error =
+                        dialogBinding.root.context.getString(R.string.debugger_variable_value_invalid)
                 }
             }
         }
@@ -247,15 +273,15 @@ class VariableListBinder(
      * Calculates text layout in background and assigns it when ready.
      */
     private fun loadTextAsync(
-        binding: DebuggerSetVariableValueBinding,
+        dialogBinding: DebuggerSetVariableValueBinding,
         dialog: AlertDialog,
         text: String,
         isHugeText: Boolean
     ) {
-        binding.input.post {
+        dialogBinding.input.post {
             if (!dialog.isShowing) return@post
 
-            val params = TextViewCompat.getTextMetricsParams(binding.input)
+            val params = TextViewCompat.getTextMetricsParams(dialogBinding.input)
 
             coroutineScope.launch(Dispatchers.Default) {
                 try {
@@ -263,20 +289,20 @@ class VariableListBinder(
 
                     withContext(Dispatchers.Main) {
                         if (dialog.isShowing) {
-                            TextViewCompat.setPrecomputedText(binding.input, precomputedText)
-                            finalizeDialogUI(binding, text, isHugeText)
+                            TextViewCompat.setPrecomputedText(dialogBinding.input, precomputedText)
+                            finalizeDialogUI(dialogBinding, text, isHugeText)
                         }
                     }
                 } catch (e: Exception) {
                     logger.error("Failed to precompute text", e)
                     withContext(Dispatchers.Main) {
                         if (dialog.isShowing) {
-                            val truncationMsg = binding.root.context.getString(R.string.debugger_variable_truncated)
+                            val truncationMsg = dialogBinding.root.context.getString(R.string.debugger_variable_truncated)
                             val safeText = if (text.length > HUGE_TEXT_THRESHOLD) {
                                 text.take(HUGE_TEXT_THRESHOLD) + "\n\n[$truncationMsg]"
                             } else { text }
-                            binding.input.setText(safeText)
-                            finalizeDialogUI(binding, text, isHugeText)
+                            dialogBinding.input.setText(safeText)
+                            finalizeDialogUI(dialogBinding, text, isHugeText)
                         }
                     }
                 }
@@ -285,21 +311,21 @@ class VariableListBinder(
     }
 
     private fun finalizeDialogUI(
-        binding: DebuggerSetVariableValueBinding,
+        dialogBinding: DebuggerSetVariableValueBinding,
         currentValue: String,
         isHugeText: Boolean
     ) {
-        binding.loadingIndicator.visibility = View.GONE
-        binding.inputLayout.visibility = View.VISIBLE
-        binding.input.requestFocus()
+        dialogBinding.loadingIndicator.visibility = View.GONE
+        dialogBinding.inputLayout.visibility = View.VISIBLE
+        dialogBinding.input.requestFocus()
 
         if (currentValue.isEmpty()) return
 
         if (!isHugeText) {
-            binding.input.selectAll()
+            dialogBinding.input.selectAll()
             return
         }
-        binding.input.setSelection(0)
+        dialogBinding.input.setSelection(0)
     }
 }
 
