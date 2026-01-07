@@ -32,7 +32,7 @@ import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
-import com.itsaky.androidide.viewmodel.WADBViewModel
+import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -52,7 +52,7 @@ class DebuggerFragment :
 	EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private var tabs: Array<Pair<String, () -> Fragment>>? = null
 	private val viewModel by activityViewModels<DebuggerViewModel>()
-	private val wadbViewModel by activityViewModels<WADBViewModel>()
+	private val wadbConnection by activityViewModels<WADBConnectionViewModel>()
 	private var mediator: TabLayoutMediator? = null
 
 	companion object {
@@ -359,7 +359,7 @@ class DebuggerFragment :
 
 		if (isAtLeastR() &&
 			status?.isRunning != true &&
-			wadbViewModel.pairingState.value == WADBViewModel.PairingState.Connecting
+			wadbConnection.status.value is WADBConnectionViewModel.ConnectionStatus.Connecting
 		) {
 			// show the pairing screen only when Shizuku is in the connecting state
 			// and not already connected
@@ -395,12 +395,12 @@ class ThreadSelectorListAdapter(
 		val inflater = LayoutInflater.from(this.context)
 		val view =
 			(
-				convertView ?: inflater.inflate(
-					android.R.layout.simple_dropdown_item_1line,
-					parent,
-					false,
-				)
-			) as TextView
+					convertView ?: inflater.inflate(
+						android.R.layout.simple_dropdown_item_1line,
+						parent,
+						false,
+					)
+					) as TextView
 
 		val item = getItem(position)
 		if (item == null) {

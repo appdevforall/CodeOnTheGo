@@ -83,6 +83,7 @@ import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationEvent
+import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
@@ -124,7 +125,7 @@ import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import com.itsaky.androidide.viewmodel.WADBViewModel
+import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.widgets.WidgetTableRegistry
@@ -180,9 +181,9 @@ abstract class BaseEditorActivity :
 
 	val recentProjectsViewModel by viewModels<RecentProjectsViewModel>()
 	val debuggerViewModel by viewModels<DebuggerViewModel>()
-	val wadbViewModel by viewModels<WADBViewModel>()
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
 	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
+	val wadbConnectionViewModel by viewModels<WADBConnectionViewModel>()
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
@@ -396,6 +397,7 @@ abstract class BaseEditorActivity :
 		BuildOutputProvider.clearBottomSheet()
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
+		wadbConnectionViewModel.stop(this)
 
 		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
 		drawerToggle = null
@@ -541,6 +543,7 @@ abstract class BaseEditorActivity :
         mLifecycleObserver = EditorActivityLifecyclerObserver()
 
 		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
+		lifecycleScope.launch { wadbConnectionViewModel.start(this@BaseEditorActivity) }
 
         this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
@@ -1019,6 +1022,12 @@ abstract class BaseEditorActivity :
 						updateBottomSheetState(state = state)
 					}
 				}
+
+				launch {
+					wadbConnectionViewModel.status.collectLatest { status ->
+						onUpdateWadbConnectionStatus(status)
+					}
+				}
 			}
 		}
 
@@ -1047,6 +1056,40 @@ abstract class BaseEditorActivity :
 			}
 
 			invalidateOptionsMenu()
+		}
+	}
+
+	private fun onUpdateWadbConnectionStatus(status: WADBConnectionViewModel.ConnectionStatus) {
+		when (status) {
+			// Unknown status, do nothing
+			WADBConnectionViewModel.ConnectionStatus.Unknown -> Unit
+
+			// Pairing process has started, do nothing
+			WADBConnectionViewModel.ConnectionStatus.Pairing -> Unit
+
+			WADBConnectionViewModel.ConnectionStatus.Paired -> {
+				// show debugger UI after pairing is successful
+				bottomSheetViewModel.setSheetState(
+					sheetState = BottomSheetBehavior.STATE_EXPANDED,
+					currentTab = BottomSheetViewModel.TAB_DEBUGGER
+				)
+
+				debuggerViewModel.currentView = DebuggerFragment.VIEW_WADB_PAIRING
+			}
+
+			WADBConnectionViewModel.ConnectionStatus.PairingFailed -> {
+				flashError(getString(string.notification_adb_pairing_failed_title))
+			}
+
+			// These are handled by WADBPermissionFragment
+			is WADBConnectionViewModel.ConnectionStatus.SearchingConnectionPort -> Unit
+			WADBConnectionViewModel.ConnectionStatus.ConnectionPortNotFound -> Unit
+			is WADBConnectionViewModel.ConnectionStatus.Connecting -> Unit
+			is WADBConnectionViewModel.ConnectionStatus.ConnectionFailed -> Unit
+
+			WADBConnectionViewModel.ConnectionStatus.Connected -> {
+				debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
+			}
 		}
 	}
 
@@ -1141,11 +1184,11 @@ abstract class BaseEditorActivity :
             }
         }
 
-        appendHierarchicalText(R.string.msg_drawer_for_files)
+        appendHierarchicalText(string.msg_drawer_for_files)
         sb.append("\n")
-        appendHierarchicalText(R.string.msg_swipe_for_output)
+        appendHierarchicalText(string.msg_swipe_for_output)
         sb.append("\n")
-        appendHierarchicalText(R.string.msg_help_hint)
+        appendHierarchicalText(string.msg_help_hint)
 
         content.noEditorSummary.apply {
             text = sb

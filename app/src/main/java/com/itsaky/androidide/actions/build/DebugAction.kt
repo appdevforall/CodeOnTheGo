@@ -31,7 +31,6 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isAtLeastS
 import com.itsaky.androidide.utils.isAtLeastT
-import com.itsaky.androidide.viewmodel.WADBViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import moe.shizuku.manager.adb.AdbPairingService
@@ -92,9 +91,7 @@ class DebugAction(
 		if (!Shizuku.pingBinder()) {
 			log.error("Shizuku service is not running")
 			withContext(Dispatchers.Main.immediate) {
-				showPairingDialog(activity) {
-					activity.wadbViewModel.setPairingState(WADBViewModel.PairingState.Pairing)
-				}
+				showPairingDialog(activity)
 			}
 			return false
 		}
@@ -103,7 +100,7 @@ class DebugAction(
 	}
 
 	@RequiresApi(Build.VERSION_CODES.R)
-	private fun showPairingDialog(context: Context, onStarted: () -> Unit): AlertDialog? {
+	private fun showPairingDialog(context: Context): AlertDialog? {
 		val launchHelp = { url: String ->
 			context.startActivity(Intent(context, HelpActivity::class.java).apply {
 				putExtra(CONTENT_KEY, url)
@@ -146,7 +143,6 @@ class DebugAction(
 				try {
 					if (startPairingService(context)) {
 						context.startActivity(intent)
-						onStarted()
 					}
 				} catch (e: ActivityNotFoundException) {
 					log.error("Failed to open developer options", e)
