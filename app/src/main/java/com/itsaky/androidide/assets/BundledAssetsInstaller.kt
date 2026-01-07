@@ -146,6 +146,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
                     val pluginDir = Environment.PLUGIN_API_JAR.parentFile
                         ?: throw IllegalStateException("Plugin API parent directory is null")
                     pluginDir.mkdirs()
+                    val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
 
                     val assetPath = ToolsManager.getCommonAsset("$entryName.br")
                     assets.open(assetPath).use { assetStream ->
@@ -154,7 +155,15 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
                                 var pluginEntry = pluginZip.nextEntry
                                 while (pluginEntry != null) {
                                     if (!pluginEntry.isDirectory) {
-                                        val targetFile = pluginDir.resolve(pluginEntry.name)
+                                        val targetPath = pluginDirPath.resolve(pluginEntry.name).normalize()
+                                        // Security check: prevent path traversal attacks
+                                        if (!targetPath.startsWith(pluginDirPath)) {
+                                            throw IllegalStateException(
+                                                "Zip entry '${pluginEntry.name}' would escape target directory"
+                                            )
+                                        }
+                                        val targetFile = targetPath.toFile()
+                                        targetFile.parentFile?.mkdirs()
                                         logger.debug("Extracting '{}' to {}", pluginEntry.name, targetFile)
                                         targetFile.outputStream().use { output ->
                                             pluginZip.copyTo(output)
