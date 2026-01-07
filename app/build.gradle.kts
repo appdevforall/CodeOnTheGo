@@ -761,9 +761,15 @@ val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "b
 afterEvaluate {
     tasks.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }.configureEach {
         dependsOn(bundleLlamaV8Assets)
+        if (it.name.lowercase().contains("release")) {
+            dependsOn("bundlePluginArtifactsForRelease")
+        }
     }
     tasks.matching { it.name.contains("V7") && it.name.lowercase().contains("lint") }.configureEach {
         dependsOn(bundleLlamaV7Assets)
+        if (it.name.lowercase().contains("release")) {
+            dependsOn("bundlePluginArtifactsForRelease")
+        }
     }
 
 	tasks.named("assembleV8Release").configure {
