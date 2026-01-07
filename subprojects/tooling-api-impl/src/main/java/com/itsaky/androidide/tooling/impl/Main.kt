@@ -22,18 +22,15 @@ import com.itsaky.androidide.tooling.api.util.ToolingProps
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.delay
-import kotlinx.coroutines.withTimeout
 import org.gradle.tooling.events.OperationType
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
-import java.util.concurrent.TimeoutException
 import kotlin.system.exitProcess
 
 object Main {
-
 	val Process: ProcessHandle = ProcessHandle.current()
 
 	private val logger = LoggerFactory.getLogger(Main::class.java)
@@ -55,7 +52,7 @@ object Main {
 		try {
 			if (client?.checkGradleWrapperAvailability()?.get()?.isAvailable != true) {
 				logger.warn(
-					("Gradle wrapper is not available." + " Client might have failed to ensure availability." + " Build might fail.")
+					("Gradle wrapper is not available." + " Client might have failed to ensure availability." + " Build might fail."),
 				)
 			} else {
 				logger.info("Gradle wrapper is available")
@@ -66,68 +63,70 @@ object Main {
 	}
 
 	@JvmStatic
-	fun main(args: Array<String>): Unit = runBlocking {
-		logger.debug("Starting Tooling API server...")
+	fun main(args: Array<String>): Unit =
+		runBlocking {
+			logger.debug("Starting Tooling API server...")
 
-		val server = ToolingApiServerImpl()
-		val executorService = Executors.newCachedThreadPool()
-		val launcher = newServerLauncher(server, System.`in`, System.out, executorService)
+			val server = ToolingApiServerImpl()
+			val executorService = Executors.newCachedThreadPool()
+			val launcher = newServerLauncher(server, System.`in`, System.out, executorService)
 
-		val future = launcher.startListening()
-		val client = launcher.getRemoteProxy() as? IToolingApiClient
-			?: error("Failed to get IToolingApiClient proxy from launcher")
+			val future = launcher.startListening()
+			val client =
+				launcher.getRemoteProxy() as? IToolingApiClient
+					?: error("Failed to get IToolingApiClient proxy from launcher")
 
-		_client = client
-		_future = future
+			_client = client
+			_future = future
 
-		server.connect(client)
+			server.connect(client)
 
-		logger.debug("Server started. Will run until shutdown message is received...")
-		logger.debug("Running on Java version: {}", System.getProperty("java.version", "<unknown>"))
+			logger.debug("Server started. Will run until shutdown message is received...")
+			logger.debug("Running on Java version: {}", System.getProperty("java.version", "<unknown>"))
 
-		try {
-			future.get()
-		} catch (_: CancellationException) {
-			// ignored
-		} catch (e: InterruptedException) {
-			logger.error("Main thread interrupted while waiting for shutdown message", e)
-			Thread.currentThread().interrupt()
-		} catch (e: ExecutionException) {
-			logger.error("An error occurred while waiting for shutdown message", e)
-		} finally {
-			// Cleanup should be performed in ToolingApiServerImpl.shutdown()
-			// this is to make sure that the daemons are stopped in case the client doesn't call shutdown()
 			try {
-				if (server.isInitialized || server.isConnected) {
-					logger.warn("Connection to tooling server closed without shutting it down!")
-					server.shutdown().get()
-				}
-
-				executorService.shutdownNow()
+				future.get()
+			} catch (_: CancellationException) {
+				// ignored
 			} catch (e: InterruptedException) {
-				logger.error("Main thread interrupted while shutting down tooling API server", e)
+				logger.error("Main thread interrupted while waiting for shutdown message", e)
 				Thread.currentThread().interrupt()
-			} catch (e: Throwable) {
-				logger.error("An error occurred while shutting down tooling API server", e)
+			} catch (e: ExecutionException) {
+				logger.error("An error occurred while waiting for shutdown message", e)
 			} finally {
-				_client = null
-				_future = null
+				// Cleanup should be performed in ToolingApiServerImpl.shutdown()
+				// this is to make sure that the daemons are stopped in case the client doesn't call shutdown()
+				try {
+					if (server.isInitialized || server.isConnected) {
+						logger.warn("Connection to tooling server closed without shutting it down!")
+						server.shutdown().get()
+					}
 
-				runCatching {
-					future.cancel(true)
-				}.onFailure { error ->
-					logger.error("Failed to cancel launcher future", error)
+					executorService.shutdownNow()
+				} catch (e: InterruptedException) {
+					logger.error("Main thread interrupted while shutting down tooling API server", e)
+					Thread.currentThread().interrupt()
+				} catch (e: Throwable) {
+					logger.error("An error occurred while shutting down tooling API server", e)
+				} finally {
+					_client = null
+					_future = null
+
+					runCatching {
+						future.cancel(true)
+					}.onFailure { error ->
+						logger.error("Failed to cancel launcher future", error)
+					}
+
+					if (ToolingProps.killDescendantProcesses) {
+						killDescendantProcesses()
+					}
+
+					logger.info("Tooling API server shutdown complete")
+					exitProcess(0)
 				}
-
-				if (ToolingProps.killDescendantProcesses) {
-					killDescendantProcesses()
-				}
-
-				logger.info("Tooling API server shutdown complete")
-				exitProcess(0)
 			}
 		}
-	}
 
 	private suspend fun killDescendantProcesses() {
 		val descendants = ProcessHandle.current().descendants().toList()

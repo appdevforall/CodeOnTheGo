@@ -639,27 +639,28 @@ class GradleBuildService :
 			}
 		}
 
-		return buildServiceScope.launch(
-			Dispatchers.IO + CoroutineName("ToolingServerErrorReader"),
-		) {
-			val reader = input.bufferedReader()
-			try {
-				reader.forEachLine { line ->
-					SERVER_System_err.error(line)
-					if (!isActive) throw CancellationException()
-				}
-			} catch (e: Throwable) {
-				e.ifCancelledOrInterrupted(suppress = true) {
-					// will be suppressed
-					return@launch
-				}
+		return buildServiceScope
+			.launch(
+				Dispatchers.IO + CoroutineName("ToolingServerErrorReader"),
+			) {
+				val reader = input.bufferedReader()
+				try {
+					reader.forEachLine { line ->
+						SERVER_System_err.error(line)
+						if (!isActive) throw CancellationException()
+					}
+				} catch (e: Throwable) {
+					e.ifCancelledOrInterrupted(suppress = true) {
+						// will be suppressed
+						return@launch
+					}
 
-				// log the error and fail silently
-				log.error("Failed to read tooling server output", e)
+					// log the error and fail silently
+					log.error("Failed to read tooling server output", e)
+				}
+			}.also { job ->
+				outputReaderJob = job
 			}
-		}.also { job ->
-			outputReaderJob = job
-		}
 	}
 
 	/**

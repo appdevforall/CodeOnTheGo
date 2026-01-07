@@ -227,8 +227,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			else -> null
 		}
 
-	override fun isServerInitialized(): CompletableFuture<Boolean> =
-		CompletableFuture.supplyAsync { isInitialized }
+	override fun isServerInitialized(): CompletableFuture<Boolean> = CompletableFuture.supplyAsync { isInitialized }
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		return runBuild {
@@ -360,15 +359,16 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			this.connector = null
 
 			// close connections asynchronously
-			val connectionCloseFuture = CompletableFuture.runAsync {
-				log.info("Closing connections...")
-				connection?.close()
-				connector?.disconnect()
+			val connectionCloseFuture =
+				CompletableFuture.runAsync {
+					log.info("Closing connections...")
+					connection?.close()
+					connector?.disconnect()
 
-				// Stop all daemons
-				log.info("Stopping all Gradle Daemons...")
-				DefaultGradleConnector.close()
-			}
+					// Stop all daemons
+					log.info("Stopping all Gradle Daemons...")
+					DefaultGradleConnector.close()
+				}
 
 			// update the initialization flag before cancelling future
 			this.isInitialized = false

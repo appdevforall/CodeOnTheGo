@@ -28,8 +28,10 @@ import kotlin.time.Duration.Companion.milliseconds
  * @author Akash Yadav
  */
 object ToolingProps {
-
-	private fun propName(cat: String, name: String) = "ide.tooling.$cat.$name"
+	private fun propName(
+		cat: String,
+		name: String,
+	) = "ide.tooling.$cat.$name"
 
 	/**
 	 * Whether the current environment is a test environment.
@@ -77,7 +79,8 @@ object ToolingProps {
 				return AndroidPluginVersion.LATEST_TESTED
 			}
 
-			return System.getProperty(TESTING_LATEST_AGP_VERSION)
+			return System
+				.getProperty(TESTING_LATEST_AGP_VERSION)
 				?.let { AndroidPluginVersion.parse(it) }
 				?: AndroidPluginVersion.LATEST_TESTED
 		}
