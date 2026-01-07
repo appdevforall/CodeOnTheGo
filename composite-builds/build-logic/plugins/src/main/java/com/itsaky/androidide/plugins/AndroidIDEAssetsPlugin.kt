@@ -70,7 +70,39 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
 				// Add logsender.aar
 				registerLogSenderAarCopierTask(variant, variantNameCapitalized)
+
+				// Add plugin-artifacts.zip
+				registerPluginArtifactsCopierTask(variant, variantNameCapitalized)
 			}
+		}
+	}
+
+	private fun Project.registerPluginArtifactsCopierTask(
+		variant: Variant,
+		variantName: String,
+	) {
+		val taskName = "copy${variantName}PluginArtifacts"
+		val projectPath = ":app"
+		val projectTask = "createPluginArtifactsZip"
+		val inputFile: (Project) -> Provider<RegularFile> =
+			{ _ -> rootProject.providers.provider { rootProject.layout.projectDirectory.file("assets/plugin-artifacts.zip") } }
+
+		if (hasBundledAssets(variant)) {
+			addProjectArtifactToAssets<AddBrotliFileToAssetsTask>(
+				variant = variant,
+				taskName = taskName,
+				projectPath = projectPath,
+				projectTask = projectTask,
+				onGetInputFile = inputFile,
+			)
+		} else {
+			addProjectArtifactToAssets<AddFileToAssetsTask>(
+				variant = variant,
+				taskName = taskName,
+				projectPath = projectPath,
+				projectTask = projectTask,
+				onGetInputFile = inputFile,
+			)
 		}
 	}
 
