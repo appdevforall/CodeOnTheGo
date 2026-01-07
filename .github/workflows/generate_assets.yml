@@ -167,6 +167,24 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
+      - name: Generate MD5 Checksums for Release Assets
+        run: |
+          if [ ! -d "assets/release" ]; then
+            echo "Warning: assets/release directory does not exist, skipping checksum generation"
+            exit 0
+          fi
+          
+          echo "Generating MD5 checksums for release assets..."
+          
+          # Find all files in assets/release (excluding .md5 files) and generate checksums
+          find assets/release -type f ! -name "*.md5" | while read -r file; do
+            md5_file="${file}.md5"
+            md5sum "$file" | awk '{print $1}' > "$md5_file"
+            echo "Generated checksum: $md5_file"
+          done
+          
+          echo "MD5 checksum generation completed"
+
       - name: Upload Release Assets to Server
         env:
           SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
