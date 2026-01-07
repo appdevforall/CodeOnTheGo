@@ -200,7 +200,76 @@ jobs:
           fi
           
           echo "Uploading release assets to server..."
-          scp -r assets/release "$SCP_HOST:public_html/dev-assets/"
+          
+          # Function to copy a file to destination
+          copy_file() {
+            local source_file="$1"
+            local dest_dir="$2"
+            
+            if [ -f "$source_file" ]; then
+              local dest_file="$dest_dir/$(basename "$source_file")"
+              cp "$source_file" "$dest_file"
+              echo "Copied $source_file -> $dest_file"
+            fi
+          }
+          
+          # Function to copy files from a source directory to a destination directory
+          copy_files_from_dir() {
+            local source_dir="$1"
+            local dest_dir="$2"
+            shift 2
+            local files=("$@")
+            
+            for filename in "${files[@]}"; do
+              local source_file="$source_dir/$filename"
+              copy_file "$source_file" "$dest_dir"
+              
+              local md5_file="${source_file}.md5"
+              copy_file "$md5_file" "$dest_dir"
+            done
+          }
+          
+          # Create a temporary directory for flattened structure
+          TEMP_DIR=$(mktemp -d)
+          mkdir -p "$TEMP_DIR/release"
+          mkdir -p "$TEMP_DIR/release/v7"
+          mkdir -p "$TEMP_DIR/release/v8"
+          
+          # Copy common/data/common files to release/ (flattened)
+          copy_files_from_dir \
+            "assets/release/common/data/common" \
+            "$TEMP_DIR/release" \
+            "gradle-8.14.3-bin.zip.br" \
+            "gradle-api-8.14.3.jar.br" \
+            "localMvnRepository.zip.br" \
+            "plugin-artifacts.zip.br"
+          
+          # Copy common/database files to release/ (flattened)
+          copy_files_from_dir \
+            "assets/release/common/database" \
+            "$TEMP_DIR/release" \
+            "documentation.db.br"
+          
+          # Copy v7 files to release/v7/
+          copy_files_from_dir \
+            "assets/release/v7/data/common" \
+            "$TEMP_DIR/release/v7" \
+            "android-sdk.zip.br" \
+            "bootstrap.zip.br"
+          
+          # Copy v8 files to release/v8/
+          copy_files_from_dir \
+            "assets/release/v8/data/common" \
+            "$TEMP_DIR/release/v8" \
+            "android-sdk.zip.br" \
+            "bootstrap.zip.br"
+          
+          # Upload the flattened structure
+          scp -r "$TEMP_DIR/release" "$SCP_HOST:public_html/dev-assets/"
+          
+          # Cleanup
+          rm -rf "$TEMP_DIR"
+          
           echo "Release assets uploaded successfully"
 
       - name: V8 Assets Path
