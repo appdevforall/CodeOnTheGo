@@ -159,6 +159,32 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
+      - name: Create Release Assets
+        run: |
+          flox activate -d flox/base -- ./gradlew :app:bundleV7LlamaAssets :app:bundleV8LlamaAssets :app:bundlePluginArtifactsForRelease --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
+            -Dandroid.aapt2.daemonHeapSize=4096M \
+            -Dorg.gradle.workers.max=1 \
+            -Dorg.gradle.parallel=false
+
+      - name: Upload Release Assets to Server
+        env:
+          SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
+        run: |
+          if [ -z "$SCP_HOST" ]; then
+            echo "Warning: SCP_HOST not set, skipping release assets upload"
+            exit 0
+          fi
+          
+          if [ ! -d "assets/release" ]; then
+            echo "Warning: assets/release directory does not exist, skipping upload"
+            exit 0
+          fi
+          
+          echo "Uploading release assets to server..."
+          scp -r assets/release "$SCP_HOST:public_html/dev-assets/"
+          echo "Release assets uploaded successfully"
+
       - name: V8 Assets Path
         id: assets_v8
         run: |
