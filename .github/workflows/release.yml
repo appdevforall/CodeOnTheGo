@@ -740,15 +740,3 @@ jobs:
         run: |
           rm -f app/google-services.json
           echo "google-services.json cleaned up successfully"
-      - name: Cleanup ssh
-        if: always()
-        run: |
-          # Remove SSH key
-          rm -f ~/.ssh/id_rsa
-          # Clean up SSH known_hosts (remove the entry for this host)
-          SSH_HOST="${{ vars.GREENGEEKS_SSH_HOST }}"
-          if [ -n "$SSH_HOST" ]; then
-            ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
-          fi
-          # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null || true
