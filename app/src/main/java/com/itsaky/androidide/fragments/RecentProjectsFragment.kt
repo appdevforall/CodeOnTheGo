@@ -397,11 +397,21 @@ class RecentProjectsFragment : BaseFragment() {
     }
 
 	fun isValidProjectDirectory(selectedDir: File): Boolean {
+        if (isPluginProject(selectedDir)) {
+            return true
+        }
+
         val appFolder = File(selectedDir, "app")
         val buildGradleFile = File(appFolder, "build.gradle")
         val buildGradleKtsFile = File(appFolder, "build.gradle.kts")
         return appFolder.exists() && appFolder.isDirectory &&
                 (buildGradleFile.exists() || buildGradleKtsFile.exists())
+    }
+
+    private fun isPluginProject(dir: File): Boolean {
+        val pluginApiJar = File(dir, "libs/plugin-api.jar")
+        val buildGradle = File(dir, "build.gradle.kts")
+        return pluginApiJar.exists() && buildGradle.exists()
     }
 
     /**

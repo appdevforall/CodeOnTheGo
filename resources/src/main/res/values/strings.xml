@@ -121,6 +121,32 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
+	<string name="template_plugin">Code on the Go Plugin</string>
+
+	<!-- Plugin Template Wizard -->
+	<string name="wizard_plugin_name">Plugin Name</string>
+	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
+	<string name="wizard_plugin_description">Plugin Description</string>
+	<string name="wizard_plugin_author">Author Name</string>
+	<string name="wizard_include_sample_code">Include sample code</string>
+	<string name="wizard_plugin_permissions">Permissions</string>
+	<string name="wizard_plugin_extensions">Extensions</string>
+	<string name="wizard_plugin_options">Options</string>
+
+	<!-- Plugin Permissions -->
+	<string name="perm_filesystem_read">Filesystem Read</string>
+	<string name="perm_filesystem_write">Filesystem Write</string>
+	<string name="perm_network_access">Network Access</string>
+	<string name="perm_system_commands">System Commands</string>
+	<string name="perm_ide_settings">IDE Settings</string>
+	<string name="perm_project_structure">Project Structure</string>
+
+	<!-- Plugin Extensions -->
+	<string name="ext_ui">UI Extension</string>
+	<string name="ext_editor_tab">Editor Tab Extension</string>
+	<string name="ext_documentation">Documentation Extension</string>
+	<string name="ext_editor">Editor Extension</string>
+	<string name="ext_project">Project Extension</string>
 	<string name="unknown">Unknown</string>
 
 	<!-- Files -->
@@ -211,6 +237,7 @@
 	<string name="msg_open_projects">When enabled, restarting Code on the Go will automatically open the last project that was open.</string>
 	<string name="title_confirm_project_open">Confirm project opening</string>
 	<string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
+	<string name="msg_error_opening_project">Error opening project.</string>
 	<string name="title_default_shell">Use system shell in terminal</string>
 	<string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
 	<string name="title_general">General</string>
@@ -361,6 +388,7 @@
 
 	<string name="title_gradle_service_notification_channel">Code on the Go Gradle build service</string>
 	<string name="msg_hex_color_code">Hex color code</string>
+	<string name="msg_unsupported_color_format">Unsupported color format: %s</string>
 	<string name="msg_color_picker_pick">Pick</string>
 	<string name="msg_chmod_exec">Setting executable permissions…</string>
 	<string name="msg_linking">Linking %1$s to %2$s</string>
@@ -782,6 +810,17 @@
 	<string name="info_build_cancelled">Build was cancelled by the user.</string>
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
+	<string name="status_installing_plugin">Installing plugin…</string>
+	<string name="title_install_plugin">Install Plugin</string>
+	<string name="msg_install_plugin_prompt">Plugin \'%1$s\' built successfully. Would you like to install it now?</string>
+	<string name="btn_install">Install</string>
+	<string name="btn_later">Later</string>
+	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
+	<string name="title_restart_required">Restart Required</string>
+	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
+	<string name="btn_restart_now">Restart Now</string>
+	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
+	<string name="msg_plugin_file_not_found">Plugin file not found</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->

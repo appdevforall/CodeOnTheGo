@@ -72,7 +72,9 @@ import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
@@ -196,14 +198,17 @@ open class EditorHandlerActivity :
 	override fun onPause() {
 		super.onPause()
 		// Record timestamps for all currently open files before saving the cache
-		editorViewModel.getOpenedFiles().forEach { file ->
-			// Note: Using the file's absolutePath as the key
-			fileTimestamps[file.absolutePath] = file.lastModified()
+		val openFiles = editorViewModel.getOpenedFiles()
+		lifecycleScope.launch(Dispatchers.IO) {
+			openFiles.forEach { file ->
+				// Note: Using the file's absolutePath as the key
+				fileTimestamps[file.absolutePath] = file.lastModified()
+			}
 		}
 		ActionContextProvider.clearActivity()
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
-            saveAllAsync(notify = false)
+			saveAllAsync(notify = false)
 		}
 	}
 
@@ -221,19 +226,24 @@ open class EditorHandlerActivity :
 		val openFiles = editorViewModel.getOpenedFiles()
 		if (openFiles.isEmpty() || fileTimestamps.isEmpty()) return
 
-		// Check each open file
-		openFiles.forEach { file ->
-			val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: return@forEach
-			val currentTimestamp = file.lastModified()
-			val editorView = getEditorForFile(file)
+		lifecycleScope.launch(Dispatchers.IO) {
+			// Check each open file
+			openFiles.forEach { file ->
+				val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: return@forEach
+				val currentTimestamp = file.lastModified()
 
-			// If the file on disk is newer AND the editor for it exists AND has no unsaved changes...
-			if (currentTimestamp > lastKnownTimestamp && editorView != null && !editorView.isModified) {
-				val newContent = file.readText()
-				editorView.editor?.post {
-					editorView.editor?.setText(newContent)
-					editorView.markAsSaved()
-					updateTabs()
+				// If the file on disk is newer.
+				if (currentTimestamp > lastKnownTimestamp) {
+					val newContent = runCatching { file.readText() }.getOrNull() ?: return@forEach
+					withContext(Dispatchers.Main) {
+						// If the editor for the new file exists AND has no unsaved changes...
+						val editorView = getEditorForFile(file) ?: return@withContext
+						if (editorView.isModified) return@withContext
+
+						editorView.editor?.setText(newContent)
+						editorView.markAsSaved()
+						updateTabs()
+					}
 				}
 			}
 		}
@@ -270,42 +280,51 @@ open class EditorHandlerActivity :
 	override fun onStart() {
 		super.onStart()
 
-		try {
-			val prefs = (application as BaseApplication).prefManager
-			val jsonCache = prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
-			if (jsonCache != null) {
-				val cache = Gson().fromJson(jsonCache, OpenedFilesCache::class.java)
+		lifecycleScope.launch {
+			try {
+				val prefs = (application as BaseApplication).prefManager
+				val jsonCache = withContext(Dispatchers.IO) {
+					prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
+				} ?: return@launch
+
+				val cache = withContext(Dispatchers.Default) {
+					Gson().fromJson(jsonCache, OpenedFilesCache::class.java)
+				}
 				onReadOpenedFilesCache(cache)
 
 				// Clear the preference so it's only loaded once on startup
-				prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null)
+				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null) }
+			} catch (err: Throwable) {
+				log.error("Failed to reopen recently opened files", err)
 			}
-		} catch (err: Throwable) {
-			log.error("Failed to reopen recently opened files", err)
 		}
 	}
 
 	private fun onReadOpenedFilesCache(cache: OpenedFilesCache?) {
 		cache ?: return
 
-		val existingFiles = cache.allFiles.filter { File(it.filePath).exists() }
-		val selectedFileExists = File(cache.selectedFile).exists()
+		lifecycleScope.launch(Dispatchers.IO) {
+			val existingFiles = cache.allFiles.filter { File(it.filePath).exists() }
+			val selectedFileExists = File(cache.selectedFile).exists()
 
-		if (existingFiles.isEmpty()) return
+			if (existingFiles.isEmpty()) return@launch
 
-		existingFiles.forEach { file ->
-			openFile(File(file.filePath), file.selection)
-		}
+			withContext(Dispatchers.Main) {
+				existingFiles.forEach { file ->
+					openFile(File(file.filePath), file.selection)
+				}
 
-		if (selectedFileExists) {
-			openFile(File(cache.selectedFile))
+				if (selectedFileExists) {
+					openFile(File(cache.selectedFile))
+				}
+			}
 		}
 	}
 
 	fun prepareOptionsMenu() {
 		val registry = getInstance() as DefaultActionsRegistry
 		val data = createToolbarActionData()
-		content.customToolbar.clearMenu()
+		content.projectActionsToolbar.clearMenu()
 
 		val actions = getInstance().getActions(EDITOR_TOOLBAR)
 		actions.onEachIndexed { index, entry ->
@@ -319,14 +338,14 @@ open class EditorHandlerActivity :
 				alpha = if (action.enabled) 255 else 76
 			}
 
-			content.customToolbar.addMenuItem(
+			content.projectActionsToolbar.addMenuItem(
 				icon = action.icon,
 				hint = action.label,
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
 					TooltipManager.showIdeCategoryTooltip(
 						context = this,
-						anchorView = content.customToolbar,
+						anchorView = content.projectActionsToolbar,
 						tag = action.retrieveTooltipTag(false),
 					)
 				},
@@ -386,7 +405,11 @@ open class EditorHandlerActivity :
 		selection: Range?,
 	): CodeEditorView? {
 		val range = selection ?: Range.NONE
-		if (ImageUtils.isImage(file)) {
+		val isImage = runBlocking {
+			withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
+		}
+
+		if (isImage) {
 			openImage(this, file)
 			return null
 		}
@@ -515,11 +538,15 @@ open class EditorHandlerActivity :
 		progressConsumer: ((Int, Int) -> Unit)?,
 		runAfter: (() -> Unit)?,
 	) {
-        lifecycleScope.launch {
-                saveAll(notify, requestSync, processResources, progressConsumer)
-                runAfter?.invoke()
-            }
-    }
+		lifecycleScope.launch(Dispatchers.IO) {
+			withContext(NonCancellable) {
+				saveAll(notify, requestSync, processResources, progressConsumer)
+			}
+			withContext(Dispatchers.Main) {
+				runAfter?.invoke()
+			}
+		}
+	}
 
 	override suspend fun saveAll(
 		notify: Boolean,

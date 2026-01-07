@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -31,7 +32,9 @@ import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
@@ -48,6 +51,7 @@ import org.appdevforall.codeonthego.layouteditor.editor.DeviceSize
 import org.appdevforall.codeonthego.layouteditor.editor.convert.ConvertImportedXml
 import org.appdevforall.codeonthego.layouteditor.managers.DrawableManager
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
+import org.appdevforall.codeonthego.layouteditor.managers.PreferencesManager
 import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager
 import org.appdevforall.codeonthego.layouteditor.managers.UndoRedoManager
 import org.appdevforall.codeonthego.layouteditor.tools.XmlLayoutGenerator
@@ -100,8 +104,10 @@ class EditorActivity : BaseActivity() {
 					}
 
 					else -> {
-						saveXml()
-						finishAfterTransition()
+						lifecycleScope.launch {
+							saveXml()
+							finishAfterTransition()
+						}
 					}
 				}
 			}
@@ -143,30 +149,38 @@ class EditorActivity : BaseActivity() {
 				val createdAt = getCreatedTime(filePath).toString()
 				val modifiedAt = getLastModifiedTime(filePath).toString()
 
-				projectManager.openProject(
-					ProjectFile(
-						filePath,
-						createdAt,
-						modifiedAt,
-						this@EditorActivity,
-						mainLayoutName = fileName
+				try {
+					projectManager.openProject(
+						ProjectFile(
+							filePath,
+							createdAt,
+							modifiedAt,
+							this@EditorActivity,
+							mainLayoutName = fileName
+						)
 					)
-				)
-				project = projectManager.openedProject!!
-				androidToDesignConversion(
-					Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
-				)
+					project = projectManager.openedProject!!
+					invalidateOptionsMenu()
+					androidToDesignConversion(
+						Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
+					)
 
-				supportActionBar?.title = project.name
-				layoutAdapter = LayoutListAdapter(project)
+					supportActionBar?.title = project.name
+					layoutAdapter = LayoutListAdapter(project)
+					binding.editorLayout.setBackgroundColor(
+						Utils.getSurfaceColor(this@EditorActivity)
+					)
+				} catch (e: Exception) {
+					Log.e("EditorActivity", "Error loading project", e)
+					Toast.makeText(
+						this@EditorActivity,
+						getString(string.msg_error_opening_project),
+						Toast.LENGTH_SHORT
+					).show()
+					finish()
+				}
 			}
 		} ?: showNothingDialog()
-
-		binding.editorLayout.setBackgroundColor(
-			Utils.getSurfaceColor(
-				this,
-			),
-		)
 	}
 
 	private fun defineXmlPicker() {
@@ -189,37 +203,64 @@ class EditorActivity : BaseActivity() {
 	}
 
 	private fun androidToDesignConversion(uri: Uri?) {
-		val path = uri?.path
-		if (path != null && path.endsWith(".xml")) {
-			val xml = FileUtil.readFromUri(uri, this@EditorActivity)
-			val xmlConverted = ConvertImportedXml(xml).getXmlConverted(this@EditorActivity)
+		if (uri == null) {
+			Toast.makeText(
+				this@EditorActivity,
+				getString(string.error_invalid_xml_file),
+				Toast.LENGTH_SHORT
+			).show()
+			return
+		}
 
-			if (xmlConverted != null) {
-				val fileName = FileUtil.getLastSegmentFromPath(path)
+		lifecycleScope.launch {
+			try {
+				val fileName = FileUtil.getLastSegmentFromPath(uri.path ?: "")
+
+				if (!fileName.endsWith(".xml", ignoreCase = true)) {
+					Toast.makeText(
+						this@EditorActivity,
+						getString(string.error_invalid_xml_file),
+						Toast.LENGTH_SHORT
+					).show()
+					return@launch
+				}
+
+				val xml = withContext(Dispatchers.IO) {
+					FileUtil.readFromUri(uri, this@EditorActivity)
+				} ?: run {
+					make(binding.root, getString(string.error_failed_to_import))
+						.setSlideAnimation()
+						.showAsError()
+					return@launch
+				}
+
+				val xmlConverted = withContext(Dispatchers.Default) {
+					ConvertImportedXml(xml).getXmlConverted(this@EditorActivity)
+				}
+
+				if (xmlConverted == null) {
+					make(binding.root, getString(string.error_failed_to_import))
+						.setSlideAnimation()
+						.showAsError()
+					return@launch
+				}
 
 				val productionPath = project.layoutPath + fileName
 				val designPath = project.layoutDesignPath + fileName
-
-				FileUtil.writeFile(productionPath, xml)
-				FileUtil.writeFile(designPath, xmlConverted)
+				withContext(Dispatchers.IO) {
+					FileUtil.writeFile(productionPath, xml)
+					FileUtil.writeFile(designPath, xmlConverted)
+				}
 
 				openLayout(LayoutFile(productionPath, designPath))
-
 				make(binding.root, getString(string.success_imported))
 					.setFadeAnimation()
 					.showAsSuccess()
-			} else {
+			} catch (t: Throwable) {
 				make(binding.root, getString(string.error_failed_to_import))
 					.setSlideAnimation()
 					.showAsError()
 			}
-		} else {
-			Toast
-				.makeText(
-					this@EditorActivity,
-					getString(string.error_invalid_xml_file),
-					Toast.LENGTH_SHORT,
-				).show()
 		}
 	}
 
@@ -383,10 +424,31 @@ class EditorActivity : BaseActivity() {
 		binding.listView.adapter = adapter
 	}
 
+	private fun isProjectReady(): Boolean {
+		if (!::project.isInitialized) {
+			ToastUtils.showShort(getString(R.string.loading_project))
+			return false
+		}
+		return true
+	}
+
 	override fun onOptionsItemSelected(item: MenuItem): Boolean {
 		val id = item.itemId
 		undoRedo!!.updateButtons()
 		if (actionBarDrawerToggle!!.onOptionsItemSelected(item)) return true
+
+		when (id) {
+			R.id.resources_manager,
+			R.id.preview,
+			R.id.export_xml,
+			R.id.export_as_image,
+			R.id.save_xml,
+			R.id.exit_editor,
+			R.id.edit_xml -> {
+				if (!isProjectReady()) return false
+			}
+		}
+
 		when (id) {
 			android.R.id.home -> {
 				drawerLayout.openDrawer(GravityCompat.START)
@@ -426,11 +488,13 @@ class EditorActivity : BaseActivity() {
 				if (result.isEmpty()) {
 					showNothingDialog()
 				} else {
-					saveXml()
-					startActivity(
-						Intent(this, PreviewLayoutActivity::class.java)
-							.putExtra(Constants.EXTRA_KEY_LAYOUT, project.currentLayout),
-					)
+					lifecycleScope.launch {
+						saveXml()
+						startActivity(
+							Intent(this@EditorActivity, PreviewLayoutActivity::class.java)
+								.putExtra(Constants.EXTRA_KEY_LAYOUT, project.currentLayout),
+						)
+					}
 				}
 				return true
 			}
@@ -522,14 +586,28 @@ class EditorActivity : BaseActivity() {
 				if (binding.editorLayout.isLayoutModified()) {
 					showSaveChangesDialog()
 				} else {
-					saveXml()
-					finishAfterTransition()
+					lifecycleScope.launch {
+						saveXml()
+						finishAfterTransition()
+					}
 				}
 				return true
 			}
 
 			else -> return false
 		}
+	}
+
+	override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+		val isReady = ::project.isInitialized
+		menu.findItem(R.id.resources_manager)?.isEnabled = isReady
+		menu.findItem(R.id.preview)?.isEnabled = isReady
+		menu.findItem(R.id.export_xml)?.isEnabled = isReady
+		menu.findItem(R.id.export_as_image)?.isEnabled = isReady
+		menu.findItem(R.id.save_xml)?.isEnabled = isReady
+		menu.findItem(R.id.edit_xml)?.isEnabled = isReady
+		menu.findItem(R.id.exit_editor)?.isEnabled = isReady
+		return super.onPrepareOptionsMenu(menu)
 	}
 
 	override fun onConfigurationChanged(config: Configuration) {
@@ -563,8 +641,10 @@ class EditorActivity : BaseActivity() {
 		if (result.isEmpty()) {
 			showNothingDialog()
 		} else {
-			saveXml()
-			finish()
+			lifecycleScope.launch {
+				saveXml()
+				finish()
+			}
 		}
 	}
 
@@ -653,23 +733,30 @@ class EditorActivity : BaseActivity() {
 		}
 	}
 
-    private fun openLayout(layoutFile: LayoutFile) {
-    originalProductionXml = layoutFile.readLayoutFile()
-    originalDesignXml = layoutFile.readDesignFile()
+  private suspend fun openLayout(layoutFile: LayoutFile) {
+    val (production, design, layoutName) = withContext(Dispatchers.IO) {
+      val production = layoutFile.readLayoutFile()
+      var design = layoutFile.readDesignFile()
 
-		var contentToParse = layoutFile.readDesignFile()
+      if (design.isNullOrBlank() && !production.isNullOrBlank()) {
+        val converted = withContext(Dispatchers.Default) {
+					ConvertImportedXml(production).getXmlConverted(this@EditorActivity)
+				}
+        if (!converted.isNullOrBlank()) {
+          layoutFile.saveDesignFile(converted)
+          design = converted
+        }
+      }
+      Triple(production, design, layoutFile.name)
+    }
+    originalProductionXml = production
+    originalDesignXml = design
 
-		if (contentToParse.isNullOrBlank()) {
-			val productionContent = layoutFile.readLayoutFile()
-			if (!productionContent.isNullOrBlank()) {
-				contentToParse = ConvertImportedXml(productionContent).getXmlConverted(this)
-				contentToParse?.let { layoutFile.saveDesignFile(it) }
-			}
-		}
+		binding.editorLayout.loadLayoutFromParser(design)
 
-		binding.editorLayout.loadLayoutFromParser(contentToParse)
 		project.currentLayout = layoutFile
-		supportActionBar!!.subtitle = layoutFile.name
+		supportActionBar?.subtitle = layoutName
+
 		if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
 			drawerLayout.closeDrawer(GravityCompat.START)
 		}
@@ -686,23 +773,53 @@ class EditorActivity : BaseActivity() {
 			.show()
 	}
 
-    private fun saveXml() {
-		val currentLayoutFile = project.currentLayout as? LayoutFile ?: return
+	private fun currentLayoutFileOrNull(): LayoutFile? =
+		project.currentLayout as? LayoutFile
 
-		if (binding.editorLayout.isEmpty()) {
-			currentLayoutFile.saveLayout("")
-			currentLayoutFile.saveDesignFile("")
-			binding.editorLayout.markAsSaved()
-			ToastUtils.showShort(getString(string.layout_saved))
+	private fun restoreOriginalXmlIfNeeded() {
+		val xmlToRestore = originalDesignXml ?: originalProductionXml
+		if (!xmlToRestore.isNullOrBlank()) {
+			binding.editorLayout.loadLayoutFromParser(xmlToRestore)
+		}
+	}
+
+	/**
+	 * Writes the current editor state to disk.
+	 * - Generates XML on the current thread (UI-safe)
+	 * - Performs file I/O on Dispatchers.IO
+	 * - No UI side-effects (no toast / no markAsSaved) to keep it reusable
+	 */
+	private suspend fun persistEditorLayout(layoutFile: LayoutFile): Boolean {
+		return runCatching {
+			if (binding.editorLayout.isEmpty()) {
+				withContext(Dispatchers.IO) {
+					layoutFile.saveLayout("")
+					layoutFile.saveDesignFile("")
+				}
+				return@runCatching
+			}
+
+			val generator = XmlLayoutGenerator()
+			val productionXml = generator.generate(binding.editorLayout, true)
+			val designXml = generator.generate(binding.editorLayout, false)
+
+			withContext(Dispatchers.IO) {
+				layoutFile.saveLayout(productionXml)
+				layoutFile.saveDesignFile(designXml)
+			}
+		}.isSuccess
+	}
+
+	private suspend fun saveXml() {
+		val layoutFile = currentLayoutFileOrNull() ?: return
+
+		val success = persistEditorLayout(layoutFile)
+		if (!success) {
+			withContext(Dispatchers.Main) {
+				ToastUtils.showShort(getString(string.failed_to_save_layout))
+			}
 			return
 		}
-
-		val productionXml = XmlLayoutGenerator().generate(binding.editorLayout, true)
-		currentLayoutFile.saveLayout(productionXml)
-
-		// Generate and save the DESIGN-TIME XML for the editor's internal use
-		val designXml = XmlLayoutGenerator().generate(binding.editorLayout, false)
-		currentLayoutFile.saveDesignFile(designXml)
 
 		binding.editorLayout.markAsSaved()
 		ToastUtils.showShort(getString(string.layout_saved))
@@ -713,25 +830,20 @@ class EditorActivity : BaseActivity() {
 			.setTitle(R.string.save_changes)
 			.setMessage(R.string.msg_save_changes_to_layout)
 			.setPositiveButton(R.string.save_changes_and_exit) { _, _ ->
-				saveXml()
-				finishAfterTransition()
-			}.setNegativeButton(R.string.discard_changes_and_exit) { _, _ ->
-				val layoutFile = project.currentLayout as? LayoutFile ?: run {
-        	finishAfterTransition()
-        	return@setNegativeButton
-    		}
-
-				val xmlToRestore = originalDesignXml ?: originalProductionXml
-				if (!xmlToRestore.isNullOrBlank()) {
-					binding.editorLayout.loadLayoutFromParser(xmlToRestore)
+				lifecycleScope.launch {
+					saveXml()
+					finishAfterTransition()
 				}
-
-				val prettyXml = XmlLayoutGenerator().generate(binding.editorLayout, true)
-				layoutFile.saveLayout(prettyXml)
-
-				val designXml = XmlLayoutGenerator().generate(binding.editorLayout, false)
-				layoutFile.saveDesignFile(designXml)
-				finishAfterTransition()
+			}.setNegativeButton(R.string.discard_changes_and_exit) { _, _ ->
+				lifecycleScope.launch {
+					val layoutFile = currentLayoutFileOrNull() ?: run {
+						finishAfterTransition()
+						return@launch
+					}
+					restoreOriginalXmlIfNeeded()
+					persistEditorLayout(layoutFile)
+					finishAfterTransition()
+				}
 			}.setNeutralButton(R.string.cancel_and_stay_in_editor) { dialog, _ ->
 				dialog.dismiss()
 			}.setCancelable(false)

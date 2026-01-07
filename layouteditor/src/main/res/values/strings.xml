@@ -7,6 +7,7 @@
     <string name="project_saved">Project saved.</string>
     <string name="new_project">New project</string>
     <string name="layout_saved">Layout Saved</string>
+    <string name="failed_to_save_layout">Failed to save layout</string>
     <string name="new_layout">New Layout</string>
     <string name="layout_empty">Layout empty! Add a view before saving&#8230;</string>
     <string name="add_new">Add new</string>
@@ -64,6 +65,7 @@
     <string name="save_xml">Save XML</string>
     <string name="delete_view">Delete view</string>
     <string name="msg_delete_view">Do you want to remove the view?</string>
+    <string name="error_incompatible_hierarchy">This layout doesn’t support %1$s inside %2$s. Move it to another parent.</string>
     <string name="select_arg_type">Select argument type</string>
     <string name="select_drawable_type">Select drawable type</string>
     <string name="theme_dark">Dark</string>
@@ -90,6 +92,13 @@
     <string name="copy_name">Copy Name</string>
     <string name="import_resource">Import</string>
     <string name="color_scheme">Color Scheme</string>
+    <string name="new_color_dialog_title">New Color</string>
+    <string name="remove_color_dialog_title">Remove Color</string>
+    <string name="msg_confirm_remove_color">Do you want to remove %1$s?</string>
+    <string name="color_picker_dialog_title">Choose Color</string>
+    <string name="edit_color_dialog_title">Edit Color</string>
+    <string name="error_invalid_color">Invalid color</string>
+    <string name="error_color_name_required">Name required</string>
     <string name="select">Select</string>
     <string name="palette">Palette</string>
     <string name="common">Common</string>
