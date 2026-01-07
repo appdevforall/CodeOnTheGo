@@ -17,7 +17,10 @@
 
 package com.itsaky.androidide.tooling.api.util
 
+import com.itsaky.androidide.tooling.api.util.ToolingProps.DESCENDANT_FORCE_KILL_TIMEOUT_MS
 import com.itsaky.androidide.utils.AndroidPluginVersion
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * System properties for configuring the tooling API server.
@@ -25,10 +28,8 @@ import com.itsaky.androidide.utils.AndroidPluginVersion
  * @author Akash Yadav
  */
 object ToolingProps {
-	private fun propName(
-		cat: String,
-		name: String,
-	) = "ide.tooling.$cat.$name"
+
+	private fun propName(cat: String, name: String) = "ide.tooling.$cat.$name"
 
 	/**
 	 * Whether the current environment is a test environment.
@@ -43,6 +44,19 @@ object ToolingProps {
 	 * Internal API. For testing purposes only.
 	 */
 	val TESTING_LATEST_AGP_VERSION = propName("testing", "latestAgpVersion")
+
+	/**
+	 * Whether the Gradle daemon should be killed forcibly. Use [DESCENDANT_FORCE_KILL_TIMEOUT_MS]
+	 * to set a duration that the tooling server will wait before killing the daemon.
+	 */
+	val DAEMON_FORCE_KILL = propName("daemon", "forceKill")
+
+	/**
+	 * Timeout for killing the descendant processes. The tooling API waits for this timeout before
+	 * killing forcibly killing the descendant processes if still alive. A timeout duration of
+	 * `0` milliseconds kills the processes instantly.
+	 */
+	val DESCENDANT_FORCE_KILL_TIMEOUT_MS = propName("daemon", "killTimeoutMs")
 
 	/**
 	 * Whether the current environment is a test environment.
@@ -63,9 +77,20 @@ object ToolingProps {
 				return AndroidPluginVersion.LATEST_TESTED
 			}
 
-			return System
-				.getProperty(TESTING_LATEST_AGP_VERSION)
+			return System.getProperty(TESTING_LATEST_AGP_VERSION)
 				?.let { AndroidPluginVersion.parse(it) }
 				?: AndroidPluginVersion.LATEST_TESTED
 		}
+
+	/**
+	 * Whether the Gradle daemon should be killed forcibly.
+	 */
+	val killDescendantProcesses: Boolean
+		get() = System.getProperty(DAEMON_FORCE_KILL).toBoolean()
+
+	/**
+	 * Timeout for killing the Gradle daemon.
+	 */
+	val killDescendantTimeout: Duration
+		get() = System.getProperty(DESCENDANT_FORCE_KILL_TIMEOUT_MS, "0").toLong().milliseconds
 }

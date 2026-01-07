@@ -254,11 +254,6 @@ class GradleBuildService :
 
 		toolingApiClient?.client = null
 		toolingApiClient = null
-
-		log.debug("Cancelling tooling server output reader job...")
-		outputReaderJob?.cancel()
-		outputReaderJob = null
-
 		isToolingServerStarted = false
 	}
 
@@ -274,6 +269,11 @@ class GradleBuildService :
 		errorStream: InputStream,
 	) {
 		startServerOutputReader(errorStream)
+			.invokeOnCompletion { err ->
+				log.info("tooling API server reader stopped: ${err?.message ?: "OK"}", err)
+				outputReaderJob = null
+			}
+
 		this.server = server
 		this.isToolingServerStarted = true
 	}
@@ -632,31 +632,34 @@ class GradleBuildService :
 			}
 		}
 
-	private fun startServerOutputReader(input: InputStream) {
-		if (outputReaderJob?.isActive == true) {
-			return
+	private fun startServerOutputReader(input: InputStream): Job {
+		outputReaderJob?.let { job ->
+			if (job.isActive) {
+				return job
+			}
 		}
 
-		outputReaderJob =
-			buildServiceScope.launch(
-				Dispatchers.IO + CoroutineName("ToolingServerErrorReader"),
-			) {
-				val reader = input.bufferedReader()
-				try {
-					reader.forEachLine { line ->
-						SERVER_System_err.error(line)
-						if (!isActive) throw CancellationException()
-					}
-				} catch (e: Throwable) {
-					e.ifCancelledOrInterrupted(suppress = true) {
-						// will be suppressed
-						return@launch
-					}
-
-					// log the error and fail silently
-					log.error("Failed to read tooling server output", e)
+		return buildServiceScope.launch(
+			Dispatchers.IO + CoroutineName("ToolingServerErrorReader"),
+		) {
+			val reader = input.bufferedReader()
+			try {
+				reader.forEachLine { line ->
+					SERVER_System_err.error(line)
+					if (!isActive) throw CancellationException()
 				}
+			} catch (e: Throwable) {
+				e.ifCancelledOrInterrupted(suppress = true) {
+					// will be suppressed
+					return@launch
+				}
+
+				// log the error and fail silently
+				log.error("Failed to read tooling server output", e)
 			}
+		}.also { job ->
+			outputReaderJob = job
+		}
 	}
 
 	/**

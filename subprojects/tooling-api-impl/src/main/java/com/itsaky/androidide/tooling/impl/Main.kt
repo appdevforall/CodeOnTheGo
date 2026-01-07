@@ -18,15 +18,24 @@ package com.itsaky.androidide.tooling.impl
 
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher.newServerLauncher
+import com.itsaky.androidide.tooling.api.util.ToolingProps
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.time.delay
+import kotlinx.coroutines.withTimeout
 import org.gradle.tooling.events.OperationType
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.TimeoutException
 import kotlin.system.exitProcess
 
 object Main {
+
+	val Process: ProcessHandle = ProcessHandle.current()
+
 	private val logger = LoggerFactory.getLogger(Main::class.java)
 
 	@Volatile
@@ -46,9 +55,7 @@ object Main {
 		try {
 			if (client?.checkGradleWrapperAvailability()?.get()?.isAvailable != true) {
 				logger.warn(
-					("Gradle wrapper is not available."
-							+ " Client might have failed to ensure availability."
-							+ " Build might fail.")
+					("Gradle wrapper is not available." + " Client might have failed to ensure availability." + " Build might fail.")
 				)
 			} else {
 				logger.info("Gradle wrapper is available")
@@ -59,7 +66,7 @@ object Main {
 	}
 
 	@JvmStatic
-	fun main(args: Array<String>) {
+	fun main(args: Array<String>): Unit = runBlocking {
 		logger.debug("Starting Tooling API server...")
 
 		val server = ToolingApiServerImpl()
@@ -112,8 +119,42 @@ object Main {
 					logger.error("Failed to cancel launcher future", error)
 				}
 
+				if (ToolingProps.killDescendantProcesses) {
+					killDescendantProcesses()
+				}
+
 				logger.info("Tooling API server shutdown complete")
 				exitProcess(0)
+			}
+		}
+	}
+
+	private suspend fun killDescendantProcesses() {
+		val descendants = ProcessHandle.current().descendants().toList()
+		logger.info("descendants: {}", descendants.map(ProcessHandle::pid))
+
+		// try a graceful shutdown by asking the process to shutdown,
+		descendants.forEach { proc ->
+			val pid = proc.pid()
+			try {
+				logger.info("shutting down process: {} {}", pid, proc.info())
+				proc.destroy()
+			} catch (err: Throwable) {
+				logger.warn("an error occurrent trying to shut down process {}", pid, err)
+			}
+		}
+
+		// then wait for the processes to shutdown gracefully
+		delay(ToolingProps.killDescendantTimeout)
+
+		// if the processes are still alive, kill them forcibly
+		descendants.forEach { proc ->
+			val pid = proc.pid()
+			try {
+				logger.info("killing process (alive={}): {} {}", proc.isAlive, pid, proc.info())
+				proc.destroyForcibly()
+			} catch (err: Throwable) {
+				logger.warn("an error occurrent trying to kill process {}", pid, err)
 			}
 		}
 	}
