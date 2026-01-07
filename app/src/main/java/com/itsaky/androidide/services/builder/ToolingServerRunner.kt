@@ -34,11 +34,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.InputStream
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Runner thread for the Tooling API.
@@ -78,7 +82,13 @@ internal class ToolingServerRunner(
 		 * Timeout for killing the tooling daemon. The tooling API waits for this timeout before
 		 * forcibly killing the daemon process tree if it's still alive.
 		 */
-		const val TOOLING_DAEMON_KILL_TIMEOUT_MS = 3 * 1000L
+		val TOOLING_DAEMON_KILL_TIMEOUT = 3.seconds
+
+		/**
+		 * Timeout for the shell process used to kill the daemon. Must always be greater
+		 * than [TOOLING_DAEMON_KILL_TIMEOUT].
+		 */
+		val TOOLING_DAEMON_KILL_SHELL_TIMEOUT = TOOLING_DAEMON_KILL_TIMEOUT + 2.seconds
 	}
 
 	fun setListener(listener: OnServerStartListener?) {
@@ -155,7 +165,7 @@ internal class ToolingServerRunner(
 							} finally {
 								log.info("Destroying Tooling API process...")
 								if (TOOLING_DAEMON_KILL_ENABLED) {
-									killWithDescendants(pid!!.toLong(), TOOLING_DAEMON_KILL_TIMEOUT_MS / 1000)
+									killWithDescendants(pid!!.toLong())
 								} else {
 									process?.destroyForcibly()
 								}
@@ -216,10 +226,7 @@ internal class ToolingServerRunner(
 		this.runnerScope.cancelIfActive("Cancellation was requested")
 	}
 
-	private fun killWithDescendants(
-		pid: Long,
-		sigHupWaitSec: Long,
-	) {
+	private suspend fun killWithDescendants(pid: Long) {
 		val cmd = mutableListOf<String>()
 		var shell = System.getenv("SHELL")
 		if (shell.isNullOrBlank()) {
@@ -241,7 +248,7 @@ internal class ToolingServerRunner(
 		cmd.add(
 			listOf(
 				"pkill -HUP -P $pid", // send SIGHUP to all descendants of $pid
-				"sleep $sigHupWaitSec", // wait for descendants to exit
+				"sleep ${TOOLING_DAEMON_KILL_TIMEOUT.inWholeSeconds}", // wait for descendants to exit
 				"pkill -KILL -P $pid", // kill all descendants of $pid, forcibly
 				"kill -KILL $pid", // kill $pid, forcibly
 			).joinToString(separator = ";"),
@@ -256,9 +263,26 @@ internal class ToolingServerRunner(
 					start()
 				}
 
-		val exitCode = proc.waitFor()
-		val output = proc.inputStream.use { inputStream -> inputStream.bufferedReader().readText() }
-		log.info("Result of killing process tree of pid={}: exitCode={} {}", pid, exitCode, output)
+		try {
+			val exitCode = withContext(Dispatchers.IO) {
+				proc.waitFor(
+					TOOLING_DAEMON_KILL_SHELL_TIMEOUT.inWholeMilliseconds,
+					TimeUnit.MILLISECONDS
+				)
+			}
+
+			val output =
+				proc.inputStream.use { inputStream -> inputStream.bufferedReader().readText() }
+			log.info(
+				"Result of killing process tree of pid={}: exitCode={} {}",
+				pid,
+				exitCode,
+				output
+			)
+		} catch (_: TimeoutException) {
+			log.error("Killing process tree of pid={} timed out", pid)
+			proc.destroyForcibly()
+		}
 	}
 
 	interface Observer {
