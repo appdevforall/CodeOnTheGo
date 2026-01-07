@@ -18,7 +18,6 @@
 package com.itsaky.androidide.services.builder
 
 import ch.qos.logback.core.CoreConstants
-import com.itsaky.androidide.logging.JvmStdErrAppender
 import com.itsaky.androidide.shell.executeProcessAsync
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
@@ -35,8 +34,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
-import java.io.File
-import java.io.FileNotFoundException
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -63,22 +60,6 @@ internal class ToolingServerRunner(
 
 	companion object {
 		private val log = LoggerFactory.getLogger(ToolingServerRunner::class.java)
-
-		/**
-		 * Whether to enable logging of the error stream of the tooling server.
-		 */
-		const val TOOLING_ERR_STREAM_LOGGING_ENABLED = true
-
-		/**
-		 * Whether to enable force killing the Gradle daemon.
-		 */
-		const val TOOLING_DAEMON_KILL_ENABLED = true
-
-		/**
-		 * Timeout for killing the tooling daemon. The tooling API waits for this timeout before
-		 * killing forcibly killing the daemon process tree if it's still alive.
-		 */
-		const val TOOLING_DAEMON_KILL_TIMEOUT_MS = 3 * 1000L
 	}
 
 	fun setListener(listener: OnServerStartListener?) {
@@ -115,7 +96,6 @@ internal class ToolingServerRunner(
 							"--add-opens",
 							"java.base/java.io=ALL-UNNAMED", // The JAR file to run
 							"-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener",
-							"-D${JvmStdErrAppender.PROP_JVM_STDERR_APPENDER_ENABLED}=${TOOLING_ERR_STREAM_LOGGING_ENABLED}",
 							"-jar",
 							Environment.TOOLING_API_JAR.absolutePath,
 						)
@@ -131,13 +111,8 @@ internal class ToolingServerRunner(
 							this.environment = envs
 						}
 
-					pid =
-						ReflectionUtils
-							.getDeclaredField(process::class.java, "pid")
-							?.get(process) as Int?
+					pid = ReflectionUtils.getDeclaredField(process::class.java, "pid")?.get(process) as Int?
 					pid ?: throw IllegalStateException("Unable to get process ID")
-
-					log.info("Tooling API server running with PID: {}", pid)
 
 					val inputStream = process.inputStream
 					val outputStream = process.outputStream
@@ -154,11 +129,7 @@ internal class ToolingServerRunner(
 								process = null
 							} finally {
 								log.info("Destroying Tooling API process...")
-								if (TOOLING_DAEMON_KILL_ENABLED) {
-									killWithDescendants(pid!!.toLong(), TOOLING_DAEMON_KILL_TIMEOUT_MS / 1000)
-								} else {
-									process?.destroyForcibly()
-								}
+								process?.destroyForcibly()
 							}
 						}
 
@@ -214,51 +185,6 @@ internal class ToolingServerRunner(
 		this.observer = null
 		this.job?.cancel(CancellationException("Cancellation was requested"))
 		this.runnerScope.cancelIfActive("Cancellation was requested")
-	}
-
-	private fun killWithDescendants(
-		pid: Long,
-		sigHupWaitSec: Long,
-	) {
-		val cmd = mutableListOf<String>()
-		var shell = System.getenv("SHELL")
-		if (shell.isNullOrBlank()) {
-			shell = "/system/bin/sh"
-		}
-
-		val shellFile = File(shell)
-		if (!shellFile.exists()) {
-			throw FileNotFoundException("Shell file does not exist: $shell")
-		}
-
-		if (!shellFile.canExecute() && !shellFile.setExecutable(true)) {
-			throw RuntimeException("Failed to set shell file as executable: $shell")
-		}
-
-		cmd.add(shell)
-		cmd.add("-c")
-
-		cmd.add(
-			listOf(
-				"pkill -HUP -P $pid", // send SIGHUP to all descendants of $pid
-				"sleep $sigHupWaitSec", // wait for descendants to exit
-				"pkill -KILL -P $pid", // kill all descendants of $pid, forcibly
-				"kill -KILL $pid", // kill $pid, forcibly
-			).joinToString(separator = ";"),
-		)
-
-		log.info("Running {} to kill process {} with descendants", cmd, pid)
-
-		val proc =
-			ProcessBuilder(cmd)
-				.run {
-					redirectErrorStream(true)
-					start()
-				}
-
-		val exitCode = proc.waitFor()
-		val output = proc.inputStream.use { inputStream -> inputStream.bufferedReader().readText() }
-		log.info("Result of killing process tree of pid={}: exitCode={} {}", pid, exitCode, output)
 	}
 
 	interface Observer {

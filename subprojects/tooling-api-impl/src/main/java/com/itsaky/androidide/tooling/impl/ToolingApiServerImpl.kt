@@ -227,7 +227,8 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			else -> null
 		}
 
-	override fun isServerInitialized(): CompletableFuture<Boolean> = CompletableFuture.supplyAsync { isInitialized }
+	override fun isServerInitialized(): CompletableFuture<Boolean> =
+		CompletableFuture.supplyAsync { isInitialized }
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		return runBuild {
@@ -348,10 +349,6 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		CompletableFuture.supplyAsync {
 			log.info("Shutting down Tooling API Server...")
 
-			// cancel running build, if any
-			buildCancellationToken?.cancel()
-			buildCancellationToken = null
-
 			connection?.close()
 			connector?.disconnect()
 			connection = null
@@ -370,7 +367,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			Main.future?.cancel(true)
 
 			this.client = null
-			this.buildCancellationToken = null
+			this.buildCancellationToken = null // connector.disconnect() cancels any running builds
 			this.lastInitParams = null
 
 			log.info("Shutdown request completed.")
