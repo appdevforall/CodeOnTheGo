@@ -676,64 +676,6 @@ tasks.register("assembleAssets") {
 val bundleLlamaV7Assets = registerBundleLlamaAssetsTask(flavor = "v7", arch = "armeabi-v7a")
 val bundleLlamaV8Assets = registerBundleLlamaAssetsTask(flavor = "v8", arch = "arm64-v8a")
 
-tasks.register("bundlePluginArtifactsForRelease") {
-	dependsOn("createPluginArtifactsZip")
-
-	val sourceZip = rootProject.file("assets/plugin-artifacts.zip")
-	val targetDir = rootProject.file("assets/release/common/data/common")
-	val destBr = File(targetDir, "plugin-artifacts.zip.br")
-	val destZip = File(targetDir, "plugin-artifacts.zip")
-
-	inputs.file(sourceZip)
-	outputs.file(destBr)
-
-	doLast {
-		if (!sourceZip.exists()) {
-			throw GradleException("plugin-artifacts.zip not found: ${sourceZip.absolutePath}")
-		}
-
-		targetDir.mkdirs()
-		destBr.delete()
-		destZip.delete()
-
-		val brotliAvailable =
-			try {
-				val result =
-					project.exec {
-						commandLine("brotli", "--version")
-						isIgnoreExitValue = true
-					}
-				result.exitValue == 0
-			} catch (_: Exception) {
-				false
-			}
-
-		if (brotliAvailable) {
-			project.exec {
-				commandLine("brotli", "-f", "-o", destBr.absolutePath, sourceZip.absolutePath)
-			}
-			project.logger.lifecycle(
-				"Bundled plugin-artifacts.zip compressed to ${
-					destBr.relativeTo(
-						project.rootProject.projectDir
-					)
-				}"
-			)
-			destZip.delete()
-		} else {
-			project.logger.warn(
-				"brotli CLI not found; bundling plugin-artifacts.zip uncompressed at ${
-					destZip.relativeTo(
-						project.rootProject.projectDir
-					)
-				}"
-			)
-			sourceZip.copyTo(destZip, overwrite = true)
-			destBr.delete()
-		}
-	}
-}
-
 tasks.register("recompressApk") {
 	doLast {
 		val abi: String = extensions.extraProperties["abi"].toString()
@@ -761,15 +703,9 @@ val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "b
 afterEvaluate {
     tasks.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }.configureEach {
         dependsOn(bundleLlamaV8Assets)
-        if (name.lowercase().contains("release")) {
-            dependsOn("bundlePluginArtifactsForRelease")
-        }
     }
     tasks.matching { it.name.contains("V7") && it.name.lowercase().contains("lint") }.configureEach {
         dependsOn(bundleLlamaV7Assets)
-        if (name.lowercase().contains("release")) {
-            dependsOn("bundlePluginArtifactsForRelease")
-        }
     }
 
 	tasks.named("assembleV8Release").configure {
@@ -783,7 +719,7 @@ afterEvaluate {
 			}
 		}
 
-        dependsOn(bundleLlamaV8Assets, "bundlePluginArtifactsForRelease")
+        dependsOn(bundleLlamaV8Assets)
         if (!isCiCd) {
             dependsOn("assetsDownloadRelease")
         }
@@ -800,7 +736,7 @@ afterEvaluate {
 			}
 		}
 
-        dependsOn(bundleLlamaV7Assets, "bundlePluginArtifactsForRelease")
+        dependsOn(bundleLlamaV7Assets)
         if (!isCiCd) {
             dependsOn("assetsDownloadRelease")
         }
@@ -997,8 +933,6 @@ val releaseAssets = listOf(
         "gradle-api-8.14.3.jar.br", "release"),
     Asset("assets/release/common/data/common/localMvnRepository.zip.br", "https://appdevforall.org/dev-assets/release/localMvnRepository.zip.br",
         "localMvnRepository.zip.br", "release"),
-    Asset("assets/release/common/data/common/plugin-artifacts.zip.br", "https://appdevforall.org/dev-assets/release/plugin-artifacts.zip.br",
-        "plugin-artifacts.zip.br", "release"),
     Asset("assets/release/common/database/documentation.db.br", "https://appdevforall.org/dev-assets/release/documentation.db.br",
         "documentation.db.br", "release"),
     Asset("assets/release/v7/data/common/android-sdk.zip.br", "https://appdevforall.org/dev-assets/release/v7/android-sdk.zip.br",
