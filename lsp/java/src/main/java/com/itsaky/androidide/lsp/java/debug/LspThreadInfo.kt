@@ -71,17 +71,23 @@ class JavaStackFrame(
 							Thread.sleep(5000)
 						} catch (e: Exception) {}
 
-						val thisObject = try {
+						val thisObject = runCatching {
 							this.thisObject()
-						} catch (e: com.sun.jdi.VMDisconnectedException) {
-							logger.warn("VM disconnected while fetching 'this' object.", e)
-							return@evaluate emptyList()
-						} catch (e: com.sun.jdi.ObjectCollectedException) {
-							logger.warn("Object collected by GC during debug", e)
-							null
-						} catch (e: Throwable) {
-							logger.error("Unexpected error fetching thisObject", e)
-							null
+						}.getOrElse { e ->
+							when (e) {
+								is com.sun.jdi.VMDisconnectedException -> {
+									logger.warn("VM disconnected while fetching 'this' object.", e)
+									return@evaluate emptyList()
+								}
+								is com.sun.jdi.ObjectCollectedException -> {
+									logger.warn("Object collected by GC during debug", e)
+									null
+								}
+								else -> {
+									logger.error("Unexpected error fetching thisObject", e)
+									null
+								}
+							}
 						}
 						if (thisObject != null) {
 							variables.add(
