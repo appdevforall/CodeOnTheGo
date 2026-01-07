@@ -25,7 +25,6 @@ import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher
-import com.itsaky.androidide.tooling.api.util.ToolingProps
 import com.itsaky.androidide.utils.Environment
 import com.termux.shared.reflection.ReflectionUtils
 import kotlinx.coroutines.CancellationException
@@ -132,8 +131,10 @@ internal class ToolingServerRunner(
 							this.environment = envs
 						}
 
-					pid = ReflectionUtils.getDeclaredField(process::class.java, "pid")
-						?.get(process) as Int?
+					pid =
+						ReflectionUtils
+							.getDeclaredField(process::class.java, "pid")
+							?.get(process) as Int?
 					pid ?: throw IllegalStateException("Unable to get process ID")
 
 					log.info("Tooling API server running with PID: {}", pid)
@@ -215,7 +216,10 @@ internal class ToolingServerRunner(
 		this.runnerScope.cancelIfActive("Cancellation was requested")
 	}
 
-	private fun killWithDescendants(pid: Long, sigHupWaitSec: Long) {
+	private fun killWithDescendants(
+		pid: Long,
+		sigHupWaitSec: Long,
+	) {
 		val cmd = mutableListOf<String>()
 		var shell = System.getenv("SHELL")
 		if (shell.isNullOrBlank()) {
@@ -240,16 +244,17 @@ internal class ToolingServerRunner(
 				"sleep $sigHupWaitSec", // wait for descendants to exit
 				"pkill -KILL -P $pid", // kill all descendants of $pid, forcibly
 				"kill -KILL $pid", // kill $pid, forcibly
-			).joinToString(separator = ";")
+			).joinToString(separator = ";"),
 		)
 
 		log.info("Running {} to kill process {} with descendants", cmd, pid)
 
-		val proc = ProcessBuilder(cmd)
-			.run {
-				redirectErrorStream(true)
-				start()
-			}
+		val proc =
+			ProcessBuilder(cmd)
+				.run {
+					redirectErrorStream(true)
+					start()
+				}
 
 		val exitCode = proc.waitFor()
 		val output = proc.inputStream.use { inputStream -> inputStream.bufferedReader().readText() }
