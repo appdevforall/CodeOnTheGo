@@ -15,7 +15,7 @@ jobs:
   generate_assets:
     name: Generate Assets Zips
     runs-on: self-hosted
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -192,7 +192,7 @@ jobs:
             if [ -f "$source_file" ]; then
               mkdir -p "$(dirname "$dest_file")"
               brotli -f -o "$dest_file" "$source_file"
-              echo "Compressed $source_file -> $dest_file"
+              /bin/ls -l $source_file $dest_file
               
               # Generate MD5 checksum
               md5sum "$dest_file" | awk '{print $1}' > "${dest_file}.md5"
@@ -203,10 +203,16 @@ jobs:
           }
           
           # Compress common files to release/ (flattened)
-          compress_file "assets/gradle-8.14.3-bin.zip" "$TEMP_DIR/release/gradle-8.14.3-bin.zip.br"
-          compress_file "assets/gradle-api-8.14.3.jar.zip" "$TEMP_DIR/release/gradle-api-8.14.3.jar.br"
-          compress_file "assets/localMvnRepository.zip" "$TEMP_DIR/release/localMvnRepository.zip.br"
-          compress_file "assets/documentation.db" "$TEMP_DIR/release/documentation.db.br"
+          compress_file "assets/gradle-8.14.3-bin.zip" "$TEMP_DIR/release/gradle-8.14.3-bin.zip.br" &
+          compress_file "assets/gradle-api-8.14.3.jar.zip" "$TEMP_DIR/release/gradle-api-8.14.3.jar.br" &
+          compress_file "assets/localMvnRepository.zip" "$TEMP_DIR/release/localMvnRepository.zip.br" &
+          compress_file "assets/documentation.db" "$TEMP_DIR/release/documentation.db.br" &
+          compress_file "assets/android-sdk-armeabi-v7a.zip" "$TEMP_DIR/release/v7/android-sdk.zip.br" &
+          compress_file "assets/bootstrap-armeabi-v7a.zip" "$TEMP_DIR/release/v7/bootstrap.zip.br" &
+          compress_file "assets/android-sdk-arm64-v8a.zip" "$TEMP_DIR/release/v8/android-sdk.zip.br" &
+          compress_file "assets/bootstrap-arm64-v8a.zip" "$TEMP_DIR/release/v8/bootstrap.zip.br" &
+
+          wait
           
           # Copy plugin-artifacts.zip.br from Gradle task output (already compressed)
           if [ -f "assets/release/common/data/common/plugin-artifacts.zip.br" ]; then
@@ -214,14 +220,6 @@ jobs:
             md5sum "$TEMP_DIR/release/plugin-artifacts.zip.br" | awk '{print $1}' > "$TEMP_DIR/release/plugin-artifacts.zip.br.md5"
             echo "Copied plugin-artifacts.zip.br -> $TEMP_DIR/release/plugin-artifacts.zip.br"
           fi
-          
-          # Compress v7 files to release/v7/
-          compress_file "assets/android-sdk-armeabi-v7a.zip" "$TEMP_DIR/release/v7/android-sdk.zip.br"
-          compress_file "assets/bootstrap-armeabi-v7a.zip" "$TEMP_DIR/release/v7/bootstrap.zip.br"
-          
-          # Compress v8 files to release/v8/
-          compress_file "assets/android-sdk-arm64-v8a.zip" "$TEMP_DIR/release/v8/android-sdk.zip.br"
-          compress_file "assets/bootstrap-arm64-v8a.zip" "$TEMP_DIR/release/v8/bootstrap.zip.br"
           
           # Upload the flattened structure
           echo "Uploading release assets to server..."
