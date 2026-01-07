@@ -19,6 +19,7 @@ import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import kotlin.system.measureTimeMillis
 
 data object SplitAssetsInstaller : BaseAssetsInstaller() {
@@ -109,6 +110,36 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
                                 destFile.outputStream().use { output ->
                                     zipInput.copyTo(output)
                                 }
+                            }
+                            AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
+                                logger.debug("Extracting plugin artifacts from '{}'", entry.name)
+                                val pluginDir = Environment.PLUGIN_API_JAR.parentFile
+                                    ?: throw IllegalStateException("Plugin API parent directory is null")
+                                pluginDir.mkdirs()
+                                val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
+
+                                ZipInputStream(zipInput).use { pluginZip ->
+                                    var pluginEntry = pluginZip.nextEntry
+                                    while (pluginEntry != null) {
+                                        if (!pluginEntry.isDirectory) {
+                                            val targetPath = pluginDirPath.resolve(pluginEntry.name).normalize()
+                                            // Security check: prevent path traversal attacks
+                                            if (!targetPath.startsWith(pluginDirPath)) {
+                                                throw IllegalStateException(
+                                                    "Zip entry '${pluginEntry.name}' would escape target directory"
+                                                )
+                                            }
+                                            val targetFile = targetPath.toFile()
+                                            targetFile.parentFile?.mkdirs()
+                                            logger.debug("Extracting '{}' to {}", pluginEntry.name, targetFile)
+                                            targetFile.outputStream().use { output ->
+                                                pluginZip.copyTo(output)
+                                            }
+                                        }
+                                        pluginEntry = pluginZip.nextEntry
+                                    }
+                                }
+                                logger.debug("Completed extracting plugin artifacts")
                             }
 							else -> throw IllegalStateException("Unknown entry: $entryName")
 						}
