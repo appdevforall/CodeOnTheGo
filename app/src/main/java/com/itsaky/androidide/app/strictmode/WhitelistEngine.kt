@@ -118,6 +118,24 @@ object WhitelistEngine {
 					classAndMethod("com.mediatek.scnmodule.ScnModule", "isGameApp"),
 				)
 			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					Oplus/ColorOS UIFirst writes to proc nodes during activity transitions (startActivity),
+					which triggers a DiskReadViolation (File.exists) on some devices/ROM versions.
+					This happens in framework code and is outside app control, so we allow it.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFrames(
+					classAndMethod("java.io.File", "exists"),
+					classAndMethod("com.oplus.uifirst.Utils", "writeProcNode"),
+					classAndMethod("com.oplus.uifirst.OplusUIFirstManager", "writeProcNode"),
+					classAndMethod("com.oplus.uifirst.OplusUIFirstManager", "setBinderThreadUxFlag"),
+				)
+			}
 		}
 
 	/**
