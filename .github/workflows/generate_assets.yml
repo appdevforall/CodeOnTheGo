@@ -167,104 +167,64 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
-      - name: Generate MD5 Checksums for Release Assets
-        run: |
-          if [ ! -d "assets/release" ]; then
-            echo "Warning: assets/release directory does not exist, skipping checksum generation"
-            exit 0
-          fi
-          
-          echo "Generating MD5 checksums for release assets..."
-          
-          # Find all files in assets/release (excluding .md5 files) and generate checksums
-          find assets/release -type f ! -name "*.md5" | while read -r file; do
-            md5_file="${file}.md5"
-            md5sum "$file" | awk '{print $1}' > "$md5_file"
-            echo "Generated checksum: $md5_file"
-          done
-          
-          echo "MD5 checksum generation completed"
-
-      - name: Upload Release Assets to Server
+      - name: Compress and Prepare Release Assets
         env:
           SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
         run: |
           if [ -z "$SCP_HOST" ]; then
-            echo "Warning: SCP_HOST not set, skipping release assets upload"
+            echo "Warning: SCP_HOST not set, skipping release assets preparation"
             exit 0
           fi
           
-          if [ ! -d "assets/release" ]; then
-            echo "Warning: assets/release directory does not exist, skipping upload"
-            exit 0
-          fi
+          echo "Compressing release assets with Brotli..."
           
-          echo "Uploading release assets to server..."
-          
-          # Function to copy a file to destination
-          copy_file() {
-            local source_file="$1"
-            local dest_dir="$2"
-            
-            if [ -f "$source_file" ]; then
-              local dest_file="$dest_dir/$(basename "$source_file")"
-              cp "$source_file" "$dest_file"
-              echo "Copied $source_file -> $dest_file"
-            fi
-          }
-          
-          # Function to copy files from a source directory to a destination directory
-          copy_files_from_dir() {
-            local source_dir="$1"
-            local dest_dir="$2"
-            shift 2
-            local files=("$@")
-            
-            for filename in "${files[@]}"; do
-              local source_file="$source_dir/$filename"
-              copy_file "$source_file" "$dest_dir"
-              
-              local md5_file="${source_file}.md5"
-              copy_file "$md5_file" "$dest_dir"
-            done
-          }
-          
-          # Create a temporary directory for flattened structure
+          # Create temporary directory for flattened structure
           TEMP_DIR=$(mktemp -d)
           mkdir -p "$TEMP_DIR/release"
           mkdir -p "$TEMP_DIR/release/v7"
           mkdir -p "$TEMP_DIR/release/v8"
           
-          # Copy common/data/common files to release/ (flattened)
-          copy_files_from_dir \
-            "assets/release/common/data/common" \
-            "$TEMP_DIR/release" \
-            "gradle-8.14.3-bin.zip.br" \
-            "gradle-api-8.14.3.jar.br" \
-            "localMvnRepository.zip.br" \
-            "plugin-artifacts.zip.br"
+          # Function to compress a file with brotli and generate MD5
+          compress_file() {
+            local source_file="$1"
+            local dest_file="$2"
+            
+            if [ -f "$source_file" ]; then
+              mkdir -p "$(dirname "$dest_file")"
+              brotli -f -o "$dest_file" "$source_file"
+              echo "Compressed $source_file -> $dest_file"
+              
+              # Generate MD5 checksum
+              md5sum "$dest_file" | awk '{print $1}' > "${dest_file}.md5"
+              echo "Generated checksum: ${dest_file}.md5"
+            else
+              echo "Warning: Source file not found: $source_file"
+            fi
+          }
           
-          # Copy common/database files to release/ (flattened)
-          copy_files_from_dir \
-            "assets/release/common/database" \
-            "$TEMP_DIR/release" \
-            "documentation.db.br"
+          # Compress common files to release/ (flattened)
+          compress_file "assets/gradle-8.14.3-bin.zip" "$TEMP_DIR/release/gradle-8.14.3-bin.zip.br"
+          compress_file "assets/gradle-api-8.14.3.jar.zip" "$TEMP_DIR/release/gradle-api-8.14.3.jar.br"
+          compress_file "assets/localMvnRepository.zip" "$TEMP_DIR/release/localMvnRepository.zip.br"
+          compress_file "assets/documentation.db" "$TEMP_DIR/release/documentation.db.br"
           
-          # Copy v7 files to release/v7/
-          copy_files_from_dir \
-            "assets/release/v7/data/common" \
-            "$TEMP_DIR/release/v7" \
-            "android-sdk.zip.br" \
-            "bootstrap.zip.br"
+          # Copy plugin-artifacts.zip.br from Gradle task output (already compressed)
+          if [ -f "assets/release/common/data/common/plugin-artifacts.zip.br" ]; then
+            cp "assets/release/common/data/common/plugin-artifacts.zip.br" "$TEMP_DIR/release/plugin-artifacts.zip.br"
+            md5sum "$TEMP_DIR/release/plugin-artifacts.zip.br" | awk '{print $1}' > "$TEMP_DIR/release/plugin-artifacts.zip.br.md5"
+            echo "Copied plugin-artifacts.zip.br -> $TEMP_DIR/release/plugin-artifacts.zip.br"
+          fi
           
-          # Copy v8 files to release/v8/
-          copy_files_from_dir \
-            "assets/release/v8/data/common" \
-            "$TEMP_DIR/release/v8" \
-            "android-sdk.zip.br" \
-            "bootstrap.zip.br"
+          # Compress v7 files to release/v7/
+          compress_file "assets/android-sdk-armeabi-v7a.zip" "$TEMP_DIR/release/v7/android-sdk.zip.br"
+          compress_file "assets/bootstrap-armeabi-v7a.zip" "$TEMP_DIR/release/v7/bootstrap.zip.br"
+          
+          # Compress v8 files to release/v8/
+          compress_file "assets/android-sdk-arm64-v8a.zip" "$TEMP_DIR/release/v8/android-sdk.zip.br"
+          compress_file "assets/bootstrap-arm64-v8a.zip" "$TEMP_DIR/release/v8/bootstrap.zip.br"
           
           # Upload the flattened structure
+          echo "Uploading release assets to server..."
           scp -r "$TEMP_DIR/release" "$SCP_HOST:public_html/dev-assets/"
           
           # Cleanup
