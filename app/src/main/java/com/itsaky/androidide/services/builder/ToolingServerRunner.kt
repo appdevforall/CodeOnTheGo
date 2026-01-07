@@ -76,7 +76,7 @@ internal class ToolingServerRunner(
 
 		/**
 		 * Timeout for killing the tooling daemon. The tooling API waits for this timeout before
-		 * killing forcibly killing the daemon process tree if it's still alive.
+		 * forcibly killing the daemon process tree if it's still alive.
 		 */
 		const val TOOLING_DAEMON_KILL_TIMEOUT_MS = 3 * 1000L
 	}
