@@ -21,6 +21,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.zip.ZipInputStream
 
 data object BundledAssetsInstaller : BaseAssetsInstaller() {
 	private val logger = LoggerFactory.getLogger(BundledAssetsInstaller::class.java)
@@ -140,6 +141,32 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
                         }
                     }
                 }
+                AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
+                    logger.debug("Extracting plugin artifacts from '{}'", entryName)
+                    val pluginDir = Environment.PLUGIN_API_JAR.parentFile
+                        ?: throw IllegalStateException("Plugin API parent directory is null")
+                    pluginDir.mkdirs()
+
+                    val assetPath = ToolsManager.getCommonAsset("$entryName.br")
+                    assets.open(assetPath).use { assetStream ->
+                        BrotliInputStream(assetStream).use { brotliStream ->
+                            ZipInputStream(brotliStream).use { pluginZip ->
+                                var pluginEntry = pluginZip.nextEntry
+                                while (pluginEntry != null) {
+                                    if (!pluginEntry.isDirectory) {
+                                        val targetFile = pluginDir.resolve(pluginEntry.name)
+                                        logger.debug("Extracting '{}' to {}", pluginEntry.name, targetFile)
+                                        targetFile.outputStream().use { output ->
+                                            pluginZip.copyTo(output)
+                                        }
+                                    }
+                                    pluginEntry = pluginZip.nextEntry
+                                }
+                            }
+                        }
+                    }
+                    logger.debug("Completed extracting plugin artifacts")
+                }
 				else -> throw IllegalStateException("Unknown entry: $entryName")
 			}
 		}
@@ -151,6 +178,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 97485855L
         AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
         GRADLE_API_NAME_JAR_ZIP           -> 29447748L
+        AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> 86442L
         else -> 0L
     }
 

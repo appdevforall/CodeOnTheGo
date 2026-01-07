@@ -154,5 +154,3 @@ testing/**/bin/
 # checksum files
 .checksum/
 
-# assets files
-assets/
