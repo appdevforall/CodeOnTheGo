@@ -22,6 +22,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -45,6 +46,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
+import androidx.annotation.RequiresApi
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
@@ -116,6 +118,7 @@ import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
+import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
@@ -397,7 +400,7 @@ abstract class BaseEditorActivity :
 		BuildOutputProvider.clearBottomSheet()
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
-		wadbConnectionViewModel.stop(this)
+		if (isAtLeastR()) wadbConnectionViewModel.stop(this)
 
 		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
 		drawerToggle = null
@@ -543,7 +546,9 @@ abstract class BaseEditorActivity :
         mLifecycleObserver = EditorActivityLifecyclerObserver()
 
 		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
-		lifecycleScope.launch { wadbConnectionViewModel.start(this@BaseEditorActivity) }
+		if (isAtLeastR() && !Shizuku.pingBinder()) {
+			lifecycleScope.launch { wadbConnectionViewModel.start(this@BaseEditorActivity) }
+		}
 
         this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
@@ -1023,9 +1028,11 @@ abstract class BaseEditorActivity :
 					}
 				}
 
-				launch {
-					wadbConnectionViewModel.status.collectLatest { status ->
-						onUpdateWadbConnectionStatus(status)
+				if (isAtLeastR()) {
+					launch {
+						wadbConnectionViewModel.status.collectLatest { status ->
+							onUpdateWadbConnectionStatus(status)
+						}
 					}
 				}
 			}
@@ -1059,6 +1066,7 @@ abstract class BaseEditorActivity :
 		}
 	}
 
+	@RequiresApi(Build.VERSION_CODES.R)
 	private fun onUpdateWadbConnectionStatus(status: WADBConnectionViewModel.ConnectionStatus) {
 		when (status) {
 			// Unknown status, do nothing
