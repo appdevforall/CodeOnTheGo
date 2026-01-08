@@ -8,7 +8,13 @@ permissions:
 on:
   schedule:
     - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
-  workflow_dispatch: #
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from (leave empty for normal stage->main merge flow)'
+        required: false
+        default: ''
+        type: string
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -35,6 +41,7 @@ jobs:
     name: Merge stage to main
     runs-on: self-hosted
     timeout-minutes: 10
+    if: ${{ github.event.inputs.branch == '' }}
 
     steps:
       - name: Cancel previous runs
@@ -143,12 +150,13 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 10
     needs: merge_stage_to_main
+    if: ${{ always() && (needs.merge_stage_to_main.result == 'success' || needs.merge_stage_to_main.result == 'skipped') }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event.inputs.branch || 'main' }}
 
       - name: Check if Nix is installed
         id: check_nix
@@ -266,7 +274,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event.inputs.branch || 'main' }}
 
       - name: Authenticate to Google Cloud for Drive access
         id: auth_drive
@@ -426,6 +434,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 60
     needs: [merge_stage_to_main, download_assets, download_documentation]
+    if: ${{ always() && (needs.merge_stage_to_main.result == 'success' || needs.merge_stage_to_main.result == 'skipped') && needs.download_assets.result == 'success' && needs.download_documentation.result == 'success' }}
     strategy:
       matrix:
         include:
@@ -440,12 +449,16 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: main
+          ref: ${{ github.event.inputs.branch || 'main' }}
 
-      - name: Set branch to main for build
+      - name: Set branch for build
         id: determine_branch
         run: |
-          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
+          BRANCH="${{ github.event.inputs.branch }}"
+          if [ -z "$BRANCH" ]; then
+            BRANCH="main"
+          fi
+          echo "BRANCH_TO_CHECKOUT=$BRANCH" >> $GITHUB_OUTPUT
 
       - name: Download release assets
         uses: actions/download-artifact@v4
