@@ -1,6 +1,5 @@
 package com.itsaky.androidide.fragments.debug
 
-import android.annotation.SuppressLint
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -8,14 +7,10 @@ import androidx.annotation.RequiresApi
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.FragmentWadbConnectionBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
-import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
-import com.itsaky.androidide.viewmodel.BottomSheetViewModel
-import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest

@@ -83,7 +83,7 @@ class WADBConnectionViewModel : ViewModel() {
 			get() = _error
 
 		fun append(output: CharSequence) {
-			this.output.apply {
+			this._output.apply {
 				append(output)
 				append(System.lineSeparator())
 			}
