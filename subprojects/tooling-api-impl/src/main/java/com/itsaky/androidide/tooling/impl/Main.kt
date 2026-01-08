@@ -21,7 +21,6 @@ import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher.newServerLaunch
 import com.itsaky.androidide.tooling.api.util.ToolingProps
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.time.delay
 import org.gradle.tooling.events.OperationType
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
@@ -153,7 +152,7 @@ object Main {
 				logger.info("killing process (alive={}): {} {}", proc.isAlive, pid, proc.info())
 				proc.destroyForcibly()
 			} catch (err: Throwable) {
-				logger.warn("an error occurrent trying to kill process {}", pid, err)
+				logger.warn("an error occurred trying to kill process {}", pid, err)
 			}
 		}
 	}

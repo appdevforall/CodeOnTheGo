@@ -55,7 +55,7 @@ object ToolingProps {
 
 	/**
 	 * Timeout for killing the descendant processes. The tooling API waits for this timeout before
-	 * killing forcibly killing the descendant processes if still alive. A timeout duration of
+	 * forcibly killing the descendant processes if still alive. A timeout duration of
 	 * `0` milliseconds kills the processes instantly.
 	 */
 	val DESCENDANT_FORCE_KILL_TIMEOUT_MS = propName("daemon", "killTimeoutMs")
