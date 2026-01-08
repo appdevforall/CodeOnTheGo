@@ -80,4 +80,32 @@ class WhitelistEngineTest {
 		val decision = WhitelistEngine.evaluate(violation)
 		assertEquals(WhitelistEngine.Decision.Crash, decision)
 	}
+
+	@Test
+	fun evaluateReturnsAllowForOplusUIFirstDiskReadViolation() {
+		val violatingFrames =
+			listOf(
+				// Minimal "realistic" prelude (as in Sentry)
+				stackTraceElement("android.os.StrictMode\$AndroidBlockGuardPolicy", "onReadFromDisk", "StrictMode.java", 1772,),
+				stackTraceElement("libcore.io.BlockGuardOs", "access", "BlockGuardOs.java", 74,),
+				stackTraceElement("java.io.UnixFileSystem", "checkAccess", "UnixFileSystem.java", 337,),
+
+				// Whitelisted sequence (adjacent, in-order)
+				stackTraceElement("java.io.File", "exists", "File.java", 829),
+				stackTraceElement("com.oplus.uifirst.Utils", "writeProcNode", "Utils.java", 139),
+				stackTraceElement("com.oplus.uifirst.OplusUIFirstManager", "writeProcNode", "OplusUIFirstManager.java", 382,),
+				stackTraceElement("com.oplus.uifirst.OplusUIFirstManager", "setBinderThreadUxFlag", "OplusUIFirstManager.java", 877,),
+
+				// Minimal tail (system server / wm — optional but matches Sentry shape)
+				stackTraceElement("com.android.server.wm.ActivityRecordExtImpl", "hookSetBinderUxFlag", "ActivityRecordExtImpl.java", 3008,),
+			)
+
+		val violation = createViolation<DiskReadViolation>(violatingFrames)
+		val decision = WhitelistEngine.evaluate(violation)
+
+		assertThat(decision).isInstanceOf(WhitelistEngine.Decision.Allow::class.java)
+
+		val allow = decision as WhitelistEngine.Decision.Allow
+		assertThat(allow.reason).contains("Oplus")
+	}
 }
