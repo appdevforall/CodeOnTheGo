@@ -36,8 +36,7 @@ import javax.net.ssl.SSLProtocolException
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * A view model to handle the wireless ADB connection. This class must never hold
- * references to a fragment or activity.
+ * A view model to handle the wireless ADB connection.
  *
  * @author Akash Yadav
  */
@@ -210,8 +209,8 @@ class WADBConnectionViewModel : ViewModel() {
 		}
 
 	/**
-	 * Called in the global scope. Be extra careful when access fragment's
-	 * instance properties or states.
+	 * Called in the global scope to try connection even when the owner activity/fragment
+	 * is destroyed.
 	 */
 	private suspend fun beginShizukuConnection() {
 		var retryCount = 0
@@ -253,12 +252,6 @@ class WADBConnectionViewModel : ViewModel() {
 	 * completed pairing and has wireless debugging turned on. If wireless
 	 * debugging is turned off, there's no other way and the user will have
 	 * to go to Developer Options to turn on wireless debugging.
-	 *
-	 * Care must be taken when accessing fragment's resources, since it may
-	 * be destroyed at any time. Use [com.itsaky.androidide.utils.viewLifecycleScopeOrNull] to launch
-	 * coroutines in the fragment's view lifecycle. [com.itsaky.androidide.utils.viewLifecycleScopeOrNull]
-	 * returns null if the fragment's view has already been destroyed or not
-	 * yet created.
 	 */
 	@OptIn(DelicateCoroutinesApi::class)
 	private fun onFindAdbConnectionPort(port: Int) =
@@ -338,8 +331,7 @@ class WADBConnectionViewModel : ViewModel() {
 		}
 
 	/**
-	 * Called in the [GlobalScope], take care when accessing fragment's
-	 * resources here.
+	 * Called in the [GlobalScope]. See [beginShizukuConnection] and [onFindAdbConnectionPort].
 	 */
 	private fun onUpdateConnectionState(starterOutput: ShizukuStarterOutput) {
 		if (Shizuku.pingBinder()) {
