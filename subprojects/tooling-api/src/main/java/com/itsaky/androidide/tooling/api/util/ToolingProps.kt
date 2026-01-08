@@ -66,7 +66,7 @@ object ToolingProps {
 	 * Internal API. For testing purposes only.
 	 */
 	val isTestEnv: Boolean
-		get() = System.getProperty(TESTING_IS_TEST_ENV).toBoolean()
+		get() = System.getProperty(TESTING_IS_TEST_ENV, "false").toBoolean()
 
 	/**
 	 * The latest AGP version known to the tooling API.
@@ -89,7 +89,7 @@ object ToolingProps {
 	 * Whether the Gradle daemon should be killed forcibly.
 	 */
 	val killDescendantProcesses: Boolean
-		get() = System.getProperty(DAEMON_FORCE_KILL).toBoolean()
+		get() = System.getProperty(DAEMON_FORCE_KILL, "false").toBoolean()
 
 	/**
 	 * Timeout for killing the Gradle daemon.
