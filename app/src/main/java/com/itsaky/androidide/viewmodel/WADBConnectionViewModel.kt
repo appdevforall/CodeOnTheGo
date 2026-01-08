@@ -31,6 +31,7 @@ import moe.shizuku.manager.adb.PreferenceAdbKeyStore
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.net.ConnectException
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.net.ssl.SSLProtocolException
 import kotlin.time.Duration.Companion.seconds
 
@@ -117,6 +118,7 @@ class WADBConnectionViewModel : ViewModel() {
 	}
 
 	private val _status = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Unknown)
+	private var isStarted = AtomicBoolean(false)
 
 	/**
 	 * Connection status.
@@ -144,6 +146,8 @@ class WADBConnectionViewModel : ViewModel() {
 		}
 
 	suspend fun start(context: Context): Unit = supervisorScope {
+		if (isStarted.getAndSet(true)) return@supervisorScope
+
 		if (_adbMdnsConnector == null) {
 			_adbMdnsConnector = AdbMdns(
 				context = context,
@@ -168,6 +172,7 @@ class WADBConnectionViewModel : ViewModel() {
 				addAction(AdbPairingService.ACTION_PAIR_FAILED)
 			}
 
+		// noinspection WrongConstant
 		ContextCompat.registerReceiver(
 			context,
 			pairingBroadcastReceiver,
@@ -401,6 +406,8 @@ class WADBConnectionViewModel : ViewModel() {
 	}
 
 	fun stop(context: Context) {
+		if (!isStarted.get()) return
+
 		runCatching { _adbMdnsConnector?.stop() }
 			.onFailure { err ->
 				logger.error("Failed to stop AdbMdnsConnector", err)
@@ -410,5 +417,7 @@ class WADBConnectionViewModel : ViewModel() {
 			.onFailure { err ->
 				logger.error("Failed to unregister pairing result receiver", err)
 			}
+
+		isStarted.set(false)
 	}
 }
