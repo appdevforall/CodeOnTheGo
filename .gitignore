@@ -128,10 +128,15 @@ tests/test-home
 /sample-plugin/build/
 /keystore-generator-plugin/build/
 /keystore-generator-plugin/.kotlin/
-**/build
+**/build/
+!**/src/**/build/
 
 # Release files
 *.zim
+
+# Plugin build artifacts
+plugin-api.jar
+plugin-artifacts.zip
 
 # Other IDEs
 .cursor/
