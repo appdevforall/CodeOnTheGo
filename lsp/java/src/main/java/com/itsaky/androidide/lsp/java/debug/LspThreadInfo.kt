@@ -11,8 +11,10 @@ import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.debug.utils.isOpaque
 import com.sun.jdi.Location
 import com.sun.jdi.Method
+import com.sun.jdi.ObjectCollectedException
 import com.sun.jdi.StackFrame
 import com.sun.jdi.ThreadReference
+import com.sun.jdi.VMDisconnectedException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -75,11 +77,11 @@ class JavaStackFrame(
 							this.thisObject()
 						}.getOrElse { e ->
 							when (e) {
-								is com.sun.jdi.VMDisconnectedException -> {
+								is VMDisconnectedException -> {
 									logger.warn("VM disconnected while fetching 'this' object.", e)
 									return@evaluate emptyList()
 								}
-								is com.sun.jdi.ObjectCollectedException -> {
+								is ObjectCollectedException -> {
 									logger.warn("Object collected by GC during debug", e)
 									null
 								}
@@ -114,7 +116,7 @@ class JavaStackFrame(
 											variable = variable,
 											value = frame.getValue(variable),
 										)
-									} catch (e: com.sun.jdi.VMDisconnectedException) {
+									} catch (e: VMDisconnectedException) {
 										throw e
 									} catch (err: Throwable) {
 										logger.error(
@@ -127,7 +129,7 @@ class JavaStackFrame(
 								}?.also { localVariables ->
 									variables.addAll(localVariables as List<AbstractJavaVariable<*>>)
 								}
-						} catch (e: com.sun.jdi.VMDisconnectedException) {
+						} catch (e: VMDisconnectedException) {
 							logger.warn("VM disconnected while reading local variables. Aborting.")
 							return@evaluate emptyList()
 						} catch (e: Throwable) {
