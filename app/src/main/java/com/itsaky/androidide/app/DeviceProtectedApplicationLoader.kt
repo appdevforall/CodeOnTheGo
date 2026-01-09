@@ -3,6 +3,7 @@ package com.itsaky.androidide.app
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import org.appdevforall.codeonthego.computervision.di.computerVisionModule
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.strictmode.StrictModeConfig
@@ -60,14 +61,14 @@ internal object DeviceProtectedApplicationLoader :
 		// Enable StrictMode for debug builds
 		StrictModeManager.install(
 			StrictModeConfig(
-				enabled = BuildConfig.DEBUG,
+				enabled = BuildConfig.DEBUG && !FeatureFlags.isPardonEnabled,
 				isReprieveEnabled = FeatureFlags.isReprieveEnabled,
 			),
 		)
 
 		startKoin {
 			androidContext(app)
-			modules(coreModule, pluginModule)
+			modules(coreModule, pluginModule, computerVisionModule)
 		}
 
 		SentryAndroid.init(app) { options ->
