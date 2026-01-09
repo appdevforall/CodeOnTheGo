@@ -42,9 +42,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 @RequiresApi(Build.VERSION_CODES.R)
 class WADBConnectionViewModel : ViewModel() {
-
 	sealed interface ConnectionStatus {
-
 		data object Unknown : ConnectionStatus
 
 		data object Pairing : ConnectionStatus
@@ -61,11 +59,11 @@ class WADBConnectionViewModel : ViewModel() {
 		data object ConnectionPortNotFound : ConnectionStatus
 
 		data class Connecting(
-			val port: Int
+			val port: Int,
 		) : ConnectionStatus
 
 		data class ConnectionFailed(
-			val error: Throwable?
+			val error: Throwable?,
 		) : ConnectionStatus
 
 		data object Connected : ConnectionStatus
@@ -134,35 +132,38 @@ class WADBConnectionViewModel : ViewModel() {
 					AdbPairingService.ACTION_PAIR_STARTED,
 					AdbPairingService.ACTION_PAIR_SUCCEEDED,
 					AdbPairingService.ACTION_PAIR_FAILED,
-						-> onPairResult(intent)
+					-> onPairResult(intent)
 				}
 			}
 		}
 
 	val adbMdnsConnector: AdbMdns
-		get() = checkNotNull(_adbMdnsConnector) {
-			"AdbMdnsConnector is not initialized."
+		get() =
+			checkNotNull(_adbMdnsConnector) {
+				"AdbMdnsConnector is not initialized."
+			}
+
+	suspend fun start(context: Context): Unit =
+		supervisorScope {
+			if (isStarted.getAndSet(true)) return@supervisorScope
+
+			if (_adbMdnsConnector == null) {
+				_adbMdnsConnector =
+					AdbMdns(
+						context = context,
+						serviceType = AdbMdns.TLS_CONNECT,
+						observer = adbConnectListener,
+					)
+			}
+
+			// start listening for pairing results
+			launch(Dispatchers.Main) { doStart(context) }
+
+			// also try to connect at the same time
+			// helpful in cases where the user has already completed pairing
+			// and has wireless debugging turned on
+			adbMdnsConnector.start()
 		}
-
-	suspend fun start(context: Context): Unit = supervisorScope {
-		if (isStarted.getAndSet(true)) return@supervisorScope
-
-		if (_adbMdnsConnector == null) {
-			_adbMdnsConnector = AdbMdns(
-				context = context,
-				serviceType = AdbMdns.TLS_CONNECT,
-				observer = adbConnectListener,
-			)
-		}
-
-		// start listening for pairing results
-		launch(Dispatchers.Main) { doStart(context) }
-
-		// also try to connect at the same time
-		// helpful in cases where the user has already completed pairing
-		// and has wireless debugging turned on
-		adbMdnsConnector.start()
-	}
 
 	private fun doStart(context: Context) {
 		val filter =
@@ -219,7 +220,7 @@ class WADBConnectionViewModel : ViewModel() {
 			_status.update {
 				ConnectionStatus.SearchingConnectionPort(
 					retryCount,
-					CONNECTION_MAX_RETRIES
+					CONNECTION_MAX_RETRIES,
 				)
 			}
 			// restart ADB connection finder
@@ -278,7 +279,7 @@ class WADBConnectionViewModel : ViewModel() {
 			if (key.isFailure) {
 				logger.error(
 					"Failed to get ADB key",
-					key.exceptionOrNull()
+					key.exceptionOrNull(),
 				)
 				_status.update { ConnectionStatus.ConnectionFailed(key.exceptionOrNull()) }
 				return@launch
@@ -294,7 +295,7 @@ class WADBConnectionViewModel : ViewModel() {
 						val output = String(outputBytes)
 						logger.debug(
 							"[shizuku_starter] {}",
-							output
+							output,
 						)
 
 						starterOutput.append(output)
@@ -316,7 +317,7 @@ class WADBConnectionViewModel : ViewModel() {
 
 					logger.error(
 						"Failed to connect to ADB server",
-						error
+						error,
 					)
 
 					_status.update { ConnectionStatus.ConnectionFailed(error) }
@@ -373,7 +374,7 @@ class WADBConnectionViewModel : ViewModel() {
 		} else if (starterOutput.error != null) {
 			logger.error(
 				"Failed to start Shizuku starter",
-				starterOutput.error
+				starterOutput.error,
 			)
 
 			var message = 0

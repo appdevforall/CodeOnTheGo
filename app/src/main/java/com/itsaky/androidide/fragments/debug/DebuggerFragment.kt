@@ -48,8 +48,7 @@ import rikka.shizuku.Shizuku
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment :
-	EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private var tabs: Array<Pair<String, () -> Fragment>>? = null
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 	private val wadbConnection by activityViewModels<WADBConnectionViewModel>()
@@ -395,12 +394,12 @@ class ThreadSelectorListAdapter(
 		val inflater = LayoutInflater.from(this.context)
 		val view =
 			(
-					convertView ?: inflater.inflate(
-						android.R.layout.simple_dropdown_item_1line,
-						parent,
-						false,
-					)
-					) as TextView
+				convertView ?: inflater.inflate(
+					android.R.layout.simple_dropdown_item_1line,
+					parent,
+					false,
+				)
+			) as TextView
 
 		val item = getItem(position)
 		if (item == null) {

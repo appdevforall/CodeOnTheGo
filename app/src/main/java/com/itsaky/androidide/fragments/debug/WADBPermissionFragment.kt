@@ -22,10 +22,8 @@ import org.slf4j.LoggerFactory
  * Fragment to request wireless ADB permissions.
  */
 @RequiresApi(Build.VERSION_CODES.R)
-class WADBPermissionFragment :
-	FragmentWithBinding<FragmentWadbConnectionBinding>(FragmentWadbConnectionBinding::inflate) {
+class WADBPermissionFragment : FragmentWithBinding<FragmentWadbConnectionBinding>(FragmentWadbConnectionBinding::inflate) {
 	companion object {
-
 		private val logger = LoggerFactory.getLogger(WADBPermissionFragment::class.java)
 
 		fun newInstance() = WADBPermissionFragment()
@@ -48,35 +46,36 @@ class WADBPermissionFragment :
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				launch {
 					wadbConnection.status.collectLatest { status ->
-						val status = when (status) {
-							is WADBConnectionViewModel.ConnectionStatus.SearchingConnectionPort -> {
-								getString(
-									R.string.adb_connection_finding,
-									status.retryCount + 1,
-									status.maxRetries,
-								)
-							}
+						val status =
+							when (status) {
+								is WADBConnectionViewModel.ConnectionStatus.SearchingConnectionPort -> {
+									getString(
+										R.string.adb_connection_finding,
+										status.retryCount + 1,
+										status.maxRetries,
+									)
+								}
 
-							WADBConnectionViewModel.ConnectionStatus.ConnectionPortNotFound -> {
-								getString(R.string.adb_connection_failed)
-							}
+								WADBConnectionViewModel.ConnectionStatus.ConnectionPortNotFound -> {
+									getString(R.string.adb_connection_failed)
+								}
 
-							is WADBConnectionViewModel.ConnectionStatus.Connecting -> {
-								getString(
-									R.string.adb_connection_connecting,
-									status.port,
-								)
-							}
+								is WADBConnectionViewModel.ConnectionStatus.Connecting -> {
+									getString(
+										R.string.adb_connection_connecting,
+										status.port,
+									)
+								}
 
-							is WADBConnectionViewModel.ConnectionStatus.ConnectionFailed -> {
-								getString(
-									R.string.adb_connection_failed,
-									status.error?.message ?: "<unknown error>",
-								)
-							}
+								is WADBConnectionViewModel.ConnectionStatus.ConnectionFailed -> {
+									getString(
+										R.string.adb_connection_failed,
+										status.error?.message ?: "<unknown error>",
+									)
+								}
 
-							else -> null
-						}
+								else -> null
+							}
 
 						status?.also { s -> setConnectionStatus(s) }
 					}

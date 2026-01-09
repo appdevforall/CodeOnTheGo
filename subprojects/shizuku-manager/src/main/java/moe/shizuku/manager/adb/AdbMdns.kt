@@ -18,13 +18,12 @@ class AdbMdns(
 	private val serviceType: String,
 	private val observer: Consumer<Int>,
 ) {
-
 	constructor(context: Context, serviceType: String, observer: Consumer<Int>) :
-			this(
-				nsdManager = context.getSystemService(NsdManager::class.java),
-				serviceType = serviceType,
-				observer = observer
-			)
+		this(
+			nsdManager = context.getSystemService(NsdManager::class.java),
+			serviceType = serviceType,
+			observer = observer,
+		)
 
 	private var registered = false
 	private var running = false
