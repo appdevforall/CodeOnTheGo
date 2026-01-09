@@ -46,14 +46,15 @@ public class FileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {
     this.binding = LayoutFiletreeItemBinding.inflate(LayoutInflater.from(context));
 
     final var dp15 = SizeUtils.dp2px(15);
-    final var icon = getIconForFile(file, !node.isLeaf());
+    final boolean isDir = node.isDirectory();
+    final var icon = getIconForFile(file, isDir);
     final var chevron = binding.filetreeChevron;
     binding.filetreeName.setText(file.getName());
     binding.filetreeIcon.setImageResource(icon);
 
     final var root = applyPadding(node, binding, dp15);
 
-    if (file.isDirectory()) {
+    if (isDir) {
       chevron.setVisibility(View.VISIBLE);
       updateChevronIcon(node.isExpanded());
     } else {
