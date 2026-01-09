@@ -28,7 +28,7 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
         // This is where the binding is created, only for visible nodes.
         binding = LayoutFiletreeItemSelectableBinding.inflate(LayoutInflater.from(context));
         binding.filetreeName.setText(file.getName());
-        binding.filetreeIcon.setImageResource(FileExtension.Factory.forFile(file).getIcon());
+        binding.filetreeIcon.setImageResource(FileExtension.Factory.forFile(file, !node.isLeaf()).getIcon());
 
         int padding = (int) (context.getResources().getDisplayMetrics().density * 16 * (node.getLevel() - 1));
         binding.getRoot().setPadding(padding, binding.getRoot().getPaddingTop(), binding.getRoot().getPaddingRight(), binding.getRoot().getPaddingBottom());

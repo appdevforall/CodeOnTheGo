@@ -46,7 +46,7 @@ public class FileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {
     this.binding = LayoutFiletreeItemBinding.inflate(LayoutInflater.from(context));
 
     final var dp15 = SizeUtils.dp2px(15);
-    final var icon = getIconForFile(file);
+    final var icon = getIconForFile(file, !node.isLeaf());
     final var chevron = binding.filetreeChevron;
     binding.filetreeName.setText(file.getName());
     binding.filetreeIcon.setImageResource(icon);
@@ -86,8 +86,8 @@ public class FileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {
     return root;
   }
 
-  protected int getIconForFile(final File file) {
-    return FileExtension.Factory.forFile(file).getIcon();
+  protected int getIconForFile(final File file, boolean isDirectory) {
+    return FileExtension.Factory.forFile(file, isDirectory).getIcon();
   }
 
   public void updateChevron(boolean expanded) {
