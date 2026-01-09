@@ -652,10 +652,10 @@ jobs:
           COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
           COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
           FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
-        run: |          
+        run: |
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           BUILD_TYPE="${{ matrix.build_type }}"
-                    
+          
           jq -n \
             --arg commit_msg "$COMMIT_MSG" \
             --arg build_type "$BUILD_TYPE" \
