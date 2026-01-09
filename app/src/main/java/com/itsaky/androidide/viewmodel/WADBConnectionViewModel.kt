@@ -115,7 +115,8 @@ class WADBConnectionViewModel : ViewModel() {
 	}
 
 	private val _status = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Unknown)
-	private var isStarted = AtomicBoolean(false)
+	private val isStarted = AtomicBoolean(false)
+	private val binderListenerRegistered = AtomicBoolean(false)
 
 	/**
 	 * Connection status.
@@ -349,6 +350,10 @@ class WADBConnectionViewModel : ViewModel() {
 
 			logger.debug("Shizuku starter exited successfully")
 
+			if (binderListenerRegistered.getAndSet(true)) {
+				return
+			}
+
 			// starter was successful in starting the Shizuku service
 			// get the binder to communicate with it
 			Shizuku.addBinderReceivedListener(
@@ -356,6 +361,7 @@ class WADBConnectionViewModel : ViewModel() {
 					override fun onBinderReceived() {
 						logger.debug("Shizuku service connected")
 						Shizuku.removeBinderReceivedListener(this)
+						binderListenerRegistered.set(false)
 
 						// onBinderReceived may be called even after the fragment, or even the
 						// activity is destroyed, so we need to ensure that we dispatch UI state
