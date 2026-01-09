@@ -86,6 +86,39 @@ object WhitelistEngine {
 				ofType<DiskReadViolation>()
 				allow(
 					"""
+					Firebase's DataCollectionConfigStorage reads the 'auto data collection' flag from
+					SharedPreferences during initialization triggered by UserUnlockReceiver. This causes
+					a DiskReadViolation on the main thread. Since this is an internal behavior of the
+					Firebase SDK that we cannot control, we allow this violation.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFramesInOrder(
+					listOf(
+						listOf(
+							classAndMethod(
+								"com.google.firebase.internal.DataCollectionConfigStorage",
+								"readAutoDataCollectionEnabled"
+							),
+							classAndMethod(
+								"com.google.firebase.internal.DataCollectionConfigStorage",
+								"<init>"
+							),
+						),
+						listOf(
+							classAndMethod(
+								"com.google.firebase.FirebaseApp\$UserUnlockReceiver",
+								"onReceive"
+							),
+						),
+					),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
 					MIUI's TextView implementation has a MultiLangHelper which is invoked during draw.
 					For some reason, it tries to check whether a file exists, resulting in a
 					DiskReadViolation. Since we can't control when MultiLangHelper is called, we allow
@@ -116,6 +149,24 @@ object WhitelistEngine {
 					classAndMethod("java.io.File", "length"),
 					classAndMethod("com.mediatek.scnmodule.ScnModule", "isGameAppFileSize"),
 					classAndMethod("com.mediatek.scnmodule.ScnModule", "isGameApp"),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					Oplus/ColorOS UIFirst writes to proc nodes during activity transitions (startActivity),
+					which triggers a DiskReadViolation (File.exists) on some devices/ROM versions.
+					This happens in framework code and is outside app control, so we allow it.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFrames(
+					classAndMethod("java.io.File", "exists"),
+					classAndMethod("com.oplus.uifirst.Utils", "writeProcNode"),
+					classAndMethod("com.oplus.uifirst.OplusUIFirstManager", "writeProcNode"),
+					classAndMethod("com.oplus.uifirst.OplusUIFirstManager", "setBinderThreadUxFlag"),
 				)
 			}
 		}
