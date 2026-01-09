@@ -18,7 +18,6 @@
 package com.itsaky.androidide.models
 
 import androidx.annotation.DrawableRes
-import com.blankj.utilcode.util.ImageUtils
 import com.itsaky.androidide.resources.R
 import java.io.File
 
