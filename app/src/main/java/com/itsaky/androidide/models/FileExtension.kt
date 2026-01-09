@@ -54,11 +54,25 @@ enum class FileExtension(val extension: String, @DrawableRes val icon: Int) {
       /** Get [FileExtension] for the given file. */
       @JvmStatic
       fun forFile(file: File?): FileExtension {
-        return if (file?.isDirectory == true) DIRECTORY
-          else if (ImageUtils.isImage(file)) IMAGE
-          else if ("gradlew" == file?.name) GRADLEW
-          else forExtension(file?.extension)
+          if (file == null) return UNKNOWN
+
+          val name = file.name
+          val extension = file.extension
+
+          return when {
+              name == "gradlew" -> GRADLEW
+              isImageExtension(extension) -> IMAGE
+              extension.isEmpty() && !name.contains(".") -> DIRECTORY
+              else -> forExtension(extension)
+          }
       }
+
+        private fun isImageExtension(extension: String?): Boolean {
+            return when (extension?.lowercase()) {
+                "jpg", "jpeg", "png", "gif", "webp", "bmp", "ico" -> true
+                else -> false
+            }
+        }
 
       /** Get [FileExtension] for the given extension. */
       @JvmStatic
