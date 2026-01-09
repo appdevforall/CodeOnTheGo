@@ -168,6 +168,7 @@ class WADBConnectionViewModel : ViewModel() {
 	private fun doStart(context: Context) {
 		val filter =
 			IntentFilter().apply {
+				addAction(AdbPairingService.ACTION_PAIR_STARTED)
 				addAction(AdbPairingService.ACTION_PAIR_SUCCEEDED)
 				addAction(AdbPairingService.ACTION_PAIR_FAILED)
 			}
