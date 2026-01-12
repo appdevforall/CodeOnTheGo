@@ -910,7 +910,7 @@ open class EditorHandlerActivity :
 					name = "*$name"
 				}
 
-				names[index] = name to FileExtension.Factory.forFile(file).icon
+				names[index] = name to FileExtension.Factory.forFile(file, file.isDirectory).icon
 			}
 
 			withContext(Dispatchers.Main) {
