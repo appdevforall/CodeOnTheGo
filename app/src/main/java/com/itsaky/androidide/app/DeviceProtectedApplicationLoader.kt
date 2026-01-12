@@ -17,6 +17,7 @@ import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.ui.themes.IThemeManager
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
@@ -49,6 +50,10 @@ internal object DeviceProtectedApplicationLoader :
 
 	override suspend fun load(app: IDEApplication) {
 		logger.info("Loading device protected storage context components...")
+
+		runCatching {
+			Environment.init(app)
+		}
 
 		runCatching {
 			// try to initialize feature flags

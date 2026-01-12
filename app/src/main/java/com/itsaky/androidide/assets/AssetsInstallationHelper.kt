@@ -68,16 +68,7 @@ object AssetsInstallationHelper {
 		onProgress: AssetsInstallerProgressConsumer = {},
 	): Result =
 		withContext(Dispatchers.IO) {
-			val rootDir = File(DEFAULT_ROOT)
-			if (!rootDir.exists() || !rootDir.canWrite()) {
-				val errorMsg = context.getString(R.string.storage_not_accessible)
-				logger.error("Storage not accessible: {}", DEFAULT_ROOT)
-				onProgress(Progress(errorMsg))
-				return@withContext Result.Failure(
-					IllegalStateException(errorMsg),
-					errorMsg
-				)
-			}
+			checkStorageAccessibility(context, onProgress)?.let { return@withContext it }
 
 			val result =
 				runCatching {
@@ -271,4 +262,20 @@ object AssetsInstallationHelper {
         return String.format(Locale.getDefault(), "%.1f%%", value)
     }
 
+	private fun checkStorageAccessibility(
+		context: Context,
+		onProgress: AssetsInstallerProgressConsumer,
+	): Result.Failure? {
+		val rootDir = File(DEFAULT_ROOT)
+		if (!rootDir.exists() || !rootDir.canWrite()) {
+			val errorMsg = context.getString(R.string.storage_not_accessible)
+			logger.error("Storage not accessible: {}", DEFAULT_ROOT)
+			onProgress(Progress(errorMsg))
+			return Result.Failure(
+				IllegalStateException(errorMsg),
+				errorMsg
+			)
+		}
+		return null
+	}
 }
