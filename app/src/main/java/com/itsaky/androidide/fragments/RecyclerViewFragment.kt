@@ -124,7 +124,9 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 	 */
 	fun setAdapter(adapter: A) {
 		_binding?.root?.let { list -> list.adapter = adapter } ?: run { unsavedAdapter = adapter }
-		checkIsEmpty()
+        if (isAdded && view != null) {
+            checkIsEmpty()
+        }
 	}
 
 	private fun showFragmentTooltip() {
@@ -139,6 +141,7 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 	}
 
 	private fun checkIsEmpty() {
-		isEmpty = _binding?.root?.adapter?.itemCount == 0
+        if (!isAdded || isDetached) return
+        isEmpty = _binding?.root?.adapter?.itemCount == 0
 	}
 }

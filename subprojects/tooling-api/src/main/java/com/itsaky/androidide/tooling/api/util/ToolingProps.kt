@@ -17,29 +17,83 @@
 
 package com.itsaky.androidide.tooling.api.util
 
+import com.itsaky.androidide.tooling.api.util.ToolingProps.DESCENDANT_FORCE_KILL_TIMEOUT_MS
 import com.itsaky.androidide.utils.AndroidPluginVersion
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * System properties for configuring the toolign API.
+ * System properties for configuring the tooling API server.
  *
  * @author Akash Yadav
  */
 object ToolingProps {
+	private fun propName(
+		cat: String,
+		name: String,
+	) = "ide.tooling.$cat.$name"
 
-  val TESTING_IS_TEST_ENV = propName("testing", "isTestEnv")
-  val TESTING_LATEST_AGP_VERSION = propName("testing", "latestAgpVersion")
+	/**
+	 * Whether the current environment is a test environment.
+	 *
+	 * Internal API. For testing purposes only.
+	 */
+	val TESTING_IS_TEST_ENV = propName("testing", "isTestEnv")
 
-  val isTestEnv: Boolean
-    get() = System.getProperty(TESTING_IS_TEST_ENV).toBoolean()
+	/**
+	 * The latest AGP version known to the tooling API.
+	 *
+	 * Internal API. For testing purposes only.
+	 */
+	val TESTING_LATEST_AGP_VERSION = propName("testing", "latestAgpVersion")
 
-  val latestTestedAgpVersion: AndroidPluginVersion
-    get() {
-      if (!isTestEnv) {
-        return AndroidPluginVersion.LATEST_TESTED
-      }
-      return System.getProperty(TESTING_LATEST_AGP_VERSION)?.let { AndroidPluginVersion.parse(it) }
-        ?: AndroidPluginVersion.LATEST_TESTED
-    }
+	/**
+	 * Whether the Gradle daemon should be killed forcibly. Use [DESCENDANT_FORCE_KILL_TIMEOUT_MS]
+	 * to set a duration that the tooling server will wait before killing the daemon.
+	 */
+	val DAEMON_FORCE_KILL = propName("daemon", "forceKill")
 
-  fun propName(cat: String, name: String) = "ide.tooling.$cat.$name"
+	/**
+	 * Timeout for killing the descendant processes. The tooling API waits for this timeout before
+	 * forcibly killing the descendant processes if still alive. A timeout duration of
+	 * `0` milliseconds kills the processes instantly.
+	 */
+	val DESCENDANT_FORCE_KILL_TIMEOUT_MS = propName("daemon", "killTimeoutMs")
+
+	/**
+	 * Whether the current environment is a test environment.
+	 *
+	 * Internal API. For testing purposes only.
+	 */
+	val isTestEnv: Boolean
+		get() = System.getProperty(TESTING_IS_TEST_ENV, "false").toBoolean()
+
+	/**
+	 * The latest AGP version known to the tooling API.
+	 *
+	 * Internal API. For testing purposes only.
+	 */
+	val latestTestedAgpVersion: AndroidPluginVersion
+		get() {
+			if (!isTestEnv) {
+				return AndroidPluginVersion.LATEST_TESTED
+			}
+
+			return System
+				.getProperty(TESTING_LATEST_AGP_VERSION)
+				?.let { AndroidPluginVersion.parse(it) }
+				?: AndroidPluginVersion.LATEST_TESTED
+		}
+
+	/**
+	 * Whether the Gradle daemon should be killed forcibly.
+	 */
+	val killDescendantProcesses: Boolean
+		get() = System.getProperty(DAEMON_FORCE_KILL, "false").toBoolean()
+
+	/**
+	 * Timeout for killing the Gradle daemon.
+	 */
+	val killDescendantTimeout: Duration
+		get() = System.getProperty(DESCENDANT_FORCE_KILL_TIMEOUT_MS, "0").toLong().milliseconds
 }
