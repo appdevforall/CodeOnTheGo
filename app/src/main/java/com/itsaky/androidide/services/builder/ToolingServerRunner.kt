@@ -18,12 +18,14 @@
 package com.itsaky.androidide.services.builder
 
 import ch.qos.logback.core.CoreConstants
+import com.itsaky.androidide.logging.JvmStdErrAppender
 import com.itsaky.androidide.shell.executeProcessAsync
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher
+import com.itsaky.androidide.tooling.api.util.ToolingProps
 import com.itsaky.androidide.utils.Environment
 import com.termux.shared.reflection.ReflectionUtils
 import kotlinx.coroutines.CancellationException
@@ -36,6 +38,7 @@ import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Runner thread for the Tooling API.
@@ -60,6 +63,22 @@ internal class ToolingServerRunner(
 
 	companion object {
 		private val log = LoggerFactory.getLogger(ToolingServerRunner::class.java)
+
+		/**
+		 * Whether to enable logging of the error stream of the tooling server.
+		 */
+		const val TOOLING_ERR_STREAM_LOGGING_ENABLED = true
+
+		/**
+		 * Whether to enable force killing the Gradle daemon.
+		 */
+		const val TOOLING_DAEMON_KILL_ENABLED = true
+
+		/**
+		 * Timeout for killing the tooling daemon. The tooling API waits for this timeout before
+		 * forcibly killing the daemon process tree if it's still alive.
+		 */
+		val TOOLING_DAEMON_KILL_TIMEOUT = 3.seconds
 	}
 
 	fun setListener(listener: OnServerStartListener?) {
@@ -96,6 +115,9 @@ internal class ToolingServerRunner(
 							"--add-opens",
 							"java.base/java.io=ALL-UNNAMED", // The JAR file to run
 							"-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener",
+							"-D${ToolingProps.DAEMON_FORCE_KILL}=${TOOLING_DAEMON_KILL_ENABLED}",
+							"-D${ToolingProps.DESCENDANT_FORCE_KILL_TIMEOUT_MS}=${TOOLING_DAEMON_KILL_TIMEOUT.inWholeMilliseconds}",
+							"-D${JvmStdErrAppender.PROP_JVM_STDERR_APPENDER_ENABLED}=${TOOLING_ERR_STREAM_LOGGING_ENABLED}",
 							"-jar",
 							Environment.TOOLING_API_JAR.absolutePath,
 						)
@@ -111,8 +133,13 @@ internal class ToolingServerRunner(
 							this.environment = envs
 						}
 
-					pid = ReflectionUtils.getDeclaredField(process::class.java, "pid")?.get(process) as Int?
+					pid =
+						ReflectionUtils
+							.getDeclaredField(process::class.java, "pid")
+							?.get(process) as Int?
 					pid ?: throw IllegalStateException("Unable to get process ID")
+
+					log.info("Tooling API server running with PID: {}", pid)
 
 					val inputStream = process.inputStream
 					val outputStream = process.outputStream
