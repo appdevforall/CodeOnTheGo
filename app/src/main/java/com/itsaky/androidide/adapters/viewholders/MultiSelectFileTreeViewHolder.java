@@ -27,13 +27,16 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
     public View createNodeView(TreeNode node, File file) {
         // This is where the binding is created, only for visible nodes.
         binding = LayoutFiletreeItemSelectableBinding.inflate(LayoutInflater.from(context));
+
+        final boolean isDir = node.isDirectory();
+
         binding.filetreeName.setText(file.getName());
-        binding.filetreeIcon.setImageResource(FileExtension.Factory.forFile(file).getIcon());
+        binding.filetreeIcon.setImageResource(FileExtension.Factory.forFile(file, isDir).getIcon());
 
         int padding = (int) (context.getResources().getDisplayMetrics().density * 16 * (node.getLevel() - 1));
         binding.getRoot().setPadding(padding, binding.getRoot().getPaddingTop(), binding.getRoot().getPaddingRight(), binding.getRoot().getPaddingBottom());
 
-        if (file.isDirectory()) {
+        if (isDir) {
             binding.filetreeChevron.setVisibility(View.VISIBLE);
             binding.filetreeChevron.setRotation(node.isExpanded() ? 90 : 0);
         } else {
@@ -74,7 +77,7 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
         }
         updateCheckboxState(node);
 
-        if (file.isDirectory()) {
+        if (node.isDirectory()) {
             for (TreeNode child : (List<TreeNode>) node.getChildren()) {
                 propagateSelectionToChildren(child, isSelected);
             }
