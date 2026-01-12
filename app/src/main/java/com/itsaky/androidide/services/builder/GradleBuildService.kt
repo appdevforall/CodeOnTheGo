@@ -254,11 +254,6 @@ class GradleBuildService :
 
 		toolingApiClient?.client = null
 		toolingApiClient = null
-
-		log.debug("Cancelling tooling server output reader job...")
-		outputReaderJob?.cancel()
-		outputReaderJob = null
-
 		isToolingServerStarted = false
 	}
 
@@ -274,6 +269,11 @@ class GradleBuildService :
 		errorStream: InputStream,
 	) {
 		startServerOutputReader(errorStream)
+			.invokeOnCompletion { err ->
+				log.info("tooling API server reader stopped: ${err?.message ?: "OK"}", err)
+				outputReaderJob = null
+			}
+
 		this.server = server
 		this.isToolingServerStarted = true
 	}
@@ -632,13 +632,15 @@ class GradleBuildService :
 			}
 		}
 
-	private fun startServerOutputReader(input: InputStream) {
-		if (outputReaderJob?.isActive == true) {
-			return
+	private fun startServerOutputReader(input: InputStream): Job {
+		outputReaderJob?.let { job ->
+			if (job.isActive) {
+				return job
+			}
 		}
 
-		outputReaderJob =
-			buildServiceScope.launch(
+		return buildServiceScope
+			.launch(
 				Dispatchers.IO + CoroutineName("ToolingServerErrorReader"),
 			) {
 				val reader = input.bufferedReader()
@@ -656,6 +658,8 @@ class GradleBuildService :
 					// log the error and fail silently
 					log.error("Failed to read tooling server output", e)
 				}
+			}.also { job ->
+				outputReaderJob = job
 			}
 	}
 
