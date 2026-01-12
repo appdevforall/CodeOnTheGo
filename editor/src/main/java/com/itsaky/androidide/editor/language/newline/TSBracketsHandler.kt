@@ -39,12 +39,13 @@ abstract class TSBracketsHandler(private val language: TreeSitterLanguage) : Bas
     style: Styles?,
     tabSize: Int
   ): NewlineHandleResult {
-    val count = 100_000_000
-
-    val safeCount = count.coerceIn(0, maxIndentColumns)
+    val lineText = text.getLine(position.line)
+    val count = TextUtils.countLeadingSpaceCount(lineText, tabSize)
+    val limit = lineText.length.coerceAtMost(maxIndentColumns)
+    val safeCount = count.coerceIn(0, limit)
     val indentPlusTab = (safeCount + tabSize).coerceIn(0, maxIndentColumns)
     var txt: String
-    val sb = StringBuilder(indentPlusTab + safeCount + 2)
+    val sb = StringBuilder(indentPlusTab + safeCount + 4)
       .append("\n")
       .append(TextUtils.createIndent(indentPlusTab, tabSize, language.useTab()))
       .append("\n")
