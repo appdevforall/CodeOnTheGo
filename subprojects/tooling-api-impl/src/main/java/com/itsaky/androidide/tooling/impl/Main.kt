@@ -138,7 +138,7 @@ object Main {
 				logger.info("shutting down process: {} {}", pid, proc.info())
 				proc.destroy()
 			} catch (err: Throwable) {
-				logger.warn("an error occurrent trying to shut down process {}", pid, err)
+				logger.warn("an error occurred trying to shut down process {}", pid, err)
 			}
 		}
 
