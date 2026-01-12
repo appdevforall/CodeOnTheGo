@@ -73,6 +73,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 									Files.newOutputStream(tempBootstrap).use { out ->
 										zipInput.copyTo(out)
 									}
+									Files.deleteIfExists(tempBootstrap)
 									val channel = Files.newByteChannel(tempBootstrap)
 									val result = TerminalInstaller.installIfNeeded(context, channel)
 									if (result !is TerminalInstaller.InstallResult.Success) {

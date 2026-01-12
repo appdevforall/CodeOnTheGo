@@ -76,6 +76,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 								Files.newOutputStream(tempZipPath).use { output ->
 									brotliInputStream.copyTo(output)
 								}
+								Files.deleteIfExists(tempZipPath)
 								Files.newByteChannel(tempZipPath).use { channel ->
 									val result = TerminalInstaller.installIfNeeded(context, channel)
 									if (result !is TerminalInstaller.InstallResult.Success) {
