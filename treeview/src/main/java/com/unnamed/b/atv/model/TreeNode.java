@@ -30,10 +30,14 @@ public class TreeNode {
   private TreeNodeLongClickListener mLongClickListener;
   private File mValue;
   private boolean mExpanded;
+  private boolean mIsDirectory;
 
   public TreeNode(File value) {
     children = Collections.synchronizedList(new ArrayList<TreeNode>());
     mValue = value;
+      if (value != null) {
+          mIsDirectory = value.isDirectory();
+      }
   }
 
   public static TreeNode root() {
@@ -109,6 +113,10 @@ public class TreeNode {
   public boolean isLeaf() {
     return size() == 0;
   }
+
+    public boolean isDirectory() {
+        return mIsDirectory;
+    }
 
   public int size() {
     return children == null ? 0 : children.size();
