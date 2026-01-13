@@ -41,8 +41,7 @@ abstract class TSBracketsHandler(private val language: TreeSitterLanguage) : Bas
   ): NewlineHandleResult {
     val lineText = text.getLine(position.line)
     val count = TextUtils.countLeadingSpaceCount(lineText, tabSize)
-    val limit = lineText.length.coerceAtMost(maxIndentColumns)
-    val safeCount = count.coerceIn(0, limit)
+    val safeCount = count.coerceIn(0, maxIndentColumns)
     val indentPlusTab = (safeCount + tabSize).coerceIn(0, maxIndentColumns)
     var txt: String
     val sb = StringBuilder(indentPlusTab + safeCount + 4)

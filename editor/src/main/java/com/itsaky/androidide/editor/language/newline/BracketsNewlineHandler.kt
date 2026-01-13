@@ -51,10 +51,9 @@ internal open class BracketsNewlineHandler(
     val count = TextUtils.countLeadingSpaceCount(beforeText!!, tabSize)
     val advanceBefore: Int = getIndentAdvance(beforeText)
     val advanceAfter: Int = getIndentAdvance(afterText)
-    val limitBefore = beforeText.length.coerceAtMost(maxIndentColumns)
-    val limitAfter = afterText?.length?.coerceAtMost(maxIndentColumns)
-    val safeCountBefore = count.coerceIn(0, limitBefore)
-    val safeCountAfter = count.coerceIn(0, limitAfter)
+
+    val safeCountBefore = count.coerceIn(0, maxIndentColumns)
+    val safeCountAfter = count.coerceIn(0, maxIndentColumns)
     var text: String
     val sb =
       StringBuilder("\n")
