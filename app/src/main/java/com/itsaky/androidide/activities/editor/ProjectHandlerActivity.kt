@@ -371,6 +371,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	fun appendBuildOutput(str: String) {
+        if (_binding == null || isDestroyed || isFinishing) return
 		content.bottomSheet.appendBuildOut(str)
 	}
 
