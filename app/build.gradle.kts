@@ -133,6 +133,7 @@ android {
 	}
 
 	androidResources {
+        noCompress.add("tflite")
 		generateLocaleConfig = true
 	}
 
@@ -699,7 +700,7 @@ tasks.register("recompressApk") {
 
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
-val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "br")
+val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "br", "tflite", "binarypb", "bincfg", "conv_model", "lstm_model")
 
 afterEvaluate {
     tasks.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }.configureEach {
