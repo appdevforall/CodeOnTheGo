@@ -39,9 +39,9 @@ class PreviewLayoutActivity : BaseActivity() {
 
     private fun showErrorDialog() {
         AlertDialog.Builder(this)
-            .setTitle(applicationContext.getString(string.preview_render_error_title))
-            .setMessage(applicationContext.getString(string.preview_render_error_message))
-            .setPositiveButton(applicationContext.getString((string.msg_ok))) { dialog, _ ->
+            .setTitle(getString(string.preview_render_error_title))
+            .setMessage(getString(string.preview_render_error_message))
+            .setPositiveButton(getString(string.msg_ok)) { dialog, _ ->
                 dialog.dismiss()
                 finish()
             }
