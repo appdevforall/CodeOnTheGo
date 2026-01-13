@@ -156,11 +156,10 @@ object ContentReadWrite {
   }
 
   private fun checkForParentDir(file: File) {
-    if (file.parentFile?.exists() == true) return
+    val parent = file.parentFile ?: return
 
-    val created = file.parentFile?.mkdirs()
-    if (created == true) return
-
-    throw IOException("The parent directory could not be created for: ${file.absolutePath}")
+    if (!parent.exists() && !parent.mkdirs() && !parent.exists()) {
+      throw IOException("The parent directory could not be created for: ${file.absolutePath}")
+    }
   }
 }
