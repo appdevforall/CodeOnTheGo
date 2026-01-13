@@ -712,8 +712,6 @@ afterEvaluate {
 
 	tasks.named("assembleV8Release").configure {
 		finalizedBy("recompressApk")
-        // Force the CV module assets to merge before this task runs
-        dependsOn(":cv-image-to-xml:mergeReleaseAssets")
 
 		doLast {
 			tasks.named("recompressApk").configure {
