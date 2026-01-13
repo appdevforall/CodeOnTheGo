@@ -1,0 +1,21 @@
+{
+  "version": 3,
+  "artifactType": {
+    "type": "APK",
+    "kind": "Directory"
+  },
+  "applicationId": "com.itsaky.androidide",
+  "variantName": "v8Debug",
+  "elements": [
+    {
+      "type": "SINGLE",
+      "filters": [],
+      "attributes": [],
+      "versionCode": 260112232,
+      "versionName": "CodeOnTheGo-debug-0112-2356",
+      "outputFile": "CodeOnTheGo-v8-debug-0112-2356.apk"
+    }
+  ],
+  "elementType": "File",
+  "minSdkVersionForDexing": 28
+}
