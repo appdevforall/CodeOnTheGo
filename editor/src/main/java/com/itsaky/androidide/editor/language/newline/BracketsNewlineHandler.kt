@@ -28,7 +28,7 @@ internal open class BracketsNewlineHandler(
   val useTab: () -> Boolean
 ) : CStyleBracketsHandler() {
 
-  private val maxIndentColumns = 200
+	private val maxIndentColumns = 500
 
   override fun handleNewline(
     text: Content,
@@ -48,21 +48,18 @@ internal open class BracketsNewlineHandler(
     afterText: String?,
     tabSize: Int
   ): NewlineHandleResult {
-    val count = 100_000_000
-
+    val count = TextUtils.countLeadingSpaceCount(beforeText!!, tabSize)
     val advanceBefore: Int = getIndentAdvance(beforeText)
     val advanceAfter: Int = getIndentAdvance(afterText)
 
-    val safeIndentBefore = (count + advanceBefore).coerceIn(0, maxIndentColumns)
-    val safeIndentAfter = (count + advanceAfter).coerceIn(0, maxIndentColumns)
-
+    val safeCountBefore = count.coerceIn(0, maxIndentColumns)
+    val safeCountAfter = count.coerceIn(0, maxIndentColumns)
     var text: String
-    val sb = StringBuilder(safeIndentBefore + safeIndentAfter + 4)
-      .append("\n")
-      .append(TextUtils.createIndent(safeIndentBefore, tabSize, useTab()))
-      .append('\n')
-      .append(TextUtils.createIndent(safeIndentAfter, tabSize, useTab()).also { text = it })
-
+    val sb =
+      StringBuilder("\n")
+        .append(TextUtils.createIndent(safeCountBefore + advanceBefore, tabSize, useTab()))
+        .append("\n")
+        .append(TextUtils.createIndent(safeCountAfter + advanceAfter, tabSize, useTab()).also { text = it })
     val shiftLeft = text.length + 1
     return NewlineHandleResult(sb, shiftLeft)
   }
