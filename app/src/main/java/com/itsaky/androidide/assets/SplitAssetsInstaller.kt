@@ -6,6 +6,8 @@ import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
+import com.itsaky.androidide.utils.retryOnceOnNoSuchFile
+import com.itsaky.androidide.utils.withTempZipChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
@@ -66,22 +68,33 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 							AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
 								logger.debug("Extracting 'bootstrap.zip' to dir: {}", stagingDir)
 
-								// We need a SeekableByteChannel for the TerminalInstaller, but the ZipInputStream is not seekable.
-								// The only way is to write it to a temporary file first.
-								val tempBootstrap = Files.createTempFile(stagingDir, "bootstrap", ".zip")
-								try {
-									Files.newOutputStream(tempBootstrap).use { out ->
-										zipInput.copyTo(out)
+								val result = retryOnceOnNoSuchFile(
+									onFirstFailure = { Files.createDirectories(stagingDir) },
+									onSecondFailure = { e2 ->
+										logger.error("Failed to open temporary bootstrap zip after retry", e2)
+										return@withContext
 									}
-									val channel = Files.newByteChannel(tempBootstrap)
-									val result = TerminalInstaller.installIfNeeded(context, channel)
-									if (result !is TerminalInstaller.InstallResult.Success) {
-										// Log the error and continue with other assets.
-										logger.error("Failed to install terminal: $result")
-									}
-								} finally {
-									Files.deleteIfExists(tempBootstrap)
+								) {
+									withTempZipChannel(
+										stagingDir = stagingDir,
+										prefix = "bootstrap",
+										writeTo = { path ->
+											zipFile.getInputStream(entry).use { freshZipInput ->
+												Files.newOutputStream(path).use { out ->
+													freshZipInput.copyTo(out)
+												}
+											}
+										},
+										useChannel = { ch ->
+											TerminalInstaller.installIfNeeded(context, ch)
+										}
+									)
 								}
+
+								if (result !is TerminalInstaller.InstallResult.Success) {
+									logger.error("Failed to install terminal: {}", result)
+								}
+
 								logger.debug("Completed extracting 'bootstrap.zip' to dir: {}", stagingDir)
 							}
 
