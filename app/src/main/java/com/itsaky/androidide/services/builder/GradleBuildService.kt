@@ -60,6 +60,7 @@ import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
+import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -239,7 +240,19 @@ class GradleBuildService :
 				// the service should not block the onDestroy call in order to avoid timeouts
 				// the tooling server must release resources and exit automatically
 				IDEApplication.instance.coroutineScope.launch(Dispatchers.IO) {
-					server.shutdown().await()
+					// This might result in an `IOException: stream closed` if the tooling server
+					// process exited before we had a chance to send the shutdown request. Since
+					// the server exits before we have a chance to communicate with it, the
+					// OutputStream we use to send the request is closed as well, resulting in the
+					// IOException.
+					runCatching { server.shutdown().await() }
+						.onFailure { err ->
+							if (err !is IOException || err.message?.contains("stream closed") != true) {
+								// log if the error is not due to the stream being closed
+								log.error("Failed to shutdown Tooling API server", err)
+								Sentry.captureException(err)
+							}
+						}
 				}
 			} catch (e: Throwable) {
 				if (e !is TimeoutException) {
