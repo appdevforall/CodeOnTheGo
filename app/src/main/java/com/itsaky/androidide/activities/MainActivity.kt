@@ -45,7 +45,6 @@ import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
-import com.itsaky.androidide.utils.FileDeleteUtils
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -318,17 +317,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		startActivity(intent)
 	}
 
-	internal fun deleteProject(root: File) {
-		ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-		try {
-			FileDeleteUtils.deleteRecursive(root)
-		} catch (e: Exception) {
-			log.error("Failed to delete project", e)
-			flashInfo(string.msg_delete_existing_project_failed)
-		}
-	}
-
-	private fun startWebServer() {
+    private fun startWebServer() {
 		lifecycleScope.launch(Dispatchers.IO) {
 			try {
 				val dbFile = Environment.DOC_DB
