@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -50,6 +51,7 @@ import org.appdevforall.codeonthego.layouteditor.editor.DeviceSize
 import org.appdevforall.codeonthego.layouteditor.editor.convert.ConvertImportedXml
 import org.appdevforall.codeonthego.layouteditor.managers.DrawableManager
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
+import org.appdevforall.codeonthego.layouteditor.managers.PreferencesManager
 import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager
 import org.appdevforall.codeonthego.layouteditor.managers.UndoRedoManager
 import org.appdevforall.codeonthego.layouteditor.tools.XmlLayoutGenerator
@@ -147,31 +149,38 @@ class EditorActivity : BaseActivity() {
 				val createdAt = getCreatedTime(filePath).toString()
 				val modifiedAt = getLastModifiedTime(filePath).toString()
 
-				projectManager.openProject(
-					ProjectFile(
-						filePath,
-						createdAt,
-						modifiedAt,
-						this@EditorActivity,
-						mainLayoutName = fileName
+				try {
+					projectManager.openProject(
+						ProjectFile(
+							filePath,
+							createdAt,
+							modifiedAt,
+							this@EditorActivity,
+							mainLayoutName = fileName
+						)
 					)
-				)
-				project = projectManager.openedProject!!
-				invalidateOptionsMenu()
-				androidToDesignConversion(
-					Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
-				)
+					project = projectManager.openedProject!!
+					invalidateOptionsMenu()
+					androidToDesignConversion(
+						Uri.fromFile(File(projectManager.openedProject?.mainLayout?.path ?: "")),
+					)
 
-				supportActionBar?.title = project.name
-				layoutAdapter = LayoutListAdapter(project)
+					supportActionBar?.title = project.name
+					layoutAdapter = LayoutListAdapter(project)
+					binding.editorLayout.setBackgroundColor(
+						Utils.getSurfaceColor(this@EditorActivity)
+					)
+				} catch (e: Exception) {
+					Log.e("EditorActivity", "Error loading project", e)
+					Toast.makeText(
+						this@EditorActivity,
+						getString(string.msg_error_opening_project),
+						Toast.LENGTH_SHORT
+					).show()
+					finish()
+				}
 			}
 		} ?: showNothingDialog()
-
-		binding.editorLayout.setBackgroundColor(
-			Utils.getSurfaceColor(
-				this,
-			),
-		)
 	}
 
 	private fun defineXmlPicker() {
@@ -724,23 +733,30 @@ class EditorActivity : BaseActivity() {
 		}
 	}
 
-    private fun openLayout(layoutFile: LayoutFile) {
-    originalProductionXml = layoutFile.readLayoutFile()
-    originalDesignXml = layoutFile.readDesignFile()
+  private suspend fun openLayout(layoutFile: LayoutFile) {
+    val (production, design, layoutName) = withContext(Dispatchers.IO) {
+      val production = layoutFile.readLayoutFile()
+      var design = layoutFile.readDesignFile()
 
-		var contentToParse = layoutFile.readDesignFile()
+      if (design.isNullOrBlank() && !production.isNullOrBlank()) {
+        val converted = withContext(Dispatchers.Default) {
+					ConvertImportedXml(production).getXmlConverted(this@EditorActivity)
+				}
+        if (!converted.isNullOrBlank()) {
+          layoutFile.saveDesignFile(converted)
+          design = converted
+        }
+      }
+      Triple(production, design, layoutFile.name)
+    }
+    originalProductionXml = production
+    originalDesignXml = design
 
-		if (contentToParse.isNullOrBlank()) {
-			val productionContent = layoutFile.readLayoutFile()
-			if (!productionContent.isNullOrBlank()) {
-				contentToParse = ConvertImportedXml(productionContent).getXmlConverted(this)
-				contentToParse?.let { layoutFile.saveDesignFile(it) }
-			}
-		}
+		binding.editorLayout.loadLayoutFromParser(design)
 
-		binding.editorLayout.loadLayoutFromParser(contentToParse)
 		project.currentLayout = layoutFile
-		supportActionBar!!.subtitle = layoutFile.name
+		supportActionBar?.subtitle = layoutName
+
 		if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
 			drawerLayout.closeDrawer(GravityCompat.START)
 		}

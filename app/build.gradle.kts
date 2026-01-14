@@ -133,6 +133,7 @@ android {
 	}
 
 	androidResources {
+        noCompress.add("tflite")
 		generateLocaleConfig = true
 	}
 
@@ -287,6 +288,7 @@ dependencies {
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
+    implementation(projects.cvImageToXml)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -490,6 +492,7 @@ fun createAssetsZip(arch: String) {
             "gradle-api-8.14.3.jar.zip",
             "documentation.db",
             bootstrapName,
+            "plugin-artifacts.zip",
         ).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
 			if (!filePath.exists()) {
@@ -540,6 +543,11 @@ fun registerBundleLlamaAssetsTask(flavor: String, arch: String): TaskProvider<Ta
         flavor.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
     return tasks.register<Task>("bundle${capitalized}LlamaAssets") {
         dependsOn("assemble${capitalized}Assets")
+
+        val assetsZipFile = project.layout.buildDirectory.file("outputs/assets/assets-$arch.zip")
+        val outputDir = rootProject.layout.projectDirectory.dir("assets/release/$flavor/dynamic_libs")
+        inputs.file(assetsZipFile)
+        outputs.dir(outputDir)
 
         doLast {
             val assetsZip =
@@ -619,23 +627,45 @@ fun registerBundleLlamaAssetsTask(flavor: String, arch: String): TaskProvider<Ta
     }
 }
 
+tasks.register("copyPluginApiJarToAssets") {
+    dependsOn(":plugin-api:createPluginApiJar")
+    val sourceFile = project(":plugin-api").layout.buildDirectory.file("libs/plugin-api-1.0.0.jar")
+    val destFile = rootProject.layout.projectDirectory.file("assets/plugin-api.jar")
+    inputs.file(sourceFile)
+    outputs.file(destFile)
+    doLast {
+        sourceFile.get().asFile.copyTo(destFile.asFile, overwrite = true)
+    }
+}
+
+tasks.register<Zip>("createPluginArtifactsZip") {
+    dependsOn("copyPluginApiJarToAssets")
+    dependsOn(gradle.includedBuild("plugin-builder").task(":jar"))
+
+    from(rootProject.file("assets/plugin-api.jar"))
+    from(rootProject.file("plugin-api/plugin-builder/build/libs/plugin-builder-1.0.0.jar")) {
+        rename { "gradle-plugin.jar" }
+    }
+
+    archiveFileName.set("plugin-artifacts.zip")
+    destinationDirectory.set(rootProject.file("assets"))
+}
+
 tasks.register("assembleV8Assets") {
-    dependsOn(":llama-impl:assembleV8Release")
+    dependsOn(":llama-impl:assembleV8Release", "createPluginArtifactsZip")
     if (!isCiCd) {
         dependsOn("assetsDownloadDebug")
     }
-
 	doLast {
 		createAssetsZip("arm64-v8a")
 	}
 }
 
 tasks.register("assembleV7Assets") {
-    dependsOn(":llama-impl:assembleV7Release")
+    dependsOn(":llama-impl:assembleV7Release", "createPluginArtifactsZip")
     if (!isCiCd) {
         dependsOn("assetsDownloadDebug")
     }
-
 	doLast {
 		createAssetsZip("armeabi-v7a")
 	}
@@ -670,9 +700,16 @@ tasks.register("recompressApk") {
 
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
-val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "br")
+val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "br", "tflite", "binarypb", "bincfg", "conv_model", "lstm_model")
 
 afterEvaluate {
+    tasks.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }.configureEach {
+        dependsOn(bundleLlamaV8Assets)
+    }
+    tasks.matching { it.name.contains("V7") && it.name.lowercase().contains("lint") }.configureEach {
+        dependsOn(bundleLlamaV7Assets)
+    }
+
 	tasks.named("assembleV8Release").configure {
 		finalizedBy("recompressApk")
 

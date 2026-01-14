@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
@@ -38,6 +39,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import com.itsaky.androidide.utils.flashSuccess
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -76,6 +78,7 @@ class RecentProjectsFragment : BaseFragment() {
 		setupObservers()
 		setupClickListeners()
         bootstrapFromFixedFolderIfNeeded()
+        observeDeletionStatus()
 	}
 
 	private fun setupRecyclerView() {
@@ -394,11 +397,21 @@ class RecentProjectsFragment : BaseFragment() {
     }
 
 	fun isValidProjectDirectory(selectedDir: File): Boolean {
+        if (isPluginProject(selectedDir)) {
+            return true
+        }
+
         val appFolder = File(selectedDir, "app")
         val buildGradleFile = File(appFolder, "build.gradle")
         val buildGradleKtsFile = File(appFolder, "build.gradle.kts")
         return appFolder.exists() && appFolder.isDirectory &&
                 (buildGradleFile.exists() || buildGradleKtsFile.exists())
+    }
+
+    private fun isPluginProject(dir: File): Boolean {
+        val pluginApiJar = File(dir, "libs/plugin-api.jar")
+        val buildGradle = File(dir, "build.gradle.kts")
+        return pluginApiJar.exists() && buildGradle.exists()
     }
 
     /**
@@ -466,4 +479,22 @@ class RecentProjectsFragment : BaseFragment() {
 	private fun showToolTip(tag: String) {
 		TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
 	}
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.loadProjects()
+    }
+
+    private fun observeDeletionStatus() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.deletionStatus.collect { status ->
+                if (status) {
+                    flashSuccess(R.string.deleted)
+                } else {
+                    flashError(R.string.delete_failed)
+                }
+            }
+        }
+    }
+
 }

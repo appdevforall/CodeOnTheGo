@@ -57,6 +57,7 @@ object AssetsInstallationHelper {
 	)
 
     const val LLAMA_AAR = "dynamic_libs/llama.aar"
+    const val PLUGIN_ARTIFACTS_ZIP = "plugin-artifacts.zip"
     private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
 	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
 	const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
@@ -72,9 +73,11 @@ object AssetsInstallationHelper {
 				}
 
 			if (result.isFailure) {
-				logger.error("Failed to install assets", result.exceptionOrNull())
-				onProgress(Progress("Failed to install assets"))
-				return@withContext Result.Failure(result.exceptionOrNull())
+				val e = result.exceptionOrNull()
+				val msg = e?.message ?: "Failed to install assets"
+				logger.error("Failed to install assets", e)
+				onProgress(Progress(msg))
+				return@withContext Result.Failure(e, errorMessage = msg)
 			}
 
 			return@withContext Result.Success
@@ -97,7 +100,8 @@ object AssetsInstallationHelper {
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
-                LLAMA_AAR
+                LLAMA_AAR,
+                PLUGIN_ARTIFACTS_ZIP
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
