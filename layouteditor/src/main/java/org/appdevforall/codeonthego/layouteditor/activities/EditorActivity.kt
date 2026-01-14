@@ -33,6 +33,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
@@ -146,6 +147,7 @@ class EditorActivity : BaseActivity() {
 		) { filePath, fileName ->
 			supportActionBar?.title = getString(string.loading_project)
 			lifecycleScope.launch {
+				delay(3000)
 				val createdAt = getCreatedTime(filePath).toString()
 				val modifiedAt = getLastModifiedTime(filePath).toString()
 
