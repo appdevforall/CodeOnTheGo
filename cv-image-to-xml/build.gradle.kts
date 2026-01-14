@@ -49,7 +49,6 @@ dependencies {
     androidTestImplementation(libs.tests.androidx.espresso.core)
     implementation(projects.commonUi)
 
-    // adding Firebase analytics
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
 }
