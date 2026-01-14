@@ -41,6 +41,8 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.EditorActionItem
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.actions.TextTarget
+import com.itsaky.androidide.editor.adapters.IdeEditorAdapter
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -315,6 +317,8 @@ open class EditorActionsMenu(val editor: IDEEditor) :
             ILanguageServerRegistry.getDefault().getServer(XMLLanguageServer.SERVER_ID)
                     as? XMLLanguageServer?
         )
+        data.put(TextTarget::class.java, IdeEditorAdapter(this.editor))
+        data.put(IDEEditor::class.java, this.editor)
         return data
     }
 

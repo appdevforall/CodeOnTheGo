@@ -22,59 +22,71 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
-import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.actions.BaseEditorAction
 import com.itsaky.androidide.editor.utils.isXmlAttribute
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
-    EditorRelatedAction() {
+    BaseEditorAction() {
+
     override val id: String = "ide.editor.code.text.show_tooltip"
     override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
-    private var htmlString: String = ""
 
     init {
         label = context.getString(R.string.title_show_tooltip)
-        icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
+        val drawable = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
+        icon = drawable?.let { tintDrawable(context, it) }
     }
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
-        val editor = data.getEditor()
-        if (editor == null) {
-            visible = false
-            enabled = false
-            return
-        }
-        visible = editor.cursor?.isSelected == true
+        if (!visible) return
+
+        val target = getTextTarget(data)
+        visible = target != null
         enabled = visible
     }
 
-    override suspend fun execAction(data: ActionData): Any {
-        val editor = data.getEditor()!!
-        val cursor = editor.text.cursor
-        val category = when (editor.file?.extension) {
-            "java" -> TooltipCategory.CATEGORY_JAVA
-            "kt" -> TooltipCategory.CATEGORY_KOTLIN
-            "xml" -> TooltipCategory.CATEGORY_XML
-            else -> TooltipCategory.CATEGORY_IDE
-        }
-        val word = editor.text.substring(cursor.left, cursor.right)
-        if (cursor.isSelected) {
-            val useEditorTag = editor.tag != null
-            val tag = when {
-                useEditorTag -> editor.tag.toString()
-                category == TooltipCategory.CATEGORY_XML && editor.isXmlAttribute() -> word.substringAfterLast(":")
-                else -> word
+    override suspend fun execAction(data: ActionData): Boolean {
+        val target = getTextTarget(data) ?: return false
+        val anchorView = target.getAnchorView() ?: return false
+        val editor = getEditor(data)
+
+        val category: String
+        val tag: String
+
+        if (editor != null) {
+            val selectedText = target.getSelectedText()
+            category = when (editor.file?.extension) {
+                "java" -> TooltipCategory.CATEGORY_JAVA
+                "kt" -> TooltipCategory.CATEGORY_KOTLIN
+                "xml" -> TooltipCategory.CATEGORY_XML
+                else -> TooltipCategory.CATEGORY_IDE
             }
-            TooltipManager.showTooltip(
-                context = context,
-                anchorView = editor,
-                category = category,
-                tag = tag,
-            )
+
+            val useEditorTag = editor.tag != null
+            val textToUse = selectedText ?: ""
+            tag = when {
+                useEditorTag -> editor.tag.toString()
+                category == TooltipCategory.CATEGORY_XML && editor.isXmlAttribute() -> textToUse.substringAfterLast(":")
+                else -> textToUse
+            }
+        } else {
+            category = TooltipCategory.CATEGORY_IDE
+            tag = TooltipTag.DIALOG_FIND_IN_PROJECT
         }
+
+        if (tag.isEmpty()) return false
+
+        TooltipManager.showTooltip(
+            context = anchorView.context,
+            anchorView = anchorView,
+            category = category,
+            tag = tag,
+        )
+
         return true
     }
 

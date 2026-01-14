@@ -38,8 +38,8 @@ class CopyAction(context: Context, override val order: Int) :
     override val id: String = "ide.editor.code.text.copy"
 
     override suspend fun execAction(data: ActionData): Boolean {
-        val editor = getEditor(data) ?: return false
-        editor.copyText()
+        val target = getTextTarget(data) ?: return false
+        target.copyText()
         return true
     }
 

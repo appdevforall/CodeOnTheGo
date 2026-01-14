@@ -35,18 +35,17 @@ class CutAction(context: Context, override val order: Int) : BaseEditorAction() 
   override fun prepare(data: ActionData) {
     super.prepare(data)
 
-    if (!visible) {
-      return
-    }
+    if (!visible) return
 
-    visible = getEditor(data)?.isEditable ?: false
+    val target = getTextTarget(data)
+    visible = target?.isEditable() ?: false
     enabled = visible
   }
 
   override val id: String = "ide.editor.code.text.cut"
   override suspend fun execAction(data: ActionData): Boolean {
-    val editor = getEditor(data) ?: return false
-    editor.cutText()
+    val target = getTextTarget(data) ?: return false
+    target.cut()
     return true
   }
   override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_CUT

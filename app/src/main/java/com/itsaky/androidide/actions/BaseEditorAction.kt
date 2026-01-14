@@ -19,7 +19,7 @@ package com.itsaky.androidide.actions
 
 import android.content.Context
 import android.graphics.drawable.Drawable
-import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
 import com.itsaky.androidide.editor.ui.IDEEditor
 
 /** @author Akash Yadav */
@@ -34,15 +34,19 @@ abstract class BaseEditorAction : EditorActionItem {
 
   override fun prepare(data: ActionData) {
     super.prepare(data)
-    getEditor(data)
-      ?: kotlin.run {
-        visible = false
-        enabled = false
-        return
-      }
+    val target = data.get(TextTarget::class.java)
+    if (target == null) {
+      visible = false
+      enabled = false
+      return
+    }
 
     visible = true
-    enabled = true
+    enabled = target.isEditable()
+  }
+
+  fun getTextTarget(data: ActionData): TextTarget? {
+    return data.get(TextTarget::class.java)
   }
 
   fun getEditor(data: ActionData): IDEEditor? {
@@ -50,14 +54,19 @@ abstract class BaseEditorAction : EditorActionItem {
   }
 
   fun getContext(data: ActionData): Context? {
-    val editor = getEditor(data) ?: return null
-    return editor.context
+    return getTextTarget(data)?.context
   }
 
   fun tintDrawable(context: Context, drawable: Drawable): Drawable {
-    drawable.setTint(
-      ContextCompat.getColor(context, com.itsaky.androidide.resources.R.color.primaryIconColor)
-    )
-    return drawable
+    val wrapped = DrawableCompat.wrap(drawable).mutate()
+
+    wrapped.alpha = 255
+
+    val typedValue = android.util.TypedValue()
+    context.theme.resolveAttribute(com.itsaky.androidide.common.R.attr.colorOnSurface, typedValue, true)
+    val solidColor = typedValue.data
+
+    wrapped.setTint(solidColor)
+    return wrapped
   }
 }

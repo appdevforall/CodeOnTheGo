@@ -37,17 +37,16 @@ class PasteAction(context: Context, override val order: Int) : BaseEditorAction(
   override fun prepare(data: ActionData) {
     super.prepare(data)
 
-    if (!visible) {
-      return
-    }
+    if (!visible) return
 
-    visible = getEditor(data)?.isEditable ?: false
+    val target = getTextTarget(data)
+    visible = target?.isEditable() ?: false
     enabled = visible
   }
 
   override suspend fun execAction(data: ActionData): Boolean {
-    val editor = getEditor(data) ?: return false
-    editor.pasteText()
+    val target = getTextTarget(data) ?: return false
+    target.paste()
     return true
   }
 

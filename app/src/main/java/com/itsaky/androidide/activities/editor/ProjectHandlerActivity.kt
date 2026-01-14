@@ -20,8 +20,10 @@ package com.itsaky.androidide.activities.editor
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
@@ -33,6 +35,7 @@ import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.etc.FindInFileAction
@@ -42,6 +45,7 @@ import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.FindActionDialog
+import com.itsaky.androidide.fragments.SearchFieldToolbar
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
 import com.itsaky.androidide.handlers.EditorBuildEventListener
 import com.itsaky.androidide.handlers.LspHandler.connectClient
@@ -77,12 +81,12 @@ import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
-import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
@@ -831,17 +835,60 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 		val dialog = builder.create()
-		dialog.onLongPress {
-			TooltipManager.showIdeCategoryTooltip(
-				context = this,
-				anchorView = binding.root,
-				tag = TooltipTag.DIALOG_FIND_IN_PROJECT,
-			)
-			true
+		dialog.onLongPress { view ->
+			if (
+				view is EditText
+			) {
+				view.selectCurrentWord()
+				view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+				showTextActionsMenu(view)
+				true
+			} else if (view === binding.input || view === binding.filter || view.parent === binding.input || view.parent === binding.filter) {
+				true
+			} else {
+				TooltipManager.showIdeCategoryTooltip(
+					context = this,
+					anchorView = binding.root,
+					tag = TooltipTag.DIALOG_FIND_IN_PROJECT,
+				)
+				true
+			}
 		}
 
 		mFindInProjectDialog = dialog
 		return mFindInProjectDialog
+	}
+
+	private fun showTextActionsMenu(anchor: EditText) {
+		val actionsRegistry = getInstance()
+		val textActions = actionsRegistry.getActions(ActionItem.Location.EDITOR_TEXT_ACTIONS)
+		val actionsList = textActions.values.toList()
+		if (actionsList.isNotEmpty()) { SearchFieldToolbar(anchor).show(actionsList) }
+	}
+
+	fun EditText.selectCurrentWord() {
+		val content = text ?: return
+		if (content.isEmpty()) return
+
+		val cursor = selectionStart
+		if (cursor < 0 || cursor > content.length) return
+
+		var start = cursor
+		var end = cursor
+
+		fun isWordChar(c: Char): Boolean = c.isLetterOrDigit() || c == '_'
+
+		while (start > 0 && isWordChar(content[start - 1])) {
+			start--
+		}
+
+		while (end < content.length && isWordChar(content[end])) {
+			end++
+		}
+
+		if (start != end) {
+			setSelection(start, end)
+		}
 	}
 
 	private fun initialSetup() {
