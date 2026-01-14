@@ -29,7 +29,6 @@ import androidx.core.view.GravityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
 import com.itsaky.androidide.R.string
@@ -57,6 +56,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
+import com.itsaky.androidide.models.isImageFile
 import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
@@ -74,7 +74,6 @@ import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
@@ -405,11 +404,8 @@ open class EditorHandlerActivity :
 		selection: Range?,
 	): CodeEditorView? {
 		val range = selection ?: Range.NONE
-		val isImage = runBlocking {
-			withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
-		}
 
-		if (isImage) {
+		if (file.isImageFile()) {
 			openImage(this, file)
 			return null
 		}

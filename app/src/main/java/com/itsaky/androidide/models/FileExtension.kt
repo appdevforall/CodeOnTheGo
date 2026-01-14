@@ -95,3 +95,7 @@ enum class FileExtension(val extension: String, @DrawableRes val icon: Int) {
     }
   }
 }
+
+private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "ico")
+
+fun File.isImageFile(): Boolean = extension.lowercase() in IMAGE_EXTENSIONS
