@@ -261,6 +261,8 @@
 	<string name="msg_generate_xml_failed">Failed to generate XML code</string>
 	<string name="title_generating_xml">Generating XML code</string>
 	<string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
+	<string name="preview_render_error_title">Preview Unavailable</string>
+	<string name="preview_render_error_message">Could not create a root view. The XML is empty or missing a valid top-level element.</string>
 
 	<!-- Crash Screen -->
 	<string name="msg_ide_crashed">Code on the Go crashed</string>
