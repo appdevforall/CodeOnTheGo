@@ -41,6 +41,8 @@ object ContentReadWrite {
   fun Content.writeTo(file: File, progressConsumer: ((Int) -> Unit)? = null) {
     val consumer = discreteProgressConsumer(progressConsumer = progressConsumer)
 
+    checkForParentDir(file)
+
     file.writer().buffered(DEFAULT_BUFFER_SIZE * 2).use { writer ->
       val lastLine = lineCount - 1
       val length = length
@@ -151,5 +153,13 @@ object ContentReadWrite {
     }
 
     return consumer
+  }
+
+  private fun checkForParentDir(file: File) {
+    val parent = file.parentFile ?: return
+
+    if (!parent.exists() && !parent.mkdirs() && !parent.exists()) {
+      throw IOException("The parent directory could not be created for: ${file.absolutePath}")
+    }
   }
 }
