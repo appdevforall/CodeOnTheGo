@@ -91,7 +91,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 		initializePluginSystem()
 
-		app.coroutineScope.launch {
+		app.coroutineScope.launch(Dispatchers.IO) {
+			// color schemes are stored in files
+			// initialize scheme provider on the IO dispatcher
 			IDEColorSchemeProvider.init()
 		}
 
