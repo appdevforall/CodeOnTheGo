@@ -20,6 +20,7 @@ package com.itsaky.androidide.actions
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.widget.EditText
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.resources.R
@@ -88,10 +89,10 @@ abstract class BaseEditorAction : EditorActionItem {
 
   fun tintDrawable(context: Context, drawable: Drawable): Drawable {
     val wrapped = DrawableCompat.wrap(drawable).mutate()
-    wrapped.alpha = 255
-    val solidColor = context.resolveAttr(R.color.primaryIconColor)
+    val solidColor = ContextCompat.getColor(context, R.color.primaryIconColor)
 
-    wrapped.setTint(solidColor)
+    wrapped.alpha = 255
+    DrawableCompat.setTint(wrapped, solidColor)
     return wrapped
   }
 }

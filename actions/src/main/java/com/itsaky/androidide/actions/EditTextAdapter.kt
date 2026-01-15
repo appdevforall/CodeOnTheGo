@@ -13,11 +13,13 @@ class EditTextAdapter(private val view: EditText) : MutableTextTarget {
     override fun copyText() {
         val start = view.selectionStart
         val end = view.selectionEnd
-        if (start != end) {
-            val content = view.text.subSequence(start, end)
-            val clip = ClipData.newPlainText("Copied Text", content)
-            clipboard?.setPrimaryClip(clip)
-        }
+
+         if (start < 0 || end < 0) return
+         if (start == end) return
+
+         val content = view.text.subSequence(minOf(start, end), maxOf(start, end))
+         val clip = ClipData.newPlainText("Copied Text", content)
+         clipboard?.setPrimaryClip(clip)
     }
 
     override fun cut() {
@@ -68,11 +70,15 @@ class EditTextAdapter(private val view: EditText) : MutableTextTarget {
     override fun getSelectedText(): String? {
         val start = view.selectionStart
         val end = view.selectionEnd
-        return if (start != end && start >= 0 && end <= view.length()) {
-            view.text.subSequence(start, end).toString()
-        } else {
-            null
-        }
+
+        if (start < 0 || end < 0 || start == end) { return null }
+
+        val min = minOf(start, end)
+        val max = maxOf(start, end)
+
+        if (max > view.length()) { return null }
+        return view.text.subSequence(min, max).toString()
     }
+
     override fun getAnchorView(): View = view
 }
