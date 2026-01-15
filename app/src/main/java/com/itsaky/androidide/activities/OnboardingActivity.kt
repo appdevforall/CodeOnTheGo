@@ -69,8 +69,6 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 
 class OnboardingActivity : AppIntro2() {
-	private val activityScope =
-		CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
 
 	private var listJdkInstallationsJob: Job? = null
     private lateinit var feedbackButton: FloatingActionButton
@@ -222,20 +220,11 @@ class OnboardingActivity : AppIntro2() {
 	override fun onResume() {
 		super.onResume()
 
-        if (isSetupCompleted()) {tryNavigateToMainIfSetupIsCompleted()
-            return
-        }
-
 		lifecycleScope.launch {
 			reloadJdkDistInfo {
 				tryNavigateToMainIfSetupIsCompleted()
 			}
 		}
-	}
-
-	override fun onDestroy() {
-		super.onDestroy()
-		activityScope.cancel("Activity is being destroyed")
 	}
 
 	override fun onDonePressed(currentFragment: Fragment?) {
@@ -292,7 +281,7 @@ class OnboardingActivity : AppIntro2() {
 	private suspend fun reloadJdkDistInfo(distConsumer: (List<JdkDistribution>) -> Unit) {
         val distributionProvider = IJdkDistributionProvider.getInstance()
         val currentDistributions = distributionProvider.installedDistributions
-        if (currentDistributions.isNotEmpty()){
+        if (currentDistributions.isNotEmpty()) {
             distConsumer(currentDistributions)
             return
         }
