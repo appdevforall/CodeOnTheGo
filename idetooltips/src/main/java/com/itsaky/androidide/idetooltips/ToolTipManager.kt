@@ -223,16 +223,17 @@ object TooltipManager {
             }
         }
 
-        // Use the helper to find the real Activity
         val activity = context.findActivity()
 
-        val activityValid = activity?.let {
-            !it.isFinishing && !it.isDestroyed
-        } ?: false
+        val isLifecycleValid = if (activity != null) {
+            !activity.isFinishing && !activity.isDestroyed
+        } else {
+            true
+        }
 
         val viewAttached = view.isAttachedToWindow && view.windowToken != null
 
-        return activityValid && viewAttached
+        return isLifecycleValid && viewAttached
     }
 
     /**

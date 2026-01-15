@@ -13,6 +13,8 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
@@ -33,6 +35,7 @@ class DebugOverlayManager private constructor(
     private var isDragging = false
 
     init {
+        binding.dragHandle.root.isLongClickable = true
         binding.dragHandle.root.icon = ContextCompat.getDrawable(binding.root.context, R.drawable.ic_drag_handle)
 
         binding.dragHandle.root.setOnTouchListener { v, event ->
@@ -42,13 +45,14 @@ class DebugOverlayManager private constructor(
                     initialWindowY = overlayLayoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
-                    true
+                    false
                 }
 
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = (event.rawX - initialTouchX).toInt()
                     val deltaY = (event.rawY - initialTouchY).toInt()
                     if (isDragging || deltaX > touchSlop || deltaY > touchSlop) {
+                        v.parent.requestDisallowInterceptTouchEvent(true)
                         isDragging = true
                         overlayLayoutParams.x = initialWindowX + deltaX
                         overlayLayoutParams.y = initialWindowY + deltaY
@@ -69,6 +73,15 @@ class DebugOverlayManager private constructor(
 
                 else -> false
             }
+        }
+
+        binding.dragHandle.root.setOnLongClickListener { view ->
+            TooltipManager.showIdeCategoryTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = TooltipTag.DEBUGGER_ACTION_MOVE
+            )
+            true
         }
     }
 

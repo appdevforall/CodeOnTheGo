@@ -9,6 +9,7 @@ import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
 
 /**
  * @author Akash Yadav
@@ -40,12 +41,24 @@ class DebuggerActionsOverlayAdapter(
         action.prepare(data)
 
         binding.root.icon = action.icon
-        binding.root.isEnabled = action.enabled
+        val isEnabled = action.enabled
         binding.root.alpha = if (action.enabled) 1f else 0.5f
         TooltipCompat.setTooltipText(binding.root, action.label)
 
-        binding.root.setOnClickListener {
-            actionsRegister.executeAction(action, data)
+        binding.root.apply {
+            setOnClickListener {
+                if (isEnabled) {
+                    actionsRegister.executeAction(action, data)
+                }
+            }
+            setOnLongClickListener {
+                TooltipManager.showIdeCategoryTooltip(
+                    context = this.context,
+                    anchorView = this,
+                    tag = action.tooltipTag
+                )
+                true
+            }
         }
     }
 }
