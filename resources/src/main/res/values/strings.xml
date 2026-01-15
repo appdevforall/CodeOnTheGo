@@ -254,6 +254,7 @@
 
 	<!-- Layout preview and designer -->
 	<string name="title_preview_layout">Preview Layout</string>
+	<string name="title_preview_compose">Preview Compose</string>
 	<string name="title_viewaction_delete">Delete</string>
 	<string name="msg_yesno_def_title">Please confirm</string>
 	<string name="msg_yesno_def_message">Are you sure?</string>
@@ -990,4 +991,11 @@
     <string name="ai_setting_initializing_engine">Initializing engine</string>
     <string name="ai_setting_engine_ready">Engine is ready.</string>
 	<string name="title_image_to_layout">Image to Layout</string>
+
+	<!-- Compose Preview -->
+	<string name="preview_error_title">Preview Error</string>
+	<string name="preview_empty_title">No @Preview composables found</string>
+	<string name="preview_empty_message">Add @Preview annotation to a @Composable function to see it here</string>
+	<string name="title_compose_preview">Compose Preview</string>
+	<string name="toggle_preview_mode">Toggle preview mode</string>
 </resources>
