@@ -1,13 +1,10 @@
 package com.itsaky.androidide.editor.adapters
 
-import android.content.Context
 import android.view.View
-import com.itsaky.androidide.actions.TextTarget
+import com.itsaky.androidide.actions.MutableTextTarget
 import com.itsaky.androidide.editor.ui.IDEEditor
 
-class IdeEditorAdapter(private val editor: IDEEditor) : TextTarget {
-    override val context: Context get() = editor.context
-
+class IdeEditorAdapter(private val editor: IDEEditor) : MutableTextTarget {
     override fun copyText() = editor.copyText()
     override fun cut() = editor.cutText()
     override fun paste() = editor.pasteText()

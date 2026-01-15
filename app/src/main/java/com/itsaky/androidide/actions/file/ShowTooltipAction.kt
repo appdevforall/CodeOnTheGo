@@ -31,7 +31,11 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 class ShowTooltipAction(private val context: Context, override val order: Int) :
     BaseEditorAction() {
 
-    override val id: String = "ide.editor.code.text.show_tooltip"
+    companion object {
+      const val ID = "ide.editor.code.text.show_tooltip"
+    }
+
+    override val id: String = ID
     override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
 
     init {

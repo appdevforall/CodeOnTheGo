@@ -20,6 +20,7 @@ package com.itsaky.androidide.actions.editor
 import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
+import com.itsaky.androidide.actions.MutableTextTarget
 import com.itsaky.androidide.idetooltips.TooltipTag
 /** @author Akash Yadav */
 class CutAction(context: Context, override val order: Int) : BaseEditorAction() {
@@ -32,21 +33,28 @@ class CutAction(context: Context, override val order: Int) : BaseEditorAction() 
     arr.recycle()
   }
 
+  companion object {
+    const val ID = "ide.editor.code.text.cut"
+  }
+
   override fun prepare(data: ActionData) {
     super.prepare(data)
 
     if (!visible) return
 
     val target = getTextTarget(data)
-    visible = target?.isEditable() ?: false
-    enabled = visible
+    visible = (target is MutableTextTarget) && target.isEditable()
+    enabled = visible && target?.hasSelection() == true
   }
 
-  override val id: String = "ide.editor.code.text.cut"
+  override val id: String = ID
   override suspend fun execAction(data: ActionData): Boolean {
     val target = getTextTarget(data) ?: return false
-    target.cut()
-    return true
+    if (target is MutableTextTarget) {
+      target.cut()
+      return true
+    }
+    return false
   }
   override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_CUT
 }

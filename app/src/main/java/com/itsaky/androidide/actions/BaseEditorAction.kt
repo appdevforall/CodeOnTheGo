@@ -19,8 +19,12 @@ package com.itsaky.androidide.actions
 
 import android.content.Context
 import android.graphics.drawable.Drawable
+import android.widget.EditText
 import androidx.core.graphics.drawable.DrawableCompat
 import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.editor.adapters.IdeEditorAdapter
+import com.itsaky.androidide.utils.resolveAttr
 
 /** @author Akash Yadav */
 abstract class BaseEditorAction : EditorActionItem {
@@ -34,19 +38,44 @@ abstract class BaseEditorAction : EditorActionItem {
 
   override fun prepare(data: ActionData) {
     super.prepare(data)
-    val target = data.get(TextTarget::class.java)
-    if (target == null) {
-      visible = false
-      enabled = false
+
+    val textTarget = getTextTarget(data)
+    val ideEditor = data.get(IDEEditor::class.java)
+
+    if (textTarget != null) {
+      visible = true
+      enabled = textTarget.isEditable()
       return
     }
 
-    visible = true
-    enabled = target.isEditable()
+    if (ideEditor != null) {
+      visible = true
+      enabled = true
+      return
+    }
+
+    visible = false
+    enabled = visible
   }
 
   fun getTextTarget(data: ActionData): TextTarget? {
-    return data.get(TextTarget::class.java)
+    val mutable = data.get(MutableTextTarget::class.java)
+    if (mutable != null) return mutable
+
+    val target = data.get(TextTarget::class.java)
+    if (target != null) return target
+
+    val editor = data.get(IDEEditor::class.java)
+    if (editor != null) {
+        return IdeEditorAdapter(editor)
+    }
+
+    val view = data.get(android.view.View::class.java)
+    if (view is EditText) {
+        return EditTextAdapter(view)
+    }
+
+    return null
   }
 
   fun getEditor(data: ActionData): IDEEditor? {
@@ -54,17 +83,13 @@ abstract class BaseEditorAction : EditorActionItem {
   }
 
   fun getContext(data: ActionData): Context? {
-    return getTextTarget(data)?.context
+    return getTextTarget(data)?.getAnchorView()?.context
   }
 
   fun tintDrawable(context: Context, drawable: Drawable): Drawable {
     val wrapped = DrawableCompat.wrap(drawable).mutate()
-
     wrapped.alpha = 255
-
-    val typedValue = android.util.TypedValue()
-    context.theme.resolveAttribute(com.itsaky.androidide.common.R.attr.colorOnSurface, typedValue, true)
-    val solidColor = typedValue.data
+    val solidColor = context.resolveAttr(R.color.primaryIconColor)
 
     wrapped.setTint(solidColor)
     return wrapped

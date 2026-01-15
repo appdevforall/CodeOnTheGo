@@ -2,8 +2,6 @@ package com.itsaky.androidide.fragments
 
 import android.content.Context
 import android.content.res.ColorStateList
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
@@ -12,21 +10,28 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.PopupWindow
-import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.graphics.drawable.toDrawable
 import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.common.R
 import com.itsaky.androidide.actions.ActionItem
+import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.BaseEditorAction
 import com.itsaky.androidide.actions.EditTextAdapter
-import com.itsaky.androidide.actions.TextTarget
+import com.itsaky.androidide.actions.MutableTextTarget
+import com.itsaky.androidide.actions.editor.CopyAction
+import com.itsaky.androidide.actions.editor.CutAction
+import com.itsaky.androidide.actions.editor.PasteAction
+import com.itsaky.androidide.actions.editor.SelectAllAction
+import com.itsaky.androidide.actions.file.ShowTooltipAction
+import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import android.R as AndroidRes
 
 class SearchFieldToolbar(private val anchor: EditText) {
 
@@ -35,15 +40,17 @@ class SearchFieldToolbar(private val anchor: EditText) {
     private val popupWindow: PopupWindow
     private var actionsAddedCount = 0
     private val textAdapter = EditTextAdapter(anchor)
-    private val uiScope = CoroutineScope(Dispatchers.Main)
+    private var uiScope: CoroutineScope? = null
+    private var currentActions: List<ActionItem> = emptyList()
+    private val keepOpenActions = setOf(SelectAllAction.ID, PasteAction.ID)
 
-    companion object {
-        const val ID_PASTE = "ide.editor.code.text.paste"
-        const val ID_COPY = "ide.editor.code.text.copy"
-        const val ID_CUT = "ide.editor.code.text.cut"
-        const val ID_SELECT_ALL = "ide.editor.code.text.selectAll"
-        const val ID_SHOW_TOOLTIP = "ide.editor.code.text.show_tooltip"
-    }
+    private val allowedActionIds = listOf(
+        SelectAllAction.ID,
+        CutAction.ID,
+        CopyAction.ID,
+        PasteAction.ID,
+        ShowTooltipAction.ID
+    )
 
     init {
         val drawable = GradientDrawable()
@@ -67,100 +74,101 @@ class SearchFieldToolbar(private val anchor: EditText) {
             container,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            true
+            false
         ).apply {
             elevation = SizeUtils.dp2px(8f).toFloat()
             setBackgroundDrawable(0.toDrawable())
             isOutsideTouchable = true
+            isFocusable = false
             inputMethodMode = PopupWindow.INPUT_METHOD_NEEDED
-        }
-    }
-
-    private fun performAction(action: ActionItem) {
-        uiScope.launch {
-            val data = ActionData.create(context)
-            data.put(TextTarget::class.java, textAdapter)
-
-            if (action is BaseEditorAction) {
-                 action.prepare(data)
-                 if (action.enabled) {
-                     action.execAction(data)
-                     if (action.id != ID_SELECT_ALL) {
-                         popupWindow.dismiss()
-                     }
-                 }
+            setOnDismissListener {
+                uiScope?.cancel()
+                uiScope = null
             }
         }
     }
 
-    fun show(actions: List<ActionItem>) {
+    private fun performAction(action: ActionItem) {
+        uiScope?.launch {
+            val data = ActionData.create(context).apply {
+                put(MutableTextTarget::class.java, textAdapter)
+            }
+
+            (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(action, data)
+
+            when (action.id) {
+                in keepOpenActions -> show()
+                else -> popupWindow.dismiss()
+            }
+        }
+    }
+
+    fun show() {
+        val registry = ActionsRegistry.getInstance()
+        val allTextActions = registry.getActions(ActionItem.Location.EDITOR_TEXT_ACTIONS)
+        val actionsToShow = allowedActionIds.mapNotNull { id ->
+            allTextActions[id]
+        }
+
+        if (actionsToShow.isEmpty()) {
+            popupWindow.dismiss()
+            return
+        }
+
+        this.currentActions = actionsToShow
+
+        uiScope?.cancel()
+        uiScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
         container.removeAllViews()
         actionsAddedCount = 0
-        setupActions(actions)
+        setupActions(actionsToShow)
 
-        if (actionsAddedCount > 0) {
-            showPopup()
+        if (actionsAddedCount == 0) {
+            popupWindow.dismiss()
+            return
         }
+
+        if (!popupWindow.isShowing) {
+            showPopup()
+        } else { popupWindow.update() }
     }
 
     private fun setupActions(actions: List<ActionItem>) {
-        val hasSelection = anchor.hasSelection()
-        val hasText = anchor.text?.isNotEmpty() == true
+        val data = ActionData.create(context)
+        data.put(MutableTextTarget::class.java, textAdapter)
 
-        val selectAllAction = actions.find { it.id == ID_SELECT_ALL }
-        val pasteAction = actions.find { it.id == ID_PASTE }
-        val copyAction = actions.find { it.id == ID_COPY }
-        val cutAction = actions.find { it.id == ID_CUT }
-        val showTooltipAction = actions.find { it.id == ID_SHOW_TOOLTIP }
-
-        if (hasText) {
-             addActionToToolbar(selectAllAction)
-        }
-
-        addActionToToolbar(pasteAction)
-
-        if (hasSelection) {
-            addActionToToolbar(copyAction)
-            addActionToToolbar(cutAction)
-        }
-        addActionToToolbar(showTooltipAction)
+        actions
+            .onEach { (it as? BaseEditorAction)?.prepare(data) }
+            .filter { it.visible }
+            .forEach(::addActionToToolbar)
     }
 
-    private fun addActionToToolbar(action: ActionItem?) {
-        if (action == null) return
-        val icon = action.icon?.let { applyTint(it) }
-            ?: getFallbackIcon(action.id)
+    private fun addActionToToolbar(action: ActionItem) {
+        val icon = action.icon
 
         val tooltip = action.label
 
-        addButton(icon, tooltip) {
+        addButton(icon, tooltip, action.enabled) {
             performAction(action)
         }
     }
 
-    private fun addButton(icon: Drawable?, tooltip: String, onClick: () -> Unit) {
+    private fun addButton(icon: Drawable?, tooltip: String, isEnabled: Boolean, onClick: () -> Unit) {
         val binding = LayoutPopupMenuItemBinding.inflate(LayoutInflater.from(context), container, false)
         val button = binding.root
 
         button.text = ""
         button.tooltipText = tooltip
         button.icon = icon
+
+        button.isEnabled = isEnabled
+        button.alpha = if (isEnabled) 1.0f else 0.4f
+
         button.setOnClickListener { onClick() }
 
         container.addView(button)
         actionsAddedCount++
-    }
-
-    private fun getFallbackIcon(id: String): Drawable? {
-        val attr = when(id) {
-            ID_COPY -> AndroidRes.attr.actionModeCopyDrawable
-            ID_PASTE -> AndroidRes.attr.actionModePasteDrawable
-            ID_CUT -> AndroidRes.attr.actionModeCutDrawable
-            ID_SELECT_ALL -> AndroidRes.attr.actionModeSelectAllDrawable
-            ID_SHOW_TOOLTIP -> R.drawable.ic_action_help
-            else -> return null
-        }
-        return getSystemIcon(attr)
     }
 
     private fun showPopup() {
@@ -174,23 +182,5 @@ class SearchFieldToolbar(private val anchor: EditText) {
         val yOff = -(anchor.height + popupHeight + SizeUtils.dp2px(8f))
 
         popupWindow.showAsDropDown(anchor, xOff, yOff)
-    }
-
-    private fun getSystemIcon(attrId: Int): Drawable? {
-        val arr = context.obtainStyledAttributes(intArrayOf(attrId))
-        val drawable = arr.getDrawable(0)
-        arr.recycle()
-        return applyTint(drawable)
-    }
-
-    private fun applyTint(drawable: Drawable?): Drawable? {
-        if (drawable != null) {
-            val wrapped = DrawableCompat.wrap(drawable).mutate()
-            val iconColor = context.resolveAttr(R.attr.colorOnSurface)
-            wrapped.alpha = 255
-            wrapped.colorFilter = PorterDuffColorFilter(iconColor, PorterDuff.Mode.SRC_IN)
-            return wrapped
-        }
-        return null
     }
 }

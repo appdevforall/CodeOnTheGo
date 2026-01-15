@@ -32,7 +32,22 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
     arr.recycle()
   }
 
-  override val id: String = "ide.editor.code.text.selectAll"
+  companion object {
+    const val ID = "ide.editor.code.text.selectAll"
+  }
+
+  override val id: String = ID
+
+  override fun prepare(data: ActionData) {
+    super.prepare(data)
+
+    if (!visible) return
+
+    val target = getTextTarget(data)
+
+    visible = target != null
+    enabled = visible
+  }
 
   override suspend fun execAction(data: ActionData): Boolean {
     val target = getTextTarget(data) ?: return false

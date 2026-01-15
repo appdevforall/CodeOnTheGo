@@ -20,6 +20,7 @@ package com.itsaky.androidide.actions.editor
 import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
+import com.itsaky.androidide.actions.MutableTextTarget
 import com.itsaky.androidide.idetooltips.TooltipTag
 /** @author Akash Yadav */
 class PasteAction(context: Context, override val order: Int) : BaseEditorAction() {
@@ -32,7 +33,11 @@ class PasteAction(context: Context, override val order: Int) : BaseEditorAction(
     arr.recycle()
   }
 
-  override val id: String = "ide.editor.code.text.paste"
+  companion object {
+    const val ID = "ide.editor.code.text.paste"
+  }
+
+  override val id: String = ID
 
   override fun prepare(data: ActionData) {
     super.prepare(data)
@@ -40,14 +45,17 @@ class PasteAction(context: Context, override val order: Int) : BaseEditorAction(
     if (!visible) return
 
     val target = getTextTarget(data)
-    visible = target?.isEditable() ?: false
+    visible = (target is MutableTextTarget) && target.isEditable()
     enabled = visible
   }
 
   override suspend fun execAction(data: ActionData): Boolean {
     val target = getTextTarget(data) ?: return false
-    target.paste()
-    return true
+    if (target is MutableTextTarget) {
+      target.paste()
+      return true
+    }
+    return false
   }
 
   override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_PASTE

@@ -35,7 +35,6 @@ import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.actions.ActionData
-import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.etc.FindInFileAction
@@ -90,6 +89,8 @@ import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
+import io.github.rosemoe.sora.text.ICUUtils
+import io.github.rosemoe.sora.util.IntPair
 import org.koin.android.ext.android.inject
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
@@ -841,7 +842,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			) {
 				view.selectCurrentWord()
 				view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-				showTextActionsMenu(view)
+				SearchFieldToolbar(view).show()
 				true
 			} else if (view === binding.input || view === binding.filter || view.parent === binding.input || view.parent === binding.filter) {
 				true
@@ -859,13 +860,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		return mFindInProjectDialog
 	}
 
-	private fun showTextActionsMenu(anchor: EditText) {
-		val actionsRegistry = getInstance()
-		val textActions = actionsRegistry.getActions(ActionItem.Location.EDITOR_TEXT_ACTIONS)
-		val actionsList = textActions.values.toList()
-		if (actionsList.isNotEmpty()) { SearchFieldToolbar(anchor).show(actionsList) }
-	}
-
 	fun EditText.selectCurrentWord() {
 		val content = text ?: return
 		if (content.isEmpty()) return
@@ -873,18 +867,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val cursor = selectionStart
 		if (cursor < 0 || cursor > content.length) return
 
-		var start = cursor
-		var end = cursor
+		val range = ICUUtils.getWordRange(content, cursor, true)
 
-		fun isWordChar(c: Char): Boolean = c.isLetterOrDigit() || c == '_'
-
-		while (start > 0 && isWordChar(content[start - 1])) {
-			start--
-		}
-
-		while (end < content.length && isWordChar(content[end])) {
-			end++
-		}
+		val start = IntPair.getFirst(range)
+		val end = IntPair.getSecond(range)
 
 		if (start != end) {
 			setSelection(start, end)
