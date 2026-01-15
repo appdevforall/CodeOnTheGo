@@ -24,7 +24,6 @@ import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.utils.unsafeLazy
 import org.slf4j.LoggerFactory
 import java.net.ConnectException
-import kotlin.getValue
 
 @RequiresApi(Build.VERSION_CODES.R)
 class AdbPairingService : Service() {
@@ -45,10 +44,12 @@ class AdbPairingService : Service() {
 		private const val REMOTE_INPUT_RESULT_KEY = "paring_code"
 		private const val PORT_KEY = "paring_code"
 
+		const val ACTION_PAIR_STARTED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_STARTED"
 		const val ACTION_PAIR_SUCCEEDED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_SUCCEEDED"
 		const val ACTION_PAIR_FAILED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_FAILED"
 
-		const val PERMISSION_RECEIVE_WADB_PAIR_RESULT = BuildInfo.PACKAGE_NAME + ".debug.RECEIVE_WADB_PAIR_RESULT"
+		const val PERMISSION_RECEIVE_WADB_PAIR_RESULT =
+			BuildInfo.PACKAGE_NAME + ".debug.RECEIVE_WADB_PAIR_RESULT"
 
 		fun startIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(START_ACTION)
 
@@ -154,6 +155,7 @@ class AdbPairingService : Service() {
 		if (started) return
 		started = true
 		adbMdns = AdbMdns(this, AdbMdns.TLS_PAIRING, observer).apply { start() }
+		sendBroadcast(Intent(ACTION_PAIR_STARTED), PERMISSION_RECEIVE_WADB_PAIR_RESULT)
 	}
 
 	private fun stopSearch() {

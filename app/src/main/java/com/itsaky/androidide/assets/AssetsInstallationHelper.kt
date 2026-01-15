@@ -73,9 +73,11 @@ object AssetsInstallationHelper {
 				}
 
 			if (result.isFailure) {
-				logger.error("Failed to install assets", result.exceptionOrNull())
-				onProgress(Progress("Failed to install assets"))
-				return@withContext Result.Failure(result.exceptionOrNull())
+				val e = result.exceptionOrNull()
+				val msg = e?.message ?: "Failed to install assets"
+				logger.error("Failed to install assets", e)
+				onProgress(Progress(msg))
+				return@withContext Result.Failure(e, errorMessage = msg)
 			}
 
 			return@withContext Result.Success
