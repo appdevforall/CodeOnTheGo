@@ -282,7 +282,7 @@ WHERE  path = ?
             
             // Build the SELECT query for the 20 most recent rows
             val selectColumns = columnNames.joinToString(", ")
-            val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY rowid DESC LIMIT 20"
+            val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
             
             val dataCursor = database.rawQuery(dataQuery, arrayOf())
             val rowCount = dataCursor.count
