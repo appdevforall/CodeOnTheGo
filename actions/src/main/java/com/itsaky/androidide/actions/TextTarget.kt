@@ -6,7 +6,6 @@ interface TextTarget {
     fun copyText()
     fun selectAll()
     fun hasSelection(): Boolean
-    fun isEditable(): Boolean
     fun getSelectedText(): String?
     fun getAnchorView(): View?
 }
@@ -14,4 +13,5 @@ interface TextTarget {
 interface MutableTextTarget : TextTarget {
     fun cut()
     fun paste()
+    fun isEditable(): Boolean
 }

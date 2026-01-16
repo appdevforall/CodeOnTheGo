@@ -866,16 +866,23 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val content = text ?: return
 		if (content.isEmpty()) return
 
-		val cursor = selectionStart
-		if (cursor < 0 || cursor > content.length) return
+		val currentStart = selectionStart
+		val currentEnd = selectionEnd
 
-		val range = ICUUtils.getWordRange(content, cursor, true)
+		if (currentStart < 0 || currentEnd > content.length || currentStart != currentEnd) {
+			return
+		}
 
-		val start = IntPair.getFirst(range)
-		val end = IntPair.getSecond(range)
+		val range = ICUUtils.getWordRange(content, currentStart, true)
+		val newStart = IntPair.getFirst(range)
+		val newEnd = IntPair.getSecond(range)
 
-		if (start != end) {
-			setSelection(start, end)
+		val isValidRange = newStart >= 0 &&
+			newEnd <= content.length &&
+			newStart <= newEnd
+
+		if (isValidRange && newStart != newEnd) {
+			setSelection(newStart, newEnd)
 		}
 	}
 

@@ -38,11 +38,13 @@ class SearchFieldToolbar(private val anchor: EditText) {
     private val context: Context = anchor.context
     private val container = LinearLayout(context)
     private val popupWindow: PopupWindow
-    private var actionsAddedCount = 0
     private val textAdapter = EditTextAdapter(anchor)
     private var uiScope: CoroutineScope? = null
     private var currentActions: List<ActionItem> = emptyList()
-    private val keepOpenActions = setOf(SelectAllAction.ID, PasteAction.ID)
+
+    companion object {
+        private val KEEP_OPEN_ACTIONS = setOf(SelectAllAction.ID, PasteAction.ID)
+    }
 
     private val allowedActionIds = listOf(
         SelectAllAction.ID,
@@ -97,7 +99,7 @@ class SearchFieldToolbar(private val anchor: EditText) {
             (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(action, data)
 
             when (action.id) {
-                in keepOpenActions -> show()
+                in KEEP_OPEN_ACTIONS -> show()
                 else -> popupWindow.dismiss()
             }
         }
@@ -121,10 +123,9 @@ class SearchFieldToolbar(private val anchor: EditText) {
         uiScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
         container.removeAllViews()
-        actionsAddedCount = 0
-        setupActions(actionsToShow)
+        val addedCount = setupActions(actionsToShow)
 
-        if (actionsAddedCount == 0) {
+        if (addedCount == 0) {
             popupWindow.dismiss()
             return
         }
@@ -134,14 +135,16 @@ class SearchFieldToolbar(private val anchor: EditText) {
         } else { popupWindow.update() }
     }
 
-    private fun setupActions(actions: List<ActionItem>) {
+    private fun setupActions(actions: List<ActionItem>): Int {
         val data = ActionData.create(context)
         data.put(MutableTextTarget::class.java, textAdapter)
 
-        actions
+        val visibleActions = actions
             .onEach { (it as? BaseEditorAction)?.prepare(data) }
             .filter { it.visible }
-            .forEach(::addActionToToolbar)
+
+        visibleActions.forEach(::addActionToToolbar)
+        return visibleActions.size
     }
 
     private fun addActionToToolbar(action: ActionItem) {
@@ -168,7 +171,6 @@ class SearchFieldToolbar(private val anchor: EditText) {
         button.setOnClickListener { onClick() }
 
         container.addView(button)
-        actionsAddedCount++
     }
 
     private fun showPopup() {

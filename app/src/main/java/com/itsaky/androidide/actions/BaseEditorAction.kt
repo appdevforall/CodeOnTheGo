@@ -25,7 +25,6 @@ import androidx.core.graphics.drawable.DrawableCompat
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.editor.adapters.IdeEditorAdapter
-import com.itsaky.androidide.utils.resolveAttr
 
 /** @author Akash Yadav */
 abstract class BaseEditorAction : EditorActionItem {
@@ -45,7 +44,7 @@ abstract class BaseEditorAction : EditorActionItem {
 
     if (textTarget != null) {
       visible = true
-      enabled = textTarget.isEditable()
+      enabled = (textTarget as? MutableTextTarget)?.isEditable() ?: false
       return
     }
 
@@ -71,8 +70,8 @@ abstract class BaseEditorAction : EditorActionItem {
         return IdeEditorAdapter(editor)
     }
 
-    val view = data.get(android.view.View::class.java)
-    if (view is EditText) {
+    val view = data.get(EditText::class.java)
+    if (view != null) {
         return EditTextAdapter(view)
     }
 
