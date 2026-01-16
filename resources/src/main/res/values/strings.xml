@@ -624,7 +624,6 @@
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
 	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions.</string>
 	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
 	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
