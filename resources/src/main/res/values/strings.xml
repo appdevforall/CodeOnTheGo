@@ -998,4 +998,9 @@
 	<string name="preview_empty_message">Add @Preview annotation to a @Composable function to see it here</string>
 	<string name="title_compose_preview">Compose Preview</string>
 	<string name="toggle_preview_mode">Toggle preview mode</string>
+	<string name="preview_build_required_title">Build Required</string>
+	<string name="preview_build_required_message">Build the project to enable multi-file preview support</string>
+	<string name="preview_build_project">Build Project</string>
+	<string name="preview_building_project">Building project…</string>
+	<string name="preview_initializing">Initializing Compose preview…</string>
 </resources>

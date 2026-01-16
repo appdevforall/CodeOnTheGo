@@ -77,8 +77,11 @@ class ComposePreviewFragment : Fragment() {
     }
 
     private fun handleState(state: PreviewState) {
-        binding.loadingIndicator.isVisible = state is PreviewState.Compiling
-        binding.initializingText.isVisible = state is PreviewState.Initializing || state is PreviewState.Empty
+        binding.loadingIndicator.isVisible = state is PreviewState.Compiling || state is PreviewState.Building
+        binding.initializingText.isVisible = state is PreviewState.Initializing ||
+            state is PreviewState.Empty ||
+            state is PreviewState.NeedsBuild ||
+            state is PreviewState.Building
         binding.errorOverlay.isVisible = state is PreviewState.Error
         binding.composePreview.isVisible = state is PreviewState.Ready
 
@@ -89,7 +92,7 @@ class ComposePreviewFragment : Fragment() {
                 }
             }
             is PreviewState.Initializing -> {
-                binding.initializingText.text = "Initializing Compose preview..."
+                binding.initializingText.setText(ResourcesR.string.preview_initializing)
             }
             is PreviewState.Empty -> {
                 binding.initializingText.setText(ResourcesR.string.preview_empty_title)
@@ -97,7 +100,15 @@ class ComposePreviewFragment : Fragment() {
             is PreviewState.Compiling -> {
                 LOG.debug("Compiling...")
             }
+            is PreviewState.Building -> {
+                binding.initializingText.setText(ResourcesR.string.preview_building_project)
+                binding.loadingIndicator.isVisible = true
+            }
+            is PreviewState.NeedsBuild -> {
+                binding.initializingText.setText(ResourcesR.string.preview_build_required_title)
+            }
             is PreviewState.Ready -> {
+                classLoader?.setProjectDexFiles(state.projectDexFiles)
                 classLoader?.setRuntimeDex(state.runtimeDex)
                 val config = state.previewConfigs.firstOrNull() ?: return
                 renderer?.render(

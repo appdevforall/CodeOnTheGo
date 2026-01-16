@@ -11,6 +11,7 @@ import com.itsaky.androidide.compose.preview.compiler.ComposeDexCompiler
 import com.itsaky.androidide.compose.preview.compiler.DexCache
 import com.itsaky.androidide.compose.preview.compiler.PreviewSourceTransformer
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.api.AndroidModule
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,16 +28,19 @@ sealed class PreviewState {
     data object Initializing : PreviewState()
     data object Compiling : PreviewState()
     data object Empty : PreviewState()
+    data object Building : PreviewState()
     data class Ready(
         val dexFile: File,
         val className: String,
         val previewConfigs: List<PreviewConfig>,
-        val runtimeDex: File?
+        val runtimeDex: File?,
+        val projectDexFiles: List<File> = emptyList()
     ) : PreviewState()
     data class Error(
         val message: String,
         val diagnostics: List<CompileDiagnostic> = emptyList()
     ) : PreviewState()
+    data class NeedsBuild(val modulePath: String, val variantName: String = "debug") : PreviewState()
 }
 
 enum class DisplayMode { ALL, SINGLE }
@@ -73,11 +77,21 @@ class ComposePreviewViewModel : ViewModel() {
 
     private var useDaemon = true
     private var daemonInitialized = false
-    private val initializationDeferred = kotlinx.coroutines.CompletableDeferred<Unit>()
+    private var initializationDeferred = kotlinx.coroutines.CompletableDeferred<Unit>()
 
     private var currentSource: String = ""
     private var projectClasspaths: List<File> = emptyList()
     private var runtimeDex: File? = null
+    private var projectDexFiles: List<File> = emptyList()
+
+    private var cachedContext: Context? = null
+    private var cachedFilePath: String = ""
+    private var modulePath: String? = null
+    private var variantName: String = "debug"
+
+    fun getModulePath(): String = modulePath ?: ""
+    fun getVariantName(): String = variantName
+    fun canTriggerBuild(): Boolean = !modulePath.isNullOrEmpty()
 
     data class SourceUpdate(
         val source: String,
@@ -99,6 +113,9 @@ class ComposePreviewViewModel : ViewModel() {
 
     fun initialize(context: Context, filePath: String) {
         if (classpathManager != null) return
+
+        cachedContext = context
+        cachedFilePath = filePath
 
         viewModelScope.launch {
             _previewState.value = PreviewState.Initializing
@@ -138,17 +155,46 @@ class ComposePreviewViewModel : ViewModel() {
                     val projectManager = IProjectManager.getInstance()
                     val module = projectManager.findModuleForFile(file)
                     LOG.info("Found module: {} (type: {})", module?.name ?: "none", module?.javaClass?.simpleName ?: "null")
-                    projectClasspaths = module?.getCompileClasspaths()?.toList() ?: emptyList()
-                    LOG.info("Found {} project classpaths for module: {}", projectClasspaths.size, module?.name ?: "none")
+
+                    val compileClasspaths = module?.getCompileClasspaths()?.toMutableSet() ?: mutableSetOf()
+                    val intermediateClasspaths = module?.getIntermediateClasspaths() ?: emptySet()
+                    compileClasspaths.addAll(intermediateClasspaths)
+                    projectClasspaths = compileClasspaths.toList()
+
+                    val runtimeDexSet = module?.getRuntimeDexFiles() ?: emptySet()
+                    projectDexFiles = runtimeDexSet.toList()
+
+                    LOG.info("Found {} total classpaths ({} compile, {} intermediate) for module: {}",
+                        projectClasspaths.size,
+                        compileClasspaths.size - intermediateClasspaths.size,
+                        intermediateClasspaths.size,
+                        module?.name ?: "none")
+                    LOG.info("Found {} project DEX files for runtime loading", projectDexFiles.size)
+
+                    if (module != null) {
+                        modulePath = module.path
+                        variantName = (module as? com.itsaky.androidide.projects.api.AndroidModule)
+                            ?.getSelectedVariant()?.name ?: "debug"
+                        LOG.info("Module path: {}, variant: {}", modulePath, variantName)
+                    }
+
+                    if (intermediateClasspaths.isEmpty() && module != null) {
+                        LOG.warn("No intermediate classes found - build the project to enable multi-file previews")
+                        _previewState.value = PreviewState.NeedsBuild(modulePath!!, variantName)
+                        initializationDeferred.complete(Unit)
+                        return@launch
+                    } else {
+                        intermediateClasspaths.forEach { cp ->
+                            LOG.info("  Intermediate: {} (exists: {})", cp.absolutePath, cp.exists())
+                        }
+                        projectDexFiles.forEach { dex ->
+                            LOG.info("  Project DEX: {} (exists: {})", dex.absolutePath, dex.exists())
+                        }
+                    }
+
                     if (projectClasspaths.isNotEmpty()) {
                         val existingCount = projectClasspaths.count { it.exists() }
                         LOG.info("  {} of {} classpaths exist", existingCount, projectClasspaths.size)
-                        projectClasspaths.take(5).forEach { cp ->
-                            LOG.debug("  Classpath: {} (exists: {})", cp.absolutePath, cp.exists())
-                        }
-                        if (projectClasspaths.size > 5) {
-                            LOG.debug("  ... and {} more", projectClasspaths.size - 5)
-                        }
                     }
                 } catch (e: Exception) {
                     LOG.warn("Failed to get project classpaths", e)
@@ -164,6 +210,11 @@ class ComposePreviewViewModel : ViewModel() {
 
     fun onSourceChanged(source: String) {
         currentSource = source
+
+        if (_previewState.value is PreviewState.NeedsBuild) {
+            LOG.debug("Skipping source change - build required")
+            return
+        }
 
         val packageName = extractPackageName(source)
         if (packageName == null) {
@@ -211,6 +262,11 @@ class ComposePreviewViewModel : ViewModel() {
 
     fun compileNow(source: String) {
         currentSource = source
+
+        if (_previewState.value is PreviewState.NeedsBuild) {
+            LOG.debug("Skipping compilation - build required")
+            return
+        }
 
         val packageName = extractPackageName(source)
         if (packageName == null) {
@@ -311,6 +367,11 @@ class ComposePreviewViewModel : ViewModel() {
     private suspend fun compileAndPreview(update: SourceUpdate) {
         initializationDeferred.await()
 
+        if (_previewState.value is PreviewState.NeedsBuild) {
+            LOG.debug("Skipping compileAndPreview - build required")
+            return
+        }
+
         val cache = dexCache ?: run {
             _previewState.value = PreviewState.Error("Preview not initialized")
             return
@@ -324,12 +385,14 @@ class ComposePreviewViewModel : ViewModel() {
 
         val cached = cache.getCachedDex(sourceHash)
         if (cached != null) {
-            LOG.info("Using cached DEX for hash: {}, runtimeDex={}", sourceHash, runtimeDex?.absolutePath ?: "null")
+            LOG.info("Using cached DEX for hash: {}, runtimeDex={}, projectDexFiles={}",
+                sourceHash, runtimeDex?.absolutePath ?: "null", projectDexFiles.size)
             _previewState.value = PreviewState.Ready(
                 dexFile = cached.dexFile,
                 className = fullClassName,
                 previewConfigs = update.previewConfigs,
-                runtimeDex = runtimeDex
+                runtimeDex = runtimeDex,
+                projectDexFiles = projectDexFiles
             )
             return
         }
@@ -448,10 +511,45 @@ class ComposePreviewViewModel : ViewModel() {
             dexFile = dexResult.dexFile,
             className = fullClassName,
             previewConfigs = update.previewConfigs,
-            runtimeDex = runtimeDex
+            runtimeDex = runtimeDex,
+            projectDexFiles = projectDexFiles
         )
 
-        LOG.info("Preview ready: {} with {} previews", fullClassName, update.previewConfigs.size)
+        LOG.info("Preview ready: {} with {} previews, {} project DEX files",
+            fullClassName, update.previewConfigs.size, projectDexFiles.size)
+    }
+
+    fun setBuildingState() {
+        _previewState.value = PreviewState.Building
+    }
+
+    fun setBuildFailed() {
+        _previewState.value = PreviewState.Error("Build failed. Check build output for details.")
+    }
+
+    fun refreshAfterBuild() {
+        viewModelScope.launch {
+            LOG.info("refreshAfterBuild: starting, currentSource length={}", currentSource.length)
+            val context = cachedContext ?: run {
+                LOG.warn("refreshAfterBuild: cachedContext is null")
+                return@launch
+            }
+            classpathManager = null
+            compiler = null
+            compilerDaemon = null
+            dexCompiler = null
+            daemonInitialized = false
+            initializationDeferred = kotlinx.coroutines.CompletableDeferred()
+            initialize(context, cachedFilePath)
+            initializationDeferred.await()
+            LOG.info("refreshAfterBuild: initialization complete, state={}", _previewState.value::class.simpleName)
+            if (currentSource.isNotBlank()) {
+                LOG.info("refreshAfterBuild: calling compileNow")
+                compileNow(currentSource)
+            } else {
+                LOG.warn("refreshAfterBuild: currentSource is blank, skipping compilation")
+            }
+        }
     }
 
     override fun onCleared() {

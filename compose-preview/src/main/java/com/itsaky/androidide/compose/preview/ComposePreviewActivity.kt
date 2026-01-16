@@ -20,6 +20,8 @@ import com.itsaky.androidide.compose.preview.databinding.ActivityComposePreviewB
 import com.itsaky.androidide.compose.preview.runtime.ComposeClassLoader
 import com.itsaky.androidide.compose.preview.runtime.ComposableRenderer
 import com.itsaky.androidide.compose.preview.ui.BoundedComposeView
+import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R as ResourcesR
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -55,6 +57,7 @@ class ComposePreviewActivity : AppCompatActivity() {
         setupToolbar()
         setupPreviewSelector()
         setupSinglePreview()
+        setupBuildButton()
         observeState()
 
         viewModel.initialize(this, filePath)
@@ -111,6 +114,63 @@ class ComposePreviewActivity : AppCompatActivity() {
         singleRenderer = classLoader?.let { ComposableRenderer(binding.singlePreviewView, it) }
     }
 
+    private fun setupBuildButton() {
+        binding.buildProjectButton.setOnClickListener {
+            triggerBuild()
+        }
+        binding.errorBuildButton.setOnClickListener {
+            triggerBuildFromError()
+        }
+    }
+
+    private fun triggerBuild() {
+        val state = viewModel.previewState.value
+        if (state !is PreviewState.NeedsBuild) return
+
+        executeBuild(state.modulePath, state.variantName)
+    }
+
+    private fun triggerBuildFromError() {
+        val modulePath = viewModel.getModulePath()
+        val variantName = viewModel.getVariantName()
+        executeBuild(modulePath, variantName)
+    }
+
+    private fun executeBuild(modulePath: String, variantName: String) {
+        val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+        if (buildService == null) {
+            LOG.error("BuildService not available")
+            return
+        }
+
+        if (buildService.isBuildInProgress) {
+            LOG.warn("Build already in progress")
+            return
+        }
+
+        viewModel.setBuildingState()
+
+        val capitalizedVariant = variantName.replaceFirstChar { it.uppercaseChar() }
+        val task = if (modulePath.isNotEmpty()) {
+            "$modulePath:assemble$capitalizedVariant"
+        } else {
+            "assemble$capitalizedVariant"
+        }
+        LOG.info("Running build task: {}", task)
+
+        buildService.executeTasks(task).whenComplete { result, error ->
+            runOnUiThread {
+                if (error != null || !result.isSuccessful) {
+                    LOG.error("Build failed", error)
+                    viewModel.setBuildFailed()
+                } else {
+                    LOG.info("Build completed, refreshing preview")
+                    viewModel.refreshAfterBuild()
+                }
+            }
+        }
+    }
+
     private fun observeState() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -152,9 +212,13 @@ class ComposePreviewActivity : AppCompatActivity() {
     }
 
     private fun handlePreviewState(state: PreviewState) {
-        binding.loadingOverlay.isVisible = state !is PreviewState.Ready && state !is PreviewState.Error && state !is PreviewState.Empty
+        binding.loadingOverlay.isVisible = state is PreviewState.Initializing ||
+            state is PreviewState.Compiling ||
+            state is PreviewState.Idle ||
+            state is PreviewState.Building
         binding.errorContainer.isVisible = state is PreviewState.Error
         binding.emptyContainer.isVisible = state is PreviewState.Empty
+        binding.needsBuildContainer.isVisible = state is PreviewState.NeedsBuild
 
         val isReady = state is PreviewState.Ready
         val isAllMode = viewModel.displayMode.value == DisplayMode.ALL
@@ -164,8 +228,8 @@ class ComposePreviewActivity : AppCompatActivity() {
 
         when (state) {
             is PreviewState.Idle -> {
-                binding.statusText.text = "Ready"
-                binding.loadingIndicator.isVisible = false
+                binding.statusText.text = "Rendering..."
+                binding.loadingIndicator.isVisible = true
             }
             is PreviewState.Initializing -> {
                 binding.statusText.text = "Initializing..."
@@ -175,11 +239,20 @@ class ComposePreviewActivity : AppCompatActivity() {
                 binding.statusText.text = "Compiling..."
                 binding.loadingIndicator.isVisible = true
             }
+            is PreviewState.Building -> {
+                binding.statusText.text = "Building project..."
+                binding.loadingIndicator.isVisible = true
+            }
+            is PreviewState.NeedsBuild -> {
+                LOG.debug("Build required for multi-file preview support")
+            }
             is PreviewState.Empty -> {
                 LOG.debug("No preview composables found")
             }
             is PreviewState.Ready -> {
-                LOG.info("Runtime DEX from state: {}", state.runtimeDex?.absolutePath ?: "null")
+                LOG.info("Runtime DEX from state: {}, project DEX files: {}",
+                    state.runtimeDex?.absolutePath ?: "null", state.projectDexFiles.size)
+                classLoader?.setProjectDexFiles(state.projectDexFiles)
                 classLoader?.setRuntimeDex(state.runtimeDex)
                 if (viewModel.displayMode.value == DisplayMode.ALL) {
                     renderAllPreviews(state)
@@ -209,6 +282,8 @@ class ComposePreviewActivity : AppCompatActivity() {
                 }
                 binding.errorDetails.text = details
                 binding.errorDetails.isVisible = true
+                binding.errorBuildButton.isVisible = viewModel.canTriggerBuild()
+
                 LOG.error("Preview error: {}", state.message)
                 LOG.error("Diagnostics: {}", details)
             }
@@ -323,7 +398,7 @@ class ComposePreviewActivity : AppCompatActivity() {
         val item = layoutInflater.inflate(R.layout.item_preview_card, binding.previewListContainer, false)
 
         val label = item.findViewById<TextView>(R.id.previewLabel)
-        label.text = "@Preview $functionName"
+        label.text = "@$functionName"
 
         val divider = item.findViewById<View>(R.id.divider)
         divider.isVisible = !isFirst
