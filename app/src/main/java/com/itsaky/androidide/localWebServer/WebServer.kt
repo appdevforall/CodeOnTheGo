@@ -21,7 +21,9 @@ data class ServerConfig(
     val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/documentation.db",
     val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
-            "/Download/CodeOnTheGo.webserver.debug"
+            "/Download/CodeOnTheGo.webserver.debug",
+// Yes, this is hack code.
+    val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
 )
 
 class WebServer(private val config: ServerConfig) {
@@ -175,6 +177,8 @@ FROM   LastChange
         // Handle the special "/db" endpoint with highest priority
         if (path == "db") {
             return handleDbEndpoint(writer, output)
+        } else if (path == "pr") {
+            return handlePrEndpoint(writer, output)
         }
 
         val query = """
@@ -285,61 +289,126 @@ WHERE  path = ?
             
             if (debugEnabled) log.debug("Retrieved {} rows from LastChange table", rowCount)
             
-            // Generate HTML table
-            val html = buildString {
-                appendLine("<!DOCTYPE html>")
-                appendLine("<html>")
-                appendLine("<head>")
-                appendLine("<title>LastChange Table</title>")
-                appendLine("<style>")
-                appendLine("table { border-collapse: collapse; width: 100%; }")
-                appendLine("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }")
-                appendLine("th { background-color: #f2f2f2; }")
-                appendLine("</style>")
-                appendLine("</head>")
-                appendLine("<body>")
-                appendLine("<h1>LastChange Table (20 Most Recent Rows)</h1>")
-                appendLine("<table width='100%'>")
+            var html = getTableHtml("LastChange Table", "LastChange Table (20 Most Recent Rows)")
                 
-                // Add header row
-                appendLine("<tr>")
-                for (columnName in columnNames) {
-                    appendLine("<th>${escapeHtml(columnName)}</th>")
-                }
-                appendLine("</tr>")
-                
-                // Add data rows
-                while (dataCursor.moveToNext()) {
-                    appendLine("<tr>")
-                    for (i in 0 until columnCount) {
-                        val value = dataCursor.getString(i) ?: ""
-                        appendLine("<td>${escapeHtml(value)}</td>")
-                    }
-                    appendLine("</tr>")
-                }
-                
-                appendLine("</table>")
-                appendLine("</body>")
-                appendLine("</html>")
+            // Add header row
+            html += """<tr>"""
+            for (columnName in columnNames) {
+                html += """<th>${escapeHtml(columnName)}</th>"""
             }
+            html += """</tr>"""
+                
+            // Add data rows
+            while (dataCursor.moveToNext()) {
+                html += """<tr>"""
+                for (i in 0 until columnCount) {
+                    html += """<td>${escapeHtml(dataCursor.getString(i) ?: "")}</td>"""
+                }
+                html += """</tr>"""
+            }
+                
+            html += """</table></body></html>"""
             
             dataCursor.close()
             
-            // Send the response
-            val htmlBytes = html.toByteArray(Charsets.UTF_8)
-            writer.println("HTTP/1.1 200 OK")
-            writer.println("Content-Type: text/html; charset=utf-8")
-            writer.println("Content-Length: ${htmlBytes.size}")
-            writer.println("Connection: close")
-            writer.println()
-            writer.flush()
-            output.write(htmlBytes)
-            output.flush()
+            writeNormalToClient(writer, output, html)
             
         } catch (e: Exception) {
             log.error("Error handling /db endpoint: {}", e.message)
             sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
         }
+    }
+
+    private fun handlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        try {
+            var projectDatabase = SQLiteDatabase.openDatabase(config.projectDatabasePath,
+                                                              null,
+                                                              SQLiteDatabase.OPEN_READONLY)
+            val query = """
+SELECT id,
+       name,
+       DATETIME(create_at     / 1000, 'unixepoch'),
+       DATETIME(last_modified / 1000, 'unixepoch'),
+       location,
+       template_name,
+       language
+FROM   recent_project_table
+ORDER BY last_modified DESC"""
+
+            val cursor = projectDatabase.rawQuery(query, arrayOf())
+
+            if (debugEnabled) log.debug("Retrieved {} rows.", cursor.getCount())
+
+            var html = getTableHtml("Projects", "Projects") + """
+<tr>
+<th>Id</th>
+<th>Name</th>
+<th>Created</th>
+<th>Modified &nbsp;&nbsp;<span style="font-family: sans-serif">V</span></th>
+<th>Directory</th>
+<th>Template</th>
+<th>Language</th>
+</tr>"""
+
+            while (cursor.moveToNext()) {
+                html += """<tr>
+<td>${escapeHtml(cursor.getString(0))}</td>
+<td>${escapeHtml(cursor.getString(1))}</td>
+<td>${escapeHtml(cursor.getString(2))}</td>
+<td>${escapeHtml(cursor.getString(3))}</td>
+<td>${escapeHtml(cursor.getString(4))}</td>
+<td>${escapeHtml(cursor.getString(5))}</td>
+<td>${escapeHtml(cursor.getString(6))}</td>
+</tr>"""
+            }
+
+            html += "</table></body></html>"
+
+            cursor.close()
+            projectDatabase.close()
+
+            writeNormalToClient(writer, output, html)
+
+        } catch (e: Exception) {
+            log.error("Error handling /pr endpoint: {}", e.message)
+            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+        }
+    }
+
+    /**
+     * Get HTML for table response page.
+     */
+    private fun getTableHtml(title: String, tableName: String): String {
+         return """<!DOCTYPE html>
+<html>
+<head>
+<title>${title}</title>
+<style>
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background-color: #f2f2f2; }
+</style>
+</head>
+<body>
+<h1>${tableName}</h1>
+<table width='100%'>"""
+    }
+
+    /**
+     * Tail of writing table data back to client.
+     */
+    private fun writeNormalToClient(writer: PrintWriter, output: java.io.OutputStream, html: String) {
+        val htmlBytes = html.toByteArray(Charsets.UTF_8)
+
+        writer.println("HTTP/1.1 200 OK")
+        writer.println("Content-Type: text/html; charset=utf-8")
+        writer.println("Content-Length: ${htmlBytes.size}")
+        writer.println("Connection: close")
+        writer.println()
+        writer.flush()
+
+        output.write(htmlBytes)
+        output.flush()
     }
 
     /**
