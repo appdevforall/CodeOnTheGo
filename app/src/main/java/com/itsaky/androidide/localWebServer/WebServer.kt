@@ -58,7 +58,7 @@ class WebServer(private val config: ServerConfig) {
     fun logDatabaseLastChanged() {
         try {
             val query = """
-SELECT now, who
+SELECT changeTime, who
 FROM   LastChange
 """
             val cursor = database.rawQuery(query, arrayOf())
