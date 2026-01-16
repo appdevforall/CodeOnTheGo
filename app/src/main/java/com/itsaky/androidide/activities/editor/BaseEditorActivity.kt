@@ -462,17 +462,17 @@ abstract class BaseEditorActivity :
 		val isImeVisible = imeInsets.bottom > 0
 		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
 
-		if (isImeVisible) {
-			val baseHeight = contentCardRealHeight ?: return
-			_binding?.contentCard?.updateLayoutParams<ViewGroup.LayoutParams> {
-				this.height = baseHeight - imeInsets.bottom
-			}
-		} else {
-			_binding?.contentCard?.updateLayoutParams<ViewGroup.LayoutParams> {
-				this.height = ViewGroup.LayoutParams.MATCH_PARENT
-			}
-			_binding?.contentCard?.post {
-				contentCardRealHeight = _binding?.contentCard?.measuredHeight
+		_binding?.contentCard?.apply {
+			when {
+				isImeVisible -> {
+					contentCardRealHeight?.let { baseHeight ->
+						updateLayoutParams<ViewGroup.LayoutParams> { height = baseHeight - imeInsets.bottom }
+					}
+				}
+				else -> {
+					updateLayoutParams<ViewGroup.LayoutParams> { height = ViewGroup.LayoutParams.MATCH_PARENT }
+					post { contentCardRealHeight = measuredHeight }
+				}
 			}
 		}
 
