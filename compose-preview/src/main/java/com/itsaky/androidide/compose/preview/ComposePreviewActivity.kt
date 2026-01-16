@@ -19,6 +19,7 @@ import com.itsaky.androidide.compose.preview.compiler.CompileDiagnostic
 import com.itsaky.androidide.compose.preview.databinding.ActivityComposePreviewBinding
 import com.itsaky.androidide.compose.preview.runtime.ComposeClassLoader
 import com.itsaky.androidide.compose.preview.runtime.ComposableRenderer
+import com.itsaky.androidide.compose.preview.ui.BoundedComposeView
 import com.itsaky.androidide.resources.R as ResourcesR
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -178,6 +179,8 @@ class ComposePreviewActivity : AppCompatActivity() {
                 LOG.debug("No preview composables found")
             }
             is PreviewState.Ready -> {
+                LOG.info("Runtime DEX from state: {}", state.runtimeDex?.absolutePath ?: "null")
+                classLoader?.setRuntimeDex(state.runtimeDex)
                 if (viewModel.displayMode.value == DisplayMode.ALL) {
                     renderAllPreviews(state)
                 } else {
@@ -258,14 +261,15 @@ class ComposePreviewActivity : AppCompatActivity() {
         val container = binding.previewListContainer
         val loader = classLoader ?: return
 
-        LOG.debug("renderAllPreviews called with {} functions: {}", state.functionNames.size, state.functionNames)
+        val functionNames = state.previewConfigs.map { it.functionName }
+        LOG.debug("renderAllPreviews called with {} functions: {}", functionNames.size, functionNames)
 
         val currentFunctions = multiRenderers.keys.toSet()
-        val newFunctions = state.functionNames.toSet()
+        val newFunctions = functionNames.toSet()
 
         if (currentFunctions == newFunctions) {
             LOG.debug("Same functions, re-rendering existing views")
-            state.functionNames.forEach { functionName ->
+            functionNames.forEach { functionName ->
                 multiRenderers[functionName]?.render(
                     dexFile = state.dexFile,
                     className = state.className,
@@ -279,23 +283,28 @@ class ComposePreviewActivity : AppCompatActivity() {
         container.removeAllViews()
         multiRenderers.clear()
 
-        state.functionNames.forEachIndexed { index, functionName ->
-            LOG.debug("Adding preview item {}: {}", index, functionName)
-            val previewItem = createPreviewItem(functionName, index == 0)
+        state.previewConfigs.forEachIndexed { index, config ->
+            LOG.debug("Adding preview item {}: {}", index, config.functionName)
+            val previewItem = createPreviewItem(config.functionName, index == 0)
             container.addView(previewItem)
 
-            val composeView = previewItem.findViewById<ComposeView>(R.id.composePreview)
-            composeView.setViewCompositionStrategy(
+            val boundedView = previewItem.findViewById<BoundedComposeView>(R.id.composePreview)
+
+            config.heightDp?.let { heightDp ->
+                boundedView.explicitHeightPx = (heightDp * resources.displayMetrics.density).toInt()
+            }
+
+            boundedView.setViewCompositionStrategy(
                 ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool
             )
 
-            val renderer = ComposableRenderer(composeView, loader)
-            multiRenderers[functionName] = renderer
+            val renderer = ComposableRenderer(boundedView.composeView, loader)
+            multiRenderers[config.functionName] = renderer
 
             renderer.render(
                 dexFile = state.dexFile,
                 className = state.className,
-                functionName = functionName
+                functionName = config.functionName
             )
         }
 

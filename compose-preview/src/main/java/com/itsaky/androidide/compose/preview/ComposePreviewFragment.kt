@@ -98,11 +98,12 @@ class ComposePreviewFragment : Fragment() {
                 LOG.debug("Compiling...")
             }
             is PreviewState.Ready -> {
-                val functionName = state.functionNames.firstOrNull() ?: return
+                classLoader?.setRuntimeDex(state.runtimeDex)
+                val config = state.previewConfigs.firstOrNull() ?: return
                 renderer?.render(
                     dexFile = state.dexFile,
                     className = state.className,
-                    functionName = functionName
+                    functionName = config.functionName
                 )
             }
             is PreviewState.Error -> {

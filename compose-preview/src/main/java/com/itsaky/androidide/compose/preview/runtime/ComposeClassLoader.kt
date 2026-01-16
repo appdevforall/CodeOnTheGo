@@ -9,6 +9,18 @@ class ComposeClassLoader(private val context: Context) {
 
     private var currentLoader: DexClassLoader? = null
     private var currentDexPath: String? = null
+    private var runtimeDexFile: File? = null
+
+    fun setRuntimeDex(runtimeDex: File?) {
+        LOG.info("setRuntimeDex called: {} (current: {})",
+            runtimeDex?.absolutePath ?: "null",
+            runtimeDexFile?.absolutePath ?: "null")
+        if (runtimeDex != runtimeDexFile) {
+            runtimeDexFile = runtimeDex
+            release()
+            LOG.info("Runtime DEX updated to: {}", runtimeDex?.absolutePath ?: "null")
+        }
+    }
 
     fun loadClass(dexFile: File, className: String): Class<*>? {
         if (!dexFile.exists()) {
@@ -31,9 +43,21 @@ class ComposeClassLoader(private val context: Context) {
     }
 
     private fun getOrCreateLoader(dexFile: File): DexClassLoader {
-        val dexPath = dexFile.absolutePath
+        val runtimeDex = runtimeDexFile
+        val hasRuntimeDex = runtimeDex != null && runtimeDex.exists()
+        val dexPath = if (hasRuntimeDex) {
+            "${dexFile.absolutePath}${File.pathSeparator}${runtimeDex!!.absolutePath}"
+        } else {
+            dexFile.absolutePath
+        }
+
+        LOG.info("getOrCreateLoader: runtimeDex={}, exists={}, hasRuntimeDex={}",
+            runtimeDex?.absolutePath ?: "null",
+            runtimeDex?.exists() ?: false,
+            hasRuntimeDex)
 
         if (currentDexPath == dexPath && currentLoader != null) {
+            LOG.debug("Reusing existing DexClassLoader")
             return currentLoader!!
         }
 
@@ -53,7 +77,8 @@ class ComposeClassLoader(private val context: Context) {
         currentLoader = loader
         currentDexPath = dexPath
 
-        LOG.debug("Created new DexClassLoader for: {}", dexPath)
+        LOG.info("Created new DexClassLoader with {} DEX files: {}",
+            if (hasRuntimeDex) 2 else 1, dexPath)
 
         return loader
     }

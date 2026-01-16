@@ -30,7 +30,8 @@ sealed class PreviewState {
     data class Ready(
         val dexFile: File,
         val className: String,
-        val functionNames: List<String>
+        val previewConfigs: List<PreviewConfig>,
+        val runtimeDex: File?
     ) : PreviewState()
     data class Error(
         val message: String,
@@ -39,6 +40,12 @@ sealed class PreviewState {
 }
 
 enum class DisplayMode { ALL, SINGLE }
+
+data class PreviewConfig(
+    val functionName: String,
+    val heightDp: Int? = null,
+    val widthDp: Int? = null
+)
 
 @OptIn(FlowPreview::class)
 class ComposePreviewViewModel : ViewModel() {
@@ -66,15 +73,17 @@ class ComposePreviewViewModel : ViewModel() {
 
     private var useDaemon = true
     private var daemonInitialized = false
+    private val initializationDeferred = kotlinx.coroutines.CompletableDeferred<Unit>()
 
     private var currentSource: String = ""
     private var projectClasspaths: List<File> = emptyList()
+    private var runtimeDex: File? = null
 
     data class SourceUpdate(
         val source: String,
         val packageName: String,
         val className: String?,
-        val functionNames: List<String>
+        val previewConfigs: List<PreviewConfig>
     )
 
     init {
@@ -115,6 +124,13 @@ class ComposePreviewViewModel : ViewModel() {
                 return@launch
             }
 
+            runtimeDex = classpathManager!!.getOrCreateRuntimeDex()
+            if (runtimeDex != null) {
+                LOG.info("Compose runtime DEX ready: {}", runtimeDex!!.absolutePath)
+            } else {
+                LOG.warn("Failed to create Compose runtime DEX, preview may fail at runtime")
+            }
+
             if (filePath.isNotBlank()) {
                 try {
                     val file = File(filePath)
@@ -140,8 +156,9 @@ class ComposePreviewViewModel : ViewModel() {
                 }
             }
 
+            initializationDeferred.complete(Unit)
             _previewState.value = PreviewState.Idle
-            LOG.info("ComposePreviewViewModel initialized")
+            LOG.info("ComposePreviewViewModel initialized, runtimeDex={}", runtimeDex?.absolutePath ?: "null")
         }
     }
 
@@ -154,22 +171,23 @@ class ComposePreviewViewModel : ViewModel() {
             return
         }
 
-        val previews = detectAllPreviewFunctions(source)
-        if (previews.isEmpty()) {
+        val previewConfigs = detectAllPreviewFunctions(source)
+        if (previewConfigs.isEmpty()) {
             _previewState.value = PreviewState.Empty
             return
         }
 
-        _availablePreviews.value = previews
-        if (_selectedPreview.value == null || !previews.contains(_selectedPreview.value)) {
-            _selectedPreview.value = previews.first()
+        val functionNames = previewConfigs.map { it.functionName }
+        _availablePreviews.value = functionNames
+        if (_selectedPreview.value == null || !functionNames.contains(_selectedPreview.value)) {
+            _selectedPreview.value = functionNames.first()
         }
 
         val className = extractClassName(source)
 
         viewModelScope.launch {
             sourceChanges.emit(
-                SourceUpdate(source, packageName, className, previews)
+                SourceUpdate(source, packageName, className, previewConfigs)
             )
         }
     }
@@ -200,21 +218,22 @@ class ComposePreviewViewModel : ViewModel() {
             return
         }
 
-        val previews = detectAllPreviewFunctions(source)
-        if (previews.isEmpty()) {
+        val previewConfigs = detectAllPreviewFunctions(source)
+        if (previewConfigs.isEmpty()) {
             _previewState.value = PreviewState.Empty
             return
         }
 
-        _availablePreviews.value = previews
-        if (_selectedPreview.value == null || !previews.contains(_selectedPreview.value)) {
-            _selectedPreview.value = previews.first()
+        val functionNames = previewConfigs.map { it.functionName }
+        _availablePreviews.value = functionNames
+        if (_selectedPreview.value == null || !functionNames.contains(_selectedPreview.value)) {
+            _selectedPreview.value = functionNames.first()
         }
 
         val className = extractClassName(source)
 
         viewModelScope.launch {
-            compileAndPreview(SourceUpdate(source, packageName, className, previews))
+            compileAndPreview(SourceUpdate(source, packageName, className, previewConfigs))
         }
     }
 
@@ -233,39 +252,65 @@ class ComposePreviewViewModel : ViewModel() {
         return null
     }
 
-    private fun detectAllPreviewFunctions(source: String): List<String> {
-        val previews = mutableListOf<String>()
+    private fun detectAllPreviewFunctions(source: String): List<PreviewConfig> {
+        val previews = mutableListOf<PreviewConfig>()
+        val seenFunctions = mutableSetOf<String>()
 
         val previewPattern = Regex(
-            """@Preview(?:\s*\([^)]*\))?\s*(?:@\w+(?:\s*\([^)]*\))?\s*)*fun\s+(\w+)""",
-            RegexOption.MULTILINE
+            """@Preview\s*(?:\(([^)]*)\))?\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*fun\s+(\w+)""",
+            setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
         )
         previewPattern.findAll(source).forEach { match ->
-            previews.add(match.groupValues[1])
+            val params = match.groupValues[1]
+            val functionName = match.groupValues[2]
+            if (seenFunctions.add(functionName)) {
+                previews.add(PreviewConfig(
+                    functionName = functionName,
+                    heightDp = extractIntParam(params, "heightDp"),
+                    widthDp = extractIntParam(params, "widthDp")
+                ))
+            }
         }
 
         val composablePreviewPattern = Regex(
-            """@Composable\s*(?:@\w+(?:\s*\([^)]*\))?\s*)*@Preview(?:\s*\([^)]*\))?\s*(?:@\w+(?:\s*\([^)]*\))?\s*)*fun\s+(\w+)""",
-            RegexOption.MULTILINE
+            """@Composable\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*@Preview\s*(?:\(([^)]*)\))?[\s\n]*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*fun\s+(\w+)""",
+            setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
         )
         composablePreviewPattern.findAll(source).forEach { match ->
-            if (!previews.contains(match.groupValues[1])) {
-                previews.add(match.groupValues[1])
+            val params = match.groupValues[1]
+            val functionName = match.groupValues[2]
+            if (seenFunctions.add(functionName)) {
+                previews.add(PreviewConfig(
+                    functionName = functionName,
+                    heightDp = extractIntParam(params, "heightDp"),
+                    widthDp = extractIntParam(params, "widthDp")
+                ))
             }
         }
 
         if (previews.isEmpty()) {
             val composablePattern = Regex("""@Composable\s+fun\s+(\w+)""")
             composablePattern.findAll(source).forEach { match ->
-                previews.add(match.groupValues[1])
+                val functionName = match.groupValues[1]
+                if (seenFunctions.add(functionName)) {
+                    previews.add(PreviewConfig(functionName = functionName))
+                }
             }
         }
 
-        LOG.debug("Detected {} preview functions: {}", previews.size, previews)
-        return previews.distinct()
+        LOG.debug("Detected {} preview functions: {}", previews.size, previews.map { it.functionName })
+        return previews
+    }
+
+    private fun extractIntParam(params: String, name: String): Int? {
+        if (params.isBlank()) return null
+        val pattern = Regex("""$name\s*=\s*(\d+)""")
+        return pattern.find(params)?.groupValues?.get(1)?.toIntOrNull()
     }
 
     private suspend fun compileAndPreview(update: SourceUpdate) {
+        initializationDeferred.await()
+
         val cache = dexCache ?: run {
             _previewState.value = PreviewState.Error("Preview not initialized")
             return
@@ -279,11 +324,12 @@ class ComposePreviewViewModel : ViewModel() {
 
         val cached = cache.getCachedDex(sourceHash)
         if (cached != null) {
-            LOG.info("Using cached DEX for hash: {}", sourceHash)
+            LOG.info("Using cached DEX for hash: {}, runtimeDex={}", sourceHash, runtimeDex?.absolutePath ?: "null")
             _previewState.value = PreviewState.Ready(
                 dexFile = cached.dexFile,
                 className = fullClassName,
-                functionNames = update.functionNames
+                previewConfigs = update.previewConfigs,
+                runtimeDex = runtimeDex
             )
             return
         }
@@ -396,15 +442,16 @@ class ComposePreviewViewModel : ViewModel() {
             return
         }
 
-        cache.cacheDex(sourceHash, dexResult.dexFile, fullClassName, update.functionNames.firstOrNull() ?: "")
+        cache.cacheDex(sourceHash, dexResult.dexFile, fullClassName, update.previewConfigs.firstOrNull()?.functionName ?: "")
 
         _previewState.value = PreviewState.Ready(
             dexFile = dexResult.dexFile,
             className = fullClassName,
-            functionNames = update.functionNames
+            previewConfigs = update.previewConfigs,
+            runtimeDex = runtimeDex
         )
 
-        LOG.info("Preview ready: {} with {} previews", fullClassName, update.functionNames.size)
+        LOG.info("Preview ready: {} with {} previews", fullClassName, update.previewConfigs.size)
     }
 
     override fun onCleared() {

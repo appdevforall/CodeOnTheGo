@@ -48,7 +48,6 @@ class ComposableRenderer(
         composeView.setContent {
             MaterialTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     RenderComposable(clazz, composableMethod)

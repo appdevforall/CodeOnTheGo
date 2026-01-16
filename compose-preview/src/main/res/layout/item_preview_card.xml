@@ -37,7 +37,7 @@
         android:layout_marginBottom="4dp"
         android:minHeight="80dp">
 
-        <androidx.compose.ui.platform.ComposeView
+        <com.itsaky.androidide.compose.preview.ui.BoundedComposeView
             android:id="@+id/composePreview"
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
