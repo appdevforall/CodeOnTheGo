@@ -67,7 +67,7 @@ class BuildVariantsFragment : EmptyStateFragment<FragmentBuildVariantsBinding>(F
 		}
 
 		binding.btnApply.setOnClickListener {
-			(activity as? ProjectHandlerActivity?)?.initializeProject()
+			(activity as? ProjectHandlerActivity?)?.initializeProject(forceSync = true)
 		}
 
 		binding.btnCancel.setOnClickListener {

@@ -31,7 +31,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
@@ -55,6 +54,8 @@ import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
+import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
@@ -73,27 +74,26 @@ import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
-import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
-import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
-import org.koin.android.ext.android.inject
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.FileNotFoundException
 import org.adfa.constants.CONTENT_KEY
+import org.koin.android.ext.android.inject
 import java.io.File
+import java.io.FileNotFoundException
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
@@ -259,26 +259,24 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			.setPositiveButton(string.btn_install) { dialog, _ ->
 				dialog.dismiss()
 				installPlugin(cgpFile)
-			}
-			.setNegativeButton(string.btn_later) { dialog, _ ->
+			}.setNegativeButton(string.btn_later) { dialog, _ ->
 				dialog.dismiss()
 				buildViewModel.pluginInstallationAttempted()
-			}
-			.setOnCancelListener {
+			}.setOnCancelListener {
 				buildViewModel.pluginInstallationAttempted()
-			}
-			.show()
+			}.show()
 	}
 
 	private fun installPlugin(cgpFile: File) {
 		lifecycleScope.launch {
 			setStatus(getString(string.status_installing_plugin))
 			val result = pluginRepository.installPluginFromFile(cgpFile)
-			result.onSuccess {
-				showRestartPrompt(this@ProjectHandlerActivity)
-			}.onFailure { error ->
-				flashError(getString(string.msg_plugin_install_failed, error.message ?: "Unknown error"))
-			}
+			result
+				.onSuccess {
+					showRestartPrompt(this@ProjectHandlerActivity)
+				}.onFailure { error ->
+					flashError(getString(string.msg_plugin_install_failed, error.message ?: "Unknown error"))
+				}
 			setStatus("")
 			buildViewModel.pluginInstallationAttempted()
 		}
@@ -375,7 +373,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	fun notifySyncNeeded() {
-		notifySyncNeeded { initializeProject() }
+		notifySyncNeeded { initializeProject(forceSync = true) }
 	}
 
 	private fun notifySyncNeeded(onConfirm: () -> Unit) {
@@ -473,17 +471,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		Toast.makeText(this@ProjectHandlerActivity, message, Toast.LENGTH_LONG).show()
 	}
 
-	private suspend fun handleMissingProjectDirectory(projectName: String) = withContext(Dispatchers.Main) {
-		recentProjectsViewModel.deleteProject(projectName)
-		showToast(getString(string.msg_project_dir_doesnt_exist))
+	private suspend fun handleMissingProjectDirectory(projectName: String) =
+		withContext(Dispatchers.Main) {
+			recentProjectsViewModel.deleteProject(projectName)
+			showToast(getString(string.msg_project_dir_doesnt_exist))
 
-		val intent = Intent(this@ProjectHandlerActivity, MainActivity::class.java).apply {
-			addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+			val intent =
+				Intent(this@ProjectHandlerActivity, MainActivity::class.java).apply {
+					addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+				}
+
+			startActivity(intent)
+			this@ProjectHandlerActivity.finish()
 		}
-
-		startActivity(intent)
-		this@ProjectHandlerActivity.finish()
-	}
 
 	/**
 	 * Initialize (sync) the project.
@@ -502,17 +502,18 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			return@launch
 		}
 
-		val needsSync = try {
-			forceSync || manager.isGradleSyncNeeded(projectDir)
-		} catch (e: Exception) {
-			when (e) {
-				is FileNotFoundException -> {
-					handleMissingProjectDirectory(projectDir.name)
-					return@launch
+		val needsSync =
+			try {
+				forceSync || manager.isGradleSyncNeeded(projectDir)
+			} catch (e: Exception) {
+				when (e) {
+					is FileNotFoundException -> {
+						handleMissingProjectDirectory(projectDir.name)
+						return@launch
+					}
+					else -> throw e
 				}
-				else -> throw e
 			}
-		}
 
 		withContext(Dispatchers.Main.immediate) {
 			preProjectInit()
