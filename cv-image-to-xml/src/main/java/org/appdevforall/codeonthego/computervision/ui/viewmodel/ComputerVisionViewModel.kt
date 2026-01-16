@@ -42,7 +42,6 @@ class ComputerVisionViewModel(
 
     init {
         initializeModel()
-        CvAnalyticsUtil.trackScreenOpened()
     }
 
     fun onEvent(event: ComputerVisionEvent) {
@@ -60,7 +59,6 @@ class ComputerVisionViewModel(
             ComputerVisionEvent.OpenImagePicker -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.OpenImagePicker) }
             }
-
             ComputerVisionEvent.RequestCameraPermission -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
             }
@@ -88,10 +86,12 @@ class ComputerVisionViewModel(
         }
     }
 
+    fun onScreenStarted(){
+        CvAnalyticsUtil.trackScreenOpened()
+    }
     private fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
             try {
-
                 val bitmap = uriToBitmap(uri)
                 if (bitmap != null) {
                     _uiState.update {
