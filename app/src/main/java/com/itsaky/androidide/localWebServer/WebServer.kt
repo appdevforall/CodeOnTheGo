@@ -352,26 +352,28 @@ ORDER BY last_modified DESC"""
 
             while (cursor.moveToNext()) {
                 html += """<tr>
-<td>${escapeHtml(cursor.getString(0))}</td>
-<td>${escapeHtml(cursor.getString(1))}</td>
-<td>${escapeHtml(cursor.getString(2))}</td>
-<td>${escapeHtml(cursor.getString(3))}</td>
-<td>${escapeHtml(cursor.getString(4))}</td>
-<td>${escapeHtml(cursor.getString(5))}</td>
-<td>${escapeHtml(cursor.getString(6))}</td>
+<td>${escapeHtml(cursor.getString(0) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(1) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(2) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(3) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(4) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(5) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(6) ?: "")}</td>
 </tr>"""
             }
 
             html += "</table></body></html>"
 
             cursor.close()
-            projectDatabase.close()
 
             writeNormalToClient(writer, output, html)
 
         } catch (e: Exception) {
             log.error("Error handling /pr endpoint: {}", e.message)
             sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+            
+        } finally {
+            projectDatabase.close()
         }
     }
 
@@ -382,7 +384,7 @@ ORDER BY last_modified DESC"""
          return """<!DOCTYPE html>
 <html>
 <head>
-<title>${title}</title>
+<title>${escapeHtml(title)}</title>
 <style>
 table { border-collapse: collapse; width: 100%; }
 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
@@ -390,7 +392,7 @@ th { background-color: #f2f2f2; }
 </style>
 </head>
 <body>
-<h1>${tableName}</h1>
+<h1>${escapeHtml(tableName)}</h1>
 <table width='100%'>"""
     }
 
