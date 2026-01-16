@@ -320,11 +320,34 @@ WHERE  path = ?
     }
 
     private fun handlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        var projectDatabase : SQLiteDatabase? = null
+
         try {
-            var projectDatabase = SQLiteDatabase.openDatabase(config.projectDatabasePath,
-                                                              null,
-                                                              SQLiteDatabase.OPEN_READONLY)
-            val query = """
+            projectDatabase = SQLiteDatabase.openDatabase(config.projectDatabasePath,
+                                                          null,
+                                                          SQLiteDatabase.OPEN_READONLY)
+
+            if (projectDatabase == null) {
+                log.error("Error handling /pr endpoint 2. Could not open ${config.projectDatabasePath}.")
+                sendError(writer, 500, "Internal Server Error", "Error accessing database 2")
+
+            } else {
+                realHandlePrEndpoint(writer, output, projectDatabase)
+            }
+
+        } catch (e: Exception) {
+            log.error("Error handling /pr endpoint: {}", e.message)
+            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+            
+        } finally {
+            if (projectDatabase != null) {
+                projectDatabase.close()
+            }
+        }
+    }
+
+    private fun realHandlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) {
+        val query = """
 SELECT id,
        name,
        DATETIME(create_at     / 1000, 'unixepoch'),
@@ -332,14 +355,14 @@ SELECT id,
        location,
        template_name,
        language
-FROM   recent_project_table
+FROM     recent_project_table
 ORDER BY last_modified DESC"""
 
-            val cursor = projectDatabase.rawQuery(query, arrayOf())
+        val cursor = projectDatabase.rawQuery(query, arrayOf())
 
-            if (debugEnabled) log.debug("Retrieved {} rows.", cursor.getCount())
+        if (debugEnabled) log.debug("Retrieved {} rows.", cursor.getCount())
 
-            var html = getTableHtml("Projects", "Projects") + """
+        var html = getTableHtml("Projects", "Projects") + """
 <tr>
 <th>Id</th>
 <th>Name</th>
@@ -350,8 +373,8 @@ ORDER BY last_modified DESC"""
 <th>Language</th>
 </tr>"""
 
-            while (cursor.moveToNext()) {
-                html += """<tr>
+        while (cursor.moveToNext()) {
+            html += """<tr>
 <td>${escapeHtml(cursor.getString(0) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(1) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(2) ?: "")}</td>
@@ -360,21 +383,13 @@ ORDER BY last_modified DESC"""
 <td>${escapeHtml(cursor.getString(5) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(6) ?: "")}</td>
 </tr>"""
-            }
-
-            html += "</table></body></html>"
-
-            cursor.close()
-
-            writeNormalToClient(writer, output, html)
-
-        } catch (e: Exception) {
-            log.error("Error handling /pr endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
-            
-        } finally {
-            projectDatabase.close()
         }
+
+        html += "</table></body></html>"
+
+        cursor.close()
+
+        writeNormalToClient(writer, output, html)
     }
 
     /**
