@@ -49,6 +49,8 @@
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
 	<string name="storage_not_accessible">Storage is not accessible. Please ensure the device is unlocked and try again.</string>
+	<string name="terminal_installation_failed_low_storage">Terminal setup failed. Storage space is insufficient, or files were removed during installation. Please free up some space and try again.</string>
+	<string name="terminal_installation_failed_secondary_user">Terminal installation is only supported for the primary user.</string>
 
 	<!-- Project Builder -->
 	<string name="title_unsupported_device">This device is not supported</string>
@@ -260,6 +262,8 @@
 	<string name="msg_generate_xml_failed">Failed to generate XML code</string>
 	<string name="title_generating_xml">Generating XML code</string>
 	<string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
+	<string name="preview_render_error_title">Preview Unavailable</string>
+	<string name="preview_render_error_message">Could not create a root view. The XML is empty or missing a valid top-level element.</string>
 
 	<!-- Crash Screen -->
 	<string name="msg_ide_crashed">Code on the Go crashed</string>
@@ -310,7 +314,7 @@
 	<string name="msg_replacement">Replacement</string>
 	<string name="title_sync_project">Sync project</string>
 	<string name="wizard_save_location">Save location</string>
-	<string name="wizard_language">Project Language</string>
+	<string name="wizard_language">Project language</string>
 	<string name="next">Next</string>
 	<string name="exit">Exit</string>
 	<string name="idepref_title_customGradleInstallation">Custom Gradle installation</string>
@@ -621,7 +625,6 @@
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
 	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions.</string>
 	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
 	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
@@ -677,6 +680,8 @@
 	<string name="debugger_restart">Restart</string>
 	<string name="debugger_status_resolving">Resolving…</string>
 	<string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
+	<string name="debugger_loading_variable_value">Loading variable value</string>
+	<string name="debugger_variable_truncated">Truncated due to size</string>
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
@@ -984,4 +989,5 @@
     <string name="type_a_message_or_prompt">Type a message or prompt…</string>
     <string name="ai_setting_initializing_engine">Initializing engine</string>
     <string name="ai_setting_engine_ready">Engine is ready.</string>
+	<string name="title_image_to_layout">Image to Layout</string>
 </resources>

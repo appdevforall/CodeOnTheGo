@@ -637,23 +637,6 @@ jobs:
           rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null
           ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Upload APK to server
-        env:
-          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
-          GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
-          GREENGEEKS_USER: ${{ vars.GREENGEEKS_SSH_USER }}
-        run: |
-          if [ -z "$APK_PATH" ]; then
-            echo "Error: APK_PATH is not set"
-            exit 1
-          fi
-          if [ ! -f "$APK_PATH" ]; then
-            echo "Error: APK file not found at $APK_PATH"
-            exit 1
-          fi
-          echo "Uploading $APK_PATH to $GREENGEEKS_HOST..."
-          scp -o StrictHostKeyChecking=no "$APK_PATH" "$GREENGEEKS_USER@$GREENGEEKS_HOST:public_html/apk_repo/"
-
       - name: Clean up build folder after upload
         run: |
           echo "Cleaning up build folder after Firebase upload..."
@@ -669,10 +652,10 @@ jobs:
           COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
           COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
           FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
-        run: |          
+        run: |
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           BUILD_TYPE="${{ matrix.build_type }}"
-                    
+          
           jq -n \
             --arg commit_msg "$COMMIT_MSG" \
             --arg build_type "$BUILD_TYPE" \
@@ -757,15 +740,3 @@ jobs:
         run: |
           rm -f app/google-services.json
           echo "google-services.json cleaned up successfully"
-      - name: Cleanup ssh
-        if: always()
-        run: |
-          # Remove SSH key
-          rm -f ~/.ssh/id_rsa
-          # Clean up SSH known_hosts (remove the entry for this host)
-          SSH_HOST="${{ vars.GREENGEEKS_SSH_HOST }}"
-          if [ -n "$SSH_HOST" ]; then
-            ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
-          fi
-          # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null || true

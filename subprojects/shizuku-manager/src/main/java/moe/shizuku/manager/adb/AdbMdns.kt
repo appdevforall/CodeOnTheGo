@@ -14,15 +14,21 @@ import java.net.ServerSocket
 
 @RequiresApi(Build.VERSION_CODES.R)
 class AdbMdns(
-	context: Context,
+	private val nsdManager: NsdManager,
 	private val serviceType: String,
 	private val observer: Consumer<Int>,
 ) {
+	constructor(context: Context, serviceType: String, observer: Consumer<Int>) :
+		this(
+			nsdManager = context.getSystemService(NsdManager::class.java),
+			serviceType = serviceType,
+			observer = observer,
+		)
+
 	private var registered = false
 	private var running = false
 	private var serviceName: String? = null
 	private val listener = DiscoveryListener(this)
-	private val nsdManager: NsdManager = context.getSystemService(NsdManager::class.java)
 
 	fun start() {
 		if (running) return

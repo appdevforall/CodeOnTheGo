@@ -324,7 +324,7 @@ open class EditorHandlerActivity :
 	fun prepareOptionsMenu() {
 		val registry = getInstance() as DefaultActionsRegistry
 		val data = createToolbarActionData()
-		content.customToolbar.clearMenu()
+		content.projectActionsToolbar.clearMenu()
 
 		val actions = getInstance().getActions(EDITOR_TOOLBAR)
 		actions.onEachIndexed { index, entry ->
@@ -338,14 +338,14 @@ open class EditorHandlerActivity :
 				alpha = if (action.enabled) 255 else 76
 			}
 
-			content.customToolbar.addMenuItem(
+			content.projectActionsToolbar.addMenuItem(
 				icon = action.icon,
 				hint = action.label,
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
 					TooltipManager.showIdeCategoryTooltip(
 						context = this,
-						anchorView = content.customToolbar,
+						anchorView = content.projectActionsToolbar,
 						tag = action.retrieveTooltipTag(false),
 					)
 				},
@@ -910,7 +910,7 @@ open class EditorHandlerActivity :
 					name = "*$name"
 				}
 
-				names[index] = name to FileExtension.Factory.forFile(file).icon
+				names[index] = name to FileExtension.Factory.forFile(file, file.isDirectory).icon
 			}
 
 			withContext(Dispatchers.Main) {

@@ -182,6 +182,9 @@ include(
 	":plugin-api:plugin-builder",
 	":plugin-manager",
     ":llama-api",
+    ":llama-impl",
+    ":cv-image-to-xml",
+    ":llama-api",
     ":llama-impl"
 )
 

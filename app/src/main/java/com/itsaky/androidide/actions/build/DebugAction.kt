@@ -18,20 +18,17 @@ import androidx.core.view.setPadding
 import com.google.android.material.textview.MaterialTextView
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.HelpActivity
-import com.itsaky.androidide.projects.IProjectManager
-import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
+import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
-import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.appendHtmlWithLinks
 import com.itsaky.androidide.utils.appendOrderedList
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isAtLeastS
-import com.itsaky.androidide.utils.isAtLeastT
-import com.itsaky.androidide.viewmodel.WADBViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import moe.shizuku.manager.adb.AdbPairingService
@@ -47,11 +44,12 @@ class DebugAction(
 	context: Context,
 	override val order: Int,
 ) : AbstractRunAction(
-	context = context,
-	labelRes = R.string.action_start_debugger,
-	iconRes = R.drawable.ic_db_startdebugger,
-) {
+		context = context,
+		labelRes = R.string.action_start_debugger,
+		iconRes = R.drawable.ic_db_startdebugger,
+	) {
 	override val id = ID
+
 	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_DEBUG
 
 	companion object {
@@ -92,9 +90,7 @@ class DebugAction(
 		if (!Shizuku.pingBinder()) {
 			log.error("Shizuku service is not running")
 			withContext(Dispatchers.Main.immediate) {
-				showPairingDialog(activity) {
-					activity.wadbViewModel.setPairingState(WADBViewModel.PairingState.Pairing)
-				}
+				showPairingDialog(activity)
 			}
 			return false
 		}
@@ -103,17 +99,19 @@ class DebugAction(
 	}
 
 	@RequiresApi(Build.VERSION_CODES.R)
-	private fun showPairingDialog(context: Context, onStarted: () -> Unit): AlertDialog? {
+	private fun showPairingDialog(context: Context): AlertDialog? {
 		val launchHelp = { url: String ->
-			context.startActivity(Intent(context, HelpActivity::class.java).apply {
-				putExtra(CONTENT_KEY, url)
-			})
+			context.startActivity(
+				Intent(context, HelpActivity::class.java).apply {
+					putExtra(CONTENT_KEY, url)
+				},
+			)
 		}
 
 		val ssb = SpannableStringBuilder()
 		ssb.appendHtmlWithLinks(
 			context.getString(R.string.debugger_setup_description_header),
-			launchHelp
+			launchHelp,
 		)
 
 		ssb.append(System.lineSeparator())
@@ -124,7 +122,7 @@ class DebugAction(
 
 		ssb.appendHtmlWithLinks(
 			context.getString(R.string.debugger_setup_description_footer),
-			launchHelp
+			launchHelp,
 		)
 
 		val text = MaterialTextView(context)
@@ -134,7 +132,8 @@ class DebugAction(
 		text.text = ssb
 		text.setLineSpacing(text.lineSpacingExtra, 1.1f)
 
-		return DialogUtils.newMaterialDialogBuilder(context)
+		return DialogUtils
+			.newMaterialDialogBuilder(context)
 			.setTitle(R.string.debugger_setup_title)
 			.setView(text)
 			.setPositiveButton(R.string.adb_pairing_action_start) { dialog, _ ->
@@ -146,13 +145,11 @@ class DebugAction(
 				try {
 					if (startPairingService(context)) {
 						context.startActivity(intent)
-						onStarted()
 					}
 				} catch (e: ActivityNotFoundException) {
 					log.error("Failed to open developer options", e)
 				}
-			}
-			.setNegativeButton(android.R.string.cancel, null)
+			}.setNegativeButton(android.R.string.cancel, null)
 			.show()
 	}
 
@@ -182,7 +179,9 @@ class DebugAction(
 
 				context.startService(intent)
 				true
-			} else false
+			} else {
+				false
+			}
 		}
 	}
 
@@ -191,19 +190,19 @@ class DebugAction(
 		val nm = context.getSystemService(NotificationManager::class.java)
 		val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
 		return nm.areNotificationsEnabled() &&
-				(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+			(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
 	}
 
 	private fun showNotificationPermissionDialog(context: Context): AlertDialog? =
-		DialogUtils.newMaterialDialogBuilder(context)
+		DialogUtils
+			.newMaterialDialogBuilder(context)
 			.setTitle(R.string.adb_pairing_action_enable_notifications)
 			.setMessage(
 				context.getString(
 					R.string.adb_pairing_tutorial_content_notification,
-					context.getString(R.string.notification_channel_adb_pairing)
-				)
-			)
-			.setPositiveButton(R.string.title_grant) { dialog, _ ->
+					context.getString(R.string.notification_channel_adb_pairing),
+				),
+			).setPositiveButton(R.string.title_grant) { dialog, _ ->
 				val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
 				intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
 				try {
@@ -213,9 +212,7 @@ class DebugAction(
 				}
 
 				dialog.dismiss()
-			}
-			.setNegativeButton(android.R.string.cancel) { dialog, _ ->
+			}.setNegativeButton(android.R.string.cancel) { dialog, _ ->
 				dialog.dismiss()
-			}
-			.show()
+			}.show()
 }

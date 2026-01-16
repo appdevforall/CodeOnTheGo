@@ -133,6 +133,7 @@ android {
 	}
 
 	androidResources {
+        noCompress.add("tflite")
 		generateLocaleConfig = true
 	}
 
@@ -287,6 +288,7 @@ dependencies {
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
+    implementation(projects.cvImageToXml)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -542,6 +544,11 @@ fun registerBundleLlamaAssetsTask(flavor: String, arch: String): TaskProvider<Ta
     return tasks.register<Task>("bundle${capitalized}LlamaAssets") {
         dependsOn("assemble${capitalized}Assets")
 
+        val assetsZipFile = project.layout.buildDirectory.file("outputs/assets/assets-$arch.zip")
+        val outputDir = rootProject.layout.projectDirectory.dir("assets/release/$flavor/dynamic_libs")
+        inputs.file(assetsZipFile)
+        outputs.dir(outputDir)
+
         doLast {
             val assetsZip =
                 project.layout.buildDirectory
@@ -620,11 +627,15 @@ fun registerBundleLlamaAssetsTask(flavor: String, arch: String): TaskProvider<Ta
     }
 }
 
-tasks.register<Copy>("copyPluginApiJarToAssets") {
+tasks.register("copyPluginApiJarToAssets") {
     dependsOn(":plugin-api:createPluginApiJar")
-    from(project(":plugin-api").layout.buildDirectory.file("libs/plugin-api-1.0.0.jar"))
-    into(rootProject.file("assets"))
-    rename { "plugin-api.jar" }
+    val sourceFile = project(":plugin-api").layout.buildDirectory.file("libs/plugin-api-1.0.0.jar")
+    val destFile = rootProject.layout.projectDirectory.file("assets/plugin-api.jar")
+    inputs.file(sourceFile)
+    outputs.file(destFile)
+    doLast {
+        sourceFile.get().asFile.copyTo(destFile.asFile, overwrite = true)
+    }
 }
 
 tasks.register<Zip>("createPluginArtifactsZip") {
@@ -689,9 +700,16 @@ tasks.register("recompressApk") {
 
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
-val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "br")
+val noCompress = setOf("so", "ogg", "mp3", "mp4", "zip", "jar", "ttf", "otf", "br", "tflite", "binarypb", "bincfg", "conv_model", "lstm_model")
 
 afterEvaluate {
+    tasks.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }.configureEach {
+        dependsOn(bundleLlamaV8Assets)
+    }
+    tasks.matching { it.name.contains("V7") && it.name.lowercase().contains("lint") }.configureEach {
+        dependsOn(bundleLlamaV7Assets)
+    }
+
 	tasks.named("assembleV8Release").configure {
 		finalizedBy("recompressApk")
 

@@ -56,7 +56,7 @@ class SearchListAdapter(
     val matches = results[file] ?: listOf()
     val color = binding.icon.context.resolveAttr(R.attr.colorPrimary)
     binding.title.text = file.name
-    binding.icon.setImageResource(FileExtension.Factory.forFile(file).icon)
+    binding.icon.setImageResource(FileExtension.Factory.forFile(file, false).icon)
     binding.icon.setColorFilter(color, SRC_ATOP)
     binding.items.layoutManager = LinearLayoutManager(binding.items.context)
     binding.items.adapter = ChildAdapter(matches)

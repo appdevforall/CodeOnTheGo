@@ -35,6 +35,9 @@ object ShizukuState {
 	val serviceStatus: StateFlow<ServiceStatus>
 		get() = _serviceStatus.asStateFlow()
 
+	/**
+	 * Whether the Shizuku server is running.
+	 */
 	val isRunning: Boolean
 		get() = serviceStatus.value.isRunning
 
