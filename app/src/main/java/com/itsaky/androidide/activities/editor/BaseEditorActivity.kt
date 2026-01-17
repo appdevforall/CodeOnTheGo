@@ -189,7 +189,7 @@ abstract class BaseEditorActivity :
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
 	val binding: ActivityEditorBinding
-		get() = checkNotNull(_binding) { "Activity has been destroyed" }
+        get() = _binding ?: throw IllegalStateException("Activity destroyed; binding not accessible")
 	val content: ContentEditorBinding
 		get() = binding.content
 
