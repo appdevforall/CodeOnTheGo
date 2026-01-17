@@ -218,11 +218,21 @@ object AssetsInstallationHelper {
 		destDir: Path,
 	) {
 		Files.createDirectories(destDir)
+		// Normalize and make destDir absolute for secure path validation
+		val normalizedDestDir = destDir.toAbsolutePath().normalize()
+		
 		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
-			val destFile = destDir.resolve(entry.name).normalize()
-			if (!destFile.pathString.startsWith(destDir.pathString)) {
+			// Validate entry name doesn't contain dangerous patterns
+			if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
+				throw IllegalStateException("Zip entry contains dangerous path components: ${entry.name}")
+			}
+			
+			val destFile = normalizedDestDir.resolve(entry.name).normalize()
+			
+			// Use Path.startsWith() for proper path validation instead of string comparison
+			if (!destFile.startsWith(normalizedDestDir)) {
 				// DO NOT allow extraction to outside of the target dir
-				throw IllegalStateException("Entry is outside of the target dir: ${zipInput.buffered()}")
+				throw IllegalStateException("Entry is outside of the target dir: ${entry.name}")
 			}
 
 			if (entry.isDirectory) {
