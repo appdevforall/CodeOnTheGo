@@ -23,7 +23,6 @@ import android.content.SharedPreferences
 import androidx.core.os.UserManagerCompat
 import com.itsaky.androidide.managers.NoopSharedPreferencesImpl
 import com.itsaky.androidide.managers.PreferenceManager
-import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.JavaCharacter
 import org.slf4j.LoggerFactory
 
@@ -45,8 +44,6 @@ open class BaseApplication : Application() {
 
 	override fun onCreate() {
 		super.onCreate()
-		Environment.init(this)
-
 		_prefManager = PreferenceManager(getSafeContext())
 		JavaCharacter.initMap()
 	}
