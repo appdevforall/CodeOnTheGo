@@ -563,6 +563,16 @@ class PluginManager private constructor(
             ?.key
     }
 
+    fun getClassLoaderForPlugin(plugin: IPlugin): ClassLoader? {
+        return loadedPlugins.values
+            .find { it.plugin === plugin }
+            ?.classLoader
+    }
+
+    fun getClassLoaderForPluginId(pluginId: String): ClassLoader? {
+        return loadedPlugins[pluginId]?.classLoader
+    }
+
     fun enablePlugin(pluginId: String): Boolean {
         val loadedPlugin = loadedPlugins[pluginId] ?: return false
         

@@ -60,6 +60,7 @@ import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
+import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -96,6 +97,7 @@ open class EditorHandlerActivity :
 
 	companion object {
 		const val PREF_KEY_OPEN_FILES_CACHE = "open_files_cache_v1"
+		const val PREF_KEY_OPEN_PLUGIN_TABS = "open_plugin_tabs_v1"
 	}
 
 	protected val isOpenedFilesSaved = AtomicBoolean(false)
@@ -141,6 +143,7 @@ open class EditorHandlerActivity :
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
+		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
 
@@ -208,8 +211,21 @@ open class EditorHandlerActivity :
 		ActionContextProvider.clearActivity()
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
+			saveOpenedPluginTabs()
 			saveAllAsync(notify = false)
 		}
+	}
+
+	private fun saveOpenedPluginTabs() {
+		val prefs = (application as BaseApplication).prefManager
+		val openPluginTabIds = pluginTabIndices.keys.toList()
+		if (openPluginTabIds.isEmpty()) {
+			prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null)
+			return
+		}
+		val json = Gson().toJson(openPluginTabIds)
+		prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, json)
+		Log.d("EditorHandlerActivity", "Saved open plugin tabs: $openPluginTabIds")
 	}
 
 	override fun onResume() {
@@ -297,6 +313,28 @@ open class EditorHandlerActivity :
 			} catch (err: Throwable) {
 				log.error("Failed to reopen recently opened files", err)
 			}
+		}
+
+		restoreOpenedPluginTabs()
+	}
+
+	private fun restoreOpenedPluginTabs() {
+		try {
+			val prefs = (application as BaseApplication).prefManager
+			val json = prefs.getString(PREF_KEY_OPEN_PLUGIN_TABS, null) ?: return
+
+			val tabIds = Gson().fromJson(json, Array<String>::class.java)?.toList() ?: return
+			Log.d("EditorHandlerActivity", "Restoring plugin tabs: $tabIds")
+
+			tabIds.forEach { tabId ->
+				if (!pluginTabIndices.containsKey(tabId)) {
+					selectPluginTabById(tabId)
+				}
+			}
+
+			prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null)
+		} catch (e: Exception) {
+			Log.e("EditorHandlerActivity", "Failed to restore plugin tabs", e)
 		}
 	}
 
@@ -1039,6 +1077,16 @@ open class EditorHandlerActivity :
 		} catch (e: Exception) {
 			Log.e("EditorHandlerActivity", "Failed to create plugin tab $tabId", e)
 			return false
+		}
+	}
+
+	private fun setupPluginFragmentFactory() {
+		try {
+			val defaultFactory = supportFragmentManager.fragmentFactory
+			supportFragmentManager.fragmentFactory = PluginFragmentFactory(defaultFactory)
+			Log.d("EditorHandlerActivity", "PluginFragmentFactory installed")
+		} catch (e: Exception) {
+			Log.e("EditorHandlerActivity", "Failed to setup PluginFragmentFactory", e)
 		}
 	}
 
