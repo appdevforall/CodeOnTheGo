@@ -5,6 +5,7 @@ import android.os.Build
 import android.util.Log
 import dalvik.system.DexClassLoader
 import java.io.File
+import java.nio.file.Path
 import java.util.zip.ZipInputStream
 
 object DynamicLibraryLoader {
@@ -32,10 +33,27 @@ object DynamicLibraryLoader {
             baseUnzipDir.deleteRecursively()
             versionedUnzipDir.mkdirs()
             try {
+                // Normalize and make versionedUnzipDir absolute for secure path validation
+                val normalizedUnzipDir = versionedUnzipDir.toPath().toAbsolutePath().normalize()
+                
                 ZipInputStream(extractedAarFile.inputStream()).use { zipStream ->
                     var entry = zipStream.nextEntry
                     while (entry != null) {
-                        val outputFile = File(versionedUnzipDir, entry.name)
+                        // Validate entry name doesn't contain dangerous patterns
+                        if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
+                            throw IllegalStateException("Zip entry contains dangerous path components: ${entry.name}")
+                        }
+                        
+                        // Resolve entry name against base path and normalize
+                        val outputPath = normalizedUnzipDir.resolve(entry.name).normalize()
+                        
+                        // Use Path.startsWith() for proper path validation instead of string comparison
+                        if (!outputPath.startsWith(normalizedUnzipDir)) {
+                            // DO NOT allow extraction to outside of the target dir
+                            throw IllegalStateException("Entry is outside of the target dir: ${entry.name}")
+                        }
+                        
+                        val outputFile = outputPath.toFile()
                         outputFile.parentFile?.mkdirs()
                         if (!entry.isDirectory) {
                             outputFile.outputStream().use { fos -> zipStream.copyTo(fos) }
