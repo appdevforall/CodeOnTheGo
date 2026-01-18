@@ -405,8 +405,7 @@ open class EditorHandlerActivity :
 	): CodeEditorView? {
 		val range = selection ?: Range.NONE
 
-		if (file.isImageFile()) {
-			openImage(this, file)
+		if (file.isImageFile() && openImage(this, file)) {
 			return null
 		}
 
