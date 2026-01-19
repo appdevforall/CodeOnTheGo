@@ -19,6 +19,8 @@ package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
 import android.os.Bundle
+import android.system.ErrnoException
+import android.system.OsConstants
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.ViewGroup.MarginLayoutParams
@@ -636,7 +638,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
-				if (error != null) {
+
+				val isExpectedError = error is FileNotFoundException ||
+					(error is ErrnoException && error.errno == OsConstants.ENOENT)
+
+				if (error != null && !isExpectedError) {
 					Sentry.captureException(error)
 				}
 
