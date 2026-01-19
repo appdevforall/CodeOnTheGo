@@ -8,12 +8,14 @@ import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.provider.Settings.canDrawOverlays
 import android.text.Html
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.animation.AnimationUtils
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -223,16 +225,17 @@ object TooltipManager {
             }
         }
 
-        // Use the helper to find the real Activity
         val activity = context.findActivity()
 
-        val activityValid = activity?.let {
-            !it.isFinishing && !it.isDestroyed
-        } ?: false
+        val isLifecycleValid = if (activity != null) {
+            !activity.isFinishing && !activity.isDestroyed
+        } else {
+            true
+        }
 
         val viewAttached = view.isAttachedToWindow && view.windowToken != null
 
-        return activityValid && viewAttached
+        return isLifecycleValid && viewAttached
     }
 
     /**
@@ -388,7 +391,7 @@ object TooltipManager {
         <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
         """.trimIndent()
 
-        AlertDialog.Builder(context)
+        val builder = AlertDialog.Builder(context)
             .setTitle("Tooltip Debug Info")
             .setMessage(
                 Html.fromHtml(
@@ -400,7 +403,14 @@ object TooltipManager {
                 dialog.dismiss()
             }
             .setCancelable(true) // Allow dismissing by tapping outside
-            .show()
+
+        val dialog = builder.create()
+
+        if (context !is Activity && canDrawOverlays(context)) {
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        }
+
+        dialog.show()
     }
 
     private fun onFeedbackButtonClicked(

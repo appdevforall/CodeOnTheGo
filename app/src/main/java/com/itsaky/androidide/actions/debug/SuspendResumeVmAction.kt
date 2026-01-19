@@ -5,6 +5,7 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
+import com.itsaky.androidide.idetooltips.TooltipTag
 
 /**
  * @author Akash Yadav
@@ -16,6 +17,7 @@ class SuspendResumeVmAction(
     override val id = "ide.debug.suspend-resume"
     override var label = context.getString(R.string.debugger_suspend)
     override val order = 0
+    override var tooltipTag = TooltipTag.DEBUGGER_ACTION_PAUSE_RESUME
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
