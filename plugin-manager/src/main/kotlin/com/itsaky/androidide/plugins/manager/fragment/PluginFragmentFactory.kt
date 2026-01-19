@@ -3,6 +3,7 @@ package com.itsaky.androidide.plugins.manager.fragment
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentFactory
+import java.util.concurrent.ConcurrentHashMap
 
 class PluginFragmentFactory(
     private val defaultFactory: FragmentFactory
@@ -11,22 +12,39 @@ class PluginFragmentFactory(
     companion object {
         private const val TAG = "PluginFragmentFactory"
 
-        private val pluginClassLoaders = mutableMapOf<String, ClassLoader>()
+        private val pluginClassLoaders = ConcurrentHashMap<String, ClassLoader>()
+        private val pluginFragmentClasses = ConcurrentHashMap<String, MutableSet<String>>()
 
         @JvmStatic
         fun registerPluginClassLoader(pluginId: String, classLoader: ClassLoader, fragmentClassNames: List<String>) {
+            val fragmentSet = pluginFragmentClasses.computeIfAbsent(pluginId) {
+                ConcurrentHashMap.newKeySet()
+            }
             fragmentClassNames.forEach { className ->
                 pluginClassLoaders[className] = classLoader
+                fragmentSet.add(className)
                 Log.d(TAG, "Registered classloader for fragment: $className (plugin: $pluginId)")
             }
         }
 
         @JvmStatic
         fun unregisterPluginClassLoader(pluginId: String, fragmentClassNames: List<String>) {
+            val fragmentSet = pluginFragmentClasses[pluginId]
+            fragmentClassNames.forEach { className ->
+                pluginClassLoaders.remove(className)
+                fragmentSet?.remove(className)
+                Log.d(TAG, "Unregistered classloader for fragment: $className (plugin: $pluginId)")
+            }
+        }
+
+        @JvmStatic
+        fun unregisterAllClassLoadersForPlugin(pluginId: String) {
+            val fragmentClassNames = pluginFragmentClasses.remove(pluginId) ?: return
             fragmentClassNames.forEach { className ->
                 pluginClassLoaders.remove(className)
                 Log.d(TAG, "Unregistered classloader for fragment: $className (plugin: $pluginId)")
             }
+            Log.d(TAG, "Unregistered all classloaders for plugin: $pluginId (${fragmentClassNames.size} fragments)")
         }
 
         @JvmStatic
@@ -42,6 +60,7 @@ class PluginFragmentFactory(
         @JvmStatic
         fun clearAllClassLoaders() {
             pluginClassLoaders.clear()
+            pluginFragmentClasses.clear()
             Log.d(TAG, "Cleared all plugin fragment classloaders")
         }
     }
