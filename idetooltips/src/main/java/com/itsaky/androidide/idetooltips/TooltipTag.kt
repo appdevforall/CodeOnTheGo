@@ -139,4 +139,13 @@ object TooltipTag {
     const val PROJECT_FILENAME = "project.filename"
     const val EDITOR_FILE_CLOSE_OPTIONS = "editor.file.close.options"
     const val PROJECT_FILE_HELP = "project.file.help"
+
+    // Debugger Actions
+    const val DEBUGGER_ACTION_MOVE = "debug.toolbar.move"
+    const val DEBUGGER_ACTION_PAUSE_RESUME = "debug.toolbar.pauseresume"
+    const val DEBUGGER_ACTION_STEP_OVER = "debug.toolbar.stepover"
+    const val DEBUGGER_ACTION_STEP_INTO = "debug.toolbar.stepinto"
+    const val DEBUGGER_ACTION_STEP_OUT = "debug.toolbar.stepout"
+    const val DEBUGGER_ACTION_KILL = "debug.toolbar.kill"
+    const val DEBUGGER_ACTION_RESTART = "debug.toolbar.restart"
 }

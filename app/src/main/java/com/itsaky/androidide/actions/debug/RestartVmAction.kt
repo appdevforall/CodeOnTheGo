@@ -4,6 +4,7 @@ import android.content.Context
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.IntentUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -19,6 +20,7 @@ class RestartVmAction(
 	override val id = "ide.debug.restart-vm"
 	override var label = context.getString(R.string.debugger_restart)
 	override val order = 5
+    override var tooltipTag = TooltipTag.DEBUGGER_ACTION_RESTART
 
 	companion object {
 		val RESTART_DELAY = 1.seconds
