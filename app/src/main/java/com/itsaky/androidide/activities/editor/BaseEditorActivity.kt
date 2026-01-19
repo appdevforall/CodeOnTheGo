@@ -466,7 +466,9 @@ abstract class BaseEditorActivity :
 			when {
 				isImeVisible -> {
 					contentCardRealHeight?.let { baseHeight ->
-						updateLayoutParams<ViewGroup.LayoutParams> { height = baseHeight - imeInsets.bottom }
+						updateLayoutParams<ViewGroup.LayoutParams> {
+							height = (baseHeight - imeInsets.bottom).coerceAtLeast(0)
+						}
 					}
 				}
 				else -> {
