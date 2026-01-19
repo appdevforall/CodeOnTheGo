@@ -48,6 +48,7 @@
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
+	<string name="storage_not_accessible">Storage is not accessible. Please ensure the device is unlocked and try again.</string>
 	<string name="terminal_installation_failed_low_storage">Terminal setup failed. Storage space is insufficient, or files were removed during installation. Please free up some space and try again.</string>
 	<string name="terminal_installation_failed_secondary_user">Terminal installation is only supported for the primary user.</string>
 
