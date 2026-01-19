@@ -41,13 +41,12 @@ class DebuggerActionsOverlayAdapter(
         action.prepare(data)
 
         binding.root.icon = action.icon
-        val isEnabled = action.enabled
         binding.root.alpha = if (action.enabled) 1f else 0.5f
         TooltipCompat.setTooltipText(binding.root, action.label)
 
         binding.root.apply {
             setOnClickListener {
-                if (isEnabled) {
+                if (action.enabled) {
                     actionsRegister.executeAction(action, data)
                 }
             }
