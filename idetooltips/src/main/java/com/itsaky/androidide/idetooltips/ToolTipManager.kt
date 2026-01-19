@@ -8,6 +8,7 @@ import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.provider.Settings.canDrawOverlays
 import android.text.Html
 import android.util.Log
 import android.view.Gravity
@@ -405,8 +406,7 @@ object TooltipManager {
 
         val dialog = builder.create()
 
-        if (context !is Activity) {
-            // Allow the dialog to show over other apps/screens - e.g in debugger overlay
+        if (context !is Activity && canDrawOverlays(context)) {
             dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
         }
 
