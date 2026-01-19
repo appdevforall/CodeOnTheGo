@@ -16,7 +16,6 @@
  */
 package com.itsaky.androidide.lsp.java.providers
 
-import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.providers.DiagnosticsProvider.findDiagnostics
@@ -71,12 +70,6 @@ class JavaDiagnosticProvider {
         log.debug("Cancelling currently analyzing thread...")
         ProgressManager.instance.cancel(analyzingThread)
         this.analyzingThread = null
-
-        try {
-          CachingJarFileSystemProvider.clearCache()
-        } catch (err: Exception) {
-          log.warn("Failed to clear JAR caches on cancellation", err)
-        }
       }
     }
 
