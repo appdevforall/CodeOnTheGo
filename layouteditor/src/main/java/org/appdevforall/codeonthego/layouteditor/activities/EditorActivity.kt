@@ -99,6 +99,10 @@ class EditorActivity : BaseActivity() {
 						drawerLayout.closeDrawers()
 					}
 
+					!isProjectReady() -> {
+						finishAfterTransition()
+					}
+
 					binding.editorLayout.isLayoutModified() -> {
 						showSaveChangesDialog()
 					}
@@ -773,8 +777,10 @@ class EditorActivity : BaseActivity() {
 			.show()
 	}
 
-	private fun currentLayoutFileOrNull(): LayoutFile? =
-		project.currentLayout as? LayoutFile
+	private fun currentLayoutFileOrNull(): LayoutFile? {
+		if (!::project.isInitialized) return null
+		return project.currentLayout
+	}
 
 	private fun restoreOriginalXmlIfNeeded() {
 		val xmlToRestore = originalDesignXml ?: originalProductionXml
