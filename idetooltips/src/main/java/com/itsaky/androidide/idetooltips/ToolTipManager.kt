@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.animation.AnimationUtils
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -389,7 +390,7 @@ object TooltipManager {
         <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
         """.trimIndent()
 
-        AlertDialog.Builder(context)
+        val builder = AlertDialog.Builder(context)
             .setTitle("Tooltip Debug Info")
             .setMessage(
                 Html.fromHtml(
@@ -401,7 +402,15 @@ object TooltipManager {
                 dialog.dismiss()
             }
             .setCancelable(true) // Allow dismissing by tapping outside
-            .show()
+
+        val dialog = builder.create()
+
+        if (context !is Activity) {
+            // Allow the dialog to show over other apps/screens - e.g in debugger overlay
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        }
+
+        dialog.show()
     }
 
     private fun onFeedbackButtonClicked(
