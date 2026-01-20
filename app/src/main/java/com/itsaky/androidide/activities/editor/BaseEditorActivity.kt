@@ -87,7 +87,6 @@ import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
-import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
@@ -351,6 +350,7 @@ abstract class BaseEditorActivity :
 	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
 	private var editorAppBarInsetTop: Int = 0
+	private var sidebarLastInsetTop: Int = 0
 
 	companion object {
 		private const val TAG = "ResizePanelDebugger"
@@ -452,15 +452,32 @@ abstract class BaseEditorActivity :
 
 	override fun onApplyWindowInsets(insets: WindowInsetsCompat) {
 		super.onApplyWindowInsets(insets)
-		val height = contentCardRealHeight ?: return
-		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
 
-		_binding?.content?.bottomSheet?.setImeVisible(imeInsets.bottom > 0)
-		_binding?.contentCard?.updateLayoutParams<ViewGroup.LayoutParams> {
-			this.height = height - imeInsets.bottom
-		}
+		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+		_binding?.content?.editorAppBarLayout?.updatePadding(top = systemBars.top)
+		applySidebarInsets(systemBars)
 
 		val isImeVisible = imeInsets.bottom > 0
+		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
+
+		_binding?.contentCard?.apply {
+			when {
+				isImeVisible -> {
+					contentCardRealHeight?.let { baseHeight ->
+						updateLayoutParams<ViewGroup.LayoutParams> {
+							height = (baseHeight - imeInsets.bottom).coerceAtLeast(0)
+						}
+					}
+				}
+				else -> {
+					updateLayoutParams<ViewGroup.LayoutParams> { height = ViewGroup.LayoutParams.MATCH_PARENT }
+					post { contentCardRealHeight = measuredHeight }
+				}
+			}
+		}
+
 		if (this.isImeVisible != isImeVisible) {
 			this.isImeVisible = isImeVisible
 			onSoftInputChanged()
@@ -470,16 +487,13 @@ abstract class BaseEditorActivity :
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		editorAppBarInsetTop = insets.top
-		this._binding?.apply {
-			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
-				?.onApplyWindowInsets(insets)
+	}
 
-			content.apply {
-				editorAppBarLayout.updatePadding(
-					top = insets.top,
-				)
-			}
-		}
+	private fun applySidebarInsets(systemBars: Insets) {
+		val sidebar = _binding?.drawerSidebar ?: return
+		val baseTop = sidebar.paddingTop - sidebarLastInsetTop
+		sidebarLastInsetTop = systemBars.top
+		sidebar.updatePadding(top = baseTop + systemBars.top)
 	}
 
 	@Subscribe(threadMode = MAIN)
