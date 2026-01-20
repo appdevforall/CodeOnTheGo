@@ -42,7 +42,6 @@ class AppLogsCoordinator(
 
 			val receiverService = lookupLogService() ?: return@LogReceiverServiceConnection
 			receiverService.setConsumer { logLine ->
-				println("logging: " + logLine.toSimpleString())
 				viewModel.submit(
 					line = logLine,
 					simpleFormattingEnabled = false,
