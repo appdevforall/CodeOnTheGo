@@ -120,6 +120,7 @@ import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
+import com.itsaky.androidide.viewmodel.AppLogsCoordinator
 import com.itsaky.androidide.viewmodel.AppLogsViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
@@ -127,7 +128,6 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
-import com.itsaky.androidide.viewmodel.AppLogsCoordinator
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
@@ -193,7 +193,7 @@ abstract class BaseEditorActivity :
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
 	val binding: ActivityEditorBinding
-        get() = _binding ?: throw IllegalStateException("Activity destroyed; binding not accessible")
+		get() = _binding ?: throw IllegalStateException("Activity destroyed; binding not accessible")
 	val content: ContentEditorBinding
 		get() = binding.content
 

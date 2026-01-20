@@ -48,11 +48,8 @@ import org.slf4j.LoggerFactory
 abstract class LogViewFragment<V : LogViewModel> :
 	EmptyStateFragment<FragmentLogBinding>(R.layout.fragment_log, FragmentLogBinding::bind),
 	ShareableOutputFragment {
-
 	companion object {
 		private val log = LoggerFactory.getLogger(LogViewFragment::class.java)
-
-
 	}
 
 	override val currentEditor: IDEEditor? get() = _binding?.editor
@@ -66,16 +63,14 @@ abstract class LogViewFragment<V : LogViewModel> :
 	 *
 	 * @param line The log line to append.
 	 */
-	fun appendLog(line: LogLine) =
-		viewModel.submit(line = line, simpleFormattingEnabled = isSimpleFormattingEnabled())
+	fun appendLog(line: LogLine) = viewModel.submit(line = line, simpleFormattingEnabled = isSimpleFormattingEnabled())
 
 	/**
 	 * Append a log line to the log view.
 	 *
 	 * @param line The log line to append.
 	 */
-	protected fun appendLine(line: String): Unit =
-		viewModel.submit(line)
+	protected fun appendLine(line: String): Unit = viewModel.submit(line)
 
 	abstract fun isSimpleFormattingEnabled(): Boolean
 

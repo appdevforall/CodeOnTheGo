@@ -23,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 class AppLogsCoordinator(
 	private val viewModel: AppLogsViewModel,
 ) : DefaultLifecycleObserver {
-
 	companion object {
 		private val logger = LoggerFactory.getLogger(AppLogsCoordinator::class.java)
 	}
@@ -31,23 +30,25 @@ class AppLogsCoordinator(
 	private var context: Context? = null
 	private val isBoundToLogReceiver = AtomicBoolean(false)
 	private var logReceiverImpl: LogReceiverImpl? = null
-	private val logBroadcastReceiver = LogBroadcastReceiver(
-		bind = ::bindToLogReceiver,
-		unbind = ::unbindFromLogReceiver
-	)
+	private val logBroadcastReceiver =
+		LogBroadcastReceiver(
+			bind = ::bindToLogReceiver,
+			unbind = ::unbindFromLogReceiver,
+		)
 
-	private val logServiceConnection = LogReceiverServiceConnection { receiverImpl ->
-		logReceiverImpl = receiverImpl
+	private val logServiceConnection =
+		LogReceiverServiceConnection { receiverImpl ->
+			logReceiverImpl = receiverImpl
 
-		val receiverService = lookupLogService() ?: return@LogReceiverServiceConnection
-		receiverService.setConsumer { logLine ->
-			println("logging: " + logLine.toSimpleString())
-			viewModel.submit(
-				line = logLine,
-				simpleFormattingEnabled = false
-			)
+			val receiverService = lookupLogService() ?: return@LogReceiverServiceConnection
+			receiverService.setConsumer { logLine ->
+				println("logging: " + logLine.toSimpleString())
+				viewModel.submit(
+					line = logLine,
+					simpleFormattingEnabled = false,
+				)
+			}
 		}
-	}
 
 	override fun onCreate(owner: LifecycleOwner) {
 		require(owner is Context)
@@ -147,7 +148,6 @@ class AppLogsCoordinator(
 		private val bind: () -> Unit,
 		private val unbind: () -> Unit,
 	) : BroadcastReceiver() {
-
 		private val logger = LoggerFactory.getLogger(LogBroadcastReceiver::class.java)
 
 		override fun onReceive(
@@ -157,7 +157,7 @@ class AppLogsCoordinator(
 			if (intent?.action != LogReceiverService.ACTION_CONNECTION_UPDATE) {
 				logger.warn(
 					"Received invalid broadcast. Action '{}' is expected.",
-					LogReceiverService.ACTION_CONNECTION_UPDATE
+					LogReceiverService.ACTION_CONNECTION_UPDATE,
 				)
 				return
 			}
@@ -167,7 +167,7 @@ class AppLogsCoordinator(
 					logger.warn(
 						"Received {} broadcast, but invalid extras were provided: {}",
 						LogReceiverService.ACTION_CONNECTION_UPDATE,
-						intent
+						intent,
 					)
 					return
 				}

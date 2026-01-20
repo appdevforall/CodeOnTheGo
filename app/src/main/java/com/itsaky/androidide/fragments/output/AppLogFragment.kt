@@ -31,7 +31,6 @@ import com.itsaky.androidide.viewmodel.LogViewModel
  * @author Akash Yadav
  */
 class AppLogFragment : LogViewFragment<LogViewModel>() {
-
 	override val tooltipTag = TooltipTag.PROJECT_APP_LOGS
 
 	override val viewModel by activityViewModels<AppLogsViewModel>()

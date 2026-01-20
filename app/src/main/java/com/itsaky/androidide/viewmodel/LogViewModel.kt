@@ -29,9 +29,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @author Akash Yadav
  */
 abstract class LogViewModel : ViewModel() {
-
 	companion object {
-
 		/** The maximum number of characters to append to the editor in case of huge log texts. */
 		const val MAX_CHUNK_SIZE = 10000
 
@@ -62,14 +60,17 @@ abstract class LogViewModel : ViewModel() {
 	}
 
 	sealed interface UiEvent {
-		data class Append(val text: String) : UiEvent
+		data class Append(
+			val text: String,
+		) : UiEvent
 	}
 
-	private val logs = MutableSharedFlow<String>(
-		replay = EVENT_REPLAY_COUNT,
-		extraBufferCapacity = EVENT_REPLAY_COUNT / 3,
-		onBufferOverflow = BufferOverflow.DROP_OLDEST
-	)
+	private val logs =
+		MutableSharedFlow<String>(
+			replay = EVENT_REPLAY_COUNT,
+			extraBufferCapacity = EVENT_REPLAY_COUNT / 3,
+			onBufferOverflow = BufferOverflow.DROP_OLDEST,
+		)
 
 	@OptIn(FlowPreview::class)
 	val uiEvents: SharedFlow<UiEvent> =
@@ -80,7 +81,7 @@ abstract class LogViewModel : ViewModel() {
 			.shareIn(
 				scope = viewModelScope,
 				started = SharingStarted.Eagerly,
-				replay = EVENT_REPLAY_COUNT
+				replay = EVENT_REPLAY_COUNT,
 			)
 
 	/**
@@ -89,7 +90,10 @@ abstract class LogViewModel : ViewModel() {
 	 * @param line The log line to submit.
 	 * @param simpleFormattingEnabled Whether to use simple formatting or not.
 	 */
-	fun submit(line: LogLine, simpleFormattingEnabled: Boolean = false) {
+	fun submit(
+		line: LogLine,
+		simpleFormattingEnabled: Boolean = false,
+	) {
 		val lineString =
 			if (simpleFormattingEnabled) {
 				line.toSimpleString()
@@ -123,42 +127,43 @@ abstract class LogViewModel : ViewModel() {
 @OptIn(ExperimentalCoroutinesApi::class)
 fun Flow<String>.chunkedBySizeOrTime(
 	maxSize: Int,
-	maxDelay: Duration
-): Flow<String> = channelFlow {
-	val buffer = StringBuilder()
-	val mutex = Mutex()
+	maxDelay: Duration,
+): Flow<String> =
+	channelFlow {
+		val buffer = StringBuilder()
+		val mutex = Mutex()
 
-	suspend fun flushLocked() {
-		if (buffer.isNotEmpty()) {
-			send(buffer.toString())
-			buffer.clear()
+		suspend fun flushLocked() {
+			if (buffer.isNotEmpty()) {
+				send(buffer.toString())
+				buffer.clear()
+			}
 		}
-	}
 
-	val flusher = launch {
-		while (isActive) {
-			delay(maxDelay)
+		val flusher =
+			launch {
+				while (isActive) {
+					delay(maxDelay)
+					mutex.withLock {
+						flushLocked()
+					}
+				}
+			}
+
+		try {
+			collect { line ->
+				mutex.withLock {
+					if (buffer.length + line.length > maxSize) {
+						flushLocked()
+					}
+
+					buffer.append(line)
+				}
+			}
+		} finally {
+			flusher.cancel()
 			mutex.withLock {
 				flushLocked()
 			}
 		}
 	}
-
-	try {
-		collect { line ->
-			mutex.withLock {
-				if (buffer.length + line.length > maxSize) {
-					flushLocked()
-				}
-
-				buffer.append(line)
-			}
-		}
-	} finally {
-		flusher.cancel()
-		mutex.withLock {
-			flushLocked()
-		}
-	}
-}
-
