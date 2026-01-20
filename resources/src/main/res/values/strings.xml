@@ -625,8 +625,8 @@
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions.</string>
-	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
+	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow up to four permissions.</string>
+	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages. On Android 12 and earlier, notifications are enabled by default and won’t appear as a permission request.</string>
 	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
 	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
 	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
