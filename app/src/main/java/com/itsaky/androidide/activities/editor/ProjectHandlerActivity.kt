@@ -117,6 +117,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+	private val Throwable?.isFileNotFound: Boolean
+		get() = this is FileNotFoundException ||
+			this is NoSuchFileException ||
+			(this is ErrnoException && this.errno == OsConstants.ENOENT)
 
 	val findInProjectDialog: AlertDialog?
 		get() {
@@ -639,8 +643,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
 
-				val isExpectedError = error is FileNotFoundException ||
-					(error is ErrnoException && error.errno == OsConstants.ENOENT)
+				val isExpectedError = error.isFileNotFound
 
 				if (error != null && !isExpectedError) {
 					Sentry.captureException(error)
