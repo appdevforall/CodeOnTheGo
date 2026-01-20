@@ -26,14 +26,13 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.logging.GlobalBufferAppender
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.viewmodel.IDELogsViewModel
-import com.itsaky.androidide.viewmodel.LogViewModel
 
 /**
  * Fragment to show IDE logs.
  * @author Akash Yadav
  */
 class IDELogFragment :
-	LogViewFragment<LogViewModel>(),
+	LogViewFragment<IDELogsViewModel>(),
 	GlobalBufferAppender.Consumer {
 	override fun isSimpleFormattingEnabled() = true
 

@@ -24,13 +24,12 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.viewmodel.AppLogsViewModel
-import com.itsaky.androidide.viewmodel.LogViewModel
 
 /**
  * Fragment to show application logs.
  * @author Akash Yadav
  */
-class AppLogFragment : LogViewFragment<LogViewModel>() {
+class AppLogFragment : LogViewFragment<AppLogsViewModel>() {
 	override val tooltipTag = TooltipTag.PROJECT_APP_LOGS
 
 	override val viewModel by activityViewModels<AppLogsViewModel>()
