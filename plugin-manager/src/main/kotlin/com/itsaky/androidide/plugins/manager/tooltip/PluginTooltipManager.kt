@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.content.ContextWrapper
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
@@ -200,14 +201,19 @@ object PluginTooltipManager {
         )
     }
 
+    private tailrec fun Context.findActivity(): Activity? = when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }
+
     private fun canShowPopup(context: Context, view: View): Boolean {
-        val activityValid = (context as? Activity)?.let {
-            !it.isFinishing && !it.isDestroyed
-        } ?: false
+        if (!view.isAttachedToWindow || view.windowToken == null) {
+            return false
+        }
 
-        val viewAttached = view.isAttachedToWindow && view.windowToken != null
-
-        return activityValid && viewAttached
+        val activity = context.findActivity() ?: view.context.findActivity()
+        return activity == null || (!activity.isFinishing && !activity.isDestroyed)
     }
 
     /**
