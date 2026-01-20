@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory
  *
  * @author Akash Yadav
  */
-abstract class LogViewFragment<V: LogViewModel> :
+abstract class LogViewFragment<V : LogViewModel> :
 	EmptyStateFragment<FragmentLogBinding>(R.layout.fragment_log, FragmentLogBinding::bind),
 	ShareableOutputFragment {
 
@@ -66,18 +66,8 @@ abstract class LogViewFragment<V: LogViewModel> :
 	 *
 	 * @param line The log line to append.
 	 */
-	fun appendLog(line: LogLine) {
-		val lineString =
-			if (isSimpleFormattingEnabled()) {
-				line.toSimpleString()
-			} else {
-				line.toString()
-			}
-
-		line.recycle()
-
-		appendLine(lineString)
-	}
+	fun appendLog(line: LogLine) =
+		viewModel.submit(line = line, simpleFormattingEnabled = isSimpleFormattingEnabled())
 
 	/**
 	 * Append a log line to the log view.

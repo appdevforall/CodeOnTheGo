@@ -26,13 +26,15 @@ import android.os.IBinder
  *
  * @author Akash Yadav
  */
-class LogReceiverServiceConnection(var onConnected: ((binder: LogReceiverImpl?) -> Unit)? = null) : ServiceConnection {
+class LogReceiverServiceConnection(
+	var onConnected: ((binder: LogReceiverImpl?) -> Unit)? = null
+) : ServiceConnection {
 
-  override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-    onConnected?.invoke(service as? LogReceiverImpl?)
-  }
+	override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+		onConnected?.invoke(service as? LogReceiverImpl?)
+	}
 
-  override fun onServiceDisconnected(name: ComponentName?) {
-    onConnected = null
-  }
+	override fun onServiceDisconnected(name: ComponentName?) {
+		onConnected = null
+	}
 }

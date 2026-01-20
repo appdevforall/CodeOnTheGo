@@ -2,6 +2,7 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.viewmodel.LogViewModel.Companion.LOG_FREQUENCY
 import com.itsaky.androidide.viewmodel.LogViewModel.Companion.MAX_CHUNK_SIZE
 import com.itsaky.androidide.viewmodel.LogViewModel.Companion.MAX_LINE_COUNT
@@ -53,6 +54,11 @@ abstract class LogViewModel : ViewModel() {
 		 * [TRIM_ON_LINE_COUNT] by a difference of [LOG_FREQUENCY] or preferably, more.
 		 */
 		const val MAX_LINE_COUNT = TRIM_ON_LINE_COUNT - 300
+
+		/**
+		 * The number of log events that are replayed to consumers.
+		 */
+		const val EVENT_REPLAY_COUNT = TRIM_ON_LINE_COUNT
 	}
 
 	sealed interface UiEvent {
@@ -60,7 +66,8 @@ abstract class LogViewModel : ViewModel() {
 	}
 
 	private val logs = MutableSharedFlow<String>(
-		extraBufferCapacity = MAX_CHUNK_SIZE,
+		replay = EVENT_REPLAY_COUNT,
+		extraBufferCapacity = EVENT_REPLAY_COUNT / 3,
 		onBufferOverflow = BufferOverflow.DROP_OLDEST
 	)
 
@@ -72,9 +79,27 @@ abstract class LogViewModel : ViewModel() {
 			.map<String, UiEvent> { UiEvent.Append(it) }
 			.shareIn(
 				scope = viewModelScope,
-				started = SharingStarted.WhileSubscribed(5_000),
-				replay = 0
+				started = SharingStarted.Eagerly,
+				replay = EVENT_REPLAY_COUNT
 			)
+
+	/**
+	 * Submit a log line.
+	 *
+	 * @param line The log line to submit.
+	 * @param simpleFormattingEnabled Whether to use simple formatting or not.
+	 */
+	fun submit(line: LogLine, simpleFormattingEnabled: Boolean = false) {
+		val lineString =
+			if (simpleFormattingEnabled) {
+				line.toSimpleString()
+			} else {
+				line.toString()
+			}
+
+		line.recycle()
+		submit(lineString)
+	}
 
 	/**
 	 * Submit a log line.

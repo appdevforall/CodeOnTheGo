@@ -120,12 +120,14 @@ import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
+import com.itsaky.androidide.viewmodel.AppLogsViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.AppLogsCoordinator
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
@@ -184,6 +186,9 @@ abstract class BaseEditorActivity :
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
 	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
 	val wadbConnectionViewModel by viewModels<WADBConnectionViewModel>()
+
+	val appLogsViewModel by viewModels<AppLogsViewModel>()
+	var appLogsCoordinator: AppLogsCoordinator? = null
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
@@ -399,6 +404,9 @@ abstract class BaseEditorActivity :
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 		if (isAtLeastR()) wadbConnectionViewModel.stop(this)
 
+		appLogsCoordinator?.also(lifecycle::removeObserver)
+		appLogsCoordinator = null
+
 		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
 		drawerToggle = null
 		bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
@@ -560,6 +568,9 @@ abstract class BaseEditorActivity :
 		if (isAtLeastR() && !Shizuku.pingBinder()) {
 			lifecycleScope.launch { wadbConnectionViewModel.start(this@BaseEditorActivity) }
 		}
+
+		appLogsCoordinator = AppLogsCoordinator(appLogsViewModel)
+		lifecycle.addObserver(appLogsCoordinator!!)
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
