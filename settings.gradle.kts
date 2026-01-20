@@ -144,6 +144,8 @@ include(
 	":lsp:api",
 	":lsp:models",
 	":lsp:java",
+	":lsp:kotlin",
+	":lsp:kotlin-core",
 	":lsp:xml",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
