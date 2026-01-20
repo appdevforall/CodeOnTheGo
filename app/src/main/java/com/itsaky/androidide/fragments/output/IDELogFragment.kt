@@ -24,19 +24,23 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.logging.GlobalBufferAppender
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.viewmodel.LogViewModel
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 /**
  * Fragment to show IDE logs.
  * @author Akash Yadav
  */
 class IDELogFragment :
-	LogViewFragment(),
+	LogViewFragment<LogViewModel>(),
 	GlobalBufferAppender.Consumer {
 	override fun isSimpleFormattingEnabled() = true
 
 	override fun getShareableFilename() = "ide_logs"
 
 	override val tooltipTag = TooltipTag.PROJECT_IDE_LOGS
+
+	override val viewModel by activityViewModel<LogViewModel>()
 
 	override val logLevel: Level
 		get() = if (FeatureFlags.isDebugLoggingEnabled) Level.DEBUG else Level.INFO

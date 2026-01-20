@@ -27,7 +27,7 @@ import kotlin.time.Duration.Companion.milliseconds
 /**
  * @author Akash Yadav
  */
-class LogViewModel : ViewModel() {
+abstract class LogViewModel : ViewModel() {
 
 	companion object {
 

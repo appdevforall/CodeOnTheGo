@@ -20,7 +20,6 @@ package com.itsaky.androidide.fragments.output
 import android.os.Bundle
 import android.view.View
 import androidx.annotation.UiThread
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
@@ -46,7 +45,7 @@ import org.slf4j.LoggerFactory
  *
  * @author Akash Yadav
  */
-abstract class LogViewFragment :
+abstract class LogViewFragment<V: LogViewModel> :
 	EmptyStateFragment<FragmentLogBinding>(R.layout.fragment_log, FragmentLogBinding::bind),
 	ShareableOutputFragment {
 
@@ -56,11 +55,11 @@ abstract class LogViewFragment :
 
 	}
 
-	private val viewModel by viewModels<LogViewModel>()
-
 	override val currentEditor: IDEEditor? get() = _binding?.editor
 
 	open val tooltipTag = ""
+
+	abstract val viewModel: V
 
 	/**
 	 * Append a log line to the log view.

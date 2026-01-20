@@ -32,6 +32,8 @@ import com.itsaky.androidide.services.log.LogReceiverImpl
 import com.itsaky.androidide.services.log.LogReceiverService
 import com.itsaky.androidide.services.log.LogReceiverServiceConnection
 import com.itsaky.androidide.services.log.lookupLogService
+import com.itsaky.androidide.viewmodel.LogViewModel
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -39,12 +41,14 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Fragment to show application logs.
  * @author Akash Yadav
  */
-class AppLogFragment : LogViewFragment() {
+class AppLogFragment : LogViewFragment<LogViewModel>() {
 	private val isBoundToLogReceiver = AtomicBoolean(false)
 
 	private var logServiceConnection: LogReceiverServiceConnection? = null
 	private var logReceiverImpl: LogReceiverImpl? = null
 	override val tooltipTag = TooltipTag.PROJECT_APP_LOGS
+
+	override val viewModel by activityViewModel<LogViewModel>()
 
 	private val logServiceConnectionObserver =
 		object : BroadcastReceiver() {
