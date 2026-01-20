@@ -55,7 +55,7 @@ public class LogSenderService extends Service {
     Logger.debug("[LogSenderService] onCreate()");
     super.onCreate();
     setupNotificationChannel();
-//    startForeground(NOTIFICATION_ID, buildNotification());
+    startForeground(NOTIFICATION_ID, buildNotification());
   }
 
   @Override
