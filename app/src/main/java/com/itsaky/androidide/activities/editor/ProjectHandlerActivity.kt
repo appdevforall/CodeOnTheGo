@@ -116,12 +116,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
 
-	val findInProjectDialog: AlertDialog
+	val findInProjectDialog: AlertDialog?
 		get() {
 			if (mFindInProjectDialog == null) {
 				createFindInProjectDialog()
 			}
-			return mFindInProjectDialog!!
+			return mFindInProjectDialog
 		}
 
 	fun findActionDialog(actionData: ActionData): FindActionDialog {
