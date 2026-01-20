@@ -32,7 +32,6 @@ object ViolationHandler {
 	 * @param violation The violation that was detected.
 	 */
 	fun log(violation: ViolationDispatcher.Violation) {
-		logger.warn(WARN_VIOLATION_MESSAGE, violation.violation)
 	}
 
 	/**

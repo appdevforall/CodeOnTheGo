@@ -38,8 +38,10 @@ import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
+import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.utils.DocumentUtils
 import java.io.File
@@ -136,6 +138,7 @@ class KotlinLanguageServer : ILanguageServer {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val classpaths = mutableSetOf<File>()
+                val bootClasspaths = mutableSetOf<File>()
 
                 for (project in workspace.subProjects) {
                     log.debug("Checking project: {} (type={})", project.name, project::class.simpleName)
@@ -143,10 +146,18 @@ class KotlinLanguageServer : ILanguageServer {
                         val projectClasspaths = project.getCompileClasspaths()
                         log.debug("Project {} has {} classpath entries", project.name, projectClasspaths.size)
                         classpaths.addAll(projectClasspaths)
+
+                        if (project is AndroidModule) {
+                            val projectBootClasspaths = project.bootClassPaths
+                            log.debug("Project {} has {} boot classpath entries", project.name, projectBootClasspaths.size)
+                            bootClasspaths.addAll(projectBootClasspaths)
+                        }
                     }
                 }
 
-                log.info("Total classpath entries found: {}", classpaths.size)
+                classpaths.addAll(bootClasspaths.filter { it.exists() })
+
+                log.info("Total classpath entries found: {} (including {} boot classpaths)", classpaths.size, bootClasspaths.size)
                 if (classpaths.isNotEmpty()) {
                     val files = classpaths.filter { it.exists() }
                     log.info("Indexing {} existing classpath entries for Kotlin LSP", files.size)

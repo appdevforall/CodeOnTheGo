@@ -95,10 +95,8 @@ class KotlinLanguageClientBridge(
             }
         }
 
-        if (diagnosticItems.isNotEmpty()) {
-            val result = DiagnosticResult(path, diagnosticItems)
-            ideClient.publishDiagnostics(result)
-        }
+        val result = DiagnosticResult(path, diagnosticItems)
+        ideClient.publishDiagnostics(result)
     }
 
     override fun showMessage(messageParams: MessageParams) {
