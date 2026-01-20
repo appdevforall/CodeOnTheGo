@@ -28,7 +28,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 /**
- * Handles IPC connections from other proceses.
+ * Handles IPC connections from other processes.
  *
  * @author Akash Yadav
  */
