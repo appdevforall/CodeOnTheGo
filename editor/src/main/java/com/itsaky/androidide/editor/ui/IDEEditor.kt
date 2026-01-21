@@ -206,6 +206,9 @@ constructor(
             return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
         }
 
+    val isReadyToAppend: Boolean
+        get() = !isReleased && isAttachedToWindow && isLaidOut
+
     companion object {
         private const val TAG = "TrackpadScrollDebug"
         private const val SELECTION_CHANGE_DELAY = 500L

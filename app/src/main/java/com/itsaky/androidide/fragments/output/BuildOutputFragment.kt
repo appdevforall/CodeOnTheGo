@@ -28,9 +28,6 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 
 	private val unsavedLines: MutableList<String?> = ArrayList()
 
-	private val IDEEditor.isReadyToAppend: Boolean
-		get() = !isReleased && isAttachedToWindow && isLaidOut
-
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
@@ -68,8 +65,10 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		editor?.run {
 			if (!isReadyToAppend || unsavedLines.isEmpty()) return
 
-			for (line in unsavedLines) {
-				append(line)
+			unsavedLines.forEach { line ->
+				line?.let {
+					append(if (it.endsWith("\n")) it else "$it\n")
+				}
 			}
 			unsavedLines.clear()
 			emptyStateViewModel.setEmpty(false)
