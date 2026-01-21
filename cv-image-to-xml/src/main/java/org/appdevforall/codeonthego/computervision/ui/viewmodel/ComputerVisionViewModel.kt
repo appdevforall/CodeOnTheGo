@@ -114,6 +114,7 @@ class ComputerVisionViewModel(
 
     private fun handleCameraResult(uri: Uri, success: Boolean) {
         if (success) {
+            CvAnalyticsUtil.trackImageSelected(fromCamera = true)
             loadImageFromUri(uri)
         } else {
             viewModelScope.launch {
@@ -158,12 +159,12 @@ class ComputerVisionViewModel(
 
             mergeResult
                 .onSuccess { mergedDetections ->
+                    CvAnalyticsUtil.trackDetectionCompleted(
+                        success = true,
+                        detectionCount = mergedDetections.size,
+                        durationMs = System.currentTimeMillis() - startTime
+                    )
                     _uiState.update {
-                        CvAnalyticsUtil.trackDetectionCompleted(
-                            success = true,
-                            detectionCount = mergedDetections.size,
-                            durationMs = System.currentTimeMillis() - startTime
-                        )
                         it.copy(
                             detections = mergedDetections,
                             currentOperation = CvOperation.Idle
