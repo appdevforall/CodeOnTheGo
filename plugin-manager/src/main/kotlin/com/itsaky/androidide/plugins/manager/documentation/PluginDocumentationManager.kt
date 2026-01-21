@@ -499,8 +499,8 @@ class PluginDocumentationManager(private val context: Context) {
         plugin: DocumentationExtension
     ): Boolean = withContext(Dispatchers.IO) {
         if (!isDatabaseAvailable()) {
-            Log.w(TAG, "Documentation database not available, skipping verification for $pluginId")
-            return@withContext false
+            Log.d(TAG, "Documentation database does not exist, initializing for $pluginId...")
+            initialize()
         }
 
         val isInstalled = isPluginDocumentationInstalled(pluginId)
@@ -521,9 +521,13 @@ class PluginDocumentationManager(private val context: Context) {
     suspend fun verifyAllPluginDocumentation(
         plugins: Map<String, DocumentationExtension>
     ): Int = withContext(Dispatchers.IO) {
-        if (!isDatabaseAvailable()) {
-            Log.w(TAG, "Documentation database not available, skipping verification")
+        if (plugins.isEmpty()) {
             return@withContext 0
+        }
+
+        if (!isDatabaseAvailable()) {
+            Log.d(TAG, "Documentation database does not exist, initializing...")
+            initialize()
         }
 
         var recreatedCount = 0
