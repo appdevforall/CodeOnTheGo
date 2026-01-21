@@ -28,6 +28,9 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 
 	private val unsavedLines: MutableList<String?> = ArrayList()
 
+	private val IDEEditor.isReadyToAppend: Boolean
+		get() = !isReleased && isAttachedToWindow && isLaidOut
+
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
@@ -35,12 +38,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		super.onViewCreated(view, savedInstanceState)
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
-		if (unsavedLines.isNotEmpty()) {
-			for (line in unsavedLines) {
-				editor?.append("${line!!.trim()}\n")
-			}
-			unsavedLines.clear()
-		}
+		editor?.post { flushPendingOutputIfReady() }
 	}
 
 	override fun onDestroyView() {
@@ -63,6 +61,18 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 			editor?.append(message).also {
 				emptyStateViewModel.setEmpty(false)
 			}
+		}
+	}
+
+	private fun flushPendingOutputIfReady() {
+		editor?.run {
+			if (!isReadyToAppend || unsavedLines.isEmpty()) return
+
+			for (line in unsavedLines) {
+				append(line)
+			}
+			unsavedLines.clear()
+			emptyStateViewModel.setEmpty(false)
 		}
 	}
 }
