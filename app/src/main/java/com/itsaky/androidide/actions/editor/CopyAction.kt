@@ -35,11 +35,28 @@ class CopyAction(context: Context, override val order: Int) :
         arr.recycle()
     }
 
-    override val id: String = "ide.editor.code.text.copy"
+    companion object {
+      const val ID = "ide.editor.code.text.copy"
+    }
+
+    override val id: String = ID
+
+    override fun prepare(data: ActionData) {
+        super.prepare(data)
+
+        if (!visible) return
+
+        val target = getTextTarget(data)
+
+        visible = target != null
+        enabled = visible && target?.hasSelection() == true
+    }
 
     override suspend fun execAction(data: ActionData): Boolean {
-        val editor = getEditor(data) ?: return false
-        editor.copyText()
+        val target = getTextTarget(data) ?: return false
+        if (!target.hasSelection()) return false
+
+        target.copyText()
         return true
     }
 
