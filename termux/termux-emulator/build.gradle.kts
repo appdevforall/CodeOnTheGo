@@ -13,7 +13,7 @@ android {
         externalNativeBuild {
             ndkBuild {
                 cFlags += arrayOf("-std=c11", "-Wall", "-Wextra", "-Werror", "-Os", "-fno-stack-protector", "-Wl,--gc-sections")
-                ldFlags += arrayOf("-Wl,-z,max-page-size=16384")
+                // Note: Linker flags for 16 KB alignment are set in Android.mk via LOCAL_LDFLAGS
             }
         }
     }

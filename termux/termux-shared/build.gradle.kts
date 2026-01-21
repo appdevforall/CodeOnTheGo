@@ -9,17 +9,10 @@ android {
     namespace = "com.termux.shared"
     ndkVersion = BuildConfig.NDK_VERSION
 
-    defaultConfig {
-        externalNativeBuild {
-            ndkBuild {
-                ldFlags += arrayOf("-Wl,-z,max-page-size=16384")
-            }
-        }
-    }
-
     externalNativeBuild {
         ndkBuild {
             path = file("src/main/cpp/Android.mk")
+            // Note: Linker flags for 16 KB alignment are set in Android.mk via LOCAL_LDFLAGS
         }
     }
 }
