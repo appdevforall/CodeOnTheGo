@@ -153,6 +153,10 @@ android {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/gradle/incremental.annotation.processors")
         }
+        // Note: Native libraries (.so files) are configured to be uncompressed via the noCompress set
+        // below. All locally-built native libraries have been configured with 16 KB page alignment
+        // linker flags (-Wl,-z,max-page-size=16384). External dependencies (libandroid-tree-sitter.so,
+        // libdt_socket.so, libjdwp.so, libnpt.so) require updates from their maintainers for 16 KB alignment.
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

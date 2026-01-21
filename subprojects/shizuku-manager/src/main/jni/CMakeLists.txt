@@ -10,11 +10,12 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("Builing Release...")
 
     add_compile_options(-Os -flto -fvisibility=hidden -fvisibility-inlines-hidden)
-    add_link_options(-flto -Wl,--exclude-libs,ALL -Wl,--gc-sections -Wl,--strip-all)
+    add_link_options(-flto -Wl,--exclude-libs,ALL -Wl,--gc-sections -Wl,--strip-all -Wl,-z,max-page-size=16384)
 else ()
     message("Builing Debug...")
 
     add_definitions(-DDEBUG)
+    add_link_options(-Wl,-z,max-page-size=16384)
 endif ()
 
 find_package(boringssl REQUIRED CONFIG)
@@ -23,6 +24,7 @@ find_package(cxx REQUIRED CONFIG)
 add_executable(libshizuku.so
         starter.cpp misc.cpp selinux.cpp cgroup.cpp)
 
+target_link_options(libshizuku.so PRIVATE -Wl,-z,max-page-size=16384)
 target_link_libraries(libshizuku.so log cxx::cxx)
 
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -33,6 +35,7 @@ endif ()
 add_library(adb SHARED
         adb_pairing.cpp misc.cpp)
 
+target_link_options(adb PRIVATE -Wl,-z,max-page-size=16384)
 target_link_libraries(adb log boringssl::crypto_static cxx::cxx)
 
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")

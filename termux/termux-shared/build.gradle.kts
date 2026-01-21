@@ -9,6 +9,14 @@ android {
     namespace = "com.termux.shared"
     ndkVersion = BuildConfig.NDK_VERSION
 
+    defaultConfig {
+        externalNativeBuild {
+            ndkBuild {
+                ldFlags += arrayOf("-Wl,-z,max-page-size=16384")
+            }
+        }
+    }
+
     externalNativeBuild {
         ndkBuild {
             path = file("src/main/cpp/Android.mk")

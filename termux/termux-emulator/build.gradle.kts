@@ -13,6 +13,7 @@ android {
         externalNativeBuild {
             ndkBuild {
                 cFlags += arrayOf("-std=c11", "-Wall", "-Wextra", "-Werror", "-Os", "-fno-stack-protector", "-Wl,--gc-sections")
+                ldFlags += arrayOf("-Wl,-z,max-page-size=16384")
             }
         }
     }
