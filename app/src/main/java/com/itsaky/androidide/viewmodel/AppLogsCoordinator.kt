@@ -75,6 +75,7 @@ class AppLogsCoordinator(
 
 				// release the connection listener
 				logServiceConnection.onConnected = null
+				isBoundToLogReceiver.set(false)
 				return
 			}
 
