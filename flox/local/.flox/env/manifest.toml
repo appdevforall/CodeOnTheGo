@@ -51,18 +51,22 @@ on-activate = '''
   fi
 
   # Set git-hooks, if required
-  for hook_name in "pre-commit" "pre-push"; do
-    hook=".git/hooks/$hook_name"
-    if ! [ -f "$hook" ] || ! grep -q 'COGO_GIT_HOOK' "$hook"; then
-      echo "Updating $hook_name hook..."
-      cat >"$hook" <<'EOF'
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    hooks_dir="$(git rev-parse --git-common-dir)/hooks"
+    mkdir -p "$hooks_dir"
+    for hook_name in "pre-commit" "pre-push"; do
+      hook="$hooks_dir/$hook_name"
+      if ! [ -f "$hook" ] || ! grep -q 'COGO_GIT_HOOK' "$hook"; then
+        echo "Updating $hook_name hook..."
+        cat >"$hook" <<'EOF'
 #!/bin/bash
 # -- COGO_GIT_HOOK
 exec "$(git rev-parse --show-toplevel)/.githooks/hook" "$(basename "$0")"
 EOF
-      chmod +x "$hook"
-    fi
-  done
+        chmod +x "$hook"
+      fi
+    done
+  fi
 '''
 
 
