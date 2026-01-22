@@ -211,6 +211,9 @@
 	<string name="classtype_activity">Activity</string>
 	<string name="title_interface">Interface</string>
 	<string name="classtype_enum">Enum</string>
+	<string name="lang_java">Java</string>
+	<string name="lang_kotlin">Kotlin</string>
+	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
 
 	<!-- Code Editor -->
