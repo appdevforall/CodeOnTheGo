@@ -120,6 +120,8 @@ import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
+import com.itsaky.androidide.viewmodel.AppLogsCoordinator
+import com.itsaky.androidide.viewmodel.AppLogsViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
@@ -185,10 +187,13 @@ abstract class BaseEditorActivity :
 	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
 	val wadbConnectionViewModel by viewModels<WADBConnectionViewModel>()
 
+	val appLogsViewModel by viewModels<AppLogsViewModel>()
+	var appLogsCoordinator: AppLogsCoordinator? = null
+
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
 	val binding: ActivityEditorBinding
-        get() = _binding ?: throw IllegalStateException("Activity destroyed; binding not accessible")
+		get() = _binding ?: throw IllegalStateException("Activity destroyed; binding not accessible")
 	val content: ContentEditorBinding
 		get() = binding.content
 
@@ -399,6 +404,9 @@ abstract class BaseEditorActivity :
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 		if (isAtLeastR()) wadbConnectionViewModel.stop(this)
 
+		appLogsCoordinator?.also(lifecycle::removeObserver)
+		appLogsCoordinator = null
+
 		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
 		drawerToggle = null
 		bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
@@ -565,6 +573,10 @@ abstract class BaseEditorActivity :
 		if (isAtLeastR() && !Shizuku.pingBinder()) {
 			lifecycleScope.launch { wadbConnectionViewModel.start(this@BaseEditorActivity) }
 		}
+
+		appLogsCoordinator =
+			AppLogsCoordinator(appLogsViewModel)
+				.also(lifecycle::addObserver)
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
