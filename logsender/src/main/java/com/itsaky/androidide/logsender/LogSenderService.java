@@ -68,11 +68,11 @@ public class LogSenderService extends Service {
 		Logger.debug("[LogSenderService] [onDestroy]");
 		if (!logSender.isConnected() && !logSender.isBinding()) {
 			Logger.debug("Not bound to AndroidIDE. Ignored.");
-			return;
+		} else {
+			Logger.warn("Service is being destroyed. Destroying log sender...");
+			logSender.destroy(getApplicationContext());
 		}
 
-		Logger.warn("Service is being destroyed. Destroying log sender...");
-		logSender.destroy(getApplicationContext());
 		super.onDestroy();
 	}
 
