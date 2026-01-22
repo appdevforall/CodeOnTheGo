@@ -35,6 +35,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.templates.base.models.Dependency
+import com.itsaky.androidide.utils.ClassBuilder.SourceLanguage
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ProjectWriter
@@ -174,13 +175,13 @@ class NewFileAction(val context: Context, override val order: Int) :
       }
     )
     builder.setView(binding.root)
-    builder.setTitle(R.string.new_java_class)
+    builder.setTitle(R.string.new_file)
     builder.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
       dialogInterface.dismiss()
       try {
-        doCreateJavaFile(binding, file, context, node)
+        doCreateSourceFile(binding, file, context, node)
       } catch (e: Exception) {
-        log.error("Failed to create Java file", e)
+        log.error("Failed to create source file", e)
         flashError(e.cause?.message ?: e.message)
       }
     }
@@ -189,7 +190,6 @@ class NewFileAction(val context: Context, override val order: Int) :
         .showWithLongPressTooltip(
             context = context,
             tooltipTag = TooltipTag.PROJECT_FOLDER_NEWTYPE,
-            // Pass the specific buttons to the helper function
             binding.typeClass,
             binding.typeActivity,
             binding.typeInterface,
@@ -197,7 +197,7 @@ class NewFileAction(val context: Context, override val order: Int) :
         )
   }
 
-  private fun doCreateJavaFile(
+  private fun doCreateSourceFile(
     binding: LayoutCreateFileJavaBinding,
     file: File,
     context: Context,
@@ -214,70 +214,71 @@ class NewFileAction(val context: Context, override val order: Int) :
       return
     }
 
+    val isKotlin = binding.languageGroup.checkedButtonId == binding.langKotlin.id
+    val language = if (isKotlin) SourceLanguage.KOTLIN else SourceLanguage.JAVA
+    val extension = if (isKotlin) ".kt" else ".java"
+
     val autoLayout =
       binding.typeGroup.checkedButtonId == binding.typeActivity.id &&
           binding.createLayout.isChecked
     val pkgName = ProjectWriter.getPackageName(file)
 
     val id: Int = binding.typeGroup.checkedButtonId
-    val javaName = if (name.endsWith(".java")) name else "$name.java"
+    val fileName = if (name.endsWith(extension)) name else "$name$extension"
     val className = if (!name.contains(".")) name else name.substring(0, name.lastIndexOf("."))
 
-    // Package Structure Check: When the package is "com", it checks if a com subdirectory exists within the current directory.
-    // If com/ exists, it means the package structure is organized correctly.
-    // The Java file should be created within com/ to maintain package consistency.
-    // If the com subdirectory does not exist, use the original directory (file), avoiding FileNotFoundException errors.
-    val javaFileDirectory = if (pkgName == "com") {
+    val sourceFileDirectory = if (pkgName == "com") {
       val subDir = File(file, "com")
       if (subDir.exists() && subDir.isDirectory) subDir else file
     } else {
       file
     }
 
-      when (id) {
-        binding.typeClass.id ->
-          createFile(
-              node,
-              javaFileDirectory,
-              javaName,
-              ProjectWriter.createJavaClass(pkgName, className),
+    when (id) {
+      binding.typeClass.id ->
+        createFile(
+          node,
+          sourceFileDirectory,
+          fileName,
+          ProjectWriter.createClass(pkgName, className, language),
+        )
+
+      binding.typeInterface.id ->
+        createFile(
+          node,
+          sourceFileDirectory,
+          fileName,
+          ProjectWriter.createInterface(pkgName, className, language)
+        )
+
+      binding.typeEnum.id ->
+        createFile(
+          node,
+          sourceFileDirectory,
+          fileName,
+          ProjectWriter.createEnum(pkgName, className, language)
+        )
+
+      binding.typeActivity.id -> {
+        val appCompat = Dependency.AndroidX.AppCompat
+        val projectManager = ProjectManagerImpl.getInstance()
+        val hasAppCompatDependency = projectManager.findModuleForFile(file)
+          ?.hasExternalDependency(appCompat.group, appCompat.artifact)
+        createFile(
+          node,
+          sourceFileDirectory,
+          fileName,
+          ProjectWriter.createActivity(
+            pkgName,
+            className,
+            hasAppCompatDependency ?: false,
+            language
           )
-
-        binding.typeInterface.id ->
-          createFile(
-            node,
-            javaFileDirectory,
-            javaName,
-            ProjectWriter.createJavaInterface(pkgName, className)
-          )
-
-        binding.typeEnum.id ->
-          createFile(
-            node,
-            javaFileDirectory,
-            javaName,
-            ProjectWriter.createJavaEnum(pkgName, className)
-          )
-
-		  binding.typeActivity.id -> {
-			  val appCompat = Dependency.AndroidX.AppCompat
-			  val projectManager = ProjectManagerImpl.getInstance()
-			  val hasAppCompatDependency = projectManager.findModuleForFile(file)
-				  ?.hasExternalDependency(appCompat.group, appCompat.artifact)
-			  createFile(
-				  node,
-				  javaFileDirectory,
-				  javaName,
-				  ProjectWriter.createActivity(
-					  pkgName,
-					  className,
-					  hasAppCompatDependency ?: false
-				  )
-			  )
-		  }
-
-        else -> createFile(node, javaFileDirectory, name, "")
+        )
       }
+
+      else -> createFile(node, sourceFileDirectory, name, "")
+    }
 
     node?.let {
       requestCollapseNode(it, true)
@@ -285,7 +286,7 @@ class NewFileAction(val context: Context, override val order: Int) :
 
     if (autoLayout) {
       val packagePath = pkgName.toString().replace(".", "/")
-      createAutoLayout(context, javaFileDirectory, name, packagePath)
+      createAutoLayout(context, sourceFileDirectory, name, packagePath, isKotlin)
     }
   }
 
@@ -306,10 +307,12 @@ class NewFileAction(val context: Context, override val order: Int) :
     context: Context,
     directory: File,
     fileName: String,
-    packagePath: String
+    packagePath: String,
+    isKotlin: Boolean = false
   ) {
     val dir = directory.toString().replace("java/$packagePath", "res/layout/")
-    val layoutName = ProjectWriter.createLayoutName(fileName.replace(".java", ".xml"))
+    val sourceExtension = if (isKotlin) ".kt" else ".java"
+    val layoutName = ProjectWriter.createLayoutName(fileName.replace(sourceExtension, ".xml"))
     val newFileLayout = File(dir, layoutName)
     if (newFileLayout.exists()) {
       flashError(R.string.msg_layout_file_exists)
