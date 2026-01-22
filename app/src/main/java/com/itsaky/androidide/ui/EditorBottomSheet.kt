@@ -18,6 +18,8 @@
 package com.itsaky.androidide.ui
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.util.AttributeSet
 import android.util.Log
@@ -25,6 +27,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.core.graphics.Insets
@@ -59,7 +62,9 @@ import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
+import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import kotlinx.coroutines.Dispatchers
@@ -180,6 +185,12 @@ constructor(
 						binding.clearFab.hide()
 						binding.shareOutputFab.hide()
 					}
+
+					if (tab.position == EditorBottomSheetTabAdapter.TAB_DIAGNOSTICS) {
+						binding.copyDiagnosticsFab.show()
+					} else {
+						binding.copyDiagnosticsFab.hide()
+					}
 				}
 
 				override fun onTabUnselected(tab: Tab) {}
@@ -232,6 +243,10 @@ constructor(
 		}
 		binding.clearFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
 
+		binding.copyDiagnosticsFab.setOnClickListener {
+			copyDiagnosticsToClipboard()
+		}
+
 		binding.headerContainer.setOnClickListener {
 			viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 		}
@@ -255,6 +270,7 @@ constructor(
     binding.shareOutputFab.setOnLongClickListener(null)
     binding.clearFab.setOnClickListener(null)
     binding.clearFab.setOnLongClickListener(null)
+    binding.copyDiagnosticsFab.setOnClickListener(null)
     binding.headerContainer.setOnClickListener(null)
     ViewCompat.setOnApplyWindowInsetsListener(this, null)
 
@@ -516,5 +532,24 @@ constructor(
 		Files.write(path, text.toByteArray(StandardCharsets.UTF_8), CREATE_NEW, WRITE)
 
 		return path.toFile()
+	}
+
+	private fun copyDiagnosticsToClipboard() {
+		if (!IDELanguageClientImpl.isInitialized()) {
+			flashError(context.getString(string.msg_no_diagnostics_to_copy))
+			return
+		}
+
+		val diagnostics = IDELanguageClientImpl.getInstance().allDiagnostics
+		if (diagnostics.isEmpty()) {
+			flashError(context.getString(string.msg_no_diagnostics_to_copy))
+			return
+		}
+
+		val formatted = DiagnosticsFormatter.format(diagnostics)
+		val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+		clipboard.setPrimaryClip(ClipData.newPlainText("diagnostics", formatted))
+
+		Toast.makeText(context, string.msg_diagnostics_copied, Toast.LENGTH_SHORT).show()
 	}
 }

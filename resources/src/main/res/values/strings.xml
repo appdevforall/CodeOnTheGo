@@ -990,4 +990,8 @@
     <string name="ai_setting_initializing_engine">Initializing engine</string>
     <string name="ai_setting_engine_ready">Engine is ready.</string>
 	<string name="title_image_to_layout">Image to Layout</string>
+
+	<!-- Copy Diagnostics -->
+	<string name="msg_diagnostics_copied">Diagnostics copied to clipboard</string>
+	<string name="msg_no_diagnostics_to_copy">No diagnostics to copy</string>
 </resources>

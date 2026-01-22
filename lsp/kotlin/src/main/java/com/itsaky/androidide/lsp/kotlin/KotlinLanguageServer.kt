@@ -104,12 +104,23 @@ class KotlinLanguageServer : ILanguageServer {
         this._client = client
         if (client != null) {
             val positionResolver: PositionToOffsetResolver = { uri ->
-                ktLspServer.getDocumentManager().get(uri)?.let { state ->
-                    state::positionToOffset
+                val normalizedUri = normalizeUri(uri)
+                val state = ktLspServer.getDocumentManager().get(normalizedUri)
+                if (state == null) {
+                    log.debug("positionResolver: no document state for URI: {} (normalized: {})", uri, normalizedUri)
                 }
+                state?.let { it::positionToOffset }
             }
             clientBridge = KotlinLanguageClientBridge(client, positionResolver)
             ktLspServer.connect(clientBridge!!)
+        }
+    }
+
+    private fun normalizeUri(uri: String): String {
+        return try {
+            java.net.URI(uri).normalize().toString()
+        } catch (e: Exception) {
+            uri
         }
     }
 
@@ -289,20 +300,31 @@ class KotlinLanguageServer : ILanguageServer {
     }
 
     override suspend fun analyze(file: Path): DiagnosticResult {
+        log.debug("analyze() called for file: {}", file)
+
         if (!settings.diagnosticsEnabled() || !settings.codeAnalysisEnabled()) {
+            log.debug("analyze() skipped: diagnosticsEnabled={}, codeAnalysisEnabled={}",
+                settings.diagnosticsEnabled(), settings.codeAnalysisEnabled())
             return DiagnosticResult.NO_UPDATE
         }
 
         if (!DocumentUtils.isKotlinFile(file)) {
+            log.debug("analyze() skipped: not a Kotlin file")
             return DiagnosticResult.NO_UPDATE
         }
 
-        val state = ktLspServer.getDocumentManager().get(file.toUri().toString())
-            ?: return DiagnosticResult.NO_UPDATE
+        val uri = file.toUri().toString()
+        val state = ktLspServer.getDocumentManager().get(uri)
+        if (state == null) {
+            log.warn("analyze() skipped: document state not found for URI: {}", uri)
+            return DiagnosticResult.NO_UPDATE
+        }
 
-        ktLspServer.getAnalysisScheduler().analyzeSync(file.toUri().toString())
+        ktLspServer.getAnalysisScheduler().analyzeSync(uri)
 
         val diagnostics = state.diagnostics
+        log.info("analyze() completed: {} diagnostics found for {}", diagnostics.size, file.fileName)
+
         return DiagnosticResult(file, diagnostics.map { it.toIde(state::positionToOffset) })
     }
 
@@ -316,10 +338,14 @@ class KotlinLanguageServer : ILanguageServer {
         selectedFile = event.openedFile
         val uri = event.openedFile.toUri().toString()
 
+        log.debug("onDocumentOpen: uri={}, version={}, textLen={}", uri, event.version, event.text.length)
+
         val params = DidOpenTextDocumentParams().apply {
             textDocument = TextDocumentItem(uri, "kotlin", event.version, event.text)
         }
         ktLspServer.textDocumentService.didOpen(params)
+
+        analyzeCurrentFileAsync()
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
@@ -330,13 +356,21 @@ class KotlinLanguageServer : ILanguageServer {
         }
 
         val uri = event.changedFile.toUri().toString()
-        val changeText = event.newText ?: event.changedText
+
+        log.debug("onDocumentChange: uri={}, version={}", uri, event.version)
+        log.debug("  changeRange={}, changedText='{}', newText.len={}",
+            event.changeRange, event.changedText, event.newText?.length ?: -1)
+
+        val changeText = event.changedText
         val changes = listOf(
             TextDocumentContentChangeEvent().apply {
                 range = event.changeRange.toLsp4j()
                 text = changeText
             }
         )
+
+        log.debug("  sending to ktlsp: range={}, text='{}' ({} chars)",
+            event.changeRange, changeText, changeText.length)
 
         val params = DidChangeTextDocumentParams().apply {
             textDocument = VersionedTextDocumentIdentifier(uri, event.version)
@@ -373,6 +407,29 @@ class KotlinLanguageServer : ILanguageServer {
         }
 
         selectedFile = event.selectedFile
+        val uri = event.selectedFile.toUri().toString()
+
+        log.debug("onDocumentSelected: uri={}", uri)
+
+        val existingState = ktLspServer.getDocumentManager().get(uri)
+        if (existingState == null) {
+            log.info("onDocumentSelected: document not open in KtLsp, opening it first: {}", uri)
+            log.debug("  available uris: {}", ktLspServer.getDocumentManager().openUris.take(5))
+            try {
+                val content = event.selectedFile.toFile().readText()
+                log.debug("  read {} chars from disk", content.length)
+                val params = DidOpenTextDocumentParams().apply {
+                    textDocument = TextDocumentItem(uri, "kotlin", 0, content)
+                }
+                ktLspServer.textDocumentService.didOpen(params)
+            } catch (e: Exception) {
+                log.error("Failed to open document in KtLsp: {}", uri, e)
+            }
+        } else {
+            log.debug("onDocumentSelected: document already open, version={}, contentLen={}",
+                existingState.version, existingState.content.length)
+        }
+
         analyzeCurrentFileAsync()
     }
 

@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.lsp.kotlin.adapters
 
+import android.util.Log
 import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.models.CompletionItemKind
 import com.itsaky.androidide.lsp.models.DiagnosticItem
@@ -110,6 +111,20 @@ fun Lsp4jInsertTextFormat.toIde(): InsertTextFormat {
 fun Diagnostic.toIde(positionToOffset: (line: Int, column: Int) -> Int): DiagnosticItem {
     val startIndex = positionToOffset(range.startLine, range.startColumn)
     val endIndex = positionToOffset(range.endLine, range.endColumn)
+
+    val expectedColSpan = if (range.startLine == range.endLine) {
+        range.endColumn - range.startColumn
+    } else {
+        -1
+    }
+    val actualIndexSpan = endIndex - startIndex
+
+    Log.i("DIAG-DEBUG", "range=${range.startLine}:${range.startColumn}-${range.endLine}:${range.endColumn} -> idx=$startIndex-$endIndex (colSpan=$expectedColSpan, idxSpan=$actualIndexSpan) '${message.take(50)}'")
+
+    if (expectedColSpan >= 0 && actualIndexSpan != expectedColSpan) {
+        Log.w("DIAG-DEBUG", "MISMATCH! idxSpan=$actualIndexSpan != colSpan=$expectedColSpan")
+    }
+
     return DiagnosticItem(
         message,
         code.name,

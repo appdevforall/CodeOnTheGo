@@ -44,15 +44,21 @@ class KotlinLanguageClientBridge(
     }
 
     override fun publishDiagnostics(diagnostics: PublishDiagnosticsParams) {
+        log.info("[DIAG-DEBUG] publishDiagnostics: uri={}, count={}", diagnostics.uri, diagnostics.diagnostics.size)
+
         val path = try {
             Paths.get(URI(diagnostics.uri))
         } catch (e: Exception) {
             Paths.get(diagnostics.uri)
         }
 
-        val positionToOffset = positionResolver(diagnostics.uri)
+        val positionToOffset = positionResolver(diagnostics.uri) ?: run {
+            log.warn("[DIAG-DEBUG] Position resolver NULL for: {}, using fallback", diagnostics.uri)
+            createFallbackPositionCalculator(path)
+        }
+
         if (positionToOffset == null) {
-            log.warn("No position resolver for URI: {}. Diagnostics will be skipped.", diagnostics.uri)
+            log.error("[DIAG-DEBUG] No resolver, dropping {} diagnostics for: {}", diagnostics.diagnostics.size, diagnostics.uri)
             return
         }
 
@@ -60,6 +66,25 @@ class KotlinLanguageClientBridge(
             try {
                 val startIndex = positionToOffset(diag.range.start.line, diag.range.start.character)
                 val endIndex = positionToOffset(diag.range.end.line, diag.range.end.character)
+
+                val expectedColSpan = if (diag.range.start.line == diag.range.end.line) {
+                    diag.range.end.character - diag.range.start.character
+                } else {
+                    -1
+                }
+                val actualIndexSpan = endIndex - startIndex
+
+                log.info("[DIAG-DEBUG] range={}:{}-{}:{} -> idx={}-{} (colSpan={}, idxSpan={}) '{}'",
+                    diag.range.start.line, diag.range.start.character,
+                    diag.range.end.line, diag.range.end.character,
+                    startIndex, endIndex,
+                    expectedColSpan, actualIndexSpan,
+                    diag.message.take(50)
+                )
+
+                if (expectedColSpan >= 0 && actualIndexSpan != expectedColSpan) {
+                    log.warn("[DIAG-DEBUG] MISMATCH! idxSpan={} != colSpan={}", actualIndexSpan, expectedColSpan)
+                }
 
                 val startPos = com.itsaky.androidide.models.Position(
                     diag.range.start.line,
@@ -96,7 +121,44 @@ class KotlinLanguageClientBridge(
         }
 
         val result = DiagnosticResult(path, diagnosticItems)
+        log.info("[DIAG-DEBUG] Publishing {} diagnostics to IDE", diagnosticItems.size)
         ideClient.publishDiagnostics(result)
+    }
+
+    private fun createFallbackPositionCalculator(path: java.nio.file.Path): ((Int, Int) -> Int)? {
+        return try {
+            val file = path.toFile()
+            if (!file.exists() || !file.isFile) {
+                log.warn("File does not exist for fallback position calculation: {}", path)
+                return null
+            }
+
+            val content = file.readText()
+            val lineOffsets = mutableListOf<Int>()
+            lineOffsets.add(0)
+
+            var offset = 0
+            for (char in content) {
+                offset++
+                if (char == '\n') {
+                    lineOffsets.add(offset)
+                }
+            }
+
+            log.info("Created fallback position calculator for {} with {} lines", path, lineOffsets.size)
+
+            val calculator: (Int, Int) -> Int = { line, column ->
+                if (line < lineOffsets.size) {
+                    lineOffsets[line] + column
+                } else {
+                    content.length
+                }
+            }
+            calculator
+        } catch (e: Exception) {
+            log.error("Error creating fallback position calculator for {}: {}", path, e.message)
+            null
+        }
     }
 
     override fun showMessage(messageParams: MessageParams) {
