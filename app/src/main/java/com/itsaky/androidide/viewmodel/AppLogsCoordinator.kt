@@ -125,9 +125,17 @@ class AppLogsCoordinator(
 
 	private fun registerLogConnectionObserver() =
 		runCatching {
+			val context = context ?: run {
+				logger.warn(
+					"attempt to register connection observer for LogReceiverService," +
+							" but no context is available"
+				)
+				return@runCatching
+			}
+
 			val intentFilter = IntentFilter(LogReceiverService.ACTION_CONNECTION_UPDATE)
 			LocalBroadcastManager
-				.getInstance(requireContext())
+				.getInstance(context)
 				.registerReceiver(logBroadcastReceiver, intentFilter)
 		}.onFailure { err ->
 			logger.warn("Failed to register connection observer for LogReceiverService", err)
@@ -135,14 +143,20 @@ class AppLogsCoordinator(
 
 	private fun unregisterLogConnectionObserver() =
 		runCatching {
+			val context = context ?: run {
+				logger.warn(
+					"attempt to unregister connection observer for LogReceiverService," +
+							" but no context is available"
+				)
+				return@runCatching
+			}
+
 			LocalBroadcastManager
-				.getInstance(requireContext())
+				.getInstance(context)
 				.unregisterReceiver(logBroadcastReceiver)
 		}.onFailure { err ->
 			logger.warn("Failed to unregister connection observer for LogReceiverService", err)
 		}
-
-	private fun requireContext() = checkNotNull(context) { "not attached to a context" }
 
 	class LogBroadcastReceiver(
 		private val bind: () -> Unit,
