@@ -561,7 +561,12 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
+		savedInstanceState?.getString(KEY_PROJECT_PATH)?.let(ProjectManagerImpl.getInstance()::projectPath::set)
 		super.onCreate(savedInstanceState)
+
+		editorViewModel.isBuildInProgress = false
+		editorViewModel.isInitializing = false
+
 		mLifecycleObserver = EditorActivityLifecyclerObserver()
 
 		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
@@ -576,12 +581,6 @@ abstract class BaseEditorActivity :
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
 		registerLanguageServers()
-
-		if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
-			savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
-				ProjectManagerImpl.getInstance().projectPath = path
-			}
-		}
 
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 		mLifecycleObserver?.let {
