@@ -3,13 +3,10 @@ package com.itsaky.androidide.app
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import org.appdevforall.codeonthego.computervision.di.computerVisionModule
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.strictmode.StrictModeConfig
 import com.itsaky.androidide.app.strictmode.StrictModeManager
-import com.itsaky.androidide.di.coreModule
-import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.events.AppEventsIndex
 import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
@@ -30,10 +27,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
-import org.koin.android.ext.koin.androidContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
 
@@ -70,11 +65,6 @@ internal object DeviceProtectedApplicationLoader :
 				isReprieveEnabled = FeatureFlags.isReprieveEnabled,
 			),
 		)
-
-		startKoin {
-			androidContext(app)
-			modules(coreModule, pluginModule, computerVisionModule)
-		}
 
 		SentryAndroid.init(app) { options ->
 			// Reduce replay quality to LOW to prevent OOM
