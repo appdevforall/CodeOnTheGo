@@ -103,21 +103,17 @@ class AppLogsCoordinator(
 				return
 			}
 
-			if (!DevOpsPreferences.logsenderEnabled) {
-				return
-			}
-
 			lookupLogService()?.setConsumer(null)
 			logReceiverImpl?.disconnectAll()
 
 			val context = context ?: return
 			context.unbindService(logServiceConnection)
 
-			isBoundToLogReceiver.set(false)
 			logger.info("Unbound from LogReceiver service")
 		} catch (e: Exception) {
 			logger.error("Failed to unbind from LogReceiver service", e)
 		} finally {
+			isBoundToLogReceiver.set(false)
 			logServiceConnection.onConnected = null
 			logReceiverImpl = null
 		}
