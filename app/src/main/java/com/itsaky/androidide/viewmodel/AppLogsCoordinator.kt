@@ -82,7 +82,11 @@ class AppLogsCoordinator(
 			}
 
 			logServiceConnection.onConnected = ::onConnected
-			val context = context ?: return
+			val context = context ?: run {
+				isBoundToLogReceiver.set(false)
+				return
+			}
+
 			val intent =
 				Intent(context, LogReceiverService::class.java).setAction(
 					LogReceiverService.ACTION_CONNECT_LOG_CONSUMER,
