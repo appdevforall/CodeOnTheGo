@@ -67,8 +67,8 @@ abstract class LogViewModel : ViewModel() {
 
 	private val logs =
 		MutableSharedFlow<String>(
-			replay = EVENT_REPLAY_COUNT,
-			extraBufferCapacity = EVENT_REPLAY_COUNT / 3,
+			replay = 0,
+			extraBufferCapacity = EVENT_REPLAY_COUNT,
 			onBufferOverflow = BufferOverflow.DROP_OLDEST,
 		)
 
