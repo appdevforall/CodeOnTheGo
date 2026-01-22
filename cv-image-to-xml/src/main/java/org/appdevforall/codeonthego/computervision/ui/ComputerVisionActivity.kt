@@ -18,18 +18,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.FeedbackButtonManager
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.computervision.R
+import org.appdevforall.codeonthego.computervision.databinding.ActivityComputerVisionBinding
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.ui.viewmodel.ComputerVisionViewModel
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import org.appdevforall.codeonthego.computervision.ui.viewmodel.ComputerVisionViewModel
-import org.appdevforall.codeonthego.computervision.R
-import org.appdevforall.codeonthego.computervision.databinding.ActivityComputerVisionBinding
-import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class ComputerVisionActivity : AppCompatActivity() {
 
@@ -126,6 +126,7 @@ class ComputerVisionActivity : AppCompatActivity() {
     private fun observeViewModel() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.onScreenStarted()
                 viewModel.uiState.collect { state -> updateUi(state) }
             }
         }
