@@ -37,17 +37,7 @@ class AppLogsCoordinator(
 		)
 
 	private val logServiceConnection =
-		LogReceiverServiceConnection { receiverImpl ->
-			logReceiverImpl = receiverImpl
-
-			val receiverService = lookupLogService() ?: return@LogReceiverServiceConnection
-			receiverService.setConsumer { logLine ->
-				viewModel.submit(
-					line = logLine,
-					simpleFormattingEnabled = false,
-				)
-			}
-		}
+		LogReceiverServiceConnection(::onConnected)
 
 	override fun onCreate(owner: LifecycleOwner) {
 		require(owner is Context)
@@ -66,6 +56,18 @@ class AppLogsCoordinator(
 		context = null
 	}
 
+	private fun onConnected(receiverImpl: LogReceiverImpl?) {
+		logReceiverImpl = receiverImpl
+
+		val receiverService = lookupLogService() ?: return
+		receiverService.setConsumer { logLine ->
+			viewModel.submit(
+				line = logLine,
+				simpleFormattingEnabled = false,
+			)
+		}
+	}
+
 	private fun bindToLogReceiver() {
 		if (isBoundToLogReceiver.getAndSet(true)) return
 
@@ -79,6 +81,7 @@ class AppLogsCoordinator(
 				return
 			}
 
+			logServiceConnection.onConnected = ::onConnected
 			val context = context ?: return
 			val intent =
 				Intent(context, LogReceiverService::class.java).setAction(
