@@ -570,7 +570,7 @@ abstract class BaseEditorActivity :
 		}
 
 		appLogsCoordinator = AppLogsCoordinator(appLogsViewModel)
-		lifecycle.addObserver(appLogsCoordinator!!)
+			.also(lifecycle::addObserver)
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
