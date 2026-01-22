@@ -104,7 +104,9 @@ public final class LogSender extends ILogSender.Stub implements ServiceConnectio
 	public void onServiceConnected(ComponentName name, IBinder service) {
 		this.receiver = ILogReceiver.Stub.asInterface(service);
 		if (this.receiver == null) {
-			throw new IllegalStateException("Failed to get log receiver instance");
+			Logger.error("Failed to get log receiver instance");
+			tryUnbind(this.context);
+			return;
 		}
 
 		try {
@@ -113,7 +115,7 @@ public final class LogSender extends ILogSender.Stub implements ServiceConnectio
 			this.isConnected.set(true);
 		} catch (RemoteException e) {
 			Logger.error("Failed to connect to log receiver", e);
-			throw new RuntimeException(e);
+			tryUnbind(this.context);
 		}
 	}
 
