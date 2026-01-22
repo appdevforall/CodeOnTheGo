@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.editor.language.newline
 
+import com.itsaky.androidide.editor.language.utils.IndentCache
 import io.github.rosemoe.sora.lang.smartEnter.NewlineHandleResult
 import io.github.rosemoe.sora.lang.styling.Styles
 import io.github.rosemoe.sora.text.CharPosition
@@ -28,7 +29,8 @@ internal open class BracketsNewlineHandler(
   val useTab: () -> Boolean
 ) : CStyleBracketsHandler() {
 
-	private val maxIndentColumns = 500
+  private val indentCache = IndentCache()
+  val maxIndentColumns = IndentCache.MAX_INDENT_COLUMNS
 
   override fun handleNewline(
     text: Content,
@@ -40,27 +42,35 @@ internal open class BracketsNewlineHandler(
     val index = position.column
     val beforeText = line.subSequence(0, index).toString()
     val afterText = line.subSequence(index, line.length).toString()
-    return handleNewline(beforeText, afterText, tabSize)
+
+    val baseIndent = TextUtils.countLeadingSpaceCount(line, tabSize)
+      .coerceIn(0, maxIndentColumns)
+
+    return handleNewline(beforeText, afterText, baseIndent, tabSize, useTab())
   }
 
   private fun handleNewline(
     beforeText: String?,
     afterText: String?,
-    tabSize: Int
+    baseIndent: Int,
+    tabSize: Int,
+    useTabNow: Boolean
   ): NewlineHandleResult {
-    val count = TextUtils.countLeadingSpaceCount(beforeText!!, tabSize)
     val advanceBefore: Int = getIndentAdvance(beforeText)
     val advanceAfter: Int = getIndentAdvance(afterText)
 
-    val safeCountBefore = count.coerceIn(0, maxIndentColumns)
-    val safeCountAfter = count.coerceIn(0, maxIndentColumns)
-    var text: String
-    val sb =
-      StringBuilder("\n")
-        .append(TextUtils.createIndent(safeCountBefore + advanceBefore, tabSize, useTab()))
-        .append("\n")
-        .append(TextUtils.createIndent(safeCountAfter + advanceAfter, tabSize, useTab()).also { text = it })
-    val shiftLeft = text.length + 1
+    val indentBeforeCols = (baseIndent + advanceBefore).coerceIn(0, maxIndentColumns)
+    val indentAfterCols = (baseIndent + advanceAfter).coerceIn(0, maxIndentColumns)
+
+    val indentBefore = indentCache.indent(indentBeforeCols, tabSize, useTabNow)
+    val indentAfter = indentCache.indent(indentAfterCols, tabSize, useTabNow)
+
+    val sb = StringBuilder(2 + indentBefore.length + indentAfter.length)
+      .append('\n')
+      .append(indentBefore)
+      .append('\n')
+      .append(indentAfter)
+    val shiftLeft = indentAfter.length + 1
     return NewlineHandleResult(sb, shiftLeft)
   }
 }

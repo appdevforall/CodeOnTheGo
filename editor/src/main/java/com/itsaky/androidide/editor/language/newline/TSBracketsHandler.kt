@@ -18,6 +18,7 @@
 package com.itsaky.androidide.editor.language.newline
 
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage
+import com.itsaky.androidide.editor.language.utils.IndentCache
 import io.github.rosemoe.sora.lang.smartEnter.NewlineHandleResult
 import io.github.rosemoe.sora.lang.styling.Styles
 import io.github.rosemoe.sora.text.CharPosition
@@ -31,7 +32,8 @@ import io.github.rosemoe.sora.text.TextUtils
  */
 abstract class TSBracketsHandler(private val language: TreeSitterLanguage) : BaseNewlineHandler() {
 
-  private val maxIndentColumns = 500
+  private val indentCache = IndentCache()
+  val maxIndentColumns = IndentCache.MAX_INDENT_COLUMNS
 
   override fun handleNewline(
     text: Content,
@@ -40,17 +42,20 @@ abstract class TSBracketsHandler(private val language: TreeSitterLanguage) : Bas
     tabSize: Int
   ): NewlineHandleResult {
     val lineText = text.getLine(position.line)
-    val count = TextUtils.countLeadingSpaceCount(lineText, tabSize)
-    val safeCount = count.coerceIn(0, maxIndentColumns)
-    val indentPlusTab = (safeCount + tabSize).coerceIn(0, maxIndentColumns)
-    var txt: String
-    val sb = StringBuilder(indentPlusTab + safeCount + 4)
-      .append("\n")
-      .append(TextUtils.createIndent(indentPlusTab, tabSize, language.useTab()))
-      .append("\n")
-      .append(
-        TextUtils.createIndent(safeCount, tabSize, language.useTab()).also { txt = it }
-      )
-    return NewlineHandleResult(sb, txt.length + 1)
+
+    val baseIndent = TextUtils.countLeadingSpaceCount(lineText, tabSize)
+      .coerceIn(0, maxIndentColumns)
+
+    val indentPlusTab = (baseIndent + tabSize).coerceIn(0, maxIndentColumns)
+    val useTabNow = language.useTab()
+    val innerIndent = indentCache.indent(indentPlusTab, tabSize, useTabNow)
+    val outerIndent = indentCache.indent(baseIndent, tabSize, useTabNow)
+
+    val sb = StringBuilder(2 + innerIndent.length + outerIndent.length)
+      .append('\n')
+      .append(innerIndent)
+      .append('\n')
+      .append(outerIndent)
+    return NewlineHandleResult(sb, outerIndent.length + 1)
   }
 }
