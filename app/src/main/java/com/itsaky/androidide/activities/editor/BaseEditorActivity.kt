@@ -569,8 +569,9 @@ abstract class BaseEditorActivity :
 			lifecycleScope.launch { wadbConnectionViewModel.start(this@BaseEditorActivity) }
 		}
 
-		appLogsCoordinator = AppLogsCoordinator(appLogsViewModel)
-			.also(lifecycle::addObserver)
+		appLogsCoordinator =
+			AppLogsCoordinator(appLogsViewModel)
+				.also(lifecycle::addObserver)
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
