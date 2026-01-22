@@ -28,164 +28,177 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 /**
- * Handles IPC connections from other proceses.
+ * Handles IPC connections from other processes.
  *
  * @author Akash Yadav
  */
-class LogReceiverImpl(consumer: ((LogLine) -> Unit)? = null) : ILogReceiver.Stub(), AutoCloseable {
+class LogReceiverImpl(
+	consumer: ((LogLine) -> Unit)? = null,
+) : ILogReceiver.Stub(),
+	AutoCloseable {
+	private val senderHandler = MultiLogSenderHandler()
+	private val senders = LogSendersRegistry()
+	private val consumerLock = ReentrantLock(true)
+	private val shouldStartReaders = AtomicBoolean(false)
 
-  private val senderHandler = MultiLogSenderHandler()
-  private val senders = LogSendersRegistry()
-  private val consumerLock = ReentrantLock(true)
-  private val shouldStartReaders = AtomicBoolean(false)
+	internal var connectionObserver: ((ConnectionObserverParams) -> Unit)? = null
 
-  internal var connectionObserver: ((ConnectionObserverParams) -> Unit)? = null
+	internal var consumer: ((LogLine) -> Unit)? = consumer
+		set(value) {
+			field = value
+			senderHandler.consumer = value?.let { synchronizeConsumer(value) }
+		}
 
-  internal var consumer: ((LogLine) -> Unit)? = consumer
-    set(value) {
-      field = value
-      senderHandler.consumer = value?.let { synchronizeConsumer(value) }
-    }
+	companion object {
+		private val log = LoggerFactory.getLogger(LogReceiverImpl::class.java)
+	}
 
-  companion object {
+	private fun synchronizeConsumer(consumer: (LogLine) -> Unit): (LogLine) -> Unit = { line -> consumerLock.withLock { consumer(line) } }
 
-    private val log = LoggerFactory.getLogger(LogReceiverImpl::class.java)
-  }
+	fun acceptSenders() {
+		if (senderHandler.isAlive()) {
+			return
+		}
 
-  private fun synchronizeConsumer(consumer: (LogLine) -> Unit): (LogLine) -> Unit {
-    return { line -> consumerLock.withLock { consumer(line) } }
-  }
+		log.info("Starting log sender handler..")
+		senderHandler.start()
+	}
 
-  fun acceptSenders() {
-    if (senderHandler.isAlive()) {
-      return
-    }
+	override fun ping() {
+		doAsync("ping") {
+			Log.d("LogReceiver", "ping: Received a ping request")
+		}
+	}
 
-    log.info("Starting log sender handler..")
-    senderHandler.start()
-  }
+	override fun connect(sender: ILogSender?) {
+		doAsync("connect") {
+			val port = senderHandler.getPort()
+			if (port == -1) {
+				log.error("A log sender is trying to connect, but log receiver is not started")
+				return@doAsync
+			}
 
-  override fun ping() {
-    doAsync("ping") {
-      Log.d("LogRecevier", "ping: Received a ping request")
-    }
-  }
+			val caching = sender?.let { CachingLogSender(it, port, false) } ?: return@doAsync
 
-  override fun connect(sender: ILogSender?) {
-    doAsync("connect") {
-      val port = senderHandler.getPort()
-      if (port == -1) {
-        log.error("A log sender is trying to connect, but log receiver is not started")
-        return@doAsync
-      }
+			val existingSender = senders.getByPackage(caching.packageName)
 
-      val caching = sender?.let { CachingLogSender(it, port, false) } ?: return@doAsync
+			if (existingSender != null) {
+				senderHandler.removeClient(existingSender.id)
+			}
 
-      val existingSender = senders.getByPackage(caching.packageName)
+			if (existingSender?.isAlive() == true) {
+				log.warn(
+					"Client '${existingSender.packageName}' has been restarted with process ID '${caching.pid}'" +
+						" Previous connection with process ID '${existingSender.pid}' will be closed...",
+				)
+				existingSender.onDisconnect()
+			}
 
-      if (existingSender != null) {
-        senderHandler.removeClient(existingSender.id)
-      }
+			connectSender(caching, port)
+		}
+	}
 
-      if (existingSender?.isAlive() == true) {
-        log.warn(
-          "Client '${existingSender.packageName}' has been restarted with process ID '${caching.pid}'" +
-              " Previous connection with process ID '${existingSender.pid}' will be closed...")
-        existingSender.onDisconnect()
-      }
+	private fun connectSender(
+		caching: CachingLogSender,
+		port: Int,
+	) {
+		// logging this also makes sure that the package name, pid and sender ID are
+		// cached when the sender binds to the service
+		// these fields are then used on disconnectAll()
+		log.info("Connecting to client {}:{}:{}", caching.packageName, caching.pid, caching.id)
 
-      connectSender(caching, port)
-    }
-  }
+		this.senders.put(caching)
 
-  private fun connectSender(caching: CachingLogSender, port: Int) {
-    // logging this also makes sure that the package name, pid and sender ID are
-    // cached when the sender binds to the service
-    // these fields are then used on disconnectAll()
-    log.info("Connecting to client {}:{}:{}", caching.packageName, caching.pid, caching.id)
+		if (shouldStartReaders.get()) {
+			caching.startReader(port)
+			caching.isStarted = true
+		}
 
-    this.senders.put(caching)
+		logTotalConnected()
 
-    if (shouldStartReaders.get()) {
-      caching.startReader(port)
-      caching.isStarted = true
-    }
+		notifyConnectionObserver(caching.id)
+	}
 
-    logTotalConnected()
+	internal fun startReaders() {
+		this.shouldStartReaders.set(true)
 
-    notifyConnectionObserver(caching.id)
-  }
+		doAsync("startReaders") {
+			senders.getPendingSenders().forEach { sender ->
+				log.info("Notifying sender '{}' to start reading logs...", sender.packageName)
+				sender.startReader(sender.port)
+			}
+		}
+	}
 
-  internal fun startReaders() {
-    this.shouldStartReaders.set(true)
+	override fun disconnect(
+		packageName: String,
+		senderId: String,
+	) {
+		doAsync("disconnect") {
+			val port = senderHandler.getPort()
+			if (port == -1) {
+				return@doAsync
+			}
 
-    doAsync("startReaders") {
-      senders.getPendingSenders().forEach { sender ->
-        log.info("Notifying sender '{}' to start reading logs...", sender.packageName)
-        sender.startReader(sender.port)
-      }
-    }
-  }
+			if (!senders.containsKey(packageName)) {
+				log.warn(
+					"Received disconnect request from a log sender which is not connected: '$packageName'",
+				)
+				return@doAsync
+			}
 
-  override fun disconnect(packageName: String, senderId: String) {
-    doAsync("disconnect") {
-      val port = senderHandler.getPort()
-      if (port == -1) {
-        return@doAsync
-      }
+			disconnectSender(packageName, senderId)
+		}
+	}
 
-      if (!senders.containsKey(packageName)) {
-        log.warn(
-          "Received disconnect request from a log sender which is not connected: '${packageName}'")
-        return@doAsync
-      }
+	internal fun disconnectAll() {
+		log.debug("Disconnecting from all senders...")
+		this.senders.forEach { sender ->
+			try {
+				sender.onDisconnect()
+				disconnectSender(sender.packageName, sender.id)
+			} catch (e: Exception) {
+				log.error("Failed to disconnect from sender", e)
+			}
+		}
+	}
 
-      disconnectSender(packageName, senderId)
-    }
-  }
+	private fun disconnectSender(
+		packageName: String,
+		senderId: String,
+	) {
+		log.info("Disconnecting from client: '{}'", packageName)
+		this.senderHandler.removeClient(senderId)
+		this.senders.remove(packageName)
+		logTotalConnected()
 
-  internal fun disconnectAll() {
-    log.debug("Disconnecting from all senders...")
-    this.senders.forEach { sender ->
-      try {
-        sender.onDisconnect()
-        disconnectSender(sender.packageName, sender.id)
-      } catch (e: Exception) {
-        log.error("Failed to disconnect from sender", e)
-      }
-    }
-  }
+		notifyConnectionObserver(senderId)
+	}
 
-  private fun disconnectSender(packageName: String, senderId: String) {
-    log.info("Disconnecting from client: '{}'", packageName)
-    this.senderHandler.removeClient(senderId)
-    this.senders.remove(packageName)
-    logTotalConnected()
+	override fun close() {
+		// TODO : Send close request to clients
+		senderHandler.close()
+		consumer = null
+		connectionObserver = null
+		senders.clear()
+	}
 
-    notifyConnectionObserver(senderId)
-  }
+	private fun doAsync(
+		actionName: String,
+		action: () -> Unit,
+	) {
+		executeAsyncProvideError(action::invoke) { _, error ->
+			if (error != null) {
+				log.error("Failed to perform action '{}'", actionName, error)
+			}
+		}
+	}
 
-  override fun close() {
-    // TODO : Send close request to clients
-    senderHandler.close()
-    consumer = null
-    connectionObserver = null
-    senders.clear()
-  }
+	private fun notifyConnectionObserver(senderId: String) {
+		connectionObserver?.invoke(ConnectionObserverParams(senderId, this.senders.size))
+	}
 
-  private fun doAsync(actionName: String, action: () -> Unit) {
-    executeAsyncProvideError(action::invoke) { _, error ->
-      if (error != null) {
-        log.error("Failed to perform action '{}'", actionName, error)
-      }
-    }
-  }
-
-  private fun notifyConnectionObserver(senderId: String) {
-    connectionObserver?.invoke(ConnectionObserverParams(senderId, this.senders.size))
-  }
-
-  private fun logTotalConnected() {
-    log.info("Total clients connected: {}", senders.size)
-  }
+	private fun logTotalConnected() {
+		log.info("Total clients connected: {}", senders.size)
+	}
 }
