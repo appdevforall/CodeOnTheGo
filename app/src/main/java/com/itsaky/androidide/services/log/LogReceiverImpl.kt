@@ -66,7 +66,7 @@ class LogReceiverImpl(
 
 	override fun ping() {
 		doAsync("ping") {
-			Log.d("LogRecevier", "ping: Received a ping request")
+			Log.d("LogReceiver", "ping: Received a ping request")
 		}
 	}
 
