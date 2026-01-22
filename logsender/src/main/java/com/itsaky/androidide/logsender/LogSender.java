@@ -219,13 +219,13 @@ public final class LogSender extends ILogSender.Stub implements ServiceConnectio
 		}
 	}
 
-	private void tryDisconnect(boolean notifyRecevier) {
+	private void tryDisconnect(boolean notifyReceiver) {
 		Logger.info("Disconnecting from log receiver...");
 		if (this.reader != null) {
 			this.reader.cancel();
 		}
 
-		if (notifyRecevier && isReceiverAlive(receiver)) {
+		if (notifyReceiver && isReceiverAlive(receiver)) {
 			try {
 				receiver.disconnect(getPackageName(), getId());
 			} catch (Exception err) {
