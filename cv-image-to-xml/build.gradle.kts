@@ -48,4 +48,7 @@ dependencies {
     androidTestImplementation(libs.tests.androidx.junit)
     androidTestImplementation(libs.tests.androidx.espresso.core)
     implementation(projects.commonUi)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
 }
