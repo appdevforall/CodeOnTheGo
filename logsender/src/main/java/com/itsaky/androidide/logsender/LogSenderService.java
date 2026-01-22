@@ -80,6 +80,12 @@ public class LogSenderService extends Service {
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		Logger.debug("onStartCommand", intent, flags, startId);
 
+		if (intent == null || intent.getAction() == null) {
+			Logger.warn("LogSenderService started with null intent: " + intent);
+			stopSelf();
+			return START_NOT_STICKY;
+		}
+
 		switch (intent.getAction()) {
 		case ACTION_START_SERVICE:
 			actionStartService();
