@@ -11,6 +11,7 @@ internal class IndentCache {
   private var lastTabSize: Int = -1
   private var lastUseTab: Boolean = false
 
+  @Synchronized
   fun indent(columns: Int, tabSize: Int, useTab: Boolean): String {
     if (tabSize != lastTabSize || useTab != lastUseTab) {
       cache.fill(null)
