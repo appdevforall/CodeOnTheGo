@@ -249,11 +249,13 @@ class GradleBuildService :
 						.onFailure { err ->
 							val isStreamClosed =
 								err.message?.contains("stream closed", ignoreCase = true) == true
-							if (err !is IOException || !isStreamClosed) {
-								// log if the error is not due to the stream being closed
-								log.error("Failed to shutdown Tooling API server", err)
-								Sentry.captureException(err)
-							}
+                            if (isStreamClosed) {
+                                log.error("Tooling API server stream closed during shutdown (expected)")
+                            } else {
+                                // log if the error is not due to the stream being closed
+                                log.error("Failed to shutdown Tooling API server", err)
+                                Sentry.captureException(err)
+                            }
 						}
 				}
 			} catch (e: Throwable) {
