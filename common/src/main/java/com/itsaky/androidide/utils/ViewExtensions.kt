@@ -31,19 +31,12 @@ fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
 
 	setOnLongClickListener { listener(it) }
 	isLongClickable = true
-	if (this is ViewGroup) {
-		for (i in 0 until childCount) {
-			val currentView = getChildAt(i)
-			if (currentView is Slider) {
-				currentView.setupGestureHandling(
-					onLongPress = { view -> listener(view) },
-					onDrag = {},
-				)
-			} else {
-				currentView.applyLongPressRecursively(listener)
-			}
-		}
-	}
+    if (this is ViewGroup) {
+        for (i in 0 until childCount) {
+            val currentView = getChildAt(i)
+            currentView.applyLongPressRecursively(listener)
+        }
+    }
 }
 
 @SuppressLint("ClickableViewAccessibility")
