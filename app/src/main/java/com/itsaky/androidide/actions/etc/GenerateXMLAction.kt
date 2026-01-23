@@ -13,6 +13,7 @@ import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import io.sentry.Sentry
 
@@ -22,7 +23,8 @@ import java.io.File
 class GenerateXMLAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
     override val id: String = ID
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+        TooltipTag.EDITOR_TOOLBAR_COMPUTER_VISION
     override var requiresUIThread: Boolean = false
 
     companion object {
