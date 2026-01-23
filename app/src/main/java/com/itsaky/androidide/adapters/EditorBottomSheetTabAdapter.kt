@@ -31,6 +31,7 @@ import com.itsaky.androidide.fragments.output.IDELogFragment
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.FeatureFlags
 import org.slf4j.LoggerFactory
@@ -124,6 +125,7 @@ class EditorBottomSheetTabAdapter(
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
 	private val pluginFragmentFactories = mutableMapOf<Long, () -> Fragment>()
+	private val pluginExtensions = mutableMapOf<Long, UIExtension>()
 
 	init {
 		addPluginTabs()
@@ -134,6 +136,7 @@ class EditorBottomSheetTabAdapter(
 		if (size == 0) return
 		tabs.clear()
 		pluginFragmentFactories.clear()
+		pluginExtensions.clear()
 		notifyDataSetChanged()
 	}
 
@@ -233,7 +236,9 @@ class EditorBottomSheetTabAdapter(
 			// Check if this is a plugin fragment
 			val pluginFactory = pluginFragmentFactories[tab.itemId]
 			if (pluginFactory != null) {
-				return pluginFactory.invoke()
+				val fragment = pluginFactory.invoke()
+				registerPluginFragmentClassLoader(tab.itemId, fragment)
+				return fragment
 			}
 
 			// Regular fragment creation
@@ -243,6 +248,27 @@ class EditorBottomSheetTabAdapter(
 			return constructor.newInstance()
 		} catch (th: Throwable) {
 			throw RuntimeException("Unable to create fragment", th)
+		}
+	}
+
+	private fun registerPluginFragmentClassLoader(tabItemId: Long, fragment: Fragment) {
+		try {
+			val plugin = pluginExtensions[tabItemId] ?: return
+			val pluginManager = getPluginManager() ?: return
+
+			val classLoader = pluginManager.getClassLoaderForPlugin(plugin)
+			if (classLoader != null) {
+				val fragmentClassName = fragment.javaClass.name
+				val pluginId = pluginManager.getPluginIdForInstance(plugin) ?: "unknown"
+				PluginFragmentFactory.registerPluginClassLoader(
+					pluginId,
+					classLoader,
+					listOf(fragmentClassName)
+				)
+				logger.debug("Registered classloader for bottom sheet fragment {} from plugin {}", fragmentClassName, pluginId)
+			}
+		} catch (e: Exception) {
+			logger.error("Failed to register plugin fragment classloader", e)
 		}
 	}
 
@@ -303,6 +329,8 @@ class EditorBottomSheetTabAdapter(
 
 	fun getTooltipTag(position: Int): String? = allTabs[position].tooltipTag
 
+	private data class PluginTabData(val tabItem: TabItem, val plugin: UIExtension)
+
 	private fun addPluginTabs() {
 		try {
 			val pluginManager = getPluginManager()
@@ -314,7 +342,7 @@ class EditorBottomSheetTabAdapter(
 			val loadedPlugins = pluginManager.getAllPluginInstances()
 			logger.debug("Found {} loaded plugins for tab registration", loadedPlugins.size)
 
-			val pluginTabs = mutableListOf<TabItem>()
+			val pluginTabs = mutableListOf<PluginTabData>()
 
 			for (plugin in loadedPlugins) {
 				try {
@@ -330,7 +358,7 @@ class EditorBottomSheetTabAdapter(
 
 						for (tabItem in tabItems) {
 							if (tabItem.isEnabled && tabItem.isVisible) {
-								pluginTabs.add(tabItem)
+								pluginTabs.add(PluginTabData(tabItem, plugin))
 								logger.debug("Added plugin tab: {} - {}", tabItem.id, tabItem.title)
 							}
 						}
@@ -346,26 +374,27 @@ class EditorBottomSheetTabAdapter(
 			}
 
 			// Sort tabs by order
-			pluginTabs.sortBy { it.order }
+			pluginTabs.sortBy { it.tabItem.order }
 
 			// Add plugin tabs to the adapter at the end
 			val startIndex = allTabs.size
-			for ((index, tabItem) in pluginTabs.withIndex()) {
+			for ((index, data) in pluginTabs.withIndex()) {
 				val tab =
 					Tab(
-						title = tabItem.title,
+						title = data.tabItem.title,
 						fragmentClass = Fragment::class.java, // Placeholder, actual fragment from factory
 						itemId = startIndex + index + 1000L, // Offset to avoid conflicts
 						tooltipTag = null,
 					)
 
-				// Store the fragment factory for later use
-				pluginFragmentFactories[tab.itemId] = tabItem.fragmentFactory
+				// Store the fragment factory and the extension for later use
+				pluginFragmentFactories[tab.itemId] = data.tabItem.fragmentFactory
+				pluginExtensions[tab.itemId] = data.plugin
 
 				allTabs.add(tab)
 				tabs.add(tab)
 
-				logger.debug("Registered plugin tab at index {}: {}", startIndex + index, tabItem.title)
+				logger.debug("Registered plugin tab at index {}: {}", startIndex + index, data.tabItem.title)
 			}
 		} catch (e: Exception) {
 			logger.error("Error in plugin tab integration: {}", e.message, e)

@@ -77,6 +77,7 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Objects
 
@@ -328,9 +329,10 @@ class JavaLanguageServer : ILanguageServer {
 	}
 
 	private fun analyzeSelected() {
-		if (selectedFile == null || client == null) {
-			return
-		}
+		val file = selectedFile ?: return
+		if (client == null) return
+
+		if (!Files.exists(file)) return
 
 		CoroutineScope(Dispatchers.Default).launch {
 			val result = analyze(selectedFile!!)

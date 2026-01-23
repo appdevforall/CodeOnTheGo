@@ -5,6 +5,7 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.plugins.extensions.EditorTabExtension
 import com.itsaky.androidide.plugins.extensions.EditorTabItem
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import org.slf4j.LoggerFactory
 
 /**
@@ -28,6 +29,7 @@ class PluginEditorTabManager {
     private val pluginTabs = mutableMapOf<String, PluginTabInfo>()
     private val tabFragments = mutableMapOf<String, Fragment>()
     private var tabSelectionListener: TabSelectionListener? = null
+    private var pluginManagerRef: PluginManager? = null
 
     interface TabSelectionListener {
         fun onTabSelected(tabId: String, fragment: Fragment)
@@ -48,6 +50,7 @@ class PluginEditorTabManager {
      */
     fun loadPluginTabs(pluginManager: PluginManager) {
         logger.debug("Loading plugin editor tabs...")
+        pluginManagerRef = pluginManager
 
         val loadedPlugins = pluginManager.getAllPluginInstances()
         logger.debug("Found {} loaded plugins", loadedPlugins.size)
@@ -123,8 +126,32 @@ class PluginEditorTabManager {
                 val fragment = tabInfo.tabItem.fragmentFactory()
                 tabFragments[tabId] = fragment
                 logger.debug("Created fragment for plugin tab: {}", tabId)
+
+                registerFragmentClassLoader(tabInfo.extension, fragment)
+
                 fragment
             }
+        }
+    }
+
+    private fun registerFragmentClassLoader(extension: EditorTabExtension, fragment: Fragment) {
+        val pluginManager = pluginManagerRef ?: run {
+            logger.warn("PluginManager not available, cannot register fragment classloader")
+            return
+        }
+
+        val classLoader = pluginManager.getClassLoaderForPlugin(extension)
+        if (classLoader != null) {
+            val fragmentClassName = fragment.javaClass.name
+            val pluginId = pluginManager.getPluginIdForInstance(extension) ?: "unknown"
+            PluginFragmentFactory.registerPluginClassLoader(
+                pluginId,
+                classLoader,
+                listOf(fragmentClassName)
+            )
+            logger.info("Registered classloader for fragment {} from plugin {}", fragmentClassName, pluginId)
+        } else {
+            logger.warn("No classloader found for plugin extension: {}", extension.javaClass.name)
         }
     }
 

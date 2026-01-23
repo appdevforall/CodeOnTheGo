@@ -48,6 +48,7 @@
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
+	<string name="storage_not_accessible">Storage is not accessible. Please ensure the device is unlocked and try again.</string>
 	<string name="terminal_installation_failed_low_storage">Terminal setup failed. Storage space is insufficient, or files were removed during installation. Please free up some space and try again.</string>
 	<string name="terminal_installation_failed_secondary_user">Terminal installation is only supported for the primary user.</string>
 
@@ -210,6 +211,9 @@
 	<string name="classtype_activity">Activity</string>
 	<string name="title_interface">Interface</string>
 	<string name="classtype_enum">Enum</string>
+	<string name="lang_java">Java</string>
+	<string name="lang_kotlin">Kotlin</string>
+	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
 
 	<!-- Code Editor -->
@@ -313,7 +317,7 @@
 	<string name="msg_replacement">Replacement</string>
 	<string name="title_sync_project">Sync project</string>
 	<string name="wizard_save_location">Save location</string>
-	<string name="wizard_language">Project Language</string>
+	<string name="wizard_language">Project language</string>
 	<string name="next">Next</string>
 	<string name="exit">Exit</string>
 	<string name="idepref_title_customGradleInstallation">Custom Gradle installation</string>
@@ -624,7 +628,6 @@
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
 	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions.</string>
 	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
 	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>

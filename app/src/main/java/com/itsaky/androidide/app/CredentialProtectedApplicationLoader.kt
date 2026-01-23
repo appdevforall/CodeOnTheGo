@@ -17,6 +17,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.VMUtils
@@ -69,7 +70,8 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		logger.info("Loading credential protected storage context components...")
 		application = app
 
-		// read feature flags, if we didn't already
+		Environment.init(app)
+
 		FeatureFlags.initialize()
 
 		EventBus.getDefault().register(this)
@@ -91,7 +93,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 		initializePluginSystem()
 
-		app.coroutineScope.launch {
+		app.coroutineScope.launch(Dispatchers.IO) {
+			// color schemes are stored in files
+			// initialize scheme provider on the IO dispatcher
 			IDEColorSchemeProvider.init()
 		}
 
