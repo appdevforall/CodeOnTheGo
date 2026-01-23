@@ -8,6 +8,35 @@
   android:paddingTop="16dp"
   android:paddingBottom="16dp">
 
+  <com.google.android.material.button.MaterialButtonToggleGroup
+    android:id="@+id/languageGroup"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="24dp"
+    android:layout_marginEnd="24dp"
+    android:layout_marginBottom="16dp"
+    app:checkedButton="@id/lang_java"
+    app:selectionRequired="true"
+    app:singleSelection="true">
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/lang_java"
+      style="?attr/materialButtonOutlinedStyle"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/lang_java"
+      app:icon="@drawable/ic_language_java" />
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/lang_kotlin"
+      style="?attr/materialButtonOutlinedStyle"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/lang_kotlin"
+      app:icon="@drawable/ic_language_kotlin" />
+
+  </com.google.android.material.button.MaterialButtonToggleGroup>
+
   <HorizontalScrollView
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
