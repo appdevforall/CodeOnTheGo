@@ -186,7 +186,7 @@ jobs:
           response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/zip" \
-            --data-binary @"${V8_PATH}" \
+            --upload-file "${V8_PATH}" \
             "https://www.googleapis.com/upload/drive/v3/files/${V8_FILE_ID}?uploadType=media")
 
           if [[ "$response" -ne 200 ]]; then
@@ -198,7 +198,7 @@ jobs:
           response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/zip" \
-            --data-binary @"${V7_PATH}" \
+            --upload-file "${V7_PATH}" \
             "https://www.googleapis.com/upload/drive/v3/files/${V7_FILE_ID}?uploadType=media")
 
           if [[ "$response" -ne 200 ]]; then
