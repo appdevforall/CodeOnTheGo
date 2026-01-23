@@ -112,7 +112,7 @@ public final class Environment {
 			"PL", "PT", "RO", "SK", "SI", "ES", "SE"
 	};
 
-	public static String NDK_TAR_XZ = "ndk-cmake.tar.xz";
+	public static final String NDK_TAR_XZ = "ndk-cmake.tar.xz";
 	public static File NDK_DIR;
 
 	public static String getArchitecture() {

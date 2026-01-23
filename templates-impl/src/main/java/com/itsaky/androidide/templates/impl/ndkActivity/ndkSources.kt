@@ -14,20 +14,22 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import ${data.packageName}.databinding.ActivityMainBinding
 
-public class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity() {
 
     private var _binding: ActivityMainBinding? = null
     
     private val binding: ActivityMainBinding
       get() = checkNotNull(_binding) { "Activity has been destroyed" }
     
-    // Load the native library
-    static {
-        System.loadLibrary("native-lib");
-    }
-
     // Declare the native method
-    public native String stringFromJNI();
+    private external fun stringFromJNI(): String
+
+    // Load the native library
+    companion object {
+        init {
+            System.loadLibrary("native-lib");
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,7 +41,7 @@ public class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Call JNI method and display result
-        binding.textView.setText(stringFromJNI());
+        binding.textView.text = stringFromJNI()
     }
     
     override fun onDestroy() {

@@ -176,7 +176,7 @@ object AssetsInstallationHelper {
                     val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
                     val snapshot =
-                        if (percent == 100.0) {
+                        if (percent >= 99.99) {
                             "Post install processing in progress...."
                         } else {
                             buildString {

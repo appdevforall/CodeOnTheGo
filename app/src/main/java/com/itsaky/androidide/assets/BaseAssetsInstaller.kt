@@ -4,6 +4,7 @@ import android.content.Context
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import com.termux.shared.termux.TermuxConstants
 import com.itsaky.androidide.utils.Environment
 import kotlin.system.measureTimeMillis
@@ -48,7 +49,11 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
             val process = processBuilder.start()
 
             result = process.inputStream.bufferedReader().use { it.readText() }
-            exitCode = process.waitFor()
+            val completed = process.waitFor(2, TimeUnit.MINUTES)
+            exitCode = if (completed) process.exitValue() else {
+                process.destroyForcibly()
+                -1
+            }
         }
 
         return if (exitCode == 0) {
