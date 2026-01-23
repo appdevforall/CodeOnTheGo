@@ -13,8 +13,6 @@ import com.itsaky.androidide.templates.impl.base.writeMainActivity
 import com.itsaky.androidide.templates.impl.baseProjectImpl
 import com.itsaky.androidide.templates.impl.emptyActivity.emptyLayoutSrc
 import com.itsaky.androidide.utils.Environment
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 fun ndkActivityProject(): ProjectTemplate? {
 
