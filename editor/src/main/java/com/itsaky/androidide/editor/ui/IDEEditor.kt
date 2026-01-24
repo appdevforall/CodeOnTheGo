@@ -525,12 +525,14 @@ constructor(
         start: Int,
         end: Int,
     ) {
-        var targetText = text
         if (includeDebugInfoOnCopy) {
-            targetText = BasicBuildInfo.BASIC_INFO + System.lineSeparator() + text
+            // Extract selected text first, then prepend build info
+            val selectedText = text.subSequence(start, end)
+            val textWithBuildInfo = BasicBuildInfo.BASIC_INFO + System.lineSeparator() + selectedText
+            doCopy(textWithBuildInfo, 0, textWithBuildInfo.length)
+        } else {
+            doCopy(text, start, end)
         }
-
-        doCopy(targetText, start, end)
     }
 
     @VisibleForTesting
