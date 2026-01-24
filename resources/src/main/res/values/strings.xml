@@ -129,7 +129,7 @@
 	<!-- Plugin Template Wizard -->
 	<string name="wizard_plugin_name">Plugin Name</string>
 	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
-	<string name="wizard_plugin_description">Plugin Description</string>
+	<string name="wizard_plugin_description">Plugin description</string>
 	<string name="wizard_plugin_author">Author Name</string>
 	<string name="wizard_include_sample_code">Include sample code</string>
 	<string name="wizard_plugin_permissions">Permissions</string>
@@ -139,17 +139,17 @@
 	<!-- Plugin Permissions -->
 	<string name="perm_filesystem_read">Filesystem Read</string>
 	<string name="perm_filesystem_write">Filesystem Write</string>
-	<string name="perm_network_access">Network Access</string>
-	<string name="perm_system_commands">System Commands</string>
-	<string name="perm_ide_settings">IDE Settings</string>
-	<string name="perm_project_structure">Project Structure</string>
+	<string name="perm_network_access">Network access</string>
+	<string name="perm_system_commands">System commands</string>
+	<string name="perm_ide_settings">IDE settings</string>
+	<string name="perm_project_structure">Project structure</string>
 
 	<!-- Plugin Extensions -->
-	<string name="ext_ui">UI Extension</string>
-	<string name="ext_editor_tab">Editor Tab Extension</string>
-	<string name="ext_documentation">Documentation Extension</string>
-	<string name="ext_editor">Editor Extension</string>
-	<string name="ext_project">Project Extension</string>
+	<string name="ext_ui">UI extension</string>
+	<string name="ext_editor_tab">Editor tab extension</string>
+	<string name="ext_documentation">Documentation extension</string>
+	<string name="ext_editor">Editor extension</string>
+	<string name="ext_project">Project extension</string>
 	<string name="unknown">Unknown</string>
 
 	<!-- Files -->
