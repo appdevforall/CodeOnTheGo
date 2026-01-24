@@ -81,7 +81,6 @@ import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
-import io.github.rosemoe.sora.event.LongPressEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
@@ -825,12 +824,6 @@ constructor(
         }
 
         EventBus.getDefault().register(this)
-        if (isReadOnlyContext) {
-            subscribeEvent(LongPressEvent::class.java) { event, _ ->
-                EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
-                event.intercept()
-            }
-        }
     }
 
     private fun handleCustomTextReplacement(event: ContentChangeEvent) {
