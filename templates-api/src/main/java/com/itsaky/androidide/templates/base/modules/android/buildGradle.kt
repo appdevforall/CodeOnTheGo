@@ -392,3 +392,224 @@ private fun ktPluginGroovy(): String {
     //       hardcoded like this
     return "id 'org.jetbrains.kotlin.android' version '${KOTLIN_VERSION}'"
 }
+
+fun AndroidModuleTemplateBuilder.ndkBuildGradleSrcKts(
+    isComposeModule: Boolean,
+    ndkVersion: String,
+    abiFilters: List<String>,
+    cppFlags: String
+): String = """
+import java.util.Properties
+import java.io.FileInputStream
+
+plugins {
+    ${androidPlugin(isComposeModule)}
+    ${ktPlugin(isComposeModule)}
+}
+
+val keystorePropsFile = rootProject.file("${Environment.KEYSTORE_PROPERTIES_NAME}")
+val keystoreProps = Properties()
+
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(FileInputStream(keystorePropsFile))
+}
+
+val hasValidSigningProps = keystorePropsFile.exists().also { exists ->
+    if (exists) {
+        FileInputStream(keystorePropsFile).use { keystoreProps.load(it) }
+    }
+}.let {
+    listOf("${Environment.KEYSTORE_PROP_STOREFILE}", "${Environment.KEYSTORE_PROP_STOREPWD}", 
+            "${Environment.KEYSTORE_PROP_KEYALIAS}", "${Environment.KEYSTORE_PROP_KEYPWD}").all { key ->
+        keystoreProps[key] != null
+    }
+}
+
+
+android {
+    namespace = "${data.packageName}"
+    compileSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api}
+    
+    // disable linter
+    lint {
+        checkReleaseBuilds = false
+    }
+        
+    signingConfigs {
+        if (hasValidSigningProps) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps["${Environment.KEYSTORE_PROP_STOREFILE}"] as String)
+                storePassword = keystoreProps["${Environment.KEYSTORE_PROP_STOREPWD}"] as String
+                keyAlias = keystoreProps["${Environment.KEYSTORE_PROP_KEYALIAS}"] as String
+                keyPassword = keystoreProps["${Environment.KEYSTORE_PROP_KEYPWD}"] as String
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId = "${data.packageName}"
+        minSdk = ${data.versions.minSdk.api}
+        targetSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api} 
+        versionCode = 1
+        versionName = "1.0"
+
+        vectorDrawables { 
+            useSupportLibrary = true
+        }
+        
+        ndk {
+            abiFilters += ${abiFilters.joinToString(",") { "\"$it\"" }}
+        }
+                
+        externalNativeBuild {
+            cmake {
+                cppFlags += "$cppFlags"
+            }
+        }
+    }
+
+    ndkVersion = "$ndkVersion"
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = ${data.versions.javaSource()}
+        targetCompatibility = ${data.versions.javaTarget()}
+    }
+
+    buildTypes {
+        release {
+            if (hasValidSigningProps) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    buildFeatures {
+        ${if (!isComposeModule) "viewBinding = true" else ""}
+        ${if (isComposeModule) "compose = true" else ""}
+    }
+    ${composeConfigKts()}
+}
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:deprecation")
+}
+
+${ktJvmTarget()}
+${dependencies()}
+""".trimIndent()
+
+fun AndroidModuleTemplateBuilder.ndkBuildGradleSrcGroovy(
+    isComposeModule: Boolean,
+    ndkVersion: String,
+    abiFilters: List<String>,
+    cppFlags: String
+): String = """
+import java.util.Properties
+import java.io.FileInputStream
+
+plugins {
+    id '${androidPlugin}'
+    ${ktPlugin(isComposeModule)}
+}
+
+def keystorePropsFile = rootProject.file("${Environment.KEYSTORE_PROPERTIES_NAME}")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+def hasValidSigningProps = false
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+
+    def requiredKeys = ["${Environment.KEYSTORE_PROP_STOREFILE}", "${Environment.KEYSTORE_PROP_STOREPWD}", 
+                        "${Environment.KEYSTORE_PROP_KEYALIAS}", "${Environment.KEYSTORE_PROP_KEYPWD}"]
+    hasValidSigningProps = requiredKeys.every { key -> keystoreProps[key] }
+}
+
+
+android {
+    namespace = '${data.packageName}'
+    compileSdk = ${data.versions.compileSdk.api}
+    
+    // disable linter
+    lint {
+        checkReleaseBuilds = false
+    }
+
+    if (hasValidSigningProps) {
+        signingConfigs {
+            release {
+                storeFile = rootProject.file((String) keystoreProps["${Environment.KEYSTORE_PROP_STOREFILE}"])
+                storePassword = keystoreProps["${Environment.KEYSTORE_PROP_STOREPWD}"]
+                keyAlias = keystoreProps["${Environment.KEYSTORE_PROP_KEYALIAS}"]
+                keyPassword = keystoreProps["${Environment.KEYSTORE_PROP_KEYPWD}"]
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId = "${data.packageName}"
+        minSdk = ${data.versions.minSdk.api}
+        targetSdk = ${data.versions.targetSdk.api}
+        versionCode = 1
+        versionName = "1.0"
+        
+        vectorDrawables { 
+            useSupportLibrary = true
+        }
+
+        ndk {
+            abiFilters += [${abiFilters.joinToString(",") { "\"$it\"" }}]
+        }
+        
+        externalNativeBuild {
+            cmake {
+                cppFlags += "$cppFlags"
+            }
+        }
+    }
+
+    ndkVersion "$ndkVersion"
+    
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
+    buildTypes {
+        release {
+            if (hasValidSigningProps) {
+                signingConfig = signingConfigs.release
+            }
+            minifyEnabled = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = ${data.versions.javaSource()}
+        targetCompatibility = ${data.versions.javaTarget()}
+    }
+
+    buildFeatures {
+        ${if (!isComposeModule) "viewBinding = true" else ""}
+        ${if (isComposeModule) "compose = true" else ""}
+    }
+    ${composeConfigGroovy()}
+}
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-Xlint:deprecation"
+}
+${ktJvmTarget()}
+${dependencies()}
+""".trimIndent()

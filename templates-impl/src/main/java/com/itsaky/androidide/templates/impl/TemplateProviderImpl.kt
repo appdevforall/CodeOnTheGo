@@ -30,6 +30,7 @@ import com.itsaky.androidide.templates.impl.noActivity.noActivityProjectTemplate
 import com.itsaky.androidide.templates.impl.noAndroidXActivity.noAndroidXActivityProject
 import com.itsaky.androidide.templates.impl.pluginProject.pluginProjectTemplate
 import com.itsaky.androidide.templates.impl.tabbedActivity.tabbedActivityProject
+import com.itsaky.androidide.templates.impl.ndkActivity.ndkActivityProject
 
 /**
  * Default implementation of the [ITemplateProvider].
@@ -57,7 +58,8 @@ class TemplateProviderImpl : ITemplateProvider {
       tabbedActivityProject(),
       noAndroidXActivityProject(),
       composeActivityProject(),
-      pluginProjectTemplate()
+      pluginProjectTemplate(),
+      ndkActivityProject()
     )
 
   private fun initializeTemplates() {

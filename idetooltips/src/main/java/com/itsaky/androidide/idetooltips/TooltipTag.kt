@@ -45,6 +45,7 @@ object TooltipTag {
     const val TEMPLATE_BASIC_ACTIVITY = "template.basic.activity"
     const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
     const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
+    const val TEMPLATE_NDK_ACTIVITY = "template.ndk.activity"
 
     // Editor screen
     const val EDITOR_PROJECT_OVERVIEW = "project.overview"
