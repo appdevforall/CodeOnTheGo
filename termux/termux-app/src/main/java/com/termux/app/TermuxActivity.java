@@ -453,7 +453,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
     private void ensureTermuxPropertiesInitialized() {
         if (TermuxAppSharedProperties.getProperties() != null) return;
         TermuxAppSharedProperties.init(getApplicationContext());
-    };
+    }
 
     /**
      * Ensures that the TermuxShellManager singleton is initialized.
