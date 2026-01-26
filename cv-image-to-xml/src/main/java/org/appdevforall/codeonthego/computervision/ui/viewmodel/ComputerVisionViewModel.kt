@@ -3,15 +3,12 @@ package org.appdevforall.codeonthego.computervision.ui.viewmodel
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.util.Log
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEvent
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionUiState
-import org.appdevforall.codeonthego.computervision.ui.CvOperation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +17,11 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.computervision.R
+import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEvent
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionUiState
+import org.appdevforall.codeonthego.computervision.ui.CvOperation
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil
 
 class ComputerVisionViewModel(
@@ -89,14 +91,16 @@ class ComputerVisionViewModel(
     fun onScreenStarted(){
         CvAnalyticsUtil.trackScreenOpened()
     }
+
     private fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
             try {
                 val bitmap = uriToBitmap(uri)
                 if (bitmap != null) {
+                    val rotatedBitmap = handleImageRotation(uri, bitmap)
                     _uiState.update {
                         it.copy(
-                            currentBitmap = bitmap,
+                            currentBitmap = rotatedBitmap,
                             imageUri = uri,
                             detections = emptyList(),
                             visualizedBitmap = null
@@ -110,6 +114,25 @@ class ComputerVisionViewModel(
                 _uiEffect.send(ComputerVisionEffect.ShowError("Failed to load image: ${e.message}"))
             }
         }
+    }
+
+    private fun handleImageRotation(uri: Uri, bitmap: Bitmap): Bitmap {
+        val inputStream = contentResolver.openInputStream(uri) ?: return bitmap
+        val exif = ExifInterface(inputStream)
+        val orientation = exif.getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        )
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            else -> return bitmap // No rotation needed
+        }
+
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     private fun handleCameraResult(uri: Uri, success: Boolean) {
