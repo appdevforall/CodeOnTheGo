@@ -109,21 +109,18 @@ fun Lsp4jInsertTextFormat.toIde(): InsertTextFormat {
 }
 
 fun Diagnostic.toIde(positionToOffset: (line: Int, column: Int) -> Int): DiagnosticItem {
-    val startIndex = positionToOffset(range.startLine, range.startColumn)
-    val endIndex = positionToOffset(range.endLine, range.endColumn)
-
-    val expectedColSpan = if (range.startLine == range.endLine) {
-        range.endColumn - range.startColumn
+    val startIndex = if (range.hasOffsets) {
+        range.startOffset
     } else {
-        -1
+        positionToOffset(range.startLine, range.startColumn)
     }
-    val actualIndexSpan = endIndex - startIndex
-
-    Log.i("DIAG-DEBUG", "range=${range.startLine}:${range.startColumn}-${range.endLine}:${range.endColumn} -> idx=$startIndex-$endIndex (colSpan=$expectedColSpan, idxSpan=$actualIndexSpan) '${message.take(50)}'")
-
-    if (expectedColSpan >= 0 && actualIndexSpan != expectedColSpan) {
-        Log.w("DIAG-DEBUG", "MISMATCH! idxSpan=$actualIndexSpan != colSpan=$expectedColSpan")
+    val endIndex = if (range.hasOffsets) {
+        range.endOffset
+    } else {
+        positionToOffset(range.endLine, range.endColumn)
     }
+
+    Log.i("DIAG-DEBUG", "range=${range.startLine}:${range.startColumn}-${range.endLine}:${range.endColumn} -> idx=$startIndex-$endIndex (hasOffsets=${range.hasOffsets}) '${message.take(50)}'")
 
     return DiagnosticItem(
         message,

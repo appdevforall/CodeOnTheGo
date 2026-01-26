@@ -18,6 +18,7 @@
 package com.itsaky.androidide.lsp.kotlin
 
 import androidx.core.net.toUri
+import com.itsaky.androidide.eventbus.events.editor.ChangeType
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
@@ -131,17 +132,38 @@ class KotlinLanguageServer : ILanguageServer {
     override fun setupWithProject(workspace: Workspace) {
         log.info("setupWithProject called, initialized={}", initialized)
         if (!initialized) {
+            loadStdlibIndex()
+
             val initParams = InitializeParams().apply {
                 rootUri = workspace.rootProject.projectDir.toUri().toString()
             }
             ktLspServer.initialize(initParams).get()
             ktLspServer.initialized(null)
-            ktLspServer.useMinimalStdlibIndex()
-            log.info("Kotlin LSP initialized with minimal stdlib index")
+            log.info("Kotlin LSP initialized with stdlib index")
             initialized = true
         }
 
         indexClasspaths(workspace)
+    }
+
+    private fun loadStdlibIndex() {
+        try {
+            val startTime = System.currentTimeMillis()
+            val stdlibStream = javaClass.getResourceAsStream("/stdlib-index.json")
+            if (stdlibStream != null) {
+                stdlibStream.use { inputStream ->
+                    val stdlibIndex = me.astrocoder.ktlsp.index.StdlibIndexLoader.loadFromStream(inputStream)
+                    ktLspServer.loadStdlibIndex(stdlibIndex)
+                    val elapsed = System.currentTimeMillis() - startTime
+                    log.info("Loaded stdlib index: {} symbols in {}ms", stdlibIndex.size, elapsed)
+                }
+            } else {
+                log.warn("stdlib-index.json not found in resources, using minimal index")
+            }
+        } catch (e: Exception) {
+            log.error("Failed to load stdlib-index.json, using minimal index", e)
+
+        }
     }
 
     private fun indexClasspaths(workspace: Workspace) {
@@ -200,6 +222,9 @@ class KotlinLanguageServer : ILanguageServer {
         }
 
         val uri = params.file.toUri().toString()
+
+        ktLspServer.getAnalysisScheduler().analyzeSync(uri)
+
         log.debug("complete() uri={}, position={}:{}, prefix={}", uri, params.position.line, params.position.column, params.prefix)
         val lspParams = org.eclipse.lsp4j.CompletionParams().apply {
             textDocument = TextDocumentIdentifier(uri)
@@ -357,28 +382,32 @@ class KotlinLanguageServer : ILanguageServer {
 
         val uri = event.changedFile.toUri().toString()
 
-        log.debug("onDocumentChange: uri={}, version={}", uri, event.version)
+        log.debug("onDocumentChange: uri={}, version={}, changeType={}", uri, event.version, event.changeType)
         log.debug("  changeRange={}, changedText='{}', newText.len={}",
             event.changeRange, event.changedText, event.newText?.length ?: -1)
 
-        val changeText = event.changedText
-        val changes = listOf(
-            TextDocumentContentChangeEvent().apply {
-                range = event.changeRange.toLsp4j()
-                text = changeText
-            }
-        )
-
-        log.debug("  sending to ktlsp: range={}, text='{}' ({} chars)",
-            event.changeRange, changeText, changeText.length)
-
-        val params = DidChangeTextDocumentParams().apply {
-            textDocument = VersionedTextDocumentIdentifier(uri, event.version)
-            contentChanges = changes
+        val changeText = when (event.changeType) {
+            ChangeType.DELETE -> ""
+            else -> event.changedText
         }
-        ktLspServer.textDocumentService.didChange(params)
 
-        analyzeCurrentFileAsync()
+        val startIndex = event.changeRange.start.index
+        val endIndex = if (event.changeType == ChangeType.INSERT) {
+            startIndex
+        } else {
+            event.changeRange.end.index
+        }
+
+        log.debug("  using index-based sync: indices=$startIndex-$endIndex (adjusted for {}), text='{}' ({} chars)",
+            event.changeType, changeText, changeText.length)
+
+        ktLspServer.didChangeByIndex(
+            uri = uri,
+            startIndex = startIndex,
+            endIndex = endIndex,
+            newText = changeText,
+            version = event.version
+        )
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
