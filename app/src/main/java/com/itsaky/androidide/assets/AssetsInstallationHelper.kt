@@ -35,7 +35,6 @@ import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
-import kotlin.io.path.pathString
 import kotlin.math.pow
 
 typealias AssetsInstallerProgressConsumer = (AssetsInstallationHelper.Progress) -> Unit
@@ -176,14 +175,18 @@ object AssetsInstallationHelper {
                     val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
                     val snapshot =
-                        buildString {
-                            entryStatusMap.forEach { (entry, status) ->
-                                appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+                        if (percent >= 99.0) {
+                            "Post install processing in progress...."
+                        } else {
+                            buildString {
+                                entryStatusMap.forEach { (entry, status) ->
+                                    appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+                                }
+                                appendLine("--------------------")
+                                appendLine("Progress: ${formatPercent(percent)}")
+                                appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
+                                appendLine("Remaining storage: ${formatBytes(freeStorage)}")
                             }
-                            appendLine("--------------------")
-                            appendLine("Progress: ${formatPercent(percent)}")
-                            appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
-                            appendLine("Remaining storage: ${formatBytes(freeStorage)}")
                         }
 
                     if (snapshot != previousSnapshot) {
