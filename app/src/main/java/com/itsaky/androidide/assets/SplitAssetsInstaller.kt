@@ -65,7 +65,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 								logger.debug("Completed extracting '{}' to dir: {}", entry.name, destDir)
 							}
 
-							AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+                            AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
 								logger.debug("Extracting 'bootstrap.zip' to dir: {}", stagingDir)
 
 								val result = retryOnceOnNoSuchFile(
@@ -173,7 +173,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 
     override fun expectedSize(entryName: String): Long = when (entryName) {
         GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 137260932L
-        ANDROID_SDK_ZIP                  -> 85024182L
+        ANDROID_SDK_ZIP                  -> 286625871L
         DOCUMENTATION_DB                  -> 224296960L
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 215389106L
         AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 456462823L
