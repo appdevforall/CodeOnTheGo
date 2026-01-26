@@ -65,6 +65,7 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -224,7 +225,8 @@ class GradleBuildService :
 	}
 
 	override fun onDestroy() {
-		mBinder?.release()
+		buildServiceScope.cancel()
+        mBinder?.release()
 		mBinder = null
 
 		log.info("Service is being destroyed. Dismissing the shown notification...")
@@ -249,7 +251,7 @@ class GradleBuildService :
 						.onFailure { err ->
                             val actualCause = err.cause ?: err
                             val message = actualCause.message?.lowercase() ?: ""
-                            if (message.contains("stream closed")) {
+                            if (message.contains("stream closed") || message.contains("broken pipe")) {
                                 log.error("Tooling API server stream closed during shutdown (expected)")
                             } else {
                                 // log if the error is not due to the stream being closed
