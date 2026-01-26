@@ -247,9 +247,9 @@ class GradleBuildService :
 					// IOException.
 					runCatching { server.shutdown().await() }
 						.onFailure { err ->
-							val isStreamClosed =
-								err.message?.contains("stream closed", ignoreCase = true) == true
-                            if (isStreamClosed) {
+                            val actualCause = err.cause ?: err
+                            val message = actualCause.message?.lowercase() ?: ""
+                            if (message.contains("stream closed")) {
                                 log.error("Tooling API server stream closed during shutdown (expected)")
                             } else {
                                 // log if the error is not due to the stream being closed
