@@ -108,10 +108,6 @@ class ComputerVisionActivity : AppCompatActivity() {
         binding.imageView.setOnClickListener {
             viewModel.onEvent(ComputerVisionEvent.OpenImagePicker)
         }
-        binding.imageView.setOnLongClickListener {
-            viewModel.onEvent(ComputerVisionEvent.RequestCameraPermission)
-            true
-        }
         binding.detectButton.setOnClickListener {
             viewModel.onEvent(ComputerVisionEvent.RunDetection)
         }

@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ComputerVisionActivity">
+    tools:context=".ui.ComputerVisionActivity">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
@@ -16,7 +16,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <ImageView
+    <org.appdevforall.codeonthego.computervision.ui.ZoomableImageView
         android:id="@+id/imageView"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -52,7 +52,6 @@
         app:layout_constraintEnd_toStartOf="@+id/saveButton"
         app:layout_constraintStart_toEndOf="@id/detectButton" />
 
-    <!-- This is the button that was missing -->
     <Button
         android:id="@+id/saveButton"
         android:layout_width="0dp"
