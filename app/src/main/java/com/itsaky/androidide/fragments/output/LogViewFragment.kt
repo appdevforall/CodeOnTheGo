@@ -133,7 +133,6 @@ abstract class LogViewFragment<V : LogViewModel> :
 		editor.setTextSize(12f)
 		editor.typefaceText = jetbrainsMono()
 		editor.isEnsurePosAnimEnabled = false
-		editor.includeDebugInfoOnCopy = true
 		editor.tag = tooltipTag
 		editor.cursorAnimator = NoOpCursorAnimator
 
