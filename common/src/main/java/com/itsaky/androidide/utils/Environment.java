@@ -112,6 +112,9 @@ public final class Environment {
 			"PL", "PT", "RO", "SK", "SI", "ES", "SE"
 	};
 
+	public static final String NDK_TAR_XZ = "ndk-cmake.tar.xz";
+	public static File NDK_DIR;
+
 	public static String getArchitecture() {
 		return IDEBuildConfigProvider.getInstance().getCpuAbiName();
 	}
@@ -175,6 +178,8 @@ public final class Environment {
 		KEYSTORE_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "keystore"));
 		KEYSTORE_RELEASE = new File(KEYSTORE_DIR, KEYSTORE_RELEASE_NAME);
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
+
+		NDK_DIR = new File(ANDROID_HOME,"ndk");
 
 		isInitialized.set(true);
 	}
