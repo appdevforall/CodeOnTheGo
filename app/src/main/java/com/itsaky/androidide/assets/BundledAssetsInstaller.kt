@@ -201,7 +201,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 
     override fun expectedSize(entryName: String): Long = when (entryName) {
         GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 63399283L
-        ANDROID_SDK_ZIP                  -> 53226785L
+        ANDROID_SDK_ZIP                  -> 254814511L
         DOCUMENTATION_DB                  -> 297763377L
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 97485855L
         AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
