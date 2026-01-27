@@ -13,8 +13,11 @@ import com.itsaky.androidide.templates.impl.base.writeMainActivity
 import com.itsaky.androidide.templates.impl.baseProjectImpl
 import com.itsaky.androidide.templates.impl.emptyActivity.emptyLayoutSrc
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeatureFlags
 
 fun ndkActivityProject(): ProjectTemplate? {
+
+    if (!FeatureFlags.isNdkEnabled) return null
 
     if (!Environment.NDK_DIR.exists()) {
         return null

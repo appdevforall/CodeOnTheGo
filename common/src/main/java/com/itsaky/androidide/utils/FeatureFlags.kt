@@ -14,6 +14,7 @@ private data class FlagsCache(
 	val emulatorUseEnabled: Boolean = false,
 	val reprieveEnabled: Boolean = false,
     val pardonEnabled: Boolean = false,
+    val ndkEnabled: Boolean = false,
 ) {
 	companion object {
 		/**
@@ -29,6 +30,7 @@ object FeatureFlags {
 	private const val EMULATOR_FILE_NAME = "S153.txt"
 	private const val REPRIEVE_FILE_NAME = "CodeOnTheGo.a3s19"
     private const val PARDON_FILE_NAME = "CodeOnTheGo.a2s2"
+    private const val NDK_FILE_NAME = "CodeOnTheGo.ndk"
 
 	private val logger = LoggerFactory.getLogger(FeatureFlags::class.java)
 
@@ -69,6 +71,12 @@ object FeatureFlags {
         get() = flags.pardonEnabled
 
     /**
+     * Whether ndk use is enabled or not.
+     */
+    val isNdkEnabled: Boolean
+        get() = flags.ndkEnabled
+
+    /**
 	 * Initialize feature flag values. This is thread-safe and idempotent i.e.
 	 * subsequent calls do not access disk.
 	 */
@@ -91,6 +99,7 @@ object FeatureFlags {
 							emulatorUseEnabled = checkFlag(EMULATOR_FILE_NAME),
 							reprieveEnabled = checkFlag(REPRIEVE_FILE_NAME),
                             pardonEnabled = checkFlag(PARDON_FILE_NAME),
+                            ndkEnabled = checkFlag(NDK_FILE_NAME),
 						)
 					}.getOrElse { error ->
 						logger.error("Failed to load feature flags. Falling back to default values.", error)
