@@ -147,21 +147,20 @@ class ComposeCompiler(
 
         val processBuilder = ProcessBuilder(command)
             .directory(workDir)
-            .redirectErrorStream(false)
+            .redirectErrorStream(true)
 
         val process = processBuilder.start()
 
-        val stdout = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
-        val stderr = BufferedReader(InputStreamReader(process.errorStream)).use { it.readText() }
+        val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
 
         val completed = process.waitFor(COMPILATION_TIMEOUT_MINUTES, TimeUnit.MINUTES)
         if (!completed) {
             process.destroyForcibly()
             LOG.error("Compilation timed out after {} minutes", COMPILATION_TIMEOUT_MINUTES)
-            return ProcessResult(-1, stdout, "Compilation timed out after $COMPILATION_TIMEOUT_MINUTES minutes")
+            return ProcessResult(-1, output, "Compilation timed out after $COMPILATION_TIMEOUT_MINUTES minutes")
         }
 
-        return ProcessResult(process.exitValue(), stdout, stderr)
+        return ProcessResult(process.exitValue(), output, output)
     }
 
     private fun parseCompilationResult(

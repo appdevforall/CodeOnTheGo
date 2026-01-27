@@ -49,9 +49,8 @@ class ProjectContextSource {
 
         LOG.info("Found module: {} (type: {})", module.name, module.javaClass.simpleName)
 
-        val compileClasspaths = module.getCompileClasspaths().toMutableSet()
         val intermediateClasspaths = module.getIntermediateClasspaths()
-        compileClasspaths.addAll(intermediateClasspaths)
+        val compileClasspaths = (module.getCompileClasspaths() + intermediateClasspaths).distinct()
 
         val projectDexFiles = module.getRuntimeDexFiles().toList()
         val variantName = (module as? AndroidModule)?.getSelectedVariant()?.name ?: "debug"
@@ -77,7 +76,7 @@ class ProjectContextSource {
         return ProjectContext(
             modulePath = module.path,
             variantName = variantName,
-            compileClasspaths = compileClasspaths.toList(),
+            compileClasspaths = compileClasspaths,
             intermediateClasspaths = intermediateClasspaths,
             projectDexFiles = projectDexFiles,
             needsBuild = needsBuild

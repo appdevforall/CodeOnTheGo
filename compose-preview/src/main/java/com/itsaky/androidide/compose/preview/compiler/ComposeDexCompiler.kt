@@ -2,6 +2,7 @@ package com.itsaky.androidide.compose.preview.compiler
 
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
@@ -64,15 +65,21 @@ class ComposeDexCompiler(
 
                 val process = processBuilder.start()
 
-                val stdout = BufferedReader(InputStreamReader(process.inputStream))
-                    .use { it.readText() }
-                val stderr = BufferedReader(InputStreamReader(process.errorStream))
-                    .use { it.readText() }
+                val stdoutDeferred = async {
+                    BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
+                }
+                val stderrDeferred = async {
+                    BufferedReader(InputStreamReader(process.errorStream)).use { it.readText() }
+                }
 
                 val completed = process.waitFor(DEX_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+
+                val stdout = stdoutDeferred.await()
+                val stderr = stderrDeferred.await()
+
                 if (!completed) {
                     process.destroyForcibly()
-                    LOG.error("D8 timed out after {} minutes", DEX_TIMEOUT_MINUTES)
+                    LOG.error("D8 timed out after {} minutes. stdout: {}, stderr: {}", DEX_TIMEOUT_MINUTES, stdout, stderr)
                     return@withContext DexCompilationResult(
                         success = false,
                         dexFile = null,

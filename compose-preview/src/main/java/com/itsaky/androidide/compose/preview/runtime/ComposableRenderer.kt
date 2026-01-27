@@ -59,33 +59,59 @@ class ComposableRenderer(
     }
 
     private fun findComposableMethod(clazz: Class<*>, functionName: String): Method? {
-        return clazz.declaredMethods.find { method ->
-            method.name == functionName ||
-            method.name.startsWith("$functionName$") ||
-            method.name == "${functionName}\$lambda"
-        }?.also { it.isAccessible = true }
+        val methods = clazz.declaredMethods
+
+        methods.find { it.name == functionName }?.let {
+            it.isAccessible = true
+            return it
+        }
+
+        val candidates = methods.filter { method ->
+            !method.name.contains("\$default") &&
+                (method.name.startsWith("$functionName\$") || method.name == "${functionName}\$lambda")
+        }
+
+        return candidates.minByOrNull { it.parameterCount }?.also { it.isAccessible = true }
     }
 
     @Composable
     private fun RenderComposable(clazz: Class<*>, method: Method) {
-        val instance = if (ReflectModifier.isStatic(method.modifiers)) {
+        val isStatic = ReflectModifier.isStatic(method.modifiers)
+        val instance = if (isStatic) {
             null
         } else {
             runCatching { clazz.getDeclaredConstructor().newInstance() }.getOrNull()
         }
 
+        if (!isStatic && instance == null) {
+            LOG.error("Failed to create instance for non-static method: {}", method.name)
+            ErrorContent("Failed to create instance for ${clazz.simpleName}")
+            return
+        }
+
         val composer = currentComposer
         val paramCount = method.parameterCount
 
-        when (paramCount) {
-            0 -> method.invoke(instance)
-            2 -> method.invoke(instance, composer, 0)
-            else -> {
+        val invokeResult: Result<Any?> = when {
+            paramCount == 0 -> runCatching { method.invoke(instance) }
+            paramCount == 2 -> runCatching { method.invoke(instance, composer, 0) }
+            paramCount > 2 -> runCatching {
                 val args = arrayOfNulls<Any>(paramCount)
                 args[paramCount - 2] = composer
                 args[paramCount - 1] = 0
                 method.invoke(instance, *args)
             }
+            else -> {
+                LOG.error("Unexpected parameter count {} for method: {}", paramCount, method.name)
+                ErrorContent("Unexpected parameter count: $paramCount")
+                return
+            }
+        }
+
+        if (invokeResult.isFailure) {
+            val e = invokeResult.exceptionOrNull()
+            LOG.error("Failed to invoke composable method: {}", method.name, e)
+            ErrorContent("Invocation failed: ${e?.message ?: "Unknown error"}")
         }
     }
 

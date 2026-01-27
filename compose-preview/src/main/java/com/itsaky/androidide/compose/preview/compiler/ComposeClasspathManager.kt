@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
 class ComposeClasspathManager(private val context: Context) {
@@ -22,6 +23,7 @@ class ComposeClasspathManager(private val context: Context) {
 
         private const val D8_HEAP_SIZE = "512m"
         private const val MIN_API_LEVEL = "21"
+        private const val D8_TIMEOUT_MINUTES = 5L
     }
 
     private val runtimeDexDir: File
@@ -250,21 +252,27 @@ class ComposeClasspathManager(private val context: Context) {
 
             try {
                 val process = ProcessBuilder(command)
-                    .redirectErrorStream(false)
+                    .redirectErrorStream(true)
                     .start()
 
-                val stderr = BufferedReader(InputStreamReader(process.errorStream))
+                val output = BufferedReader(InputStreamReader(process.inputStream))
                     .use { it.readText() }
 
-                val exitCode = process.waitFor()
+                val completed = process.waitFor(D8_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+                if (!completed) {
+                    process.destroyForcibly()
+                    LOG.error("D8 timed out after {} minutes. Output: {}", D8_TIMEOUT_MINUTES, output)
+                    return@withContext null
+                }
 
+                val exitCode = process.exitValue()
                 val outputDex = File(runtimeDexDir, "classes.dex")
                 if (exitCode == 0 && outputDex.exists()) {
                     outputDex.renameTo(runtimeDex)
                     LOG.info("Compose runtime DEX created successfully")
                     return@withContext runtimeDex
                 } else {
-                    LOG.error("D8 failed for runtime. Exit: {}, stderr: {}", exitCode, stderr)
+                    LOG.error("D8 failed for runtime. Exit: {}, output: {}", exitCode, output)
                     return@withContext null
                 }
             } catch (e: Exception) {

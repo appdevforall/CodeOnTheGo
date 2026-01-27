@@ -108,10 +108,12 @@ class ComposePreviewFragment : Fragment() {
                 binding.initializingText.setText(ResourcesR.string.preview_build_required_title)
             }
             is PreviewState.Ready -> {
-                classLoader?.setProjectDexFiles(state.projectDexFiles)
-                classLoader?.setRuntimeDex(state.runtimeDex)
+                val loader = classLoader ?: return
+                val render = renderer ?: return
+                loader.setProjectDexFiles(state.projectDexFiles)
+                loader.setRuntimeDex(state.runtimeDex)
                 val config = state.previewConfigs.firstOrNull() ?: return
-                renderer?.render(
+                render.render(
                     dexFile = state.dexFile,
                     className = state.className,
                     functionName = config.functionName
@@ -160,6 +162,8 @@ class ComposePreviewFragment : Fragment() {
     override fun onLowMemory() {
         super.onLowMemory()
         classLoader?.release()
+        classLoader = null
+        renderer = null
         LOG.warn("Low memory - released preview resources")
     }
 

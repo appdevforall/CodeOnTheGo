@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
@@ -50,24 +51,39 @@ class CompilerDaemon(
                 processWriter?.write(argsLine)
                 processWriter?.flush()
 
-                val response = StringBuilder()
-                var line: String?
+                val result = withTimeoutOrNull(COMPILE_TIMEOUT_MS) {
+                    val response = StringBuilder()
+                    var line: String?
 
-                while (true) {
-                    line = processReader?.readLine()
-                    if (line == null || line == "---END---") break
-                    response.appendLine(line)
+                    while (true) {
+                        line = processReader?.readLine()
+                        if (line == null || line == "---END---") break
+                        response.appendLine(line)
+                    }
+
+                    val errorOutput = StringBuilder()
+                    while (errorReader?.ready() == true) {
+                        errorOutput.appendLine(errorReader?.readLine())
+                    }
+
+                    val output = response.toString()
+                    val errors = errorOutput.toString()
+                    Pair(output, errors)
                 }
 
-                val errorOutput = StringBuilder()
-                while (errorReader?.ready() == true) {
-                    errorOutput.appendLine(errorReader?.readLine())
+                if (result == null) {
+                    LOG.error("Daemon compilation timed out after {}ms", COMPILE_TIMEOUT_MS)
+                    stopDaemon()
+                    return@withContext CompilerResult(
+                        success = false,
+                        output = "",
+                        errorOutput = "Compilation timed out after ${COMPILE_TIMEOUT_MS / 1000} seconds"
+                    )
                 }
 
+                val (output, errors) = result
                 scheduleIdleTimeout()
 
-                val output = response.toString()
-                val errors = errorOutput.toString()
                 val hasErrors = output.contains("error:") || errors.contains("error:")
 
                 CompilerResult(
@@ -236,6 +252,7 @@ class CompilerDaemon(
 
         private const val IDLE_TIMEOUT_MS = 120_000L
         private const val SHUTDOWN_TIMEOUT_SECONDS = 5L
+        private const val COMPILE_TIMEOUT_MS = 300_000L
 
         private val WRAPPER_SOURCE = """
             import java.io.*;

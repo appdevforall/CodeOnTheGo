@@ -192,6 +192,11 @@ class ComposePreviewViewModel(
     private suspend fun compilePreview(source: String, parsed: ParsedPreviewSource) {
         initializationDeferred.await()
 
+        if (!isInitialized.get()) {
+            LOG.debug("Skipping compilePreview - initialization failed")
+            return
+        }
+
         if (_previewState.value is PreviewState.NeedsBuild) {
             LOG.debug("Skipping compilePreview - build required")
             return
