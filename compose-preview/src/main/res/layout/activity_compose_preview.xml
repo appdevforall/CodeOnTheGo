@@ -12,6 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         app:navigationIcon="@drawable/ic_close"
+        app:navigationIconTint="?attr/colorOnSurface"
         app:menu="@menu/menu_compose_preview"
         app:titleTextAppearance="@style/TextAppearance.Material3.TitleMedium">
 
