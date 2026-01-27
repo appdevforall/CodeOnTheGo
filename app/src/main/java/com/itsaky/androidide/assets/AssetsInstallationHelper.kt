@@ -21,6 +21,7 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
+import com.itsaky.androidide.resources.R
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -34,7 +35,6 @@ import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
-import kotlin.io.path.pathString
 import kotlin.math.pow
 
 typealias AssetsInstallerProgressConsumer = (AssetsInstallationHelper.Progress) -> Unit
@@ -67,6 +67,8 @@ object AssetsInstallationHelper {
 		onProgress: AssetsInstallerProgressConsumer = {},
 	): Result =
 		withContext(Dispatchers.IO) {
+			checkStorageAccessibility(context, onProgress)?.let { return@withContext it }
+
 			val result =
 				runCatching {
 					doInstall(context, onProgress)
@@ -170,18 +172,21 @@ object AssetsInstallationHelper {
                         (installedSize * 100.0 / totalSize)
                     } else 0.0
 
-                    // determine the storage left
                     val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
                     val snapshot =
-                        buildString {
-                            entryStatusMap.forEach { (entry, status) ->
-                                appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+                        if (percent >= 99.0) {
+                            "Post install processing in progress...."
+                        } else {
+                            buildString {
+                                entryStatusMap.forEach { (entry, status) ->
+                                    appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+                                }
+                                appendLine("--------------------")
+                                appendLine("Progress: ${formatPercent(percent)}")
+                                appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
+                                appendLine("Remaining storage: ${formatBytes(freeStorage)}")
                             }
-                            appendLine("--------------------")
-                            appendLine("Progress: ${formatPercent(percent)}")
-                            appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
-                            appendLine("Remaining storage: ${formatBytes(freeStorage)}")
                         }
 
                     if (snapshot != previousSnapshot) {
@@ -218,11 +223,21 @@ object AssetsInstallationHelper {
 		destDir: Path,
 	) {
 		Files.createDirectories(destDir)
+		// Normalize and make destDir absolute for secure path validation
+		val normalizedDestDir = destDir.toAbsolutePath().normalize()
+		
 		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
-			val destFile = destDir.resolve(entry.name).normalize()
-			if (!destFile.pathString.startsWith(destDir.pathString)) {
+			// Validate entry name doesn't contain dangerous patterns
+			if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
+				throw IllegalStateException("Zip entry contains dangerous path components: ${entry.name}")
+			}
+			
+			val destFile = normalizedDestDir.resolve(entry.name).normalize()
+			
+			// Use Path.startsWith() for proper path validation instead of string comparison
+			if (!destFile.startsWith(normalizedDestDir)) {
 				// DO NOT allow extraction to outside of the target dir
-				throw IllegalStateException("Entry is outside of the target dir: ${zipInput.buffered()}")
+				throw IllegalStateException("Entry is outside of the target dir: ${entry.name}")
 			}
 
 			if (entry.isDirectory) {
@@ -236,8 +251,13 @@ object AssetsInstallationHelper {
 	}
 
     private fun getAvailableStorage(path: File): Long {
-        val stat = StatFs(path.absolutePath)
-        return stat.availableBytes
+        return try {
+            val stat = StatFs(path.absolutePath)
+            stat.availableBytes
+        } catch (e: Exception) {
+            logger.warn("Failed to get available storage for {}: {}", path, e.message)
+            -1L
+        }
     }
 
     private fun formatBytes(bytes: Long): String {
@@ -257,4 +277,20 @@ object AssetsInstallationHelper {
         return String.format(Locale.getDefault(), "%.1f%%", value)
     }
 
+	private fun checkStorageAccessibility(
+		context: Context,
+		onProgress: AssetsInstallerProgressConsumer,
+	): Result.Failure? {
+		val rootDir = File(DEFAULT_ROOT)
+		if (!rootDir.exists() || !rootDir.canWrite()) {
+			val errorMsg = context.getString(R.string.storage_not_accessible)
+			logger.error("Storage not accessible: {}", DEFAULT_ROOT)
+			onProgress(Progress(errorMsg))
+			return Result.Failure(
+				IllegalStateException(errorMsg),
+				errorMsg
+			)
+		}
+		return null
+	}
 }

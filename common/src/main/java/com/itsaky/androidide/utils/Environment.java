@@ -27,6 +27,7 @@ import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 import java.io.File;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +48,8 @@ public final class Environment {
 	public static final String PLUGIN_API_JAR_RELATIVE_PATH = "libs/plugin-api.jar";
 
 	private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
+	private static final AtomicBoolean isInitialized = new AtomicBoolean(false);
+
 	public static File ROOT;
 	public static File PREFIX;
 	public static File HOME;
@@ -109,6 +112,9 @@ public final class Environment {
 			"PL", "PT", "RO", "SK", "SI", "ES", "SE"
 	};
 
+	public static final String NDK_TAR_XZ = "ndk-cmake.tar.xz";
+	public static File NDK_DIR;
+
 	public static String getArchitecture() {
 		return IDEBuildConfigProvider.getInstance().getCpuAbiName();
 	}
@@ -118,6 +124,10 @@ public final class Environment {
 	}
 
 	public static void init(Context context) {
+		if (isInitialized.get()) {
+			return;
+		}
+
 		var arch = getArchitecture();
 		DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
 		SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, "assets-" + arch + ".zip");
@@ -168,6 +178,10 @@ public final class Environment {
 		KEYSTORE_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "keystore"));
 		KEYSTORE_RELEASE = new File(KEYSTORE_DIR, KEYSTORE_RELEASE_NAME);
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
+
+		NDK_DIR = new File(ANDROID_HOME,"ndk");
+
+		isInitialized.set(true);
 	}
 
 	public static File mkdirIfNotExists(File in) {

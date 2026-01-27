@@ -132,7 +132,7 @@ public class TextSelectionHandleView extends View {
         coords[1] += mPointY;
 
         if (mHandle != null)
-            mHandle.showAtLocation(terminalView, Gravity.CENTER, 0,0);
+            mHandle.showAtLocation(terminalView, Gravity.NO_GRAVITY, coords[0], coords[1]);
     }
 
     public void hide() {
