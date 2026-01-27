@@ -12,7 +12,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewbinding.ViewBinding
 import com.itsaky.androidide.databinding.FragmentEmptyStateBinding
-import com.itsaky.androidide.editor.ui.EditorLongPressEvent
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -21,9 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.greenrobot.eventbus.EventBus
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode
 
 abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	constructor(layout: Int, bind: (View) -> T) : super(layout, bind)
@@ -161,22 +157,4 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 		)
 	}
 
-	override fun onResume() {
-		super.onResume()
-		// Register this fragment to receive events
-		EventBus.getDefault().register(this)
-	}
-
-	override fun onPause() {
-		super.onPause()
-		// Unregister to avoid memory leaks
-		EventBus.getDefault().unregister(this)
-	}
-
-	// This method will be called when an EditorLongPressEvent is posted
-	@Subscribe(threadMode = ThreadMode.MAIN)
-	fun onEditorLongPressed(event: EditorLongPressEvent) {
-		val motionEvent = event.motionEvent
-		onFragmentLongPressed(motionEvent.x, motionEvent.y)
-	}
 }

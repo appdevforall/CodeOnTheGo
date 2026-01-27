@@ -33,7 +33,6 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
-		editor?.includeDebugInfoOnCopy = true
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
 		if (unsavedLines.isNotEmpty()) {
