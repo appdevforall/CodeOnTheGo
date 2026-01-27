@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
 
 data class DexCompilationResult(
     val success: Boolean,
@@ -22,7 +23,7 @@ class ComposeDexCompiler(
         withContext(Dispatchers.IO) {
             outputDir.mkdirs()
 
-            val d8Jar = findD8Jar()
+            val d8Jar = classpathManager.getD8Jar()
             if (d8Jar == null || !d8Jar.exists()) {
                 return@withContext DexCompilationResult(
                     success = false,
@@ -68,13 +69,22 @@ class ComposeDexCompiler(
                 val stderr = BufferedReader(InputStreamReader(process.errorStream))
                     .use { it.readText() }
 
-                val exitCode = process.waitFor()
+                val completed = process.waitFor(DEX_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+                if (!completed) {
+                    process.destroyForcibly()
+                    LOG.error("D8 timed out after {} minutes", DEX_TIMEOUT_MINUTES)
+                    return@withContext DexCompilationResult(
+                        success = false,
+                        dexFile = null,
+                        errorMessage = "D8 timed out after $DEX_TIMEOUT_MINUTES minutes"
+                    )
+                }
 
                 val dexFile = File(outputDir, "classes.dex")
-                val success = exitCode == 0 && dexFile.exists()
+                val success = process.exitValue() == 0 && dexFile.exists()
 
                 if (!success) {
-                    LOG.error("D8 failed. Exit: {}, stderr: {}", exitCode, stderr)
+                    LOG.error("D8 failed. Exit: {}, stderr: {}", process.exitValue(), stderr)
                 }
 
                 DexCompilationResult(
@@ -91,33 +101,6 @@ class ComposeDexCompiler(
                 )
             }
         }
-
-    private fun findD8Jar(): File? {
-        val buildToolsVersions = listOf("35.0.0", "34.0.0", "33.0.2", "33.0.0")
-
-        for (version in buildToolsVersions) {
-            val d8Jar = File(Environment.ANDROID_HOME, "build-tools/$version/lib/d8.jar")
-            if (d8Jar.exists()) {
-                return d8Jar
-            }
-        }
-
-        val buildToolsDir = File(Environment.ANDROID_HOME, "build-tools")
-        if (buildToolsDir.exists()) {
-            val latestVersion = buildToolsDir.listFiles()
-                ?.filter { it.isDirectory }
-                ?.maxByOrNull { it.name }
-
-            if (latestVersion != null) {
-                val d8Jar = File(latestVersion, "lib/d8.jar")
-                if (d8Jar.exists()) {
-                    return d8Jar
-                }
-            }
-        }
-
-        return null
-    }
 
     private fun buildD8Command(
         javaExecutable: File,
@@ -155,5 +138,6 @@ class ComposeDexCompiler(
 
     companion object {
         private val LOG = LoggerFactory.getLogger(ComposeDexCompiler::class.java)
+        private const val DEX_TIMEOUT_MINUTES = 5L
     }
 }

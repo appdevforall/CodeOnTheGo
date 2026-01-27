@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
 
 data class CompilationResult(
     val success: Boolean,
@@ -44,14 +45,14 @@ class ComposeCompiler(
             val composePlugin = classpathManager.getCompilerPlugin()
             val compilerBootstrapClasspath = classpathManager.getCompilerBootstrapClasspath()
 
-            if (!kotlinCompiler.exists()) {
+            if (kotlinCompiler == null || !kotlinCompiler.exists()) {
                 return@withContext CompilationResult(
                     success = false,
                     outputDir = null,
                     diagnostics = listOf(
                         CompileDiagnostic(
                             CompileDiagnostic.Severity.ERROR,
-                            "Kotlin compiler not found at ${kotlinCompiler.absolutePath}",
+                            "Kotlin compiler not found in local Maven repository. Build any project first.",
                             null, null, null
                         )
                     )
@@ -153,9 +154,14 @@ class ComposeCompiler(
         val stdout = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
         val stderr = BufferedReader(InputStreamReader(process.errorStream)).use { it.readText() }
 
-        val exitCode = process.waitFor()
+        val completed = process.waitFor(COMPILATION_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+        if (!completed) {
+            process.destroyForcibly()
+            LOG.error("Compilation timed out after {} minutes", COMPILATION_TIMEOUT_MINUTES)
+            return ProcessResult(-1, stdout, "Compilation timed out after $COMPILATION_TIMEOUT_MINUTES minutes")
+        }
 
-        return ProcessResult(exitCode, stdout, stderr)
+        return ProcessResult(process.exitValue(), stdout, stderr)
     }
 
     private fun parseCompilationResult(
@@ -215,5 +221,6 @@ class ComposeCompiler(
 
     companion object {
         private val LOG = LoggerFactory.getLogger(ComposeCompiler::class.java)
+        private const val COMPILATION_TIMEOUT_MINUTES = 5L
     }
 }

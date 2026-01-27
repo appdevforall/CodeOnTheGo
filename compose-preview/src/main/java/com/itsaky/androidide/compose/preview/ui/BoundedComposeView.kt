@@ -49,7 +49,8 @@ class BoundedComposeView @JvmOverloads constructor(
     }
 
     companion object {
-        private val DEFAULT_MAX_HEIGHT_PX = (600 *
+        private const val DEFAULT_MAX_HEIGHT_DP = 600
+        private val DEFAULT_MAX_HEIGHT_PX = (DEFAULT_MAX_HEIGHT_DP *
             android.content.res.Resources.getSystem().displayMetrics.density).toInt()
     }
 }

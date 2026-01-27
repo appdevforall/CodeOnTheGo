@@ -17,37 +17,46 @@ class ComposeClasspathManager(private val context: Context) {
     private val composeDir: File
         get() = Environment.COMPOSE_HOME
 
+    companion object {
+        private val LOG = LoggerFactory.getLogger(ComposeClasspathManager::class.java)
+
+        private const val D8_HEAP_SIZE = "512m"
+        private const val MIN_API_LEVEL = "21"
+    }
+
     private val runtimeDexDir: File
         get() = File(composeDir, "dex")
 
+    private val localMavenRepo: File
+        get() = File(Environment.HOME, "maven/localMvnRepository")
+
     private val dexMutex = Mutex()
 
-    private val compilerBootstrapJars = listOf(
-        "kotlin-compiler.jar",
-        "kotlin-stdlib.jar",
-        "kotlin-reflect.jar",
-        "kotlin-script-runtime.jar",
-        "trove4j.jar",
-        "jetbrains-annotations.jar"
+    private val kotlinArtifacts = mapOf(
+        "kotlin-compiler" to "org/jetbrains/kotlin/kotlin-compiler-embeddable",
+        "kotlin-stdlib" to "org/jetbrains/kotlin/kotlin-stdlib",
+        "kotlin-reflect" to "org/jetbrains/kotlin/kotlin-reflect",
+        "kotlin-script-runtime" to "org/jetbrains/kotlin/kotlin-script-runtime",
+        "trove4j" to "org/jetbrains/intellij/deps/trove4j",
+        "annotations" to "org/jetbrains/annotations"
     )
 
-    private val requiredCoreJars = listOf(
-        "kotlin-compiler.jar",
-        "kotlin-stdlib.jar",
+    private val requiredRuntimeJarPatterns = listOf<Any>(
         "compose-compiler-plugin.jar",
-        "activity-1.8.2.jar",
-        "foundation-layout-release.jar",
-        "ui-unit-release.jar",
-        "lifecycle-viewmodel-2.6.1.jar",
-        "jetbrains-annotations.jar"
+        Regex("runtime-release\\.jar"),
+        Regex("ui-release\\.jar"),
+        Regex("animation-release\\.jar"),
+        Regex("animation-core-release\\.jar"),
+        Regex("foundation-release\\.jar"),
+        Regex("material3-release\\.jar")
     )
 
     fun ensureComposeJarsExtracted(): Boolean {
-        val extracted = areJarsExtracted()
-        LOG.info("Compose JARs extracted: {}, dir exists: {}, dir: {}", extracted, composeDir.exists(), composeDir.absolutePath)
+        val extracted = areRuntimeJarsExtracted()
+        LOG.info("Compose runtime JARs extracted: {}, dir: {}", extracted, composeDir.absolutePath)
 
         if (extracted) {
-            LOG.debug("Compose JARs already extracted")
+            LOG.debug("Compose runtime JARs already extracted")
             return true
         }
 
@@ -61,15 +70,51 @@ class ComposeClasspathManager(private val context: Context) {
         }
     }
 
-    private fun areJarsExtracted(): Boolean {
-        val allExist = requiredCoreJars.all { jar ->
-            val exists = File(composeDir, jar).exists()
-            if (!exists) {
-                LOG.debug("Missing JAR: {}", jar)
+    fun isKotlinCompilerAvailable(): Boolean {
+        val compiler = findMavenJar("kotlin-compiler")
+        val available = compiler?.exists() == true
+        LOG.info("Kotlin compiler available in local Maven repo: {}", available)
+        return available
+    }
+
+    private fun areRuntimeJarsExtracted(): Boolean {
+        if (!composeDir.exists()) return false
+
+        val files = composeDir.listFiles()?.map { it.name } ?: return false
+
+        return requiredRuntimeJarPatterns.all { pattern ->
+            when (pattern) {
+                is String -> files.contains(pattern)
+                is Regex -> files.any { pattern.matches(it) }
+                else -> false
             }
-            exists
         }
-        return composeDir.exists() && allExist
+    }
+
+    private fun findMavenJar(artifactKey: String): File? {
+        val artifactPath = kotlinArtifacts[artifactKey] ?: return null
+        val artifactDir = File(localMavenRepo, artifactPath)
+
+        if (!artifactDir.exists()) {
+            LOG.debug("Maven artifact dir not found: {}", artifactDir)
+            return null
+        }
+
+        val versionDirs = artifactDir.listFiles { file -> file.isDirectory }
+            ?.sortedByDescending { it.name }
+            ?: return null
+
+        for (versionDir in versionDirs) {
+            val jars = versionDir.listFiles { file ->
+                file.extension == "jar" && !file.name.contains("-sources") && !file.name.contains("-javadoc")
+            }
+            if (!jars.isNullOrEmpty()) {
+                LOG.debug("Found {} in local Maven repo: {}", artifactKey, jars[0])
+                return jars[0]
+            }
+        }
+
+        return null
     }
 
     private fun extractComposeJars() {
@@ -94,35 +139,42 @@ class ComposeClasspathManager(private val context: Context) {
         LOG.info("Extracted Compose JARs to {}", composeDir)
     }
 
-    fun getKotlinCompiler(): File {
-        return File(composeDir, "kotlin-compiler.jar")
+    fun getKotlinCompiler(): File? {
+        return findMavenJar("kotlin-compiler")
     }
 
     fun getCompilerPlugin(): File {
         return File(composeDir, "compose-compiler-plugin.jar")
     }
 
-    fun getKotlinStdlib(): File {
-        return File(composeDir, "kotlin-stdlib.jar")
+    fun getKotlinStdlib(): File? {
+        return findMavenJar("kotlin-stdlib")
     }
 
     fun getCompilerBootstrapClasspath(): String {
-        return compilerBootstrapJars
-            .map { File(composeDir, it) }
-            .filter { it.exists() }
+        val jars = buildList {
+            findMavenJar("kotlin-compiler")?.let { add(it) }
+            findMavenJar("kotlin-stdlib")?.let { add(it) }
+            findMavenJar("kotlin-reflect")?.let { add(it) }
+            findMavenJar("kotlin-script-runtime")?.let { add(it) }
+            findMavenJar("trove4j")?.let { add(it) }
+            findMavenJar("annotations")?.let { add(it) }
+        }
+        return jars.filter { it.exists() }
             .joinToString(File.pathSeparator) { it.absolutePath }
     }
 
     fun getRuntimeJars(): List<File> {
         return composeDir.listFiles { file ->
-            file.extension == "jar" && !compilerBootstrapJars.contains(file.name)
+            file.extension == "jar"
         }?.toList() ?: emptyList()
     }
 
     fun getAllJars(): List<File> {
-        return composeDir.listFiles { file ->
-            file.extension == "jar"
-        }?.toList() ?: emptyList()
+        return buildList {
+            addAll(getRuntimeJars())
+            findMavenJar("kotlin-stdlib")?.let { add(it) }
+        }
     }
 
     fun getFullClasspath(): List<File> {
@@ -139,16 +191,10 @@ class ComposeClasspathManager(private val context: Context) {
         val all = (base + extra).filter { it.exists() }
         val classpath = all.joinToString(File.pathSeparator) { it.absolutePath }
         LOG.info("Compilation classpath has {} JARs ({} bundled, {} project, {} missing)", all.size, base.count { it.exists() }, extra.size, missingExtra.size)
-        if (missingExtra.isNotEmpty()) {
-            LOG.warn("Missing project classpaths (build the project first):")
-            missingExtra.take(5).forEach { LOG.warn("  {}", it.absolutePath) }
-        }
         return classpath
     }
 
-    fun hasProjectClasspaths(additionalJars: List<File>): Boolean {
-        return additionalJars.any { it.exists() }
-    }
+    fun getD8Jar(): File? = findD8Jar()
 
     suspend fun getOrCreateRuntimeDex(): File? = dexMutex.withLock {
         withContext(Dispatchers.IO) {
@@ -184,13 +230,13 @@ class ComposeClasspathManager(private val context: Context) {
 
             val command = buildList {
                 add(javaExecutable.absolutePath)
-                add("-Xmx512m")
+                add("-Xmx$D8_HEAP_SIZE")
                 add("-cp")
                 add(d8Jar.absolutePath)
                 add("com.android.tools.r8.D8")
                 add("--release")
                 add("--min-api")
-                add("21")
+                add(MIN_API_LEVEL)
                 add("--lib")
                 add(Environment.ANDROID_JAR.absolutePath)
                 add("--output")
@@ -229,33 +275,27 @@ class ComposeClasspathManager(private val context: Context) {
     }
 
     private fun findD8Jar(): File? {
-        val buildToolsVersions = listOf("35.0.0", "34.0.0", "33.0.2", "33.0.0")
+        val buildToolsDir = File(Environment.ANDROID_HOME, "build-tools")
+        if (!buildToolsDir.exists()) {
+            LOG.warn("Build tools directory not found: {}", buildToolsDir)
+            return null
+        }
 
-        for (version in buildToolsVersions) {
-            val d8Jar = File(Environment.ANDROID_HOME, "build-tools/$version/lib/d8.jar")
+        val installedVersions = buildToolsDir.listFiles()
+            ?.filter { it.isDirectory }
+            ?.sortedByDescending { it.name }
+            ?: emptyList()
+
+        for (versionDir in installedVersions) {
+            val d8Jar = File(versionDir, "lib/d8.jar")
             if (d8Jar.exists()) {
+                LOG.debug("Using D8 from build-tools {}", versionDir.name)
                 return d8Jar
             }
         }
 
-        val buildToolsDir = File(Environment.ANDROID_HOME, "build-tools")
-        if (buildToolsDir.exists()) {
-            val latestVersion = buildToolsDir.listFiles()
-                ?.filter { it.isDirectory }
-                ?.maxByOrNull { it.name }
-
-            if (latestVersion != null) {
-                val d8Jar = File(latestVersion, "lib/d8.jar")
-                if (d8Jar.exists()) {
-                    return d8Jar
-                }
-            }
-        }
-
+        LOG.warn("D8 jar not found in any installed build-tools version")
         return null
     }
 
-    companion object {
-        private val LOG = LoggerFactory.getLogger(ComposeClasspathManager::class.java)
-    }
 }

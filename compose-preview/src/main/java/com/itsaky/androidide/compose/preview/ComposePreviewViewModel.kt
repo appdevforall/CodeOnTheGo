@@ -18,8 +18,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 sealed class PreviewState {
     data object Idle : PreviewState()
@@ -70,12 +73,12 @@ class ComposePreviewViewModel(
     private val sourceChanges = MutableSharedFlow<SourceUpdate>()
 
     private var currentSource: String = ""
-    private var cachedContext: Context? = null
     private var cachedFilePath: String = ""
     private var modulePath: String? = null
     private var variantName: String = "debug"
-    private var isInitialized = false
+    private val isInitialized = AtomicBoolean(false)
     private var initializationDeferred = kotlinx.coroutines.CompletableDeferred<Unit>()
+    private val initMutex = Mutex()
 
     private data class SourceUpdate(
         val source: String,
@@ -94,9 +97,8 @@ class ComposePreviewViewModel(
     }
 
     fun initialize(context: Context, filePath: String) {
-        if (isInitialized) return
+        if (!isInitialized.compareAndSet(false, true)) return
 
-        cachedContext = context
         cachedFilePath = filePath
 
         viewModelScope.launch {
@@ -108,7 +110,6 @@ class ComposePreviewViewModel(
                         is InitializationResult.Ready -> {
                             modulePath = result.projectContext.modulePath
                             variantName = result.projectContext.variantName
-                            isInitialized = true
                             initializationDeferred.complete(Unit)
                             _previewState.value = PreviewState.Idle
                             LOG.info("ViewModel initialized, modulePath={}, variant={}",
@@ -117,7 +118,6 @@ class ComposePreviewViewModel(
                         is InitializationResult.NeedsBuild -> {
                             modulePath = result.modulePath
                             variantName = result.variantName
-                            isInitialized = true
                             initializationDeferred.complete(Unit)
                             _previewState.value = PreviewState.NeedsBuild(
                                 result.modulePath,
@@ -125,6 +125,7 @@ class ComposePreviewViewModel(
                             )
                         }
                         is InitializationResult.Failed -> {
+                            isInitialized.set(false)
                             initializationDeferred.complete(Unit)
                             _previewState.value = PreviewState.Error(result.message)
                         }
@@ -132,6 +133,7 @@ class ComposePreviewViewModel(
                 }
                 .onFailure { error ->
                     LOG.error("Initialization failed", error)
+                    isInitialized.set(false)
                     initializationDeferred.complete(Unit)
                     _previewState.value = PreviewState.Error(
                         error.message ?: "Initialization failed"
@@ -142,24 +144,7 @@ class ComposePreviewViewModel(
 
     fun onSourceChanged(source: String) {
         currentSource = source
-
-        if (_previewState.value is PreviewState.NeedsBuild) {
-            LOG.debug("Skipping source change - build required")
-            return
-        }
-
-        val parsed = sourceParser.parse(source)
-        if (parsed == null) {
-            _previewState.value = PreviewState.Error("Missing package declaration in source")
-            return
-        }
-
-        if (parsed.previewConfigs.isEmpty()) {
-            _previewState.value = PreviewState.Empty
-            return
-        }
-
-        updateAvailablePreviews(parsed.previewConfigs)
+        val parsed = parseAndValidateSource(source) ?: return
 
         viewModelScope.launch {
             sourceChanges.emit(SourceUpdate(source, parsed))
@@ -168,28 +153,32 @@ class ComposePreviewViewModel(
 
     fun compileNow(source: String) {
         currentSource = source
+        val parsed = parseAndValidateSource(source) ?: return
 
+        viewModelScope.launch {
+            compilePreview(source, parsed)
+        }
+    }
+
+    private fun parseAndValidateSource(source: String): ParsedPreviewSource? {
         if (_previewState.value is PreviewState.NeedsBuild) {
-            LOG.debug("Skipping compilation - build required")
-            return
+            LOG.debug("Skipping source processing - build required")
+            return null
         }
 
         val parsed = sourceParser.parse(source)
         if (parsed == null) {
             _previewState.value = PreviewState.Error("Missing package declaration in source")
-            return
+            return null
         }
 
         if (parsed.previewConfigs.isEmpty()) {
             _previewState.value = PreviewState.Empty
-            return
+            return null
         }
 
         updateAvailablePreviews(parsed.previewConfigs)
-
-        viewModelScope.launch {
-            compilePreview(source, parsed)
-        }
+        return parsed
     }
 
     private fun updateAvailablePreviews(configs: List<PreviewConfig>) {
@@ -258,19 +247,16 @@ class ComposePreviewViewModel(
         _previewState.value = PreviewState.Error("Build failed. Check build output for details.")
     }
 
-    fun refreshAfterBuild() {
+    fun refreshAfterBuild(context: Context) {
         viewModelScope.launch {
-            LOG.info("refreshAfterBuild: starting, currentSource length={}", currentSource.length)
-            val context = cachedContext ?: run {
-                LOG.warn("refreshAfterBuild: cachedContext is null")
-                return@launch
-            }
+            initMutex.withLock {
+                LOG.debug("refreshAfterBuild: starting, currentSource length={}", currentSource.length)
 
-            repository.reset()
-            isInitialized = false
-            initializationDeferred = kotlinx.coroutines.CompletableDeferred()
+                repository.reset()
+                isInitialized.set(false)
+                initializationDeferred = kotlinx.coroutines.CompletableDeferred()
 
-            _previewState.value = PreviewState.Initializing
+                _previewState.value = PreviewState.Initializing
 
             repository.initialize(context, cachedFilePath)
                 .onSuccess { result ->
@@ -278,10 +264,10 @@ class ComposePreviewViewModel(
                         is InitializationResult.Ready -> {
                             modulePath = result.projectContext.modulePath
                             variantName = result.projectContext.variantName
-                            isInitialized = true
-                            LOG.info("refreshAfterBuild: initialization complete, state=Ready")
+                            isInitialized.set(true)
+                            initializationDeferred.complete(Unit)
+                            LOG.debug("refreshAfterBuild: initialization complete, state=Ready")
                             if (currentSource.isNotBlank()) {
-                                LOG.info("refreshAfterBuild: recompiling")
                                 compileNow(currentSource)
                             } else {
                                 _previewState.value = PreviewState.Idle
@@ -290,25 +276,28 @@ class ComposePreviewViewModel(
                         is InitializationResult.NeedsBuild -> {
                             modulePath = result.modulePath
                             variantName = result.variantName
-                            isInitialized = true
-                            LOG.info("refreshAfterBuild: still needs build")
+                            isInitialized.set(true)
+                            initializationDeferred.complete(Unit)
                             _previewState.value = PreviewState.NeedsBuild(
                                 result.modulePath,
                                 result.variantName
                             )
                         }
                         is InitializationResult.Failed -> {
+                            initializationDeferred.complete(Unit)
                             LOG.error("refreshAfterBuild: initialization failed - {}", result.message)
                             _previewState.value = PreviewState.Error(result.message)
                         }
                     }
                 }
                 .onFailure { error ->
+                    initializationDeferred.complete(Unit)
                     LOG.error("refreshAfterBuild: initialization failed", error)
                     _previewState.value = PreviewState.Error(
                         error.message ?: "Initialization failed"
                     )
                 }
+            }
         }
     }
 

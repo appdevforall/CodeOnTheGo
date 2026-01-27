@@ -111,7 +111,8 @@ class ComposePreviewActivity : AppCompatActivity() {
         binding.singlePreviewView.setViewCompositionStrategy(
             ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool
         )
-        singleRenderer = classLoader?.let { ComposableRenderer(binding.singlePreviewView, it) }
+        val loader = classLoader ?: return
+        singleRenderer = ComposableRenderer(binding.singlePreviewView, loader)
     }
 
     private fun setupBuildButton() {
@@ -165,7 +166,7 @@ class ComposePreviewActivity : AppCompatActivity() {
                     viewModel.setBuildFailed()
                 } else {
                     LOG.info("Build completed, refreshing preview")
-                    viewModel.refreshAfterBuild()
+                    viewModel.refreshAfterBuild(this@ComposePreviewActivity)
                 }
             }
         }
@@ -229,18 +230,23 @@ class ComposePreviewActivity : AppCompatActivity() {
         when (state) {
             is PreviewState.Idle -> {
                 binding.statusText.text = "Rendering..."
+                binding.statusSubtext.isVisible = false
                 binding.loadingIndicator.isVisible = true
             }
             is PreviewState.Initializing -> {
                 binding.statusText.text = "Initializing..."
+                binding.statusSubtext.isVisible = false
                 binding.loadingIndicator.isVisible = true
             }
             is PreviewState.Compiling -> {
                 binding.statusText.text = "Compiling..."
+                binding.statusSubtext.isVisible = false
                 binding.loadingIndicator.isVisible = true
             }
             is PreviewState.Building -> {
                 binding.statusText.text = "Building project..."
+                binding.statusSubtext.text = "First build may take 10-15 minutes"
+                binding.statusSubtext.isVisible = true
                 binding.loadingIndicator.isVisible = true
             }
             is PreviewState.NeedsBuild -> {
@@ -397,11 +403,13 @@ class ComposePreviewActivity : AppCompatActivity() {
     private fun createPreviewItem(functionName: String, isFirst: Boolean): View {
         val item = layoutInflater.inflate(R.layout.item_preview_card, binding.previewListContainer, false)
 
-        val label = item.findViewById<TextView>(R.id.previewLabel)
-        label.text = "@$functionName"
+        item.findViewById<TextView>(R.id.previewLabel)?.let { label ->
+            label.text = "@$functionName"
+        }
 
-        val divider = item.findViewById<View>(R.id.divider)
-        divider.isVisible = !isFirst
+        item.findViewById<View>(R.id.divider)?.let { divider ->
+            divider.isVisible = !isFirst
+        }
 
         return item
     }

@@ -1,7 +1,13 @@
 package com.itsaky.androidide.compose.preview.compiler
 
 import com.itsaky.androidide.utils.Environment
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -22,8 +28,8 @@ class CompilerDaemon(
     private var errorReader: BufferedReader? = null
     private val mutex = Mutex()
 
-    private var lastUsedTime = 0L
-    private val idleTimeoutMs = 120_000L
+    private var idleTimeoutJob: Job? = null
+    private val timeoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val wrapperDir = File(workDir, "daemon").apply { mkdirs() }
     private val wrapperClass = File(wrapperDir, "CompilerWrapper.class")
@@ -58,7 +64,7 @@ class CompilerDaemon(
                     errorOutput.appendLine(errorReader?.readLine())
                 }
 
-                lastUsedTime = System.currentTimeMillis()
+                scheduleIdleTimeout()
 
                 val output = response.toString()
                 val errors = errorOutput.toString()
@@ -98,6 +104,7 @@ class CompilerDaemon(
 
         val javac = File(Environment.JAVA.parentFile, "javac")
         val kotlinCompilerJar = classpathManager.getKotlinCompiler()
+            ?: throw RuntimeException("Kotlin compiler not found in local Maven repository. Build any project first.")
 
         val command = listOf(
             javac.absolutePath,
@@ -151,11 +158,22 @@ class CompilerDaemon(
         val ready = processReader?.readLine()
         if (ready == "READY") {
             LOG.info("Compiler daemon started and ready")
-            lastUsedTime = System.currentTimeMillis()
+            scheduleIdleTimeout()
         } else {
             LOG.error("Daemon failed to start, got: {}", ready)
             stopDaemon()
             throw RuntimeException("Daemon failed to start")
+        }
+    }
+
+    private fun scheduleIdleTimeout() {
+        idleTimeoutJob?.cancel()
+        idleTimeoutJob = timeoutScope.launch {
+            delay(IDLE_TIMEOUT_MS)
+            if (daemonProcess?.isAlive == true) {
+                LOG.info("Stopping idle compiler daemon after {}ms", IDLE_TIMEOUT_MS)
+                stopDaemon()
+            }
         }
     }
 
@@ -180,11 +198,16 @@ class CompilerDaemon(
     }
 
     fun stopDaemon() {
+        idleTimeoutJob?.cancel()
+        idleTimeoutJob = null
+        timeoutScope.cancel()
+
         try {
             processWriter?.write("EXIT\n")
             processWriter?.flush()
-            daemonProcess?.waitFor(2, TimeUnit.SECONDS)
-        } catch (_: Exception) {
+            daemonProcess?.waitFor(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            LOG.debug("Error sending EXIT to daemon", e)
         }
 
         try {
@@ -202,14 +225,6 @@ class CompilerDaemon(
         }
     }
 
-    fun checkIdleTimeout() {
-        if (daemonProcess?.isAlive == true &&
-            System.currentTimeMillis() - lastUsedTime > idleTimeoutMs) {
-            LOG.info("Stopping idle compiler daemon")
-            stopDaemon()
-        }
-    }
-
     data class CompilerResult(
         val success: Boolean,
         val output: String,
@@ -218,6 +233,9 @@ class CompilerDaemon(
 
     companion object {
         private val LOG = LoggerFactory.getLogger(CompilerDaemon::class.java)
+
+        private const val IDLE_TIMEOUT_MS = 120_000L
+        private const val SHUTDOWN_TIMEOUT_SECONDS = 5L
 
         private val WRAPPER_SOURCE = """
             import java.io.*;

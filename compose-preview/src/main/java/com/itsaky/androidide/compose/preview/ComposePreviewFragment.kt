@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory
 class ComposePreviewFragment : Fragment() {
 
     private var _binding: FragmentComposePreviewBinding? = null
-    private val binding get() = _binding!!
+    private val binding get() = _binding ?: throw IllegalStateException("Binding accessed after view destroyed")
 
     private val viewModel: ComposePreviewViewModel by viewModels()
 

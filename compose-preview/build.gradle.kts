@@ -1,7 +1,5 @@
 import com.itsaky.androidide.build.config.BuildConfig
-import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
-import java.util.zip.ZipOutputStream
 
 plugins {
     id("com.android.library")
@@ -11,10 +9,9 @@ plugins {
 
 val composeVersion = "1.6.0"
 val material3Version = "1.2.0"
-val kotlinVersion = "1.9.22"
 val composeCompilerVersion = "1.5.10"
 
-val kotlinJarsForPreview: Configuration by configurations.creating {
+val composeCompilerJars: Configuration by configurations.creating {
     isTransitive = false
 }
 
@@ -23,14 +20,7 @@ val composeAarsForPreview: Configuration by configurations.creating {
 }
 
 dependencies {
-    kotlinJarsForPreview("org.jetbrains.kotlin:kotlin-compiler-embeddable:$kotlinVersion")
-    kotlinJarsForPreview("org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion")
-    kotlinJarsForPreview("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
-    kotlinJarsForPreview("org.jetbrains.kotlin:kotlin-script-runtime:$kotlinVersion")
-    kotlinJarsForPreview("org.jetbrains.intellij.deps:trove4j:1.0.20200330")
-    kotlinJarsForPreview("org.jetbrains:annotations:24.0.0")
-    kotlinJarsForPreview("androidx.compose.compiler:compiler:$composeCompilerVersion")
-    kotlinJarsForPreview("androidx.annotation:annotation:1.7.1")
+    composeCompilerJars("androidx.compose.compiler:compiler:$composeCompilerVersion")
 
     composeAarsForPreview("androidx.compose.runtime:runtime-android:$composeVersion")
     composeAarsForPreview("androidx.compose.ui:ui-android:$composeVersion")
@@ -38,6 +28,8 @@ dependencies {
     composeAarsForPreview("androidx.compose.ui:ui-text-android:$composeVersion")
     composeAarsForPreview("androidx.compose.ui:ui-unit-android:$composeVersion")
     composeAarsForPreview("androidx.compose.ui:ui-geometry-android:$composeVersion")
+    composeAarsForPreview("androidx.compose.animation:animation-android:$composeVersion")
+    composeAarsForPreview("androidx.compose.animation:animation-core-android:$composeVersion")
     composeAarsForPreview("androidx.compose.foundation:foundation-android:$composeVersion")
     composeAarsForPreview("androidx.compose.foundation:foundation-layout-android:$composeVersion")
     composeAarsForPreview("androidx.compose.material3:material3-android:$material3Version")
@@ -56,27 +48,20 @@ dependencies {
     composeAarsForPreview("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
 
-val downloadKotlinJars by tasks.registering(Copy::class) {
-    from(kotlinJarsForPreview)
+val copyComposeCompilerPlugin by tasks.registering(Copy::class) {
+    from(composeCompilerJars)
     into(layout.buildDirectory.dir("compose-jars"))
 
     rename { originalName ->
         when {
-            originalName.startsWith("kotlin-compiler-embeddable") -> "kotlin-compiler.jar"
-            originalName.startsWith("kotlin-stdlib") && !originalName.contains("common") -> "kotlin-stdlib.jar"
-            originalName.startsWith("kotlin-reflect") -> "kotlin-reflect.jar"
-            originalName.startsWith("kotlin-script-runtime") -> "kotlin-script-runtime.jar"
-            originalName.startsWith("trove4j") -> "trove4j.jar"
-            originalName.startsWith("annotations-") -> "jetbrains-annotations.jar"
             originalName.startsWith("compiler-") -> "compose-compiler-plugin.jar"
-            originalName.startsWith("annotation-") -> "annotation.jar"
             else -> originalName
         }
     }
 }
 
 val extractComposeClasses by tasks.registering {
-    dependsOn(downloadKotlinJars)
+    dependsOn(copyComposeCompilerPlugin)
 
     val outputDir = layout.buildDirectory.dir("compose-jars")
 

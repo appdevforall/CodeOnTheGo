@@ -7,7 +7,6 @@ import com.itsaky.androidide.compose.preview.compiler.ComposeClasspathManager
 import com.itsaky.androidide.compose.preview.compiler.ComposeCompiler
 import com.itsaky.androidide.compose.preview.compiler.ComposeDexCompiler
 import com.itsaky.androidide.compose.preview.compiler.DexCache
-import com.itsaky.androidide.compose.preview.compiler.PreviewSourceTransformer
 import com.itsaky.androidide.compose.preview.data.source.ProjectContext
 import com.itsaky.androidide.compose.preview.data.source.ProjectContextSource
 import com.itsaky.androidide.compose.preview.domain.model.ParsedPreviewSource
@@ -31,6 +30,12 @@ class ComposePreviewRepositoryImpl(
     private var projectContext: ProjectContext? = null
     private var useDaemon = true
     private var daemonInitialized = false
+    private var daemonFailureCount = 0
+
+    companion object {
+        private val LOG = LoggerFactory.getLogger(ComposePreviewRepositoryImpl::class.java)
+        private const val DAEMON_RETRY_THRESHOLD = 5
+    }
 
     override suspend fun initialize(
         context: Context,
@@ -43,38 +48,46 @@ class ComposePreviewRepositoryImpl(
             val dexCacheDir = File(cacheDir, "compose_dex_cache")
             dexCache = DexCache(dexCacheDir)
 
-            classpathManager = ComposeClasspathManager(context)
-            compiler = ComposeCompiler(classpathManager!!, workDir!!)
-            compilerDaemon = CompilerDaemon(classpathManager!!, workDir!!)
-            dexCompiler = ComposeDexCompiler(classpathManager!!)
+            val cpManager = ComposeClasspathManager(context)
+            val work = workDir ?: return@runCatching InitializationResult.Failed("Work directory not initialized")
 
-            val extracted = classpathManager!!.ensureComposeJarsExtracted()
+            classpathManager = cpManager
+            compiler = ComposeCompiler(cpManager, work)
+            compilerDaemon = CompilerDaemon(cpManager, work)
+            dexCompiler = ComposeDexCompiler(cpManager)
+
+            val extracted = cpManager.ensureComposeJarsExtracted()
             if (!extracted) {
                 return@runCatching InitializationResult.Failed(
                     "Failed to initialize Compose dependencies"
                 )
             }
 
-            runtimeDex = classpathManager!!.getOrCreateRuntimeDex()
+            runtimeDex = cpManager.getOrCreateRuntimeDex()
             if (runtimeDex != null) {
-                LOG.info("Compose runtime DEX ready: {}", runtimeDex!!.absolutePath)
+                LOG.info("Compose runtime DEX ready: {}", runtimeDex?.absolutePath)
             } else {
                 LOG.warn("Failed to create Compose runtime DEX, preview may fail at runtime")
             }
 
-            projectContext = projectContextSource.resolveContext(filePath)
+            val ctx = projectContextSource.resolveContext(filePath)
+            projectContext = ctx
 
-            if (projectContext!!.needsBuild && projectContext!!.modulePath != null) {
+            if (ctx.needsBuild && ctx.modulePath != null) {
                 LOG.warn("No intermediate classes found - build the project to enable multi-file previews")
                 InitializationResult.NeedsBuild(
-                    projectContext!!.modulePath!!,
-                    projectContext!!.variantName
+                    ctx.modulePath,
+                    ctx.variantName
                 )
             } else {
                 LOG.info("Repository initialized, runtimeDex={}", runtimeDex?.absolutePath ?: "null")
-                InitializationResult.Ready(runtimeDex, projectContext!!)
+                InitializationResult.Ready(runtimeDex, ctx)
             }
         }
+    }
+
+    private fun <T> requireInitialized(value: T?, name: String): T {
+        return value ?: throw IllegalStateException("Repository not initialized: $name is null. Call initialize() first.")
     }
 
     override suspend fun compilePreview(
@@ -82,17 +95,13 @@ class ComposePreviewRepositoryImpl(
         parsedSource: ParsedPreviewSource
     ): Result<CompilationResult> = withContext(Dispatchers.IO) {
         runCatching {
-            val cache = dexCache ?: throw IllegalStateException("Repository not initialized")
-            val compiler = this@ComposePreviewRepositoryImpl.compiler
-                ?: throw IllegalStateException("Repository not initialized")
+            val cache = requireInitialized(dexCache, "dexCache")
+            val compiler = requireInitialized(this@ComposePreviewRepositoryImpl.compiler, "compiler")
             val compilerDaemon = this@ComposePreviewRepositoryImpl.compilerDaemon
-            val dexCompiler = this@ComposePreviewRepositoryImpl.dexCompiler
-                ?: throw IllegalStateException("Repository not initialized")
-            val workDir = this@ComposePreviewRepositoryImpl.workDir
-                ?: throw IllegalStateException("Repository not initialized")
-            val classpathManager = this@ComposePreviewRepositoryImpl.classpathManager
-                ?: throw IllegalStateException("Repository not initialized")
-            val context = projectContext ?: throw IllegalStateException("Repository not initialized")
+            val dexCompiler = requireInitialized(this@ComposePreviewRepositoryImpl.dexCompiler, "dexCompiler")
+            val workDir = requireInitialized(this@ComposePreviewRepositoryImpl.workDir, "workDir")
+            val classpathManager = requireInitialized(this@ComposePreviewRepositoryImpl.classpathManager, "classpathManager")
+            val context = requireInitialized(projectContext, "projectContext")
 
             val fileName = parsedSource.className?.removeSuffix("Kt") ?: "Preview"
             val generatedClassName = "${fileName}Kt"
@@ -121,9 +130,7 @@ class ComposePreviewRepositoryImpl(
             packageDir.mkdirs()
 
             val sourceFile = File(packageDir, "$fileName.kt")
-            val transformedSource = PreviewSourceTransformer.transform(source)
-            LOG.info("=== Transformed Source ===\n{}\n=== End Source ===", transformedSource)
-            sourceFile.writeText(transformedSource)
+            sourceFile.writeText(source)
 
             val classesDir = File(workDir, "classes").apply {
                 deleteRecursively()
@@ -139,7 +146,10 @@ class ComposePreviewRepositoryImpl(
 
             val classpath = classpathManager.getCompilationClasspath(context.compileClasspaths)
 
-            if (useDaemon && compilerDaemon != null) {
+            val shouldTryDaemon = useDaemon && compilerDaemon != null &&
+                (daemonFailureCount < DAEMON_RETRY_THRESHOLD || daemonFailureCount % DAEMON_RETRY_THRESHOLD == 0)
+
+            if (shouldTryDaemon && compilerDaemon != null) {
                 val daemonResult = try {
                     compilerDaemon.compile(
                         sourceFiles = listOf(sourceFile),
@@ -148,17 +158,23 @@ class ComposePreviewRepositoryImpl(
                         composePlugin = classpathManager.getCompilerPlugin()
                     )
                 } catch (e: Exception) {
-                    LOG.warn("Daemon compilation failed, falling back to regular compiler", e)
-                    useDaemon = false
+                    LOG.warn("Daemon compilation failed (attempt {}), falling back to regular compiler", daemonFailureCount + 1, e)
+                    daemonFailureCount++
+                    if (daemonFailureCount >= DAEMON_RETRY_THRESHOLD) {
+                        LOG.info("Daemon failed {} times, will retry periodically", daemonFailureCount)
+                    }
                     null
                 }
 
                 if (daemonResult != null) {
                     compilationSuccess = daemonResult.success
                     compilationError = daemonResult.errorOutput.ifEmpty { daemonResult.output }
-                    if (!daemonInitialized && daemonResult.success) {
-                        daemonInitialized = true
-                        LOG.info("Daemon initialized successfully, subsequent compilations will be faster")
+                    if (daemonResult.success) {
+                        if (!daemonInitialized) {
+                            daemonInitialized = true
+                            LOG.info("Daemon initialized successfully, subsequent compilations will be faster")
+                        }
+                        daemonFailureCount = 0
                     }
                 } else {
                     val result = compiler.compile(listOf(sourceFile), classesDir, context.compileClasspaths)
@@ -205,12 +221,16 @@ class ComposePreviewRepositoryImpl(
                 )
             }
 
-            cache.cacheDex(
-                sourceHash,
-                dexResult.dexFile,
-                fullClassName,
-                parsedSource.previewConfigs.firstOrNull()?.functionName ?: ""
-            )
+            try {
+                cache.cacheDex(
+                    sourceHash,
+                    dexResult.dexFile,
+                    fullClassName,
+                    parsedSource.previewConfigs.firstOrNull()?.functionName ?: ""
+                )
+            } catch (e: Exception) {
+                LOG.warn("Failed to cache DEX file (non-fatal): {}", e.message)
+            }
 
             LOG.info("Preview ready: {} with {} previews, {} project DEX files",
                 fullClassName, parsedSource.previewConfigs.size, context.projectDexFiles.size)
@@ -225,7 +245,12 @@ class ComposePreviewRepositoryImpl(
     }
 
     override fun computeSourceHash(source: String): String {
-        return dexCache?.computeSourceHash(source) ?: source.hashCode().toString()
+        val cache = dexCache
+        if (cache == null) {
+            LOG.warn("DexCache not initialized, using non-deterministic hash fallback")
+            return source.hashCode().toString()
+        }
+        return cache.computeSourceHash(source)
     }
 
     override fun reset() {
@@ -235,12 +260,10 @@ class ComposePreviewRepositoryImpl(
         compilerDaemon = null
         dexCompiler = null
         daemonInitialized = false
+        daemonFailureCount = 0
+        useDaemon = true
         projectContext = null
         runtimeDex = null
         LOG.debug("Repository reset")
-    }
-
-    companion object {
-        private val LOG = LoggerFactory.getLogger(ComposePreviewRepositoryImpl::class.java)
     }
 }

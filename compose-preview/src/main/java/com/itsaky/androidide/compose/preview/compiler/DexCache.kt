@@ -59,15 +59,25 @@ class DexCache(private val cacheDir: File) {
         val entries = cacheDir.listFiles { file -> file.extension == "dex" } ?: return
         if (entries.size <= MAX_CACHE_ENTRIES) return
 
+        var deletedCount = 0
         entries
             .sortedBy { it.lastModified() }
             .take(entries.size - MAX_CACHE_ENTRIES)
             .forEach { entry ->
-                entry.delete()
-                File(entry.parent, "${entry.nameWithoutExtension}.meta").delete()
+                val metaFile = File(entry.parent, "${entry.nameWithoutExtension}.meta")
+                val dexDeleted = entry.delete()
+                val metaDeleted = metaFile.delete()
+                if (dexDeleted) {
+                    deletedCount++
+                } else {
+                    LOG.warn("Failed to delete cache entry: {}", entry.absolutePath)
+                }
+                if (metaFile.exists() && !metaDeleted) {
+                    LOG.warn("Failed to delete cache meta: {}", metaFile.absolutePath)
+                }
             }
 
-        LOG.debug("Cleaned old cache entries, kept {}", MAX_CACHE_ENTRIES)
+        LOG.debug("Cleaned {} old cache entries, kept {}", deletedCount, MAX_CACHE_ENTRIES)
     }
 
     fun clearCache() {
