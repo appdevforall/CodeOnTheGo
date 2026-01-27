@@ -17,7 +17,7 @@ import com.itsaky.androidide.utils.FeatureFlags
 
 fun ndkActivityProject(): ProjectTemplate? {
 
-    if (!FeatureFlags.isNdkEnabled) return null
+    if (!FeatureFlags.isExperimentsEnabled) return null
 
     if (!Environment.NDK_DIR.exists()) {
         return null

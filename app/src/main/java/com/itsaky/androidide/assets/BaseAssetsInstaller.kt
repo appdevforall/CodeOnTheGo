@@ -28,7 +28,7 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
     }
 
     private fun installNdk(archiveFile: File, outputDir: File): Boolean {
-        if (!FeatureFlags.isNdkEnabled) return false
+        if (!FeatureFlags.isExperimentsEnabled) return false
 
         if (!archiveFile.exists()) {
             logger.debug("NDK installable package not found: ${archiveFile.absolutePath}")
