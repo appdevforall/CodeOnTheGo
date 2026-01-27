@@ -196,12 +196,10 @@ public class ToolsManager {
 
 			LOG.debug("Generating keystore at: {}", keystorePath);
 
-			Security.addProvider(new BouncyCastleProvider());
 
 			String storePassword = generateRandomPassword(Environment.KEYSTORE_PWD_LEN);
-			String keyPassword = storePassword;
 
-			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", "BC");
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
 			keyGen.initialize(Environment.KEYSTORE_KEY_SIZE);
 			KeyPair keyPair = keyGen.generateKeyPair();
 
@@ -225,7 +223,7 @@ public class ToolsManager {
 
 			KeyStore keyStore = KeyStore.getInstance("PKCS12");
 			keyStore.load(null, null);
-			keyStore.setKeyEntry(alias, keyPair.getPrivate(), keyPassword.toCharArray(), new java.security.cert.Certificate[]{certificate});
+			keyStore.setKeyEntry(alias, keyPair.getPrivate(), storePassword.toCharArray(), new java.security.cert.Certificate[]{certificate});
 
 			File keystoreFile = new File(keystorePath);
 			keystoreFile.getParentFile().mkdirs();
@@ -240,7 +238,7 @@ public class ToolsManager {
 			props.setProperty(Environment.KEYSTORE_PROP_STOREFILE, keystoreFile.getName());
 			props.setProperty(Environment.KEYSTORE_PROP_STOREPWD, storePassword);
 			props.setProperty(Environment.KEYSTORE_PROP_KEYALIAS, alias);
-			props.setProperty(Environment.KEYSTORE_PROP_KEYPWD, keyPassword);
+			props.setProperty(Environment.KEYSTORE_PROP_KEYPWD, storePassword);
 
 			try (FileWriter writer = new FileWriter(propsFile)) {
 				props.store(writer, "Generated keystore credentials");
