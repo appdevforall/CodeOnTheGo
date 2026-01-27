@@ -19,6 +19,8 @@ package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
 import android.os.Bundle
+import android.system.ErrnoException
+import android.system.OsConstants
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.ViewGroup.MarginLayoutParams
@@ -99,6 +101,7 @@ import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import java.io.File
 import java.io.FileNotFoundException
+import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
@@ -115,6 +118,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+	private val Throwable?.isFileNotFound: Boolean
+		get() = this is FileNotFoundException ||
+			this is NoSuchFileException ||
+			(this is ErrnoException && this.errno == OsConstants.ENOENT)
 
 	val findInProjectDialog: AlertDialog?
 		get() {
@@ -636,7 +643,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
-				if (error != null) {
+
+				val isExpectedError = error.isFileNotFound
+
+				if (error != null && !isExpectedError) {
 					Sentry.captureException(error)
 				}
 
