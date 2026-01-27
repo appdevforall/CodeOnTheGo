@@ -30,7 +30,7 @@ import com.itsaky.androidide.templates.base.util.stringRes
 import com.squareup.javapoet.TypeSpec
 import java.io.File
 
-class AndroidModuleTemplateBuilder : ModuleTemplateBuilder() {
+open class AndroidModuleTemplateBuilder : ModuleTemplateBuilder() {
 
     /**
      * Set whether this Android module is a Jetpack Compose module or not.
