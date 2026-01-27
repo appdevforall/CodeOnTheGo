@@ -27,8 +27,13 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 class BuildOutputFragment : NonEditableEditorFragment() {
+	companion object {
+		private const val LAYOUT_TIMEOUT_MS = 2000L
+	}
+
 	override val currentEditor: IDEEditor? get() = editor
 
 	private val logChannel = Channel<String>(Channel.UNLIMITED)
@@ -106,9 +111,11 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	 */
 	private suspend fun flushToEditor(text: String) = withContext(Dispatchers.Main) {
 		editor?.run {
-			awaitLayout(onForceVisible = {
-				emptyStateViewModel.setEmpty(false)
-			})
+			withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+				awaitLayout(onForceVisible = {
+					emptyStateViewModel.setEmpty(false)
+				})
+			}
 
 			appendBatch(text)
 
