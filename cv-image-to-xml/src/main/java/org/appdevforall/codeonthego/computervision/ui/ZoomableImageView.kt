@@ -25,6 +25,8 @@ class ZoomableImageView @JvmOverloads constructor(
     private var maxScale = 4f
     private var mode = NONE
 
+    var onMatrixChangeListener: ((Matrix) -> Unit)? = null
+
     init {
         super.setClickable(true)
         scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
@@ -61,6 +63,7 @@ class ZoomableImageView @JvmOverloads constructor(
             MotionEvent.ACTION_POINTER_UP -> mode = NONE
         }
         imageMatrix = currentMatrix
+        onMatrixChangeListener?.invoke(currentMatrix)
         return true
     }
 
@@ -87,6 +90,7 @@ class ZoomableImageView @JvmOverloads constructor(
 
         currentMatrix.setRectToRect(drawableRect, viewRect, Matrix.ScaleToFit.CENTER)
         imageMatrix = currentMatrix
+        onMatrixChangeListener?.invoke(currentMatrix) // Notify listener of the change
 
         currentMatrix.getValues(matrixValues)
         minScale = matrixValues[Matrix.MSCALE_X]
