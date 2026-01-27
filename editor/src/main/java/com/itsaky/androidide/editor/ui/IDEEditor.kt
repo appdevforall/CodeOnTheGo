@@ -81,7 +81,6 @@ import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
-import io.github.rosemoe.sora.event.LongPressEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
@@ -526,12 +525,14 @@ constructor(
         start: Int,
         end: Int,
     ) {
-        var targetText = text
         if (includeDebugInfoOnCopy) {
-            targetText = BasicBuildInfo.BASIC_INFO + System.lineSeparator() + text
+            // Extract selected text first, then prepend build info
+            val selectedText = text.subSequence(start, end)
+            val textWithBuildInfo = BasicBuildInfo.BASIC_INFO + System.lineSeparator() + selectedText
+            doCopy(textWithBuildInfo, 0, textWithBuildInfo.length)
+        } else {
+            doCopy(text, start, end)
         }
-
-        doCopy(targetText, start, end)
     }
 
     @VisibleForTesting
@@ -825,12 +826,6 @@ constructor(
         }
 
         EventBus.getDefault().register(this)
-        if (isReadOnlyContext) {
-            subscribeEvent(LongPressEvent::class.java) { event, _ ->
-                EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
-                event.intercept()
-            }
-        }
     }
 
     private fun handleCustomTextReplacement(event: ContentChangeEvent) {
