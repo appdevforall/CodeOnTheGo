@@ -7,6 +7,7 @@ import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 import com.termux.shared.termux.TermuxConstants
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeatureFlags
 import kotlin.concurrent.thread
 import kotlin.system.measureTimeMillis
 
@@ -27,6 +28,8 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
     }
 
     private fun installNdk(archiveFile: File, outputDir: File): Boolean {
+        if (!FeatureFlags.isExperimentsEnabled) return false
+
         if (!archiveFile.exists()) {
             logger.debug("NDK installable package not found: ${archiveFile.absolutePath}")
             return false
