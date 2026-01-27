@@ -19,9 +19,13 @@ package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
 import android.os.Bundle
+import android.system.ErrnoException
+import android.system.OsConstants
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
@@ -41,6 +45,7 @@ import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.FindActionDialog
+import com.itsaky.androidide.fragments.SearchFieldToolbar
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
 import com.itsaky.androidide.handlers.EditorBuildEventListener
 import com.itsaky.androidide.handlers.LspHandler.connectClient
@@ -86,14 +91,17 @@ import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
+import io.github.rosemoe.sora.text.ICUUtils
+import io.github.rosemoe.sora.util.IntPair
+import org.koin.android.ext.android.inject
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
-import org.koin.android.ext.android.inject
 import java.io.File
 import java.io.FileNotFoundException
+import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
@@ -110,13 +118,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+	private val Throwable?.isFileNotFound: Boolean
+		get() = this is FileNotFoundException ||
+			this is NoSuchFileException ||
+			(this is ErrnoException && this.errno == OsConstants.ENOENT)
 
-	val findInProjectDialog: AlertDialog
+	val findInProjectDialog: AlertDialog?
 		get() {
 			if (mFindInProjectDialog == null) {
 				createFindInProjectDialog()
 			}
-			return mFindInProjectDialog!!
+			return mFindInProjectDialog
 		}
 
 	fun findActionDialog(actionData: ActionData): FindActionDialog {
@@ -631,7 +643,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
-				if (error != null) {
+
+				val isExpectedError = error.isFileNotFound
+
+				if (error != null && !isExpectedError) {
 					Sentry.captureException(error)
 				}
 
@@ -833,17 +848,52 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 		val dialog = builder.create()
-		dialog.onLongPress {
-			TooltipManager.showIdeCategoryTooltip(
-				context = this,
-				anchorView = binding.root,
-				tag = TooltipTag.DIALOG_FIND_IN_PROJECT,
-			)
-			true
+		dialog.onLongPress { view ->
+			if (
+				view is EditText
+			) {
+				view.selectCurrentWord()
+				view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+				SearchFieldToolbar(view).show()
+				true
+			} else if (view === binding.input || view === binding.filter || view.parent === binding.input || view.parent === binding.filter) {
+				true
+			} else {
+				TooltipManager.showIdeCategoryTooltip(
+					context = this,
+					anchorView = binding.root,
+					tag = TooltipTag.DIALOG_FIND_IN_PROJECT,
+				)
+				true
+			}
 		}
 
 		mFindInProjectDialog = dialog
 		return mFindInProjectDialog
+	}
+
+	fun EditText.selectCurrentWord() {
+		val content = text ?: return
+		if (content.isEmpty()) return
+
+		val currentStart = selectionStart
+		val currentEnd = selectionEnd
+
+		if (currentStart < 0 || currentEnd > content.length || currentStart != currentEnd) {
+			return
+		}
+
+		val range = ICUUtils.getWordRange(content, currentStart, true)
+		val newStart = IntPair.getFirst(range)
+		val newEnd = IntPair.getSecond(range)
+
+		val isValidRange = newStart >= 0 &&
+			newEnd <= content.length &&
+			newStart <= newEnd
+
+		if (isValidRange && newStart != newEnd) {
+			setSelection(newStart, newEnd)
+		}
 	}
 
 	private fun initialSetup() {
