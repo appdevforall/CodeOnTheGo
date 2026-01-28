@@ -122,18 +122,31 @@ class ComposeClasspathManager(private val context: Context) {
 
     private fun extractComposeJars() {
         composeDir.mkdirs()
+        val composeDirPath = composeDir.canonicalPath
 
         context.assets.open("compose/compose-jars.zip").use { input ->
             ZipInputStream(input).use { zip ->
                 var entry = zip.nextEntry
                 while (entry != null) {
-                    if (!entry.isDirectory) {
-                        val file = File(composeDir, entry.name)
-                        file.parentFile?.mkdirs()
-                        file.outputStream().use { output ->
-                            zip.copyTo(output)
-                        }
+                    if (entry.isDirectory) {
+                        zip.closeEntry()
+                        entry = zip.nextEntry
+                        continue
                     }
+
+                    val file = File(composeDir, entry.name).canonicalFile
+                    if (!file.path.startsWith(composeDirPath)) {
+                        LOG.warn("Skipping zip entry with invalid path: {}", entry.name)
+                        zip.closeEntry()
+                        entry = zip.nextEntry
+                        continue
+                    }
+
+                    file.parentFile?.mkdirs()
+                    file.outputStream().use { output ->
+                        zip.copyTo(output)
+                    }
+
                     zip.closeEntry()
                     entry = zip.nextEntry
                 }
