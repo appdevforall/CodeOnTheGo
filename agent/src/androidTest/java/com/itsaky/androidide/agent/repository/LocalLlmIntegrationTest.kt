@@ -1,7 +1,9 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
+import android.os.Build
 import android.os.Environment
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.agent.AgentState
@@ -9,7 +11,6 @@ import com.itsaky.androidide.agent.Sender
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -17,6 +18,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.FileNotFoundException
 
 /**
  * Integration tests for Local LLM using actual GGUF models.
@@ -25,15 +27,17 @@ import java.io.File
  * 1. Download a GGUF model (e.g., gemma-3-1b-it.Q4_K_M.gguf from Unsloth)
  * 2. Place it in the device's Download folder or specify path via TEST_MODEL_PATH env var
  *
+ * The Llama library is automatically installed from test assets during setUp.
+ *
  * Run with:
  * ```
- * ./gradlew :agent:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.agent.repository.LocalLlmIntegrationTest
+ * ./gradlew :agent:connectedV8DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.agent.repository.LocalLlmIntegrationTest
  * ```
  *
  * Or with custom model path:
  * ```
  * adb shell setprop debug.test_model_path "/sdcard/Download/gemma-3-1b-it.Q4_K_M.gguf"
- * ./gradlew :agent:connectedAndroidTest
+ * ./gradlew :agent:connectedV8DebugAndroidTest
  * ```
  */
 @RunWith(AndroidJUnit4::class)
@@ -45,6 +49,8 @@ class LocalLlmIntegrationTest {
     private var llamaLibraryInstalled = false
 
     companion object {
+        private const val TAG = "LocalLlmIntegrationTest"
+
         // Common model locations to check
         private val MODEL_SEARCH_PATHS = listOf(
             // Download folder - various Gemma models
@@ -65,15 +71,23 @@ class LocalLlmIntegrationTest {
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
 
-        // Check if Llama library is installed (required for these integration tests)
-        // The library is installed via app's asset loading, not available in test context
+        // Skip tests on Android < 12 (API 31) due to Logback requiring Class.getModule()
+        // which is only available on Android 12+
+        assumeTrue(
+            "These tests require Android 12+ (API 31) due to Logback module requirements",
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        )
+
+        // Try to install Llama library from test assets if not already installed
+        installLlamaLibraryFromTestAssets()
+
+        // Check if Llama library is installed
         val llamaAarFile = File(context.getDir("dynamic_libs", Context.MODE_PRIVATE), "llama.aar")
         llamaLibraryInstalled = llamaAarFile.exists()
 
         // Skip all tests if Llama library is not installed
-        // This check MUST be before creating LlmInferenceEngine to avoid Logback initialization errors
         assumeTrue(
-            "Llama library not installed. These tests require running the app first to install the library.",
+            "Llama library not installed. Check that test assets are properly configured.",
             llamaLibraryInstalled
         )
 
@@ -86,8 +100,55 @@ class LocalLlmIntegrationTest {
             modelPath != null
         )
 
-        // Create engine AFTER all skip checks pass (avoids Logback issues on older Android)
+        // Create engine AFTER all skip checks pass
         engine = LlmInferenceEngine()
+    }
+
+    /**
+     * Installs the Llama AAR from test assets to the expected location.
+     * This allows integration tests to run without requiring the main app to be installed first.
+     */
+    private fun installLlamaLibraryFromTestAssets() {
+        val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
+        val destFile = File(destDir, "llama.aar")
+
+        // Skip if already installed
+        if (destFile.exists()) {
+            Log.d(TAG, "Llama library already installed at ${destFile.absolutePath}")
+            return
+        }
+
+        // Determine which AAR to use based on device architecture
+        val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: run {
+            Log.e(TAG, "No supported ABIs found")
+            return
+        }
+
+        val assetName = when {
+            abi.contains("arm64") || abi.contains("aarch64") -> "dynamic_libs/llama-v8.aar"
+            abi.contains("arm") -> "dynamic_libs/llama-v7.aar"
+            else -> {
+                Log.w(TAG, "Unsupported ABI: $abi")
+                return
+            }
+        }
+
+        try {
+            Log.i(TAG, "Installing Llama library from test assets: $assetName")
+            destDir.mkdirs()
+
+            context.assets.open(assetName).use { input ->
+                destFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            Log.i(TAG, "Llama library installed successfully to ${destFile.absolutePath}")
+        } catch (e: FileNotFoundException) {
+            Log.w(TAG, "Llama AAR not found in test assets: $assetName. " +
+                    "Make sure the copyLlamaAarForTests task ran during build.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to install Llama library from test assets", e)
+        }
     }
 
     @After

@@ -29,6 +29,57 @@ android {
             )
         }
     }
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs("src/androidTest/assets", "$buildDir/generated/androidTest/assets")
+        }
+    }
+}
+
+// Task to extract processed Llama AAR (with classes.dex) from app's assets zip for integration tests
+// The app module processes the AAR with D8 to convert classes.jar to classes.dex
+val extractLlamaAarForTests by tasks.registering {
+    description = "Extracts processed Llama AAR files from app's assets zip for integration tests"
+
+    val v8AssetsZip = file("../app/build/outputs/assets/assets-arm64-v8a.zip")
+    val v7AssetsZip = file("../app/build/outputs/assets/assets-armeabi-v7a.zip")
+    val outputDir = file("$buildDir/generated/androidTest/assets/dynamic_libs")
+
+    inputs.files(v8AssetsZip, v7AssetsZip).optional()
+    outputs.dir(outputDir)
+
+    doLast {
+        outputDir.mkdirs()
+
+        // Extract v8 AAR
+        if (v8AssetsZip.exists()) {
+            val v8Dest = File(outputDir, "llama-v8.aar")
+            project.exec {
+                commandLine("unzip", "-p", v8AssetsZip.absolutePath, "dynamic_libs/llama.aar")
+                standardOutput = v8Dest.outputStream()
+            }
+            logger.lifecycle("Extracted processed Llama v8 AAR to ${v8Dest.absolutePath}")
+        } else {
+            logger.warn("V8 assets zip not found at ${v8AssetsZip.absolutePath}. Run ':app:packageAssetsV8' first.")
+        }
+
+        // Extract v7 AAR
+        if (v7AssetsZip.exists()) {
+            val v7Dest = File(outputDir, "llama-v7.aar")
+            project.exec {
+                commandLine("unzip", "-p", v7AssetsZip.absolutePath, "dynamic_libs/llama.aar")
+                standardOutput = v7Dest.outputStream()
+            }
+            logger.lifecycle("Extracted processed Llama v7 AAR to ${v7Dest.absolutePath}")
+        } else {
+            logger.warn("V7 assets zip not found at ${v7AssetsZip.absolutePath}. Run ':app:packageAssetsV7' first.")
+        }
+    }
+}
+
+// Make sure the extract task runs before androidTest tasks
+tasks.matching { it.name.contains("AndroidTest") && it.name.contains("Assets") }.configureEach {
+    dependsOn(extractLlamaAarForTests)
 }
 
 dependencies {
