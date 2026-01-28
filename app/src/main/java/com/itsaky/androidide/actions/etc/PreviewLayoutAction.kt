@@ -34,6 +34,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.layouteditor.activities.EditorActivity
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /** @author Akash Yadav */
@@ -53,6 +54,7 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
 
   companion object {
     const val ID = "ide.editor.previewLayout"
+    private val LOG = LoggerFactory.getLogger(PreviewLayoutAction::class.java)
   }
 
   init {
@@ -77,7 +79,11 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     }
 
     val editor = data.requireEditor()
-    val file = editor.file!!
+    val file = editor.file ?: run {
+      LOG.warn("Editor file is null")
+      markInvisible()
+      return
+    }
 
     when {
       file.name.endsWith(".xml") -> {
@@ -134,7 +140,10 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
   override fun postExec(data: ActionData, result: Any) {
     val activity = data.requireActivity()
     val editor = data.requireEditor()
-    val file = editor.file!!
+    val file = editor.file ?: run {
+      LOG.warn("Editor file is null in postExec")
+      return
+    }
 
     when (previewType) {
       PreviewType.XML_LAYOUT -> activity.previewXmlLayout(file)

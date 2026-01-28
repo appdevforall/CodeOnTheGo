@@ -2,6 +2,8 @@ package com.itsaky.androidide.compose.preview.compiler
 
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
@@ -119,7 +121,7 @@ class ComposeCompiler(
         }
     }
 
-    private fun invokeKotlinCompiler(
+    private suspend fun invokeKotlinCompiler(
         compilerBootstrapClasspath: String,
         args: List<String>
     ): ProcessResult {
@@ -151,16 +153,22 @@ class ComposeCompiler(
 
         val process = processBuilder.start()
 
-        val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
+        return coroutineScope {
+            val outputDeferred = async {
+                BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
+            }
 
-        val completed = process.waitFor(COMPILATION_TIMEOUT_MINUTES, TimeUnit.MINUTES)
-        if (!completed) {
-            process.destroyForcibly()
-            LOG.error("Compilation timed out after {} minutes", COMPILATION_TIMEOUT_MINUTES)
-            return ProcessResult(-1, output, "Compilation timed out after $COMPILATION_TIMEOUT_MINUTES minutes")
+            val completed = process.waitFor(COMPILATION_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+            val output = outputDeferred.await()
+
+            if (!completed) {
+                process.destroyForcibly()
+                LOG.error("Compilation timed out after {} minutes", COMPILATION_TIMEOUT_MINUTES)
+                return@coroutineScope ProcessResult(-1, output, "Compilation timed out after $COMPILATION_TIMEOUT_MINUTES minutes")
+            }
+
+            ProcessResult(process.exitValue(), output, output)
         }
-
-        return ProcessResult(process.exitValue(), output, output)
     }
 
     private fun parseCompilationResult(

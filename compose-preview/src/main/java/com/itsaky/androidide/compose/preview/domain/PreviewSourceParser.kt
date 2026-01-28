@@ -14,17 +14,12 @@ class PreviewSourceParser {
     }
 
     fun extractPackageName(source: String): String? {
-        val packagePattern = Regex("""^\s*package\s+([\w.]+)""", RegexOption.MULTILINE)
-        return packagePattern.find(source)?.groupValues?.get(1)
+        return PACKAGE_PATTERN.find(source)?.groupValues?.get(1)
     }
 
     fun extractClassName(source: String): String? {
-        val classPattern = Regex("""^\s*class\s+(\w+)""", RegexOption.MULTILINE)
-        classPattern.find(source)?.groupValues?.get(1)?.let { return it }
-
-        val objectPattern = Regex("""^\s*object\s+(\w+)""", RegexOption.MULTILINE)
-        objectPattern.find(source)?.groupValues?.get(1)?.let { return it }
-
+        CLASS_PATTERN.find(source)?.groupValues?.get(1)?.let { return it }
+        OBJECT_PATTERN.find(source)?.groupValues?.get(1)?.let { return it }
         return null
     }
 
@@ -32,11 +27,7 @@ class PreviewSourceParser {
         val previews = mutableListOf<PreviewConfig>()
         val seenFunctions = mutableSetOf<String>()
 
-        val previewPattern = Regex(
-            """@Preview\s*(?:\(([^)]*)\))?\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*fun\s+(\w+)""",
-            setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
-        )
-        previewPattern.findAll(source).forEach { match ->
+        PREVIEW_ANNOTATION_PATTERN.findAll(source).forEach { match ->
             val params = match.groupValues[1]
             val functionName = match.groupValues[2]
             if (seenFunctions.add(functionName)) {
@@ -48,11 +39,7 @@ class PreviewSourceParser {
             }
         }
 
-        val composablePreviewPattern = Regex(
-            """@Composable\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*@Preview\s*(?:\(([^)]*)\))?[\s\n]*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*fun\s+(\w+)""",
-            setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
-        )
-        composablePreviewPattern.findAll(source).forEach { match ->
+        COMPOSABLE_PREVIEW_PATTERN.findAll(source).forEach { match ->
             val params = match.groupValues[1]
             val functionName = match.groupValues[2]
             if (seenFunctions.add(functionName)) {
@@ -65,8 +52,7 @@ class PreviewSourceParser {
         }
 
         if (previews.isEmpty()) {
-            val composablePattern = Regex("""@Composable\s+fun\s+(\w+)""")
-            composablePattern.findAll(source).forEach { match ->
+            COMPOSABLE_FUNCTION_PATTERN.findAll(source).forEach { match ->
                 val functionName = match.groupValues[1]
                 if (seenFunctions.add(functionName)) {
                     previews.add(PreviewConfig(functionName = functionName))
@@ -80,11 +66,34 @@ class PreviewSourceParser {
 
     private fun extractIntParam(params: String, name: String): Int? {
         if (params.isBlank()) return null
-        val pattern = Regex("""$name\s*=\s*(\d+)""")
-        return pattern.find(params)?.groupValues?.get(1)?.toIntOrNull()
+        return Regex("""$name\s*=\s*(\d+)""").find(params)?.groupValues?.get(1)?.toIntOrNull()
     }
 
     companion object {
         private val LOG = LoggerFactory.getLogger(PreviewSourceParser::class.java)
+
+        // Matches: package com.example.app
+        private val PACKAGE_PATTERN = Regex("""^\s*package\s+([\w.]+)""", RegexOption.MULTILINE)
+
+        // Matches: class ClassName
+        private val CLASS_PATTERN = Regex("""^\s*class\s+(\w+)""", RegexOption.MULTILINE)
+
+        // Matches: object ObjectName
+        private val OBJECT_PATTERN = Regex("""^\s*object\s+(\w+)""", RegexOption.MULTILINE)
+
+        // Matches: @Preview(...) fun FunctionName
+        private val PREVIEW_ANNOTATION_PATTERN = Regex(
+            """@Preview\s*(?:\(([^)]*)\))?\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*fun\s+(\w+)""",
+            setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
+        )
+
+        // Matches: @Composable @Preview(...) fun FunctionName
+        private val COMPOSABLE_PREVIEW_PATTERN = Regex(
+            """@Composable\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*@Preview\s*(?:\(([^)]*)\))?[\s\n]*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*fun\s+(\w+)""",
+            setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
+        )
+
+        // Matches: @Composable fun FunctionName (fallback when no @Preview found)
+        private val COMPOSABLE_FUNCTION_PATTERN = Regex("""@Composable\s+fun\s+(\w+)""")
     }
 }

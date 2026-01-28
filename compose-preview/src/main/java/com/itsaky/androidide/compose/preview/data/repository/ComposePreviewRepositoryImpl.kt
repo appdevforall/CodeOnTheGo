@@ -28,13 +28,10 @@ class ComposePreviewRepositoryImpl(
 
     private var runtimeDex: File? = null
     private var projectContext: ProjectContext? = null
-    private var useDaemon = true
     private var daemonInitialized = false
-    private var daemonFailureCount = 0
 
     companion object {
         private val LOG = LoggerFactory.getLogger(ComposePreviewRepositoryImpl::class.java)
-        private const val DAEMON_RETRY_THRESHOLD = 5
     }
 
     override suspend fun initialize(
@@ -90,6 +87,12 @@ class ComposePreviewRepositoryImpl(
         return value ?: throw IllegalStateException("Repository not initialized: $name is null. Call initialize() first.")
     }
 
+    private data class SourceCompileResult(
+        val success: Boolean,
+        val error: String,
+        val diagnostics: List<CompileDiagnostic> = emptyList()
+    )
+
     override suspend fun compilePreview(
         source: String,
         parsedSource: ParsedPreviewSource
@@ -140,16 +143,11 @@ class ComposePreviewRepositoryImpl(
             LOG.debug("Compiling source: {}", sourceFile.absolutePath)
             LOG.info("Using {} project classpaths for compilation", context.compileClasspaths.size)
 
-            val compilationSuccess: Boolean
-            val compilationError: String
-            var compilationDiagnostics: List<CompileDiagnostic> = emptyList()
-
             val classpath = classpathManager.getCompilationClasspath(context.compileClasspaths)
 
-            val shouldTryDaemon = useDaemon && compilerDaemon != null &&
-                (daemonFailureCount < DAEMON_RETRY_THRESHOLD || daemonFailureCount % DAEMON_RETRY_THRESHOLD == 0)
+            var compileResult: SourceCompileResult? = null
 
-            if (shouldTryDaemon && compilerDaemon != null) {
+            if (compilerDaemon != null) {
                 val daemonResult = try {
                     compilerDaemon.compile(
                         sourceFiles = listOf(sourceFile),
@@ -158,50 +156,40 @@ class ComposePreviewRepositoryImpl(
                         composePlugin = classpathManager.getCompilerPlugin()
                     )
                 } catch (e: Exception) {
-                    LOG.warn("Daemon compilation failed (attempt {}), falling back to regular compiler", daemonFailureCount + 1, e)
-                    daemonFailureCount++
-                    if (daemonFailureCount >= DAEMON_RETRY_THRESHOLD) {
-                        LOG.info("Daemon failed {} times, will retry periodically", daemonFailureCount)
-                    }
+                    LOG.warn("Daemon compilation failed, falling back to regular compiler", e)
                     null
                 }
 
                 if (daemonResult != null) {
-                    compilationSuccess = daemonResult.success
-                    compilationError = daemonResult.errorOutput.ifEmpty { daemonResult.output }
-                    if (daemonResult.success) {
-                        if (!daemonInitialized) {
-                            daemonInitialized = true
-                            LOG.info("Daemon initialized successfully, subsequent compilations will be faster")
-                        }
-                        daemonFailureCount = 0
+                    if (daemonResult.success && !daemonInitialized) {
+                        daemonInitialized = true
+                        LOG.info("Daemon initialized successfully")
                     }
-                } else {
-                    val result = compiler.compile(listOf(sourceFile), classesDir, context.compileClasspaths)
-                    compilationSuccess = result.success
-                    compilationDiagnostics = result.diagnostics
-                    compilationError = result.errorOutput.ifEmpty {
-                        result.diagnostics
-                            .filter { it.severity == CompileDiagnostic.Severity.ERROR }
-                            .joinToString("\n") { it.message }
-                    }
-                }
-            } else {
-                val result = compiler.compile(listOf(sourceFile), classesDir, context.compileClasspaths)
-                compilationSuccess = result.success
-                compilationDiagnostics = result.diagnostics
-                compilationError = result.errorOutput.ifEmpty {
-                    result.diagnostics
-                        .filter { it.severity == CompileDiagnostic.Severity.ERROR }
-                        .joinToString("\n") { it.message }
+                    compileResult = SourceCompileResult(
+                        success = daemonResult.success,
+                        error = daemonResult.errorOutput.ifEmpty { daemonResult.output }
+                    )
                 }
             }
 
-            if (!compilationSuccess) {
-                LOG.error("Compilation failed: {}", compilationError)
+            if (compileResult == null) {
+                val result = compiler.compile(listOf(sourceFile), classesDir, context.compileClasspaths)
+                compileResult = SourceCompileResult(
+                    success = result.success,
+                    error = result.errorOutput.ifEmpty {
+                        result.diagnostics
+                            .filter { it.severity == CompileDiagnostic.Severity.ERROR }
+                            .joinToString("\n") { it.message }
+                    },
+                    diagnostics = result.diagnostics
+                )
+            }
+
+            if (!compileResult.success) {
+                LOG.error("Compilation failed: {}", compileResult.error)
                 throw CompilationException(
-                    message = compilationError.ifEmpty { "Compilation failed" },
-                    diagnostics = compilationDiagnostics
+                    message = compileResult.error.ifEmpty { "Compilation failed" },
+                    diagnostics = compileResult.diagnostics
                 )
             }
 
@@ -260,8 +248,6 @@ class ComposePreviewRepositoryImpl(
         compilerDaemon = null
         dexCompiler = null
         daemonInitialized = false
-        daemonFailureCount = 0
-        useDaemon = true
         projectContext = null
         runtimeDex = null
         LOG.debug("Repository reset")

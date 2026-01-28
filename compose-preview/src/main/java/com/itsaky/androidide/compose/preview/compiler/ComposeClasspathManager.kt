@@ -3,6 +3,7 @@ package com.itsaky.androidide.compose.preview.compiler
 import android.content.Context
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -167,8 +168,9 @@ class ComposeClasspathManager(private val context: Context) {
     }
 
     fun getRuntimeJars(): List<File> {
+        val compilerPlugin = getCompilerPlugin()
         return composeDir.listFiles { file ->
-            file.extension == "jar"
+            file.extension == "jar" && file != compilerPlugin
         }?.toList() ?: emptyList()
     }
 
@@ -255,10 +257,13 @@ class ComposeClasspathManager(private val context: Context) {
                     .redirectErrorStream(true)
                     .start()
 
-                val output = BufferedReader(InputStreamReader(process.inputStream))
-                    .use { it.readText() }
+                val outputDeferred = async {
+                    BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
+                }
 
                 val completed = process.waitFor(D8_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+                val output = outputDeferred.await()
+
                 if (!completed) {
                     process.destroyForcibly()
                     LOG.error("D8 timed out after {} minutes. Output: {}", D8_TIMEOUT_MINUTES, output)
