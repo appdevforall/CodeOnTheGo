@@ -1,5 +1,7 @@
 #include <android/log.h>
 #include <jni.h>
+#include <atomic>
+#include <chrono>
 #include <iomanip>
 #include <math.h>
 #include <string>
@@ -61,6 +63,28 @@ bool is_valid_utf8(const char *string) {
 static JavaVM *g_jvm = nullptr;
 static jclass g_llama_android_class = nullptr;
 static jmethodID g_log_from_native_method = nullptr;
+static std::atomic<int> g_n_threads(-1);
+static std::atomic<int> g_n_threads_batch(-1);
+static std::atomic<float> g_temperature(0.7f);
+static std::atomic<float> g_top_p(0.9f);
+static std::atomic<int> g_top_k(40);
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_android_llama_cpp_LLamaAndroid_configureThreads(JNIEnv *, jclass, jint n_threads,
+                                                     jint n_threads_batch) {
+    g_n_threads.store(n_threads);
+    g_n_threads_batch.store(n_threads_batch);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_android_llama_cpp_LLamaAndroid_configureSampling(JNIEnv *, jclass, jfloat temperature,
+                                                      jfloat top_p, jint top_k) {
+    g_temperature.store(temperature);
+    g_top_p.store(top_p);
+    g_top_k.store(top_k);
+}
 
 template<typename JVM>
 static auto attach_current_thread_impl(JVM *jvm, JNIEnv **env, int)
@@ -192,14 +216,22 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
         return 0;
     }
 
-    int n_threads = std::max(1, std::min(8, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
-    LOGi("Using %d threads", n_threads);
+    int default_threads = std::max(1, std::min(8, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
+    int n_threads = g_n_threads.load();
+    if (n_threads <= 0) {
+        n_threads = default_threads;
+    }
+    int n_threads_batch = g_n_threads_batch.load();
+    if (n_threads_batch <= 0) {
+        n_threads_batch = n_threads;
+    }
+    LOGi("Using %d threads (batch=%d)", n_threads, n_threads_batch);
 
     llama_context_params ctx_params = llama_context_default_params();
 
     ctx_params.n_ctx = 4096;
     ctx_params.n_threads = n_threads;
-    ctx_params.n_threads_batch = n_threads;
+    ctx_params.n_threads_batch = n_threads_batch;
 
     llama_context *context = llama_init_from_model(model, ctx_params);
 
@@ -423,9 +455,27 @@ Java_android_llama_cpp_LLamaAndroid_new_1sampler(JNIEnv *, jobject) {
             penalty_present
     ));
 
-    // The chain must end with a sampler that actually selects a token.
-    // Greedy is the simplest (always picks the most likely token).
-    llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+    const float temperature = g_temperature.load();
+    const float top_p = g_top_p.load();
+    const int top_k = g_top_k.load();
+
+    if (temperature > 0.0f) {
+        if (top_k > 0) {
+            llama_sampler_chain_add(smpl, llama_sampler_init_top_k(top_k));
+        }
+        if (top_p > 0.0f && top_p < 1.0f) {
+            llama_sampler_chain_add(smpl, llama_sampler_init_top_p(top_p, 1));
+        }
+        llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
+        const auto seed = static_cast<uint32_t>(
+                std::chrono::steady_clock::now().time_since_epoch().count()
+        );
+        llama_sampler_chain_add(smpl, llama_sampler_init_dist(seed));
+    } else {
+        // The chain must end with a sampler that actually selects a token.
+        // Greedy is the simplest (always picks the most likely token).
+        llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+    }
 
     return reinterpret_cast<jlong>(smpl);
 }

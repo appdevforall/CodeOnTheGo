@@ -73,6 +73,7 @@ class LlmInferenceEngine(
                         } " +
                         "hasInstance=$hasInstanceMethod"
             )
+            configureNativeDefaults(llamaAndroidClass)
 
             val llamaInstance =
                 try {
@@ -117,6 +118,23 @@ class LlmInferenceEngine(
         } catch (e: Exception) {
             android.util.Log.e("LlmEngine", "Failed to initialize Llama class via reflection", e)
             false
+        }
+    }
+
+    private fun configureNativeDefaults(llamaAndroidClass: Class<*>) {
+        try {
+            val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+            val targetThreads = (cores - 2).coerceIn(2, 6)
+            llamaAndroidClass.methods.firstOrNull { it.name == "configureThreads" }
+                ?.invoke(null, targetThreads, targetThreads)
+
+            val temperature = 0.7f
+            val topP = 0.9f
+            val topK = 40
+            llamaAndroidClass.methods.firstOrNull { it.name == "configureSampling" }
+                ?.invoke(null, temperature, topP, topK)
+        } catch (e: Exception) {
+            android.util.Log.w("LlmEngine", "Failed to configure native defaults", e)
         }
     }
 

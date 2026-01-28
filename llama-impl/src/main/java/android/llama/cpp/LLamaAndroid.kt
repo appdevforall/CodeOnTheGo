@@ -227,6 +227,12 @@ class LLamaAndroid : ILlamaController {
         private val nativeLog = LoggerFactory.getLogger("llama.cpp")
 
         @JvmStatic
+        external fun configureThreads(nThreads: Int, nThreadsBatch: Int)
+
+        @JvmStatic
+        external fun configureSampling(temperature: Float, topP: Float, topK: Int)
+
+        @JvmStatic
         fun logFromNative(level: Int, message: String) {
             val cleanMessage = message.trim()
             when (level) {

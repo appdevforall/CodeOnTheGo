@@ -34,6 +34,11 @@ class LocalAgenticRunner(
     ),
     maxSteps = maxSteps
 ) {
+    private companion object {
+        private const val MAX_HISTORY_ITEMS = 2
+        private const val MAX_MESSAGE_CHARS = 400
+        private const val MAX_USER_PROMPT_CHARS = 800
+    }
 
     private val log = LoggerFactory.getLogger(LocalAgenticRunner::class.java)
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -169,16 +174,19 @@ class LocalAgenticRunner(
         val conversationHistory = if (history.isEmpty()) {
             ""
         } else {
-            history.takeLast(5).joinToString("\n") { msg ->
+            history.takeLast(MAX_HISTORY_ITEMS).joinToString("\n") { msg ->
                 val senderName = when (msg.sender) {
                     Sender.USER -> "user"
                     Sender.AGENT -> "model"
                     Sender.TOOL -> "tool"
                     else -> "system"
                 }
-                "$senderName: ${msg.text}"
+                val clipped = clipMessage(msg.text, MAX_MESSAGE_CHARS)
+                "$senderName: $clipped"
             } + "\n"
         }
+
+        val clippedUserMessage = clipMessage(userMessage, MAX_USER_PROMPT_CHARS)
 
         return """
 You are a helpful assistant. You can answer questions directly or use tools when needed.
@@ -204,8 +212,13 @@ user: Hello!
 model: Hello! How can I help you today?
 
 **CONVERSATION:**
-${conversationHistory}user: $userMessage
+${conversationHistory}user: $clippedUserMessage
 model: """.trimIndent()
+    }
+
+    private fun clipMessage(text: String, maxChars: Int): String {
+        if (text.length <= maxChars) return text
+        return text.take(maxChars).trimEnd() + "..."
     }
 
     /**
