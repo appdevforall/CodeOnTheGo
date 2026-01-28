@@ -22,6 +22,7 @@
             android:layout_marginEnd="16dp"
             android:background="@drawable/ic_extension"
             android:scaleType="centerCrop"
+            android:importantForAccessibility="no"
             app:tint="?attr/colorPrimary" />
 
         <LinearLayout
@@ -96,7 +97,7 @@
             android:layout_gravity="top"
             android:layout_marginStart="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Plugin menu"
+            android:contentDescription="@string/cd_more_options"
             android:src="@drawable/ic_more_vert"
             app:tint="?attr/colorOnSurfaceVariant" />
 
