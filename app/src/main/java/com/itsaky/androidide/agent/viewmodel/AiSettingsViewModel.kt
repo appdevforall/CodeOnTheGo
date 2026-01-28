@@ -144,7 +144,6 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     fun getGeminiApiKey(): String? {
         return EncryptedPrefs.getGeminiApiKey(getApplication())
     }
-
     fun getGeminiApiKeySaveTimestamp(): Long {
         return EncryptedPrefs.getGeminiApiKeySaveTimestamp(getApplication())
     }

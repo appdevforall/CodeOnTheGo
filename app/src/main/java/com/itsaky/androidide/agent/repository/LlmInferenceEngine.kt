@@ -2,8 +2,8 @@ package com.itsaky.androidide.agent.repository
 
 import android.content.Context
 import androidx.core.net.toUri
-import com.itsaky.androidide.llamacpp.api.ILlamaController // Ensure you have this interface
-import com.itsaky.androidide.utils.DynamicLibraryLoader
+import com.itsaky.androidide.agent.utils.DynamicLibraryLoader
+import com.itsaky.androidide.llamacpp.api.ILlamaController
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow

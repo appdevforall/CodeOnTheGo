@@ -50,13 +50,21 @@ class LocalAgenticRunnerSimplifiedWorkflowTest {
     }
 
     @Test
-    fun `shouldUseSimplifiedInstructions always returns true`() {
-        val runner = createRunner()
+    fun `simplified workflow is used by default`() = runBlocking {
+        // Engine returns a direct response
+        coEvery {
+            engine.runInference(any(), stopStrings = any())
+        } returns "Hello!"
 
-        // Verify that simplified instructions is always true regardless of settings
+        val runner = createRunner()
+        runner.generateASimpleResponse("Hello", emptyList())
+
+        // Verify that the simplified workflow was used (single inference call)
+        // The plan should NOT be populated since simplified workflow doesn't create plans
+        val plan = runner.plan.value
         assertTrue(
-            "LocalAgenticRunner should always use simplified instructions",
-            runner.shouldUseSimplifiedInstructions()
+            "Simplified workflow should not create a multi-step plan",
+            plan == null || plan.steps.isEmpty()
         )
     }
 
