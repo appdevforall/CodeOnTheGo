@@ -48,8 +48,13 @@ object IntentUtils {
 	fun openImage(
 		context: Context,
 		file: File,
-	) {
+	): Boolean {
+		val type = ImageUtils.getImageType(file)
+		if (type == TYPE_UNKNOWN) {
+			return false
+		}
 		imageIntent(context = context, file = file, intentAction = Intent.ACTION_VIEW)
+		return true
 	}
 
 	@JvmStatic
