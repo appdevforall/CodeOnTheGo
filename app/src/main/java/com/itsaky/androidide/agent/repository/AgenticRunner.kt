@@ -185,7 +185,11 @@ class AgenticRunner(
         }
 
         val finalInstruction =
-            "Based on the user's request, you MUST respond by calling one or more of the available tools. Do not provide a conversational answer."
+            "Use tools only when they are necessary to fulfill the user's request. " +
+                "If the request requires reading, creating, updating, or deleting files, " +
+                "or any IDE action, you MUST call the appropriate tool(s). " +
+                "If you already have enough information to answer without tools, answer directly. " +
+                "Do not respond with a plan or suggested actions—either call tools or provide the final answer."
 
         return "$header$formattedExamples$formattedHistory" +
                 "$finalInstruction\n\nUser Request: $prompt"
@@ -241,7 +245,10 @@ class AgenticRunner(
                 history.add(Content.builder().role("tool").parts(toolResultsParts).build())
                 logTurn("tool", toolResultsParts)
 
-                processCriticStep(history)
+                val critiqueResult = processCriticStep(history)
+                if (critiqueResult == "OK") {
+                    return generateFinalAnswer(history)
+                }
             }
             throw RuntimeException("Exceeded max steps")
         } catch (err: Exception) {
@@ -290,7 +297,7 @@ class AgenticRunner(
         return executor.execute(functionCalls)
     }
 
-    private suspend fun processCriticStep(history: MutableList<Content>) {
+    private suspend fun processCriticStep(history: MutableList<Content>): String {
         updateLastMessage("Reviewing results...")
         val critiqueResult = critic.reviewAndSummarize(history)
         if (critiqueResult != "OK") {
@@ -300,6 +307,25 @@ class AgenticRunner(
             )
             logTurn("system_critic", history.last().parts().get())
         }
+        return critiqueResult
+    }
+
+    private fun generateFinalAnswer(history: List<Content>): String {
+        val finalInstruction = Content.builder()
+            .role("user")
+            .parts(
+                Part.builder()
+                    .text("Provide a final, concise answer to the user's request based on the conversation so far.")
+                    .build()
+            )
+            .build()
+
+        val finalHistory = history.toMutableList().apply { add(finalInstruction) }
+        val response = plannerClient.generateContent(finalHistory, tools = emptyList())
+        val finalText = response.text()?.trim().orEmpty()
+        updateLastMessage(finalText)
+        logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
+        return finalText
     }
 
     private fun startLog() {
