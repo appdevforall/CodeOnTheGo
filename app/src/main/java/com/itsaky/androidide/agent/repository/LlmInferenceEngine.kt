@@ -46,24 +46,76 @@ class LlmInferenceEngine(
     suspend fun initialize(context: Context): Boolean = withContext(ioDispatcher) {
         if (isInitialized) return@withContext true
 
-        log.info("Initializing Llama Inference Engine...")
+        android.util.Log.i("LlmEngine", "Initializing Llama Inference Engine...")
         val classLoader = DynamicLibraryLoader.getLlamaClassLoader(context)
         if (classLoader == null) {
-            log.error("Failed to create Llama ClassLoader. The library might not be installed.")
+            android.util.Log.e(
+                "LlmEngine",
+                "Failed to create Llama ClassLoader. The library might not be installed."
+            )
             return@withContext false
         }
+        android.util.Log.d("LlmEngine", "ClassLoader obtained successfully")
 
         try {
+            android.util.Log.d("LlmEngine", "Loading class android.llama.cpp.LLamaAndroid...")
             val llamaAndroidClass = classLoader.loadClass("android.llama.cpp.LLamaAndroid")
-            val instanceMethod = llamaAndroidClass.getMethod("instance")
-            val llamaInstance = instanceMethod.invoke(null) // 'null' for static method
+            android.util.Log.d("LlmEngine", "Class loaded, getting instance method...")
+            val hasInstanceMethod = llamaAndroidClass.methods.any { it.name == "instance" }
+            android.util.Log.d(
+                "LlmEngine",
+                "LLamaAndroid loader=${llamaAndroidClass.classLoader} " +
+                        "ILlamaController loader=${ILlamaController::class.java.classLoader} " +
+                        "assignable=${
+                            ILlamaController::class.java.isAssignableFrom(
+                                llamaAndroidClass
+                            )
+                        } " +
+                        "hasInstance=$hasInstanceMethod"
+            )
+
+            val llamaInstance =
+                try {
+                    val instanceMethod = llamaAndroidClass.getMethod("instance")
+                    android.util.Log.d("LlmEngine", "Invoking instance method...")
+                    instanceMethod.invoke(null)
+                } catch (noMethod: NoSuchMethodException) {
+                    android.util.Log.w(
+                        "LlmEngine",
+                        "No static instance() found, trying Companion/field fallback",
+                        noMethod
+                    )
+
+                    val companionInstance =
+                        try {
+                            val companionField = llamaAndroidClass.getField("Companion")
+                            companionField.get(null)
+                        } catch (companionError: Exception) {
+                            android.util.Log.w(
+                                "LlmEngine",
+                                "Companion field not accessible, falling back to _instance field",
+                                companionError
+                            )
+                            null
+                        }
+
+                    if (companionInstance != null) {
+                        val companionClass = companionInstance.javaClass
+                        val companionInstanceMethod = companionClass.getMethod("instance")
+                        companionInstanceMethod.invoke(companionInstance)
+                    } else {
+                        val instanceField = llamaAndroidClass.getDeclaredField("_instance")
+                        instanceField.isAccessible = true
+                        instanceField.get(null)
+                    }
+                }
 
             llamaController = llamaInstance as ILlamaController
             isInitialized = true
-            log.info("Llama Inference Engine initialized successfully.")
+            android.util.Log.i("LlmEngine", "Llama Inference Engine initialized successfully.")
             true
         } catch (e: Exception) {
-            log.error("Failed to initialize Llama class via reflection", e)
+            android.util.Log.e("LlmEngine", "Failed to initialize Llama class via reflection", e)
             false
         }
     }
@@ -89,14 +141,30 @@ class LlmInferenceEngine(
                             cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
                         cursor.moveToFirst()
                         cursor.getString(nameIndex)
-                    } ?: "local_model.gguf"
+                    } ?: run {
+                        val fileNameFromPath = modelUri.path?.let { File(it).name }
+                        fileNameFromPath ?: "local_model.gguf"
+                    }
 
                 val destinationFile = File(context.cacheDir, "local_model.gguf")
 
-                context.contentResolver.openInputStream(modelUri)?.use { inputStream ->
-                    FileOutputStream(destinationFile).use { outputStream ->
-                        inputStream.copyTo(outputStream)
+                val inputStream =
+                    when (modelUri.scheme) {
+                        "file" -> modelUri.path?.let { path -> File(path).inputStream() }
+                        "content" -> context.contentResolver.openInputStream(modelUri)
+                        else -> context.contentResolver.openInputStream(modelUri)
                     }
+
+                inputStream?.use { input ->
+                    FileOutputStream(destinationFile).use { outputStream ->
+                        input.copyTo(outputStream)
+                    }
+                } ?: run {
+                    android.util.Log.e(
+                        "LlmEngine",
+                        "Failed to open input stream for model URI: $modelUri"
+                    )
+                    return@withContext false
                 }
                 log.info("Model copied to cache at {}", destinationFile.path)
 
@@ -109,6 +177,7 @@ class LlmInferenceEngine(
                 true
             } catch (e: Exception) {
                 log.error("Failed to initialize or load model from file", e)
+                android.util.Log.e("LlmEngine", "Failed to initialize or load model from file", e)
                 isModelLoaded = false
                 loadedModelPath = null
                 loadedModelName = null

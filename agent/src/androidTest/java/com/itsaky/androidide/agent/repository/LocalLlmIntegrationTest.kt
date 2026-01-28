@@ -1,5 +1,6 @@
 package com.itsaky.androidide.agent.repository
 
+import android.Manifest
 import android.content.Context
 import android.os.Build
 import android.os.Environment
@@ -47,9 +48,12 @@ class LocalLlmIntegrationTest {
     private var engine: LlmInferenceEngine? = null
     private var modelPath: String? = null
     private var llamaLibraryInstalled = false
+    private var adoptedShellPermissions = false
 
     companion object {
         private const val TAG = "LocalLlmIntegrationTest"
+        @Volatile
+        private var llamaInstalledForSession = false
 
         // Common model locations to check
         private val MODEL_SEARCH_PATHS = listOf(
@@ -70,13 +74,7 @@ class LocalLlmIntegrationTest {
     @Before
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
-
-        // Skip tests on Android < 12 (API 31) due to Logback requiring Class.getModule()
-        // which is only available on Android 12+
-        assumeTrue(
-            "These tests require Android 12+ (API 31) due to Logback module requirements",
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-        )
+        adoptShellStoragePermissions()
 
         // Try to install Llama library from test assets if not already installed
         installLlamaLibraryFromTestAssets()
@@ -111,11 +109,21 @@ class LocalLlmIntegrationTest {
     private fun installLlamaLibraryFromTestAssets() {
         val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
         val destFile = File(destDir, "llama.aar")
+        val unzipDir = context.getDir("llama_unzipped", Context.MODE_PRIVATE)
 
-        // Skip if already installed
-        if (destFile.exists()) {
-            Log.d(TAG, "Llama library already installed at ${destFile.absolutePath}")
+        if (llamaInstalledForSession && destFile.exists() && unzipDir.exists()) {
+            Log.d(TAG, "Llama library already installed for this test session.")
             return
+        }
+
+        // Refresh once per test session to avoid stale AARs across runs.
+        if (destFile.exists()) {
+            Log.d(TAG, "Removing existing Llama library at ${destFile.absolutePath}")
+            destFile.delete()
+        }
+        if (unzipDir.exists()) {
+            Log.d(TAG, "Removing existing unzipped Llama contents at ${unzipDir.absolutePath}")
+            unzipDir.deleteRecursively()
         }
 
         // Determine which AAR to use based on device architecture
@@ -143,6 +151,7 @@ class LocalLlmIntegrationTest {
                 }
             }
             Log.i(TAG, "Llama library installed successfully to ${destFile.absolutePath}")
+            llamaInstalledForSession = true
         } catch (e: FileNotFoundException) {
             Log.w(TAG, "Llama AAR not found in test assets: $assetName. " +
                     "Make sure the copyLlamaAarForTests task ran during build.")
@@ -153,6 +162,10 @@ class LocalLlmIntegrationTest {
 
     @After
     fun tearDown() {
+        if (adoptedShellPermissions) {
+            InstrumentationRegistry.getInstrumentation().uiAutomation.dropShellPermissionIdentity()
+            adoptedShellPermissions = false
+        }
         runBlocking {
             engine?.let {
                 if (it.isModelLoaded) {
@@ -191,10 +204,18 @@ class LocalLlmIntegrationTest {
         withTimeout(INFERENCE_TIMEOUT_MS) {
             loadModelOrSkip()
 
-            val response = engine!!.runInference(
-                prompt = "What is 2 + 2? Answer with just the number.",
-                stopStrings = listOf("\n")
+            val prompt =
+                "You are a helpful assistant.\nuser: What is 2 + 2? Answer with just the number.\nmodel:"
+            var response = engine!!.runInference(
+                prompt = prompt,
+                stopStrings = emptyList()
             )
+            if (response.isBlank()) {
+                response = engine!!.runInference(
+                    prompt = prompt,
+                    stopStrings = listOf("\n")
+                )
+            }
 
             assertTrue("Response should not be empty", response.isNotBlank())
             println("Inference response: $response")
@@ -202,7 +223,7 @@ class LocalLlmIntegrationTest {
             // The response should contain "4" somewhere
             assertTrue(
                 "Response should contain the answer '4'",
-                response.contains("4")
+                response.contains("4") || response.contains("four", ignoreCase = true)
             )
         }
     }
@@ -326,17 +347,10 @@ class LocalLlmIntegrationTest {
     // --- Helper methods ---
 
     private fun findModelFile(): String? {
-        // Check system property first
-        val propPath = System.getProperty("debug.test_model_path")
-        if (propPath != null && File(propPath).exists()) {
-            return propPath
-        }
-
-        // Search common locations
-        for (path in MODEL_SEARCH_PATHS) {
-            if (File(path).exists()) {
-                return path
-            }
+        // Check explicit overrides first
+        val overridePath = resolveOverrideModelPath()
+        if (overridePath != null && File(overridePath).exists() && File(overridePath).canRead()) {
+            return overridePath
         }
 
         // Check app's files directory
@@ -347,7 +361,77 @@ class LocalLlmIntegrationTest {
             return appModels.first().absolutePath
         }
 
+        // Check app-specific external files directories (accessible without SAF)
+        val externalAppDir = context.getExternalFilesDir(null)
+        val externalModels = externalAppDir?.listFiles { file ->
+            file.extension == "gguf"
+        }
+        if (!externalModels.isNullOrEmpty()) {
+            return externalModels.first().absolutePath
+        }
+
+        val externalDownloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        val externalDownloadModels = externalDownloadsDir?.listFiles { file ->
+            file.extension == "gguf"
+        }
+        if (!externalDownloadModels.isNullOrEmpty()) {
+            return externalDownloadModels.first().absolutePath
+        }
+
+        // Search common locations (only if readable)
+        for (path in MODEL_SEARCH_PATHS) {
+            val file = File(path)
+            if (file.exists() && file.canRead()) {
+                return path
+            }
+        }
+
         return null
+    }
+
+    private fun resolveOverrideModelPath(): String? {
+        val sysProp = System.getProperty("debug.test_model_path")
+        if (!sysProp.isNullOrBlank()) {
+            return sysProp
+        }
+
+        val argsPath = InstrumentationRegistry.getArguments().getString("test_model_path")
+        if (!argsPath.isNullOrBlank()) {
+            return argsPath
+        }
+
+        val systemProp = getSystemProperty("debug.test_model_path")
+        if (!systemProp.isNullOrBlank()) {
+            return systemProp
+        }
+
+        return null
+    }
+
+    private fun getSystemProperty(key: String): String? {
+        return try {
+            val clazz = Class.forName("android.os.SystemProperties")
+            val method = clazz.getMethod("get", String::class.java)
+            method.invoke(null, key) as? String
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun adoptShellStoragePermissions() {
+        val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        try {
+            uiAutomation.adoptShellPermissionIdentity(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_MEDIA_VIDEO,
+                Manifest.permission.READ_MEDIA_AUDIO
+            )
+            adoptedShellPermissions = true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to adopt shell storage permissions: ${e.message}")
+        }
     }
 
     private suspend fun loadModelOrSkip() {

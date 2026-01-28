@@ -121,4 +121,12 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation("androidx.test:rules:1.5.0")
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.1")
+
+    // Use slf4j-android for tests instead of Logback (Logback uses Java modules which Android doesn't support)
+    androidTestImplementation("org.slf4j:slf4j-android:1.7.36")
+}
+
+configurations.named("androidTestImplementation") {
+    exclude(group = "ch.qos.logback", module = "logback-classic")
+    exclude(group = "ch.qos.logback", module = "logback-core")
 }
