@@ -13,6 +13,8 @@ import com.itsaky.androidide.agent.repository.LlmInferenceEngine
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
+import com.itsaky.androidide.agent.repository.PREF_KEY_USE_SIMPLE_LOCAL_PROMPT
 import com.itsaky.androidide.app.BaseApplication
 import kotlinx.coroutines.launch
 
@@ -88,7 +90,8 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
 
         viewModelScope.launch {
             _modelLoadingState.value = ModelLoadingState.Loading
-            val success = llmInferenceEngine.initModelFromFile(context, path)
+            val expectedHash = getLocalModelSha256()
+            val success = llmInferenceEngine.initModelFromFile(context, path, expectedHash)
             if (success && llmInferenceEngine.loadedModelName != null) {
                 _modelLoadingState.value = ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
                 // Also save the path on successful load
@@ -135,6 +138,28 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     fun getLocalModelPath(): String? {
         val prefs = BaseApplication.baseInstance.prefManager
         return prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+    }
+
+    fun saveLocalModelSha256(hash: String?) {
+        val prefs = BaseApplication.baseInstance.prefManager
+        val normalized = hash?.trim().orEmpty()
+        prefs.putString(PREF_KEY_LOCAL_MODEL_SHA256, normalized)
+    }
+
+    fun getLocalModelSha256(): String? {
+        val prefs = BaseApplication.baseInstance.prefManager
+        val value = prefs.getString(PREF_KEY_LOCAL_MODEL_SHA256, null)
+        return value?.trim().takeIf { !it.isNullOrBlank() }
+    }
+
+    fun setUseSimpleLocalPrompt(enabled: Boolean) {
+        val prefs = BaseApplication.baseInstance.prefManager
+        prefs.putBoolean(PREF_KEY_USE_SIMPLE_LOCAL_PROMPT, enabled)
+    }
+
+    fun isUseSimpleLocalPromptEnabled(): Boolean {
+        val prefs = BaseApplication.baseInstance.prefManager
+        return prefs.getBoolean(PREF_KEY_USE_SIMPLE_LOCAL_PROMPT, true)
     }
 
     fun saveGeminiApiKey(apiKey: String) {

@@ -94,10 +94,20 @@ class LocalAgenticRunner(
                     } else {
                         listOf("</tool_call>", "```", "user:", "assistant:")
                     }
-                    val initial = engine.runInference(simplifiedPrompt, stopStrings = stopStrings)
+                    val initial = engine.runInference(
+                        simplifiedPrompt,
+                        stopStrings = stopStrings,
+                        clearCache = history.isEmpty()
+                    )
                     if (initial.isBlank()) {
                         log.warn("Simplified workflow: empty response, retrying with no stop strings.")
-                        engine.runInference(simplifiedPrompt)
+                        engine.updateSampling(temperature = 0.2f, topP = 0.9f, topK = 40)
+                        val retry = engine.runInference(
+                            simplifiedPrompt,
+                            clearCache = history.isEmpty()
+                        )
+                        engine.resetSamplingDefaults()
+                        retry
                     } else {
                         initial
                     }
@@ -221,16 +231,17 @@ class LocalAgenticRunner(
      * Build a simplified prompt for direct tool calling without multi-step planning.
      * Uses the structure from the "desired" behavior with examples.
      */
-    private fun buildSimplifiedPrompt(
+    private suspend fun buildSimplifiedPrompt(
         userMessage: String,
         history: List<ChatMessage>,
         tools: List<LocalToolDeclaration>
     ): String {
         if (tools.isEmpty()) {
-            val conversationHistory = if (history.isEmpty()) {
-                ""
+            val clippedUserMessage = clipMessage(userMessage, MAX_USER_PROMPT_CHARS)
+            val historyLines = if (history.isEmpty()) {
+                emptyList()
             } else {
-                history.takeLast(MAX_HISTORY_ITEMS).joinToString("\n") { msg ->
+                history.takeLast(MAX_HISTORY_ITEMS).map { msg ->
                     val senderName = when (msg.sender) {
                         Sender.USER -> "user"
                         Sender.AGENT -> "assistant"
@@ -239,10 +250,10 @@ class LocalAgenticRunner(
                     }
                     val clipped = clipMessage(msg.text, MAX_MESSAGE_CHARS)
                     "$senderName: $clipped"
-                } + "\n"
+                }
             }
-
-            val clippedUserMessage = clipMessage(userMessage, MAX_USER_PROMPT_CHARS)
+            val conversationHistory =
+                buildHistoryWithBudgetNoTools(historyLines, clippedUserMessage)
             return """
 You are a helpful assistant. Answer the user's question directly.
 
@@ -267,11 +278,11 @@ assistant:
             "{ \"name\": \"${tool.name}\", \"description\": \"$escapedDescription\"$args }"
         }
 
-        // Include recent conversation history for context
-        val conversationHistory = if (history.isEmpty()) {
-            ""
+        val clippedUserMessage = clipMessage(userMessage, MAX_USER_PROMPT_CHARS)
+        val historyLines = if (history.isEmpty()) {
+            emptyList()
         } else {
-            history.takeLast(MAX_HISTORY_ITEMS).joinToString("\n") { msg ->
+            history.takeLast(MAX_HISTORY_ITEMS).map { msg ->
                 val senderName = when (msg.sender) {
                     Sender.USER -> "user"
                     Sender.AGENT -> "model"
@@ -280,10 +291,10 @@ assistant:
                 }
                 val clipped = clipMessage(msg.text, MAX_MESSAGE_CHARS)
                 "$senderName: $clipped"
-            } + "\n"
+            }
         }
-
-        val clippedUserMessage = clipMessage(userMessage, MAX_USER_PROMPT_CHARS)
+        val conversationHistory =
+            buildHistoryWithBudget(historyLines, clippedUserMessage, toolsJson)
 
         return """
 You are a helpful assistant. Use a tool only if needed.
@@ -310,6 +321,73 @@ assistant:
         val end = text.indexOf("</tool_call>", start)
         if (end == -1) return text
         return text.substring(0, end + "</tool_call>".length)
+    }
+
+    private suspend fun buildHistoryWithBudget(
+        historyLines: List<String>,
+        userPrompt: String,
+        toolsJson: String
+    ): String {
+        if (historyLines.isEmpty()) return ""
+
+        val contextSize = engine.getConfiguredContextSize().coerceAtLeast(1024)
+        val inputBudget = (contextSize * 0.7f).toInt().coerceAtLeast(256)
+        val basePrompt = """
+You are a helpful assistant. Use a tool only if needed.
+
+Tools:
+[
+  $toolsJson
+]
+
+If using a tool, respond with ONLY:
+<tool_call>{"name":"tool_name","args":{...}}</tool_call>
+Include all required args. If you don't know required args, ask the user instead of calling a tool.
+No extra text before or after.
+
+Conversation:
+""".trimIndent()
+        val baseTokens = engine.countTokens("$basePrompt\nuser: $userPrompt\nassistant:")
+        val remaining = (inputBudget - baseTokens).coerceAtLeast(0)
+        if (remaining == 0) return ""
+
+        var tokenCount = 0
+        val kept = ArrayList<String>()
+        for (line in historyLines.asReversed()) {
+            val lineTokens = engine.countTokens(line) + 1
+            if (tokenCount + lineTokens > remaining) break
+            kept.add(line)
+            tokenCount += lineTokens
+        }
+        if (kept.isEmpty()) return ""
+        return kept.asReversed().joinToString("\n") + "\n"
+    }
+
+    private suspend fun buildHistoryWithBudgetNoTools(
+        historyLines: List<String>,
+        userPrompt: String
+    ): String {
+        if (historyLines.isEmpty()) return ""
+
+        val contextSize = engine.getConfiguredContextSize().coerceAtLeast(1024)
+        val inputBudget = (contextSize * 0.7f).toInt().coerceAtLeast(256)
+        val basePrompt = """
+You are a helpful assistant. Answer the user's question directly.
+""".trimIndent()
+        val baseTokens = engine.countTokens("$basePrompt\nuser: $userPrompt\nassistant:")
+        val remaining = (inputBudget - baseTokens).coerceAtLeast(0)
+        if (remaining == 0) return ""
+
+        var tokenCount = 0
+        val kept = ArrayList<String>()
+        for (line in historyLines.asReversed()) {
+            val lineTokens = engine.countTokens(line) + 1
+            if (tokenCount + lineTokens > remaining) break
+            kept.add(line)
+            tokenCount += lineTokens
+        }
+        if (kept.isEmpty()) return ""
+        return kept.asReversed().joinToString("\n") + "\n"
     }
 
     private fun fillMissingArgs(
@@ -520,7 +598,7 @@ assistant:
         """.trimIndent()
 
         return try {
-            val raw = engine.runInference(planPrompt)
+            val raw = engine.runInference(planPrompt, clearCache = true)
             val cleaned = extractJsonArray(raw)
             parsePlanSteps(cleaned)
         } catch (err: Exception) {
@@ -538,7 +616,11 @@ assistant:
 
         // Don't catch exceptions here - let them propagate so retry logic can handle them
         // without polluting conversation history with error messages
-        val responseText = engine.runInference(prompt, stopStrings = listOf("</tool_call>"))
+        val responseText = engine.runInference(
+            prompt,
+            stopStrings = listOf("</tool_call>"),
+            clearCache = true
+        )
         val parsedCall = Util.parseToolCall(responseText, toolNames)
 
         return if (parsedCall != null) {

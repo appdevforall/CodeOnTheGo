@@ -26,7 +26,10 @@ class LlmInferenceEngine(
     private val log = LoggerFactory.getLogger(LlmInferenceEngine::class.java)
 
     private var llamaController: ILlamaController? = null
+    private var llamaAndroidClass: Class<*>? = null
     private var isInitialized = false
+    private var samplingDefaults = SamplingConfig(temperature = 0.7f, topP = 0.9f, topK = 40)
+    private var configuredContextSize = 4096
 
     var isModelLoaded: Boolean = false
         private set
@@ -46,6 +49,7 @@ class LlmInferenceEngine(
         if (isInitialized) return@withContext true
 
         android.util.Log.i("LlmEngine", "Initializing Llama Inference Engine...")
+        cachedContext = context.applicationContext
         val classLoader = DynamicLibraryLoader.getLlamaClassLoader(context)
         if (classLoader == null) {
             android.util.Log.e(
@@ -59,6 +63,7 @@ class LlmInferenceEngine(
         try {
             android.util.Log.d("LlmEngine", "Loading class android.llama.cpp.LLamaAndroid...")
             val llamaAndroidClass = classLoader.loadClass("android.llama.cpp.LLamaAndroid")
+            this@LlmInferenceEngine.llamaAndroidClass = llamaAndroidClass
             android.util.Log.d("LlmEngine", "Class loaded, getting instance method...")
             val hasInstanceMethod = llamaAndroidClass.methods.any { it.name == "instance" }
             android.util.Log.d(
@@ -72,7 +77,7 @@ class LlmInferenceEngine(
                         } " +
                         "hasInstance=$hasInstanceMethod"
             )
-            configureNativeDefaults(llamaAndroidClass)
+            configureNativeDefaults(context, llamaAndroidClass)
 
             val llamaInstance =
                 try {
@@ -120,20 +125,94 @@ class LlmInferenceEngine(
         }
     }
 
-    private fun configureNativeDefaults(llamaAndroidClass: Class<*>) {
+    private fun configureNativeDefaults(context: Context, llamaAndroidClass: Class<*>) {
         try {
             val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
             val targetThreads = (cores - 2).coerceIn(2, 6)
             llamaAndroidClass.methods.firstOrNull { it.name == "configureThreads" }
                 ?.invoke(null, targetThreads, targetThreads)
 
-            val temperature = 0.7f
-            val topP = 0.9f
-            val topK = 40
             llamaAndroidClass.methods.firstOrNull { it.name == "configureSampling" }
-                ?.invoke(null, temperature, topP, topK)
+                ?.invoke(
+                    null,
+                    samplingDefaults.temperature,
+                    samplingDefaults.topP,
+                    samplingDefaults.topK
+                )
+
+            configuredContextSize = determineContextSize(context)
+            llamaAndroidClass.methods.firstOrNull { it.name == "configureContext" }
+                ?.invoke(null, configuredContextSize)
+
+            val maxTokens = (configuredContextSize * 0.25f).toInt().coerceIn(128, 512)
+            llamaAndroidClass.methods.firstOrNull { it.name == "configureMaxTokens" }
+                ?.invoke(null, maxTokens)
+
+            llamaAndroidClass.methods.firstOrNull { it.name == "configureKvCacheReuse" }
+                ?.invoke(null, true)
         } catch (e: Exception) {
             android.util.Log.w("LlmEngine", "Failed to configure native defaults", e)
+        }
+    }
+
+    private data class SamplingConfig(
+        val temperature: Float,
+        val topP: Float,
+        val topK: Int
+    )
+
+    fun updateSampling(temperature: Float, topP: Float, topK: Int) {
+        val klass = llamaAndroidClass ?: return
+        try {
+            klass.methods.firstOrNull { it.name == "configureSampling" }
+                ?.invoke(null, temperature, topP, topK)
+        } catch (e: Exception) {
+            android.util.Log.w("LlmEngine", "Failed to update sampling", e)
+        }
+    }
+
+    fun resetSamplingDefaults() {
+        val context = cachedContext ?: return
+        llamaAndroidClass?.let { configureNativeDefaults(context, it) }
+    }
+
+    fun getConfiguredContextSize(): Int = configuredContextSize
+
+    suspend fun countTokens(text: String): Int {
+        val controller = llamaController ?: return estimateTokenCount(text)
+        if (!isModelLoaded) return estimateTokenCount(text)
+        return withContext(ioDispatcher) {
+            try {
+                controller.countTokens(text)
+            } catch (e: Throwable) {
+                estimateTokenCount(text)
+            }
+        }
+    }
+
+    private fun estimateTokenCount(text: String): Int {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return 0
+        return ((trimmed.length / 4.0) + 1).toInt()
+    }
+
+    private var cachedContext: Context? = null
+
+    private fun determineContextSize(context: Context): Int {
+        val activityManager =
+            context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+        val memInfo = android.app.ActivityManager.MemoryInfo()
+        activityManager?.getMemoryInfo(memInfo)
+        val totalMemGb = if (memInfo.totalMem > 0) {
+            memInfo.totalMem.toDouble() / (1024.0 * 1024.0 * 1024.0)
+        } else {
+            6.0
+        }
+        return when {
+            totalMemGb <= 4.5 -> 1024
+            totalMemGb <= 8.5 -> 2048
+            totalMemGb <= 12.5 -> 3072
+            else -> 4096
         }
     }
 
@@ -141,7 +220,11 @@ class LlmInferenceEngine(
      * Copies a model from a URI to the app's cache and loads it.
      * If the engine is not initialized, it will attempt to initialize it first.
      */
-    suspend fun initModelFromFile(context: Context, modelUriString: String): Boolean {
+    suspend fun initModelFromFile(
+        context: Context,
+        modelUriString: String,
+        expectedSha256: String? = null
+    ): Boolean {
         if (!isInitialized && !initialize(context)) {
             log.error("Engine initialization failed. Cannot load model.")
             return false
@@ -185,6 +268,19 @@ class LlmInferenceEngine(
                 }
                 log.info("Model copied to cache at {}", destinationFile.path)
 
+                val normalizedExpected = expectedSha256?.trim()?.lowercase().orEmpty()
+                if (normalizedExpected.isNotBlank()) {
+                    val actual = sha256(destinationFile)
+                    if (!actual.equals(normalizedExpected, ignoreCase = true)) {
+                        log.error(
+                            "Model hash verification failed. expected={}, actual={}",
+                            normalizedExpected,
+                            actual
+                        )
+                        return@withContext false
+                    }
+                }
+
                 llamaController?.load(destinationFile.path)
                 isModelLoaded = true
                 loadedModelPath = destinationFile.path
@@ -204,6 +300,19 @@ class LlmInferenceEngine(
         }
     }
 
+    private fun sha256(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1024 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
     suspend fun unloadModel() {
         if (!isModelLoaded) return
         withContext(ioDispatcher) {
@@ -215,12 +324,18 @@ class LlmInferenceEngine(
         currentModelFamily = ModelFamily.UNKNOWN
     }
 
-    suspend fun runInference(prompt: String, stopStrings: List<String> = emptyList()): String {
+    suspend fun runInference(
+        prompt: String,
+        stopStrings: List<String> = emptyList(),
+        clearCache: Boolean = true
+    ): String {
         val controller = llamaController ?: throw IllegalStateException("Engine not initialized.")
         if (!isModelLoaded) throw IllegalStateException("Model is not loaded.")
 
         return withContext(ioDispatcher) {
-            controller.clearKvCache()
+            if (clearCache) {
+                controller.clearKvCache()
+            }
             val builder = StringBuilder()
             controller.send(prompt, stop = stopStrings).collect { chunk ->
                 builder.append(chunk)
@@ -231,12 +346,15 @@ class LlmInferenceEngine(
 
     suspend fun runStreamingInference(
         prompt: String,
-        stopStrings: List<String> = emptyList()
+        stopStrings: List<String> = emptyList(),
+        clearCache: Boolean = true
     ): Flow<String> {
         val controller = llamaController ?: throw IllegalStateException("Engine not initialized.")
         if (!isModelLoaded) throw IllegalStateException("Model is not loaded.")
 
-        controller.clearKvCache()
+        if (clearCache) {
+            controller.clearKvCache()
+        }
         return controller.send(prompt, stop = stopStrings).flowOn(ioDispatcher)
     }
 
@@ -252,6 +370,7 @@ class LlmInferenceEngine(
     private fun detectModelFamily(path: String): ModelFamily {
         val lowerPath = path.lowercase()
         return when {
+            lowerPath.contains("gemma-3") || lowerPath.contains("gemma3") -> ModelFamily.GEMMA3
             lowerPath.contains("gemma") -> ModelFamily.GEMMA2
             lowerPath.contains("llama") -> ModelFamily.LLAMA3
             else -> ModelFamily.UNKNOWN

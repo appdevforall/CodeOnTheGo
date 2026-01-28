@@ -68,6 +68,9 @@ static std::atomic<int> g_n_threads_batch(-1);
 static std::atomic<float> g_temperature(0.7f);
 static std::atomic<float> g_top_p(0.9f);
 static std::atomic<int> g_top_k(40);
+static std::atomic<int> g_n_ctx(4096);
+static std::atomic<bool> g_kv_cache_reuse(true);
+static std::vector<llama_token> g_cached_tokens;
 
 extern "C"
 JNIEXPORT void JNICALL
@@ -84,6 +87,21 @@ Java_android_llama_cpp_LLamaAndroid_configureSampling(JNIEnv *, jclass, jfloat t
     g_temperature.store(temperature);
     g_top_p.store(top_p);
     g_top_k.store(top_k);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_android_llama_cpp_LLamaAndroid_configureContext(JNIEnv *, jclass, jint n_ctx) {
+    if (n_ctx <= 0) {
+        return;
+    }
+    g_n_ctx.store(n_ctx);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_android_llama_cpp_LLamaAndroid_configureKvCacheReuse(JNIEnv *, jclass, jboolean enabled) {
+    g_kv_cache_reuse.store(enabled == JNI_TRUE);
 }
 
 template<typename JVM>
@@ -229,7 +247,8 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
 
     llama_context_params ctx_params = llama_context_default_params();
 
-    ctx_params.n_ctx = 4096;
+    const int configured_ctx = g_n_ctx.load();
+    ctx_params.n_ctx = configured_ctx > 0 ? configured_ctx : 4096;
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads_batch;
 
@@ -539,16 +558,45 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
 
     common_batch_clear(*batch);
 
-    // evaluate the initial prompt
-    for (auto i = 0; i < tokens_list.size(); i++) {
-        common_batch_add(*batch, tokens_list[i], i, {0}, false);
+    bool reuse = false;
+    size_t reuse_prefix = 0;
+    if (g_kv_cache_reuse.load() && !g_cached_tokens.empty()) {
+        if (g_cached_tokens.size() <= tokens_list.size()) {
+            reuse = true;
+            for (size_t i = 0; i < g_cached_tokens.size(); i++) {
+                if (g_cached_tokens[i] != tokens_list[i]) {
+                    reuse = false;
+                    break;
+                }
+            }
+            if (reuse) {
+                reuse_prefix = g_cached_tokens.size();
+            }
+        }
     }
 
-    // llama_decode will output logits only for the last token of the prompt
-    batch->logits[batch->n_tokens - 1] = true;
+    if (!reuse) {
+        llama_memory_clear(llama_get_memory(context), false);
+        g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
+        // evaluate the initial prompt
+        for (auto i = 0; i < tokens_list.size(); i++) {
+            common_batch_add(*batch, tokens_list[i], i, {0}, false);
+        }
+    } else {
+        g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
+        if (reuse_prefix < tokens_list.size()) {
+            for (auto i = reuse_prefix; i < tokens_list.size(); i++) {
+                common_batch_add(*batch, tokens_list[i], i, {0}, false);
+            }
+        }
+    }
 
-    if (llama_decode(context, *batch) != 0) {
-        LOGe("llama_decode() failed");
+    if (batch->n_tokens > 0) {
+        // llama_decode will output logits only for the last token of the prompt
+        batch->logits[batch->n_tokens - 1] = true;
+        if (llama_decode(context, *batch) != 0) {
+            LOGe("llama_decode() failed");
+        }
     }
 
     env->ReleaseStringUTFChars(jtext, text);
@@ -585,6 +633,7 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
         return nullptr;
     }
 
+    g_cached_tokens.push_back(new_token_id);
     auto new_token_chars = common_token_to_piece(context, new_token_id);
     cached_token_chars += new_token_chars;
 
@@ -616,6 +665,7 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_android_llama_cpp_LLamaAndroid_kv_1cache_1clear(JNIEnv *, jobject, jlong context) {
     llama_memory_clear(llama_get_memory(reinterpret_cast<llama_context *>(context)), true);
+    g_cached_tokens.clear();
 }
 
 

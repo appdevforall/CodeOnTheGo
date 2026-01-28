@@ -37,6 +37,10 @@ class LLamaAndroid : ILlamaController {
         }
     }
 
+    override suspend fun countTokens(text: String): Int {
+        return tokenize(text).size
+    }
+
     suspend fun tokenize(text: String): IntArray {
         return withContext(runLoop) {
             when (val state = threadLocalState.get()) {
@@ -69,7 +73,12 @@ class LLamaAndroid : ILlamaController {
         }
     }.asCoroutineDispatcher()
 
-    private val nlen: Int = 256
+    private var nlen: Int = 256
+
+    private fun updateMaxTokens(maxTokens: Int) {
+        val clamped = maxTokens.coerceIn(64, 1024)
+        nlen = clamped
+    }
 
     private external fun log_to_android()
     private external fun load_model(filename: String): Long
@@ -231,6 +240,17 @@ class LLamaAndroid : ILlamaController {
 
         @JvmStatic
         external fun configureSampling(temperature: Float, topP: Float, topK: Int)
+
+        @JvmStatic
+        external fun configureContext(nCtx: Int)
+
+        @JvmStatic
+        external fun configureKvCacheReuse(enabled: Boolean)
+
+        @JvmStatic
+        fun configureMaxTokens(maxTokens: Int) {
+            _instance.updateMaxTokens(maxTokens)
+        }
 
         @JvmStatic
         fun logFromNative(level: Int, message: String) {

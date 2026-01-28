@@ -31,6 +31,7 @@ import com.itsaky.androidide.agent.repository.LocalAgenticRunner
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
 import com.itsaky.androidide.agent.repository.SessionHistoryRepository
 import com.itsaky.androidide.agent.tool.ToolApprovalManager
 import com.itsaky.androidide.agent.tool.ToolHandler
@@ -432,7 +433,8 @@ class ChatViewModel : ViewModel() {
         }
 
         log.info("Attempting to auto-load saved local model from {}", modelPath)
-        val success = engine.initModelFromFile(context, modelPath)
+        val expectedHash = prefs.getString(PREF_KEY_LOCAL_MODEL_SHA256, null)
+        val success = engine.initModelFromFile(context, modelPath, expectedHash)
         if (success) {
             val displayName = engine.loadedModelName ?: modelUri.getFileName(context)
             log.info("Auto-load succeeded for local model {}", displayName)
