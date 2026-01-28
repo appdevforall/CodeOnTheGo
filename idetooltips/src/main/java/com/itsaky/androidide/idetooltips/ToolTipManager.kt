@@ -279,14 +279,10 @@ object TooltipManager {
 
         val tooltipHtmlContent = when (level) {
             0 -> {
-                val rawSummary = tooltipItem.summary
-                // Escape HTML characters so they're displayed correctly in the WebView
-                Html.escapeHtml(rawSummary)
+                tooltipItem.summary
             }
             1 -> {
-                val detailContent = if (tooltipItem.detail.isNotBlank()) {
-                    Html.escapeHtml(tooltipItem.detail)
-                } else ""
+                val detailContent = tooltipItem.detail.ifBlank { "" }
                 if (tooltipItem.buttons.isNotEmpty()) {
                     val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
                         context.getString(R.string.tooltip_links_html_template, url, label)
