@@ -101,7 +101,7 @@ dependencies {
 
     implementation(libs.google.material)
     implementation(libs.common.kotlin.coroutines.android)
-    implementation("io.insert-koin:koin-android:3.5.3")
+    implementation(libs.koin.android)
     implementation(libs.common.markwon.core)
     implementation(libs.common.markwon.linkify)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")

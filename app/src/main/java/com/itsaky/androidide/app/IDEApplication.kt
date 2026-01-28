@@ -25,6 +25,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.agent.AppIdeToolingApi
+import com.itsaky.androidide.agent.api.AgentDependencies
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.plugins.manager.core.PluginManager
@@ -136,6 +138,7 @@ class IDEApplication : BaseApplication() {
 		Thread.setDefaultUncaughtExceptionHandler(::handleUncaughtException)
 
 		super.onCreate()
+        AgentDependencies.registerToolingApi(AppIdeToolingApi)
 
 		// @devs: looking to initialize a component at application startup?
 		// first, decide whether the component you want to initialize can be

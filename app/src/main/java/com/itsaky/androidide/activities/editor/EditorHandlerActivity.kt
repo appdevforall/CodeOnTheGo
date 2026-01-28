@@ -62,14 +62,13 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
+import com.itsaky.androidide.utils.AppIntentUtils.openImage
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
-import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.Dispatchers

@@ -4,11 +4,17 @@ import android.Manifest
 import android.content.Context
 import android.os.Build
 import android.os.Environment
+import android.os.SystemClock
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.Sender
+import com.itsaky.androidide.agent.api.AgentDependencies
+import com.itsaky.androidide.agent.api.IdeToolingApi
+import com.itsaky.androidide.agent.model.ReviewDecision
+import com.itsaky.androidide.agent.model.ToolResult
+import com.itsaky.androidide.agent.tool.shell.ShellCommandResult
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -20,6 +26,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.FileWriter
 
 /**
  * Integration tests for Local LLM using actual GGUF models.
@@ -75,6 +82,7 @@ class LocalLlmIntegrationTest {
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         adoptShellStoragePermissions()
+        AgentDependencies.registerToolingApi(FakeIdeToolingApi())
 
         // Try to install Llama library from test assets if not already installed
         installLlamaLibraryFromTestAssets()
@@ -166,6 +174,7 @@ class LocalLlmIntegrationTest {
             InstrumentationRegistry.getInstrumentation().uiAutomation.dropShellPermissionIdentity()
             adoptedShellPermissions = false
         }
+        AgentDependencies.clear()
         runBlocking {
             engine?.let {
                 if (it.isModelLoaded) {
@@ -444,5 +453,269 @@ class LocalLlmIntegrationTest {
             val loaded = eng.initModelFromFile(context, modelFile.toURI().toString())
             assumeTrue("Model must load for this test", loaded)
         }
+    }
+
+    @Test
+    fun testAllToolsAreInvokedFromPrompt() = runBlocking {
+        withTimeout(INFERENCE_TIMEOUT_MS) {
+            loadModelOrSkip()
+
+            val toolCases = listOf(
+                ToolCase("create_file", """{"path":"tool-tests/created.txt","content":"hello"}"""),
+                ToolCase(
+                    "read_file",
+                    """{"file_path":"tool-tests/created.txt","offset":0,"limit":10}"""
+                ),
+                ToolCase("list_dir", """{"path":".","recursive":false}"""),
+                ToolCase(
+                    "search_project",
+                    """{"query":"LocalLlmIntegrationTest","path":".","max_results":5,"ignore_case":true}"""
+                ),
+                ToolCase("run_app", "{}"),
+                ToolCase(
+                    "add_dependency",
+                    """{"dependency_string":"implementation(\"com.example:demo:1.0\")","build_file_path":"app/build.gradle.kts"}"""
+                ),
+                ToolCase(
+                    "ask_user",
+                    """{"question":"Pick one","options":"[\\\"A\\\",\\\"B\\\"]"}"""
+                ),
+                ToolCase(
+                    "update_file",
+                    """{"path":"tool-tests/updated.txt","content":"updated"}"""
+                ),
+                ToolCase("get_build_output", "{}"),
+                ToolCase("get_device_battery", "{}"),
+                ToolCase("get_current_datetime", "{}"),
+                ToolCase("get_weather", """{"city":"Quito"}"""),
+                ToolCase("add_string_resource", """{"name":"test_string","value":"Hello"}""")
+            )
+
+            for (case in toolCases) {
+                val runner = LocalAgenticRunner(
+                    context = context,
+                    engine = engine!!,
+                    maxSteps = 20
+                )
+
+                val states = mutableListOf<AgentState>()
+                runner.onStateUpdate = { state ->
+                    states.add(state)
+                    if (state is AgentState.AwaitingApproval) {
+                        runner.submitApprovalDecision(state.id, ReviewDecision.ApprovedForSession)
+                    }
+                }
+
+                val toolCallJson = """{"name":"${case.toolName}","args":${case.argsJson}}"""
+                val prompt = "Use the tool ${case.toolName} now. " +
+                        "Respond ONLY with: <tool_call>$toolCallJson</tool_call>"
+                runner.testResponseOverride = "<tool_call>$toolCallJson</tool_call>"
+
+                runner.generateASimpleResponse(prompt = prompt, history = emptyList())
+
+                val usedTool = states.any { state ->
+                    state is AgentState.Thinking &&
+                            state.thought.contains("Using ${case.toolName}", ignoreCase = true)
+                }
+
+                assertTrue(
+                    "Expected tool '${case.toolName}' to be called. States=${states.map { it::class.simpleName to it }}",
+                    usedTool
+                )
+            }
+        }
+    }
+
+    @Test
+    fun testLocalLlmBenchmarkSuite() {
+        runBlocking {
+            val benchmarkTimeoutMs = 20 * 60_000L
+            withTimeout(benchmarkTimeoutMs) {
+                loadModelOrSkip()
+
+                val toolCases = listOf(
+                    BenchmarkCase(
+                        "Create a file at tool-tests/bench.txt with content hello.",
+                        "create_file"
+                    ),
+                    BenchmarkCase("Read the file tool-tests/bench.txt.", "read_file"),
+                    BenchmarkCase("List files in the project root.", "list_dir"),
+                    BenchmarkCase(
+                        "Search the project for the word LocalLlmIntegrationTest.",
+                        "search_project"
+                    ),
+                    BenchmarkCase("Run the app on the device.", "run_app"),
+                    BenchmarkCase(
+                        "Add dependency implementation(\"com.example:demo:1.0\") to app/build.gradle.kts.",
+                        "add_dependency"
+                    ),
+                    BenchmarkCase(
+                        "Update file tool-tests/bench.txt with content updated.",
+                        "update_file"
+                    ),
+                    BenchmarkCase("Get the latest build output.", "get_build_output"),
+                    BenchmarkCase("What's the device battery percentage?", "get_device_battery"),
+                    BenchmarkCase("What time is it now?", "get_current_datetime"),
+                    BenchmarkCase("What's the weather in Quito?", "get_weather"),
+                    BenchmarkCase(
+                        "Add string resource welcome_message with value Hello.",
+                        "add_string_resource"
+                    ),
+                    BenchmarkCase("Ask the user to pick A or B.", "ask_user"),
+                    BenchmarkCase("Hello! How are you?", null),
+                    BenchmarkCase("Explain what a Kotlin data class is.", null)
+                )
+
+                val promptTemplate = buildBenchmarkPromptTemplate()
+                val stopStrings = listOf(
+                    "</tool_call>",
+                    "\nuser:",
+                    "\nUser:",
+                    "\n\n"
+                )
+
+                val timestamp = System.currentTimeMillis()
+                val outputFile =
+                    File(context.getExternalFilesDir(null), "local_llm_benchmark_$timestamp.csv")
+                FileWriter(outputFile).use { writer ->
+                    writer.append("prompt,expected_tool,detected_tool,tool_match,ttft_ms,total_ms,output_chars\n")
+                    for (case in toolCases) {
+                        val prompt = promptTemplate.replace("{{USER_MESSAGE}}", case.prompt)
+                        val start = SystemClock.elapsedRealtime()
+                        var firstTokenMs = -1L
+                        val responseBuilder = StringBuilder()
+
+                        engine!!.runStreamingInference(prompt, stopStrings).collect { chunk ->
+                            if (firstTokenMs < 0) {
+                                firstTokenMs = SystemClock.elapsedRealtime() - start
+                            }
+                            responseBuilder.append(chunk)
+                        }
+
+                        val totalMs = SystemClock.elapsedRealtime() - start
+                        val responseText = responseBuilder.toString()
+                        val parsedCall = Util.parseToolCall(
+                            responseText,
+                            LocalLlmTools.allTools.map { it.name }.toSet()
+                        )
+                        val detectedTool = parsedCall?.name
+                        val toolMatch = when {
+                            case.expectedTool == null -> parsedCall == null
+                            else -> detectedTool == case.expectedTool
+                        }
+
+                        writer.append(
+                            "${csvEscape(case.prompt)}," +
+                                    "${csvEscape(case.expectedTool)}," +
+                                    "${csvEscape(detectedTool)}," +
+                                    "$toolMatch," +
+                                    "${firstTokenMs.coerceAtLeast(0)}," +
+                                    "$totalMs," +
+                                    "${responseText.length}\n"
+                        )
+
+                        Log.i(
+                            TAG,
+                            "Benchmark: prompt='${case.prompt.take(80)}' expected=${case.expectedTool} " +
+                                    "detected=$detectedTool match=$toolMatch ttftMs=$firstTokenMs totalMs=$totalMs"
+                        )
+                    }
+                }
+
+                Log.i(TAG, "Benchmark results written to: ${outputFile.absolutePath}")
+            }
+        }
+    }
+
+    private data class ToolCase(
+        val toolName: String,
+        val argsJson: String
+    )
+
+    private data class BenchmarkCase(
+        val prompt: String,
+        val expectedTool: String?
+    )
+
+    private fun buildBenchmarkPromptTemplate(): String {
+        val toolsJson = LocalLlmTools.allTools.joinToString(", ") { "\"${tool.name}\"" }
+
+        return """
+You are a helpful assistant. Answer directly unless a tool is required.
+
+Available tools:
+[
+  $toolsJson
+]
+
+To use a tool, respond with a single <tool_call> XML tag containing a JSON object.
+If no tool is needed, answer the user's question directly.
+
+Respond ONLY with a single <tool_call> tag OR your direct text answer. Do not add any other text before or after.
+
+user: {{USER_MESSAGE}}
+model: """.trimIndent()
+    }
+
+    private fun csvEscape(value: String?): String {
+        val raw = value ?: ""
+        val escaped = raw.replace("\"", "\"\"")
+        return "\"$escaped\""
+    }
+
+    private class FakeIdeToolingApi : IdeToolingApi {
+        override fun createFile(path: String, content: String): ToolResult =
+            ToolResult.success("created $path")
+
+        override fun readFile(path: String, offset: Int?, limit: Int?): ToolResult =
+            ToolResult.success("read $path", data = "stub")
+
+        override fun readFileContent(path: String, offset: Int?, limit: Int?): Result<String> =
+            Result.success("stub")
+
+        override fun updateFile(path: String, content: String): ToolResult =
+            ToolResult.success("updated $path")
+
+        override fun deleteFile(path: String): ToolResult =
+            ToolResult.success("deleted $path")
+
+        override fun listFiles(path: String, recursive: Boolean): ToolResult =
+            ToolResult.success("listed $path", data = "[]")
+
+        override fun searchProject(
+            query: String,
+            path: String?,
+            maxResults: Int,
+            ignoreCase: Boolean
+        ): ToolResult = ToolResult.success("search $query", data = "[]")
+
+        override fun addDependency(dependencyString: String, buildFilePath: String): ToolResult =
+            ToolResult.success("added dependency")
+
+        override fun addStringResource(name: String, value: String): ToolResult =
+            ToolResult.success("added string $name")
+
+        override suspend fun runApp(): ToolResult =
+            ToolResult.success("run app")
+
+        override suspend fun triggerGradleSync(): ToolResult =
+            ToolResult.success("sync")
+
+        override fun getBuildOutput(): ToolResult =
+            ToolResult.success("build output", data = "")
+
+        override fun getBuildOutputContent(): String? = ""
+
+        override suspend fun executeShellCommand(command: String): ShellCommandResult =
+            ShellCommandResult(exitCode = 0, stdout = "", stderr = "")
+
+        override fun getDeviceBattery(): ToolResult =
+            ToolResult.success("battery 100%")
+
+        override fun getCurrentDateTime(): ToolResult =
+            ToolResult.success("time now")
+
+        override fun getWeather(city: String?): ToolResult =
+            ToolResult.success("weather ${city.orEmpty()}")
     }
 }

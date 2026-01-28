@@ -8,7 +8,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -222,7 +221,11 @@ class LlmInferenceEngine(
 
         return withContext(ioDispatcher) {
             controller.clearKvCache()
-            controller.send(prompt, stop = stopStrings).reduce { acc, s -> acc + s }
+            val builder = StringBuilder()
+            controller.send(prompt, stop = stopStrings).collect { chunk ->
+                builder.append(chunk)
+            }
+            builder.toString()
         }
     }
 

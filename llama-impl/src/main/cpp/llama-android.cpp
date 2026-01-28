@@ -498,6 +498,8 @@ Java_android_llama_cpp_LLamaAndroid_system_1info(JNIEnv *env, jobject) {
     return env->NewStringUTF(llama_print_system_info());
 }
 
+static int g_prompt_tokens = 0;
+
 extern "C"
 JNIEXPORT jint JNICALL
 Java_android_llama_cpp_LLamaAndroid_completion_1init(
@@ -528,6 +530,8 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
                       "Prompt is too long for the model's context size.");
         return 0;
     }
+
+    g_prompt_tokens = static_cast<int>(tokens_list.size());
 
     for (auto id: tokens_list) {
         LOGi("token: `%s`-> %d ", common_token_to_piece(context, id).c_str(), id);
@@ -576,7 +580,8 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
     const auto new_token_id = llama_sampler_sample(sampler, context, -1);
 
     const auto n_cur = env->CallIntMethod(intvar_ncur, la_int_var_value);
-    if (llama_vocab_is_eog(vocab, new_token_id) || n_cur == n_len) {
+    const auto generated = n_cur - g_prompt_tokens;
+    if (llama_vocab_is_eog(vocab, new_token_id) || generated >= n_len) {
         return nullptr;
     }
 

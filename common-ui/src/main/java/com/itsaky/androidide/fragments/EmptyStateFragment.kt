@@ -9,20 +9,22 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewbinding.ViewBinding
 import com.itsaky.androidide.common.ui.databinding.FragmentEmptyStateBinding
 import com.itsaky.androidide.editor.ui.EditorLongPressEvent
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.EmptyStateFragmentViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 
 abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
-
     constructor(layout: Int, bind: (View) -> T) : super(layout, bind)
     constructor(inflate: (LayoutInflater, ViewGroup?, Boolean) -> T) : super(inflate)
 
@@ -33,42 +35,63 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 
     private var gestureDetector: GestureDetector? = null
 
+    // Cache the last known empty state to avoid returning incorrect default when detached
+    // Volatile ensures thread-safe visibility and atomicity for boolean reads/writes
+    @Volatile
+    private var cachedIsEmpty: Boolean = true
+
     /**
      * Called when a long press is detected on the fragment's root view.
      * Subclasses must implement this to define the action (e.g., show a tooltip).
      */
     protected abstract fun onFragmentLongPressed()
 
-    private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onLongPress(e: MotionEvent) {
-            onFragmentLongPressed()
+    private val gestureListener =
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                onFragmentLongPressed()
+            }
         }
-    }
 
     var isEmpty: Boolean
-        get() = emptyStateViewModel.isEmpty.value
+        get() {
+            return if (isAdded && !isDetached) {
+                // Update cache when attached and return current value
+                emptyStateViewModel.isEmpty.value.also { cachedIsEmpty = it }
+            } else {
+                // Return cached value when detached to avoid UI inconsistencies
+                cachedIsEmpty
+            }
+        }
         set(value) {
-            emptyStateViewModel.setEmpty(value)
+            // Always update cache to preserve intended state even when detached
+            cachedIsEmpty = value
+            // Update ViewModel only when attached
+            if (isAdded && !isDetached) {
+                emptyStateViewModel.setEmpty(value)
+            }
         }
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-
-        return FragmentEmptyStateBinding.inflate(inflater, container, false)
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View =
+        FragmentEmptyStateBinding
+            .inflate(inflater, container, false)
             .also { emptyStateBinding ->
                 this.emptyStateBinding = emptyStateBinding
                 emptyStateBinding.root.addView(
-                    super.onCreateView(inflater, emptyStateBinding.root, savedInstanceState)
+                    super.onCreateView(inflater, emptyStateBinding.root, savedInstanceState),
                 )
             }.root
-    }
 
     @SuppressLint("ClickableViewAccessibility")
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
-
 
         gestureDetector = GestureDetector(requireContext(), gestureListener)
 
@@ -79,18 +102,28 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
             false
         }
 
-        viewLifecycleOwner.lifecycleScope.launch {
+        // Sync ViewModel with cache when view is created (in case cache was updated while detached)
+        // Read cached value into local variable to ensure atomic read
+        val cachedValue = cachedIsEmpty
+        if (emptyStateViewModel.isEmpty.value != cachedValue) {
+            emptyStateViewModel.setEmpty(cachedValue)
+        }
+
+        viewLifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    emptyStateViewModel.isEmpty.collect { isEmpty ->
-                        emptyStateBinding?.apply {
-                            root.displayedChild = if (isEmpty) 0 else 1
+                    emptyStateViewModel.isEmpty.collectLatest { isEmpty ->
+                        withContext(Dispatchers.Main.immediate) {
+                            cachedIsEmpty = isEmpty
+                            emptyStateBinding?.root?.displayedChild = if (isEmpty) 0 else 1
                         }
                     }
                 }
                 launch {
                     emptyStateViewModel.emptyMessage.collect { message ->
-                        emptyStateBinding?.emptyView?.message = message
+                        withContext(Dispatchers.Main.immediate) {
+                            emptyStateBinding?.emptyView?.message = message
+                        }
                     }
                 }
             }
@@ -103,12 +136,11 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
         super.onDestroyView()
     }
 
-    fun showTooltipDialog(category: String, tooltipTag: String) {
+    fun showTooltipDialog(tooltipTag: String) {
         val anchorView = activity?.window?.decorView ?: return
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = requireContext(),
             anchorView = anchorView,
-            category = category,
             tag = tooltipTag,
         )
     }

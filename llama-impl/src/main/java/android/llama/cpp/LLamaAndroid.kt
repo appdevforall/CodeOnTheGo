@@ -69,7 +69,7 @@ class LLamaAndroid : ILlamaController {
         }
     }.asCoroutineDispatcher()
 
-    private val nlen: Int = 1000
+    private val nlen: Int = 256
 
     private external fun log_to_android()
     private external fun load_model(filename: String): Long
@@ -188,7 +188,7 @@ class LLamaAndroid : ILlamaController {
                     )
                 )
 
-                while (ncur.value <= nlen) {
+                while (true) {
                     if (isStopped.get()) {
                         log.info("Stopping generation loop because stop flag was set.")
                         break
