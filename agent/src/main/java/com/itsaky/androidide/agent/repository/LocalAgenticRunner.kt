@@ -410,6 +410,12 @@ You are a helpful assistant. Answer the user's question directly.
                     inferBuildFilePath(userPrompt)?.let { updated["build_file_path"] = it }
                 }
             }
+
+            "search_project" -> {
+                if (updated["query"].isNullOrBlank()) {
+                    inferSearchQuery(userPrompt)?.let { updated["query"] = it }
+                }
+            }
         }
         return toolCall.copy(args = updated)
     }
@@ -449,6 +455,26 @@ You are a helpful assistant. Answer the user's question directly.
             text.contains("build.gradle") -> "build.gradle"
             else -> null
         }
+    }
+
+    private fun inferSearchQuery(text: String): String? {
+        val quoted = Regex("\"([^\"]+)\"").find(text)?.groupValues?.getOrNull(1)
+            ?: Regex("'([^']+)'").find(text)?.groupValues?.getOrNull(1)
+        if (!quoted.isNullOrBlank()) return quoted.trim()
+
+        val fileNamed = Regex("file\\s+named\\s+([\\w.\\-/]+)", RegexOption.IGNORE_CASE)
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+        if (!fileNamed.isNullOrBlank()) return fileNamed.trim()
+
+        val afterSearchFor = Regex("search\\s+for\\s+(.+)", RegexOption.IGNORE_CASE)
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            ?.trimEnd('.', '?')
+        return afterSearchFor?.takeIf { it.isNotBlank() }
     }
 
     private fun getMissingRequiredArgs(toolCall: LocalLLMToolCall): List<String> {

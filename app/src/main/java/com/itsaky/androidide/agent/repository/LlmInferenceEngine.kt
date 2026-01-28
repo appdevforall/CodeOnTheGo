@@ -149,7 +149,8 @@ class LlmInferenceEngine(
                 ?.invoke(null, maxTokens)
 
             llamaAndroidClass.methods.firstOrNull { it.name == "configureKvCacheReuse" }
-                ?.invoke(null, true)
+                // Disable KV reuse until native can safely trim KV cache.
+                ?.invoke(null, false)
         } catch (e: Exception) {
             android.util.Log.w("LlmEngine", "Failed to configure native defaults", e)
         }

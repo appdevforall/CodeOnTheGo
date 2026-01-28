@@ -576,7 +576,11 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
     }
 
     if (!reuse) {
-        llama_memory_clear(llama_get_memory(context), false);
+        // Fully reset KV cache to avoid non-consecutive sequence positions.
+        llama_memory_clear(llama_get_memory(context), true);
+        if (!g_kv_cache_reuse.load()) {
+            g_cached_tokens.clear();
+        }
         g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
         // evaluate the initial prompt
         for (auto i = 0; i < tokens_list.size(); i++) {
@@ -633,7 +637,9 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
         return nullptr;
     }
 
-    g_cached_tokens.push_back(new_token_id);
+    if (g_kv_cache_reuse.load()) {
+        g_cached_tokens.push_back(new_token_id);
+    }
     auto new_token_chars = common_token_to_piece(context, new_token_id);
     cached_token_chars += new_token_chars;
 
