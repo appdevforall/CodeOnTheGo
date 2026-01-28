@@ -13,7 +13,9 @@ data class ComputerVisionUiState(
     val layoutFilePath: String? = null,
     val layoutFileName: String? = null,
     val isModelInitialized: Boolean = false,
-    val currentOperation: CvOperation = CvOperation.Idle
+    val currentOperation: CvOperation = CvOperation.Idle,
+    val leftGuidePct: Float = 0.2f,
+    val rightGuidePct: Float = 0.8f
 ) {
     val hasImage: Boolean
         get() = currentBitmap != null
@@ -29,34 +31,23 @@ data class ComputerVisionUiState(
 }
 
 sealed class CvOperation {
-    data object Idle : CvOperation()
-    data object InitializingModel : CvOperation()
-    data object RunningYolo : CvOperation()
-    data object RunningOcr : CvOperation()
-    data object MergingDetections : CvOperation()
-    data object GeneratingXml : CvOperation()
-    data object SavingFile : CvOperation()
-}
-
-sealed class ComputerVisionEvent {
-    data class ImageSelected(val uri: Uri) : ComputerVisionEvent()
-    data class ImageCaptured(val uri: Uri, val success: Boolean) : ComputerVisionEvent()
-    data object RunDetection : ComputerVisionEvent()
-    data object UpdateLayoutFile : ComputerVisionEvent()
-    data object ConfirmUpdate : ComputerVisionEvent()
-    data object SaveToDownloads : ComputerVisionEvent()
-    data object OpenImagePicker : ComputerVisionEvent()
-    data object RequestCameraPermission : ComputerVisionEvent()
+    object Idle : CvOperation()
+    object InitializingModel : CvOperation()
+    object RunningYolo : CvOperation()
+    object RunningOcr : CvOperation()
+    object MergingDetections : CvOperation()
+    object GeneratingXml : CvOperation()
+    object SavingFile : CvOperation()
 }
 
 sealed class ComputerVisionEffect {
-    data object OpenImagePicker : ComputerVisionEffect()
-    data object RequestCameraPermission : ComputerVisionEffect()
+    object OpenImagePicker : ComputerVisionEffect()
+    object RequestCameraPermission : ComputerVisionEffect()
     data class LaunchCamera(val outputUri: Uri) : ComputerVisionEffect()
     data class ShowToast(val messageResId: Int) : ComputerVisionEffect()
     data class ShowError(val message: String) : ComputerVisionEffect()
     data class ShowConfirmDialog(val fileName: String) : ComputerVisionEffect()
     data class ReturnXmlResult(val xml: String) : ComputerVisionEffect()
     data class FileSaved(val fileName: String) : ComputerVisionEffect()
-    data object NavigateBack : ComputerVisionEffect()
+    object NavigateBack : ComputerVisionEffect()
 }
