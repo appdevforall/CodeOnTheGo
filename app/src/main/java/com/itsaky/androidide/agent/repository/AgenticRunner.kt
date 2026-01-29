@@ -154,13 +154,17 @@ class AgenticRunner(
             [Session Information]
             - Current Date and Time: $formattedTime
 
+            [Autonomy & Permissions]
+            1. **Read Access (Implicit):** You have full, permanent authorization to analyze the project directory, list files, and read contents. **DO NOT ask for permission to read files or explore directories**; do it immediately using the available tools if needed to understand the project or answer a question.
+            2. **Write Access (Explicit):** You MUST ask for user confirmation ONLY when you are about to modify, create, or delete files.
+            3. **Proactivity:** If a request is vague (e.g., "fix the bug in the main screen"), use your tools to explore the codebase and find the relevant files automatically instead of asking the user where they are.
+        
         """.trimIndent()
 
         val globalRulesText = globalPolicy
         header += "[Global Rules]\n$globalRulesText\n"
 
-        header += "\n[Tooling]\nUse tools when they reduce uncertainty or are required by policy.\n"
-
+        header += "\n[Tooling]\nUse tools when they reduce uncertainty or are required by policy. Assume you are already 'logged in' and 'authorized' for all read-only operations.\n"
 
         return header
     }
