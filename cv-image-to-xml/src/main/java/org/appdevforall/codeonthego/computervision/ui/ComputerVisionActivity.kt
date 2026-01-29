@@ -96,6 +96,7 @@ class ComputerVisionActivity : AppCompatActivity() {
         setupClickListeners()
         observeViewModel()
         setupFeedbackButton()
+        setupGuidelines()
     }
 
     private fun setupToolbar() {
@@ -107,10 +108,6 @@ class ComputerVisionActivity : AppCompatActivity() {
     private fun setupClickListeners() {
         binding.imageView.setOnClickListener {
             viewModel.onEvent(ComputerVisionEvent.OpenImagePicker)
-        }
-        binding.imageView.setOnLongClickListener {
-            viewModel.onEvent(ComputerVisionEvent.RequestCameraPermission)
-            true
         }
         binding.detectButton.setOnClickListener {
             viewModel.onEvent(ComputerVisionEvent.RunDetection)
@@ -145,6 +142,16 @@ class ComputerVisionActivity : AppCompatActivity() {
             )
         feedbackButtonManager?.setupDraggableFab()
     }
+
+    private fun setupGuidelines() {
+        binding.imageView.onMatrixChangeListener = { matrix ->
+            binding.guidelinesView.updateMatrix(matrix)
+        }
+        binding.guidelinesView.onGuidelinesChanged = { left, right ->
+            viewModel.onEvent(ComputerVisionEvent.UpdateGuides(left, right))
+        }
+    }
+
     private fun updateUi(state: ComputerVisionUiState) {
         val displayBitmap = if (state.hasDetections && state.currentBitmap != null) {
             visualizeDetections(state.currentBitmap, state.detections)
@@ -152,6 +159,10 @@ class ComputerVisionActivity : AppCompatActivity() {
             state.currentBitmap
         }
         binding.imageView.setImageBitmap(displayBitmap)
+        state.currentBitmap?.let {
+            binding.guidelinesView.setImageDimensions(it.width, it.height)
+        }
+        binding.guidelinesView.updateGuidelines(state.leftGuidePct, state.rightGuidePct)
 
         val isIdle = state.currentOperation == CvOperation.Idle
         binding.detectButton.isEnabled = state.canRunDetection

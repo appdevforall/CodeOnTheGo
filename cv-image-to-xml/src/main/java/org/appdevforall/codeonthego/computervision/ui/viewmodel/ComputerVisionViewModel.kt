@@ -64,6 +64,9 @@ class ComputerVisionViewModel(
             ComputerVisionEvent.RequestCameraPermission -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
             }
+            is ComputerVisionEvent.UpdateGuides -> {
+                _uiState.update { it.copy(leftGuidePct = event.leftPct, rightGuidePct = event.rightPct) }
+            }
         }
     }
 
@@ -103,7 +106,9 @@ class ComputerVisionViewModel(
                             currentBitmap = rotatedBitmap,
                             imageUri = uri,
                             detections = emptyList(),
-                            visualizedBitmap = null
+                            visualizedBitmap = null,
+                            leftGuidePct = 0.2f, // Reset to default
+                            rightGuidePct = 0.8f  // Reset to default
                         )
                     }
                 } else {
@@ -164,7 +169,8 @@ class ComputerVisionViewModel(
     }
 
     private fun runDetection() {
-        val bitmap = _uiState.value.currentBitmap
+        val state = _uiState.value
+        val bitmap = state.currentBitmap
         if (bitmap == null) {
             viewModelScope.launch {
                 _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_select_image_first))
