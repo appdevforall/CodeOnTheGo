@@ -383,7 +383,6 @@ object TooltipManager {
     ) {
         popupWindow.dismiss()
 
-        val template = context.getString(R.string.tooltip_debug_button_item_template)
         val buttonsFormatted = tooltip.buttons.joinToString {
             context.getString(R.string.tooltip_debug_button_item_template, it.first, it.second)
         }
