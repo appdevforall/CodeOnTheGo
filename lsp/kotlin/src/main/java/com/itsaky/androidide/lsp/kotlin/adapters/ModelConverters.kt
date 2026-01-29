@@ -32,7 +32,8 @@ import com.itsaky.androidide.lsp.models.SignatureInformation
 import com.itsaky.androidide.models.Location
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
-import me.astrocoder.ktlsp.semantic.Diagnostic
+import org.appdevforall.codeonthego.lsp.kotlin.semantic.Diagnostic
+import org.appdevforall.codeonthego.lsp.kotlin.semantic.DiagnosticSeverity as KtDiagnosticSeverity
 import java.net.URI
 import java.nio.file.Paths
 import org.eclipse.lsp4j.CompletionItemKind as Lsp4jCompletionItemKind
@@ -134,12 +135,12 @@ fun Diagnostic.toIde(positionToOffset: (line: Int, column: Int) -> Int): Diagnos
     )
 }
 
-fun me.astrocoder.ktlsp.semantic.DiagnosticSeverity.toIde(): DiagnosticSeverity {
+fun KtDiagnosticSeverity.toIde(): DiagnosticSeverity {
     return when (this) {
-        me.astrocoder.ktlsp.semantic.DiagnosticSeverity.ERROR -> DiagnosticSeverity.ERROR
-        me.astrocoder.ktlsp.semantic.DiagnosticSeverity.WARNING -> DiagnosticSeverity.WARNING
-        me.astrocoder.ktlsp.semantic.DiagnosticSeverity.INFO -> DiagnosticSeverity.INFO
-        me.astrocoder.ktlsp.semantic.DiagnosticSeverity.HINT -> DiagnosticSeverity.HINT
+        KtDiagnosticSeverity.ERROR -> DiagnosticSeverity.ERROR
+        KtDiagnosticSeverity.WARNING -> DiagnosticSeverity.WARNING
+        KtDiagnosticSeverity.INFO -> DiagnosticSeverity.INFO
+        KtDiagnosticSeverity.HINT -> DiagnosticSeverity.HINT
     }
 }
 

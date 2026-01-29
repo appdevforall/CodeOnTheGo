@@ -25,6 +25,21 @@ plugins {
 
 android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
+
+	sourceSets {
+		named("main") {
+			resources.srcDir(
+				project(":lsp:kotlin-stdlib-generator")
+					.layout.buildDirectory.dir("generated-resources/stdlib")
+			)
+		}
+	}
+}
+
+afterEvaluate {
+	tasks.matching { it.name.startsWith("process") && it.name.endsWith("JavaRes") }.configureEach {
+		dependsOn(":lsp:kotlin-stdlib-generator:generateStdlibIndex")
+	}
 }
 
 kapt {

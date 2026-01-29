@@ -50,7 +50,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import me.astrocoder.ktlsp.server.KotlinLanguageServer as KtLspServer
+import org.appdevforall.codeonthego.lsp.kotlin.server.KotlinLanguageServer as KtLspServer
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
 import org.eclipse.lsp4j.DidCloseTextDocumentParams
 import org.eclipse.lsp4j.DidOpenTextDocumentParams
@@ -152,7 +152,7 @@ class KotlinLanguageServer : ILanguageServer {
             val stdlibStream = javaClass.getResourceAsStream("/stdlib-index.json")
             if (stdlibStream != null) {
                 stdlibStream.use { inputStream ->
-                    val stdlibIndex = me.astrocoder.ktlsp.index.StdlibIndexLoader.loadFromStream(inputStream)
+                    val stdlibIndex = org.appdevforall.codeonthego.lsp.kotlin.index.StdlibIndexLoader.loadFromStream(inputStream)
                     ktLspServer.loadStdlibIndex(stdlibIndex)
                     val elapsed = System.currentTimeMillis() - startTime
                     log.info("Loaded stdlib index: {} symbols in {}ms", stdlibIndex.size, elapsed)

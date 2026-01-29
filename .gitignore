@@ -159,3 +159,6 @@ testing/**/bin/
 # checksum files
 .checksum/
 
+# Generated stdlib index (generated at build time by :lsp:kotlin-stdlib-generator)
+lsp/kotlin/src/main/resources/stdlib-index.json
+

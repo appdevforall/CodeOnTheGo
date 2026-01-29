@@ -22,25 +22,12 @@ plugins {
 }
 
 android {
-	namespace = "me.astrocoder.ktlsp"
+	namespace = "org.appdevforall.codeonthego.lsp.kotlin"
 
 	kotlinOptions {
 		freeCompilerArgs += listOf(
 			"-opt-in=kotlin.contracts.ExperimentalContracts"
 		)
-	}
-
-	sourceSets {
-		getByName("main") {
-			java.srcDirs(
-				"../../../../astro/experimentals/android-lsp/ktlsp/src/main/java"
-			)
-		}
-		getByName("test") {
-			java.srcDirs(
-				"../../../../astro/experimentals/android-lsp/ktlsp/src/test/java"
-			)
-		}
 	}
 }
 
