@@ -39,6 +39,7 @@ import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.time.LocalDateTime
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.jvm.optionals.getOrNull
 
 
@@ -54,6 +55,9 @@ class AgenticRunner(
 
     private var runnerJob: Job = SupervisorJob()
     private var runnerScope: CoroutineScope = CoroutineScope(Dispatchers.IO + runnerJob)
+    private val runToken = AtomicLong(0L)
+    private fun nextRunToken(): Long = runToken.incrementAndGet()
+    private fun isTokenActive(token: Long): Boolean = runToken.get() == token
 
     private val plannerClient: GeminiClient by lazy {
         // Fetch the key when the client is first needed
@@ -91,7 +95,12 @@ class AgenticRunner(
      * cause the run loop to terminate with a CancellationException.
      */
     override fun stop() {
-        log.info("Stop requested for AgenticRunner. Cancelling job.")
+        val cancelledToken = nextRunToken()
+        log.info("Stop requested for AgenticRunner. Cancelling job. token=$cancelledToken")
+
+        updateLastMessageIfActive(cancelledToken, "Operation cancelled by user.")
+        onStateUpdate?.invoke(AgentState.Idle)
+
         runnerScope.cancel("User requested to stop the agent.")
         runnerJob = SupervisorJob()
         runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
@@ -209,23 +218,29 @@ class AgenticRunner(
         // 2. Add the user's new message to the flow so it appears instantly
         addMessage(prompt, Sender.USER)
 
+        val token = nextRunToken()
+
         val finalMessage = try {
             runnerScope.async {
-                run()
+                run(token)
             }.await()
         } catch (e: CancellationException) {
-            log.warn("generateASimpleResponse caught cancellation.")
+            log.warn("generateASimpleResponse caught cancellation. token=$token")
             updateLastMessage("Operation cancelled by user.") // Update UI on cancellation
             "Operation cancelled by user."
         }
 
-        onStateUpdate?.invoke(AgentState.Idle)
+        if (isTokenActive(token)) {
+            onStateUpdate?.invoke(AgentState.Idle)
+        }
     }
 
-    private suspend fun run(): String {
+    private suspend fun run(token: Long): String {
+        if (!isTokenActive(token)) return "Operation cancelled by user."
+
         startLog()
-        addMessage("...", Sender.AGENT)
-        onStateUpdate?.invoke(AgentState.Processing("Initializing..."))
+        addMessageIfActive(token, "...", Sender.AGENT)
+        onStateUpdateIfActive(token, AgentState.Processing("Initializing..."))
 
         val initialContent = buildInitialContent()
         val history = mutableListOf(initialContent)
@@ -233,23 +248,25 @@ class AgenticRunner(
         try {
             for (step in 0 until maxSteps) {
                 runnerScope.ensureActive()
-                onStateUpdate?.invoke(AgentState.Processing("Step ${step + 1}..."))
+                if (!isTokenActive(token)) throw CancellationException("Run token invalidated.")
 
-                val plan = processPlannerStep(history)
+                onStateUpdateIfActive(token, AgentState.Processing("Step ${step + 1}..."))
+
+                val plan = processPlannerStep(token, history)
                 val functionCalls = plan.parts().get().mapNotNull { it.functionCall().getOrNull() }
 
                 if (functionCalls.isEmpty()) {
                     val finalText = plan.parts().get().first().text().getOrNull()?.trim() ?: ""
-                    updateLastMessage(finalText)
+                    updateLastMessageIfActive(token, finalText)
                     logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
                     return finalText
                 }
 
-                val toolResultsParts = processToolExecutionStep(functionCalls)
+                val toolResultsParts = processToolExecutionStep(token, functionCalls)
                 history.add(Content.builder().role("tool").parts(toolResultsParts).build())
                 logTurn("tool", toolResultsParts)
 
-                val critiqueResult = processCriticStep(history)
+                val critiqueResult = processCriticStep(token, history)
                 if (critiqueResult.trim().equals("OK", ignoreCase = true)) {
                     return generateFinalAnswer(history)
                 }
@@ -257,11 +274,11 @@ class AgenticRunner(
             throw RuntimeException("Exceeded max steps")
         } catch (err: Exception) {
             if (err is CancellationException) {
-                log.warn("Agentic run was cancelled during execution.")
+                log.warn("Agentic run was cancelled during execution. token=$token")
                 return "Operation cancelled by user."
             }
             log.error("Agentic run failed", err)
-            updateLastMessage("An error occurred: ${err.message}")
+            updateLastMessageIfActive(token, "An error occurred: ${err.message}")
             return "Agentic run failed: ${err.message}"
         } finally {
             writeLog()
@@ -286,23 +303,23 @@ class AgenticRunner(
             .build()
     }
 
-    private fun processPlannerStep(history: MutableList<Content>): Content {
-        updateLastMessage("Planning...")
+    private fun processPlannerStep(token: Long, history: MutableList<Content>): Content {
+        updateLastMessageIfActive(token, "Planning...")
         val plan = planner.plan(history)
         history.add(plan)
         logTurn("model", plan.parts().get())
         return plan
     }
 
-    private suspend fun processToolExecutionStep(functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
+    private suspend fun processToolExecutionStep(token: Long, functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
         val toolCallSummary =
             functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
-        updateLastMessage(toolCallSummary)
+        updateLastMessageIfActive(token, toolCallSummary)
         return executor.execute(functionCalls)
     }
 
-    private suspend fun processCriticStep(history: MutableList<Content>): String {
-        updateLastMessage("Reviewing results...")
+    private suspend fun processCriticStep(token: Long, history: MutableList<Content>) {
+        updateLastMessageIfActive(token, "Reviewing results...")
         val critiqueResult = critic.reviewAndSummarize(history)
         if (critiqueResult != "OK") {
             history.add(
@@ -449,6 +466,21 @@ class AgenticRunner(
             val updatedMessage = lastMessage.copy(text = newText)
             currentList.dropLast(1) + updatedMessage
         }
+    }
+
+    private fun addMessageIfActive(token: Long, text: String, sender: Sender) {
+        if (!isTokenActive(token)) return
+        addMessage(text, sender)
+    }
+
+    private fun updateLastMessageIfActive(token: Long, newText: String) {
+        if (!isTokenActive(token)) return
+        updateLastMessage(newText)
+    }
+
+    private fun onStateUpdateIfActive(token: Long, state: AgentState) {
+        if (!isTokenActive(token)) return
+        onStateUpdate?.invoke(state)
     }
 
 }
