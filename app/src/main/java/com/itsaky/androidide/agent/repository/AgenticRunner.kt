@@ -161,17 +161,28 @@ class AgenticRunner(
 
 
         var header = """
-            You are an expert Android developer agent specializing in both Views and Jetpack Compose. Your goal is to fulfill user requests by interacting with an IDE.
-            Follow policies strictly.
+            [ROLE]
+            You are the AndroidIDE Automation Engine. You do not explain; you execute changes.
 
-            [Session Information]
-            - Current Date and Time: $formattedTime
+            [OPERATIONAL PROTOCOL - MANDATORY]
+            1. **STRICT DISCOVERY**: Before suggesting or writing any code, you MUST verify the project structure. 
+                - Call `list_files` on "." to see the module structure.
+                - Call `read_file` on `build.gradle` or `build.gradle.kts` to detect if the project uses Compose or XML Views.
+                - Call `read_file` on `AndroidManifest.xml` to find the `package` name and the Main Activity.
 
-            [Autonomy & Permissions]
-            1. **Read Access (Implicit):** You have full, permanent authorization to analyze the project directory, list files, and read contents. **DO NOT ask for permission to read files or explore directories**; do it immediately using the available tools if needed to understand the project or answer a question.
-            2. **Write Access (Explicit):** You MUST ask for user confirmation ONLY when you are about to modify, create, or delete files.
-            3. **Proactivity:** If a request is vague (e.g., "fix the bug in the main screen"), use your tools to explore the codebase and find the relevant files automatically instead of asking the user where they are.
-        
+            2. **INCREMENTAL MODIFICATION**: 
+                - If a requested UI element (e.g., a Button or Label) requires a View ID, check `R.id` or existing XML tags first.
+                - If adding a dependency, you MUST check the existing `dependencies { ... }` block to avoid duplicates.
+
+            3. **NO CONVERSATIONAL FILLER**: 
+                - DO NOT start responses with "I can help with that" or "I will do X". 
+                - If the user says "Add a button", your first and ONLY response must be the tool calls to find where to add it.
+                - Verbal confirmation is only allowed AFTER all tool calls have returned "OK".
+
+            [TECHNICAL CONSTRAINTS]
+                - Android Context: Assume the project is a standard Gradle Android project.
+                - File Paths: Always use relative paths from the project root.
+                - Idempotency: If a tool fails, analyze the error and try a different path (e.g., if `src/main/java` fails, try `src/main/kotlin`).
         """.trimIndent()
 
         val globalRulesText = globalPolicy
@@ -202,11 +213,11 @@ class AgenticRunner(
         }
 
         val finalInstruction =
-            "Use tools only when they are necessary to fulfill the user's request. " +
-                "If the request requires reading, creating, updating, or deleting files, " +
-                "or any IDE action, you MUST call the appropriate tool(s). " +
-                "If you already have enough information to answer without tools, answer directly. " +
-                "Do not respond with a plan or suggested actions—either call tools or provide the final answer."
+            "Use tools whenever the user's request implies a change, creation, or deep analysis of the project. " +
+            "If the request requires reading, creating, updating, or deleting files, or any IDE action, you MUST call the appropriate tool(s). " +
+            "ONLY answer directly without tools if the request is a general question that does not require project context or modifications. " +
+            "Do not just describe what you will do; if code needs to be written, use the tools to write it. " +
+            "Either call tools or provide the final answer after the tools have been executed."
 
         return "$header$formattedExamples$formattedHistory" +
                 "$finalInstruction\n\nUser Request: $prompt"
@@ -435,7 +446,8 @@ class AgenticRunner(
 
         if (remainingThought.isNotEmpty()) {
             currentAIAgentThought = remainingThought
-            updateLastMessageIfActive(token, remainingThought)
+            val formattedText = formatThoughtWithCode(remainingThought)
+            updateLastMessageIfActive(token, formattedText)
         } else {
             currentAIAgentThought = "Analyzing and planning next steps..."
             updateLastMessageIfActive(token, currentAIAgentThought)
@@ -444,6 +456,25 @@ class AgenticRunner(
         history.add(plan)
         logTurn("model", plan.parts().get())
         return plan
+    }
+
+    private fun formatThoughtWithCode(text: String): String {
+        if (!text.contains("```")) {
+            return "<font color='#888888'><i>$text</i></font>"
+        }
+
+        val parts = text.split("```")
+        val sb = StringBuilder()
+        for (i in parts.indices) {
+            if (i % 2 == 0) {
+                if (parts[i].isNotBlank()) {
+                    sb.append("<font color='#888888'><i>${parts[i]}</i></font>")
+                }
+            } else {
+                sb.append("\n```").append(parts[i]).append("```\n")
+            }
+        }
+        return sb.toString()
     }
 
     private suspend fun processToolExecutionStep(token: Long, functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
@@ -476,7 +507,7 @@ class AgenticRunner(
             .role("user")
             .parts(
                 Part.builder()
-                    .text("Provide a final, concise answer to the user's request based on the conversation so far.")
+                    .text("Provide a final, concise answer to the user's request based on the conversation so far. If the solution involves code, provide the full source code blocks using Markdown formatting.")
                     .build()
             )
             .build()

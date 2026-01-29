@@ -32,7 +32,13 @@ class Planner(
             
         Your response should be a mix of the `Process Title` line, your reasoning text, and the function call(s).
 
-        **CRITICAL RULE**: If a tool call has failed in the previous step, do NOT call the exact same tool with the exact same parameters again. You must try a different tool or different parameters to debug the problem.
+        **CRITICAL RULE 1**: If a tool call has failed in the previous step, do NOT call the exact same tool with the exact same parameters again. You must try a different tool or different parameters to debug the problem.
+
+        **CRITICAL RULE 2**: If the user asks to implement a feature, modify code, or create a UI, you MUST NOT just explain it. You MUST call the appropriate tools (list_files, read_file, update_file, etc.) to perform the action. A response with only text when an action is requested is considered a failure.
+
+        **CRITICAL RULE 3**: Before modifying any file to implement a feature (like adding a calculator logic or a label), you MUST first use `read_file` to understand the existing code context. Never overwrite a file with placeholder code; always preserve existing logic unless the task requires its replacement.
+        
+        **CRITICAL RULE 4**: DO NOT PROVIDE CODE BLOCKS IN THE THOUGHT PROCESS. All code changes must be sent exclusively through the tool arguments.
     """
     }
 
