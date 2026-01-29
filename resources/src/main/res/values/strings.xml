@@ -981,7 +981,7 @@
 	<string name="debugger_setup_description_footer"><![CDATA[Some devices (including older Xiaomi devices) also require giving Code on the Go the “Unrestricted battery usage permission”. <a href="http://localhost:6174/i/debug-enable.html">See more information including troubleshooting tips</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
-	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
+	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->

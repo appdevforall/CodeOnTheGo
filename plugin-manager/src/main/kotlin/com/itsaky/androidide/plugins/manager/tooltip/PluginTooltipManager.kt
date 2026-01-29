@@ -264,7 +264,7 @@ object PluginTooltipManager {
                 if (tooltipItem.buttons.isNotEmpty()) {
                     val buttonsSeparator = context.getString(R.string.tooltip_buttons_separator)
                     val linksHtml = tooltipItem.buttons.joinToString(buttonsSeparator) { (label, url) ->
-                        context.getString(R.string.tooltip_links_html_template, url, label)
+                        context.getString(R.string.tooltip_links_html_template, url, linkColorHex, label)
                     }
                     if (detailContent.isNotBlank()) {
                         context.getString(R.string.tooltip_detail_links_template, detailContent, linksHtml)
