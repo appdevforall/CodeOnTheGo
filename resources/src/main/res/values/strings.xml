@@ -796,7 +796,7 @@
                         color: %1$s;
                      }
                      a{
-                        color: #233490;
+                        color: %3$s;
                         text-decoration: underline;
                        }
                 </style>
@@ -807,6 +807,48 @@
 
 		</html>
 		]]></string>
+
+	<!-- Tooltip Color Configuration -->
+	<!-- Light mode colors -->
+	<string name="tooltip_body_color_hex_light">#000000</string>
+	<string name="tooltip_link_color_hex_light">#233490</string>
+	<!-- Dark mode colors -->
+	<string name="tooltip_body_color_hex_dark">#E4E2E6</string>
+	<string name="tooltip_link_color_hex_dark">#8FA4FF</string>
+
+	<!-- Tooltip HTML Components -->
+	<string name="tooltip_buttons_separator"><![CDATA[<br>]]></string>
+	<string name="tooltip_detail_links_template"><![CDATA[%1$s<br><br>%2$s]]></string>
+
+	<!-- Tooltip Debug Dialog -->
+	<string name="tooltip_debug_dialog_title">Tooltip Debug Info</string>
+	<string name="tooltip_debug_metadata_html"><![CDATA[<b>Version</b> <small>%1$s</small><br/>
+<b>Row:</b> %2$d<br/>
+<b>ID:</b> %3$d<br/>
+<b>Category:</b> %4$s<br/>
+<b>Tag:</b> %5$s<br/>
+<b>Raw Summary:</b> %6$s<br/>
+<b>Raw Detail:</b> %7$s<br/>
+<b>Buttons:</b> %8$s<br/>]]></string>
+	<string name="tooltip_debug_plugin_html"><![CDATA[<h3>Plugin Tooltip Debug Info</h3>
+<b>Version:</b> <small>%1$s</small><br/>
+<b>Row:</b> %2$d<br/>
+<b>ID:</b> %3$d<br/>
+<b>Category:</b> %4$s<br/>
+<b>Tag:</b> %5$s<br/>
+<br/>
+<b>Raw Summary:</b><br/>
+<small>%6$s</small><br/>
+<br/>
+<b>Raw Detail:</b><br/>
+<small>%7$s</small><br/>
+<br/>
+<b>Buttons:</b> %8$s]]></string>
+
+	<!-- Tooltip Debug Button Formatting -->
+	<string name="tooltip_debug_button_separator"><![CDATA[<br/>]]></string>
+	<string name="tooltip_debug_button_item_template_simple">• %1$s</string>
+	<string name="tooltip_debug_button_item_template">\'%1$s \u2192 %2$s\'</string>
 
 	<string name="info_icon_content_description">Info icon</string>
 	<string name="feedback_button_description">Send feedback about this tooltip</string>

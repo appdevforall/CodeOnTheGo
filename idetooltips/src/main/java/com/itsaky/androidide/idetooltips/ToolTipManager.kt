@@ -24,9 +24,9 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
-import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.FeedbackManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -267,15 +267,17 @@ object TooltipManager {
         val seeMore = popupView.findViewById<TextView>(R.id.see_more)
         val webView = popupView.findViewById<WebView>(R.id.webview)
 
-        val textColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorOnSurface,
-            "Color attribute not found in theme"
-        )
-
-        // TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
-        fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
-        val hexColor = textColor.toHexColor()
+        val isDarkMode = context.isSystemInDarkMode()
+        val bodyColorHex =
+            context.getString(
+                if (isDarkMode) R.string.tooltip_body_color_hex_dark
+                else R.string.tooltip_body_color_hex_light
+            )
+        val linkColorHex =
+            context.getString(
+                if (isDarkMode) R.string.tooltip_link_color_hex_dark
+                else R.string.tooltip_link_color_hex_light
+            )
 
         val tooltipHtmlContent = when (level) {
             0 -> {
@@ -288,11 +290,12 @@ object TooltipManager {
                     Html.escapeHtml(tooltipItem.detail)
                 } else ""
                 if (tooltipItem.buttons.isNotEmpty()) {
-                    val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
+                    val buttonsSeparator = context.getString(R.string.tooltip_buttons_separator)
+                    val linksHtml = tooltipItem.buttons.joinToString(buttonsSeparator) { (label, url) ->
                         context.getString(R.string.tooltip_links_html_template, url, label)
                     }
                     if (detailContent.isNotBlank()) {
-                        "$detailContent<br><br>$linksHtml"
+                        context.getString(R.string.tooltip_detail_links_template, detailContent, linksHtml)
                     } else {
                         linksHtml
                     }
@@ -307,7 +310,7 @@ object TooltipManager {
         Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
         val styledHtml =
-            context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
+            context.getString(R.string.tooltip_html_template, bodyColorHex, tooltipHtmlContent, linkColorHex)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -380,19 +383,24 @@ object TooltipManager {
     ) {
         popupWindow.dismiss()
 
-        val metadata = """
-        <b>Version</b> <small>'${tooltip.lastChange}'</small><br/>
-        <b>Row:</b> ${tooltip.rowId}<br/>
-        <b>ID:</b> ${tooltip.id}<br/>
-        <b>Category:</b> '${tooltip.category}'<br/>
-        <b>Tag:</b> '${tooltip.tag}'<br/>
-        <b>Raw Summary:</b> '${Html.escapeHtml(tooltip.summary)}'<br/>
-        <b>Raw Detail:</b> '${Html.escapeHtml(tooltip.detail)}'<br/>
-        <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
-        """.trimIndent()
+        val template = context.getString(R.string.tooltip_debug_button_item_template)
+        val buttonsFormatted = tooltip.buttons.joinToString {
+            context.getString(R.string.tooltip_debug_button_item_template, it.first, it.second)
+        }
+        val metadata = context.getString(
+            R.string.tooltip_debug_metadata_html,
+            tooltip.lastChange,
+            tooltip.rowId,
+            tooltip.id,
+            tooltip.category,
+            tooltip.tag,
+            Html.escapeHtml(tooltip.summary),
+            Html.escapeHtml(tooltip.detail),
+            buttonsFormatted
+        )
 
         val builder = AlertDialog.Builder(context)
-            .setTitle("Tooltip Debug Info")
+            .setTitle(context.getString(R.string.tooltip_debug_dialog_title))
             .setMessage(
                 Html.fromHtml(
                     metadata,

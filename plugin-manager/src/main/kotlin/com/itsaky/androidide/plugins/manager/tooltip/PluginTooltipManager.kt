@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat.getColor
 import androidx.core.graphics.drawable.toDrawable
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.idetooltips.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,7 +60,6 @@ object PluginTooltipManager {
     }
 
 
-    private fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
 
     /**
      * Retrieve a tooltip from the plugin documentation database.
@@ -245,24 +245,29 @@ object PluginTooltipManager {
         val seeMore = popupView.findViewById<TextView>(R.id.see_more)
         val webView = popupView.findViewById<WebView>(R.id.webview)
 
-        val textColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorOnSurface,
-            "Color attribute not found in theme"
-        )
-
-        val hexColor = textColor.toHexColor()
+        val isDarkMode = context.isSystemInDarkMode()
+        val bodyColorHex =
+            context.getString(
+                if (isDarkMode) R.string.tooltip_body_color_hex_dark
+                else R.string.tooltip_body_color_hex_light
+            )
+        val linkColorHex =
+            context.getString(
+                if (isDarkMode) R.string.tooltip_link_color_hex_dark
+                else R.string.tooltip_link_color_hex_light
+            )
 
         val tooltipHtmlContent = when (level) {
             0 -> tooltipItem.summary
             1 -> {
                 val detailContent = tooltipItem.detail.ifBlank { "" }
                 if (tooltipItem.buttons.isNotEmpty()) {
-                    val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
+                    val buttonsSeparator = context.getString(R.string.tooltip_buttons_separator)
+                    val linksHtml = tooltipItem.buttons.joinToString(buttonsSeparator) { (label, url) ->
                         context.getString(R.string.tooltip_links_html_template, url, label)
                     }
                     if (detailContent.isNotBlank()) {
-                        "$detailContent<br><br>$linksHtml"
+                        context.getString(R.string.tooltip_detail_links_template, detailContent, linksHtml)
                     } else {
                         linksHtml
                     }
@@ -277,7 +282,7 @@ object PluginTooltipManager {
         Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
         val styledHtml =
-            context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
+            context.getString(R.string.tooltip_html_template, bodyColorHex, tooltipHtmlContent, linkColorHex)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -387,36 +392,40 @@ object PluginTooltipManager {
         // Get the WebView to display debug info
         val webView = popupView.findViewById<WebView>(R.id.webview)
 
-        val textColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorOnSurface,
-            "Color attribute not found in theme"
+        val isDarkMode = context.isSystemInDarkMode()
+        val bodyColorHex =
+            context.getString(
+                if (isDarkMode) R.string.tooltip_body_color_hex_dark
+                else R.string.tooltip_body_color_hex_light
+            )
+        val linkColorHex =
+            context.getString(
+                if (isDarkMode) R.string.tooltip_link_color_hex_dark
+                else R.string.tooltip_link_color_hex_light
+            )
+
+        val buttonsFormatted = if (tooltip.buttons.isEmpty()) {
+            "None"
+        } else {
+            val separator = context.getString(R.string.tooltip_debug_button_separator)
+            tooltip.buttons.joinToString(separator) {
+                context.getString(R.string.tooltip_debug_button_item_template_simple, it.first)
+            }
+        }
+
+        val debugHtml = context.getString(
+            R.string.tooltip_debug_plugin_html,
+            tooltip.lastChange,
+            tooltip.rowId,
+            tooltip.id,
+            tooltip.category,
+            tooltip.tag,
+            Html.escapeHtml(tooltip.summary),
+            Html.escapeHtml(tooltip.detail),
+            buttonsFormatted
         )
 
-        val hexColor = textColor.toHexColor()
-
-        val debugHtml = """
-            <h3>Plugin Tooltip Debug Info</h3>
-            <b>Version:</b> <small>${tooltip.lastChange}</small><br/>
-            <b>Row:</b> ${tooltip.rowId}<br/>
-            <b>ID:</b> ${tooltip.id}<br/>
-            <b>Category:</b> ${tooltip.category}<br/>
-            <b>Tag:</b> ${tooltip.tag}<br/>
-            <br/>
-            <b>Raw Summary:</b><br/>
-            <small>${Html.escapeHtml(tooltip.summary)}</small><br/>
-            <br/>
-            <b>Raw Detail:</b><br/>
-            <small>${Html.escapeHtml(tooltip.detail)}</small><br/>
-            <br/>
-            <b>Buttons:</b> ${
-            if (tooltip.buttons.isEmpty()) "None" else tooltip.buttons.joinToString(
-                "<br/>"
-            ) { "• ${it.first}" }
-        }
-        """.trimIndent()
-
-        val styledHtml = context.getString(R.string.tooltip_html_template, hexColor, debugHtml)
+        val styledHtml = context.getString(R.string.tooltip_html_template, bodyColorHex, debugHtml, linkColorHex)
 
         webView.settings.javaScriptEnabled = false // No need for JS in debug view
         webView.setBackgroundColor(Color.TRANSPARENT)
