@@ -246,7 +246,7 @@ class AgenticRunner(
                 logTurn("tool", toolResultsParts)
 
                 val critiqueResult = processCriticStep(history)
-                if (critiqueResult == "OK") {
+                if (critiqueResult.trim().equals("OK", ignoreCase = true)) {
                     return generateFinalAnswer(history)
                 }
             }
