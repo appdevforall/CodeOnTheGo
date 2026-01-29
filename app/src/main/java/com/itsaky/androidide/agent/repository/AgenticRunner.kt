@@ -451,7 +451,7 @@ class AgenticRunner(
     }
 
     override fun loadHistory(history: List<ChatMessage>) {
-        _messages.value = history
+        _messages.value = history.toList()
     }
 
     private fun addMessage(text: String, sender: Sender) {
