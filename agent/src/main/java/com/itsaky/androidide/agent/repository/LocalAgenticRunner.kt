@@ -139,7 +139,9 @@ class LocalAgenticRunner(
                 }
 
                 val toolResult = executeToolCall(normalizedCall)
-                val resultMessage = formatToolResult(toolResult)
+                val resultMessage = formatToolResult(toolResult).ifBlank {
+                    "Tool completed."
+                }
 
                 addMessage(resultMessage, Sender.AGENT)
                 onStateUpdate?.invoke(AgentState.Idle)
@@ -413,8 +415,23 @@ You are a helpful assistant. Answer the user's question directly.
 
             "search_project" -> {
                 if (updated["query"].isNullOrBlank()) {
-                    inferSearchQuery(userPrompt)?.let { updated["query"] = it }
+                    val inferred = inferSearchQuery(userPrompt)
+                    if (!inferred.isNullOrBlank()) {
+                        updated["query"] = inferred
+                    }
                 }
+                if (updated["query"].isNullOrBlank()) {
+                    val fallback = userPrompt.trim()
+                    if (fallback.isNotEmpty()) {
+                        updated["query"] = fallback
+                    }
+                }
+                log.debug(
+                    "fillMissingArgs(search_project): prompt='{}', inferred='{}', final='{}'",
+                    userPrompt,
+                    inferSearchQuery(userPrompt),
+                    updated["query"]
+                )
             }
         }
         return toolCall.copy(args = updated)
@@ -460,7 +477,17 @@ You are a helpful assistant. Answer the user's question directly.
     private fun inferSearchQuery(text: String): String? {
         val quoted = Regex("\"([^\"]+)\"").find(text)?.groupValues?.getOrNull(1)
             ?: Regex("'([^']+)'").find(text)?.groupValues?.getOrNull(1)
-        if (!quoted.isNullOrBlank()) return quoted.trim()
+        if (!quoted.isNullOrBlank()) {
+            val trimmed = quoted.trim()
+            val fromQuoted = extractFilenameQuery(trimmed)
+            return fromQuoted ?: trimmed
+        }
+
+        val fileExt = Regex(
+            "([\\w\\-./]+\\.(?:ini|csv|json|xml|yaml|yml|txt|md|kts|gradle|kt|java))",
+            RegexOption.IGNORE_CASE
+        ).find(text)?.groupValues?.getOrNull(1)
+        if (!fileExt.isNullOrBlank()) return fileExt.trim()
 
         val fileNamed = Regex("file\\s+named\\s+([\\w.\\-/]+)", RegexOption.IGNORE_CASE)
             .find(text)
@@ -474,7 +501,19 @@ You are a helpful assistant. Answer the user's question directly.
             ?.getOrNull(1)
             ?.trim()
             ?.trimEnd('.', '?')
-        return afterSearchFor?.takeIf { it.isNotBlank() }
+        if (!afterSearchFor.isNullOrBlank()) {
+            val fromSearch = extractFilenameQuery(afterSearchFor)
+            return fromSearch ?: afterSearchFor
+        }
+        return null
+    }
+
+    private fun extractFilenameQuery(text: String): String? {
+        val match = Regex(
+            "([\\w\\-./]+\\.(?:ini|csv|json|xml|yaml|yml|txt|md|kts|gradle|kt|java))",
+            RegexOption.IGNORE_CASE
+        ).find(text)
+        return match?.groupValues?.getOrNull(1)?.trim()
     }
 
     private fun getMissingRequiredArgs(toolCall: LocalLLMToolCall): List<String> {
