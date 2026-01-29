@@ -318,7 +318,7 @@ class AgenticRunner(
         return executor.execute(functionCalls)
     }
 
-    private suspend fun processCriticStep(token: Long, history: MutableList<Content>) {
+    private suspend fun processCriticStep(token: Long, history: MutableList<Content>): String {
         updateLastMessageIfActive(token, "Reviewing results...")
         val critiqueResult = critic.reviewAndSummarize(history)
         if (critiqueResult != "OK") {
