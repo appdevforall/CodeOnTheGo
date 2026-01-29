@@ -47,6 +47,10 @@ class AgenticRunner(
     private val context: Context,
     private val maxSteps: Int = 20
 ) : GeminiRepository {
+
+    private var currentAIAgentThought: String = ""
+    private var currentProcessTitle: String = ""
+
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(
         )
@@ -226,7 +230,7 @@ class AgenticRunner(
             }.await()
         } catch (e: CancellationException) {
             log.warn("generateASimpleResponse caught cancellation. token=$token")
-            updateLastMessage("Operation cancelled by user.") // Update UI on cancellation
+            updateLastMessageIfActive(token, "Operation cancelled by user.") // Update UI on cancellation
             "Operation cancelled by user."
         }
 
@@ -239,6 +243,8 @@ class AgenticRunner(
         if (!isTokenActive(token)) return "Operation cancelled by user."
 
         startLog()
+        currentAIAgentThought = ""
+        currentProcessTitle = ""
         addMessageIfActive(token, "...", Sender.AGENT)
         onStateUpdateIfActive(token, AgentState.Processing("Initializing..."))
 
@@ -250,9 +256,11 @@ class AgenticRunner(
                 runnerScope.ensureActive()
                 if (!isTokenActive(token)) throw CancellationException("Run token invalidated.")
 
-                onStateUpdateIfActive(token, AgentState.Processing("Step ${step + 1}..."))
+                val stepNumber = step + 1
+                updateProcessingState(token, stepNumber)
 
                 val plan = processPlannerStep(token, history)
+                updateProcessingState(token, stepNumber)
                 val functionCalls = plan.parts().get().mapNotNull { it.functionCall().getOrNull() }
 
                 if (functionCalls.isEmpty()) {
@@ -285,6 +293,117 @@ class AgenticRunner(
         }
     }
 
+    private fun updateProcessingState(token: Long, stepNumber: Int) {
+        onStateUpdateIfActive(token, AgentState.Processing("Step $stepNumber: ${getCurrentThoughtTitle()}"))
+		}
+
+    private fun getCurrentThoughtTitle(): String {
+        if (currentProcessTitle.isNotBlank()) {
+            return currentProcessTitle
+        }
+
+        if (currentAIAgentThought.isBlank()) {
+            return "Processing current request..."
+        }
+
+        val fallback = currentAIAgentThought
+            .lineSequence()
+            .map { extractTaskDescription(it) }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+
+        return fallback.ifBlank { "Processing current request..." }
+    }
+
+    private fun extractTaskDescription(line: String): String {
+        var workingLine = line.trim()
+        if (workingLine.isEmpty()) {
+            return ""
+        }
+
+        // Remove bullet and numbering prefixes ("- ", "1. ", "2)" etc.)
+        val bulletPrefixes = listOf("- ", "* ", "• ", "– ")
+        for (prefix in bulletPrefixes) {
+            if (workingLine.startsWith(prefix)) {
+                workingLine = workingLine.removePrefix(prefix).trimStart()
+                break
+            }
+        }
+
+        val numberedPrefixRegex = Regex("^\\d+[\\.)]\\s*")
+        workingLine = workingLine.replaceFirst(numberedPrefixRegex, "").trimStart()
+
+        val labelPrefixes = listOf(
+            "Thought Process:",
+            "Thought:",
+            "Process:",
+            "Goal:",
+            "Task:",
+            "Plan:"
+        )
+        for (prefix in labelPrefixes) {
+            if (workingLine.startsWith(prefix, ignoreCase = true)) {
+                workingLine = workingLine.substring(prefix.length)
+                    .trimStart { it == ':' || it.isWhitespace() }
+                break
+            }
+        }
+
+        val separatorCandidates = listOf(". ", ";", " - ")
+        val shortened = separatorCandidates
+            .map { workingLine.indexOf(it) }
+            .filter { it > 0 }
+            .minOrNull()
+
+        return if (shortened != null) {
+            workingLine.substring(0, shortened).trim()
+        } else {
+            workingLine.trim()
+        }
+    }
+
+    private fun extractPlannerMetadata(text: String): Pair<String?, String> {
+			if (text.isBlank()) {
+				return null to ""
+        }
+
+        var processTitle: String? = null
+        val remainingLines = mutableListOf<String>()
+
+        text.lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            if (processTitle == null && trimmed.startsWith("Process Title:", ignoreCase = true)) {
+                processTitle = trimmed.substringAfter(":").trim()
+            } else {
+                remainingLines += line
+            }
+        }
+
+        return processTitle to remainingLines.joinToString("\n").trim()
+    }
+
+    private fun updateProcessTitle(titleCandidate: String?, fallbackSource: String) {
+        val sanitizedCandidate = titleCandidate?.let { sanitizeProcessTitle(it) }.orEmpty()
+        val fallbackTitle = fallbackSource
+            .lineSequence()
+            .map { extractTaskDescription(it) }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+
+        currentProcessTitle = when {
+            sanitizedCandidate.isNotBlank() -> sanitizedCandidate
+            fallbackTitle.isNotBlank() -> fallbackTitle
+            else -> ""
+        }
+    }
+
+    private fun sanitizeProcessTitle(title: String): String {
+        return title
+            .replace("\n", " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
     // --- Helper methods for the run loop ---
 
     private fun buildInitialContent(): Content {
@@ -306,6 +425,22 @@ class AgenticRunner(
     private fun processPlannerStep(token: Long, history: MutableList<Content>): Content {
         updateLastMessageIfActive(token, "Planning...")
         val plan = planner.plan(history)
+        val combinedText = plan.parts().get()
+            .mapNotNull { it.text().getOrNull() }
+            .joinToString("\n")
+            .trim()
+
+        val (processTitle, remainingThought) = extractPlannerMetadata(combinedText)
+        updateProcessTitle(processTitle, remainingThought)
+
+        if (remainingThought.isNotEmpty()) {
+            currentAIAgentThought = remainingThought
+            updateLastMessageIfActive(token, remainingThought)
+        } else {
+            currentAIAgentThought = "Analyzing and planning next steps..."
+            updateLastMessageIfActive(token, currentAIAgentThought)
+        }
+
         history.add(plan)
         logTurn("model", plan.parts().get())
         return plan
@@ -314,12 +449,17 @@ class AgenticRunner(
     private suspend fun processToolExecutionStep(token: Long, functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
         val toolCallSummary =
             functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
-        updateLastMessageIfActive(token, toolCallSummary)
+        val fullStatus = if (currentAIAgentThought.isNotEmpty()) {
+            "$currentAIAgentThought\n\n$toolCallSummary"
+        } else {
+            toolCallSummary
+        }
+        updateLastMessageIfActive(token, fullStatus)
         return executor.execute(functionCalls)
     }
 
     private suspend fun processCriticStep(token: Long, history: MutableList<Content>): String {
-        updateLastMessageIfActive(token, "Reviewing results...")
+        updateLastMessageIfActive(token, "$currentAIAgentThought\n\nReviewing results and verifying changes...")
         val critiqueResult = critic.reviewAndSummarize(history)
         if (critiqueResult != "OK") {
             history.add(
