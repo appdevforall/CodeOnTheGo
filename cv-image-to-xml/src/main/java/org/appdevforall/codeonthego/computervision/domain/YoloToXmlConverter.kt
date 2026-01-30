@@ -30,6 +30,7 @@ object YoloToXmlConverter {
 
     fun generateXmlLayout(
         detections: List<DetectionResult>,
+        annotations: Map<String, String>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,
@@ -40,7 +41,7 @@ object YoloToXmlConverter {
             scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight)
         }
         val sortedBoxes = scaledBoxes.sortedWith(compareBy({ it.y }, { it.x }))
-        return buildXml(sortedBoxes, targetDpWidth, targetDpHeight, wrapInScroll)
+        return buildXml(sortedBoxes, annotations, targetDpWidth, targetDpHeight, wrapInScroll)
     }
 
     private fun scaleDetection(
@@ -105,7 +106,13 @@ object YoloToXmlConverter {
 
     // --- REFACTORED XML BUILDING LOGIC ---
 
-    private fun buildXml(boxes: List<ScaledBox>, targetDpWidth: Int, targetDpHeight: Int, wrapInScroll: Boolean): String {
+    private fun buildXml(
+        boxes: List<ScaledBox>,
+        annotations: Map<String, String>,
+        targetDpWidth: Int,
+        targetDpHeight: Int,
+        wrapInScroll: Boolean
+    ): String {
         val xml = StringBuilder()
         val maxBottom = boxes.maxOfOrNull { it.y + it.h } ?: 0
         val needScroll = wrapInScroll && maxBottom > targetDpHeight
@@ -177,7 +184,7 @@ object YoloToXmlConverter {
                 }
 
                 if (radioGroup.size > 1 && groupOrientation != null) {
-                    appendRadioGroup(xml, radioGroup, counters, targetDpWidth, groupOrientation)
+                    appendRadioGroup(xml, radioGroup, counters, targetDpWidth, groupOrientation, annotations)
                     continue // Skip to next loop iteration
                 }
                 // If only 1 radio, or orientation not found, fall through to be handled as a simple view
@@ -196,13 +203,13 @@ object YoloToXmlConverter {
             }
 
             if (horizontalGroup.size > 1) {
-                appendHorizontalLayout(xml, horizontalGroup, counters, targetDpWidth)
+                appendHorizontalLayout(xml, horizontalGroup, counters, targetDpWidth, annotations)
                 continue // Skip to next loop iteration
             }
 
             // --- 3. Handle as Simple, Single View ---
             // (Fell through from RadioButton check OR horizontal group check)
-            appendSimpleView(xml, currentBox, counters, targetDpWidth, "        ")
+            appendSimpleView(xml, currentBox, counters, targetDpWidth, "        ", annotations = annotations)
             xml.appendLine() // Add blank line after simple view
         }
 
@@ -227,7 +234,8 @@ object YoloToXmlConverter {
         group: List<ScaledBox>,
         counters: MutableMap<String, Int>,
         targetDpWidth: Int,
-        orientation: String
+        orientation: String,
+        annotations: Map<String, String>
     ) {
         val first = group.first()
         val indent = "        "
@@ -257,7 +265,8 @@ object YoloToXmlConverter {
                 targetDpWidth,
                 "$indent    ",
                 isChildView = true,
-                extraMarginStart = max(0, horizontalMargin)
+                extraMarginStart = max(0, horizontalMargin),
+                annotations = annotations
             )
         }
 
@@ -268,7 +277,13 @@ object YoloToXmlConverter {
     /**
      * Appends a horizontal <LinearLayout> containing multiple views.
      */
-    private fun appendHorizontalLayout(xml: StringBuilder, group: List<ScaledBox>, counters: MutableMap<String, Int>, targetDpWidth: Int) {
+    private fun appendHorizontalLayout(
+        xml: StringBuilder,
+        group: List<ScaledBox>,
+        counters: MutableMap<String, Int>,
+        targetDpWidth: Int,
+        annotations: Map<String, String>
+    ) {
         val indent = "        "
         xml.appendLine("$indent<LinearLayout")
         xml.appendLine("$indent    android:layout_width=\"match_parent\"")
@@ -288,7 +303,8 @@ object YoloToXmlConverter {
                 targetDpWidth,
                 "$indent    ",
                 isChildView = true,
-                extraMarginStart = max(0, horizontalMargin)
+                extraMarginStart = max(0, horizontalMargin),
+                annotations = annotations
             )
         }
 
@@ -306,27 +322,20 @@ object YoloToXmlConverter {
         targetDpWidth: Int,
         indent: String,
         isChildView: Boolean = false,
-        extraMarginStart: Int = 0
+        extraMarginStart: Int = 0,
+        annotations: Map<String, String>
     ) {
         val label = box.label
         val tag = viewTagFor(label)
         val count = counters.getOrPut(label) { 0 }.also { counters[label] = it + 1 }
         val id = "${label.replace(Regex("[^a-zA-Z0-9_]"), "_")}_$count"
+        val annotation = annotations[id]
 
         val isTextBased = tag in listOf("TextView", "Button", "EditText", "CheckBox", "RadioButton", "Switch")
         val isWide = box.w > (targetDpWidth * 0.8) && !isChildView
 
-        val widthAttr = when {
-            isWide -> "match_parent"
-            isTextBased -> "wrap_content"
-            isChildView -> "wrap_content" // Use weights for horizontal groups eventually
-            else -> "${box.w}dp"
-        }
-
-        val heightAttr = when {
-            isTextBased -> "wrap_content"
-            else -> "${max(MIN_H_TEXT, box.h)}dp"
-        }
+        val widthAttr = "wrap_content"
+        val heightAttr = "wrap_content"
 
         val gravityAttr = getGravityAttr(box, targetDpWidth)
 
@@ -375,6 +384,15 @@ object YoloToXmlConverter {
             "androidx.cardview.widget.CardView" -> {
                 xml.appendLine("$indent    app:cardElevation=\"4dp\"")
                 xml.appendLine("$indent    app:cardCornerRadius=\"8dp\"")
+            }
+        }
+
+        if (annotation != null) {
+            val attributes = annotation.split(Regex("\\s+"))
+            for (i in attributes.indices step 2) {
+                if (i + 1 < attributes.size) {
+                    xml.appendLine("$indent    ${attributes[i]}=\"${attributes[i + 1]}\"")
+                }
             }
         }
 

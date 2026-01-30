@@ -1,7 +1,8 @@
 package org.appdevforall.codeonthego.computervision.data.repository
+
 import android.graphics.Bitmap
-import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import com.google.mlkit.vision.text.Text
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 
 interface ComputerVisionRepository {
 
@@ -18,10 +19,11 @@ interface ComputerVisionRepository {
 
     suspend fun generateXml(
         detections: List<DetectionResult>,
+        annotations: Map<String, String>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
-        targetDpWidth: Int = 360,
-        targetDpHeight: Int = 640
+        targetDpWidth: Int,
+        targetDpHeight: Int
     ): Result<String>
 
     fun preprocessBitmapForOcr(bitmap: Bitmap): Bitmap
