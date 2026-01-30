@@ -15,6 +15,7 @@ object DynamicLibraryLoader {
     @Volatile
     private var cachedVersion: Int = 0
 
+    @Synchronized
     fun getLlamaClassLoader(context: Context): ClassLoader? {
         cachedClassLoader?.let { loader ->
             if (cachedVersion == LLAMA_LIB_VERSION) {

@@ -31,12 +31,16 @@ class LlmInferenceEngine(
     private var samplingDefaults = SamplingConfig(temperature = 0.7f, topP = 0.9f, topK = 40)
     private var configuredContextSize = 4096
 
+    @Volatile
     var isModelLoaded: Boolean = false
         private set
+    @Volatile
     var loadedModelName: String? = null
         private set
+    @Volatile
     var loadedModelPath: String? = null
         private set
+    @Volatile
     var currentModelFamily: ModelFamily = ModelFamily.UNKNOWN
         private set
 

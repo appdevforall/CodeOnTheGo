@@ -241,7 +241,7 @@ class ChatFragment :
 
             override fun onChanged() {
                 super.onChanged()
-                chatAdapter.notifyDataSetChanged()
+                binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
             }
         })
 
