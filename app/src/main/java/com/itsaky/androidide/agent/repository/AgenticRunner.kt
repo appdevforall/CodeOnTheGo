@@ -650,10 +650,16 @@ class AgenticRunner(
 
     private fun updateLastMessage(newText: String) {
         _messages.update { currentList ->
-            if (currentList.isEmpty()) return@update currentList
+            if (currentList.isEmpty()) {
+                return@update currentList + ChatMessage(text = newText, sender = Sender.AGENT)
+            }
+
             val lastMessage = currentList.last()
-            val updatedMessage = lastMessage.copy(text = newText)
-            currentList.dropLast(1) + updatedMessage
+            return@update if (lastMessage.sender == Sender.AGENT) {
+                currentList.dropLast(1) + lastMessage.copy(text = newText)
+            } else {
+                currentList + ChatMessage(text = newText, sender = Sender.AGENT)
+            }
         }
     }
 
