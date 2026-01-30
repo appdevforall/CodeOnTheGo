@@ -162,6 +162,8 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 		}
 
 		binding.promptInputEdittext.text?.clear()
+		binding.promptInputEdittext.clearFocus()
+		hideKeyboard()
 
 		viewLifecycleOwner.lifecycleScope.launch {
 			if (selectedContext.isEmpty()) {

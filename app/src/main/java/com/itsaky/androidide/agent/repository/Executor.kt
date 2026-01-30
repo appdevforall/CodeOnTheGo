@@ -6,7 +6,8 @@ import com.google.genai.types.Part
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.projects.IProjectManager
-import kotlinx.serialization.encodeToString
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -26,18 +27,24 @@ class Executor {
     ): List<Part> {
         log.info("Executor: Executing ${functionCalls.size} tool call(s)...")
 
-        return functionCalls.map { call ->
+        val out = ArrayList<Part>(functionCalls.size)
+        for (call in functionCalls) {
+            currentCoroutineContext().ensureActive()
+
             val toolName = call.name().getOrNull() ?: ""
             val toolResult = dispatchToolCall(call)
             log.info("Executor: Resulting ${toolResult.toResultMap()}")
 
-            Part.builder().functionResponse(
-                FunctionResponse.builder()
+            out.add(
+                Part.builder().functionResponse(
+                    FunctionResponse.builder()
                     .name(toolName)
                     .response(toolResult.toResultMap())
                     .build()
-            ).build()
+                ).build()
+            )
         }
+        return out
     }
 
     private suspend fun dispatchToolCall(functionCall: FunctionCall): ToolResult {
