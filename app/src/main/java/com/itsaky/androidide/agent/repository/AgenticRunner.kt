@@ -47,6 +47,10 @@ class AgenticRunner(
     private val context: Context,
     private val maxSteps: Int = 20
 ) : GeminiRepository {
+
+    private var currentAIAgentThought: String = ""
+    private var currentProcessTitle: String = ""
+
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(
         )
@@ -122,6 +126,9 @@ class AgenticRunner(
     private val planner: Planner
     private val critic: Critic
     private val tools: List<Tool>
+    private val toolRequirements = agentToolRequiredArgs
+    private val blockedToolNames = mutableSetOf<String>()
+    private var impliedToolTextErrors = 0
     private val globalPolicy: String
     private val globalStaticExamples: List<Map<String, Any>>
 
@@ -157,17 +164,28 @@ class AgenticRunner(
 
 
         var header = """
-            You are an expert Android developer agent specializing in both Views and Jetpack Compose. Your goal is to fulfill user requests by interacting with an IDE.
-            Follow policies strictly.
+            [ROLE]
+            You are the AndroidIDE Automation Engine. You do not explain; you execute changes.
 
-            [Session Information]
-            - Current Date and Time: $formattedTime
+            [OPERATIONAL PROTOCOL - MANDATORY]
+            1. **STRICT DISCOVERY**: Before suggesting or writing any code, you MUST verify the project structure. 
+                - Call `list_files` on "." to see the module structure.
+                - Call `read_file` on `build.gradle` or `build.gradle.kts` to detect if the project uses Compose or XML Views.
+                - Call `read_file` on `AndroidManifest.xml` to find the `package` name and the Main Activity.
 
-            [Autonomy & Permissions]
-            1. **Read Access (Implicit):** You have full, permanent authorization to analyze the project directory, list files, and read contents. **DO NOT ask for permission to read files or explore directories**; do it immediately using the available tools if needed to understand the project or answer a question.
-            2. **Write Access (Explicit):** You MUST ask for user confirmation ONLY when you are about to modify, create, or delete files.
-            3. **Proactivity:** If a request is vague (e.g., "fix the bug in the main screen"), use your tools to explore the codebase and find the relevant files automatically instead of asking the user where they are.
-        
+            2. **INCREMENTAL MODIFICATION**: 
+                - If a requested UI element (e.g., a Button or Label) requires a View ID, check `R.id` or existing XML tags first.
+                - If adding a dependency, you MUST check the existing `dependencies { ... }` block to avoid duplicates.
+
+            3. **NO CONVERSATIONAL FILLER**: 
+                - DO NOT start responses with "I can help with that" or "I will do X". 
+                - If the user says "Add a button", your first and ONLY response must be the tool calls to find where to add it.
+                - Verbal confirmation is only allowed AFTER all tool calls have returned "OK".
+
+            [TECHNICAL CONSTRAINTS]
+                - Android Context: Assume the project is a standard Gradle Android project.
+                - File Paths: Always use relative paths from the project root.
+                - Idempotency: If a tool fails, analyze the error and try a different path (e.g., if `src/main/java` fails, try `src/main/kotlin`).
         """.trimIndent()
 
         val globalRulesText = globalPolicy
@@ -198,11 +216,12 @@ class AgenticRunner(
         }
 
         val finalInstruction =
-            "Use tools only when they are necessary to fulfill the user's request. " +
-                "If the request requires reading, creating, updating, or deleting files, " +
-                "or any IDE action, you MUST call the appropriate tool(s). " +
-                "If you already have enough information to answer without tools, answer directly. " +
-                "Do not respond with a plan or suggested actions—either call tools or provide the final answer."
+            "Use tools whenever the user's request implies a change, creation, or deep analysis of the project. " +
+            "If the request requires reading, creating, updating, or deleting files, or any IDE action, you MUST call the appropriate tool(s). " +
+            "ONLY answer directly without tools if the request is a general question that does not require project context or modifications. " +
+            "When choosing not to run tools, you must still provide a full textual answer that addresses the question—never return an empty reply. " +
+            "Do not just describe what you will do; if code needs to be written, use the tools to write it. " +
+            "Either call tools or provide the final answer after the tools have been executed."
 
         return "$header$formattedExamples$formattedHistory" +
                 "$finalInstruction\n\nUser Request: $prompt"
@@ -226,7 +245,7 @@ class AgenticRunner(
             }.await()
         } catch (e: CancellationException) {
             log.warn("generateASimpleResponse caught cancellation. token=$token")
-            updateLastMessage("Operation cancelled by user.") // Update UI on cancellation
+            updateLastMessageIfActive(token, "Operation cancelled by user.") // Update UI on cancellation
             "Operation cancelled by user."
         }
 
@@ -239,8 +258,12 @@ class AgenticRunner(
         if (!isTokenActive(token)) return "Operation cancelled by user."
 
         startLog()
+        currentAIAgentThought = ""
+        currentProcessTitle = ""
         addMessageIfActive(token, "...", Sender.AGENT)
         onStateUpdateIfActive(token, AgentState.Processing("Initializing..."))
+        blockedToolNames.clear()
+        impliedToolTextErrors = 0
 
         val initialContent = buildInitialContent()
         val history = mutableListOf(initialContent)
@@ -250,16 +273,62 @@ class AgenticRunner(
                 runnerScope.ensureActive()
                 if (!isTokenActive(token)) throw CancellationException("Run token invalidated.")
 
-                onStateUpdateIfActive(token, AgentState.Processing("Step ${step + 1}..."))
+                val stepNumber = step + 1
+                updateProcessingState(token, stepNumber)
 
-                val plan = processPlannerStep(token, history)
-                val functionCalls = plan.parts().get().mapNotNull { it.functionCall().getOrNull() }
+                val plan = try {
+                    processPlannerStep(token, history)
+                } catch (fallback: PlannerFallbackException) {
+                    return generateFinalAnswer(history, fallback.instruction)
+                }
+                updateProcessingState(token, stepNumber)
+                val planParts = plan.parts().get()
+                val functionCalls = planParts.mapNotNull { it.functionCall().getOrNull() }
+
+                val validationErrors = if (functionCalls.isEmpty()) emptyList() else validateFunctionCalls(functionCalls)
+                if (validationErrors.isNotEmpty()) {
+                    handleInvalidToolPlanning(token, history, validationErrors)
+                    continue
+                }
 
                 if (functionCalls.isEmpty()) {
-                    val finalText = plan.parts().get().first().text().getOrNull()?.trim() ?: ""
-                    updateLastMessageIfActive(token, finalText)
-                    logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
-                    return finalText
+                    val impliedTool = detectImpliedToolMention(planParts)
+                    if (impliedTool != null) {
+                        impliedToolTextErrors++
+                        handleInvalidToolPlanning(
+                            token,
+                            history,
+                            listOf("You described calling tool `$impliedTool`, but no structured function call was emitted. Use the function-call interface instead of plain text.")
+                        )
+                        if (impliedToolTextErrors >= 2) {
+                            log.warn("Repeated implied tool call text detected; switching to text-only finalization.")
+                            return generateFinalAnswer(
+                                history,
+                                "Tool usage descriptions kept failing. Provide the best possible high-level answer without calling tools."
+                            )
+                        }
+                        continue
+                    }
+                }
+
+                if (functionCalls.isEmpty()) {
+                    val finalText = planParts
+                        .asSequence()
+                        .mapNotNull { it.text().getOrNull()?.trim() }
+                        .firstOrNull { it.isNotBlank() }
+                        .orEmpty()
+
+                    if (finalText.isNotBlank()) {
+                        updateLastMessageIfActive(token, finalText)
+                        logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
+                        return finalText
+                    }
+
+                    log.warn("Planner returned no tool calls and no textual response; generating fallback answer.")
+                    return generateFinalAnswer(
+                        history,
+                        "The planner produced no tool calls or reasoning, but the user still requires a response. Provide the best possible direct answer or clarification using the conversation so far, even if it must remain high level."
+                    )
                 }
 
                 val toolResultsParts = processToolExecutionStep(token, functionCalls)
@@ -285,6 +354,117 @@ class AgenticRunner(
         }
     }
 
+    private fun updateProcessingState(token: Long, stepNumber: Int) {
+        onStateUpdateIfActive(token, AgentState.Processing("Step $stepNumber: ${getCurrentThoughtTitle()}"))
+		}
+
+    private fun getCurrentThoughtTitle(): String {
+        if (currentProcessTitle.isNotBlank()) {
+            return currentProcessTitle
+        }
+
+        if (currentAIAgentThought.isBlank()) {
+            return "Processing current request..."
+        }
+
+        val fallback = currentAIAgentThought
+            .lineSequence()
+            .map { extractTaskDescription(it) }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+
+        return fallback.ifBlank { "Processing current request..." }
+    }
+
+    private fun extractTaskDescription(line: String): String {
+        var workingLine = line.trim()
+        if (workingLine.isEmpty()) {
+            return ""
+        }
+
+        // Remove bullet and numbering prefixes ("- ", "1. ", "2)" etc.)
+        val bulletPrefixes = listOf("- ", "* ", "• ", "– ")
+        for (prefix in bulletPrefixes) {
+            if (workingLine.startsWith(prefix)) {
+                workingLine = workingLine.removePrefix(prefix).trimStart()
+                break
+            }
+        }
+
+        val numberedPrefixRegex = Regex("^\\d+[\\.)]\\s*")
+        workingLine = workingLine.replaceFirst(numberedPrefixRegex, "").trimStart()
+
+        val labelPrefixes = listOf(
+            "Thought Process:",
+            "Thought:",
+            "Process:",
+            "Goal:",
+            "Task:",
+            "Plan:"
+        )
+        for (prefix in labelPrefixes) {
+            if (workingLine.startsWith(prefix, ignoreCase = true)) {
+                workingLine = workingLine.substring(prefix.length)
+                    .trimStart { it == ':' || it.isWhitespace() }
+                break
+            }
+        }
+
+        val separatorCandidates = listOf(". ", ";", " - ")
+        val shortened = separatorCandidates
+            .map { workingLine.indexOf(it) }
+            .filter { it > 0 }
+            .minOrNull()
+
+        return if (shortened != null) {
+            workingLine.substring(0, shortened).trim()
+        } else {
+            workingLine.trim()
+        }
+    }
+
+    private fun extractPlannerMetadata(text: String): Pair<String?, String> {
+			if (text.isBlank()) {
+				return null to ""
+        }
+
+        var processTitle: String? = null
+        val remainingLines = mutableListOf<String>()
+
+        text.lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            if (processTitle == null && trimmed.startsWith("Process Title:", ignoreCase = true)) {
+                processTitle = trimmed.substringAfter(":").trim()
+            } else {
+                remainingLines += line
+            }
+        }
+
+        return processTitle to remainingLines.joinToString("\n").trim()
+    }
+
+    private fun updateProcessTitle(titleCandidate: String?, fallbackSource: String) {
+        val sanitizedCandidate = titleCandidate?.let { sanitizeProcessTitle(it) }.orEmpty()
+        val fallbackTitle = fallbackSource
+            .lineSequence()
+            .map { extractTaskDescription(it) }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+
+        currentProcessTitle = when {
+            sanitizedCandidate.isNotBlank() -> sanitizedCandidate
+            fallbackTitle.isNotBlank() -> fallbackTitle
+            else -> ""
+        }
+    }
+
+    private fun sanitizeProcessTitle(title: String): String {
+        return title
+            .replace("\n", " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
     // --- Helper methods for the run loop ---
 
     private fun buildInitialContent(): Content {
@@ -305,21 +485,62 @@ class AgenticRunner(
 
     private fun processPlannerStep(token: Long, history: MutableList<Content>): Content {
         updateLastMessageIfActive(token, "Planning...")
-        val plan = planner.plan(history)
+        val plan = requestPlannerContent(token, history)
+        val combinedText = plan.parts().get()
+            .mapNotNull { it.text().getOrNull() }
+            .joinToString("\n")
+            .trim()
+
+        val (processTitle, remainingThought) = extractPlannerMetadata(combinedText)
+        updateProcessTitle(processTitle, remainingThought)
+
+        if (remainingThought.isNotEmpty()) {
+            currentAIAgentThought = remainingThought
+            val formattedText = formatThoughtWithCode(remainingThought)
+            updateLastMessageIfActive(token, formattedText)
+        } else {
+            currentAIAgentThought = "Analyzing and planning next steps..."
+            updateLastMessageIfActive(token, currentAIAgentThought)
+        }
+
         history.add(plan)
         logTurn("model", plan.parts().get())
         return plan
     }
 
+    private fun formatThoughtWithCode(text: String): String {
+        if (!text.contains("```")) {
+            return "<font color='#888888'><i>$text</i></font>"
+        }
+
+        val parts = text.split("```")
+        val sb = StringBuilder()
+        for (i in parts.indices) {
+            if (i % 2 == 0) {
+                if (parts[i].isNotBlank()) {
+                    sb.append("<font color='#888888'><i>${parts[i]}</i></font>")
+                }
+            } else {
+                sb.append("\n```").append(parts[i]).append("```\n")
+            }
+        }
+        return sb.toString()
+    }
+
     private suspend fun processToolExecutionStep(token: Long, functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
         val toolCallSummary =
-            functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
-        updateLastMessageIfActive(token, toolCallSummary)
+            functionCalls.joinToString("\n") { "Calling tool: `${it.name().getOrNull().orEmpty()}`" }
+        val fullStatus = if (currentAIAgentThought.isNotEmpty()) {
+            "$currentAIAgentThought\n\n$toolCallSummary"
+        } else {
+            toolCallSummary
+        }
+        updateLastMessageIfActive(token, fullStatus)
         return executor.execute(functionCalls)
     }
 
     private suspend fun processCriticStep(token: Long, history: MutableList<Content>): String {
-        updateLastMessageIfActive(token, "Reviewing results...")
+        updateLastMessageIfActive(token, "$currentAIAgentThought\n\nReviewing results and verifying changes...")
         val critiqueResult = critic.reviewAndSummarize(history)
         if (critiqueResult != "OK") {
             history.add(
@@ -331,22 +552,170 @@ class AgenticRunner(
         return critiqueResult
     }
 
-    private fun generateFinalAnswer(history: List<Content>): String {
-        val finalInstruction = Content.builder()
-            .role("user")
-            .parts(
-                Part.builder()
-                    .text("Provide a final, concise answer to the user's request based on the conversation so far.")
-                    .build()
-            )
-            .build()
+    private fun requestPlannerContent(token: Long, history: MutableList<Content>): Content {
+        var attempts = 0
+        while (attempts < 2) {
+            try {
+                return planner.plan(history)
+            } catch (e: PlannerToolCallException) {
+                attempts++
+                e.toolName?.let { blockedToolNames.add(it) }
+                handlePlannerToolCallException(token, history, e, attempts)
+            }
+        }
+        val instruction =
+            "The planner could not produce a valid tool invocation after multiple attempts. Provide a direct textual answer without calling any tools."
+        history.add(
+            Content.builder().role("user").parts(Part.builder().text(instruction).build()).build()
+        )
+        throw PlannerFallbackException(instruction)
+    }
 
-        val finalHistory = history.toMutableList().apply { add(finalInstruction) }
-        val response = plannerClient.generateContent(finalHistory, tools = emptyList())
-        val finalText = response.text()?.trim().orEmpty()
-        updateLastMessage(finalText)
-        logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
-        return finalText
+    private fun handlePlannerToolCallException(
+        token: Long,
+        history: MutableList<Content>,
+        error: PlannerToolCallException,
+        attempt: Int
+    ) {
+        val reason = when (error) {
+            is UnexpectedToolCallException -> "The previous plan was rejected because the model attempted to call a tool even though no tool calls were allowed at that time."
+            is MalformedToolCallException -> "The previous plan failed because the tool invocation was malformed."
+            else -> "The previous plan was rejected due to an invalid tool invocation."
+        }
+        log.warn("Planner tool call rejected on attempt {}: {}", attempt, error.message)
+        val toolNote = error.toolName?.let { " Tool `${it}` is now blocked until you can explain how to call it safely." } ?: ""
+        val instructionText =
+            "$reason$toolNote Before attempting another tool call, double-check the required parameters and confirm that calling a tool is necessary. If the request can be answered conceptually, respond with text instead of forcing a tool call."
+        history.add(
+            Content.builder().role("user")
+                .parts(Part.builder().text(instructionText).build()).build()
+        )
+        updateLastMessageIfActive(
+            token,
+            "Planner output was invalid. Asking it to correct the plan..."
+        )
+    }
+
+    private fun validateFunctionCalls(functionCalls: List<com.google.genai.types.FunctionCall>): List<String> {
+        val errors = mutableListOf<String>()
+        functionCalls.forEach { call ->
+            val name = call.name().getOrNull().orEmpty()
+            if (name.isBlank()) {
+                errors += "A function call without a name was emitted. Provide a valid tool name."
+                return@forEach
+            }
+            if (!toolRequirements.containsKey(name)) {
+                blockedToolNames.add(name)
+                errors += "Unknown tool `$name` was requested. Use only the supported tools."
+                return@forEach
+            }
+            if (blockedToolNames.contains(name)) {
+                errors += "Tool `$name` is temporarily blocked after a malformed invocation. Choose a different tool or respond with a textual answer."
+            }
+            val requiredArgs = toolRequirements[name].orEmpty()
+            val args = call.args().getOrNull() ?: emptyMap()
+            val missingArgs = requiredArgs.filterNot { key ->
+                args[key]?.toString()?.isNotBlank() == true
+            }
+            if (missingArgs.isNotEmpty()) {
+                blockedToolNames.add(name)
+                errors += "Tool `$name` is missing required arguments: ${missingArgs.joinToString(", ")}."
+            }
+        }
+        return errors.distinct()
+    }
+
+    private fun handleInvalidToolPlanning(
+        token: Long,
+        history: MutableList<Content>,
+        validationErrors: List<String>
+    ) {
+        log.warn(
+            "Planner emitted invalid tool usage: {}",
+            validationErrors.joinToString(" | ")
+        )
+        val instruction = buildString {
+            append("The previous plan violated tool requirements:\n")
+            validationErrors.forEach { append("- ").append(it).append("\n") }
+            append("Re-plan with valid tool arguments, or provide a textual response if tools are unnecessary.")
+        }
+        history.add(
+            Content.builder().role("user")
+                .parts(Part.builder().text(instruction).build()).build()
+        )
+        updateLastMessageIfActive(
+            token,
+            "Planner proposed invalid tool usage. Requesting a corrected plan..."
+        )
+    }
+
+    private fun detectImpliedToolMention(parts: List<Part>): String? {
+        val concatenated = parts.joinToString("\n") { part -> part.text().getOrNull().orEmpty() }
+        if (concatenated.isBlank()) return null
+
+        val normalizedNoWhitespace =
+            concatenated.lowercase().replace(Regex("\\s+"), "")
+
+        for (tool in toolRequirements.keys) {
+            val name = tool.lowercase()
+            val simpleRegex =
+                Regex("(?i)(call|invoke|use)\\s*[:=]?\\s*`?$tool`?")
+            if (simpleRegex.containsMatchIn(concatenated)) {
+                return tool
+            }
+
+            val markers = listOf(
+                "call:$name",
+                "call$name",
+                "invoke:$name",
+                "use:$name"
+            )
+            if (markers.any { normalizedNoWhitespace.contains(it) }) {
+                return tool
+            }
+        }
+
+        return null
+    }
+
+    private fun generateFinalAnswer(
+        history: List<Content>,
+        instruction: String = "Provide a final, concise answer to the user's request based on the conversation so far. If the solution involves code, provide the full source code blocks using Markdown formatting."
+    ): String {
+        val finalHistory = history.toMutableList()
+        var instructionText = instruction
+        repeat(2) { attempt ->
+            val finalInstruction = Content.builder()
+                .role("user")
+                .parts(Part.builder().text(instructionText).build())
+                .build()
+            finalHistory.add(finalInstruction)
+            try {
+                val response = plannerClient.generateContent(finalHistory, tools = emptyList())
+                val finalText = response.text()?.trim().orEmpty()
+                if (finalText.isNotBlank()) {
+                    updateLastMessage(finalText)
+                    logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
+                    return finalText
+                }
+            } catch (e: PlannerToolCallException) {
+                log.warn(
+                    "Final answer attempt {} failed because the model tried to call a tool: {}",
+                    attempt + 1,
+                    e.message
+                )
+                instructionText =
+                    "Tool calls are forbidden when providing the final answer. Respond with direct text only.\n$instruction"
+                return@repeat
+            }
+        }
+        val thoughtSummary = currentAIAgentThought.takeIf { it.isNotBlank() }
+            ?: "Please review the latest tool outputs to continue where I left off."
+        val fallbackText =
+            "Unable to complete tool-based actions, but here is the current understanding:\n\n$thoughtSummary"
+        updateLastMessage(fallbackText)
+        logTurn("final_answer", listOf(Part.builder().text(fallbackText).build()))
+        return fallbackText
     }
 
     private fun startLog() {
@@ -461,10 +830,16 @@ class AgenticRunner(
 
     private fun updateLastMessage(newText: String) {
         _messages.update { currentList ->
-            if (currentList.isEmpty()) return@update currentList
+            if (currentList.isEmpty()) {
+                return@update currentList + ChatMessage(text = newText, sender = Sender.AGENT)
+            }
+
             val lastMessage = currentList.last()
-            val updatedMessage = lastMessage.copy(text = newText)
-            currentList.dropLast(1) + updatedMessage
+            return@update if (lastMessage.sender == Sender.AGENT) {
+                currentList.dropLast(1) + lastMessage.copy(text = newText)
+            } else {
+                currentList + ChatMessage(text = newText, sender = Sender.AGENT)
+            }
         }
     }
 
@@ -483,6 +858,7 @@ class AgenticRunner(
         onStateUpdate?.invoke(state)
     }
 
+    private class PlannerFallbackException(val instruction: String) : Exception()
 }
 
 /**
