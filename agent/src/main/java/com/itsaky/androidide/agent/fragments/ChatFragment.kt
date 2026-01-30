@@ -39,7 +39,7 @@ import com.itsaky.androidide.agent.ui.ChatAdapter
 import com.itsaky.androidide.agent.ui.ChatAdapter.DiffCallback.ACTION_EDIT
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.events.TokenUsageEvent
-import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.utils.FileShareUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
@@ -61,7 +61,7 @@ import java.util.Date
 import java.util.Locale
 
 class ChatFragment :
-    EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
+    FragmentWithBinding<FragmentChatBinding>(FragmentChatBinding::inflate) {
 
     private val chatViewModel: ChatViewModel by activityViewModel()
     private val logger = LoggerFactory.getLogger(ChatFragment::class.java)
@@ -114,15 +114,8 @@ class ChatFragment :
         chatViewModel.checkBackendStatusOnResume(requireContext())
     }
 
-    override fun onFragmentLongPressed() {
-
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        // EventBus registration is handled by parent class (EmptyStateFragment) in onResume()
-        emptyStateViewModel.setEmptyMessage("No git actions yet")
-        emptyStateViewModel.setEmpty(false)
         markwon = Markwon.builder(requireContext())
             .usePlugin(LinkifyPlugin.create())
             .build()
