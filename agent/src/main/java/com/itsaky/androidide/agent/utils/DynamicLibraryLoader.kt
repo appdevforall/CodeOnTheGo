@@ -46,6 +46,11 @@ object DynamicLibraryLoader {
                     var entry = zipStream.nextEntry
                     while (entry != null) {
                         val outputFile = File(versionedUnzipDir, entry.name)
+                        // Zip Slip protection: ensure the entry resolves inside the target dir
+                        if (!outputFile.canonicalPath.startsWith(versionedUnzipDir.canonicalPath + File.separator)) {
+                            Log.e("DynamicLoad", "Zip entry outside target dir: ${entry.name}")
+                            continue
+                        }
                         outputFile.parentFile?.mkdirs()
                         if (!entry.isDirectory) {
                             outputFile.outputStream().use { fos -> zipStream.copyTo(fos) }

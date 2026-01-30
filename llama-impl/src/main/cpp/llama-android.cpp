@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <math.h>
 #include <string>
+#include <unordered_map>
 #include <unistd.h>
 #include "llama.h"
 #include "common.h"
@@ -18,6 +19,9 @@ jmethodID la_int_var_value;
 jmethodID la_int_var_inc;
 
 std::string cached_token_chars;
+static std::unordered_map<llama_batch *, int> g_batch_n_tokens;
+static std::vector<std::string> g_stop_strings;
+static std::string g_generated_text;
 
 bool is_valid_utf8(const char *string) {
     if (!string) {
@@ -55,10 +59,6 @@ bool is_valid_utf8(const char *string) {
 
     return true;
 }
-
-#define TAG "llama-android.cpp"
-#define LOGi(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-#define LOGe(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
 static JavaVM *g_jvm = nullptr;
 static jclass g_llama_android_class = nullptr;
@@ -429,6 +429,7 @@ Java_android_llama_cpp_LLamaAndroid_new_1batch(JNIEnv *, jobject, jint n_tokens,
     }
     batch->logits = (int8_t *) malloc(sizeof(int8_t) * n_tokens);
 
+    g_batch_n_tokens[batch] = n_tokens;
     return reinterpret_cast<jlong>(batch);
 }
 
@@ -442,6 +443,15 @@ Java_android_llama_cpp_LLamaAndroid_free_1batch(JNIEnv *, jobject, jlong batch_p
     free(batch->embd);
     free(batch->pos);
     free(batch->n_seq_id);
+    if (batch->seq_id) {
+        auto it = g_batch_n_tokens.find(batch);
+        if (it != g_batch_n_tokens.end()) {
+            for (int i = 0; i < it->second; ++i) {
+                free(batch->seq_id[i]);
+            }
+            g_batch_n_tokens.erase(it);
+        }
+    }
     free(batch->seq_id);
     free(batch->logits);
     delete batch;
@@ -531,6 +541,24 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
         jint n_len, jobjectArray stop) {
 
     cached_token_chars.clear();
+    g_generated_text.clear();
+
+    // Parse stop strings from the Java array
+    g_stop_strings.clear();
+    if (stop != nullptr) {
+        int stop_count = env->GetArrayLength(stop);
+        for (int i = 0; i < stop_count; i++) {
+            auto jstr = (jstring) env->GetObjectArrayElement(stop, i);
+            if (jstr) {
+                const char *chars = env->GetStringUTFChars(jstr, nullptr);
+                if (chars) {
+                    g_stop_strings.emplace_back(chars);
+                    env->ReleaseStringUTFChars(jstr, chars);
+                }
+                env->DeleteLocalRef(jstr);
+            }
+        }
+    }
 
     const auto text = env->GetStringUTFChars(jtext, 0);
     const auto context = reinterpret_cast<llama_context *>(context_pointer);
@@ -645,6 +673,20 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
 
     jstring new_token = nullptr;
     if (is_valid_utf8(cached_token_chars.c_str())) {
+        g_generated_text += cached_token_chars;
+
+        // Check if any stop string has been generated
+        for (const auto &stop_str : g_stop_strings) {
+            if (!stop_str.empty() && g_generated_text.length() >= stop_str.length()) {
+                auto pos = g_generated_text.find(stop_str);
+                if (pos != std::string::npos) {
+                    LOGi("Stop string matched: %s", stop_str.c_str());
+                    cached_token_chars.clear();
+                    return nullptr;
+                }
+            }
+        }
+
         new_token = env->NewStringUTF(cached_token_chars.c_str());
 
         log_info_to_kt("cached: %s, new_token_chars: `%s`, id: %d", cached_token_chars.c_str(),
