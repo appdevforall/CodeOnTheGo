@@ -88,7 +88,9 @@ class InstallationViewModel : ViewModel() {
 								_state.update { InstallationComplete }
 							}
 							is AssetsInstallationHelper.Result.Failure -> {
-								result.cause?.let { Sentry.captureException(it) }
+								if (result.shouldReportToSentry) {
+									result.cause?.let { Sentry.captureException(it) }
+								}
 								val errorMsg = result.errorMessage
 									?: context.getString(R.string.title_installation_failed)
 								viewModelScope.launch {
