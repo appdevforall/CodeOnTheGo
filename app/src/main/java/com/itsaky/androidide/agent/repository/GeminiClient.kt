@@ -140,8 +140,26 @@ class GeminiClient(
         log.info("Candidate: {}", candidate.toJson())
         val content = candidate.content().getOrNull()
         if (content == null) {
-            val finishReason = candidate.finishReason().getOrNull()
-            throw Exception("Candidate did not contain any content. Finish Reason: $finishReason")
+            val finishReason = candidate.finishReason().getOrNull()?.toString()
+            val rawCandidate = candidate.toJson()
+            val toolName = extractToolNameFromCandidate(rawCandidate)
+            when {
+                finishReason?.equals("MALFORMED_FUNCTION_CALL", true) == true -> {
+                    throw MalformedToolCallException(
+                        "Candidate was rejected because it contained a malformed function call.",
+                        toolName,
+                        rawCandidate
+                    )
+                }
+                finishReason?.equals("UNEXPECTED_TOOL_CALL", true) == true -> {
+                    throw UnexpectedToolCallException(
+                        "Tool calls were not expected in this phase, but the model attempted one.",
+                        toolName,
+                        rawCandidate
+                    )
+                }
+                else -> throw Exception("Candidate did not contain any content. Finish Reason: $finishReason")
+            }
         }
 
         log.debug("Gemini API call returned the body:\n{}", content.toString())
@@ -168,5 +186,10 @@ class GeminiClient(
         } catch (e: Exception) {
             log.error("An unexpected error occurred during token counting: ${e.message}. Proceeding with API call anyway.")
         }
+    }
+
+    private fun extractToolNameFromCandidate(rawCandidate: String): String? {
+        val regex = """"functionCall"\s*:\s*\{\s*"name"\s*:\s*"([^"]+)"""".toRegex()
+        return regex.find(rawCandidate)?.groupValues?.getOrNull(1)
     }
 }
