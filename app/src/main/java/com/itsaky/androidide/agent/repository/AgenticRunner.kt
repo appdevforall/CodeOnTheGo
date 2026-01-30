@@ -216,6 +216,7 @@ class AgenticRunner(
             "Use tools whenever the user's request implies a change, creation, or deep analysis of the project. " +
             "If the request requires reading, creating, updating, or deleting files, or any IDE action, you MUST call the appropriate tool(s). " +
             "ONLY answer directly without tools if the request is a general question that does not require project context or modifications. " +
+            "When choosing not to run tools, you must still provide a full textual answer that addresses the question—never return an empty reply. " +
             "Do not just describe what you will do; if code needs to be written, use the tools to write it. " +
             "Either call tools or provide the final answer after the tools have been executed."
 
@@ -272,13 +273,27 @@ class AgenticRunner(
 
                 val plan = processPlannerStep(token, history)
                 updateProcessingState(token, stepNumber)
-                val functionCalls = plan.parts().get().mapNotNull { it.functionCall().getOrNull() }
+                val planParts = plan.parts().get()
+                val functionCalls = planParts.mapNotNull { it.functionCall().getOrNull() }
 
                 if (functionCalls.isEmpty()) {
-                    val finalText = plan.parts().get().first().text().getOrNull()?.trim() ?: ""
-                    updateLastMessageIfActive(token, finalText)
-                    logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
-                    return finalText
+                    val finalText = planParts
+                        .asSequence()
+                        .mapNotNull { it.text().getOrNull()?.trim() }
+                        .firstOrNull { it.isNotBlank() }
+                        .orEmpty()
+
+                    if (finalText.isNotBlank()) {
+                        updateLastMessageIfActive(token, finalText)
+                        logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
+                        return finalText
+                    }
+
+                    log.warn("Planner returned no tool calls and no textual response; generating fallback answer.")
+                    return generateFinalAnswer(
+                        history,
+                        "The planner produced no tool calls or reasoning, but the user still requires a response. Provide the best possible direct answer or clarification using the conversation so far, even if it must remain high level."
+                    )
                 }
 
                 val toolResultsParts = processToolExecutionStep(token, functionCalls)
@@ -502,12 +517,15 @@ class AgenticRunner(
         return critiqueResult
     }
 
-    private fun generateFinalAnswer(history: List<Content>): String {
+    private fun generateFinalAnswer(
+        history: List<Content>,
+        instruction: String = "Provide a final, concise answer to the user's request based on the conversation so far. If the solution involves code, provide the full source code blocks using Markdown formatting."
+    ): String {
         val finalInstruction = Content.builder()
             .role("user")
             .parts(
                 Part.builder()
-                    .text("Provide a final, concise answer to the user's request based on the conversation so far. If the solution involves code, provide the full source code blocks using Markdown formatting.")
+                    .text(instruction)
                     .build()
             )
             .build()
