@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import android.view.View
 import androidx.core.content.edit
-import com.itsaky.androidide.agent.databinding.FragmentAgentContainerBinding
+import com.itsaky.androidide.databinding.FragmentAgentContainerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 
 internal const val PREFS_NAME = "LlamaPrefs"

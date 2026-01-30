@@ -110,10 +110,10 @@ import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
-import com.itsaky.androidide.utils.AppIntentUtils.launchApp
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
+import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
@@ -536,7 +536,7 @@ abstract class BaseEditorActivity :
 		val performLaunch = {
 			activityScope.launch {
 				debuggerViewModel.debugeePackage = packageName
-                launchApp(
+				IntentUtils.launchApp(
 					context = context,
 					packageName = packageName,
 					debug = debug,
