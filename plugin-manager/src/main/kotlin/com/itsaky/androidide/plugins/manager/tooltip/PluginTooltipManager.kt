@@ -23,6 +23,7 @@ import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.idetooltips.R
+import com.itsaky.androidide.resources.R as ResR
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -247,14 +248,20 @@ object PluginTooltipManager {
 
         val isDarkMode = context.isSystemInDarkMode()
         val bodyColorHex =
-            context.getString(
-                if (isDarkMode) R.string.tooltip_body_color_hex_dark
-                else R.string.tooltip_body_color_hex_light
+            "#%08X".format(
+                getColor(
+                    context,
+                    if (isDarkMode) ResR.color.tooltip_text_color_dark
+                    else ResR.color.tooltip_text_color_light
+                )
             )
         val linkColorHex =
-            context.getString(
-                if (isDarkMode) R.string.tooltip_link_color_hex_dark
-                else R.string.tooltip_link_color_hex_light
+            "#%08X".format(
+                getColor(
+                    context,
+                    if (isDarkMode) ResR.color.tooltip_link_color_dark
+                    else ResR.color.tooltip_link_color_light
+                )
             )
 
         val tooltipHtmlContent = when (level) {
@@ -394,14 +401,20 @@ object PluginTooltipManager {
 
         val isDarkMode = context.isSystemInDarkMode()
         val bodyColorHex =
-            context.getString(
-                if (isDarkMode) R.string.tooltip_body_color_hex_dark
-                else R.string.tooltip_body_color_hex_light
+            "#%08X".format(
+                getColor(
+                    context,
+                    if (isDarkMode) ResR.color.tooltip_text_color_dark
+                    else ResR.color.tooltip_text_color_light
+                )
             )
         val linkColorHex =
-            context.getString(
-                if (isDarkMode) R.string.tooltip_link_color_hex_dark
-                else R.string.tooltip_link_color_hex_light
+            "#%08X".format(
+                getColor(
+                    context,
+                    if (isDarkMode) ResR.color.tooltip_link_color_dark
+                    else ResR.color.tooltip_link_color_light
+                )
             )
 
         val buttonsFormatted = if (tooltip.buttons.isEmpty()) {

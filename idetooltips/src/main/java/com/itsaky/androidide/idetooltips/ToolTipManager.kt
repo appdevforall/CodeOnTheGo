@@ -28,6 +28,7 @@ import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.FeedbackManager
+import com.itsaky.androidide.resources.R as ResR
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -269,14 +270,20 @@ object TooltipManager {
 
         val isDarkMode = context.isSystemInDarkMode()
         val bodyColorHex =
-            context.getString(
-                if (isDarkMode) R.string.tooltip_body_color_hex_dark
-                else R.string.tooltip_body_color_hex_light
+            "#%08X".format(
+                getColor(
+                    context,
+                    if (isDarkMode) ResR.color.tooltip_text_color_dark
+                    else ResR.color.tooltip_text_color_light
+                )
             )
         val linkColorHex =
-            context.getString(
-                if (isDarkMode) R.string.tooltip_link_color_hex_dark
-                else R.string.tooltip_link_color_hex_light
+            "#%08X".format(
+                getColor(
+                    context,
+                    if (isDarkMode) ResR.color.tooltip_link_color_dark
+                    else ResR.color.tooltip_link_color_light
+                )
             )
 
         val tooltipHtmlContent = when (level) {

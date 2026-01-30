@@ -808,14 +808,6 @@
 		</html>
 		]]></string>
 
-	<!-- Tooltip Color Configuration -->
-	<!-- Light mode colors -->
-	<string name="tooltip_body_color_hex_light">#000000</string>
-	<string name="tooltip_link_color_hex_light">#233490</string>
-	<!-- Dark mode colors -->
-	<string name="tooltip_body_color_hex_dark">#E4E2E6</string>
-	<string name="tooltip_link_color_hex_dark">#8FA4FF</string>
-
 	<!-- Tooltip HTML Components -->
 	<string name="tooltip_buttons_separator"><![CDATA[<br>]]></string>
 	<string name="tooltip_detail_links_template"><![CDATA[%1$s<br><br>%2$s]]></string>
