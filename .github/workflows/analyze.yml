@@ -31,7 +31,7 @@ jobs:
   analyze:
     name: analysis
     runs-on: self-hosted
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - name: Cancel previous runs
@@ -96,6 +96,12 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info -x lint --continue
+
+      - name: Upload JaCoCo report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/jacocoAggregateReport/
 
       - name: Cleanup google-services.json
         if: always()
