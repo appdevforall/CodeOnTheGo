@@ -13,14 +13,8 @@ import com.itsaky.androidide.agent.model.ExplorationMetadata
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.prompt.SystemPromptProvider
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 
 class LocalAgenticRunner(
@@ -44,9 +38,7 @@ class LocalAgenticRunner(
     }
 
     private val log = LoggerFactory.getLogger(LocalAgenticRunner::class.java)
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val toolsForPrompt = LocalLlmTools.allTools
-    private val toolNames = toolsForPrompt.map { it.name }.toSet()
 
     @VisibleForTesting
     internal var testResponseOverride: String? = null
@@ -254,8 +246,9 @@ class LocalAgenticRunner(
                     "$senderName: $clipped"
                 }
             }
+            val basePromptText = "You are a helpful assistant. Answer the user's question directly."
             val conversationHistory =
-                buildHistoryWithBudgetNoTools(historyLines, clippedUserMessage)
+                buildHistoryWithBudget(historyLines, clippedUserMessage, basePromptText)
             return """
 You are a helpful assistant. Answer the user's question directly.
 
@@ -287,7 +280,7 @@ assistant:
             history.takeLast(MAX_HISTORY_ITEMS).map { msg ->
                 val senderName = when (msg.sender) {
                     Sender.USER -> "user"
-                    Sender.AGENT -> "model"
+                    Sender.AGENT -> "assistant"
                     Sender.TOOL -> "tool"
                     else -> "system"
                 }
@@ -295,10 +288,7 @@ assistant:
                 "$senderName: $clipped"
             }
         }
-        val conversationHistory =
-            buildHistoryWithBudget(historyLines, clippedUserMessage, toolsJson)
-
-        return """
+        val basePromptText = """
 You are a helpful assistant. Use a tool only if needed.
 
 Tools:
@@ -311,7 +301,12 @@ If using a tool, respond with ONLY:
 Include all required args. If you don't know required args, ask the user instead of calling a tool.
 No extra text before or after.
 
-Conversation:
+Conversation:""".trimIndent()
+        val conversationHistory =
+            buildHistoryWithBudget(historyLines, clippedUserMessage, basePromptText)
+
+        return """
+$basePromptText
 ${conversationHistory}user: $clippedUserMessage
 assistant:
 """.trimIndent()
@@ -328,55 +323,13 @@ assistant:
     private suspend fun buildHistoryWithBudget(
         historyLines: List<String>,
         userPrompt: String,
-        toolsJson: String
+        basePromptText: String
     ): String {
         if (historyLines.isEmpty()) return ""
 
         val contextSize = engine.getConfiguredContextSize().coerceAtLeast(1024)
         val inputBudget = (contextSize * 0.7f).toInt().coerceAtLeast(256)
-        val basePrompt = """
-You are a helpful assistant. Use a tool only if needed.
-
-Tools:
-[
-  $toolsJson
-]
-
-If using a tool, respond with ONLY:
-<tool_call>{"name":"tool_name","args":{...}}</tool_call>
-Include all required args. If you don't know required args, ask the user instead of calling a tool.
-No extra text before or after.
-
-Conversation:
-""".trimIndent()
-        val baseTokens = engine.countTokens("$basePrompt\nuser: $userPrompt\nassistant:")
-        val remaining = (inputBudget - baseTokens).coerceAtLeast(0)
-        if (remaining == 0) return ""
-
-        var tokenCount = 0
-        val kept = ArrayList<String>()
-        for (line in historyLines.asReversed()) {
-            val lineTokens = engine.countTokens(line) + 1
-            if (tokenCount + lineTokens > remaining) break
-            kept.add(line)
-            tokenCount += lineTokens
-        }
-        if (kept.isEmpty()) return ""
-        return kept.asReversed().joinToString("\n") + "\n"
-    }
-
-    private suspend fun buildHistoryWithBudgetNoTools(
-        historyLines: List<String>,
-        userPrompt: String
-    ): String {
-        if (historyLines.isEmpty()) return ""
-
-        val contextSize = engine.getConfiguredContextSize().coerceAtLeast(1024)
-        val inputBudget = (contextSize * 0.7f).toInt().coerceAtLeast(256)
-        val basePrompt = """
-You are a helpful assistant. Answer the user's question directly.
-""".trimIndent()
-        val baseTokens = engine.countTokens("$basePrompt\nuser: $userPrompt\nassistant:")
+        val baseTokens = engine.countTokens("$basePromptText\nuser: $userPrompt\nassistant:")
         val remaining = (inputBudget - baseTokens).coerceAtLeast(0)
         if (remaining == 0) return ""
 
@@ -414,8 +367,8 @@ You are a helpful assistant. Answer the user's question directly.
             }
 
             "search_project" -> {
+                val inferred = inferSearchQuery(userPrompt)
                 if (updated["query"].isNullOrBlank()) {
-                    val inferred = inferSearchQuery(userPrompt)
                     if (!inferred.isNullOrBlank()) {
                         updated["query"] = inferred
                     }
@@ -429,7 +382,7 @@ You are a helpful assistant. Answer the user's question directly.
                 log.debug(
                     "fillMissingArgs(search_project): prompt='{}', inferred='{}', final='{}'",
                     userPrompt,
-                    inferSearchQuery(userPrompt),
+                    inferred,
                     updated["query"]
                 )
             }
@@ -517,15 +470,7 @@ You are a helpful assistant. Answer the user's question directly.
     }
 
     private fun getMissingRequiredArgs(toolCall: LocalLLMToolCall): List<String> {
-        val requiredArgs = when (toolCall.name) {
-            "read_file" -> listOf("file_path")
-            "add_dependency" -> listOf("dependency", "build_file_path")
-            "get_build_output" -> listOf("error")
-            "read_multiple_files" -> listOf("paths")
-            "search_project" -> listOf("query")
-            else -> emptyList()
-        }
-
+        val requiredArgs = Executor.requiredArgsForTool(toolCall.name)
         if (requiredArgs.isEmpty()) return emptyList()
         return requiredArgs.filter { key ->
             val value = toolCall.args[key]?.toString()?.trim().orEmpty()
@@ -645,69 +590,6 @@ You are a helpful assistant. Answer the user's question directly.
             .build()
     }
 
-    override suspend fun createInitialPlan(history: List<Content>): Plan {
-        val latestUserRequest = messages.value.lastOrNull { it.sender == Sender.USER }?.text?.trim()
-        if (latestUserRequest.isNullOrBlank()) {
-            log.warn("No user prompt available for planning; defaulting to single-step plan.")
-            return Plan(mutableListOf(TaskStep("Address the user's request.")))
-        }
-
-        val planPrompt = """
-            You are an expert Android developer assistant planning a task for an IDE agent.
-            Break the following user request into a concise, ordered list of high-level steps.
-            Respond ONLY with a JSON array. Each entry must be an object with a "description" string.
-
-            User Request: "$latestUserRequest"
-
-            Plan:
-        """.trimIndent()
-
-        return try {
-            val raw = engine.runInference(planPrompt, clearCache = true)
-            val cleaned = extractJsonArray(raw)
-            parsePlanSteps(cleaned)
-        } catch (err: Exception) {
-            log.error("Failed to create plan with local model.", err)
-            Plan(mutableListOf(TaskStep(latestUserRequest)))
-        }
-    }
-
-    override suspend fun planForStep(
-        history: List<Content>,
-        plan: Plan,
-        stepIndex: Int
-    ): Content {
-        val prompt = buildToolSelectionPrompt(plan, stepIndex)
-
-        // Don't catch exceptions here - let them propagate so retry logic can handle them
-        // without polluting conversation history with error messages
-        val responseText = engine.runInference(
-            prompt,
-            stopStrings = listOf("</tool_call>"),
-            clearCache = true
-        )
-        val parsedCall = Util.parseToolCall(responseText, toolNames)
-
-        return if (parsedCall != null) {
-            val functionCall = FunctionCall.builder()
-                .name(parsedCall.name)
-                .args(parsedCall.args.mapValues { it.value })
-                .build()
-            Content.builder()
-                .role("model")
-                .parts(
-                    Part.builder()
-                        .functionCall(functionCall)
-                        .build()
-                )
-                .build()
-        } else {
-            Content.builder()
-                .role("model")
-                .parts(Part.builder().text(responseText.trim()).build())
-                .build()
-        }
-    }
 
     /**
      * Always use simplified workflow for Local LLM to avoid "max steps" errors.
@@ -721,113 +603,6 @@ You are a helpful assistant. Answer the user's question directly.
         return true
     }
 
-    override fun buildSimplifiedInstructionOverride(): String {
-        val toolDescriptions = toolsForPrompt.joinToString(",\n  ") { tool ->
-            val escapedDescription = tool.description.replace("\"", "\\\"")
-            val args = if (tool.parameters.isEmpty()) {
-                ""
-            } else {
-                val formattedArgs = tool.parameters.entries.joinToString(", ") { (name, desc) ->
-                    val escaped = desc.replace("\"", "\\\"")
-                    "\"$name\": \"$escaped\""
-                }
-                ", \"arguments\": { $formattedArgs }"
-            }
-            "{ \"name\": \"${tool.name}\", \"description\": \"$escapedDescription\"$args }"
-        }
-
-        return buildString {
-            append("You are a helpful assistant with access to the following tools:\n")
-            append("[\n  $toolDescriptions\n]\n\n")
-            append("To use a tool, respond with a single `<tool_call>` XML tag containing a JSON object with the tool's \"name\" and \"args\".\n")
-            append("If no tool is needed, answer the user's question directly.\n")
-        }.trimEnd()
-    }
-
-    private fun buildToolSelectionPrompt(plan: Plan, stepIndex: Int): String {
-        val planSummary = plan.steps.mapIndexed { idx, step ->
-            val status = step.status.name
-            val resultSuffix = step.result?.let { " -> $it" } ?: ""
-            "${idx + 1}. [$status] ${step.description}$resultSuffix"
-        }.joinToString("\n")
-
-        val currentStep = plan.steps.getOrNull(stepIndex)
-            ?: TaskStep("Address the user's request.")
-
-        val historyBlock = messages.value.joinToString(separator = "\n") { message ->
-            val prefix = when (message.sender) {
-                Sender.USER -> "User"
-                Sender.AGENT -> "Assistant"
-                Sender.TOOL -> "Tool"
-                Sender.SYSTEM, Sender.SYSTEM_DIFF -> "System"
-            }
-            "$prefix: ${message.text}"
-        }
-
-        val toolList = toolsForPrompt.joinToString("\n") { tool ->
-            buildString {
-                append("- ${tool.name}: ${tool.description}")
-                if (tool.parameters.isNotEmpty()) {
-                    append(" (")
-                    append(
-                        tool.parameters.entries.joinToString("; ") { "${it.key}: ${it.value}" }
-                    )
-                    append(")")
-                }
-            }
-        }
-
-        return """
-            You are executing an IDE automation plan. Analyze the conversation history and the current step.
-
-            Plan so far:
-            $planSummary
-
-            Current step (${stepIndex + 1}/${plan.steps.size}): "${currentStep.description}"
-
-            Conversation History:
-            $historyBlock
-
-            Available tools:
-            $toolList
-
-            If a tool is needed, respond with a <tool_call> tag containing a JSON object with "tool_name" and "args".
-            If no tool is required, reply directly with the final text answer.
-        """.trimIndent()
-    }
-
-    private fun parsePlanSteps(raw: String): Plan {
-        val cleaned = raw.trim().removePrefix("```json").removeSuffix("```").trim()
-        val jsonElement = runCatching { json.parseToJsonElement(cleaned) }.getOrNull()
-
-        if (jsonElement is JsonArray) {
-            val steps = jsonElement.mapNotNull { element ->
-                extractDescription(element)?.let { TaskStep(description = it) }
-            }
-            if (steps.isNotEmpty()) {
-                return Plan(steps.toMutableList())
-            }
-        }
-
-        val fallback = cleaned.lines().firstOrNull()?.trim().takeUnless { it.isNullOrBlank() }
-        return Plan(mutableListOf(TaskStep(fallback ?: "Address the user's request.")))
-    }
-
-    private fun extractDescription(element: JsonElement): String? {
-        val obj = element as? JsonObject ?: return null
-        return obj["description"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-            ?: obj["step"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-    }
-
-    private fun extractJsonArray(raw: String): String {
-        val start = raw.indexOf('[')
-        val end = raw.lastIndexOf(']')
-        return if (start != -1 && end != -1 && end > start) {
-            raw.substring(start, end + 1)
-        } else {
-            raw
-        }
-    }
 
     override fun onRunnerStopped() {
         engine.stop()
@@ -835,7 +610,7 @@ You are a helpful assistant. Answer the user's question directly.
 
     override fun destroy() {
         super.destroy()
-        CoroutineScope(Dispatchers.IO).launch {
+        runBlocking(Dispatchers.IO) {
             if (engine.isModelLoaded) {
                 engine.unloadModel()
             }

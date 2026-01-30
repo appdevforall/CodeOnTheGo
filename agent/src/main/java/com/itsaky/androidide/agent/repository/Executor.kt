@@ -35,6 +35,16 @@ class Executor(
             "get_weather"
         )
 
+        fun requiredArgsForTool(toolName: String): List<String> {
+            return when (toolName) {
+                "read_file" -> listOf("file_path")
+                "read_multiple_files" -> listOf("paths")
+                "add_dependency" -> listOf("dependency", "build_file_path")
+                "get_build_output" -> listOf("error")
+                "search_project" -> listOf("query")
+                else -> emptyList()
+            }
+        }
     }
 
     suspend fun execute(
@@ -120,14 +130,4 @@ class Executor(
         ).build()
     }
 
-    private fun requiredArgsForTool(toolName: String): List<String> {
-        return when (toolName) {
-            "read_file" -> listOf("file_path")
-            "read_multiple_files" -> listOf("paths")
-            "add_dependency" -> listOf("dependency", "build_file_path")
-            "get_build_output" -> listOf("error")
-            "search_project" -> listOf("query")
-            else -> emptyList()
-        }
-    }
 }
