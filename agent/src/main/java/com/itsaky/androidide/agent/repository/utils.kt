@@ -68,10 +68,15 @@ object Util {
                 return null
             }
 
-            if (!toolKeys.contains(name)) {
+            val resolvedName = when (name) {
+                "list_dir" -> "list_files"
+                else -> name
+            }
+
+            if (!toolKeys.contains(resolvedName)) {
                 logger.error(
                     "FAILURE: Parsed tool name '{}' is not in the list of available tools.",
-                    name
+                    resolvedName
                 )
                 return null
             }
@@ -81,7 +86,7 @@ object Util {
                 value.toToolArgString()
             } ?: emptyMap()
 
-            val result = LocalLLMToolCall(name, args)
+            val result = LocalLLMToolCall(resolvedName, args)
             logger.debug("SUCCESS: Parsed and validated tool call: {}", result)
             result
         }
@@ -185,7 +190,7 @@ object Util {
 
     private fun defaultArgKeyForTool(toolName: String): String? {
         return when (toolName) {
-            "list_dir" -> "path"
+            "list_files" -> "path"
             "read_file" -> "file_path"
             "search_project" -> "query"
             "create_file" -> "path"

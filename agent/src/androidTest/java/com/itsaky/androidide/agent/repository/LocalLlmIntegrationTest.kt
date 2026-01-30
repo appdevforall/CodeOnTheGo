@@ -466,7 +466,7 @@ class LocalLlmIntegrationTest {
                     "read_file",
                     """{"file_path":"tool-tests/created.txt","offset":0,"limit":10}"""
                 ),
-                ToolCase("list_dir", """{"path":".","recursive":false}"""),
+                ToolCase("list_files", """{"path":".","recursive":false}"""),
                 ToolCase(
                     "search_project",
                     """{"query":"LocalLlmIntegrationTest","path":".","max_results":5,"ignore_case":true}"""
@@ -539,7 +539,7 @@ class LocalLlmIntegrationTest {
                         "create_file"
                     ),
                     BenchmarkCase("Read the file tool-tests/bench.txt.", "read_file"),
-                    BenchmarkCase("List files in the project root.", "list_dir"),
+                    BenchmarkCase("List files in the project root.", "list_files"),
                     BenchmarkCase(
                         "Search the project for the word LocalLlmIntegrationTest.",
                         "search_project"

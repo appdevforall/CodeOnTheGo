@@ -6,13 +6,13 @@ import com.itsaky.androidide.agent.model.ToolResult
 import org.slf4j.LoggerFactory
 
 class ListFilesHandler : ToolHandler {
-    override val name: String = "list_dir"
+    override val name: String = "list_files"
 
     override suspend fun invoke(args: Map<String, Any?>): ToolResult {
         val toolArgs = decodeArgs<ListFilesArgs>(args)
         val normalizedPath = normalizePath(toolArgs.path)
         logger.debug(
-            "Invoking list_dir with path='{}', recursive={}",
+            "Invoking list_files with path='{}', recursive={}",
             normalizedPath,
             toolArgs.recursive
         )
@@ -24,13 +24,13 @@ class ListFilesHandler : ToolHandler {
                 ?.filter { it.isNotBlank() }
                 ?.count() ?: 0
             logger.debug(
-                "list_dir succeeded for path='{}'. entries={}",
+                "list_files succeeded for path='{}'. entries={}",
                 normalizedPath,
                 entryCount
             )
         } else {
             logger.warn(
-                "list_dir failed for path='{}'. message='{}', details='{}'",
+                "list_files failed for path='{}'. message='{}', details='{}'",
                 normalizedPath,
                 result.message,
                 result.error_details

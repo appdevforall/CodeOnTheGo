@@ -84,7 +84,7 @@ class LocalAgenticRunner(
                     val stopStrings = if (relevantTools.isEmpty()) {
                         emptyList()
                     } else {
-                        listOf("</tool_call>", "```", "user:", "assistant:")
+                        listOf("</tool_call>", "user:", "assistant:")
                     }
                     val initial = engine.runInference(
                         simplifiedPrompt,
@@ -175,7 +175,7 @@ class LocalAgenticRunner(
                 "folder"
             )
         ) {
-            addTool("list_dir")
+            addTool("list_files")
         }
         if (lowerQuery.contains("read") || lowerQuery.contains("open file") || lowerQuery.contains("show file")) {
             addTool("read_file")

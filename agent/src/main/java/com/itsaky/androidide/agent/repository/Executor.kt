@@ -26,7 +26,7 @@ class Executor(
         // Tools that only read IDE state and can be executed in parallel safely.
         private val parallelSafeTools = setOf(
             "read_file",
-            "list_dir",
+            "list_files",
             "read_multiple_files",
             "search_project",
             "get_build_output",

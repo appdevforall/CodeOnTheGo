@@ -358,10 +358,14 @@ class ChatViewModel : ViewModel() {
 
 	fun saveAllSessionsAndState(prefs: SharedPreferences) {
 		saveJob?.cancel()
-		_currentSession.value?.let { chatStorageManager.saveSession(it) }
-		_sessions.value?.let { chatStorageManager.saveAllSessions(it) }
-		_currentSession.value?.let {
-			prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
+        val currentSession = _currentSession.value
+        val sessions = _sessions.value
+        viewModelScope.launch(Dispatchers.IO) {
+            currentSession?.let { chatStorageManager.saveSession(it) }
+            sessions?.let { chatStorageManager.saveAllSessions(it) }
+            currentSession?.let {
+                prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
+            }
 		}
 	}
 
@@ -377,7 +381,10 @@ class ChatViewModel : ViewModel() {
 
 	fun setCurrentSession(sessionId: String) {
 		saveJob?.cancel()
-		_currentSession.value?.let { chatStorageManager.saveSession(it) }
+        val previousSession = _currentSession.value
+        viewModelScope.launch(Dispatchers.IO) {
+            previousSession?.let { chatStorageManager.saveSession(it) }
+        }
 		val session = _sessions.value?.find { it.id == sessionId }
 		if (session != null) {
 			_currentSession.value = session
@@ -389,7 +396,7 @@ class ChatViewModel : ViewModel() {
 	private fun scheduleSaveCurrentSession() {
 		saveJob?.cancel()
 		saveJob =
-			viewModelScope.launch {
+            viewModelScope.launch(Dispatchers.IO) {
 				delay(SAVE_DEBOUNCE_MS)
 				_currentSession.value?.let {
 					chatStorageManager.saveSession(it)
