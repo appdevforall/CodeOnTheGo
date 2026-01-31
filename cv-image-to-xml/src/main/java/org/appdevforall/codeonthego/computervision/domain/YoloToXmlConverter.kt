@@ -1,12 +1,16 @@
 package org.appdevforall.codeonthego.computervision.domain
 
+import android.util.Log
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 object YoloToXmlConverter {
 
+    private const val TAG = "YoloToXmlConverter"
     private const val MIN_H_TEXT = 24
     private const val MIN_W_ANY = 8
     private const val MIN_H_ANY = 8
@@ -28,6 +32,24 @@ object YoloToXmlConverter {
         val centerY: Int
     )
 
+    private fun isTag(text: String): Boolean {
+        return text.startsWith("B-") || text.startsWith("I-")
+    }
+
+    private fun getTagType(tag: String): String? {
+        return when {
+            tag.startsWith("B-") -> "button"
+            tag.startsWith("I-") -> "image_placeholder" // Or "icon"
+            else -> null
+        }
+    }
+
+    private fun distance(box1: ScaledBox, box2: ScaledBox): Float {
+        val dx = (box1.centerX - box2.centerX).toFloat()
+        val dy = (box1.centerY - box2.centerY).toFloat()
+        return sqrt(dx.pow(2) + dy.pow(2))
+    }
+
     fun generateXmlLayout(
         detections: List<DetectionResult>,
         annotations: Map<String, String>,
@@ -40,8 +62,35 @@ object YoloToXmlConverter {
         val scaledBoxes = detections.map {
             scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight)
         }
-        val sortedBoxes = scaledBoxes.sortedWith(compareBy({ it.y }, { it.x }))
-        return buildXml(sortedBoxes, annotations, targetDpWidth, targetDpHeight, wrapInScroll)
+
+        // 1. Partition canvas items into UI elements and tags
+        val uiElements = scaledBoxes.filter { !isTag(it.text) }
+        val canvasTags = scaledBoxes.filter { isTag(it.text) }
+
+        // 2. Associate canvas tags with the nearest UI element
+        val finalAnnotations = mutableMapOf<ScaledBox, String>()
+        for (tagBox in canvasTags) {
+            val tagType = getTagType(tagBox.text) ?: continue
+            val annotation = annotations[tagBox.text] ?: continue
+
+            val closestElement = uiElements
+                .filter { it.label == tagType || (tagType == "image_placeholder" && it.label == "icon") }
+                .minByOrNull { distance(tagBox, it) }
+
+            if (closestElement != null) {
+                finalAnnotations[closestElement] = annotation
+            }
+        }
+
+        // 3. Log the results for verification
+        val logOutput = finalAnnotations.entries.joinToString(", ") {
+            "'${it.key.label} at [${it.key.x}, ${it.key.y}]' -> '${it.value}'"
+        }
+        Log.d(TAG, "Final Annotation Associations: {$logOutput}")
+
+
+        val sortedBoxes = uiElements.sortedWith(compareBy({ it.y }, { it.x }))
+        return buildXml(sortedBoxes, finalAnnotations, targetDpWidth, targetDpHeight, wrapInScroll)
     }
 
     private fun scaleDetection(
@@ -108,7 +157,7 @@ object YoloToXmlConverter {
 
     private fun buildXml(
         boxes: List<ScaledBox>,
-        annotations: Map<String, String>,
+        annotations: Map<ScaledBox, String>,
         targetDpWidth: Int,
         targetDpHeight: Int,
         wrapInScroll: Boolean
@@ -235,7 +284,7 @@ object YoloToXmlConverter {
         counters: MutableMap<String, Int>,
         targetDpWidth: Int,
         orientation: String,
-        annotations: Map<String, String>
+        annotations: Map<ScaledBox, String>
     ) {
         val first = group.first()
         val indent = "        "
@@ -282,7 +331,7 @@ object YoloToXmlConverter {
         group: List<ScaledBox>,
         counters: MutableMap<String, Int>,
         targetDpWidth: Int,
-        annotations: Map<String, String>
+        annotations: Map<ScaledBox, String>
     ) {
         val indent = "        "
         xml.appendLine("$indent<LinearLayout")
@@ -323,13 +372,13 @@ object YoloToXmlConverter {
         indent: String,
         isChildView: Boolean = false,
         extraMarginStart: Int = 0,
-        annotations: Map<String, String>
+        annotations: Map<ScaledBox, String>
     ) {
         val label = box.label
         val tag = viewTagFor(label)
         val count = counters.getOrPut(label) { 0 }.also { counters[label] = it + 1 }
         val id = "${label.replace(Regex("[^a-zA-Z0-9_]"), "_")}_$count"
-        val annotation = annotations[id]
+        val annotation = annotations[box]
 
         val isTextBased = tag in listOf("TextView", "Button", "EditText", "CheckBox", "RadioButton", "Switch")
         val isWide = box.w > (targetDpWidth * 0.8) && !isChildView
