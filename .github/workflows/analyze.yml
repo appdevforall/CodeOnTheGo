@@ -94,6 +94,7 @@ jobs:
 
       - name: Build and analyze
         env:
+          GRADLE_OPTS: "-Xmx10g -XX:MaxMetaspaceSize=512m"
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info -x lint --continue
 
