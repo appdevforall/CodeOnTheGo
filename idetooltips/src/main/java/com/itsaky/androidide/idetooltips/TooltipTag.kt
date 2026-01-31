@@ -76,6 +76,8 @@ object TooltipTag {
     const val MAIN_PROJECT_DELETE = "main.project.delete"
     const val MAIN_HELP = "main.help"
     const val FEEDBACK = "feedback"
+    const val MAIN_PREFERENCES = "main.prefs"
+    const val MAIN_TERMINAL = "main.terminal"
 
     // Editor toolbar
     const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"
