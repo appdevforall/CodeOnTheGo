@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.lsp.IDELanguageClientImpl
 
 class DiagnosticsListFragment : RecyclerViewFragment<DiagnosticsAdapter>() {
 	override val fragmentTooltipTag: String? = TooltipTag.PROJECT_DIAGNOSTICS
@@ -34,5 +35,24 @@ class DiagnosticsListFragment : RecyclerViewFragment<DiagnosticsAdapter>() {
 	) {
 		super.onViewCreated(view, savedInstanceState)
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_diagnostics))
+		loadExistingDiagnostics()
+	}
+
+	override fun onResume() {
+		super.onResume()
+		loadExistingDiagnostics()
+	}
+
+	private fun loadExistingDiagnostics() {
+		if (!IDELanguageClientImpl.isInitialized()) {
+			return
+		}
+
+		val client = IDELanguageClientImpl.getInstance()
+		val activity = activity ?: return
+
+		if (activity is com.itsaky.androidide.interfaces.DiagnosticClickListener) {
+			setAdapter(client.newDiagnosticsAdapter())
+		}
 	}
 }

@@ -117,7 +117,6 @@ object FileManager {
     document.version = event.version
     document.modified = Instant.now()
     document.content = event.newText!!
-    event.newText = null
   }
 
   fun onDocumentClose(event: DocumentCloseEvent) {
