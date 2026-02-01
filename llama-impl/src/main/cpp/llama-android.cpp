@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <unistd.h>
 #include "llama.h"
+#include <codecvt>
+#include <locale>
 #include "common.h"
 
 #define TAG "llama-android.cpp"
@@ -71,6 +73,26 @@ static std::atomic<int> g_top_k(40);
 static std::atomic<int> g_n_ctx(4096);
 static std::atomic<bool> g_kv_cache_reuse(true);
 static std::vector<llama_token> g_cached_tokens;
+
+static jstring new_jstring_utf8(JNIEnv *env, const char *text) {
+    if (!text) {
+        return env->NewStringUTF("");
+    }
+
+    try {
+        std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> converter;
+        std::u16string u16 = converter.from_bytes(text);
+        return env->NewString(reinterpret_cast<const jchar *>(u16.data()),
+                              static_cast<jsize>(u16.size()));
+    } catch (const std::range_error &) {
+        std::string sanitized;
+        sanitized.reserve(strlen(text));
+        for (const unsigned char ch: std::string(text)) {
+            sanitized.push_back(ch < 0x80 ? static_cast<char>(ch) : '?');
+        }
+        return env->NewStringUTF(sanitized.c_str());
+    }
+}
 
 extern "C"
 JNIEXPORT void JNICALL
@@ -145,7 +167,7 @@ void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
         return;
     }
 
-    jstring jni_message = env->NewStringUTF(message);
+    jstring jni_message = new_jstring_utf8(env, message);
     if (jni_message == nullptr) {
         // Handle potential out-of-memory error
         if (did_attach_thread) {
@@ -395,7 +417,7 @@ Java_android_llama_cpp_LLamaAndroid_bench_1model(
     result << "| " << model_desc << " | " << model_size << "GiB | " << model_n_params << "B | "
            << backend << " | tg " << tg << " | " << tg_avg << " ± " << tg_std << " |\n";
 
-    return env->NewStringUTF(result.str().c_str());
+    return new_jstring_utf8(env, result.str().c_str());
 }
 
 extern "C"
@@ -524,7 +546,7 @@ Java_android_llama_cpp_LLamaAndroid_backend_1init(JNIEnv *, jobject, jboolean nu
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_android_llama_cpp_LLamaAndroid_system_1info(JNIEnv *env, jobject) {
-    return env->NewStringUTF(llama_print_system_info());
+    return new_jstring_utf8(env, llama_print_system_info());
 }
 
 static int g_prompt_tokens = 0;
@@ -687,14 +709,14 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
             }
         }
 
-        new_token = env->NewStringUTF(cached_token_chars.c_str());
+        new_token = new_jstring_utf8(env, cached_token_chars.c_str());
 
         log_info_to_kt("cached: %s, new_token_chars: `%s`, id: %d", cached_token_chars.c_str(),
                        new_token_chars.c_str(), new_token_id);
 
         cached_token_chars.clear();
     } else {
-        new_token = env->NewStringUTF("");
+        new_token = new_jstring_utf8(env, "");
     }
 
     common_batch_clear(*batch);

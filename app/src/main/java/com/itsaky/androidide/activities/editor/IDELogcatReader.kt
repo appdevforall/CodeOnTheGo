@@ -16,7 +16,6 @@
  */
 package com.itsaky.androidide.activities.editor
 
-import android.os.Process
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.transferToStream
 import kotlinx.coroutines.CoroutineScope
@@ -89,7 +88,8 @@ class IDELogcatReader {
       try {
         val process = ProcessBuilder(
           "logcat",
-          "--pid=${Process.myPid()}",
+          "-b",
+          "all",
           "-v",
           "threadtime"
         ).let { builder ->

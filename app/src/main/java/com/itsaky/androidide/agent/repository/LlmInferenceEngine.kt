@@ -385,6 +385,7 @@ class LlmInferenceEngine(
     private fun detectModelFamily(path: String): ModelFamily {
         val lowerPath = path.lowercase()
         return when {
+            lowerPath.contains("qwen") -> ModelFamily.QWEN
             lowerPath.contains("gemma-3") || lowerPath.contains("gemma3") -> ModelFamily.GEMMA3
             lowerPath.contains("gemma") -> ModelFamily.GEMMA2
             lowerPath.contains("llama") -> ModelFamily.LLAMA3

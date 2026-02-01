@@ -77,8 +77,18 @@ class Executor {
             }
 
             "list_files" -> {
-                val path = args["path"] as? String ?: ""
+                val rawPath = args["path"] as? String
+                val path = when {
+                    rawPath.isNullOrBlank() -> "."
+                    rawPath.startsWith("/home/") -> "."
+                    else -> rawPath
+                }
                 val recursive = args["recursive"]?.toString()?.toBoolean() ?: false
+                log.debug(
+                    "Executor: list_files normalized path='{}', recursive={}",
+                    path,
+                    recursive
+                )
                 IDEApiFacade.listFiles(path, recursive)
             }
 

@@ -48,6 +48,14 @@ class LocalLlmRepositoryImpl(
     private val toolTracker = ToolExecutionTracker()
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    private data class InferenceMetrics(
+        val text: String,
+        val durationMs: Long,
+        val ttftMs: Long?,
+        val responseTokens: Int,
+        val tokensPerSec: Double
+    )
+
     override var onStateUpdate: ((AgentState) -> Unit)? = null
     private val messageIdCounter = AtomicLong(0)
 
@@ -80,15 +88,26 @@ class LocalLlmRepositoryImpl(
     }
     private fun buildPromptWithHistory(
         history: List<ChatMessage>,
-        isFinalAnswerTurn: Boolean
+        isFinalAnswerTurn: Boolean,
+        requiredTool: String?,
+        forceToolCall: Boolean
     ): String {
         return when (engine.currentModelFamily) {
-            ModelFamily.LLAMA3 -> buildLlama3Prompt(history)
+            ModelFamily.LLAMA3 -> buildLlama3Prompt(history, requiredTool, forceToolCall)
+            ModelFamily.QWEN -> {
+                if (isFinalAnswerTurn) {
+                    buildGemma2FinalAnswerPrompt(history)
+                } else {
+                    buildQwenStrictToolPrompt(history, requiredTool)
+                }
+            }
+
+            ModelFamily.GEMMA3,
             ModelFamily.GEMMA2 -> {
                 if (isFinalAnswerTurn) {
                     buildGemma2FinalAnswerPrompt(history)
                 } else {
-                    buildGemma2Prompt(history)
+                    buildGemma2Prompt(history, requiredTool, forceToolCall)
                 }
             }
 
@@ -145,32 +164,52 @@ class LocalLlmRepositoryImpl(
                 listOf("Question:", "\n\n")
             } else {
                 // For tool selection, we now expect a structured XML tag.
-                listOf("</tool_call>")
+                val toolStops = mutableListOf("</tool_call>")
+                when (engine.currentModelFamily) {
+                    ModelFamily.LLAMA3 -> {
+                        toolStops.add("<|eot_id|>")
+                        toolStops.add("<|end_of_text|>")
+                        // Crude but effective for JSON-only tool calls.
+                        toolStops.add("}")
+                    }
+
+                    ModelFamily.QWEN -> {
+                        // Qwen answers with raw JSON; stop once it closes.
+                        toolStops.add("}")
+                    }
+
+                    else -> Unit
+                }
+                toolStops
             }
 
-            val fullPromptHistory = buildPromptWithHistory(currentHistory, isFinalAnswerTurn)
+            val userPrompt = currentHistory.lastOrNull { it.sender == Sender.USER }?.text.orEmpty()
+            val requiredTool = if (isFinalAnswerTurn) null else detectRequiredTool(userPrompt)
+
+            val fullPromptHistory = buildPromptWithHistory(
+                currentHistory,
+                isFinalAnswerTurn,
+                requiredTool,
+                false
+            )
             Log.d("AgentDebug", "Final Prompt Sent:\n$fullPromptHistory")
-            val startTime = System.nanoTime()
-            val modelResponse = try {
-                withContext(Dispatchers.IO) {
-                    engine.runInference(fullPromptHistory, stopStrings = stopStrings)
-                }
+            val attempt1 = try {
+                runInferenceWithMetrics(fullPromptHistory, stopStrings)
             } catch (e: Exception) {
                 Log.e("AgentLoop", "Model inference failed", e)
-                "Error: Could not get a response from the model."
+                InferenceMetrics(
+                    text = "Error: Could not get a response from the model.",
+                    durationMs = 0,
+                    ttftMs = null,
+                    responseTokens = 0,
+                    tokensPerSec = 0.0
+                )
             }
-            val durationMs = (System.nanoTime() - startTime) / 1_000_000
+            var modelResponse = attempt1.text
+            var totalDurationMs = attempt1.durationMs
+            var lastAttempt = attempt1
 
-            val stepEndWall = System.currentTimeMillis()
-            val stepEndCpu = Process.getElapsedCpuTime()
-            val memEnd = getMemSnapshot()
-            Log.i(
-                "AgentPerf",
-                "Step end: turn=${currentTurn + 1} wall=${stepEndWall} cpu=${stepEndCpu} mem=${memEnd} " +
-                        "durationMs=${durationMs} responseChars=${modelResponse.length}"
-            )
-
-            val finalResponse = modelResponse.split(stopStrings.first()).first()
+            var finalResponse = modelResponse.split(stopStrings.first()).first()
             Log.d("AgentDebug", "Raw Model Result: \"$modelResponse\"")
             Log.d("AgentDebug", "Trimmed Final Result: \"$finalResponse\"")
 
@@ -184,12 +223,66 @@ class LocalLlmRepositoryImpl(
                 }
                 updateLastMessage(cleanResponse)
 
+                val stepEndWall = System.currentTimeMillis()
+                val stepEndCpu = Process.getElapsedCpuTime()
+                val memEnd = getMemSnapshot()
+                Log.i(
+                    "AgentPerf",
+                    "Step end: turn=${currentTurn + 1} wall=${stepEndWall} cpu=${stepEndCpu} mem=${memEnd} " +
+                            "durationMs=${totalDurationMs} responseChars=${modelResponse.length} " +
+                            "ttftMs=${lastAttempt.ttftMs ?: -1} responseTokens=${lastAttempt.responseTokens} " +
+                            "tokPerSec=${"%.2f".format(lastAttempt.tokensPerSec)}"
+                )
+
                 Log.d("AgentDebug", "Final answer received. Concluding.")
-                updateLastMessageDuration(durationMs)
+                updateLastMessageDuration(totalDurationMs)
                 logSessionSummary(sessionStartWall, sessionStartCpu)
                 break
             } else {
-                val toolCall = Util.parseToolCall(finalResponse, tools.keys)
+                var toolCall = Util.parseToolCall(finalResponse, tools.keys)
+                if (toolCall == null && requiredTool != null) {
+                    Log.w(
+                        "AgentDebug",
+                        "Tool required ($requiredTool) but no tool call detected. Retrying with forced tool prompt."
+                    )
+                    val forcedPrompt = buildPromptWithHistory(
+                        currentHistory,
+                        false,
+                        requiredTool,
+                        true
+                    )
+                    Log.d("AgentDebug", "Forced Tool Prompt Sent:\n$forcedPrompt")
+                    val attempt2 = try {
+                        runInferenceWithMetrics(forcedPrompt, stopStrings)
+                    } catch (e: Exception) {
+                        Log.e("AgentLoop", "Model inference failed on forced tool retry", e)
+                        InferenceMetrics(
+                            text = "Error: Could not get a response from the model.",
+                            durationMs = 0,
+                            ttftMs = null,
+                            responseTokens = 0,
+                            tokensPerSec = 0.0
+                        )
+                    }
+                    modelResponse = attempt2.text
+                    totalDurationMs += attempt2.durationMs
+                    lastAttempt = attempt2
+                    finalResponse = modelResponse.split(stopStrings.first()).first()
+                    Log.d("AgentDebug", "Forced Tool Raw Result: \"$modelResponse\"")
+                    Log.d("AgentDebug", "Forced Tool Final Result: \"$finalResponse\"")
+                    toolCall = Util.parseToolCall(finalResponse, tools.keys)
+                }
+
+                val stepEndWall = System.currentTimeMillis()
+                val stepEndCpu = Process.getElapsedCpuTime()
+                val memEnd = getMemSnapshot()
+                Log.i(
+                    "AgentPerf",
+                    "Step end: turn=${currentTurn + 1} wall=${stepEndWall} cpu=${stepEndCpu} mem=${memEnd} " +
+                            "durationMs=${totalDurationMs} responseChars=${modelResponse.length} " +
+                            "ttftMs=${lastAttempt.ttftMs ?: -1} responseTokens=${lastAttempt.responseTokens} " +
+                            "tokPerSec=${"%.2f".format(lastAttempt.tokensPerSec)}"
+                )
 
                 if (toolCall != null) {
                     val tool = tools[toolCall.name]
@@ -204,13 +297,13 @@ class LocalLlmRepositoryImpl(
                                 toolCall.args.map { "${it.key}=${it.value}" }.joinToString()
                             })"
                         )
-                        updateLastMessageDuration(durationMs)
+                        updateLastMessageDuration(totalDurationMs)
 
                         // Execute the tool with the parsed arguments
                         val result = tool.execute(context, toolCall.args)
                         if (toolCall.name == "list_files") {
                             updateLastMessage("Files in project root:\n$result")
-                            updateLastMessageDuration(durationMs)
+                            updateLastMessageDuration(totalDurationMs)
                             logSessionSummary(sessionStartWall, sessionStartCpu)
                             break
                         }
@@ -225,7 +318,7 @@ class LocalLlmRepositoryImpl(
                 } else {
                     // No tool call detected, this is a direct answer.
                     updateLastMessage(finalResponse)
-                    updateLastMessageDuration(durationMs)
+                    updateLastMessageDuration(totalDurationMs)
                     logSessionSummary(sessionStartWall, sessionStartCpu)
                     Log.d("AgentDebug", "No tool call detected. Model gave a direct answer.")
                     break
@@ -246,13 +339,51 @@ class LocalLlmRepositoryImpl(
         )
     }
 
+    private suspend fun runInferenceWithMetrics(
+        prompt: String,
+        stopStrings: List<String>
+    ): InferenceMetrics {
+        val startNs = System.nanoTime()
+        var firstTokenNs: Long? = null
+        val builder = StringBuilder()
+
+        withContext(Dispatchers.IO) {
+            engine.runStreamingInference(prompt, stopStrings = stopStrings).collect { chunk ->
+                if (firstTokenNs == null && chunk.isNotEmpty()) {
+                    firstTokenNs = System.nanoTime()
+                }
+                builder.append(chunk)
+            }
+        }
+
+        val endNs = System.nanoTime()
+        val durationMs = (endNs - startNs) / 1_000_000
+        val ttftMs = firstTokenNs?.let { (it - startNs) / 1_000_000 }
+        val response = builder.toString()
+        val responseTokens = engine.countTokens(response)
+        val tokensPerSec =
+            if (durationMs > 0) responseTokens.toDouble() / (durationMs / 1000.0) else 0.0
+
+        return InferenceMetrics(
+            text = response,
+            durationMs = durationMs,
+            ttftMs = ttftMs,
+            responseTokens = responseTokens,
+            tokensPerSec = tokensPerSec
+        )
+    }
+
     private fun getMemSnapshot(): String {
         val memInfo = Debug.MemoryInfo()
         Debug.getMemoryInfo(memInfo)
         return "pssKb=${memInfo.totalPss} privateDirtyKb=${memInfo.totalPrivateDirty}"
     }
 
-    private fun buildGemma2Prompt(history: List<ChatMessage>): String {
+    private fun buildGemma2Prompt(
+        history: List<ChatMessage>,
+        requiredTool: String?,
+        forceToolCall: Boolean
+    ): String {
         // Find if the last message was a tool result to decide which prompt to use
         val isFinalAnswerTurn = history.lastOrNull()?.sender == Sender.AGENT &&
                 history.getOrNull(history.size - 2)?.sender == Sender.TOOL
@@ -284,12 +415,19 @@ Answer:
                 }" }"""
             }
 
+            val toolRequirementNote = when {
+                requiredTool == null -> ""
+                forceToolCall -> "Tool required: $requiredTool. You MUST respond with a single <tool_call> tag for this tool and nothing else."
+                else -> "Tool required: $requiredTool. You must call this tool to answer; do not answer directly."
+            }
+
             val systemInstruction = """
 You are a helpful assistant with access to the following tools:
 [$toolsAsJson]
 
 To use a tool, respond with a single `<tool_call>` XML tag containing a JSON object with the tool's 'name' and 'args'.
 If no tool is needed, answer the user's question directly.
+$toolRequirementNote
 
 EXAMPLE:
 user: What is the weather like in Paris?
@@ -302,6 +440,7 @@ model: <tool_call>{"name": "get_weather", "args": {"city": "Paris"}}</tool_call>
                 when (message.sender) {
                     Sender.USER -> promptBuilder.append("user: ${message.text}\n")
                     Sender.AGENT -> if (message.text.isNotBlank()) promptBuilder.append("model: ${message.text}\n")
+                    Sender.SYSTEM -> promptBuilder.append("system: ${message.text}\n")
                     else -> {}
                 }
             }
@@ -329,20 +468,63 @@ Answer:
         return finalPrompt
     }
 
-    private fun buildLlama3Prompt(history: List<ChatMessage>): String {
+    private fun buildQwenStrictToolPrompt(
+        history: List<ChatMessage>,
+        requiredTool: String?
+    ): String {
+        val toolsAsJson = tools.values.joinToString(",\n") { tool ->
+            """  { "name": "${tool.name}", "description": "${
+                tool.description.replace("\"", "\\\"")
+            }" }"""
+        }
+
+        val toolRequirementNote =
+            requiredTool?.let { "Tool required: $it. You MUST call this tool." } ?: ""
+
+        val systemInstruction = """
+You are a function-calling agent.
+You DO NOT answer with text.
+You ONLY answer with a JSON object matching this schema:
+{"name":"<tool_name>","args":{...}}
+
+Available tools:
+[$toolsAsJson]
+
+$toolRequirementNote
+If you do not need a parameter, omit it from "args" (do NOT use null).
+Return ONLY the JSON object and nothing else.
+        """.trimIndent()
+
+        val userQuestion = history.findLast { it.sender == Sender.USER }?.text.orEmpty()
+        return "$systemInstruction\n\nUser: $userQuestion\nAnswer:"
+    }
+
+    private fun buildLlama3Prompt(
+        history: List<ChatMessage>,
+        requiredTool: String?,
+        forceToolCall: Boolean
+    ): String {
+        val effectiveHistory = buildLlama3History(history, requiredTool)
         val historyBuilder = StringBuilder()
         historyBuilder.append("<|begin_of_text|>")
-        historyBuilder.append("<|start_header_id|>system<|end_header_id|>\n\n$masterSystemPrompt<|eot_id|>")
-        for (message in history) {
+        val toolRequirementNote = when {
+            requiredTool == null -> ""
+            forceToolCall -> "\n\nTool required: $requiredTool. You MUST respond with a single <tool_call> tag for this tool and nothing else."
+            else -> "\n\nTool required: $requiredTool. You must call this tool to answer; do not answer directly."
+        }
+        historyBuilder.append("<|start_header_id|>system<|end_header_id|>\n\n$masterSystemPrompt$toolRequirementNote<|eot_id|>")
+        for (message in effectiveHistory) {
             when (message.sender) {
                 Sender.USER -> historyBuilder.append("<|start_header_id|>user<|end_header_id|>\n\n${message.text}<|eot_id|>")
                 Sender.AGENT -> {
                     if (message.text.isNotBlank()) {
-                        historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n${message.text}")
+                        historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n${message.text}<|eot_id|>")
                     }
                 }
 
-                Sender.SYSTEM -> {}
+                Sender.SYSTEM -> {
+                    historyBuilder.append("<|start_header_id|>system<|end_header_id|>\n\n${message.text}<|eot_id|>")
+                }
                 Sender.TOOL -> {
                     historyBuilder.append("<|start_header_id|>tool<|end_header_id|>\n")
                     historyBuilder.append(message.text)
@@ -352,6 +534,51 @@ Answer:
         }
         historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n")
         return historyBuilder.toString()
+    }
+
+    private fun buildLlama3History(
+        history: List<ChatMessage>,
+        requiredTool: String?
+    ): List<ChatMessage> {
+        val lastUser = history.lastOrNull { it.sender == Sender.USER }
+        if (requiredTool != null) {
+            return listOfNotNull(lastUser)
+        }
+
+        val recent = history.takeLast(8)
+        val cleaned = mutableListOf<ChatMessage>()
+        var lastUserText: String? = null
+        for (message in recent) {
+            when (message.sender) {
+                Sender.AGENT -> {
+                    val text = message.text.trim()
+                    if (text.isBlank()) continue
+                    if (text.contains(
+                            "<tool_call>",
+                            ignoreCase = true
+                        ) || text.contains("Tool Call:", ignoreCase = true)
+                    ) {
+                        continue
+                    }
+                    cleaned.add(message)
+                }
+
+                Sender.USER -> {
+                    if (message.text == lastUserText) continue
+                    lastUserText = message.text
+                    cleaned.add(message)
+                }
+
+                Sender.TOOL -> {
+                    val text = message.text.trim()
+                    if (text.isBlank()) continue
+                    cleaned.add(message.copy(text = text.take(1200)))
+                }
+
+                Sender.SYSTEM -> cleaned.add(message)
+            }
+        }
+        return cleaned
     }
 
     override fun getPartialReport(): String = toolTracker.generatePartialReport()
@@ -419,5 +646,33 @@ Answer:
     }
     override fun loadHistory(history: List<ChatMessage>) {
         _messages.value = history.toList()
+    }
+
+    private fun detectRequiredTool(prompt: String): String? {
+        val text = prompt.lowercase()
+
+        if (text.contains("battery")) return "get_device_battery"
+
+        val timeKeywords = listOf("time", "date", "datetime", "current time", "current date", "now")
+        if (timeKeywords.any { text.contains(it) }) return "get_current_datetime"
+
+        if (text.contains("weather") || text.contains("temperature") || text.contains("forecast")) {
+            return "get_weather"
+        }
+
+        val fileKeywords = listOf("file", "files", "folder", "folders", "directory", "directories")
+        val listKeywords = listOf("list", "show", "display", "print", "tree", "structure")
+        val projectKeywords = listOf("project", "root")
+        if (listKeywords.any { text.contains(it) } &&
+            (fileKeywords.any { text.contains(it) } || projectKeywords.any { text.contains(it) })
+        ) {
+            return "list_files"
+        }
+
+        if (text.contains("file tree") || text.contains("project structure")) {
+            return "list_files"
+        }
+
+        return null
     }
 }

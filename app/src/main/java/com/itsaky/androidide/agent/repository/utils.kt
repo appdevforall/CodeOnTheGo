@@ -53,13 +53,50 @@ object Util {
     }
 
     private fun findPotentialJsonObjectString(responseText: String): String? {
-        // This function is now simpler. It just looks for the content between the first '{' and the last '}'.
-        // This is robust enough to handle markdown code blocks or raw JSON output.
-        val firstBraceIndex = responseText.indexOf('{')
-        val lastBraceIndex = responseText.lastIndexOf('}')
+        extractFirstJsonObject(responseText)?.let { return it }
 
-        if (firstBraceIndex != -1 && lastBraceIndex != -1 && firstBraceIndex < lastBraceIndex) {
-            return responseText.substring(firstBraceIndex, lastBraceIndex + 1)
+        val toolBlock = extractFirstToolCallBlock(responseText)
+        if (toolBlock != null) {
+            extractFirstJsonObject(toolBlock)?.let { return it }
+        }
+
+        return null
+    }
+
+    private fun extractFirstToolCallBlock(text: String): String? {
+        val start = text.indexOf("<tool_call>")
+        if (start == -1) return null
+        val end = text.indexOf("</tool_call>", start + "<tool_call>".length)
+        if (end == -1) return text.substring(start + "<tool_call>".length)
+        return text.substring(start + "<tool_call>".length, end)
+    }
+
+    private fun extractFirstJsonObject(text: String): String? {
+        var inString = false
+        var escape = false
+        var depth = 0
+        var start = -1
+        for (i in text.indices) {
+            val ch = text[i]
+            if (escape) {
+                escape = false
+                continue
+            }
+            when (ch) {
+                '\\' -> if (inString) escape = true
+                '"' -> inString = !inString
+                '{' -> if (!inString) {
+                    if (depth == 0) start = i
+                    depth += 1
+                }
+
+                '}' -> if (!inString && depth > 0) {
+                    depth -= 1
+                    if (depth == 0 && start != -1) {
+                        return text.substring(start, i + 1)
+                    }
+                }
+            }
         }
         return null
     }
@@ -87,7 +124,11 @@ object Util {
             return null
         }
         val resolvedName = if (rawName == "list_dir") "list_files" else rawName
-        val args = argsObject?.mapValues { (_, value) -> value.toToolArgString() } ?: emptyMap()
+        val args =
+            argsObject
+                ?.mapValues { (_, value) -> value.toToolArgString() }
+                ?.filterValues { it != "null" }
+                ?: emptyMap()
         return LocalLLMToolCall(resolvedName, args)
     }
 
