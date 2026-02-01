@@ -1,6 +1,8 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
+import android.os.Debug
+import android.os.Process
 import android.util.Log
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
@@ -69,6 +71,7 @@ class LocalLlmRepositoryImpl(
         BatteryTool(),
         GetDateTimeTool(),
         GetWeatherTool(),
+        ListFilesTool(),
     ).associateBy { it.name }
 
     private val masterSystemPrompt: String by lazy {
@@ -113,6 +116,13 @@ class LocalLlmRepositoryImpl(
     private suspend fun runAgentLoop() {
         toolTracker.startTracking()
 
+        val sessionStartWall = System.currentTimeMillis()
+        val sessionStartCpu = Process.getElapsedCpuTime()
+        Log.i(
+            "AgentPerf",
+            "Session start: wall=${sessionStartWall}ms cpu=${sessionStartCpu}ms model=${engine.loadedModelName}"
+        )
+
         val maxTurns = 5
         var currentTurn = 0
         while (currentTurn < maxTurns) {
@@ -120,6 +130,14 @@ class LocalLlmRepositoryImpl(
             val currentHistory = _messages.value
             val isFinalAnswerTurn =
                 currentHistory.getOrNull(currentHistory.size - 2)?.sender == Sender.TOOL
+
+            val stepStartWall = System.currentTimeMillis()
+            val stepStartCpu = Process.getElapsedCpuTime()
+            val memStart = getMemSnapshot()
+            Log.i(
+                "AgentPerf",
+                "Step start: turn=${currentTurn + 1} wall=${stepStartWall} cpu=${stepStartCpu} mem=${memStart}"
+            )
 
             // 2. UPDATE THE STOP STRINGS
             val stopStrings = if (isFinalAnswerTurn) {
@@ -143,6 +161,15 @@ class LocalLlmRepositoryImpl(
             }
             val durationMs = (System.nanoTime() - startTime) / 1_000_000
 
+            val stepEndWall = System.currentTimeMillis()
+            val stepEndCpu = Process.getElapsedCpuTime()
+            val memEnd = getMemSnapshot()
+            Log.i(
+                "AgentPerf",
+                "Step end: turn=${currentTurn + 1} wall=${stepEndWall} cpu=${stepEndCpu} mem=${memEnd} " +
+                        "durationMs=${durationMs} responseChars=${modelResponse.length}"
+            )
+
             val finalResponse = modelResponse.split(stopStrings.first()).first()
             Log.d("AgentDebug", "Raw Model Result: \"$modelResponse\"")
             Log.d("AgentDebug", "Trimmed Final Result: \"$finalResponse\"")
@@ -159,6 +186,7 @@ class LocalLlmRepositoryImpl(
 
                 Log.d("AgentDebug", "Final answer received. Concluding.")
                 updateLastMessageDuration(durationMs)
+                logSessionSummary(sessionStartWall, sessionStartCpu)
                 break
             } else {
                 val toolCall = Util.parseToolCall(finalResponse, tools.keys)
@@ -172,7 +200,7 @@ class LocalLlmRepositoryImpl(
                         )
                         // Display a user-friendly version of the tool call
                         updateLastMessage(
-                            "Tool Call: ${toolCall.name}(${
+                            "Tool Call: ${toolCall.name}(${ 
                                 toolCall.args.map { "${it.key}=${it.value}" }.joinToString()
                             })"
                         )
@@ -180,6 +208,12 @@ class LocalLlmRepositoryImpl(
 
                         // Execute the tool with the parsed arguments
                         val result = tool.execute(context, toolCall.args)
+                        if (toolCall.name == "list_files") {
+                            updateLastMessage("Files in project root:\n$result")
+                            updateLastMessageDuration(durationMs)
+                            logSessionSummary(sessionStartWall, sessionStartCpu)
+                            break
+                        }
                         addMessage(result, Sender.TOOL)
                         addMessage("", Sender.AGENT)
                     } else {
@@ -192,12 +226,30 @@ class LocalLlmRepositoryImpl(
                     // No tool call detected, this is a direct answer.
                     updateLastMessage(finalResponse)
                     updateLastMessageDuration(durationMs)
+                    logSessionSummary(sessionStartWall, sessionStartCpu)
                     Log.d("AgentDebug", "No tool call detected. Model gave a direct answer.")
                     break
                 }
             }
             currentTurn++
         }
+    }
+
+    private fun logSessionSummary(startWall: Long, startCpu: Long) {
+        val endWall = System.currentTimeMillis()
+        val endCpu = Process.getElapsedCpuTime()
+        val mem = getMemSnapshot()
+        Log.i(
+            "AgentPerf",
+            "Session end: wall=${endWall} cpu=${endCpu} elapsedWall=${endWall - startWall} " +
+                    "elapsedCpu=${endCpu - startCpu} mem=${mem}"
+        )
+    }
+
+    private fun getMemSnapshot(): String {
+        val memInfo = Debug.MemoryInfo()
+        Debug.getMemoryInfo(memInfo)
+        return "pssKb=${memInfo.totalPss} privateDirtyKb=${memInfo.totalPrivateDirty}"
     }
 
     private fun buildGemma2Prompt(history: List<ChatMessage>): String {
@@ -366,6 +418,6 @@ Answer:
         }
     }
     override fun loadHistory(history: List<ChatMessage>) {
-        _messages.value = history
+        _messages.value = history.toList()
     }
 }

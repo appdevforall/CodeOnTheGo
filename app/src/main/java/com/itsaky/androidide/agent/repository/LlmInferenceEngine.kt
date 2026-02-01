@@ -2,12 +2,14 @@ package com.itsaky.androidide.agent.repository
 
 import android.content.Context
 import androidx.core.net.toUri
-import com.itsaky.androidide.utils.DynamicLibraryLoader
 import com.itsaky.androidide.llamacpp.api.ILlamaController
+import com.itsaky.androidide.utils.DynamicLibraryLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -30,6 +32,7 @@ class LlmInferenceEngine(
     private var isInitialized = false
     private var samplingDefaults = SamplingConfig(temperature = 0.7f, topP = 0.9f, topK = 40)
     private var configuredContextSize = 4096
+    private val modelLoadMutex = Mutex()
 
     @Volatile
     var isModelLoaded: Boolean = false
@@ -230,77 +233,84 @@ class LlmInferenceEngine(
         modelUriString: String,
         expectedSha256: String? = null
     ): Boolean {
-        if (!isInitialized && !initialize(context)) {
-            log.error("Engine initialization failed. Cannot load model.")
-            return false
-        }
-        if (isModelLoaded) {
-            unloadModel()
-        }
-        return withContext(ioDispatcher) {
-            try {
-                val modelUri = modelUriString.toUri()
-                val displayName =
-                    context.contentResolver.query(modelUri, null, null, null, null)?.use { cursor ->
-                        val nameIndex =
-                            cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                        cursor.moveToFirst()
-                        cursor.getString(nameIndex)
+        return modelLoadMutex.withLock {
+            if (!isInitialized && !initialize(context)) {
+                log.error("Engine initialization failed. Cannot load model.")
+                return@withLock false
+            }
+            if (isModelLoaded) {
+                unloadModel()
+            }
+            withContext(ioDispatcher) {
+                try {
+                    val modelUri = modelUriString.toUri()
+                    val displayName =
+                        context.contentResolver.query(modelUri, null, null, null, null)
+                            ?.use { cursor ->
+                                val nameIndex =
+                                    cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                cursor.moveToFirst()
+                                cursor.getString(nameIndex)
+                            } ?: run {
+                            val fileNameFromPath = modelUri.path?.let { File(it).name }
+                            fileNameFromPath ?: "local_model.gguf"
+                        }
+
+                    val destinationFile = File(context.cacheDir, "local_model.gguf")
+
+                    val inputStream =
+                        when (modelUri.scheme) {
+                            "file" -> modelUri.path?.let { path -> File(path).inputStream() }
+                            "content" -> context.contentResolver.openInputStream(modelUri)
+                            else -> context.contentResolver.openInputStream(modelUri)
+                        }
+
+                    inputStream?.use { input ->
+                        FileOutputStream(destinationFile).use { outputStream ->
+                            input.copyTo(outputStream)
+                        }
                     } ?: run {
-                        val fileNameFromPath = modelUri.path?.let { File(it).name }
-                        fileNameFromPath ?: "local_model.gguf"
-                    }
-
-                val destinationFile = File(context.cacheDir, "local_model.gguf")
-
-                val inputStream =
-                    when (modelUri.scheme) {
-                        "file" -> modelUri.path?.let { path -> File(path).inputStream() }
-                        "content" -> context.contentResolver.openInputStream(modelUri)
-                        else -> context.contentResolver.openInputStream(modelUri)
-                    }
-
-                inputStream?.use { input ->
-                    FileOutputStream(destinationFile).use { outputStream ->
-                        input.copyTo(outputStream)
-                    }
-                } ?: run {
-                    android.util.Log.e(
-                        "LlmEngine",
-                        "Failed to open input stream for model URI: $modelUri"
-                    )
-                    return@withContext false
-                }
-                log.info("Model copied to cache at {}", destinationFile.path)
-
-                val normalizedExpected = expectedSha256?.trim()?.lowercase().orEmpty()
-                if (normalizedExpected.isNotBlank()) {
-                    val actual = sha256(destinationFile)
-                    if (!actual.equals(normalizedExpected, ignoreCase = true)) {
-                        log.error(
-                            "Model hash verification failed. expected={}, actual={}",
-                            normalizedExpected,
-                            actual
+                        android.util.Log.e(
+                            "LlmEngine",
+                            "Failed to open input stream for model URI: $modelUri"
                         )
                         return@withContext false
                     }
-                }
+                    log.info("Model copied to cache at {}", destinationFile.path)
 
-                llamaController?.load(destinationFile.path)
-                isModelLoaded = true
-                loadedModelPath = destinationFile.path
-                loadedModelName = displayName
-                currentModelFamily = detectModelFamily(displayName)
-                log.info("Successfully loaded local model: {}", loadedModelName)
-                true
-            } catch (e: Exception) {
-                log.error("Failed to initialize or load model from file", e)
-                android.util.Log.e("LlmEngine", "Failed to initialize or load model from file", e)
-                isModelLoaded = false
-                loadedModelPath = null
-                loadedModelName = null
-                currentModelFamily = ModelFamily.UNKNOWN
-                false
+                    val normalizedExpected = expectedSha256?.trim()?.lowercase().orEmpty()
+                    if (normalizedExpected.isNotBlank()) {
+                        val actual = sha256(destinationFile)
+                        if (!actual.equals(normalizedExpected, ignoreCase = true)) {
+                            log.error(
+                                "Model hash verification failed. expected={}, actual={}",
+                                normalizedExpected,
+                                actual
+                            )
+                            return@withContext false
+                        }
+                    }
+
+                    llamaController?.load(destinationFile.path)
+                    isModelLoaded = true
+                    loadedModelPath = destinationFile.path
+                    loadedModelName = displayName
+                    currentModelFamily = detectModelFamily(displayName)
+                    log.info("Successfully loaded local model: {}", loadedModelName)
+                    true
+                } catch (e: Exception) {
+                    log.error("Failed to initialize or load model from file", e)
+                    android.util.Log.e(
+                        "LlmEngine",
+                        "Failed to initialize or load model from file",
+                        e
+                    )
+                    isModelLoaded = false
+                    loadedModelPath = null
+                    loadedModelName = null
+                    currentModelFamily = ModelFamily.UNKNOWN
+                    false
+                }
             }
         }
     }

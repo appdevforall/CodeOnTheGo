@@ -2,6 +2,7 @@ package com.itsaky.androidide.agent.repository
 
 import android.content.Context
 import android.os.BatteryManager
+import com.itsaky.androidide.api.commands.ListFilesCommand
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -43,5 +44,22 @@ class GetDateTimeTool : Tool {
         val formatter = DateTimeFormatter.ofPattern("eeee, MMMM d, yyyy h:mm a")
         val formatted = currentDateTime.format(formatter)
         return "[Tool Result for $name]: The current date and time is $formatted."
+    }
+}
+
+class ListFilesTool : Tool {
+    override val name: String = "list_files"
+    override val description: String =
+        "Lists files and directories in the current project. Args: path (optional), recursive (optional)."
+
+    override fun execute(context: Context, args: Map<String, String>): String {
+        val path = args["path"].orEmpty()
+        val recursive = args["recursive"]?.toBoolean() ?: false
+        val result = ListFilesCommand(path, recursive).execute()
+        return if (result.success) {
+            result.data?.ifBlank { result.message ?: "" } ?: result.message ?: ""
+        } else {
+            listOfNotNull(result.message, result.error_details).joinToString("\n")
+        }
     }
 }

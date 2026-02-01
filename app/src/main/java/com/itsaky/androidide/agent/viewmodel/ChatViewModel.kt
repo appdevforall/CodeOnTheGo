@@ -21,6 +21,7 @@ import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.getFileName
@@ -108,7 +109,7 @@ class ChatViewModel : ViewModel() {
 		chatStorageManager = ChatStorageManager(agentDir)
 	}
 
-	private fun getOrCreateRepository(context: Context): GeminiRepository? {
+    private suspend fun getOrCreateRepository(context: Context): GeminiRepository? {
 		val prefs = BaseApplication.baseInstance.prefManager
 		val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
 		val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
@@ -136,15 +137,34 @@ class ChatViewModel : ViewModel() {
 					// Get the SINGLE, SHARED instance of the engine
 					val engine = LlmInferenceEngineProvider.instance
 
-					// The model should ALREADY be loaded by the settings page.
-					// We just check if it's ready.
-					if (!engine.isModelLoaded) {
-						log.error("Initialization failed: Local LLM model is not loaded.")
-						null // Return null to show an error message in the UI
+                    val expectedModelPath = modelPath?.trim().orEmpty()
+                    if (expectedModelPath.isBlank()) {
+                        log.error("Initialization failed: Local LLM model path is not set.")
+                        null
 					} else {
-						log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
-						LocalLlmRepositoryImpl(context, engine).apply {
-							onStateUpdate = { _agentState.value = it }
+                        run {
+                            val needsReload =
+                                !engine.isModelLoaded || engine.loadedModelPath != expectedModelPath
+                            if (needsReload) {
+                                val expectedHash =
+                                    prefs.getString(PREF_KEY_LOCAL_MODEL_SHA256, null)
+                                val loaded = withContext(Dispatchers.IO) {
+                                    engine.initModelFromFile(
+                                        context,
+                                        expectedModelPath,
+                                        expectedHash
+                                    )
+                                }
+                                if (!loaded) {
+                                    log.error("Initialization failed: Local LLM model load failed.")
+                                    return@run null
+                                }
+                            }
+
+                            log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
+                            LocalLlmRepositoryImpl(context, engine).apply {
+                                onStateUpdate = { _agentState.value = it }
+                            }
 						}
 					}
 				}
