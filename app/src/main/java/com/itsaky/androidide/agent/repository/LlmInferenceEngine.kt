@@ -32,6 +32,8 @@ class LlmInferenceEngine(
     private var isInitialized = false
     private var samplingDefaults = SamplingConfig(temperature = 0.7f, topP = 0.9f, topK = 40)
     private var configuredContextSize = 4096
+    private var configuredMaxTokens = 512
+    private var defaultMaxTokens = 512
     private val modelLoadMutex = Mutex()
 
     @Volatile
@@ -152,6 +154,8 @@ class LlmInferenceEngine(
                 ?.invoke(null, configuredContextSize)
 
             val maxTokens = (configuredContextSize * 0.25f).toInt().coerceIn(128, 512)
+            configuredMaxTokens = maxTokens
+            defaultMaxTokens = maxTokens
             llamaAndroidClass.methods.firstOrNull { it.name == "configureMaxTokens" }
                 ?.invoke(null, maxTokens)
 
@@ -177,6 +181,21 @@ class LlmInferenceEngine(
         } catch (e: Exception) {
             android.util.Log.w("LlmEngine", "Failed to update sampling", e)
         }
+    }
+
+    fun updateMaxTokens(maxTokens: Int) {
+        val klass = llamaAndroidClass ?: return
+        try {
+            configuredMaxTokens = maxTokens
+            klass.methods.firstOrNull { it.name == "configureMaxTokens" }
+                ?.invoke(null, maxTokens)
+        } catch (e: Exception) {
+            android.util.Log.w("LlmEngine", "Failed to update max tokens", e)
+        }
+    }
+
+    fun resetMaxTokens() {
+        updateMaxTokens(defaultMaxTokens)
     }
 
     fun resetSamplingDefaults() {
@@ -362,7 +381,8 @@ class LlmInferenceEngine(
     suspend fun runStreamingInference(
         prompt: String,
         stopStrings: List<String> = emptyList(),
-        clearCache: Boolean = true
+        clearCache: Boolean = true,
+        formatChat: Boolean = false
     ): Flow<String> {
         val controller = llamaController ?: throw IllegalStateException("Engine not initialized.")
         if (!isModelLoaded) throw IllegalStateException("Model is not loaded.")
@@ -370,7 +390,8 @@ class LlmInferenceEngine(
         if (clearCache) {
             controller.clearKvCache()
         }
-        return controller.send(prompt, stop = stopStrings).flowOn(ioDispatcher)
+        return controller.send(prompt, formatChat = formatChat, stop = stopStrings)
+            .flowOn(ioDispatcher)
     }
 
     fun stop() {
@@ -385,6 +406,7 @@ class LlmInferenceEngine(
     private fun detectModelFamily(path: String): ModelFamily {
         val lowerPath = path.lowercase()
         return when {
+            lowerPath.contains("h2o") || lowerPath.contains("danube") -> ModelFamily.H2O
             lowerPath.contains("qwen") -> ModelFamily.QWEN
             lowerPath.contains("gemma-3") || lowerPath.contains("gemma3") -> ModelFamily.GEMMA3
             lowerPath.contains("gemma") -> ModelFamily.GEMMA2

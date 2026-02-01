@@ -101,6 +101,13 @@ class LocalLlmRepositoryImpl(
                     buildQwenStrictToolPrompt(history, requiredTool)
                 }
             }
+            ModelFamily.H2O -> {
+                if (isFinalAnswerTurn) {
+                    buildGemma2FinalAnswerPrompt(history)
+                } else {
+                    buildH2oToolPrompt(history, requiredTool)
+                }
+            }
 
             ModelFamily.GEMMA3,
             ModelFamily.GEMMA2 -> {
@@ -173,7 +180,8 @@ class LocalLlmRepositoryImpl(
                         toolStops.add("}")
                     }
 
-                    ModelFamily.QWEN -> {
+                    ModelFamily.QWEN,
+                    ModelFamily.H2O -> {
                         // Qwen answers with raw JSON; stop once it closes.
                         toolStops.add("}")
                     }
@@ -185,6 +193,9 @@ class LocalLlmRepositoryImpl(
 
             val userPrompt = currentHistory.lastOrNull { it.sender == Sender.USER }?.text.orEmpty()
             val requiredTool = if (isFinalAnswerTurn) null else detectRequiredTool(userPrompt)
+            val isH2oToolTurn = !isFinalAnswerTurn && engine.currentModelFamily == ModelFamily.H2O
+            val formatChat = engine.currentModelFamily == ModelFamily.H2O
+            val maxTokensOverride = if (isH2oToolTurn) 128 else null
 
             val fullPromptHistory = buildPromptWithHistory(
                 currentHistory,
@@ -194,7 +205,12 @@ class LocalLlmRepositoryImpl(
             )
             Log.d("AgentDebug", "Final Prompt Sent:\n$fullPromptHistory")
             val attempt1 = try {
-                runInferenceWithMetrics(fullPromptHistory, stopStrings)
+                runInferenceWithMetrics(
+                    fullPromptHistory,
+                    stopStrings,
+                    formatChat,
+                    maxTokensOverride
+                )
             } catch (e: Exception) {
                 Log.e("AgentLoop", "Model inference failed", e)
                 InferenceMetrics(
@@ -239,7 +255,13 @@ class LocalLlmRepositoryImpl(
                 logSessionSummary(sessionStartWall, sessionStartCpu)
                 break
             } else {
-                var toolCall = Util.parseToolCall(finalResponse, tools.keys)
+                val responseForParse =
+                    if (requiredTool != null && engine.currentModelFamily == ModelFamily.H2O) {
+                        normalizeH2oToolResponse(finalResponse, requiredTool)
+                    } else {
+                        finalResponse
+                    }
+                var toolCall = Util.parseToolCall(responseForParse, tools.keys)
                 if (toolCall == null && requiredTool != null) {
                     Log.w(
                         "AgentDebug",
@@ -253,7 +275,12 @@ class LocalLlmRepositoryImpl(
                     )
                     Log.d("AgentDebug", "Forced Tool Prompt Sent:\n$forcedPrompt")
                     val attempt2 = try {
-                        runInferenceWithMetrics(forcedPrompt, stopStrings)
+                        runInferenceWithMetrics(
+                            forcedPrompt,
+                            stopStrings,
+                            formatChat,
+                            maxTokensOverride
+                        )
                     } catch (e: Exception) {
                         Log.e("AgentLoop", "Model inference failed on forced tool retry", e)
                         InferenceMetrics(
@@ -270,7 +297,13 @@ class LocalLlmRepositoryImpl(
                     finalResponse = modelResponse.split(stopStrings.first()).first()
                     Log.d("AgentDebug", "Forced Tool Raw Result: \"$modelResponse\"")
                     Log.d("AgentDebug", "Forced Tool Final Result: \"$finalResponse\"")
-                    toolCall = Util.parseToolCall(finalResponse, tools.keys)
+                    val forcedResponseForParse =
+                        if (engine.currentModelFamily == ModelFamily.H2O) {
+                            normalizeH2oToolResponse(finalResponse, requiredTool)
+                        } else {
+                            finalResponse
+                        }
+                    toolCall = Util.parseToolCall(forcedResponseForParse, tools.keys)
                 }
 
                 val stepEndWall = System.currentTimeMillis()
@@ -341,18 +374,33 @@ class LocalLlmRepositoryImpl(
 
     private suspend fun runInferenceWithMetrics(
         prompt: String,
-        stopStrings: List<String>
+        stopStrings: List<String>,
+        formatChat: Boolean = false,
+        maxTokensOverride: Int? = null
     ): InferenceMetrics {
         val startNs = System.nanoTime()
         var firstTokenNs: Long? = null
         val builder = StringBuilder()
 
         withContext(Dispatchers.IO) {
-            engine.runStreamingInference(prompt, stopStrings = stopStrings).collect { chunk ->
-                if (firstTokenNs == null && chunk.isNotEmpty()) {
-                    firstTokenNs = System.nanoTime()
+            try {
+                if (maxTokensOverride != null) {
+                    engine.updateMaxTokens(maxTokensOverride)
                 }
-                builder.append(chunk)
+                engine.runStreamingInference(
+                    prompt,
+                    stopStrings = stopStrings,
+                    formatChat = formatChat
+                ).collect { chunk ->
+                    if (firstTokenNs == null && chunk.isNotEmpty()) {
+                        firstTokenNs = System.nanoTime()
+                    }
+                    builder.append(chunk)
+                }
+            } finally {
+                if (maxTokensOverride != null) {
+                    engine.resetMaxTokens()
+                }
             }
         }
 
@@ -377,6 +425,19 @@ class LocalLlmRepositoryImpl(
         val memInfo = Debug.MemoryInfo()
         Debug.getMemoryInfo(memInfo)
         return "pssKb=${memInfo.totalPss} privateDirtyKb=${memInfo.totalPrivateDirty}"
+    }
+
+    private fun normalizeH2oToolResponse(response: String, requiredTool: String): String {
+        val trimmed = response.trim()
+        if (trimmed.contains("<tool_call>")) return trimmed
+        val prefix = "<tool_call>{\"name\":\"$requiredTool\",\"args\":"
+        return if (trimmed.startsWith("{") || trimmed.startsWith("}")) {
+            val normalized = prefix + trimmed
+            Log.d("AgentDebug", "H2O normalized tool response: \"$normalized\"")
+            normalized
+        } else {
+            trimmed
+        }
     }
 
     private fun buildGemma2Prompt(
@@ -497,6 +558,33 @@ Return ONLY the JSON object and nothing else.
 
         val userQuestion = history.findLast { it.sender == Sender.USER }?.text.orEmpty()
         return "$systemInstruction\n\nUser: $userQuestion\nAnswer:"
+    }
+
+    private fun buildH2oToolPrompt(
+        history: List<ChatMessage>,
+        requiredTool: String?
+    ): String {
+        val userQuestion = history.findLast { it.sender == Sender.USER }?.text.orEmpty()
+        val toolName = requiredTool ?: ""
+        val tool = tools[toolName]
+        val toolDescription = tool?.description ?: ""
+        val assistantPrefix = "<tool_call>{\"name\":\"$toolName\",\"args\":"
+        return """
+You are a tool-calling agent.
+Respond with exactly one <tool_call> tag containing a JSON object.
+Do NOT include any other text.
+
+Required tool:
+- name: $toolName
+- description: $toolDescription
+
+Output format (example):
+<tool_call>{"name":"$toolName","args":{}}</tool_call>
+Complete the JSON and close the </tool_call> tag.
+
+User: $userQuestion
+Assistant: $assistantPrefix
+        """.trimIndent()
     }
 
     private fun buildLlama3Prompt(

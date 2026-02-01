@@ -53,12 +53,18 @@ object Util {
     }
 
     private fun findPotentialJsonObjectString(responseText: String): String? {
-        extractFirstJsonObject(responseText)?.let { return it }
-
         val toolBlock = extractFirstToolCallBlock(responseText)
         if (toolBlock != null) {
             extractFirstJsonObject(toolBlock)?.let { return it }
+            return null
         }
+
+        val trimmed = responseText.trimStart()
+        if (!trimmed.startsWith("{")) {
+            return null
+        }
+
+        extractFirstJsonObject(responseText)?.let { return it }
 
         return null
     }
