@@ -16,16 +16,19 @@ import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.Constants.ATTR_INITIAL_POS
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
+import org.appdevforall.codeonthego.layouteditor.editor.convert.ConvertImportedXml
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.createView
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.invokeMethod
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.IOException
+import java.io.File
 import java.io.StringReader
 
 class XmlLayoutParser(
 	context: Context,
+    private val basePath: String? = null,
 ) {
 	val viewAttributeMap: HashMap<View, AttributeMap> = HashMap()
 
@@ -63,6 +66,7 @@ class XmlLayoutParser(
 		xml: String,
 		context: Context,
 	) {
+        Log.d("XmlParser", "parseFromXml called with xml length: ${xml.length}, basePath: $basePath")
 		listViews.clear()
 		viewAttributeMap.clear()
 		clear()
@@ -122,23 +126,89 @@ class XmlLayoutParser(
 							listViews.add(view)
 						}
 
-						"include" -> {
-							val placeholder = View(context)
+                        "include" -> {
+                            val layoutAttr =
+                                (0 until parser.attributeCount)
+                                    .map { i ->
+                                        parser.getAttributeName(i) to parser.getAttributeValue(i)
+                                    }
+                                    .firstOrNull { it.first == "layout" }
+                                    ?.second
 
-							val attrs = AttributeMap()
+                            var includedView: View? = null
 
-							for (i in 0 until parser.attributeCount) {
-                attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
-              }
+                            if (layoutAttr != null && basePath != null) {
+                                val layoutName = layoutAttr.substringAfterLast("/")
+                                val file = File(basePath, "$layoutName.xml")
+                                if (file.exists()) {
+                                    try {
+                                        val includedXml = file.readText()
+                                        val convertedXml =
+                                            ConvertImportedXml(includedXml).getXmlConverted(context)
 
-              attrs.putValue(MARKER_IS_INCLUDE, "true")
+                                        val includedParser = XmlLayoutParser(context, basePath)
+                                        includedParser.parseFromXml(
+                                            convertedXml ?: includedXml,
+                                            context
+                                        )
+                                        includedView = includedParser.root
+                                    } catch (e: Exception) {
+                                        Log.e(
+                                            "XmlParser",
+                                            "Exception parsing included layout: $layoutName",
+                                            e
+                                        )
+                                    }
+                                } else {
+                                    Log.e(
+                                        "XmlParser",
+                                        "Included file does not exist: ${file.absolutePath}"
+                                    )
+                                }
+                            } else {
+                                Log.w(
+                                    "XmlParser",
+                                    "Skipping include. layoutAttr: $layoutAttr, basePath: $basePath"
+                                )
+                            }
 
-              viewAttributeMap[placeholder] = attrs
-              listViews.add(placeholder)
+                            val viewToAdd = includedView ?: View(context).also {
+                                val attrs = AttributeMap()
+                                attrs.putValue(MARKER_IS_INCLUDE, "true")
+                                viewAttributeMap[it] = attrs
+                            }
 
-              parser.next()
-              continue
-						}
+                            listViews.add(viewToAdd)
+
+                            // Override attributes from the <include> tag
+                            if (includedView != null) {
+                                val map = viewAttributeMap[includedView] ?: AttributeMap()
+                                map.putValue(MARKER_IS_INCLUDE, "true")
+                                for (i in 0 until parser.attributeCount) {
+                                    val attrName = parser.getAttributeName(i)
+                                    if (attrName != "layout") {
+                                        map.putValue(attrName, parser.getAttributeValue(i))
+                                    } else {
+                                        // Ensure layout attribute is preserved
+                                        map.putValue("layout", parser.getAttributeValue(i))
+                                        map.putValue(MARKER_IS_INCLUDE, "true")
+                                    }
+                                }
+                                viewAttributeMap[includedView] = map
+                            } else {
+                                // Fallback for placeholder
+                                val attrs = viewAttributeMap[viewToAdd]!!
+                                for (i in 0 until parser.attributeCount) {
+                                    attrs.putValue(
+                                        parser.getAttributeName(i),
+                                        parser.getAttributeValue(i)
+                                    )
+                                }
+                            }
+
+                            parser.next()
+                            continue
+                        }
 
 						"merge" -> {
 							Log.d("XmlParser", "Encountered <merge> tag, skipping itself")

@@ -756,7 +756,8 @@ class EditorActivity : BaseActivity() {
     originalProductionXml = production
     originalDesignXml = design
 
-		binding.editorLayout.loadLayoutFromParser(design)
+    val parentPath = File(layoutFile.path).parent
+    binding.editorLayout.loadLayoutFromParser(design, parentPath)
 
 		project.currentLayout = layoutFile
 		supportActionBar?.subtitle = layoutName

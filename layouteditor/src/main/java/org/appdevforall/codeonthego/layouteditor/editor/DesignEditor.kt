@@ -450,11 +450,11 @@ class DesignEditor : LinearLayout {
 
 	private fun sanitizeIdName(base: String): String = widgetIdOverrides[base] ?: base
 
-	fun loadLayoutFromParser(xml: String) {
+	fun loadLayoutFromParser(xml: String, basePath: String? = null) {
 		clearAll()
 		if (xml.isEmpty()) return
 
-		val parser = XmlLayoutParser(context)
+		val parser = XmlLayoutParser(context, basePath)
 		this.parser = parser
 
 		parser.parseFromXml(xml, context)
