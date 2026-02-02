@@ -193,26 +193,6 @@ class CompilerDaemon(
         }
     }
 
-    private fun buildCompilerArgs(
-        sourceFiles: List<File>,
-        outputDir: File,
-        classpath: String,
-        composePlugin: File
-    ): List<String> = buildList {
-        if (composePlugin.exists()) {
-            add("-Xplugin=${composePlugin.absolutePath}")
-        }
-        add("-classpath")
-        add(classpath)
-        add("-d")
-        add(outputDir.absolutePath)
-        add("-jvm-target")
-        add("1.8")
-        add("-no-stdlib")
-        add("-Xskip-metadata-version-check")
-        sourceFiles.forEach { add(it.absolutePath) }
-    }
-
     fun stopDaemon() {
         idleTimeoutJob?.cancel()
         idleTimeoutJob = null

@@ -39,22 +39,9 @@ class ComposePreviewRepositoryImpl(
         filePath: String
     ): Result<InitializationResult> = withContext(Dispatchers.IO) {
         runCatching {
-            val cacheDir = context.cacheDir
-            workDir = File(cacheDir, "compose_preview_work").apply { mkdirs() }
+            val cpManager = initializeInfrastructure(context)
 
-            val dexCacheDir = File(cacheDir, "compose_dex_cache")
-            dexCache = DexCache(dexCacheDir)
-
-            val cpManager = ComposeClasspathManager(context)
-            val work = workDir ?: return@runCatching InitializationResult.Failed("Work directory not initialized")
-
-            classpathManager = cpManager
-            compiler = ComposeCompiler(cpManager, work)
-            compilerDaemon = CompilerDaemon(cpManager, work)
-            dexCompiler = ComposeDexCompiler(cpManager)
-
-            val extracted = cpManager.ensureComposeJarsExtracted()
-            if (!extracted) {
+            if (!cpManager.ensureComposeJarsExtracted()) {
                 return@runCatching InitializationResult.Failed(
                     "Failed to initialize Compose dependencies"
                 )
@@ -67,20 +54,36 @@ class ComposePreviewRepositoryImpl(
                 LOG.warn("Failed to create Compose runtime DEX, preview may fail at runtime")
             }
 
-            val ctx = projectContextSource.resolveContext(filePath)
-            projectContext = ctx
-
-            if (ctx.needsBuild && ctx.modulePath != null) {
-                LOG.warn("No intermediate classes found - build the project to enable multi-file previews")
-                InitializationResult.NeedsBuild(
-                    ctx.modulePath,
-                    ctx.variantName
-                )
-            } else {
-                LOG.info("Repository initialized, runtimeDex={}", runtimeDex?.absolutePath ?: "null")
-                InitializationResult.Ready(runtimeDex, ctx)
-            }
+            resolveInitializationResult(filePath)
         }
+    }
+
+    private fun initializeInfrastructure(context: Context): ComposeClasspathManager {
+        val cacheDir = context.cacheDir
+        val work = File(cacheDir, "compose_preview_work").apply { mkdirs() }
+        workDir = work
+
+        dexCache = DexCache(File(cacheDir, "compose_dex_cache"))
+
+        val cpManager = ComposeClasspathManager(context)
+        classpathManager = cpManager
+        compiler = ComposeCompiler(cpManager, work)
+        compilerDaemon = CompilerDaemon(cpManager, work)
+        dexCompiler = ComposeDexCompiler(cpManager)
+        return cpManager
+    }
+
+    private fun resolveInitializationResult(filePath: String): InitializationResult {
+        val ctx = projectContextSource.resolveContext(filePath)
+        projectContext = ctx
+
+        if (ctx.needsBuild && ctx.modulePath != null) {
+            LOG.warn("No intermediate classes found - build the project to enable multi-file previews")
+            return InitializationResult.NeedsBuild(ctx.modulePath, ctx.variantName)
+        }
+
+        LOG.info("Repository initialized, runtimeDex={}", runtimeDex?.absolutePath ?: "null")
+        return InitializationResult.Ready(runtimeDex, ctx)
     }
 
     private fun <T> requireInitialized(value: T?, name: String): T {

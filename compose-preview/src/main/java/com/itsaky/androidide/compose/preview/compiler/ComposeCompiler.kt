@@ -28,6 +28,39 @@ data class CompileDiagnostic(
     enum class Severity { ERROR, WARNING, INFO }
 }
 
+private val compilerArgsLog = LoggerFactory.getLogger("ComposeCompilerArgs")
+
+internal fun buildCompilerArgs(
+    sourceFiles: List<File>,
+    outputDir: File,
+    classpath: String,
+    composePlugin: File
+): List<String> = buildList {
+    if (composePlugin.exists()) {
+        compilerArgsLog.info("Using Compose compiler plugin: {}", composePlugin.absolutePath)
+        add("-Xplugin=${composePlugin.absolutePath}")
+    } else {
+        compilerArgsLog.warn("Compose compiler plugin NOT found at: {}", composePlugin.absolutePath)
+    }
+
+    add("-classpath")
+    add(classpath)
+
+    add("-d")
+    add(outputDir.absolutePath)
+
+    add("-jvm-target")
+    add("1.8")
+
+    add("-no-stdlib")
+
+    add("-Xskip-metadata-version-check")
+
+    sourceFiles.forEach { file ->
+        add(file.absolutePath)
+    }
+}
+
 class ComposeCompiler(
     private val classpathManager: ComposeClasspathManager,
     private val workDir: File
@@ -89,37 +122,6 @@ class ComposeCompiler(
                 )
             }
         }
-
-    private fun buildCompilerArgs(
-        sourceFiles: List<File>,
-        outputDir: File,
-        classpath: String,
-        composePlugin: File
-    ): List<String> = buildList {
-        if (composePlugin.exists()) {
-            LOG.info("Using Compose compiler plugin: {}", composePlugin.absolutePath)
-            add("-Xplugin=${composePlugin.absolutePath}")
-        } else {
-            LOG.warn("Compose compiler plugin NOT found at: {}", composePlugin.absolutePath)
-        }
-
-        add("-classpath")
-        add(classpath)
-
-        add("-d")
-        add(outputDir.absolutePath)
-
-        add("-jvm-target")
-        add("1.8")
-
-        add("-no-stdlib")
-
-        add("-Xskip-metadata-version-check")
-
-        sourceFiles.forEach { file ->
-            add(file.absolutePath)
-        }
-    }
 
     private suspend fun invokeKotlinCompiler(
         compilerBootstrapClasspath: String,
