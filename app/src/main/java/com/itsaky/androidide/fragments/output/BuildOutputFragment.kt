@@ -18,29 +18,33 @@ package com.itsaky.androidide.fragments.output
 
 import android.os.Bundle
 import android.view.View
-import com.blankj.utilcode.util.ThreadUtils
+import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 class BuildOutputFragment : NonEditableEditorFragment() {
+	companion object {
+		private const val LAYOUT_TIMEOUT_MS = 2000L
+	}
+
 	override val currentEditor: IDEEditor? get() = editor
 
-	private val unsavedLines: MutableList<String?> = ArrayList()
+	private val logChannel = Channel<String>(Channel.UNLIMITED)
 
-	override fun onViewCreated(
-		view: View,
-		savedInstanceState: Bundle?,
-	) {
+	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
-		editor?.includeDebugInfoOnCopy = true
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
-		if (unsavedLines.isNotEmpty()) {
-			for (line in unsavedLines) {
-				editor?.append("${line!!.trim()}\n")
-			}
-			unsavedLines.clear()
+
+		viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
+			processLogs()
 		}
 	}
 
@@ -50,20 +54,72 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	}
 
 	fun appendOutput(output: String?) {
-		if (editor == null) {
-			unsavedLines.add(output)
-			return
+		if (!output.isNullOrEmpty()) {
+			logChannel.trySend(output)
 		}
-		ThreadUtils.runOnUiThread {
-			val message =
-				if (output == null || output.endsWith("\n")) {
-					output
-				} else {
-					"${output}\n"
-				}
-			editor?.append(message).also {
-				emptyStateViewModel.setEmpty(false)
+	}
+
+	/**
+	 * Ensures the string ends with a newline character (`\n`).
+	 * Useful for maintaining correct formatting when concatenating log lines.
+	 */
+	private fun String.ensureNewline(): String =
+		if (endsWith('\n')) this else "$this\n"
+
+	/**
+	 * Immediately drains (consumes) all available messages from the channel into the [buffer].
+	 *
+	 * This is a **non-blocking** operation that enables batching, grouping hundreds of pending lines
+	 * into a single memory operation to avoid saturating the UI queue.
+	 */
+	private fun ReceiveChannel<String>.drainTo(buffer: StringBuilder) {
+		var result = tryReceive()
+		while (result.isSuccess) {
+			val line = result.getOrNull()
+			if (!line.isNullOrEmpty()) {
+				buffer.append(line.ensureNewline())
 			}
+			result = tryReceive()
+		}
+	}
+
+	/**
+	 * Main log orchestrator: Consumes, Batches, and Dispatches.
+	 *
+	 * 1. Suspends (zero CPU usage) until the first log arrives.
+	 * 2. Wakes up and drains the entire queue (Batching).
+	 * 3. Sends the complete block to the UI in a single pass.
+	 */
+	private suspend fun processLogs() = with(StringBuilder()) {
+		for (firstLine in logChannel) {
+			append(firstLine.ensureNewline())
+			logChannel.drainTo(this)
+
+			if (isNotEmpty()) {
+				val batchText = toString()
+				clear()
+				flushToEditor(batchText)
+			}
+		}
+	}
+
+	/**
+	 * Performs the safe UI update on the Main Thread.
+	 *
+	 * Uses [IDEEditor.awaitLayout] to guarantee the editor has physical dimensions (width > 0)
+	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
+	 */
+	private suspend fun flushToEditor(text: String) = withContext(Dispatchers.Main) {
+		editor?.run {
+			withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+				awaitLayout(onForceVisible = {
+					emptyStateViewModel.setEmpty(false)
+				})
+			}
+
+			appendBatch(text)
+
+			emptyStateViewModel.setEmpty(false)
 		}
 	}
 }
