@@ -61,6 +61,7 @@ import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
+import com.itsaky.androidide.utils.LocalBenchmarkRunner
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 	private val log = LoggerFactory.getLogger(MainActivity::class.java)
@@ -147,6 +148,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		if (comparisonDate.after(targetDate)) {
 			showWarningDialog()
 		}
+		LocalBenchmarkRunner(this).attach()
 	}
 
 	private fun showWarningDialog() {
