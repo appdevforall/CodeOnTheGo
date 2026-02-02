@@ -23,4 +23,10 @@
   <color name="splash_bg">@android:color/white</color>
   <color name="splash_icon_tint">@android:color/black</color>
   <color name="primary_blue">#233490</color>
+
+  <!-- Tooltip (HTML content text and link colors) -->
+  <color name="tooltip_text_color_light">#000000</color>
+  <color name="tooltip_link_color_light">#233490</color>
+  <color name="tooltip_text_color_dark">#E4E2E6</color>
+  <color name="tooltip_link_color_dark">#00BE00</color>
 </resources>
