@@ -26,9 +26,7 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
 			"split-select",
 			"zipalign",
 		)) {
-			Environment.BUILD_TOOLS_DIR
-				.resolve(bin)
-				.setExecutable(true)
+			Environment.setExecutable(Environment.BUILD_TOOLS_DIR.resolve(bin))
 		}
 
 		installNdk(
