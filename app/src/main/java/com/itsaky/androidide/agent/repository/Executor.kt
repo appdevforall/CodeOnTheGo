@@ -84,12 +84,31 @@ class Executor {
                     else -> rawPath
                 }
                 val recursive = args["recursive"]?.toString()?.toBoolean() ?: false
-                log.debug(
-                    "Executor: list_files normalized path='{}', recursive={}",
-                    path,
-                    recursive
-                )
-                IDEApiFacade.listFiles(path, recursive)
+                return try {
+                    val baseDir = IProjectManager.getInstance().projectDir.canonicalFile
+                    val targetDir = when (path.trim()) {
+                        "", ".", "./" -> baseDir
+                        else -> File(baseDir, path).canonicalFile
+                    }
+                    val basePath = baseDir.path
+                    val targetPath = targetDir.path
+                    val isInside =
+                        targetPath == basePath || targetPath.startsWith(basePath + File.separator)
+                    if (!isInside) {
+                        ToolResult.failure("Access denied: path outside project directory")
+                    } else {
+                        val relativePath =
+                            if (targetPath == basePath) "." else targetDir.relativeTo(baseDir).path
+                        log.debug(
+                            "Executor: list_files normalized path='{}', recursive={}",
+                            relativePath,
+                            recursive
+                        )
+                        IDEApiFacade.listFiles(relativePath, recursive)
+                    }
+                } catch (e: Exception) {
+                    ToolResult.failure("Failed to list files.", e.message)
+                }
             }
 
             "add_dependency" -> {

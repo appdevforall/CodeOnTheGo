@@ -24,6 +24,7 @@ std::string cached_token_chars;
 static std::unordered_map<llama_batch *, int> g_batch_n_tokens;
 static std::vector<std::string> g_stop_strings;
 static std::string g_generated_text;
+static std::atomic<bool> g_stop_requested(false);
 
 bool is_valid_utf8(const char *string) {
     if (!string) {
@@ -564,6 +565,7 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
 
     cached_token_chars.clear();
     g_generated_text.clear();
+    g_stop_requested.store(false);
 
     // Parse stop strings from the Java array
     g_stop_strings.clear();
@@ -655,7 +657,7 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
 
     env->ReleaseStringUTFChars(jtext, text);
 
-    return batch->n_tokens;
+    return g_prompt_tokens;
 }
 
 extern "C"
@@ -679,6 +681,10 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
     if (!la_int_var_value) la_int_var_value = env->GetMethodID(la_int_var, "getValue", "()I");
     if (!la_int_var_inc) la_int_var_inc = env->GetMethodID(la_int_var, "inc", "()V");
 
+    if (g_stop_requested.load()) {
+        return nullptr;
+    }
+
     const auto new_token_id = llama_sampler_sample(sampler, context, -1);
 
     const auto n_cur = env->CallIntMethod(intvar_ncur, la_int_var_value);
@@ -695,6 +701,7 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
 
     jstring new_token = nullptr;
     if (is_valid_utf8(cached_token_chars.c_str())) {
+        const auto prior_len = g_generated_text.size();
         g_generated_text += cached_token_chars;
 
         // Check if any stop string has been generated
@@ -703,8 +710,18 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
                 auto pos = g_generated_text.find(stop_str);
                 if (pos != std::string::npos) {
                     LOGi("Stop string matched: %s", stop_str.c_str());
+                    size_t prefix_len = pos > prior_len ? pos - prior_len : 0;
+                    if (prefix_len > 0) {
+                        cached_token_chars = cached_token_chars.substr(0, prefix_len);
+                        new_token = new_jstring_utf8(env, cached_token_chars.c_str());
+                    } else {
+                        cached_token_chars.clear();
+                        new_token = new_jstring_utf8(env, "");
+                    }
+                    g_generated_text = g_generated_text.substr(0, pos);
                     cached_token_chars.clear();
-                    return nullptr;
+                    g_stop_requested.store(true);
+                    return new_token;
                 }
             }
         }

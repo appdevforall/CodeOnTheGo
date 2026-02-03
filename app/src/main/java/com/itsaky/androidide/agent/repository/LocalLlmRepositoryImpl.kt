@@ -105,7 +105,11 @@ class LocalLlmRepositoryImpl(
                 if (isFinalAnswerTurn) {
                     buildGemma2FinalAnswerPrompt(history)
                 } else {
-                    buildH2oToolPrompt(history, requiredTool)
+                    if (requiredTool == null) {
+                        history.lastOrNull { it.sender == Sender.USER }?.text ?: ""
+                    } else {
+                        buildH2oToolPrompt(history, requiredTool)
+                    }
                 }
             }
 

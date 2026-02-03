@@ -97,6 +97,7 @@ class ChatViewModel : ViewModel() {
 	private val chatStorageManager: ChatStorageManager
 	private var lastKnownBackendName: String? = null
 	private var lastKnownModelPath: String? = null
+	private var lastLoadedModelHash: String? = null
 
 	companion object {
 		private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
@@ -114,8 +115,14 @@ class ChatViewModel : ViewModel() {
 		val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
 		val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
 
+		val storedHash = prefs.getString(PREF_KEY_LOCAL_MODEL_SHA256, null)
 		// If the repository exists and settings haven't changed, return the existing instance.
-		if (agentRepository != null && lastKnownBackendName == backendName && lastKnownModelPath == modelPath) {
+		if (
+			agentRepository != null &&
+			lastKnownBackendName == backendName &&
+			lastKnownModelPath == modelPath &&
+			lastLoadedModelHash == storedHash
+		) {
 			return agentRepository
 		}
 
@@ -144,10 +151,11 @@ class ChatViewModel : ViewModel() {
 					} else {
                         run {
                             val needsReload =
-                                !engine.isModelLoaded || engine.loadedModelPath != expectedModelPath
+                                !engine.isModelLoaded ||
+                                    engine.loadedModelPath != expectedModelPath ||
+                                    storedHash != lastLoadedModelHash
+                            val expectedHash = storedHash
                             if (needsReload) {
-                                val expectedHash =
-                                    prefs.getString(PREF_KEY_LOCAL_MODEL_SHA256, null)
                                 val loaded = withContext(Dispatchers.IO) {
                                     engine.initModelFromFile(
                                         context,
@@ -161,6 +169,7 @@ class ChatViewModel : ViewModel() {
                                 }
                             }
 
+							lastLoadedModelHash = expectedHash
                             log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
                             LocalLlmRepositoryImpl(context, engine).apply {
                                 onStateUpdate = { _agentState.value = it }

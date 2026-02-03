@@ -39,8 +39,8 @@ class Executor(
             return when (toolName) {
                 "read_file" -> listOf("file_path")
                 "read_multiple_files" -> listOf("paths")
-                "add_dependency" -> listOf("dependency", "build_file_path")
-                "get_build_output" -> listOf("error")
+                "add_dependency" -> listOf("dependency_string", "build_file_path")
+                "get_build_output" -> emptyList()
                 "search_project" -> listOf("query")
                 else -> emptyList()
             }

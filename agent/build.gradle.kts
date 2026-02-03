@@ -51,29 +51,51 @@ val extractLlamaAarForTests by tasks.registering {
     doLast {
         outputDir.mkdirs()
 
-        // Extract v8 AAR
-        if (v8AssetsZip.exists()) {
-            val v8Dest = File(outputDir, "llama-v8.aar")
-            project.exec {
-                commandLine("unzip", "-p", v8AssetsZip.absolutePath, "dynamic_libs/llama.aar")
-                standardOutput = v8Dest.outputStream()
+        fun extractLlamaAar(assetsZip: File, dest: File, label: String) {
+            if (!assetsZip.exists()) {
+                logger.warn(
+                    "{} assets zip not found at {}. Run ':app:packageAssets{}' first.",
+                    label,
+                    assetsZip.absolutePath,
+                    label
+                )
+                return
             }
-            logger.lifecycle("Extracted processed Llama v8 AAR to ${v8Dest.absolutePath}")
-        } else {
-            logger.warn("V8 assets zip not found at ${v8AssetsZip.absolutePath}. Run ':app:packageAssetsV8' first.")
+
+            var extracted = false
+            java.util.zip.ZipInputStream(assetsZip.inputStream().buffered()).use { zipIn ->
+                val buffer = ByteArray(8 * 1024)
+                var entry = zipIn.nextEntry
+                while (entry != null) {
+                    if (!entry.isDirectory && entry.name == "dynamic_libs/llama.aar") {
+                        dest.outputStream().buffered().use { out ->
+                            while (true) {
+                                val read = zipIn.read(buffer)
+                                if (read <= 0) break
+                                out.write(buffer, 0, read)
+                            }
+                            out.flush()
+                        }
+                        extracted = true
+                        break
+                    }
+                    entry = zipIn.nextEntry
+                }
+            }
+
+            if (extracted) {
+                logger.lifecycle("Extracted processed Llama {} AAR to {}", label, dest.absolutePath)
+            } else {
+                logger.warn(
+                    "Failed to locate dynamic_libs/llama.aar in {} assets zip at {}.",
+                    label,
+                    assetsZip.absolutePath
+                )
+            }
         }
 
-        // Extract v7 AAR
-        if (v7AssetsZip.exists()) {
-            val v7Dest = File(outputDir, "llama-v7.aar")
-            project.exec {
-                commandLine("unzip", "-p", v7AssetsZip.absolutePath, "dynamic_libs/llama.aar")
-                standardOutput = v7Dest.outputStream()
-            }
-            logger.lifecycle("Extracted processed Llama v7 AAR to ${v7Dest.absolutePath}")
-        } else {
-            logger.warn("V7 assets zip not found at ${v7AssetsZip.absolutePath}. Run ':app:packageAssetsV7' first.")
-        }
+        extractLlamaAar(v8AssetsZip, File(outputDir, "llama-v8.aar"), "v8")
+        extractLlamaAar(v7AssetsZip, File(outputDir, "llama-v7.aar"), "v7")
     }
 }
 

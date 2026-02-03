@@ -3,6 +3,8 @@ package com.itsaky.androidide.agent.repository
 import android.content.Context
 import android.os.BatteryManager
 import com.itsaky.androidide.api.commands.ListFilesCommand
+import com.itsaky.androidide.projects.IProjectManager
+import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -55,7 +57,23 @@ class ListFilesTool : Tool {
     override fun execute(context: Context, args: Map<String, String>): String {
         val path = args["path"].orEmpty()
         val recursive = args["recursive"]?.toBoolean() ?: false
-        val result = ListFilesCommand(path, recursive).execute()
+        val result = try {
+            val baseDir = IProjectManager.getInstance().projectDir.canonicalFile
+            val targetDir = when (val sanitizedPath = path.trim()) {
+                "", ".", "./" -> baseDir
+                else -> File(baseDir, sanitizedPath).canonicalFile
+            }
+            val basePath = baseDir.path
+            val targetPath = targetDir.path
+            val isInside =
+                targetPath == basePath || targetPath.startsWith(basePath + File.separator)
+            if (!isInside) {
+                return "Access denied: path outside project directory"
+            }
+            ListFilesCommand(path, recursive).execute()
+        } catch (e: Exception) {
+            return "Failed to list files: ${e.message}"
+        }
         return if (result.success) {
             result.data?.ifBlank { result.message ?: "" } ?: result.message ?: ""
         } else {
