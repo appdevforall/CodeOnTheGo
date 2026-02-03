@@ -24,6 +24,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
 import android.view.MotionEvent
+import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
@@ -97,12 +98,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
+import kotlin.coroutines.resume
 
 fun interface OnEditorLongPressListener {
     fun onLongPress(event: MotionEvent)
@@ -206,6 +209,9 @@ constructor(
             return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
         }
 
+    val isReadyToAppend: Boolean
+        get() = !isReleased && isAttachedToWindow && isLaidOut && width > 0
+
     companion object {
         private const val TAG = "TrackpadScrollDebug"
         private const val SELECTION_CHANGE_DELAY = 500L
@@ -263,6 +269,59 @@ constructor(
 
         file?.also {
             dispatchDocumentOpenEvent()
+        }
+    }
+
+    /**
+     * Suspends the current coroutine until the editor has valid dimensions (`width > 0`).
+     *
+     * This is a **reactive** alternative to busy-waiting or `postDelayed`. It ensures that
+     * no text insertion is attempted before the editor's internal layout engine is ready,
+     * preventing the `ArrayIndexOutOfBoundsException`.
+     *
+     * @param onForceVisible A callback invoked immediately if the view is not ready.
+     * Used to set the view to `VISIBLE` and trigger the layout pass.
+     */
+    suspend fun awaitLayout(onForceVisible: () -> Unit) {
+        if (isReadyToAppend) return
+
+        withContext(Dispatchers.Main) {
+            onForceVisible()
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            val listener = object : OnLayoutChangeListener {
+                override fun onLayoutChange(
+                    v: View?, left: Int, top: Int, right: Int, bottom: Int,
+                    oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
+                ) {
+                    if ((v?.width ?: 0) > 0) {
+                        v?.removeOnLayoutChangeListener(this)
+                        if (continuation.isActive) {
+                            continuation.resume(Unit)
+                        }
+                    }
+                }
+            }
+
+            addOnLayoutChangeListener(listener)
+
+            continuation.invokeOnCancellation {
+                removeOnLayoutChangeListener(listener)
+            }
+        }
+    }
+
+    /**
+     * Appends a block of text to the editor safely.
+     *
+     * It performs a final check on [isReadyToAppend] and wraps the underlying append operation
+     * in [runCatching]. This prevents the app from crashing if the editor's internal layout
+     * calculation fails during the insertion.
+     */
+    fun appendBatch(text: String) {
+        if (isReadyToAppend) {
+            runCatching { append(text) }
         }
     }
 
