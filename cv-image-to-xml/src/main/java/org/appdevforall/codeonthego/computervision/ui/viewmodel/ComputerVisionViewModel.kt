@@ -3,8 +3,10 @@ package org.appdevforall.codeonthego.computervision.ui.viewmodel
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.util.Log
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
@@ -98,9 +100,10 @@ class ComputerVisionViewModel(
             try {
                 val bitmap = uriToBitmap(uri)
                 if (bitmap != null) {
+                    val rotatedBitmap = handleImageRotation(uri, bitmap)
                     _uiState.update {
                         it.copy(
-                            currentBitmap = bitmap,
+                            currentBitmap = rotatedBitmap,
                             imageUri = uri,
                             detections = emptyList(),
                             visualizedBitmap = null,
@@ -127,6 +130,40 @@ class ComputerVisionViewModel(
             viewModelScope.launch {
                 _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_capture_cancelled))
             }
+        }
+    }
+
+    private fun handleImageRotation(uri: Uri, bitmap: Bitmap): Bitmap {
+        val orientation = try {
+            contentResolver.openInputStream(uri)?.use { stream ->
+                ExifInterface(stream).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            } ?: ExifInterface.ORIENTATION_NORMAL
+        } catch (e: Exception) {
+            ExifInterface.ORIENTATION_NORMAL
+        }
+
+        val matrix = Matrix().apply {
+            when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> postRotate(90f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> postRotate(180f)
+                ExifInterface.ORIENTATION_ROTATE_270 -> postRotate(270f)
+                else -> return bitmap
+            }
+        }
+
+        return try {
+            val rotatedBitmap = Bitmap.createBitmap(
+                bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
+            )
+            if (rotatedBitmap != bitmap) {
+                bitmap.recycle()
+            }
+            rotatedBitmap
+        } catch (e: OutOfMemoryError) {
+            bitmap
         }
     }
 
