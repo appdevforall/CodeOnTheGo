@@ -9,6 +9,12 @@ import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
+import org.appdevforall.codeonthego.computervision.domain.MarginAnnotationParser
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEvent
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionUiState
+import org.appdevforall.codeonthego.computervision.ui.CvOperation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,11 +23,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.computervision.R
-import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEvent
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionUiState
-import org.appdevforall.codeonthego.computervision.ui.CvOperation
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil
 
 class ComputerVisionViewModel(
@@ -94,7 +95,6 @@ class ComputerVisionViewModel(
     fun onScreenStarted(){
         CvAnalyticsUtil.trackScreenOpened()
     }
-
     private fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
             try {
@@ -108,7 +108,8 @@ class ComputerVisionViewModel(
                             detections = emptyList(),
                             visualizedBitmap = null,
                             leftGuidePct = 0.2f, // Reset to default
-                            rightGuidePct = 0.8f  // Reset to default
+                            rightGuidePct = 0.8f,  // Reset to default
+                            parsedAnnotations = emptyMap() // Reset on new image
                         )
                     }
                 } else {
@@ -121,9 +122,19 @@ class ComputerVisionViewModel(
         }
     }
 
+    private fun handleCameraResult(uri: Uri, success: Boolean) {
+        if (success) {
+            CvAnalyticsUtil.trackImageSelected(fromCamera = true)
+            loadImageFromUri(uri)
+        } else {
+            viewModelScope.launch {
+                _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_capture_cancelled))
+            }
+        }
+    }
+
     private fun handleImageRotation(uri: Uri, bitmap: Bitmap): Bitmap {
         val orientation = try {
-            // Use .use to automatically close the stream [cite: 177]
             contentResolver.openInputStream(uri)?.use { stream ->
                 ExifInterface(stream).getAttributeInt(
                     ExifInterface.TAG_ORIENTATION,
@@ -139,7 +150,7 @@ class ComputerVisionViewModel(
                 ExifInterface.ORIENTATION_ROTATE_90 -> postRotate(90f)
                 ExifInterface.ORIENTATION_ROTATE_180 -> postRotate(180f)
                 ExifInterface.ORIENTATION_ROTATE_270 -> postRotate(270f)
-                else -> return bitmap // No rotation needed [cite: 113, 213]
+                else -> return bitmap
             }
         }
 
@@ -147,24 +158,12 @@ class ComputerVisionViewModel(
             val rotatedBitmap = Bitmap.createBitmap(
                 bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
             )
-            // Clean up original if a new one was created
             if (rotatedBitmap != bitmap) {
                 bitmap.recycle()
             }
             rotatedBitmap
         } catch (e: OutOfMemoryError) {
-            bitmap // Fallback to original bitmap on OOM [cite: 261]
-        }
-    }
-
-    private fun handleCameraResult(uri: Uri, success: Boolean) {
-        if (success) {
-            CvAnalyticsUtil.trackImageSelected(fromCamera = true)
-            loadImageFromUri(uri)
-        } else {
-            viewModelScope.launch {
-                _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_capture_cancelled))
-            }
+            bitmap
         }
     }
 
@@ -186,8 +185,7 @@ class ComputerVisionViewModel(
             val yoloResult = repository.runYoloInference(bitmap)
             if (yoloResult.isFailure) {
                 val endTime = System.currentTimeMillis()
-                val durationMs = endTime - startTime
-                CvAnalyticsUtil.trackDetectionCompleted(success = false, detectionCount = 0, durationMs = durationMs)
+                CvAnalyticsUtil.trackDetectionCompleted(success = false, detectionCount = 0, durationMs = endTime - startTime)
                 handleDetectionError(yoloResult.exceptionOrNull())
                 return@launch
             }
@@ -205,18 +203,26 @@ class ComputerVisionViewModel(
 
             mergeResult
                 .onSuccess { mergedDetections ->
+                    val (canvasDetections, annotationMap) = MarginAnnotationParser.parse(
+                        detections = mergedDetections,
+                        imageWidth = bitmap.width,
+                        leftGuidePct = state.leftGuidePct,
+                        rightGuidePct = state.rightGuidePct
+                    )
+
                     CvAnalyticsUtil.trackDetectionCompleted(
                         success = true,
-                        detectionCount = mergedDetections.size,
+                        detectionCount = canvasDetections.size,
                         durationMs = System.currentTimeMillis() - startTime
                     )
                     _uiState.update {
                         it.copy(
-                            detections = mergedDetections,
+                            detections = canvasDetections,
+                            parsedAnnotations = annotationMap,
                             currentOperation = CvOperation.Idle
                         )
                     }
-                    Log.d(TAG, "Detection complete. ${mergedDetections.size} objects detected.")
+                    Log.d(TAG, "Detection complete. ${canvasDetections.size} objects found in canvas.")
                 }
                 .onFailure { handleDetectionError(it) }
         }
@@ -254,8 +260,11 @@ class ComputerVisionViewModel(
 
             repository.generateXml(
                 detections = state.detections,
+                annotations = state.parsedAnnotations,
                 sourceImageWidth = state.currentBitmap.width,
-                sourceImageHeight = state.currentBitmap.height
+                sourceImageHeight = state.currentBitmap.height,
+                targetDpWidth = 360,
+                targetDpHeight = 640
             )
                 .onSuccess { xml ->
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
@@ -271,6 +280,7 @@ class ComputerVisionViewModel(
         }
     }
 
+
     private fun saveXmlToDownloads() {
         val state = _uiState.value
         if (!state.hasDetections || state.currentBitmap == null) {
@@ -285,8 +295,11 @@ class ComputerVisionViewModel(
 
             repository.generateXml(
                 detections = state.detections,
+                annotations = state.parsedAnnotations,
                 sourceImageWidth = state.currentBitmap.width,
-                sourceImageHeight = state.currentBitmap.height
+                sourceImageHeight = state.currentBitmap.height,
+                targetDpWidth = 360,
+                targetDpHeight = 640
             )
                 .onSuccess { xml ->
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
@@ -301,6 +314,7 @@ class ComputerVisionViewModel(
                 }
         }
     }
+
 
     private suspend fun saveXmlFile(xmlString: String) {
         _uiState.update { it.copy(currentOperation = CvOperation.Idle) }

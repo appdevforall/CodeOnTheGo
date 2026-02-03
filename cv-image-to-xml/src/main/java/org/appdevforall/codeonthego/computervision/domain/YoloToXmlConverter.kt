@@ -1,124 +1,151 @@
 package org.appdevforall.codeonthego.computervision.domain
 
+import android.graphics.Rect
+import android.util.Log
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 object YoloToXmlConverter {
 
-    private const val MIN_H_TEXT = 24
+    private const val TAG = "YoloToXmlConverter"
     private const val MIN_W_ANY = 8
     private const val MIN_H_ANY = 8
     private const val DEFAULT_SPACING_DP = 16
 
-    // --- Thresholds for relationship detection (in DP) ---
     private const val HORIZONTAL_ALIGN_THRESHOLD = 20
     private const val VERTICAL_ALIGN_THRESHOLD = 20
-    private const val RADIO_GROUP_GAP_THRESHOLD = 24 // Max *vertical* gap
+    private const val RADIO_GROUP_GAP_THRESHOLD = 24
+    private const val OVERLAP_THRESHOLD = 0.6
+
+    private val colorMap = mapOf(
+        "red" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
+        "black" to "#000000", "white" to "#FFFFFF", "gray" to "#808080",
+        "grey" to "#808080", "dark_gray" to "#A9A9A9", "yellow" to "#FFFF00",
+        "cyan" to "#00FFFF", "magenta" to "#FF00FF", "purple" to "#800080",
+        "orange" to "#FFA500", "brown" to "#A52A2A", "pink" to "#FFC0CB",
+        "transparent" to "@android:color/transparent"
+    )
 
     private data class ScaledBox(
-        val label: String,
-        val text: String,
-        val x: Int,
-        val y: Int,
-        val w: Int,
-        val h: Int,
-        val centerX: Int,
-        val centerY: Int
+        val label: String, var text: String, val x: Int, val y: Int, val w: Int, val h: Int,
+        val centerX: Int, val centerY: Int, val rect: Rect
     )
+
+    private fun isTag(text: String): Boolean = text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-)\\d+$"))
+
+    private fun getTagType(tag: String): String? {
+        return when {
+            tag.startsWith("B-") -> "button"
+            tag.startsWith("P-") -> "image_placeholder"
+            tag.startsWith("D-") -> "dropdown"
+            tag.startsWith("T-") -> "text_entry_box"
+            tag.startsWith("C-") -> "checkbox_unchecked"
+            tag.startsWith("R-") -> "radio_unchecked"
+            tag.startsWith("S-") -> "slider"
+            else -> null
+        }
+    }
+
+    private fun distance(box1: ScaledBox, box2: ScaledBox): Float {
+        val dx = (box1.centerX - box2.centerX).toFloat()
+        val dy = (box1.centerY - box2.centerY).toFloat()
+        return sqrt(dx.pow(2) + dy.pow(2))
+    }
 
     fun generateXmlLayout(
         detections: List<DetectionResult>,
+        annotations: Map<String, String>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,
         targetDpHeight: Int,
         wrapInScroll: Boolean = true
     ): String {
-        val scaledBoxes = detections.map {
-            scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight)
+        var scaledBoxes = detections.map { scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight) }
+
+        val parents = scaledBoxes.filter { it.label != "text" && !isTag(it.text) }.toMutableList()
+        val texts = scaledBoxes.filter { it.label == "text" && !isTag(it.text) }
+        val consumedTexts = mutableSetOf<ScaledBox>()
+
+        for (parent in parents) {
+            texts.firstOrNull { text ->
+                !consumedTexts.contains(text) && Rect(parent.rect).intersect(text.rect) &&
+                        (Rect(parent.rect).width() * Rect(parent.rect).height()).let { intersectionArea ->
+                            val textArea = text.w * text.h
+                            textArea > 0 && (intersectionArea.toFloat() / textArea.toFloat()) > OVERLAP_THRESHOLD
+                        }
+            }?.let {
+                parent.text = it.text
+                consumedTexts.add(it)
+            }
         }
-        val sortedBoxes = scaledBoxes.sortedWith(compareBy({ it.y }, { it.x }))
-        return buildXml(sortedBoxes, targetDpWidth, targetDpHeight, wrapInScroll)
+        scaledBoxes = scaledBoxes.filter { !consumedTexts.contains(it) }
+
+        val uiElements = scaledBoxes.filter { !isTag(it.text) }
+        val canvasTags = scaledBoxes.filter { isTag(it.text) }
+        val finalAnnotations = mutableMapOf<ScaledBox, String>()
+
+        for (tagBox in canvasTags) {
+            val tagType = getTagType(tagBox.text) ?: continue
+            val annotation = annotations[tagBox.text] ?: continue
+
+            val closestElement = uiElements
+                .filter { it.label.startsWith(tagType) }
+                .minByOrNull { distance(tagBox, it) }
+
+            if (closestElement != null) {
+                finalAnnotations[closestElement] = annotation
+            }
+        }
+        
+        Log.d(TAG, "Final Annotation Associations: ${finalAnnotations.entries.joinToString { "'${it.key.label}' -> '${it.value}'" }}")
+
+        val sortedBoxes = uiElements.sortedWith(compareBy({ it.y }, { it.x }))
+        return buildXml(sortedBoxes, finalAnnotations, targetDpWidth, targetDpHeight, wrapInScroll)
     }
 
     private fun scaleDetection(
-        detection: DetectionResult,
-        sourceWidth: Int,
-        sourceHeight: Int,
-        targetW: Int,
-        targetH: Int
+        detection: DetectionResult, sourceWidth: Int, sourceHeight: Int, targetW: Int, targetH: Int
     ): ScaledBox {
         val rect = detection.boundingBox
         val normCx = rect.centerX() / sourceWidth
         val normCy = rect.centerY() / sourceHeight
         val normW = rect.width() / sourceWidth
         val normH = rect.height() / sourceHeight
-
-        val ww = normW * targetW
-        val hh = normH * targetH
-        val x0 = (normCx - normW / 2.0) * targetW
-        val y0 = (normCy - normH / 2.0) * targetH
-
-        val x = max(0, x0.roundToInt())
-        val y = max(0, y0.roundToInt())
-        var width = max(MIN_W_ANY, ww.roundToInt())
-        var height = max(MIN_H_ANY, hh.roundToInt())
-        val centerX = x + (width / 2)
-        val centerY = y + (height / 2)
-
-        if (x + width > targetW) {
-            width = max(MIN_W_ANY, targetW - x)
-        }
-
-        return ScaledBox(detection.label, detection.text, x, y, width, height, centerX, centerY)
+        val x = max(0, ((normCx - normW / 2.0) * targetW).roundToInt())
+        val y = max(0, ((normCy - normH / 2.0) * targetH).roundToInt())
+        val w = max(MIN_W_ANY, (normW * targetW).roundToInt())
+        val h = max(MIN_H_ANY, (normH * targetH).roundToInt())
+        return ScaledBox(detection.label, detection.text, x, y, w, h, x + w / 2, y + h / 2, Rect(x, y, x + w, y + h))
     }
 
-    private fun viewTagFor(label: String): String {
-        return when (label) {
-            "text" -> "TextView"
-            "button" -> "Button"
-            "image_placeholder", "icon" -> "ImageView"
-            "checkbox_unchecked", "checkbox_checked" -> "CheckBox"
-            "radio_unchecked", "radio_checked" -> "RadioButton"
-            "switch_off", "switch_on" -> "Switch"
-            "text_entry_box" -> "EditText"
-            "dropdown" -> "Spinner"
-            "card" -> "androidx.cardview.widget.CardView"
-            "slider" -> "SeekBar"
-            "progress_bar" -> "ProgressBar"
-            "toolbar" -> "androidx.appcompat.widget.Toolbar"
-            else -> "View"
-        }
+    private fun viewTagFor(label: String): String = when (label) {
+        "text" -> "TextView"
+        "button" -> "Button"
+        "image_placeholder", "icon" -> "ImageView"
+        "checkbox_unchecked", "checkbox_checked" -> "CheckBox"
+        "radio_unchecked", "radio_checked" -> "RadioButton"
+        "switch_off", "switch_on" -> "Switch"
+        "text_entry_box" -> "EditText"
+        "dropdown" -> "Spinner"
+        "card" -> "androidx.cardview.widget.CardView"
+        "slider" -> "com.google.android.material.slider.Slider"
+        else -> "View"
     }
 
-    private fun isRadioButton(box: ScaledBox) = viewTagFor(box.label) == "RadioButton"
-
-    private fun areHorizontallyAligned(box1: ScaledBox, box2: ScaledBox): Boolean {
-        return abs(box1.centerY - box2.centerY) < HORIZONTAL_ALIGN_THRESHOLD
-    }
-
-    private fun areVerticallyAligned(box1: ScaledBox, box2: ScaledBox): Boolean {
-        return abs(box1.centerX - box2.centerX) < VERTICAL_ALIGN_THRESHOLD
-    }
-
-    // --- REFACTORED XML BUILDING LOGIC ---
-
-    private fun buildXml(boxes: List<ScaledBox>, targetDpWidth: Int, targetDpHeight: Int, wrapInScroll: Boolean): String {
+    private fun buildXml(
+        boxes: List<ScaledBox>, annotations: Map<ScaledBox, String>, targetDpWidth: Int, targetDpHeight: Int, wrapInScroll: Boolean
+    ): String {
         val xml = StringBuilder()
         val maxBottom = boxes.maxOfOrNull { it.y + it.h } ?: 0
         val needScroll = wrapInScroll && maxBottom > targetDpHeight
-
-        val namespaces = """
-            xmlns:android="http://schemas.android.com/apk/res/android"
-            xmlns:app="http://schemas.android.com/apk/res-auto"
-            xmlns:tools="http://schemas.android.com/tools"
-        """.trimIndent()
+        val namespaces = """xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools""""
 
         xml.appendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
-
-        // --- Root Container Setup ---
         if (needScroll) {
             xml.appendLine("<ScrollView $namespaces android:layout_width=\"match_parent\" android:layout_height=\"match_parent\" android:fillViewport=\"true\">")
             xml.appendLine("    <LinearLayout android:layout_width=\"match_parent\" android:layout_height=\"wrap_content\" android:orientation=\"vertical\" android:padding=\"16dp\">")
@@ -128,271 +155,123 @@ object YoloToXmlConverter {
         xml.appendLine()
 
         val counters = mutableMapOf<String, Int>()
-        val processingList = boxes.toMutableList()
-
-        while (processingList.isNotEmpty()) {
-            val currentBox = processingList.removeAt(0)
-
-            // --- 1. Check for RadioGroup (Vertical OR Horizontal) ---
-            if (isRadioButton(currentBox)) {
-                val radioGroup = mutableListOf(currentBox)
-                var groupOrientation: String? = null // null, "vertical", "horizontal"
-
-                // Check for a following radio button
-                if (processingList.isNotEmpty() && isRadioButton(processingList.first())) {
-                    val nextButton = processingList.first()
-
-                    // Check for VERTICAL group
-                    val verticalGap = nextButton.y - (currentBox.y + currentBox.h)
-                    if (areVerticallyAligned(currentBox, nextButton) && verticalGap in 0..RADIO_GROUP_GAP_THRESHOLD) {
-                        groupOrientation = "vertical"
-                        radioGroup.add(processingList.removeAt(0)) // Add the second button
-
-                        // Keep adding more vertical buttons
-                        while (processingList.isNotEmpty() &&
-                            isRadioButton(processingList.first()) &&
-                            areVerticallyAligned(currentBox, processingList.first())) {
-
-                            val nextGap = processingList.first().y - (radioGroup.last().y + radioGroup.last().h)
-                            if (nextGap in 0..RADIO_GROUP_GAP_THRESHOLD) {
-                                radioGroup.add(processingList.removeAt(0))
-                            } else {
-                                break // Gap is too large
-                            }
-                        }
-
-                        // Check for HORIZONTAL group
-                    } else if (areHorizontallyAligned(currentBox, nextButton)) {
-                        groupOrientation = "horizontal"
-                        radioGroup.add(processingList.removeAt(0)) // Add the second button
-
-                        // Keep adding more horizontal buttons
-                        while (processingList.isNotEmpty() &&
-                            isRadioButton(processingList.first()) &&
-                            areHorizontallyAligned(currentBox, processingList.first())) {
-
-                            radioGroup.add(processingList.removeAt(0))
-                        }
-                    }
-                }
-
-                if (radioGroup.size > 1 && groupOrientation != null) {
-                    appendRadioGroup(xml, radioGroup, counters, targetDpWidth, groupOrientation)
-                    continue // Skip to next loop iteration
-                }
-                // If only 1 radio, or orientation not found, fall through to be handled as a simple view
-            }
-
-            // --- 2. Check for Horizontal Layout (that is NOT a radio group) ---
-            val horizontalGroup = mutableListOf(currentBox)
-
-            // Look ahead for more horizontally aligned views
-            // **CRITICAL FIX**: Added '!isRadioButton(...)' to prevent stealing from a radio group
-            while (processingList.isNotEmpty() &&
-                !isRadioButton(processingList.first()) && // Don't group radio buttons
-                areHorizontallyAligned(currentBox, processingList.first())) {
-
-                horizontalGroup.add(processingList.removeAt(0))
-            }
-
-            if (horizontalGroup.size > 1) {
-                appendHorizontalLayout(xml, horizontalGroup, counters, targetDpWidth)
-                continue // Skip to next loop iteration
-            }
-
-            // --- 3. Handle as Simple, Single View ---
-            // (Fell through from RadioButton check OR horizontal group check)
-            appendSimpleView(xml, currentBox, counters, targetDpWidth, "        ")
-            xml.appendLine() // Add blank line after simple view
+        boxes.forEach { box ->
+            appendSimpleView(xml, box, counters, "        ", annotations)
+            xml.appendLine()
         }
 
-
-        // --- Closing Tags ---
-        if (needScroll) {
-            xml.appendLine("    </LinearLayout>")
-            xml.appendLine("</ScrollView>")
-        } else {
-            xml.appendLine("</LinearLayout>")
-        }
-
+        xml.appendLine(if (needScroll) "    </LinearLayout>\n</ScrollView>" else "</LinearLayout>")
         return xml.toString()
     }
 
-    /**
-     * Appends a <RadioGroup> containing multiple <RadioButton> views.
-     * **FIXED**: Now handles orientation.
-     */
-    private fun appendRadioGroup(
-        xml: StringBuilder,
-        group: List<ScaledBox>,
-        counters: MutableMap<String, Int>,
-        targetDpWidth: Int,
-        orientation: String
-    ) {
-        val first = group.first()
-        val indent = "        "
-        xml.appendLine("$indent<RadioGroup")
-        xml.appendLine("$indent    android:layout_width=\"wrap_content\"")
-        xml.appendLine("$indent    android:layout_height=\"wrap_content\"")
-        xml.appendLine("$indent    android:orientation=\"$orientation\"") // Use dynamic orientation
-
-        val gravityAttr = getGravityAttr(first, targetDpWidth)
-        if (gravityAttr != null) {
-            xml.appendLine("$indent    android:layout_gravity=\"$gravityAttr\"")
-        }
-        xml.appendLine("$indent    android:layout_marginTop=\"${DEFAULT_SPACING_DP}dp\">")
-        xml.appendLine()
-
-        // Add each RadioButton *inside* the group
-        group.forEachIndexed { index, box ->
-            // Apply margin to separate items if horizontal
-            val horizontalMargin = if (orientation == "horizontal" && index > 0) {
-                (box.x - (group[index - 1].x + group[index - 1].w))
-            } else 0
-
-            appendSimpleView(
-                xml,
-                box,
-                counters,
-                targetDpWidth,
-                "$indent    ",
-                isChildView = true,
-                extraMarginStart = max(0, horizontalMargin)
-            )
-        }
-
-        xml.appendLine("$indent</RadioGroup>")
-        xml.appendLine()
-    }
-
-    /**
-     * Appends a horizontal <LinearLayout> containing multiple views.
-     */
-    private fun appendHorizontalLayout(xml: StringBuilder, group: List<ScaledBox>, counters: MutableMap<String, Int>, targetDpWidth: Int) {
-        val indent = "        "
-        xml.appendLine("$indent<LinearLayout")
-        xml.appendLine("$indent    android:layout_width=\"match_parent\"")
-        xml.appendLine("$indent    android:layout_height=\"wrap_content\"")
-        xml.appendLine("$indent    android:orientation=\"horizontal\"")
-        xml.appendLine("$indent    android:gravity=\"center_vertical\"")
-        xml.appendLine("$indent    android:layout_marginTop=\"${DEFAULT_SPACING_DP}dp\">")
-        xml.appendLine()
-
-        group.forEachIndexed { index, box ->
-            val horizontalMargin = if (index > 0) (box.x - (group[index - 1].x + group[index - 1].w)) else 0
-
-            appendSimpleView(
-                xml,
-                box,
-                counters,
-                targetDpWidth,
-                "$indent    ",
-                isChildView = true,
-                extraMarginStart = max(0, horizontalMargin)
-            )
-        }
-
-        xml.appendLine("$indent</LinearLayout>")
-        xml.appendLine()
-    }
-
-    /**
-     * Appends a single, simple view tag (e.g., <TextView ... />).
-     */
     private fun appendSimpleView(
-        xml: StringBuilder,
-        box: ScaledBox,
-        counters: MutableMap<String, Int>,
-        targetDpWidth: Int,
-        indent: String,
-        isChildView: Boolean = false,
-        extraMarginStart: Int = 0
+        xml: StringBuilder, box: ScaledBox, counters: MutableMap<String, Int>, indent: String, annotations: Map<ScaledBox, String>
     ) {
         val label = box.label
         val tag = viewTagFor(label)
-        val count = counters.getOrPut(label) { 0 }.also { counters[label] = it + 1 }
-        val id = "${label.replace(Regex("[^a-zA-Z0-9_]"), "_")}_$count"
+        val count = counters.getOrPut(label) { 0 }.let { counters[label] = it + 1; it }
+        val defaultId = "${label.replace(Regex("[^a-zA-Z0-9_]"), "_")}_$count"
 
-        val isTextBased = tag in listOf("TextView", "Button", "EditText", "CheckBox", "RadioButton", "Switch")
-        val isWide = box.w > (targetDpWidth * 0.8) && !isChildView
+        val parsedAttrs = parseMarginAnnotations(annotations[box], tag)
 
-        val widthAttr = when {
-            isWide -> "match_parent"
-            isTextBased -> "wrap_content"
-            isChildView -> "wrap_content" // Use weights for horizontal groups eventually
-            else -> "${box.w}dp"
-        }
+        val width = parsedAttrs["android:layout_width"] ?: "wrap_content"
+        val height = parsedAttrs["android:layout_height"] ?: "wrap_content"
+        val id = parsedAttrs["android:id"]?.substringAfterLast('/') ?: defaultId
 
-        val heightAttr = when {
-            isTextBased -> "wrap_content"
-            else -> "${max(MIN_H_TEXT, box.h)}dp"
-        }
+        xml.append("$indent<$tag\n")
+        xml.append("$indent    android:id=\"@+id/$id\"\n")
+        xml.append("$indent    android:layout_width=\"$width\"\n")
+        xml.append("$indent    android:layout_height=\"$height\"\n")
 
-        val gravityAttr = getGravityAttr(box, targetDpWidth)
-
-        xml.appendLine("$indent<$tag")
-        xml.appendLine("$indent    android:id=\"@+id/$id\"")
-        xml.appendLine("$indent    android:layout_width=\"$widthAttr\"")
-        xml.appendLine("$indent    android:layout_height=\"$heightAttr\"")
-
-        if (!isChildView) {
-            if (gravityAttr != null) {
-                xml.appendLine("$indent    android:layout_gravity=\"$gravityAttr\"")
-            }
-            xml.appendLine("$indent    android:layout_marginTop=\"${DEFAULT_SPACING_DP}dp\"")
-        } else if (extraMarginStart > 0) {
-            xml.appendLine("$indent    android:layout_marginStart=\"${extraMarginStart}dp\"")
-        }
-
-        // --- Component Specific Attributes ---
         when (tag) {
-            "TextView", "Button" -> {
-                val viewText = if (box.text.isNotEmpty()) box.text else box.label
-                xml.appendLine("$indent    android:text=\"$viewText\"")
-                if (tag == "TextView") {
-                    xml.appendLine("$indent    android:textSize=\"16sp\"")
-                }
-                xml.appendLine("$indent    tools:ignore=\"HardcodedText\"")
+            "TextView", "Button", "CheckBox", "RadioButton", "Switch" -> {
+                val viewText = box.text.takeIf { it.isNotEmpty() && it != box.label } ?: box.label
+                xml.append("$indent    android:text=\"$viewText\"\n")
+                if (tag == "TextView") xml.append("$indent    android:textSize=\"16sp\"\n")
+                if (label.contains("_checked") || label.contains("_on")) xml.append("$indent    android:checked=\"true\"\n")
+                xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
             }
             "EditText" -> {
-                val hintText = if (box.text.isNotEmpty()) box.text else "Enter text..."
-                xml.appendLine("$indent    android:hint=\"$hintText\"")
-                xml.appendLine("$indent    android:inputType=\"text\"")
-                xml.appendLine("$indent    tools:ignore=\"HardcodedText\"")
+                xml.append("$indent    android:hint=\"${box.text.ifEmpty { "Enter text..." }}\"\n")
+                xml.append("$indent    android:inputType=\"text\"\n")
+                xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
             }
             "ImageView" -> {
-                xml.appendLine("$indent    android:contentDescription=\"$label\"")
-                xml.appendLine("$indent    android:scaleType=\"centerCrop\"")
-                xml.appendLine("$indent    android:background=\"#E0E0E0\"")
-            }
-            "CheckBox", "RadioButton", "Switch" -> {
-                val viewText = if (box.text.isNotEmpty()) box.text else box.label
-                xml.appendLine("$indent    android:text=\"$viewText\"")
-                if (label.contains("_checked") || label.contains("_on")) {
-                    xml.appendLine("$indent    android:checked=\"true\"")
-                }
-            }
-            "androidx.cardview.widget.CardView" -> {
-                xml.appendLine("$indent    app:cardElevation=\"4dp\"")
-                xml.appendLine("$indent    app:cardCornerRadius=\"8dp\"")
+                xml.append("$indent    android:contentDescription=\"$label\"\n")
+                xml.append("$indent    android:scaleType=\"centerCrop\"\n")
+                xml.append("$indent    android:background=\"#E0E0E0\"\n")
             }
         }
 
-        xml.appendLine("$indent/>")
+        parsedAttrs.forEach { (key, value) ->
+            if (key !in listOf("android:layout_width", "android:layout_height", "android:id")) {
+                xml.append("$indent    $key=\"$value\"\n")
+            }
+        }
+        xml.append("$indent/>")
     }
 
-    /**
-     * Calculates the layout_gravity attribute for a simple view.
-     */
-    private fun getGravityAttr(box: ScaledBox, targetDpWidth: Int): String? {
-        val isWide = box.w > (targetDpWidth * 0.8)
-        if (isWide) return null
+    private fun parseMarginAnnotations(annotation: String?, tag: String): Map<String, String> {
+        if (annotation.isNullOrBlank()) return emptyMap()
 
-        val relativeCenter = box.centerX.toFloat() / targetDpWidth.toFloat()
-        return when {
-            relativeCenter < 0.35 -> "start"
-            relativeCenter > 0.65 -> "end"
-            else -> "center_horizontal"
+        val parsed = mutableMapOf<String, String>()
+        val knownKeys = listOf(
+            "layout_width", "layout-width", "width",
+            "layout_height", "layout-height", "height", "layout height",
+            "id", "text", "background",
+            "src", "scr",
+            "entries", "inputtype", "input_type",
+            "hint", "textcolor", "text_color",
+            "textsize", "text_size",
+            "style", "layout_weight", "layout-weight",
+            "layout_gravity", "layout-gravity", "gravity"
+        )
+        val keysRegex = Regex("(?i)\\b(${knownKeys.joinToString("|")})\\s*:")
+        val matches = keysRegex.findAll(annotation).toList()
+
+        matches.forEachIndexed { index, match ->
+            val key = match.groupValues[1]
+            val startIndex = match.range.last + 1
+            val endIndex = if (index + 1 < matches.size) matches[index + 1].range.first else annotation.length
+            val value = annotation.substring(startIndex, endIndex).trim()
+
+            if (value.isNotEmpty()) {
+                formatAttribute(key, value, tag)?.let { (attr, fValue) -> parsed[attr] = fValue }
+            }
         }
+        return parsed
+    }
+
+    private fun formatAttribute(key: String, value: String, tag: String): Pair<String, String>? {
+        val canonicalKey = key.lowercase().replace("-", "_").replace(" ", "_")
+        
+        return when (canonicalKey) {
+            "width", "layout_width" -> "android:layout_width" to formatDimension(value)
+            "height", "layout_height" -> "android:layout_height" to formatDimension(value)
+            "background" -> {
+                if (tag == "Button") {
+                    "app:backgroundTint" to (colorMap[value.lowercase()] ?: value)
+                } else {
+                    "android:background" to (colorMap[value.lowercase()] ?: value)
+                }
+            }
+            "text" -> "android:text" to value
+            "id" -> "android:id" to value.replace(" ", "_")
+            "src", "scr" -> "android:src" to "@drawable/${value.substringBeforeLast('.')}"
+            "entries" -> "tools:entries" to value
+            "inputtype", "input_type" -> "android:inputType" to value
+            "hint" -> "android:hint" to value
+            "textcolor", "text_color" -> "android:textColor" to (colorMap[value.lowercase()] ?: value)
+            "textsize", "text_size" -> "android:textSize" to if (value.matches(Regex("\\d+"))) "${value}sp" else value
+            "style" -> "style" to value
+            "layout_weight" -> "android:layout_weight" to value
+            "gravity", "layout_gravity" -> "android:layout_gravity" to value
+            else -> null
+        }
+    }
+
+    private fun formatDimension(value: String): String {
+        val trimmed = value.replace("dp", "").trim()
+        return if (trimmed.matches(Regex("-?\\d+"))) "${trimmed}dp" else value
     }
 }
