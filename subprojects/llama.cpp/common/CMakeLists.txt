@@ -7,87 +7,116 @@ llama_add_compile_flags()
 # Build info header
 #
 
-if (EXISTS "${PROJECT_SOURCE_DIR}/.git")
+if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
     set(GIT_DIR "${PROJECT_SOURCE_DIR}/.git")
 
     # Is git submodule
-    if (NOT IS_DIRECTORY "${GIT_DIR}")
+    if(NOT IS_DIRECTORY "${GIT_DIR}")
         file(READ ${GIT_DIR} REAL_GIT_DIR_LINK)
         string(REGEX REPLACE "gitdir: (.*)\n$" "\\1" REAL_GIT_DIR ${REAL_GIT_DIR_LINK})
         string(FIND "${REAL_GIT_DIR}" "/" SLASH_POS)
         if (SLASH_POS EQUAL 0)
             set(GIT_DIR "${REAL_GIT_DIR}")
-        else ()
+        else()
             set(GIT_DIR "${PROJECT_SOURCE_DIR}/${REAL_GIT_DIR}")
-        endif ()
-    endif ()
+        endif()
+    endif()
 
-    if (EXISTS "${GIT_DIR}/index")
+    if(EXISTS "${GIT_DIR}/index")
         # For build-info.cpp below
         set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${GIT_DIR}/index")
-    else ()
+    else()
         message(WARNING "Git index not found in git repository.")
-    endif ()
-else ()
+    endif()
+else()
     message(WARNING "Git repository not found; to enable automatic generation of build info, make sure Git is installed and the project is a Git repository.")
-endif ()
+endif()
 
 set(TEMPLATE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/build-info.cpp.in")
-set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/build-info.cpp")
+set(OUTPUT_FILE   "${CMAKE_CURRENT_BINARY_DIR}/build-info.cpp")
 configure_file(${TEMPLATE_FILE} ${OUTPUT_FILE})
 
 set(TARGET build_info)
 add_library(${TARGET} OBJECT ${OUTPUT_FILE})
 if (BUILD_SHARED_LIBS)
     set_target_properties(${TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif ()
+endif()
 
 set(TARGET common)
 
 add_library(${TARGET} STATIC
-        arg.cpp
-        arg.h
-        base64.hpp
-        chat-parser.cpp
-        chat-parser.h
-        chat.cpp
-        chat.h
-        common.cpp
-        common.h
-        console.cpp
-        console.h
-        json-partial.cpp
-        json-partial.h
-        json-schema-to-grammar.cpp
-        llguidance.cpp
-        log.cpp
-        log.h
-        ngram-cache.cpp
-        ngram-cache.h
-        regex-partial.cpp
-        regex-partial.h
-        sampling.cpp
-        sampling.h
-        speculative.cpp
-        speculative.h
-)
+    arg.cpp
+    arg.h
+    base64.hpp
+    chat-parser.cpp
+    chat-parser.h
+    chat-parser-xml-toolcall.h
+    chat-parser-xml-toolcall.cpp
+    chat-peg-parser.cpp
+    chat-peg-parser.h
+    chat.cpp
+    chat.h
+    common.cpp
+    common.h
+    console.cpp
+    console.h
+    debug.cpp
+    debug.h
+    download.cpp
+    download.h
+    http.h
+    json-partial.cpp
+    json-partial.h
+    json-schema-to-grammar.cpp
+    llguidance.cpp
+    log.cpp
+    log.h
+    ngram-cache.cpp
+    ngram-cache.h
+    ngram-map.cpp
+    ngram-map.h
+    ngram-mod.cpp
+    ngram-mod.h
+    peg-parser.cpp
+    peg-parser.h
+    preset.cpp
+    preset.h
+    regex-partial.cpp
+    regex-partial.h
+    sampling.cpp
+    sampling.h
+    speculative.cpp
+    speculative.h
+    unicode.cpp
+    unicode.h
+    jinja/lexer.cpp
+    jinja/lexer.h
+    jinja/parser.cpp
+    jinja/parser.h
+    jinja/runtime.cpp
+    jinja/runtime.h
+    jinja/value.cpp
+    jinja/value.h
+    jinja/string.cpp
+    jinja/string.h
+    jinja/caps.cpp
+    jinja/caps.h
+    )
+
+target_include_directories(${TARGET} PUBLIC . ../vendor)
+target_compile_features   (${TARGET} PUBLIC cxx_std_17)
 
 if (BUILD_SHARED_LIBS)
     set_target_properties(${TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif ()
+endif()
 
+# TODO: use list(APPEND LLAMA_COMMON_EXTRA_LIBS ...)
 set(LLAMA_COMMON_EXTRA_LIBS build_info)
 
-# Use curl to download model url
-if (LLAMA_CURL)
-    find_package(CURL)
-    if (NOT CURL_FOUND)
-        message(FATAL_ERROR "Could NOT find CURL. Hint: to disable this feature, set -DLLAMA_CURL=OFF")
-    endif ()
-    target_compile_definitions(${TARGET} PUBLIC LLAMA_USE_CURL)
-    include_directories(${CURL_INCLUDE_DIRS})
-    set(LLAMA_COMMON_EXTRA_LIBS ${LLAMA_COMMON_EXTRA_LIBS} ${CURL_LIBRARIES})
-endif ()
+if (LLAMA_HTTPLIB)
+    target_compile_definitions(${TARGET} PUBLIC LLAMA_USE_HTTPLIB)
+    set(LLAMA_COMMON_EXTRA_LIBS ${LLAMA_COMMON_EXTRA_LIBS} cpp-httplib)
+endif()
 
 if (LLAMA_LLGUIDANCE)
     include(ExternalProject)
@@ -99,28 +128,28 @@ if (LLAMA_LLGUIDANCE)
         set(LLGUIDANCE_LIB_NAME "llguidance.lib")
         # Add Windows-specific libraries
         set(LLGUIDANCE_PLATFORM_LIBS
-                ws2_32    # Windows Sockets API
-                userenv   # For GetUserProfileDirectoryW
-                ntdll     # For NT functions
-                bcrypt    # For BCryptGenRandom
+            ws2_32    # Windows Sockets API
+            userenv   # For GetUserProfileDirectoryW
+            ntdll     # For NT functions
+            bcrypt    # For BCryptGenRandom
         )
-    else ()
+    else()
         set(LLGUIDANCE_LIB_NAME "libllguidance.a")
         set(LLGUIDANCE_PLATFORM_LIBS "")
-    endif ()
+    endif()
 
     ExternalProject_Add(llguidance_ext
-            GIT_REPOSITORY https://github.com/guidance-ai/llguidance
-            # v1.0.1:
-            GIT_TAG d795912fedc7d393de740177ea9ea761e7905774
-            PREFIX ${CMAKE_BINARY_DIR}/llguidance
-            SOURCE_DIR ${LLGUIDANCE_SRC}
-            BUILD_IN_SOURCE TRUE
-            CONFIGURE_COMMAND ""
-            BUILD_COMMAND cargo build --release --package llguidance
-            INSTALL_COMMAND ""
-            BUILD_BYPRODUCTS ${LLGUIDANCE_PATH}/${LLGUIDANCE_LIB_NAME} ${LLGUIDANCE_PATH}/llguidance.h
-            UPDATE_COMMAND ""
+        GIT_REPOSITORY https://github.com/guidance-ai/llguidance
+        # v1.0.1:
+        GIT_TAG d795912fedc7d393de740177ea9ea761e7905774
+        PREFIX ${CMAKE_BINARY_DIR}/llguidance
+        SOURCE_DIR ${LLGUIDANCE_SRC}
+        BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND cargo build --release --package llguidance
+        INSTALL_COMMAND ""
+        BUILD_BYPRODUCTS ${LLGUIDANCE_PATH}/${LLGUIDANCE_LIB_NAME} ${LLGUIDANCE_PATH}/llguidance.h
+        UPDATE_COMMAND ""
     )
     target_compile_definitions(${TARGET} PUBLIC LLAMA_USE_LLGUIDANCE)
 
@@ -133,30 +162,4 @@ if (LLAMA_LLGUIDANCE)
     set(LLAMA_COMMON_EXTRA_LIBS ${LLAMA_COMMON_EXTRA_LIBS} llguidance ${LLGUIDANCE_PLATFORM_LIBS})
 endif ()
 
-target_include_directories(${TARGET} PUBLIC . ../vendor)
-target_compile_features(${TARGET} PUBLIC cxx_std_17)
 target_link_libraries(${TARGET} PRIVATE ${LLAMA_COMMON_EXTRA_LIBS} PUBLIC llama Threads::Threads)
-
-
-#
-# copy the license files
-#
-
-# Check if running in GitHub Actions
-if (DEFINED ENV{GITHUB_ACTIONS} AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
-    message(STATUS "Running inside GitHub Actions - copying license files")
-
-    # Copy all files from licenses/ to build/bin/
-    file(GLOB LICENSE_FILES "${CMAKE_SOURCE_DIR}/licenses/*")
-    foreach (LICENSE_FILE ${LICENSE_FILES})
-        get_filename_component(FILENAME ${LICENSE_FILE} NAME)
-        add_custom_command(
-                POST_BUILD
-                TARGET ${TARGET}
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${LICENSE_FILE}"
-                "$<TARGET_FILE_DIR:llama>/${FILENAME}"
-                COMMENT "Copying ${FILENAME} to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-        message(STATUS "Copying ${LICENSE_FILE} to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${FILENAME}")
-    endforeach ()
-endif ()

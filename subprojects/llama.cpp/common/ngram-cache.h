@@ -21,13 +21,13 @@ struct common_ngram {
         }
     }
 
-    common_ngram(const llama_token *input, const int ngram_size) {
+    common_ngram(const llama_token * input, const int ngram_size) {
         for (int i = 0; i < LLAMA_NGRAM_MAX; ++i) {
             tokens[i] = i < ngram_size ? input[i] : LLAMA_TOKEN_NULL;
         }
     }
 
-    bool operator==(const common_ngram &other) const {
+    bool operator==(const common_ngram & other) const {
         for (int i = 0; i < LLAMA_NGRAM_MAX; ++i) {
             if (tokens[i] != other.tokens[i]) {
                 return false;
@@ -45,7 +45,7 @@ struct common_token_hash_function {
 };
 
 struct common_ngram_hash_function {
-    size_t operator()(const common_ngram &ngram) const {
+    size_t operator()(const common_ngram & ngram) const {
         size_t hash = common_token_hash_function{}(ngram.tokens[0]);
         for (int i = 1; i < LLAMA_NGRAM_MAX; ++i) {
             hash ^= common_token_hash_function{}(ngram.tokens[i]);
@@ -71,8 +71,7 @@ typedef std::unordered_map<common_ngram, common_ngram_cache_part, common_ngram_h
 // In order to get correct results inp_data can ONLY BE APPENDED TO.
 // Changes in the middle need a complete rebuild.
 void common_ngram_cache_update(
-        common_ngram_cache &ngram_cache, int ngram_min, int ngram_max,
-        std::vector<llama_token> &inp_data, int nnew, bool print_progress);
+    common_ngram_cache & ngram_cache, int ngram_min, int ngram_max, std::vector<llama_token> & inp_data, int nnew, bool print_progress);
 
 // Try to draft tokens from ngram caches.
 // inp:                the tokens generated so far.
@@ -83,23 +82,20 @@ void common_ngram_cache_update(
 // nc_dynamic:         ngram cache based on previous user generations.
 // nc_static:          ngram cache generated from a large text corpus, used for validation.
 void common_ngram_cache_draft(
-        std::vector<llama_token> &inp, std::vector<llama_token> &draft, int n_draft, int ngram_min,
-        int ngram_max,
-        common_ngram_cache &nc_context, common_ngram_cache &nc_dynamic,
-        common_ngram_cache &nc_static);
+    std::vector<llama_token> & inp, std::vector<llama_token> & draft, int n_draft, int ngram_min, int ngram_max,
+    common_ngram_cache & nc_context, common_ngram_cache & nc_dynamic, common_ngram_cache & nc_static);
 
 // Save an ngram cache to a file.
 // ngram_cache: the ngram cache to save.
 // filename:    the path under which to save the ngram cache.
-void common_ngram_cache_save(common_ngram_cache &ngram_cache, std::string &filename);
+void common_ngram_cache_save(common_ngram_cache & ngram_cache, const std::string & filename);
 
 // Load an ngram cache saved with common_ngram_cache_save.
 // filename: the path from which to load the ngram cache.
 // returns:  an ngram cache containing the information saved to filename.
-common_ngram_cache common_ngram_cache_load(std::string &filename);
+common_ngram_cache common_ngram_cache_load(const std::string & filename);
 
 // Merge two ngram caches.
 // ngram_cache_target: the ngram cache to which to add the information from ngram_cache_add.
 // ngram_cache_add:    the ngram cache to add to ngram_cache_target.
-void common_ngram_cache_merge(common_ngram_cache &ngram_cache_target,
-                              common_ngram_cache &ngram_cache_add);
+void common_ngram_cache_merge(common_ngram_cache & ngram_cache_target, common_ngram_cache & ngram_cache_add);
