@@ -37,6 +37,7 @@ object MarginAnnotationParser {
         val leftMarginPx = imageWidth * leftGuidePct
         val rightMarginPx = imageWidth * rightGuidePct
 
+        // 1. Partition detections into canvas and margin lists.
         val canvasDetections = mutableListOf<DetectionResult>()
         val marginDetections = mutableListOf<DetectionResult>()
 
@@ -49,14 +50,45 @@ object MarginAnnotationParser {
             }
         }
 
-        val marginLogOutput = marginDetections.joinToString(", ") {
-            val box = it.boundingBox
-            "'${it.text}', [left:${box.left.roundToInt()}, top:${box.top.roundToInt()}, width:${box.width().roundToInt()}, height:${box.height().roundToInt()}]"
-        }
-        Log.d(TAG, "Parsed Margin Content: $marginLogOutput")
+        // --- Logging Step-by-Step ---
 
-        val annotationMap = mutableMapOf<String, String>()
+        Log.d(TAG, "--- Raw OCR Content by Region ---")
+
+        // 2. Log Canvas OCR content.
+        val canvasOcrLog = canvasDetections.joinToString(", ") { "'${correctOcrErrors(it.text)}'" }
+        Log.d(TAG, "Canvas OCR: [$canvasOcrLog]")
+
+        // 3. Group and log Margin OCR content.
+        Log.d(TAG, "--- Grouped Margin OCR ---")
+        val groupedMarginOcr = mutableMapOf<String, MutableList<String>>()
+        var currentMarginTag: String? = null
+
+        // Sort all margin detections by their vertical position to ensure correct grouping.
         val sortedMarginDetections = marginDetections.sortedBy { it.boundingBox.top }
+
+        for (detection in sortedMarginDetections) {
+            val correctedText = correctOcrErrors(detection.text.trim())
+            if (isTag(correctedText)) {
+                currentMarginTag = correctedText
+                if (!groupedMarginOcr.containsKey(currentMarginTag)) {
+                    groupedMarginOcr[currentMarginTag!!] = mutableListOf()
+                }
+            } else if (currentMarginTag != null) {
+                groupedMarginOcr[currentMarginTag!!]?.add(correctedText)
+            }
+        }
+
+        groupedMarginOcr.forEach { (tag, texts) ->
+            val contentLog = texts.joinToString(", ") { "'$it'" }
+            Log.d(TAG, "Tag: '$tag', Content: [$contentLog]")
+        }
+        Log.d(TAG, "--------------------------")
+
+        // --- End of Logging ---
+
+
+        // --- Original Parsing Logic (to be preserved) ---
+        val annotationMap = mutableMapOf<String, String>()
         var currentTag: String? = null
         val currentAnnotation = StringBuilder()
 
@@ -80,14 +112,13 @@ object MarginAnnotationParser {
             it.copy(text = correctOcrErrors(it.text))
         }
 
-        val finalAnnotationLog = annotationMap.entries.joinToString(", ") { "'${it.key}' -> '${it.value}'" }
-        Log.d(TAG, "Processed Margin Annotations: {$finalAnnotationLog}")
+        // Log the final findings
+        val marginTags = annotationMap.keys.joinToString(", ")
+        Log.d(TAG, "Margin Annotations Found: $marginTags")
+        val canvasWidgetTags = correctedCanvasDetections.filter { isTag(it.text.trim()) }
+        val canvasTagsLog = canvasWidgetTags.joinToString(", ") { "'${it.text.trim()}'" }
+        Log.d(TAG, "Canvas Widget Tags Found: $canvasTagsLog")
 
-        val canvasLogOutput = correctedCanvasDetections.joinToString(", ") {
-            val box = it.boundingBox
-            "'${it.text}', [left:${box.left.roundToInt()}, top:${box.top.roundToInt()}, width:${box.width().roundToInt()}, height:${box.height().roundToInt()}]"
-        }
-        Log.d(TAG, "Parsed Canvas Content (Corrected): $canvasLogOutput")
 
         return Pair(correctedCanvasDetections, annotationMap)
     }
