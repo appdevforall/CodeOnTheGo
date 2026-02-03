@@ -140,7 +140,7 @@ class LocalAgenticRunner(
             } else {
                 // No tool call - treat as direct response
                 log.info("Simplified workflow: direct response (no tool needed)")
-                val cleanResponse = cleanedResponse.trim().takeWhile { it != '<' }.trim()
+                val cleanResponse = stripToolBlocks(cleanedResponse).trim()
                 val finalResponse = if (cleanResponse.isBlank()) {
                     "Sorry, I didn’t get a response from the local model. Please try again."
                 } else {
@@ -318,6 +318,12 @@ assistant:
         val end = text.indexOf("</tool_call>", start)
         if (end == -1) return text
         return text.substring(0, end + "</tool_call>".length)
+    }
+
+    private fun stripToolBlocks(text: String): String {
+        val toolPattern =
+            Regex("<tool_call>.*?</tool_call>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+        return text.replace(toolPattern, "").trim()
     }
 
     private suspend fun buildHistoryWithBudget(

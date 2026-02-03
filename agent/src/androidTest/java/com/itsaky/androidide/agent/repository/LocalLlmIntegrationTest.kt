@@ -575,11 +575,16 @@ class LocalLlmIntegrationTest {
                 )
 
                 val timestamp = System.currentTimeMillis()
-                val outputFile =
-                    File(context.getExternalFilesDir(null), "local_llm_benchmark_$timestamp.csv")
-                FileWriter(outputFile).use { writer ->
-                    writer.append("prompt,expected_tool,detected_tool,tool_match,ttft_ms,total_ms,output_chars\n")
-                    for (case in toolCases) {
+                val outDir = context.getExternalFilesDir(null) ?: context.filesDir
+                if (!outDir.exists() && !outDir.mkdirs()) {
+                    Log.w(TAG, "Benchmark output directory not available: ${outDir.absolutePath}")
+                    return@launch
+                }
+                val outputFile = File(outDir, "local_llm_benchmark_$timestamp.csv")
+                try {
+                    FileWriter(outputFile).use { writer ->
+                        writer.append("prompt,expected_tool,detected_tool,tool_match,ttft_ms,total_ms,output_chars\n")
+                        for (case in toolCases) {
                         val prompt = promptTemplate.replace("{{USER_MESSAGE}}", case.prompt)
                         val start = SystemClock.elapsedRealtime()
                         var firstTokenMs = -1L
@@ -620,9 +625,10 @@ class LocalLlmIntegrationTest {
                                     "detected=$detectedTool match=$toolMatch ttftMs=$firstTokenMs totalMs=$totalMs"
                         )
                     }
+                    Log.i(TAG, "Benchmark results written to: ${outputFile.absolutePath}")
+                } catch (e: java.io.IOException) {
+                    Log.w(TAG, "Failed to write benchmark output: ${e.message}")
                 }
-
-                Log.i(TAG, "Benchmark results written to: ${outputFile.absolutePath}")
             }
         }
     }

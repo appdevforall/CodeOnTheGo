@@ -74,7 +74,11 @@ object DynamicLibraryLoader {
         }
 
         val dexFile = File(versionedUnzipDir, "classes.dex")
-        val abi = Build.SUPPORTED_ABIS[0]
+        val abi = Build.SUPPORTED_ABIS.firstOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: Build.CPU_ABI
+            ?.takeIf { it.isNotBlank() }
+            ?: "armeabi-v7a"
         val nativeLibDir = File(versionedUnzipDir, "jni/$abi")
 
         Log.d(

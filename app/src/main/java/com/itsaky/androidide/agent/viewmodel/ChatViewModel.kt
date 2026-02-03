@@ -198,6 +198,7 @@ class ChatViewModel : ViewModel() {
 			currentBackendName != lastKnownBackendName || currentModelPath != lastKnownModelPath
 		if (configChanged) {
 			agentRepository?.stop()
+			agentRepository?.destroy()
 			agentRepository = null
 			observeRepositoryMessages(null)
 		}
@@ -387,14 +388,14 @@ class ChatViewModel : ViewModel() {
 
 	fun saveAllSessionsAndState(prefs: SharedPreferences) {
 		saveJob?.cancel()
-        val currentSession = _currentSession.value
-        val sessions = _sessions.value
-        viewModelScope.launch(Dispatchers.IO) {
-            currentSession?.let { chatStorageManager.saveSession(it) }
-            sessions?.let { chatStorageManager.saveAllSessions(it) }
-            currentSession?.let {
-                prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
-            }
+		val currentSession = _currentSession.value
+		val sessions = _sessions.value
+		saveJob = viewModelScope.launch(Dispatchers.IO) {
+			currentSession?.let { chatStorageManager.saveSession(it) }
+			sessions?.let { chatStorageManager.saveAllSessions(it) }
+			currentSession?.let {
+				prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
+			}
 		}
 	}
 

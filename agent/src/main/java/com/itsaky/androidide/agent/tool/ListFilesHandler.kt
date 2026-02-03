@@ -3,7 +3,9 @@ package com.itsaky.androidide.agent.tool
 import com.itsaky.androidide.agent.api.AgentDependencies
 import com.itsaky.androidide.agent.model.ListFilesArgs
 import com.itsaky.androidide.agent.model.ToolResult
+import com.itsaky.androidide.projects.IProjectManager
 import org.slf4j.LoggerFactory
+import java.io.File
 
 class ListFilesHandler : ToolHandler {
     override val name: String = "list_files"
@@ -16,8 +18,33 @@ class ListFilesHandler : ToolHandler {
             normalizedPath,
             toolArgs.recursive
         )
+        val baseDir = runCatching { IProjectManager.getInstance().projectDir }
+            .getOrNull()
+            ?.canonicalFile
+        if (baseDir == null) {
+            return ToolResult.failure("Path escapes project root")
+        }
+
+        val targetDir = when (normalizedPath.trim()) {
+            "", ".", "./" -> baseDir
+            else -> File(baseDir, normalizedPath).canonicalFile
+        }
+        val basePath = baseDir.path
+        val targetPath = targetDir.path
+        val isInside =
+            targetPath == basePath || targetPath.startsWith(basePath + File.separator)
+        if (!isInside) {
+            return ToolResult.failure("Path escapes project root")
+        }
+
+        val safePath = if (targetPath == basePath) {
+            ""
+        } else {
+            targetDir.relativeTo(baseDir).path
+        }
+
         val result = AgentDependencies.requireToolingApi()
-            .listFiles(normalizedPath, toolArgs.recursive)
+            .listFiles(safePath, toolArgs.recursive)
         if (result.success) {
             val entryCount = result.data
                 ?.lineSequence()

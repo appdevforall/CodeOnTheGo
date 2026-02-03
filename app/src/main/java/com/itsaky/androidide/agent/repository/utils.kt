@@ -109,7 +109,10 @@ object Util {
 
     @OptIn(InternalSerializationApi::class)
     private fun parseFunctionStyleToolCall(text: String): LocalLLMToolCall? {
-        val match = Regex("Tool Call:\\s*([a-zA-Z0-9_]+)\\s*\\((.*)\\)")
+        val match = Regex(
+            "Tool Call:\\s*([a-zA-Z0-9_]+)\\s*\\((.*)\\)",
+            RegexOption.DOT_MATCHES_ALL
+        )
             .find(text) ?: return null
         val name = match.groupValues[1].trim()
         val argsRaw = match.groupValues[2].substringBefore("<").trim()

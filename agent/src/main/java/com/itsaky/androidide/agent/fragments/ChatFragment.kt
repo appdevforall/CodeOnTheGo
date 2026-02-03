@@ -167,7 +167,12 @@ class ChatFragment :
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onTokenUsageEvent(event: TokenUsageEvent) {
         binding.agentStatusContainer.isVisible = true
-        val percentage = (event.tokenCount.toFloat() / event.tokenLimit.toFloat() * 100).toInt()
+        val limit = event.tokenLimit
+        if (limit <= 0) {
+            binding.tokenUsageText.text = "Tokens: N/A"
+            return
+        }
+        val percentage = (event.tokenCount.toFloat() / limit.toFloat() * 100).toInt()
         binding.tokenUsageText.text = "Tokens: $percentage%"
     }
 
@@ -482,12 +487,16 @@ class ChatFragment :
             paramName == "limit" -> "1000"
             paramName == "file_path" && toolName == "read_file" -> {
                 // Try to get current project path
-                com.itsaky.androidide.projects.IProjectManager.getInstance().projectDir.path + "/"
+                val projectDir =
+                    com.itsaky.androidide.projects.IProjectManager.getInstance().projectDir
+                projectDir?.path?.let { "$it/" } ?: ""
             }
 
             paramName == "path" -> {
                 // Try to get current project path
-                com.itsaky.androidide.projects.IProjectManager.getInstance().projectDir.path + "/"
+                val projectDir =
+                    com.itsaky.androidide.projects.IProjectManager.getInstance().projectDir
+                projectDir?.path?.let { "$it/" } ?: ""
             }
 
             else -> ""

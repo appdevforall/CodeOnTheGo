@@ -212,6 +212,7 @@ class LlmInferenceEngine(
             try {
                 controller.countTokens(text)
             } catch (e: Throwable) {
+                log.warn("Token counting failed; falling back to estimate.", e)
                 estimateTokenCount(text)
             }
         }
@@ -268,8 +269,11 @@ class LlmInferenceEngine(
                             ?.use { cursor ->
                                 val nameIndex =
                                     cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                                cursor.moveToFirst()
-                                cursor.getString(nameIndex)
+                                if (cursor.moveToFirst() && nameIndex != -1) {
+                                    cursor.getString(nameIndex)
+                                } else {
+                                    null
+                                }
                             } ?: run {
                             val fileNameFromPath = modelUri.path?.let { File(it).name }
                             fileNameFromPath ?: "local_model.gguf"

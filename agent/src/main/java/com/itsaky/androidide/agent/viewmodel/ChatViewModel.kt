@@ -212,6 +212,7 @@ class ChatViewModel : ViewModel() {
                 currentGeminiModel != lastKnownGeminiModel
         if (configChanged) {
             agentRepository?.stop()
+            agentRepository?.destroy()
             agentRepository = null
             observeRepositoryMessages(null)
             _commandMessages.value = emptyList()
@@ -463,8 +464,10 @@ class ChatViewModel : ViewModel() {
         session.messages.add(systemMessage)
         _sessions.value = _sessions.value
 
-        // Also emit through _commandMessages so the UI can see it immediately
-        _commandMessages.update { current -> current + systemMessage }
+        // Only emit through _commandMessages when there is no active repo to avoid duplicates
+        if (agentRepository == null || agentRepository is SessionHistoryRepository) {
+            _commandMessages.update { current -> current + systemMessage }
+        }
 
         ensureHistoryVisible(session.messages)
         scheduleSaveCurrentSession()
@@ -480,8 +483,10 @@ class ChatViewModel : ViewModel() {
         session.messages.add(errorMessage)
         _sessions.value = _sessions.value
 
-        // Also emit through _commandMessages so the UI can see it immediately
-        _commandMessages.update { current -> current + errorMessage }
+        // Only emit through _commandMessages when there is no active repo to avoid duplicates
+        if (agentRepository == null || agentRepository is SessionHistoryRepository) {
+            _commandMessages.update { current -> current + errorMessage }
+        }
 
         ensureHistoryVisible(session.messages)
         scheduleSaveCurrentSession()
@@ -501,10 +506,14 @@ class ChatViewModel : ViewModel() {
 
     fun saveAllSessionsAndState(prefs: SharedPreferences) {
         saveJob?.cancel()
-        _currentSession.value?.let { chatStorageManager.saveSession(it) }
-        _sessions.value?.let { chatStorageManager.saveAllSessions(it) }
-        _currentSession.value?.let {
-            prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
+        val currentSession = _currentSession.value
+        val sessions = _sessions.value
+        saveJob = viewModelScope.launch(Dispatchers.IO) {
+            currentSession?.let { chatStorageManager.saveSession(it) }
+            sessions?.let { chatStorageManager.saveAllSessions(it) }
+            currentSession?.let {
+                prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
+            }
         }
     }
 
@@ -514,6 +523,7 @@ class ChatViewModel : ViewModel() {
         _sessions.postValue(_sessions.value)
         _currentSession.value = newSession
         agentRepository?.stop()
+        agentRepository?.destroy()
         agentRepository = null
         lastKnownBackendName = null
         lastKnownModelPath = null
