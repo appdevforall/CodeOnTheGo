@@ -135,7 +135,7 @@ object YoloToXmlConverter {
             annotationString.lines().forEach { line ->
                 if (line.isNotBlank()) xml.append("$indent    $line\n")
             }
-            if (!annotationString.contains("android:text=")) {
+            if (!annotationString.contains("android:text=") && tag != "ImageView") {
                 xml.append("$indent    android:text=\"${box.text}\"\n")
                 xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
             }
@@ -144,7 +144,9 @@ object YoloToXmlConverter {
             xml.append("$indent    android:id=\"@+id/$defaultId\"\n")
             xml.append("$indent    android:layout_width=\"wrap_content\"\n")
             xml.append("$indent    android:layout_height=\"wrap_content\"\n")
-            xml.append("$indent    android:text=\"${box.text}\"\n")
+            if (tag != "ImageView") {
+                xml.append("$indent    android:text=\"${box.text}\"\n")
+            }
             if (tag == "ImageView") xml.append("$indent    android:contentDescription=\"${box.label}\"\n")
             xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
         }

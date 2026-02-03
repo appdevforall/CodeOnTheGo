@@ -17,7 +17,6 @@ object MarginAnnotationParser {
 
     private val widgetAttributes = mapOf(
         "Button" to setOf("layout_width", "layout_height", "id", "text", "background"),
-        // FIX: Added "layout_gravity" to ImageView attributes
         "ImageView" to setOf("layout_width", "layout_height", "id", "src", "layout_gravity", "contentDescription")
     )
 
@@ -27,9 +26,7 @@ object MarginAnnotationParser {
         "scr" to "src",
         "background" to "background",
         "layout width" to "layout_width",
-        "layout height" to "layout_height",
-        "layout_height" to "layout_height",
-        "layout_gravity" to "layout_gravity"
+        "layout height" to "layout_height"
     )
 
     private val valueCorrectionMap = mapOf(
@@ -39,19 +36,6 @@ object MarginAnnotationParser {
 
     private fun isTag(text: String): Boolean {
         return text.matches(Regex("^(B-|P-|I-)\\d+$"))
-    }
-
-    private fun levenshtein(s1: String, s2: String): Int {
-        val dp = Array(s1.length + 1) { IntArray(s2.length + 1) }
-        for (i in 0..s1.length) dp[i][0] = i
-        for (j in 0..s2.length) dp[0][j] = j
-        for (i in 1..s1.length) {
-            for (j in 1..s2.length) {
-                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
-                dp[i][j] = min(min(dp[i - 1][j] + 1, dp[i][j - 1] + 1), dp[i - 1][j - 1] + cost)
-            }
-        }
-        return dp[s1.length][s2.length]
     }
 
     /**
@@ -65,8 +49,11 @@ object MarginAnnotationParser {
         attributeCorrectionMap.forEach { (ocrError, correctAttr) ->
             correctedText = correctedText.replace(ocrError, correctAttr)
         }
+        // Specific regex for handling variations of layout attributes
         correctedText = correctedText.replace(Regex("layout\\s*[-_]?\\s*width"), "layout_width")
         correctedText = correctedText.replace(Regex("layout\\s*[-_]?\\s*height"), "layout_height")
+        correctedText = correctedText.replace(Regex("layout\\s*[-_]?\\s*gravity"), "layout_gravity")
+
 
         val parsedAttributes = mutableMapOf<String, String>()
         val attributeRegex = attributesForWidget.joinToString("|") { Regex.escape(it) }.toRegex()
@@ -153,7 +140,6 @@ object MarginAnnotationParser {
         val canvasWidgetTags = canvasDetections.filter { isTag(it.text.trim()) }
         Log.d(TAG, "Canvas Widget Tags Found: ${canvasWidgetTags.joinToString(", ") { "'${it.text.trim()}'" }}")
 
-        // FIX: Return ALL canvas detections for drawing, not just the tags.
         return Pair(canvasDetections, finalAnnotationMap)
     }
 }
