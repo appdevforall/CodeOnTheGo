@@ -106,12 +106,16 @@ static void llama_sampler_llg_free(llama_sampler * smpl) {
 }
 
 static llama_sampler_i llama_sampler_llg_i = {
-    /* .name   = */ llama_sampler_llg_name,
-    /* .accept = */ llama_sampler_llg_accept_impl,
-    /* .apply  = */ llama_sampler_llg_apply,
-    /* .reset  = */ llama_sampler_llg_reset,
-    /* .clone  = */ llama_sampler_llg_clone,
-    /* .free   = */ llama_sampler_llg_free,
+    /* .name              = */ llama_sampler_llg_name,
+    /* .accept            = */ llama_sampler_llg_accept_impl,
+    /* .apply             = */ llama_sampler_llg_apply,
+    /* .reset             = */ llama_sampler_llg_reset,
+    /* .clone             = */ llama_sampler_llg_clone,
+    /* .free              = */ llama_sampler_llg_free,
+    /* .backend_init      = */ NULL,
+    /* .backend_accept    = */ NULL,
+    /* .backend_apply     = */ NULL,
+    /* .backend_set_input = */ NULL,
 };
 
 static size_t llama_sampler_llg_tokenize_fn(const void * user_data, const uint8_t * bytes, size_t bytes_len,
@@ -246,7 +250,7 @@ llama_sampler * llama_sampler_init_llg(const llama_vocab * vocab, const char * g
 
 #else
 
-llama_sampler *llama_sampler_init_llg(const llama_vocab *, const char *, const char *) {
+llama_sampler * llama_sampler_init_llg(const llama_vocab *, const char *, const char *) {
     LOG_WRN("llguidance (cmake -DLLAMA_LLGUIDANCE=ON) is not enabled");
     return nullptr;
 }
