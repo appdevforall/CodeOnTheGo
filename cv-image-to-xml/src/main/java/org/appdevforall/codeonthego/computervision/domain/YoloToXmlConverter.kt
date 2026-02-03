@@ -45,9 +45,7 @@ object YoloToXmlConverter {
         val finalAnnotations = mutableMapOf<DetectionResult, String>()
         val consumedTexts = mutableSetOf<ScaledBox>()
 
-        // Process each widget to find its text and its annotation
         for (widget in widgets) {
-            // 1. Find contained text
             texts.firstOrNull { text ->
                 !consumedTexts.contains(text) && widget.rect.contains(text.rect)
             }?.let {
@@ -55,7 +53,6 @@ object YoloToXmlConverter {
                 consumedTexts.add(it)
             }
 
-            // 2. Find the CLOSEST tag to associate its annotation
             tags.minByOrNull { distance(widget, it) }
                 ?.let { tag ->
                     annotations[tag.text]?.let { annotationString ->
@@ -95,7 +92,11 @@ object YoloToXmlConverter {
     }
 
     private fun buildXml(
-        boxes: List<ScaledBox>, annotations: Map<DetectionResult, String>, targetDpWidth: Int, targetDpHeight: Int, wrapInScroll: Boolean
+        boxes: List<ScaledBox>,
+        annotations: Map<DetectionResult, String>,
+        targetDpWidth: Int,
+        targetDpHeight: Int,
+        wrapInScroll: Boolean
     ): String {
         val xml = StringBuilder()
         val maxBottom = boxes.maxOfOrNull { it.rect.bottom } ?: 0
@@ -103,24 +104,35 @@ object YoloToXmlConverter {
         val namespaces = """xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools""""
 
         xml.appendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
-        val rootTag = if (needScroll) "ScrollView" else "LinearLayout"
-        xml.appendLine("<$rootTag $namespaces android:layout_width=\"match_parent\" android:layout_height=\"match_parent\">")
-        xml.appendLine("    <LinearLayout android:layout_width=\"match_parent\" android:layout_height=\"wrap_content\" android:orientation=\"vertical\" android:padding=\"16dp\">")
+        if (needScroll) {
+            xml.appendLine("<ScrollView $namespaces android:layout_width=\"match_parent\" android:layout_height=\"match_parent\" android:fillViewport=\"true\">")
+            xml.appendLine("    <LinearLayout android:layout_width=\"match_parent\" android:layout_height=\"wrap_content\" android:orientation=\"vertical\" android:padding=\"16dp\">")
+        } else {
+            xml.appendLine("<LinearLayout $namespaces android:layout_width=\"match_parent\" android:layout_height=\"match_parent\" android:orientation=\"vertical\" android:padding=\"16dp\">")
+        }
         xml.appendLine()
 
         val counters = mutableMapOf<String, Int>()
         boxes.forEach { box ->
-            appendSimpleView(xml, box, counters, "        ", annotations)
+            appendSimpleView(xml, box, counters, if (needScroll) "        " else "    ", annotations)
             xml.appendLine()
         }
 
-        xml.appendLine("    </LinearLayout>")
-        if(needScroll) xml.appendLine("</ScrollView>") else xml.appendLine("</LinearLayout>")
+        if (needScroll) {
+            xml.appendLine("    </LinearLayout>")
+            xml.appendLine("</ScrollView>")
+        } else {
+            xml.appendLine("</LinearLayout>")
+        }
         return xml.toString()
     }
 
     private fun appendSimpleView(
-        xml: StringBuilder, box: ScaledBox, counters: MutableMap<String, Int>, indent: String, annotations: Map<DetectionResult, String>
+        xml: StringBuilder,
+        box: ScaledBox,
+        counters: MutableMap<String, Int>,
+        indent: String,
+        annotations: Map<DetectionResult, String>
     ) {
         val label = box.label
         val tag = viewTagFor(label)
