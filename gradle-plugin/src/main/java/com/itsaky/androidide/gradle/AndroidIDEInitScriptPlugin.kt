@@ -62,7 +62,7 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
     removeDaemonLogs(target)
 
     target.settingsEvaluated { settings ->
-      settings.addDependencyRepositories()
+      // settings.addDependencyRepositories()
     }
 
     target.rootProject { rootProject ->

@@ -32,6 +32,8 @@ import com.termux.shared.shell.command.ExecutionCommand.Runner
 import com.termux.shared.shell.command.runner.app.AppShell
 import com.termux.shared.termux.TermuxConstants
 import com.termux.shared.termux.TermuxConstants.TERMUX_PREFIX_DIR_PATH
+import com.termux.shared.termux.TermuxConstants.TERMUX_HOME_DIR_PATH
+import com.termux.shared.termux.TermuxConstants.TERMUX_HOME_DIR
 import com.termux.shared.termux.file.TermuxFileUtils
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import kotlinx.coroutines.Dispatchers
@@ -413,7 +415,7 @@ object TerminalInstaller {
         // Recreate env file since termux prefix was wiped earlier
         TermuxShellEnvironment.writeEnvironmentToFile(context)
 
-        appendVimToPath()
+        modifyBashRcEtc()
 
         deleteFolder("$TERMUX_PREFIX_DIR_PATH/libexec/installed-tests")
 
@@ -423,17 +425,29 @@ object TerminalInstaller {
     private fun ensureDirectoryExists(directory: File): Error? =
         FileUtils.createDirectoryFile(directory.absolutePath)
 
-    private fun appendVimToPath() {
+    private fun modifyBashRcEtc() {
         val bashrcPath = "$TERMUX_PREFIX_DIR_PATH/etc/bash.bashrc"
         val patch = """
         # Custom vim setup        
         export PATH="$TERMUX_PREFIX_DIR_PATH/libexec/vim:${'$'}PATH"
         alias vi='vim'
+        gradlew() {
+            $TERMUX_HOME_DIR_PATH/.androidide/gradle-dists/gradle-8.14.3/bin/gradle \
+                -Pandroid.aapt2FromMavenOverride="$TERMUX_HOME_DIR_PATH/android-sdk/build-tools/35.0.0/aapt2" \
+                "${'$'}@"
+        }
         """.trimIndent()
+
+        val gradle : File =  TERMUX_HOME_DIR.resolve(".androidide/gradle-dists/gradle-8.14.3/bin/gradle")
+        try {
+            if (gradle.exists())  gradle.setExecutable(true)
+        } catch (e: IOException) {
+            logger.error("Failed to set ${gradle.absolutePath} executable bit: ${e.message}")
+        }
 
         try {
             File(bashrcPath).appendText("\n$patch\n")
-            logger.info("Added vim path to bash.bashrc successfully.")
+            logger.info("Modified bash.bashrc successfully.")
         } catch (e: IOException) {
             logger.error("Failed to add vim path to bash.bashrc: ${e.message}")
         }
