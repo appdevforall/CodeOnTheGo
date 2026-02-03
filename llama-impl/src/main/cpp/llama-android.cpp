@@ -729,10 +729,6 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
         return nullptr;
     }
 
-    if (g_kv_cache_reuse.load()) {
-        std::lock_guard<std::mutex> lock(g_globals_mutex);
-        g_cached_tokens.push_back(new_token_id);
-    }
     auto new_token_chars = common_token_to_piece(context, new_token_id);
     {
         std::lock_guard<std::mutex> lock(g_globals_mutex);
@@ -822,6 +818,12 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
 
     if (llama_decode(context, *batch) != 0) {
         LOGe("llama_decode() returned null");
+        return nullptr;
+    }
+
+    if (g_kv_cache_reuse.load()) {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        g_cached_tokens.push_back(new_token_id);
     }
 
     return new_token;

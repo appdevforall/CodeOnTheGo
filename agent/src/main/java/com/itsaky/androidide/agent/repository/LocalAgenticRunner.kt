@@ -358,8 +358,13 @@ assistant:
         val updated = toolCall.args.toMutableMap()
         when (toolCall.name) {
             "read_file" -> {
-                if (updated["file_path"].isNullOrBlank()) {
-                    inferFilePath(userPrompt)?.let { updated["file_path"] = it }
+                if (updated["path"].isNullOrBlank()) {
+                    val legacy = updated["file_path"]?.takeIf { it.isNotBlank() }
+                    if (!legacy.isNullOrBlank()) {
+                        updated["path"] = legacy
+                    } else {
+                        inferFilePath(userPrompt)?.let { updated["path"] = it }
+                    }
                 }
             }
 

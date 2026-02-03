@@ -644,7 +644,7 @@ class LocalLlmIntegrationTest {
     )
 
     private fun buildBenchmarkPromptTemplate(): String {
-        val toolsJson = LocalLlmTools.allTools.joinToString(", ") { "\"${tool.name}\"" }
+        val toolsJson = LocalLlmTools.allTools.joinToString(", ") { "\"${it.name}\"" }
 
         return """
 You are a helpful assistant. Answer directly unless a tool is required.
