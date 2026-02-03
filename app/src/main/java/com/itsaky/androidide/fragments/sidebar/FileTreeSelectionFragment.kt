@@ -1,5 +1,6 @@
 package com.itsaky.androidide.fragments.sidebar
 
+import android.content.Context
 import android.os.Bundle
 import android.view.View
 import androidx.core.view.isVisible
@@ -14,6 +15,8 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.unnamed.b.atv.model.TreeNode
 import com.unnamed.b.atv.view.AndroidTreeView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -35,6 +38,7 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
 
     private fun loadTreeData() {
         binding.loadingIndicator.isVisible = true
+        val safeContext = requireContext()
         viewLifecycleOwner.lifecycleScope.launch {
             val projectRootFile = IProjectManager.getInstance().projectDir
             if (!projectRootFile.exists()) {
@@ -44,10 +48,12 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
 
             val rootNode = withContext(Dispatchers.IO) {
                 val node = TreeNode.root()
-                buildTreeNodes(node, projectRootFile)
+                buildTreeNodes(node, projectRootFile, safeContext)
                 node
             }
-            setupTreeView(rootNode)
+            if (isAdded) {
+                setupTreeView(rootNode)
+            }
         }
     }
 
@@ -58,15 +64,18 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
         rootNode.children?.forEach { treeView?.expandNode(it) }
     }
 
-    private fun buildTreeNodes(parentNode: TreeNode, dir: File) {
-        dir.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name }))?.forEach { file ->
-            val node = TreeNode(file).apply {
-                viewHolder = MultiSelectFileTreeViewHolder(requireContext(), selectedFiles)
-            }
-            parentNode.addChild(node)
-            if (file.isDirectory) {
-                buildTreeNodes(node, file)
-            }
+    private suspend fun buildTreeNodes(parentNode: TreeNode, dir: File, context: Context) {
+        dir.listFiles()
+            ?.sortedWith(compareBy({ !it.isDirectory }, { it.name }))
+            ?.forEach { file ->
+                currentCoroutineContext().ensureActive()
+                val node = TreeNode(file).apply {
+                    viewHolder = MultiSelectFileTreeViewHolder(context, selectedFiles)
+                }
+                parentNode.addChild(node)
+                if (file.isDirectory) {
+                    buildTreeNodes(node, file, context)
+                }
         }
     }
 
@@ -79,7 +88,7 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
 
             val baseDir = IProjectManager.getInstance().projectDir
 
-            selectedFiles.forEach {
+            selectedFiles.forEach { it ->
                 val itemText = it.relativeTo(baseDir).path
                 // Create a File object by joining the project root with the relative path (itemText)
                 val file = File(baseDir, itemText)
