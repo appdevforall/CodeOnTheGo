@@ -114,11 +114,23 @@ object MarginAnnotationParser {
                 val parsedAttrs = parseAnnotationString(fullAnnotationText, widgetType)
                 if (parsedAttrs.isNotEmpty()) {
                     val attrString = parsedAttrs.map { (k, v) ->
-                        val key = when(k) {
-                            "background" -> "app:backgroundTint"
-                            else -> "android:$k"
+                        val key: String
+                        val value: String
+                        when (k) {
+                            "id" -> {
+                                key = "android:id"
+                                value = "@+id/$v"
+                            }
+                            "background" -> {
+                                key = "app:backgroundTint"
+                                value = v
+                            }
+                            else -> {
+                                key = "android:$k"
+                                value = v
+                            }
                         }
-                        "$key=\"$v\""
+                        "$key=\"$value\""
                     }.joinToString("\n")
                     finalAnnotationMap[tag] = attrString
                 }
