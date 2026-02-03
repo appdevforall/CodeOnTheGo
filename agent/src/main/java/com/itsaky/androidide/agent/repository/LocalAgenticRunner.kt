@@ -364,8 +364,8 @@ assistant:
             }
 
             "add_dependency" -> {
-                if (updated["dependency"].isNullOrBlank()) {
-                    inferDependency(userPrompt)?.let { updated["dependency"] = it }
+                if (updated["dependency_string"].isNullOrBlank()) {
+                    inferDependency(userPrompt)?.let { updated["dependency_string"] = it }
                 }
                 if (updated["build_file_path"].isNullOrBlank()) {
                     inferBuildFilePath(userPrompt)?.let { updated["build_file_path"] = it }

@@ -6,6 +6,7 @@
 #include <math.h>
 #include <string>
 #include <unordered_map>
+#include <mutex>
 #include <unistd.h>
 #include "llama.h"
 #include <codecvt>
@@ -25,6 +26,7 @@ static std::unordered_map<llama_batch *, int> g_batch_n_tokens;
 static std::vector<std::string> g_stop_strings;
 static std::string g_generated_text;
 static std::atomic<bool> g_stop_requested(false);
+static std::mutex g_globals_mutex;
 
 bool is_valid_utf8(const char *string) {
     if (!string) {
@@ -107,9 +109,25 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_android_llama_cpp_LLamaAndroid_configureSampling(JNIEnv *, jclass, jfloat temperature,
                                                       jfloat top_p, jint top_k) {
-    g_temperature.store(temperature);
-    g_top_p.store(top_p);
-    g_top_k.store(top_k);
+    float validated_temperature = temperature;
+    if (validated_temperature < 0.0f) {
+        validated_temperature = 0.0f;
+    } else if (validated_temperature > 5.0f) {
+        validated_temperature = 5.0f;
+    }
+
+    float validated_top_p = top_p;
+    if (validated_top_p < 0.0f) {
+        validated_top_p = 0.0f;
+    } else if (validated_top_p > 1.0f) {
+        validated_top_p = 1.0f;
+    }
+
+    int validated_top_k = top_k < 0 ? 0 : top_k;
+
+    g_temperature.store(validated_temperature);
+    g_top_p.store(validated_top_p);
+    g_top_k.store(validated_top_k);
 }
 
 extern "C"
@@ -452,7 +470,10 @@ Java_android_llama_cpp_LLamaAndroid_new_1batch(JNIEnv *, jobject, jint n_tokens,
     }
     batch->logits = (int8_t *) malloc(sizeof(int8_t) * n_tokens);
 
-    g_batch_n_tokens[batch] = n_tokens;
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        g_batch_n_tokens[batch] = n_tokens;
+    }
     return reinterpret_cast<jlong>(batch);
 }
 
@@ -467,6 +488,7 @@ Java_android_llama_cpp_LLamaAndroid_free_1batch(JNIEnv *, jobject, jlong batch_p
     free(batch->pos);
     free(batch->n_seq_id);
     if (batch->seq_id) {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
         auto it = g_batch_n_tokens.find(batch);
         if (it != g_batch_n_tokens.end()) {
             for (int i = 0; i < it->second; ++i) {
@@ -563,12 +585,14 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
         jboolean format_chat,
         jint n_len, jobjectArray stop) {
 
-    cached_token_chars.clear();
-    g_generated_text.clear();
-    g_stop_requested.store(false);
-
-    // Parse stop strings from the Java array
-    g_stop_strings.clear();
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        cached_token_chars.clear();
+        g_generated_text.clear();
+        g_stop_requested.store(false);
+        // Parse stop strings from the Java array
+        g_stop_strings.clear();
+    }
     if (stop != nullptr) {
         int stop_count = env->GetArrayLength(stop);
         for (int i = 0; i < stop_count; i++) {
@@ -576,7 +600,10 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
             if (jstr) {
                 const char *chars = env->GetStringUTFChars(jstr, nullptr);
                 if (chars) {
-                    g_stop_strings.emplace_back(chars);
+                    {
+                        std::lock_guard<std::mutex> lock(g_globals_mutex);
+                        g_stop_strings.emplace_back(chars);
+                    }
                     env->ReleaseStringUTFChars(jstr, chars);
                 }
                 env->DeleteLocalRef(jstr);
@@ -612,17 +639,20 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
 
     bool reuse = false;
     size_t reuse_prefix = 0;
-    if (g_kv_cache_reuse.load() && !g_cached_tokens.empty()) {
-        if (g_cached_tokens.size() <= tokens_list.size()) {
-            reuse = true;
-            for (size_t i = 0; i < g_cached_tokens.size(); i++) {
-                if (g_cached_tokens[i] != tokens_list[i]) {
-                    reuse = false;
-                    break;
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        if (g_kv_cache_reuse.load() && !g_cached_tokens.empty()) {
+            if (g_cached_tokens.size() <= tokens_list.size()) {
+                reuse = true;
+                for (size_t i = 0; i < g_cached_tokens.size(); i++) {
+                    if (g_cached_tokens[i] != tokens_list[i]) {
+                        reuse = false;
+                        break;
+                    }
                 }
-            }
-            if (reuse) {
-                reuse_prefix = g_cached_tokens.size();
+                if (reuse) {
+                    reuse_prefix = g_cached_tokens.size();
+                }
             }
         }
     }
@@ -630,16 +660,22 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
     if (!reuse) {
         // Fully reset KV cache to avoid non-consecutive sequence positions.
         llama_memory_clear(llama_get_memory(context), true);
-        if (!g_kv_cache_reuse.load()) {
-            g_cached_tokens.clear();
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            if (!g_kv_cache_reuse.load()) {
+                g_cached_tokens.clear();
+            }
+            g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
         }
-        g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
         // evaluate the initial prompt
         for (auto i = 0; i < tokens_list.size(); i++) {
             common_batch_add(*batch, tokens_list[i], i, {0}, false);
         }
     } else {
-        g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
+        }
         if (reuse_prefix < tokens_list.size()) {
             for (auto i = reuse_prefix; i < tokens_list.size(); i++) {
                 common_batch_add(*batch, tokens_list[i], i, {0}, false);
@@ -694,44 +730,87 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
     }
 
     if (g_kv_cache_reuse.load()) {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
         g_cached_tokens.push_back(new_token_id);
     }
     auto new_token_chars = common_token_to_piece(context, new_token_id);
-    cached_token_chars += new_token_chars;
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        cached_token_chars += new_token_chars;
+    }
 
     jstring new_token = nullptr;
-    if (is_valid_utf8(cached_token_chars.c_str())) {
-        const auto prior_len = g_generated_text.size();
-        g_generated_text += cached_token_chars;
+    std::string cached_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        cached_snapshot = cached_token_chars;
+    }
+    if (is_valid_utf8(cached_snapshot.c_str())) {
+        size_t prior_len = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            prior_len = g_generated_text.size();
+            g_generated_text += cached_token_chars;
+        }
 
         // Check if any stop string has been generated
-        for (const auto &stop_str : g_stop_strings) {
-            if (!stop_str.empty() && g_generated_text.length() >= stop_str.length()) {
-                auto pos = g_generated_text.find(stop_str);
+        std::vector<std::string> stop_strings_snapshot;
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            stop_strings_snapshot = g_stop_strings;
+        }
+        std::string generated_snapshot;
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            generated_snapshot = g_generated_text;
+        }
+        for (const auto &stop_str : stop_strings_snapshot) {
+            if (!stop_str.empty() && generated_snapshot.length() >= stop_str.length()) {
+                auto pos = generated_snapshot.find(stop_str);
                 if (pos != std::string::npos) {
                     LOGi("Stop string matched: %s", stop_str.c_str());
                     size_t prefix_len = pos > prior_len ? pos - prior_len : 0;
                     if (prefix_len > 0) {
-                        cached_token_chars = cached_token_chars.substr(0, prefix_len);
-                        new_token = new_jstring_utf8(env, cached_token_chars.c_str());
+                        std::string prefix;
+                        {
+                            std::lock_guard<std::mutex> lock(g_globals_mutex);
+                            cached_token_chars = cached_token_chars.substr(0, prefix_len);
+                            prefix = cached_token_chars;
+                        }
+                        new_token = new_jstring_utf8(env, prefix.c_str());
                     } else {
-                        cached_token_chars.clear();
+                        {
+                            std::lock_guard<std::mutex> lock(g_globals_mutex);
+                            cached_token_chars.clear();
+                        }
                         new_token = new_jstring_utf8(env, "");
                     }
-                    g_generated_text = g_generated_text.substr(0, pos);
-                    cached_token_chars.clear();
+                    {
+                        std::lock_guard<std::mutex> lock(g_globals_mutex);
+                        g_generated_text = g_generated_text.substr(0, pos);
+                        cached_token_chars.clear();
+                    }
                     g_stop_requested.store(true);
                     return new_token;
                 }
             }
         }
 
-        new_token = new_jstring_utf8(env, cached_token_chars.c_str());
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            new_token = new_jstring_utf8(env, cached_token_chars.c_str());
+        }
 
-        log_info_to_kt("cached: %s, new_token_chars: `%s`, id: %d", cached_token_chars.c_str(),
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            log_info_to_kt("cached: %s, new_token_chars: `%s`, id: %d", cached_token_chars.c_str(),
                        new_token_chars.c_str(), new_token_id);
+        }
 
-        cached_token_chars.clear();
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            cached_token_chars.clear();
+        }
     } else {
         new_token = new_jstring_utf8(env, "");
     }
@@ -752,6 +831,7 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_android_llama_cpp_LLamaAndroid_kv_1cache_1clear(JNIEnv *, jobject, jlong context) {
     llama_memory_clear(llama_get_memory(reinterpret_cast<llama_context *>(context)), true);
+    std::lock_guard<std::mutex> lock(g_globals_mutex);
     g_cached_tokens.clear();
 }
 

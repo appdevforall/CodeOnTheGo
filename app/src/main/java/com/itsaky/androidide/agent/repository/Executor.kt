@@ -112,10 +112,14 @@ class Executor {
             }
 
             "add_dependency" -> {
-                val dependency = args["dependency"] as? String
+                val dependency =
+                    (args["dependency_string"] as? String)?.takeIf { it.isNotBlank() }
+                        ?: (args["dependency"] as? String)
                 val buildFilePath = args["build_file_path"] as? String
                 if (dependency.isNullOrEmpty() || buildFilePath.isNullOrEmpty()) {
-                    ToolResult.failure("Both 'dependency' and 'build_file_path' are required.")
+                    ToolResult.failure(
+                        "Both 'dependency_string' and 'build_file_path' are required."
+                    )
                 } else {
                     val dependencyString = if (buildFilePath.endsWith(".kts")) {
                         "implementation(\"$dependency\")"

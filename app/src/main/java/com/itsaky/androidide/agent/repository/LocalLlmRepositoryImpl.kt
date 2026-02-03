@@ -338,13 +338,13 @@ class LocalLlmRepositoryImpl(
 
                         // Execute the tool with the parsed arguments
                         val result = tool.execute(context, toolCall.args)
+                        addMessage(result, Sender.TOOL)
                         if (toolCall.name == "list_files") {
                             updateLastMessage("Files in project root:\n$result")
                             updateLastMessageDuration(totalDurationMs)
                             logSessionSummary(sessionStartWall, sessionStartCpu)
                             break
                         }
-                        addMessage(result, Sender.TOOL)
                         addMessage("", Sender.AGENT)
                     } else {
                         // This handles the case where the model hallucinates a tool name.

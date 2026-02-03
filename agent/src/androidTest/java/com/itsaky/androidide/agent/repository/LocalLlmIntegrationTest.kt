@@ -578,7 +578,7 @@ class LocalLlmIntegrationTest {
                 val outDir = context.getExternalFilesDir(null) ?: context.filesDir
                 if (!outDir.exists() && !outDir.mkdirs()) {
                     Log.w(TAG, "Benchmark output directory not available: ${outDir.absolutePath}")
-                    return@launch
+                    return@withTimeout
                 }
                 val outputFile = File(outDir, "local_llm_benchmark_$timestamp.csv")
                 try {

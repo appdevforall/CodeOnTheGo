@@ -535,7 +535,11 @@ class ChatViewModel : ViewModel() {
 
     fun setCurrentSession(sessionId: String) {
         saveJob?.cancel()
-        _currentSession.value?.let { chatStorageManager.saveSession(it) }
+        _currentSession.value?.let { session ->
+            viewModelScope.launch(Dispatchers.IO) {
+                chatStorageManager.saveSession(session)
+            }
+        }
         val session = _sessions.value?.find { it.id == sessionId }
         if (session != null) {
             _currentSession.value = session
@@ -545,7 +549,7 @@ class ChatViewModel : ViewModel() {
 
     private fun scheduleSaveCurrentSession() {
         saveJob?.cancel()
-        saveJob = viewModelScope.launch {
+        saveJob = viewModelScope.launch(Dispatchers.IO) {
             delay(SAVE_DEBOUNCE_MS)
             _currentSession.value?.let {
                 chatStorageManager.saveSession(it)

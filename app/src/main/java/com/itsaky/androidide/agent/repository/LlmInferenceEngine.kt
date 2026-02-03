@@ -46,6 +46,9 @@ class LlmInferenceEngine(
     var loadedModelPath: String? = null
         private set
     @Volatile
+    var loadedModelSourceUri: String? = null
+        private set
+    @Volatile
     var currentModelFamily: ModelFamily = ModelFamily.UNKNOWN
         private set
 
@@ -317,6 +320,7 @@ class LlmInferenceEngine(
                     llamaController?.load(destinationFile.path)
                     isModelLoaded = true
                     loadedModelPath = destinationFile.path
+                    loadedModelSourceUri = modelUriString
                     loadedModelName = displayName
                     currentModelFamily = detectModelFamily(displayName)
                     log.info("Successfully loaded local model: {}", loadedModelName)
@@ -330,6 +334,7 @@ class LlmInferenceEngine(
                     )
                     isModelLoaded = false
                     loadedModelPath = null
+                    loadedModelSourceUri = null
                     loadedModelName = null
                     currentModelFamily = ModelFamily.UNKNOWN
                     false
@@ -358,6 +363,7 @@ class LlmInferenceEngine(
         }
         isModelLoaded = false
         loadedModelPath = null
+        loadedModelSourceUri = null
         loadedModelName = null
         currentModelFamily = ModelFamily.UNKNOWN
     }

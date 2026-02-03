@@ -152,7 +152,7 @@ class ChatViewModel : ViewModel() {
                         run {
                             val needsReload =
                                 !engine.isModelLoaded ||
-                                    engine.loadedModelPath != expectedModelPath ||
+                                    engine.loadedModelSourceUri != expectedModelPath ||
                                     storedHash != lastLoadedModelHash
                             val expectedHash = storedHash
                             if (needsReload) {
