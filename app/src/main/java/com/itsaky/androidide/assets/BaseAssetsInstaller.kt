@@ -19,7 +19,17 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
         context: Context,
         stagingDir: Path
     ) {
-        Environment.AAPT2.setExecutable(true)
+		for (bin in arrayOf(
+			"aapt",
+			"aapt2",
+			"aidl",
+			"dexdump",
+			"split-select",
+			"zipalign",
+		)) {
+			Environment.BUILD_TOOLS_DIR.resolve(bin)
+				.setExecutable(true)
+		}
 
         installNdk(
             File(Environment.ANDROID_HOME, Environment.NDK_TAR_XZ),
