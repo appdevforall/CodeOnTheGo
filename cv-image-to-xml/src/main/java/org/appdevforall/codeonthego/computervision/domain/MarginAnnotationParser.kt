@@ -2,30 +2,93 @@ package org.appdevforall.codeonthego.computervision.domain
 
 import android.util.Log
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
-import kotlin.math.roundToInt
+import kotlin.math.min
 
 object MarginAnnotationParser {
 
     private const val TAG = "MarginAnnotationParser"
 
-    private val ocrCorrectionRules = listOf(
-        Regex("(?<=-)!") to "1",
-        Regex("(?<=-)l") to "1"
+    // --- Dictionaries for Widgets and Attributes ---
+    private val widgetTypeMap = mapOf(
+        'B' to "Button",
+        'I' to "ImageView",
+        'P' to "ImageView" // P is also an ImageView as seen in logs
     )
 
-    private fun correctOcrErrors(text: String): String {
-        var correctedText = text
-        for ((pattern, replacement) in ocrCorrectionRules) {
-            correctedText = correctedText.replace(pattern, replacement)
+    private val widgetAttributes = mapOf(
+        "Button" to setOf("layout_width", "layout_height", "id", "text", "background"),
+        // FIX: Added "layout_gravity" to ImageView attributes
+        "ImageView" to setOf("layout_width", "layout_height", "id", "src", "layout_gravity", "contentDescription")
+    )
+
+    // --- OCR Correction and Value Keywords ---
+    private val attributeCorrectionMap = mapOf(
+        "ld" to "id",
+        "scr" to "src",
+        "background" to "background",
+        "layout width" to "layout_width",
+        "layout height" to "layout_height",
+        "layout_height" to "layout_height",
+        "layout_gravity" to "layout_gravity"
+    )
+
+    private val valueCorrectionMap = mapOf(
+        "red" to "#FFFF0000",
+        "blue" to "#FF0000FF"
+    )
+
+    private fun isTag(text: String): Boolean {
+        return text.matches(Regex("^(B-|P-|I-)\\d+$"))
+    }
+
+    private fun levenshtein(s1: String, s2: String): Int {
+        val dp = Array(s1.length + 1) { IntArray(s2.length + 1) }
+        for (i in 0..s1.length) dp[i][0] = i
+        for (j in 0..s2.length) dp[0][j] = j
+        for (i in 1..s1.length) {
+            for (j in 1..s2.length) {
+                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
+                dp[i][j] = min(min(dp[i - 1][j] + 1, dp[i][j - 1] + 1), dp[i - 1][j - 1] + cost)
+            }
         }
-        return correctedText
+        return dp[s1.length][s2.length]
     }
 
     /**
-     * A tag is any string that starts with B, P, D, T, C, R, or S, followed by a hyphen and one or more digits.
+     * Parses a raw annotation string into a clean map of XML attributes.
      */
-    private fun isTag(text: String): Boolean {
-        return text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-)\\d+$"))
+    private fun parseAnnotationString(rawText: String, widgetType: String): Map<String, String> {
+        val attributesForWidget = widgetAttributes[widgetType] ?: return emptyMap()
+
+        // Pre-process the text to normalize attribute keywords
+        var correctedText = rawText.lowercase()
+        attributeCorrectionMap.forEach { (ocrError, correctAttr) ->
+            correctedText = correctedText.replace(ocrError, correctAttr)
+        }
+        correctedText = correctedText.replace(Regex("layout\\s*[-_]?\\s*width"), "layout_width")
+        correctedText = correctedText.replace(Regex("layout\\s*[-_]?\\s*height"), "layout_height")
+
+        val parsedAttributes = mutableMapOf<String, String>()
+        val attributeRegex = attributesForWidget.joinToString("|") { Regex.escape(it) }.toRegex()
+        val matches = attributeRegex.findAll(correctedText).toList()
+
+        matches.forEachIndexed { i, match ->
+            val key = match.value
+            val valueStartIndex = match.range.last + 1
+            val valueEndIndex = if (i + 1 < matches.size) matches[i + 1].range.first else correctedText.length
+            var value = correctedText.substring(valueStartIndex, valueEndIndex).replace(":", "").trim()
+
+            // Clean and format the extracted value
+            value = when (key) {
+                "id" -> value.replace(Regex("\\s+"), "_").replace(Regex("[^a-zA-Z0-9_]"), "")
+                "background" -> valueCorrectionMap[value] ?: value
+                "src" -> valueCorrectionMap[value] ?: "@drawable/${value.replace(' ', '_')}"
+                "layout_width", "layout_height" -> value.filter { it.isDigit() || it == 'd' || it == 'p' }
+                else -> value
+            }
+            parsedAttributes[key] = value
+        }
+        return parsedAttributes
     }
 
     fun parse(
@@ -37,89 +100,60 @@ object MarginAnnotationParser {
         val leftMarginPx = imageWidth * leftGuidePct
         val rightMarginPx = imageWidth * rightGuidePct
 
-        // 1. Partition detections into canvas and margin lists.
-        val canvasDetections = mutableListOf<DetectionResult>()
-        val marginDetections = mutableListOf<DetectionResult>()
-
-        for (detection in detections) {
-            val centerX = detection.boundingBox.centerX()
-            if (centerX > leftMarginPx && centerX < rightMarginPx) {
-                canvasDetections.add(detection)
-            } else {
-                marginDetections.add(detection)
-            }
+        val (canvasDetections, marginDetections) = detections.partition {
+            it.boundingBox.centerX().toInt() in (leftMarginPx.toInt() + 1)..rightMarginPx.toInt()
         }
 
-        // --- Logging Step-by-Step ---
-
-        Log.d(TAG, "--- Raw OCR Content by Region ---")
-
-        // 2. Log Canvas OCR content.
-        val canvasOcrLog = canvasDetections.joinToString(", ") { "'${correctOcrErrors(it.text)}'" }
-        Log.d(TAG, "Canvas OCR: [$canvasOcrLog]")
-
-        // 3. Group and log Margin OCR content.
-        Log.d(TAG, "--- Grouped Margin OCR ---")
         val groupedMarginOcr = mutableMapOf<String, MutableList<String>>()
         var currentMarginTag: String? = null
-
-        // Sort all margin detections by their vertical position to ensure correct grouping.
-        val sortedMarginDetections = marginDetections.sortedBy { it.boundingBox.top }
-
-        for (detection in sortedMarginDetections) {
-            val correctedText = correctOcrErrors(detection.text.trim())
-            if (isTag(correctedText)) {
-                currentMarginTag = correctedText
+        marginDetections.sortedBy { it.boundingBox.top }.forEach { detection ->
+            val text = detection.text.trim()
+            if (isTag(text)) {
+                currentMarginTag = text
                 if (!groupedMarginOcr.containsKey(currentMarginTag)) {
                     groupedMarginOcr[currentMarginTag!!] = mutableListOf()
                 }
             } else if (currentMarginTag != null) {
-                groupedMarginOcr[currentMarginTag!!]?.add(correctedText)
+                groupedMarginOcr[currentMarginTag!!]?.add(text)
             }
         }
 
+        val finalAnnotationMap = mutableMapOf<String, String>()
         groupedMarginOcr.forEach { (tag, texts) ->
-            val contentLog = texts.joinToString(", ") { "'$it'" }
-            Log.d(TAG, "Tag: '$tag', Content: [$contentLog]")
+            val widgetPrefix = tag.first()
+            val widgetType = widgetTypeMap[widgetPrefix]
+            if (widgetType != null) {
+                val fullAnnotationText = texts.joinToString(" ")
+                val parsedAttrs = parseAnnotationString(fullAnnotationText, widgetType)
+                if (parsedAttrs.isNotEmpty()) {
+                    val attrString = parsedAttrs.map { (k, v) ->
+                        val key = when(k) {
+                            "background" -> "app:backgroundTint"
+                            else -> "android:$k"
+                        }
+                        "$key=\"$v\""
+                    }.joinToString("\n")
+                    finalAnnotationMap[tag] = attrString
+                }
+            }
+        }
+
+        // --- Logging for Verification ---
+        Log.d(TAG, "--- Raw OCR Content by Region ---")
+        Log.d(TAG, "Canvas OCR: [${canvasDetections.joinToString(", ") { "'${it.text}'" }}]")
+        Log.d(TAG, "--- Grouped Margin OCR ---")
+        groupedMarginOcr.forEach { (tag, texts) ->
+            Log.d(TAG, "Tag: '$tag', Content: [${texts.joinToString(", ") { "'$it'" }}]")
+        }
+        Log.d(TAG, "--- Parsed Annotations ---")
+        finalAnnotationMap.forEach { (tag, attrs) ->
+            Log.d(TAG, "Tag: '$tag', Attributes:\n$attrs")
         }
         Log.d(TAG, "--------------------------")
+        val canvasWidgetTags = canvasDetections.filter { isTag(it.text.trim()) }
+        Log.d(TAG, "Canvas Widget Tags Found: ${canvasWidgetTags.joinToString(", ") { "'${it.text.trim()}'" }}")
 
-        // --- End of Logging ---
-
-
-        // --- Original Parsing Logic (to be preserved) ---
-        val annotationMap = mutableMapOf<String, String>()
-        var currentTag: String? = null
-        val currentAnnotation = StringBuilder()
-
-        for (detection in sortedMarginDetections) {
-            val correctedText = correctOcrErrors(detection.text.trim())
-            if (isTag(correctedText)) {
-                if (currentTag != null && currentAnnotation.isNotBlank()) {
-                    annotationMap[currentTag!!] = currentAnnotation.toString().trim()
-                }
-                currentTag = correctedText
-                currentAnnotation.clear()
-            } else if (currentTag != null) {
-                currentAnnotation.append(" ").append(correctedText)
-            }
-        }
-        if (currentTag != null && currentAnnotation.isNotBlank()) {
-            annotationMap[currentTag!!] = currentAnnotation.toString().trim()
-        }
-
-        val correctedCanvasDetections = canvasDetections.map {
-            it.copy(text = correctOcrErrors(it.text))
-        }
-
-        // Log the final findings
-        val marginTags = annotationMap.keys.joinToString(", ")
-        Log.d(TAG, "Margin Annotations Found: $marginTags")
-        val canvasWidgetTags = correctedCanvasDetections.filter { isTag(it.text.trim()) }
-        val canvasTagsLog = canvasWidgetTags.joinToString(", ") { "'${it.text.trim()}'" }
-        Log.d(TAG, "Canvas Widget Tags Found: $canvasTagsLog")
-
-
-        return Pair(correctedCanvasDetections, annotationMap)
+        // FIX: Return ALL canvas detections for drawing, not just the tags.
+        return Pair(canvasDetections, finalAnnotationMap)
     }
 }
