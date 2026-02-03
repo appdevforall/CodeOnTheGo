@@ -161,14 +161,15 @@ class ComposeCompiler(
             }
 
             val completed = process.waitFor(COMPILATION_TIMEOUT_MINUTES, TimeUnit.MINUTES)
-            val output = outputDeferred.await()
 
             if (!completed) {
                 process.destroyForcibly()
+                val output = outputDeferred.await()
                 LOG.error("Compilation timed out after {} minutes", COMPILATION_TIMEOUT_MINUTES)
                 return@coroutineScope ProcessResult(-1, output, "Compilation timed out after $COMPILATION_TIMEOUT_MINUTES minutes")
             }
 
+            val output = outputDeferred.await()
             ProcessResult(process.exitValue(), output, output)
         }
     }
