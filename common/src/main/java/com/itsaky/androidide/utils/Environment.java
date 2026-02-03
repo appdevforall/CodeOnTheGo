@@ -183,7 +183,7 @@ public final class Environment {
 		KEYSTORE_RELEASE = new File(KEYSTORE_DIR, KEYSTORE_RELEASE_NAME);
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
 
-		NDK_DIR = new File(ANDROID_HOME,"ndk");
+		NDK_DIR = new File(ANDROID_HOME, "ndk");
 
 		isInitialized.set(true);
 	}
