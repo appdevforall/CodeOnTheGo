@@ -23,8 +23,7 @@ class Executor(
     companion object {
         private val log = LoggerFactory.getLogger(Executor::class.java)
 
-        // Tools that only read IDE state and can be executed in parallel safely.
-        private val parallelSafeTools = setOf(
+        private val PARALLEL_SAFE_TOOLS = setOf(
             "read_file",
             "list_files",
             "read_multiple_files",
@@ -34,6 +33,9 @@ class Executor(
             "get_current_datetime",
             "get_weather"
         )
+
+        // Tools that only read IDE state and can be executed in parallel safely.
+        private val parallelSafeTools = PARALLEL_SAFE_TOOLS
 
         fun requiredArgsForTool(toolName: String): List<String> {
             return when (toolName) {

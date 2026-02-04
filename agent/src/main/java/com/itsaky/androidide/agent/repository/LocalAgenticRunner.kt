@@ -13,9 +13,11 @@ import com.itsaky.androidide.agent.model.ExplorationMetadata
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.prompt.SystemPromptProvider
+import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
+import java.io.File
 
 class LocalAgenticRunner(
     context: Context,
@@ -93,12 +95,15 @@ class LocalAgenticRunner(
                     )
                     if (initial.isBlank()) {
                         log.warn("Simplified workflow: empty response, retrying with no stop strings.")
-                        engine.updateSampling(temperature = 0.2f, topP = 0.9f, topK = 40)
-                        val retry = engine.runInference(
-                            simplifiedPrompt,
-                            clearCache = history.isEmpty()
-                        )
-                        engine.resetSamplingDefaults()
+                        val retry = try {
+                            engine.updateSampling(temperature = 0.2f, topP = 0.9f, topK = 40)
+                            engine.runInference(
+                                simplifiedPrompt,
+                                clearCache = history.isEmpty()
+                            )
+                        } finally {
+                            engine.resetSamplingDefaults()
+                        }
                         retry
                     } else {
                         initial
@@ -171,47 +176,24 @@ class LocalAgenticRunner(
             toolByName[name]?.let { selected.add(it) }
         }
 
-        if (lowerQuery.contains("list") || lowerQuery.contains("files") || lowerQuery.contains("directory") || lowerQuery.contains(
-                "folder"
-            )
-        ) {
-            addTool("list_files")
-        }
-        if (lowerQuery.contains("read") || lowerQuery.contains("open file") || lowerQuery.contains("show file")) {
-            addTool("read_file")
-        }
-        if (lowerQuery.contains("search") || lowerQuery.contains("find")) {
-            addTool("search_project")
-        }
-        if (lowerQuery.contains("create") || lowerQuery.contains("new file") || lowerQuery.contains(
-                "add file"
-            )
-        ) {
-            addTool("create_file")
-        }
-        if (lowerQuery.contains("update") || lowerQuery.contains("edit") || lowerQuery.contains("modify") || lowerQuery.contains(
-                "replace"
-            )
-        ) {
-            addTool("update_file")
-        }
-        if (lowerQuery.contains("dependency") || lowerQuery.contains("gradle")) {
-            addTool("add_dependency")
-        }
-        if (lowerQuery.contains("build") || lowerQuery.contains("compile")) {
-            addTool("get_build_output")
-        }
-        if (lowerQuery.contains("run") || lowerQuery.contains("install") || lowerQuery.contains("launch")) {
-            addTool("run_app")
-        }
-        if (lowerQuery.contains("time") || lowerQuery.contains("date")) {
-            addTool("get_current_datetime")
-        }
-        if (lowerQuery.contains("battery")) {
-            addTool("get_device_battery")
-        }
-        if (lowerQuery.contains("weather")) {
-            addTool("get_weather")
+        val keywordMap = linkedMapOf(
+            "list_files" to listOf("list", "files", "directory", "folder"),
+            "read_file" to listOf("read", "open file", "show file"),
+            "search_project" to listOf("search", "find"),
+            "create_file" to listOf("create", "new file", "add file"),
+            "update_file" to listOf("update", "edit", "modify", "replace"),
+            "add_dependency" to listOf("dependency", "gradle"),
+            "get_build_output" to listOf("build", "compile"),
+            "run_app" to listOf("run", "install", "launch"),
+            "get_current_datetime" to listOf("time", "date"),
+            "get_device_battery" to listOf("battery"),
+            "get_weather" to listOf("weather"),
+        )
+
+        for ((toolName, keywords) in keywordMap) {
+            if (keywords.any { lowerQuery.contains(it) }) {
+                addTool(toolName)
+            }
         }
 
         if (selected.isEmpty()) {
@@ -402,29 +384,64 @@ assistant:
     }
 
     private fun inferFilePath(text: String): String? {
-        val backtick = Regex("`([^`]+)`").find(text)?.groupValues?.getOrNull(1)
-        if (!backtick.isNullOrBlank() && backtick.contains('.')) return backtick
+        fun sanitizeCandidate(candidate: String?): String? {
+            if (candidate.isNullOrBlank()) return null
+            if (candidate.contains("..")) return null
+            return resolvePathWithinProject(candidate)
+        }
 
-        val singleQuote = Regex("'([^']+)'").find(text)?.groupValues?.getOrNull(1)
-        if (!singleQuote.isNullOrBlank() && singleQuote.contains('.')) return singleQuote
+        val backtick = firstGroup(text, Regex("`([^`]+)`"))
+        if (!backtick.isNullOrBlank() && backtick.contains('.')) {
+            return sanitizeCandidate(backtick)
+        }
 
-        val doubleQuote = Regex("\"([^\"]+)\"").find(text)?.groupValues?.getOrNull(1)
-        if (!doubleQuote.isNullOrBlank() && doubleQuote.contains('.')) return doubleQuote
+        val singleQuote = firstGroup(text, Regex("'([^']+)'"))
+        if (!singleQuote.isNullOrBlank() && singleQuote.contains('.')) {
+            return sanitizeCandidate(singleQuote)
+        }
 
-        val extMatch = Regex("([\\w./-]+\\.(?:kts|kt|gradle|xml|json|md|txt|yml|yaml|properties))")
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
-        return extMatch
+        val doubleQuote = firstGroup(text, Regex("\"([^\"]+)\""))
+        if (!doubleQuote.isNullOrBlank() && doubleQuote.contains('.')) {
+            return sanitizeCandidate(doubleQuote)
+        }
+
+        val extMatch = firstGroup(
+            text,
+            Regex("([\\w./-]+\\.(?:kts|kt|gradle|xml|json|md|txt|yml|yaml|properties))")
+        )
+        return sanitizeCandidate(extMatch)
+    }
+
+    private fun firstGroup(text: String, regex: Regex): String? {
+        return regex.find(text)?.groupValues?.getOrNull(1)
+    }
+
+    private fun firstGroup(text: String, vararg patterns: Regex): String? {
+        for (pattern in patterns) {
+            val match = firstGroup(text, pattern)
+            if (!match.isNullOrBlank()) return match
+        }
+        return null
+    }
+
+    private fun resolvePathWithinProject(candidate: String): String? {
+        val trimmed = candidate.trim()
+        if (trimmed.isEmpty()) return null
+        return runCatching {
+            val baseDir = IProjectManager.getInstance().projectDir.canonicalFile
+            val basePath = baseDir.canonicalPath
+            val candidateFile = File(baseDir, trimmed)
+            val candidatePath = candidateFile.canonicalPath
+            val isInside = candidatePath == basePath ||
+                candidatePath.startsWith(basePath + File.separator)
+            if (isInside) trimmed else null
+        }.getOrNull()
     }
 
     private fun inferDependency(text: String): String? {
-        val implMatch = Regex("implementation\\(([^)]+)\\)").find(text)?.groupValues?.getOrNull(1)
-        val apiMatch = Regex("api\\(([^)]+)\\)").find(text)?.groupValues?.getOrNull(1)
-        val raw = implMatch ?: apiMatch ?: Regex("'([^']+:[^']+:[^']+)'")
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
+        val implMatch = firstGroup(text, Regex("implementation\\(([^)]+)\\)"))
+        val apiMatch = firstGroup(text, Regex("api\\(([^)]+)\\)"))
+        val raw = implMatch ?: apiMatch ?: firstGroup(text, Regex("'([^']+:[^']+:[^']+)'"))
         return raw?.trim()?.trim('"')?.trim('\'')?.takeIf { it.contains(':') }
     }
 
@@ -439,8 +456,7 @@ assistant:
     }
 
     private fun inferSearchQuery(text: String): String? {
-        val quoted = Regex("\"([^\"]+)\"").find(text)?.groupValues?.getOrNull(1)
-            ?: Regex("'([^']+)'").find(text)?.groupValues?.getOrNull(1)
+        val quoted = firstGroup(text, Regex("\"([^\"]+)\""), Regex("'([^']+)'"))
         if (!quoted.isNullOrBlank()) {
             val trimmed = quoted.trim()
             val fromQuoted = extractFilenameQuery(trimmed)
@@ -450,19 +466,13 @@ assistant:
         val fileExt = Regex(
             "([\\w\\-./]+\\.(?:ini|csv|json|xml|yaml|yml|txt|md|kts|gradle|kt|java))",
             RegexOption.IGNORE_CASE
-        ).find(text)?.groupValues?.getOrNull(1)
+        ).let { firstGroup(text, it) }
         if (!fileExt.isNullOrBlank()) return fileExt.trim()
 
-        val fileNamed = Regex("file\\s+named\\s+([\\w.\\-/]+)", RegexOption.IGNORE_CASE)
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
+        val fileNamed = firstGroup(text, Regex("file\\s+named\\s+([\\w.\\-/]+)", RegexOption.IGNORE_CASE))
         if (!fileNamed.isNullOrBlank()) return fileNamed.trim()
 
-        val afterSearchFor = Regex("search\\s+for\\s+(.+)", RegexOption.IGNORE_CASE)
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
+        val afterSearchFor = firstGroup(text, Regex("search\\s+for\\s+(.+)", RegexOption.IGNORE_CASE))
             ?.trim()
             ?.trimEnd('.', '?')
         if (!afterSearchFor.isNullOrBlank()) {

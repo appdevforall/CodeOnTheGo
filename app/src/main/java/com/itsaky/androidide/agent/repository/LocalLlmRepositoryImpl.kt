@@ -8,6 +8,7 @@ import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -69,7 +70,11 @@ class LocalLlmRepositoryImpl(
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
         val success = engine.initModelFromFile(context, modelUriString)
         val status =
-            if (success) "Local model loaded successfully!" else "Error: Failed to load local model."
+            if (success) {
+                context.getString(R.string.agent_local_model_loaded_success)
+            } else {
+                context.getString(R.string.agent_local_model_loaded_failure)
+            }
         onStateUpdate?.invoke(AgentState.Processing(status))
         onStateUpdate?.invoke(AgentState.Idle)
         return success

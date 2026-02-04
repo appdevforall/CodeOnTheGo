@@ -24,6 +24,7 @@ import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.getFileName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -220,13 +221,17 @@ class ChatViewModel : ViewModel() {
 				.replace("_", " ")
 				.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 
-		val message = StringBuilder("🤖 System: $backendDisplayName backend selected.")
+		val message = StringBuilder(
+			context.getString(R.string.agent_backend_selected, backendDisplayName)
+		)
 		if (backend == AiBackend.LOCAL_LLM) {
 			if (modelPath != null) {
 				val fileName = modelPath.toUri().getFileName(context)
-				message.append("\nCurrent model: $fileName")
+				message.append("\n")
+				message.append(context.getString(R.string.agent_current_model, fileName))
 			} else {
-				message.append("\n⚠️ Warning: No model file selected.")
+				message.append("\n")
+				message.append(context.getString(R.string.agent_no_model_selected_warning))
 			}
 		}
 		return message.toString()
@@ -285,10 +290,10 @@ class ChatViewModel : ViewModel() {
 						val backendName = lastKnownBackendName
 						if (backendName == AiBackend.LOCAL_LLM.name) {
 							postSystemError(
-								"Local model is not loaded. Open AI Settings, pick a model, and try again.",
+								context.getString(R.string.agent_local_model_not_loaded),
 							)
 						} else {
-							postSystemError("The AI backend is not ready. Please review your AI settings.")
+							postSystemError(context.getString(R.string.agent_backend_not_ready))
 						}
 						return@launch
 					}

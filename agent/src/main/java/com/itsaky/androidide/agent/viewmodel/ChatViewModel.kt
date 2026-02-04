@@ -39,6 +39,7 @@ import com.itsaky.androidide.agent.tool.ToolsConfigParams
 import com.itsaky.androidide.agent.tool.buildToolRouter
 import com.itsaky.androidide.agent.tool.buildToolsConfig
 import com.itsaky.androidide.agent.tool.shell.ParsedCommand
+import com.itsaky.androidide.agent.ui.ChatAdapter
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.getFileName
@@ -48,12 +49,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -65,6 +68,11 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.jvm.optionals.getOrNull
+
+sealed class ChatUiEvent {
+    data class EditMessage(val text: String) : ChatUiEvent()
+    data object OpenSettings : ChatUiEvent()
+}
 
 data class BackendStatus(val displayText: String)
 
@@ -97,9 +105,12 @@ class ChatViewModel : ViewModel() {
 
     private val _backendStatus = MutableLiveData<BackendStatus>()
     val backendStatus: LiveData<BackendStatus> = _backendStatus
-    private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
-    val agentState = _agentState.asStateFlow()
-    private val _totalElapsedTime = MutableStateFlow(0L)
+	private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
+	val agentState = _agentState.asStateFlow()
+	private val _totalElapsedTime = MutableStateFlow(0L)
+
+	private val _uiEvents = MutableSharedFlow<ChatUiEvent>()
+	val uiEvents = _uiEvents.asSharedFlow()
     val totalElapsedTime = _totalElapsedTime.asStateFlow()
     private val _stepElapsedTime = MutableStateFlow(0L)
     val stepElapsedTime = _stepElapsedTime.asStateFlow()
@@ -276,7 +287,7 @@ class ChatViewModel : ViewModel() {
         retrieveAgentResponse(fullPrompt, originalUserText, context)
     }
 
-    fun formatTime(millis: Long): String {
+	fun formatTime(millis: Long): String {
         if (millis < 0) return ""
 
         val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
@@ -289,7 +300,23 @@ class ChatViewModel : ViewModel() {
             String.format(Locale.US, "%dm %.1fs", minutes, totalSeconds)
         } else {
             String.format(Locale.US, "%.1fs", totalSeconds)
-        }
+	}
+
+	fun onMessageAction(action: String, message: ChatMessage) {
+		when (action) {
+			ChatAdapter.DiffCallback.ACTION_EDIT -> {
+				viewModelScope.launch {
+					_uiEvents.emit(ChatUiEvent.EditMessage(message.text))
+				}
+			}
+
+			ChatAdapter.DiffCallback.ACTION_OPEN_SETTINGS -> {
+				viewModelScope.launch {
+					_uiEvents.emit(ChatUiEvent.OpenSettings)
+				}
+			}
+		}
+	}
     }
 
     private fun retrieveAgentResponse(

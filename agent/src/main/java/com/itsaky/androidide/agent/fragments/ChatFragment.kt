@@ -8,6 +8,9 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -23,6 +26,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
@@ -33,10 +38,12 @@ import com.itsaky.androidide.agent.api.AgentDependencies
 import com.itsaky.androidide.agent.databinding.FragmentChatBinding
 import com.itsaky.androidide.agent.model.ReviewDecision
 import com.itsaky.androidide.agent.repository.allAgentTools
+import com.itsaky.androidide.agent.viewmodel.ChatUiEvent
 import com.itsaky.androidide.agent.tool.toJsonElement
 import com.itsaky.androidide.agent.tool.toolJson
 import com.itsaky.androidide.agent.ui.ChatAdapter
 import com.itsaky.androidide.agent.ui.ChatAdapter.DiffCallback.ACTION_EDIT
+import com.itsaky.androidide.agent.utils.ChatTranscriptUtils
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.events.TokenUsageEvent
 import com.itsaky.androidide.fragments.FragmentWithBinding
@@ -103,14 +110,13 @@ class ChatFragment :
                 if (uris.isNotEmpty()) {
                     selectedImageUris.addAll(uris)
                     updateContextChips()
-                    flashInfo("${uris.size} images selected.")
+                    flashInfo(getString(R.string.agent_images_selected, uris.size))
                 }
             }
     }
 
     override fun onResume() {
         super.onResume()
-        activity?.window?.decorView?.setOnApplyWindowInsetsListener(insetsListener)
         chatViewModel.checkBackendStatusOnResume(requireContext())
     }
 
@@ -120,6 +126,7 @@ class ChatFragment :
             .usePlugin(LinkifyPlugin.create())
             .build()
 
+        view.setOnApplyWindowInsetsListener(insetsListener)
 
         setupUI()
         setupListeners()
@@ -134,13 +141,37 @@ class ChatFragment :
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                chatViewModel.chatMessages.collect { messages ->
-                    lastRenderedMessages = messages
-                    chatAdapter.submitList(messages)
-                    updateUIState(messages)
-                    updateToolbarForMessages(messages)
-                    if (messages.isNotEmpty()) {
-                        binding.chatRecyclerView.scrollToPosition(messages.size - 1)
+                launch {
+                    chatViewModel.chatMessages.collect { messages ->
+                        lastRenderedMessages = messages
+                        chatAdapter.submitList(messages)
+                        updateUIState(messages)
+                        updateToolbarForMessages(messages)
+                        if (messages.isNotEmpty()) {
+                            binding.chatRecyclerView.scrollToPosition(messages.size - 1)
+                        }
+                    }
+                }
+                launch {
+                    chatViewModel.uiEvents.collect { event ->
+                        when (event) {
+                            is ChatUiEvent.EditMessage -> {
+                                binding.promptInputEdittext.setText(event.text)
+                                binding.promptInputEdittext.setSelection(event.text.length)
+                                binding.promptInputEdittext.requestFocus()
+                                val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE)
+                                    as? InputMethodManager
+                                imm?.showSoftInput(
+                                    binding.promptInputEdittext,
+                                    InputMethodManager.SHOW_IMPLICIT
+                                )
+                            }
+
+                            ChatUiEvent.OpenSettings -> {
+                                findNavController()
+                                    .navigate(R.id.action_chatFragment_to_aiSettingsFragment)
+                            }
+                        }
                     }
                 }
             }
@@ -164,16 +195,21 @@ class ChatFragment :
         }
     }
 
+    override fun onDestroyView() {
+        view?.setOnApplyWindowInsetsListener(null)
+        super.onDestroyView()
+    }
+
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onTokenUsageEvent(event: TokenUsageEvent) {
         binding.agentStatusContainer.isVisible = true
         val limit = event.tokenLimit
         if (limit <= 0) {
-            binding.tokenUsageText.text = "Tokens: N/A"
+            binding.tokenUsageText.text = getString(R.string.agent_tokens_na)
             return
         }
         val percentage = (event.tokenCount.toFloat() / limit.toFloat() * 100).toInt()
-        binding.tokenUsageText.text = "Tokens: $percentage%"
+        binding.tokenUsageText.text = getString(R.string.agent_tokens_percentage, percentage)
     }
 
     private fun handleSendMessage() {
@@ -323,7 +359,7 @@ class ChatFragment :
             }.toTypedArray()
 
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select a tool to test")
+            .setTitle(R.string.agent_select_tool_to_test)
             .setItems(toolNames) { _, which ->
                 val selectedToolName = toolNames[which]
                 showArgumentInputDialog(selectedToolName)
@@ -338,40 +374,39 @@ class ChatFragment :
             decl.name().get() == toolName
         }
         if (tool == null) {
-            flashInfo("Tool not found: $toolName")
+            flashInfo(getString(R.string.agent_tool_not_found, toolName))
             return
         }
 
-        val description = tool.description().orElse("No description")
-        val parameters = tool.parameters().orElse(null)
-        val properties = parameters?.properties()?.orElse(emptyMap()) ?: emptyMap()
-        val requiredFields = parameters?.required()?.orElse(emptyList()) ?: emptyList()
+        val description = tool.description().orElse(getString(R.string.agent_tool_description_missing))
+        val properties = tool.propertiesOrEmpty()
+        val requiredFields = tool.requiredOrEmpty()
 
         if (properties.isEmpty()) {
             // No parameters needed, run directly
             MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Run $toolName")
-                .setMessage("Description: $description\n\nThis tool has no parameters.")
-                .setPositiveButton("Run") { _, _ ->
+                .setTitle(getString(R.string.agent_run_tool_title, toolName))
+                .setMessage(getString(R.string.agent_tool_no_params, description))
+                .setPositiveButton(R.string.agent_dialog_run) { _, _ ->
                     chatViewModel.testTool(toolName, "{}")
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(R.string.agent_dialog_cancel, null)
                 .show()
             return
         }
 
         // Create a dynamic form with input fields
-        val scrollView = android.widget.ScrollView(requireContext())
+        val scrollView = ScrollView(requireContext())
         val paddingNormal = (16 * resources.displayMetrics.density).toInt()
         val paddingSmall = (8 * resources.displayMetrics.density).toInt()
 
-        val container = android.widget.LinearLayout(requireContext()).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
+        val container = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(paddingNormal, paddingNormal, paddingNormal, paddingNormal)
         }
 
         // Add description
-        container.addView(android.widget.TextView(requireContext()).apply {
+        container.addView(TextView(requireContext()).apply {
             text = description
             setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
             setPadding(0, 0, 0, paddingNormal)
@@ -379,15 +414,17 @@ class ChatFragment :
 
         // Map to store input fields
         val inputFields = mutableMapOf<String, android.widget.EditText>()
+        val paramTypes = mutableMapOf<String, String>()
 
         // Create input field for each parameter
         properties.forEach { (paramName, schema) ->
             val paramType = schema.type().get().toString().lowercase()
             val paramDescription = schema.description().orElse("")
             val isRequired = requiredFields.contains(paramName)
+            paramTypes[paramName] = paramType
 
             // Parameter label
-            container.addView(android.widget.TextView(requireContext()).apply {
+            container.addView(TextView(requireContext()).apply {
                 text = if (isRequired) "$paramName *" else paramName
                 setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_LabelMedium)
                 setTypeface(null, android.graphics.Typeface.BOLD)
@@ -395,7 +432,7 @@ class ChatFragment :
 
             // Parameter description
             if (paramDescription.isNotBlank()) {
-                container.addView(android.widget.TextView(requireContext()).apply {
+                container.addView(TextView(requireContext()).apply {
                     text = paramDescription
                     setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
                     setTextColor(android.graphics.Color.GRAY)
@@ -404,7 +441,7 @@ class ChatFragment :
 
             // Input field
             val editText =
-                com.google.android.material.textfield.TextInputEditText(requireContext()).apply {
+                TextInputEditText(requireContext()).apply {
                     hint = getDefaultHintForParameter(toolName, paramName, paramType)
 
                     // Set input type based on parameter type
@@ -428,11 +465,11 @@ class ChatFragment :
                 }
 
             val inputLayout =
-                com.google.android.material.textfield.TextInputLayout(requireContext()).apply {
+                TextInputLayout(requireContext()).apply {
                     addView(editText)
-                    val layoutParams = android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    val layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                     ).apply {
                         bottomMargin = paddingSmall
                     }
@@ -446,17 +483,17 @@ class ChatFragment :
         scrollView.addView(container)
 
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Test Tool: $toolName")
+            .setTitle(getString(R.string.agent_test_tool_title, toolName))
             .setView(scrollView)
-            .setPositiveButton("Run") { _, _ ->
-                val args = buildArgumentsMap(inputFields, requiredFields)
+            .setPositiveButton(R.string.agent_dialog_run) { _, _ ->
+                val args = buildArgumentsMap(inputFields, requiredFields, paramTypes)
                 if (args != null) {
                     chatViewModel.testTool(toolName, args)
                 } else {
-                    flashError("Please fill in all required fields (marked with *)")
+                    flashError(getString(R.string.agent_required_fields_missing))
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(R.string.agent_dialog_cancel, null)
             .show()
     }
 
@@ -465,19 +502,16 @@ class ChatFragment :
         paramName: String,
         paramType: String
     ): String {
+        val name = paramName.lowercase()
         return when {
-            paramName.contains(
-                "path",
-                ignoreCase = true
-            ) -> "e.g., app/src/main/AndroidManifest.xml"
-
-            paramName.contains("content", ignoreCase = true) -> "File content..."
-            paramName.contains("pattern", ignoreCase = true) -> "Search pattern..."
-            paramName.contains("offset", ignoreCase = true) -> "0"
-            paramName.contains("limit", ignoreCase = true) -> "1000"
-            paramType == "boolean" -> "true or false"
-            paramType == "integer" || paramType == "number" -> "Enter a number"
-            else -> "Enter $paramName"
+            "path" in name -> getString(R.string.agent_hint_path_example)
+            "content" in name -> getString(R.string.agent_hint_file_content)
+            "pattern" in name -> getString(R.string.agent_hint_search_pattern)
+            "offset" in name -> getString(R.string.agent_hint_offset)
+            "limit" in name -> getString(R.string.agent_hint_limit)
+            paramType == "boolean" -> getString(R.string.agent_hint_boolean)
+            paramType == "integer" || paramType == "number" -> getString(R.string.agent_hint_number)
+            else -> getString(R.string.agent_hint_param, paramName)
         }
     }
 
@@ -505,7 +539,8 @@ class ChatFragment :
 
     private fun buildArgumentsMap(
         inputFields: Map<String, android.widget.EditText>,
-        requiredFields: List<String>
+        requiredFields: List<String>,
+        paramTypes: Map<String, String>
     ): String? {
         val argsMap = mutableMapOf<String, Any>()
 
@@ -520,13 +555,8 @@ class ChatFragment :
             }
 
             // Try to parse as the appropriate type
-            argsMap[paramName] = when {
-                value.equals("true", ignoreCase = true) -> true
-                value.equals("false", ignoreCase = true) -> false
-                value.toIntOrNull() != null -> value.toInt()
-                value.toDoubleOrNull() != null -> value.toDouble()
-                else -> value
-            }
+            val paramType = paramTypes[paramName].orEmpty()
+            argsMap[paramName] = parseValue(value, paramType)
         }
 
         return argsMapToJson(argsMap)
@@ -536,6 +566,22 @@ class ChatFragment :
         val jsonElement: JsonElement = argsMap.toJsonElement()
         return toolJson.encodeToString(JsonElement.serializer(), jsonElement)
     }
+
+    private fun parseValue(value: String, type: String): Any {
+        val normalizedType = type.lowercase()
+        return when (normalizedType) {
+            "boolean" -> value.toBooleanStrictOrNull() ?: value
+            "integer" -> value.toIntOrNull() ?: value
+            "number" -> value.toDoubleOrNull() ?: value
+            else -> value
+        }
+    }
+
+    private fun ToolDeclaration.propertiesOrEmpty(): Map<String, Schema> =
+        parameters().orElse(null)?.properties()?.orElse(emptyMap()).orEmpty()
+
+    private fun ToolDeclaration.requiredOrEmpty(): List<String> =
+        parameters().orElse(null)?.required()?.orElse(emptyList()).orEmpty()
 
     private fun setupStateObservers() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -642,15 +688,15 @@ class ChatFragment :
         }
 
         approvalDialog = MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Approve '${state.toolName}'?")
+            .setTitle(getString(R.string.agent_approval_title, state.toolName))
             .setMessage(message)
-            .setPositiveButton("Approve Once") { _, _ ->
+            .setPositiveButton(R.string.agent_approval_once) { _, _ ->
                 chatViewModel.submitUserApproval(state.id, ReviewDecision.Approved)
             }
-            .setNeutralButton("Approve for Session") { _, _ ->
+            .setNeutralButton(R.string.agent_approval_session) { _, _ ->
                 chatViewModel.submitUserApproval(state.id, ReviewDecision.ApprovedForSession)
             }
-            .setNegativeButton("Deny") { _, _ ->
+            .setNegativeButton(R.string.agent_approval_deny) { _, _ ->
                 chatViewModel.submitUserApproval(state.id, ReviewDecision.Denied)
             }
             .setOnCancelListener {
@@ -805,18 +851,8 @@ class ChatFragment :
     }
 
     private fun shareTranscriptAsText(ctx: Context, transcript: String) {
-        val exportsDir = File(ctx.cacheDir, "chat_exports")
-        if (!exportsDir.exists() && !exportsDir.mkdirs()) {
-            flashInfo(getString(R.string.copy_chat_share_failed))
-            return
-        }
-
-        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        val file = File(exportsDir, "chat-transcript-$timestamp.txt")
-
         try {
-            file.writeText(transcript, Charsets.UTF_8)
-            FileShareUtils.shareFile(ctx, file, "text/plain")
+            ChatTranscriptUtils.shareTranscript(ctx, transcript)
         } catch (err: IOException) {
             logger.error("Failed to share chat transcript", err)
             flashInfo(getString(R.string.copy_chat_share_failed))
@@ -832,7 +868,8 @@ class ChatFragment :
         return if (trimmed.length <= maxLength) {
             trimmed
         } else {
-            trimmed.take(maxLength - 3).trimEnd() + "..."
+            val suffix = getString(R.string.agent_title_ellipsis_suffix)
+            trimmed.take(maxLength - suffix.length).trimEnd() + suffix
         }
     }
 
@@ -873,24 +910,6 @@ class ChatFragment :
     }
 
     private fun handleMessageAction(action: String, message: ChatMessage) {
-        when (action) {
-            ACTION_EDIT -> {
-                // Set the selected message's text into the input field
-                binding.promptInputEdittext.setText(message.text)
-
-                // Move the cursor to the end of the text for a better editing experience
-                binding.promptInputEdittext.setSelection(message.text.length)
-
-                // Request focus on the input field and show the keyboard
-                binding.promptInputEdittext.requestFocus()
-                val imm =
-                    context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.showSoftInput(binding.promptInputEdittext, InputMethodManager.SHOW_IMPLICIT)
-            }
-
-            ChatAdapter.DiffCallback.ACTION_OPEN_SETTINGS -> {
-                findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
-            }
-        }
+        chatViewModel.onMessageAction(action, message)
     }
 }

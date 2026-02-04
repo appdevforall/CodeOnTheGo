@@ -103,9 +103,14 @@ class ProjectManagerImpl :
 	suspend fun isGradleSyncNeeded(projectDir: File): Boolean = ProjectSyncHelper.checkSyncNeeded(projectDir)
 
 	override suspend fun setup(gradleBuild: GradleModels.GradleBuild) {
-        pluginProjectCached = withContext(Dispatchers.IO) {
-            File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
-        }
+		if (!this::projectPath.isInitialized) {
+			log.warn("Project path not initialized before setup(); skipping plugin project cache check.")
+			pluginProjectCached = null
+		} else {
+			pluginProjectCached = withContext(Dispatchers.IO) {
+				File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
+			}
+		}
 
 		this.gradleBuild = gradleBuild
 		this.workspace =
