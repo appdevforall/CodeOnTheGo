@@ -27,6 +27,9 @@ public class XmlLayoutGenerator {
   public String generate(@NonNull DesignEditor editor, boolean useSuperclasses) {
     this.useSuperclasses = useSuperclasses;
 
+    // Clear builder to avoid accumulating content from previous calls
+    builder.setLength(0);
+
     if (editor.getChildCount() == 0) {
       return "";
     }
