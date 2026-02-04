@@ -230,6 +230,7 @@ class ProjectManagerImpl :
 	override fun destroy() {
 		log.info("Destroying project manager")
 		this.workspace = null
+		pluginProjectCached = null
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}

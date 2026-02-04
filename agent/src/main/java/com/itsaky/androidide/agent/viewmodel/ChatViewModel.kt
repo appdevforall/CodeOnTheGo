@@ -300,6 +300,7 @@ class ChatViewModel : ViewModel() {
             String.format(Locale.US, "%dm %.1fs", minutes, totalSeconds)
         } else {
             String.format(Locale.US, "%.1fs", totalSeconds)
+		}
 	}
 
 	fun onMessageAction(action: String, message: ChatMessage) {

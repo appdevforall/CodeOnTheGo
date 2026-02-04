@@ -185,14 +185,11 @@ class LocalLlmRepositoryImpl(
                     ModelFamily.LLAMA3 -> {
                         toolStops.add("<|eot_id|>")
                         toolStops.add("<|end_of_text|>")
-                        // Crude but effective for JSON-only tool calls.
-                        toolStops.add("}")
                     }
 
                     ModelFamily.QWEN,
                     ModelFamily.H2O -> {
-                        // Qwen answers with raw JSON; stop once it closes.
-                        toolStops.add("}")
+                        Unit
                     }
 
                     else -> Unit

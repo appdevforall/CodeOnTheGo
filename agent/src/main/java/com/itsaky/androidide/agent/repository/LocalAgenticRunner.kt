@@ -14,8 +14,9 @@ import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.prompt.SystemPromptProvider
 import com.itsaky.androidide.projects.IProjectManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -631,7 +632,7 @@ assistant:
 
     override fun destroy() {
         super.destroy()
-        runBlocking(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             if (engine.isModelLoaded) {
                 engine.unloadModel()
             }

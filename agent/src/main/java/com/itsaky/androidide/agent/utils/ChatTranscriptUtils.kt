@@ -29,11 +29,15 @@ object ChatTranscriptUtils {
     @Throws(IOException::class)
     fun writeTranscriptToCache(context: Context, transcript: String): File {
         val exportsDir = File(context.cacheDir, "chat_exports")
-        if (!exportsDir.exists() && !exportsDir.mkdirs()) {
+        if (exportsDir.exists()) {
+            if (!exportsDir.isDirectory) {
+                throw IOException("Exports path is not a directory: ${exportsDir.path}")
+            }
+        } else if (!exportsDir.mkdirs()) {
             throw IOException("Failed to create exports directory: ${exportsDir.path}")
         }
 
-        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmssSSS", Locale.US).format(Date())
         val file = File(exportsDir, "chat-transcript-$timestamp.txt")
         file.writeText(transcript, Charsets.UTF_8)
         return file
