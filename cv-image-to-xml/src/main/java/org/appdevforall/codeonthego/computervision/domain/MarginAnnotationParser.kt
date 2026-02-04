@@ -27,7 +27,8 @@ object MarginAnnotationParser {
         "background" to "background",
         "layout width" to "layout_width",
         "layout height" to "layout_height",
-        "lavout height" to "layout_height" // Fix for the typo
+        "lavout height" to "layout_height",
+        "yekow" to "yellow"
     )
 
     private val valueCorrectionMap = mapOf(
