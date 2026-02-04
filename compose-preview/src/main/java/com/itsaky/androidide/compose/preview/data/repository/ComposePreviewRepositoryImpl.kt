@@ -29,6 +29,7 @@ class ComposePreviewRepositoryImpl(
     private var runtimeDex: File? = null
     private var projectContext: ProjectContext? = null
     private var daemonInitialized = false
+    private var cachedClasspath: String? = null
 
     companion object {
         private val LOG = LoggerFactory.getLogger(ComposePreviewRepositoryImpl::class.java)
@@ -39,6 +40,14 @@ class ComposePreviewRepositoryImpl(
         filePath: String
     ): Result<InitializationResult> = withContext(Dispatchers.IO) {
         runCatching {
+            val ctx = projectContextSource.resolveContext(filePath)
+            projectContext = ctx
+
+            if (ctx.needsBuild && ctx.modulePath != null) {
+                LOG.warn("No intermediate classes found - build required before initialization")
+                return@runCatching InitializationResult.NeedsBuild(ctx.modulePath, ctx.variantName)
+            }
+
             val cpManager = initializeInfrastructure(context)
 
             if (!cpManager.ensureComposeJarsExtracted()) {
@@ -48,13 +57,24 @@ class ComposePreviewRepositoryImpl(
             }
 
             runtimeDex = cpManager.getOrCreateRuntimeDex()
-            if (runtimeDex != null) {
-                LOG.info("Compose runtime DEX ready: {}", runtimeDex?.absolutePath)
-            } else {
-                LOG.warn("Failed to create Compose runtime DEX, preview may fail at runtime")
+            if (runtimeDex == null) {
+                LOG.error("Failed to create Compose runtime DEX")
+                return@runCatching InitializationResult.Failed(
+                    "Failed to create Compose runtime. Check that Android SDK build-tools are installed."
+                )
             }
 
-            resolveInitializationResult(filePath)
+            LOG.info("Compose runtime DEX ready: {}", runtimeDex?.absolutePath)
+
+            try {
+                compilerDaemon?.startEagerly()
+                LOG.info("Compiler daemon pre-started")
+            } catch (e: Exception) {
+                LOG.warn("Failed to pre-start compiler daemon (non-fatal)", e)
+            }
+
+            LOG.info("Repository initialized, runtimeDex={}", runtimeDex?.absolutePath ?: "null")
+            InitializationResult.Ready(runtimeDex, ctx)
         }
     }
 
@@ -71,19 +91,6 @@ class ComposePreviewRepositoryImpl(
         compilerDaemon = CompilerDaemon(cpManager, work)
         dexCompiler = ComposeDexCompiler(cpManager)
         return cpManager
-    }
-
-    private fun resolveInitializationResult(filePath: String): InitializationResult {
-        val ctx = projectContextSource.resolveContext(filePath)
-        projectContext = ctx
-
-        if (ctx.needsBuild && ctx.modulePath != null) {
-            LOG.warn("No intermediate classes found - build the project to enable multi-file previews")
-            return InitializationResult.NeedsBuild(ctx.modulePath, ctx.variantName)
-        }
-
-        LOG.info("Repository initialized, runtimeDex={}", runtimeDex?.absolutePath ?: "null")
-        return InitializationResult.Ready(runtimeDex, ctx)
     }
 
     private fun <T> requireInitialized(value: T?, name: String): T {
@@ -127,26 +134,22 @@ class ComposePreviewRepositoryImpl(
                 )
             }
 
-            val sourceDir = File(workDir, "src").apply {
-                deleteRecursively()
-                mkdirs()
-            }
-
+            val sourceDir = File(workDir, "src")
             val packageDir = File(sourceDir, parsedSource.packageName.replace('.', '/'))
             packageDir.mkdirs()
 
             val sourceFile = File(packageDir, "$fileName.kt")
             sourceFile.writeText(source)
 
-            val classesDir = File(workDir, "classes").apply {
-                deleteRecursively()
-                mkdirs()
-            }
+            val classesDir = File(workDir, "classes").apply { mkdirs() }
 
             LOG.debug("Compiling source: {}", sourceFile.absolutePath)
             LOG.info("Using {} project classpaths for compilation", context.compileClasspaths.size)
 
-            val classpath = classpathManager.getCompilationClasspath(context.compileClasspaths)
+            val classpath = cachedClasspath
+                ?: classpathManager.getCompilationClasspath(context.compileClasspaths).also {
+                    cachedClasspath = it
+                }
 
             var compileResult: SourceCompileResult? = null
 
@@ -196,26 +199,40 @@ class ComposePreviewRepositoryImpl(
                 )
             }
 
-            val dexDir = File(workDir, "dex").apply {
-                deleteRecursively()
-                mkdirs()
-            }
+            val dexDir = File(workDir, "dex").apply { mkdirs() }
 
             LOG.debug("Converting to DEX")
 
-            val dexResult = dexCompiler.compileToDex(classesDir, dexDir)
+            var dexFile: File? = null
 
-            if (!dexResult.success || dexResult.dexFile == null) {
-                LOG.error("DEX compilation failed: {}", dexResult.errorMessage)
-                throw CompilationException(
-                    message = dexResult.errorMessage.ifEmpty { "DEX compilation failed" }
-                )
+            if (compilerDaemon != null) {
+                val daemonDex = try {
+                    compilerDaemon.dex(classesDir, dexDir)
+                } catch (e: Exception) {
+                    LOG.warn("Daemon D8 failed, falling back to subprocess", e)
+                    null
+                }
+
+                if (daemonDex != null && daemonDex.success && daemonDex.dexFile != null) {
+                    dexFile = daemonDex.dexFile
+                }
+            }
+
+            if (dexFile == null) {
+                val dexResult = dexCompiler.compileToDex(classesDir, dexDir)
+                if (!dexResult.success || dexResult.dexFile == null) {
+                    LOG.error("DEX compilation failed: {}", dexResult.errorMessage)
+                    throw CompilationException(
+                        message = dexResult.errorMessage.ifEmpty { "DEX compilation failed" }
+                    )
+                }
+                dexFile = dexResult.dexFile
             }
 
             try {
                 cache.cacheDex(
                     sourceHash,
-                    dexResult.dexFile,
+                    dexFile,
                     fullClassName,
                     parsedSource.previewConfigs.firstOrNull()?.functionName ?: ""
                 )
@@ -227,7 +244,7 @@ class ComposePreviewRepositoryImpl(
                 fullClassName, parsedSource.previewConfigs.size, context.projectDexFiles.size)
 
             CompilationResult(
-                dexFile = dexResult.dexFile,
+                dexFile = dexFile,
                 className = fullClassName,
                 runtimeDex = runtimeDex,
                 projectDexFiles = context.projectDexFiles
@@ -245,12 +262,13 @@ class ComposePreviewRepositoryImpl(
     }
 
     override fun reset() {
-        compilerDaemon?.stopDaemon()
+        compilerDaemon?.shutdown()
         classpathManager = null
         compiler = null
         compilerDaemon = null
         dexCompiler = null
         daemonInitialized = false
+        cachedClasspath = null
         projectContext = null
         runtimeDex = null
         LOG.debug("Repository reset")

@@ -96,8 +96,57 @@ val extractComposeClasses by tasks.registering {
     }
 }
 
-val packageComposeJars by tasks.registering(Zip::class) {
+fun resolveD8Jar(): File {
+    val buildToolsDir = File(android.sdkDirectory, "build-tools")
+    return buildToolsDir.listFiles()
+        ?.filter { it.isDirectory }
+        ?.sortedByDescending { it.name }
+        ?.firstNotNullOfOrNull { File(it, "lib/d8.jar").takeIf { jar -> jar.exists() } }
+        ?: throw GradleException("D8 jar not found in $buildToolsDir")
+}
+
+fun resolveAndroidJar(): File {
+    val platformsDir = File(android.sdkDirectory, "platforms")
+    return platformsDir.listFiles()
+        ?.filter { it.isDirectory }
+        ?.sortedByDescending { it.name }
+        ?.firstNotNullOfOrNull { File(it, "android.jar").takeIf { jar -> jar.exists() } }
+        ?: throw GradleException("android.jar not found in $platformsDir")
+}
+
+val compileRuntimeDex by tasks.registering {
     dependsOn(extractComposeClasses)
+
+    val jarsDir = layout.buildDirectory.dir("compose-jars")
+    val dexOutputDir = layout.buildDirectory.dir("compose-jars/dex")
+
+    doLast {
+        val outDir = dexOutputDir.get().asFile.apply { mkdirs() }
+        val runtimeJars = jarsDir.get().asFile.listFiles { file: File ->
+            file.extension == "jar" && file.name != "compose-compiler-plugin.jar"
+        }?.toList() ?: throw GradleException("No runtime JARs found to compile to DEX")
+
+        project.javaexec {
+            classpath = files(resolveD8Jar())
+            mainClass.set("com.android.tools.r8.D8")
+            maxHeapSize = "1g"
+            args = buildList {
+                add("--release")
+                add("--min-api"); add("21")
+                add("--lib"); add(resolveAndroidJar().absolutePath)
+                add("--output"); add(outDir.absolutePath)
+                runtimeJars.forEach { add(it.absolutePath) }
+            }
+        }
+
+        File(outDir, "classes.dex").let {
+            if (it.exists()) it.renameTo(File(outDir, "compose-runtime.dex"))
+        }
+    }
+}
+
+val packageComposeJars by tasks.registering(Zip::class) {
+    dependsOn(compileRuntimeDex)
 
     from(layout.buildDirectory.dir("compose-jars"))
     archiveFileName.set("compose-jars.zip")

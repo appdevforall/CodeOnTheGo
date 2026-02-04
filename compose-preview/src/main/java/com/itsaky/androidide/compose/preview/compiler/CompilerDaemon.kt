@@ -31,6 +31,7 @@ class CompilerDaemon(
 
     private var idleTimeoutJob: Job? = null
     private val timeoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var isStartingUp = false
 
     private val wrapperDir = File(workDir, "daemon").apply { mkdirs() }
     private val wrapperClass = File(wrapperDir, "CompilerWrapper.class")
@@ -45,31 +46,13 @@ class CompilerDaemon(
             ensureDaemonRunning()
 
             val args = buildCompilerArgs(sourceFiles, outputDir, classpath, composePlugin)
-            val argsLine = args.joinToString("\u0000") + "\n"
+            val argsLine = "COMPILE\u0000" + args.joinToString("\u0000") + "\n"
 
             try {
                 processWriter?.write(argsLine)
                 processWriter?.flush()
 
-                val result = withTimeoutOrNull(COMPILE_TIMEOUT_MS) {
-                    val response = StringBuilder()
-                    var line: String?
-
-                    while (true) {
-                        line = processReader?.readLine()
-                        if (line == null || line == "---END---") break
-                        response.appendLine(line)
-                    }
-
-                    val errorOutput = StringBuilder()
-                    while (errorReader?.ready() == true) {
-                        errorOutput.appendLine(errorReader?.readLine())
-                    }
-
-                    val output = response.toString()
-                    val errors = errorOutput.toString()
-                    Pair(output, errors)
-                }
+                val result = readDaemonResponse()
 
                 if (result == null) {
                     LOG.error("Daemon compilation timed out after {}ms", COMPILE_TIMEOUT_MS)
@@ -99,6 +82,112 @@ class CompilerDaemon(
         }
     }
 
+    suspend fun dex(
+        classesDir: File,
+        outputDir: File
+    ): DexResult = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            ensureDaemonRunning()
+
+            outputDir.mkdirs()
+
+            val classFiles = classesDir.walkTopDown()
+                .filter { it.extension == "class" }
+                .toList()
+
+            if (classFiles.isEmpty()) {
+                return@withContext DexResult(
+                    success = false,
+                    dexFile = null,
+                    errorOutput = "No .class files found in $classesDir"
+                )
+            }
+
+            val d8Args = buildD8Args(classFiles, outputDir)
+            val argsLine = "DEX\u0000" + d8Args.joinToString("\u0000") + "\n"
+
+            try {
+                processWriter?.write(argsLine)
+                processWriter?.flush()
+
+                val result = readDaemonResponse()
+
+                if (result == null) {
+                    LOG.error("Daemon D8 timed out after {}ms", COMPILE_TIMEOUT_MS)
+                    stopDaemon()
+                    return@withContext DexResult(
+                        success = false,
+                        dexFile = null,
+                        errorOutput = "D8 timed out"
+                    )
+                }
+
+                val (output, errors) = result
+                scheduleIdleTimeout()
+
+                val dexFile = File(outputDir, "classes.dex")
+                val success = output.contains("DEX_SUCCESS") && dexFile.exists()
+
+                if (!success) {
+                    LOG.error("Daemon D8 failed: {} {}", output, errors)
+                }
+
+                DexResult(
+                    success = success,
+                    dexFile = if (success) dexFile else null,
+                    errorOutput = if (!success) (errors.ifEmpty { output }) else ""
+                )
+            } catch (e: Exception) {
+                LOG.error("Daemon D8 failed", e)
+                stopDaemon()
+                DexResult(success = false, dexFile = null, errorOutput = e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    private fun buildD8Args(classFiles: List<File>, outputDir: File): List<String> = buildList {
+        add("--release")
+        add("--min-api")
+        add("21")
+
+        classpathManager.getRuntimeJars()
+            .filter { it.exists() }
+            .forEach { jar ->
+                add("--classpath")
+                add(jar.absolutePath)
+            }
+
+        if (Environment.ANDROID_JAR.exists()) {
+            add("--lib")
+            add(Environment.ANDROID_JAR.absolutePath)
+        }
+
+        add("--output")
+        add(outputDir.absolutePath)
+
+        classFiles.forEach { add(it.absolutePath) }
+    }
+
+    private suspend fun readDaemonResponse(): Pair<String, String>? {
+        return withTimeoutOrNull(COMPILE_TIMEOUT_MS) {
+            val response = StringBuilder()
+            var line: String?
+
+            while (true) {
+                line = processReader?.readLine()
+                if (line == null || line == "---END---") break
+                response.appendLine(line)
+            }
+
+            val errorOutput = StringBuilder()
+            while (errorReader?.ready() == true) {
+                errorOutput.appendLine(errorReader?.readLine())
+            }
+
+            Pair(response.toString(), errorOutput.toString())
+        }
+    }
+
     private fun ensureDaemonRunning() {
         if (daemonProcess?.isAlive == true) {
             return
@@ -109,11 +198,16 @@ class CompilerDaemon(
     }
 
     private fun ensureWrapperCompiled() {
-        if (wrapperClass.exists()) {
+        val versionFile = File(wrapperDir, ".wrapper_version")
+        val storedVersion = if (versionFile.exists()) versionFile.readText().trim().toIntOrNull() ?: 0 else 0
+
+        if (wrapperClass.exists() && storedVersion == WRAPPER_VERSION) {
             return
         }
 
-        LOG.info("Compiling daemon wrapper...")
+        wrapperClass.delete()
+
+        LOG.info("Compiling daemon wrapper (v{})...", WRAPPER_VERSION)
 
         val wrapperSource = File(wrapperDir, "CompilerWrapper.java")
         wrapperSource.writeText(WRAPPER_SOURCE)
@@ -144,13 +238,17 @@ class CompilerDaemon(
         }
 
         wrapperSource.delete()
+        versionFile.writeText(WRAPPER_VERSION.toString())
         LOG.info("Daemon wrapper compiled successfully")
     }
 
     private fun startDaemon() {
         val javaExecutable = Environment.JAVA
+
+        val d8JarPath = classpathManager.getD8Jar()?.absolutePath ?: ""
         val bootstrapClasspath = classpathManager.getCompilerBootstrapClasspath() +
-                File.pathSeparator + wrapperDir.absolutePath
+                File.pathSeparator + wrapperDir.absolutePath +
+                (if (d8JarPath.isNotEmpty()) File.pathSeparator + d8JarPath else "")
 
         val command = listOf(
             javaExecutable.absolutePath,
@@ -196,7 +294,6 @@ class CompilerDaemon(
     fun stopDaemon() {
         idleTimeoutJob?.cancel()
         idleTimeoutJob = null
-        timeoutScope.cancel()
 
         try {
             processWriter?.write("EXIT\n")
@@ -221,10 +318,33 @@ class CompilerDaemon(
         }
     }
 
+    fun shutdown() {
+        stopDaemon()
+        timeoutScope.cancel()
+    }
+
+    suspend fun startEagerly() = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            if (daemonProcess?.isAlive == true) return@withContext
+            isStartingUp = true
+            try {
+                ensureDaemonRunning()
+            } finally {
+                isStartingUp = false
+            }
+        }
+    }
+
     data class CompilerResult(
         val success: Boolean,
         val output: String,
         val errorOutput: String
+    )
+
+    data class DexResult(
+        val success: Boolean,
+        val dexFile: File?,
+        val errorOutput: String = ""
     )
 
     companion object {
@@ -233,16 +353,24 @@ class CompilerDaemon(
         private const val IDLE_TIMEOUT_MS = 120_000L
         private const val SHUTDOWN_TIMEOUT_SECONDS = 5L
         private const val COMPILE_TIMEOUT_MS = 300_000L
+        private const val WRAPPER_VERSION = 2
 
         private val WRAPPER_SOURCE = """
             import java.io.*;
             import java.lang.reflect.*;
+            import java.util.Arrays;
 
             public class CompilerWrapper {
+                private static Object kotlinCompiler;
+                private static Method kotlinExecMethod;
+                private static Method d8ParseMethod;
+                private static Method d8RunMethod;
+                private static Class<?> d8CommandClass;
+
                 public static void main(String[] args) throws Exception {
                     Class<?> compilerClass = Class.forName("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler");
-                    Object compiler = compilerClass.getDeclaredConstructor().newInstance();
-                    Method execMethod = compilerClass.getMethod("exec", PrintStream.class, String[].class);
+                    kotlinCompiler = compilerClass.getDeclaredConstructor().newInstance();
+                    kotlinExecMethod = compilerClass.getMethod("exec", PrintStream.class, String[].class);
 
                     BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
                     System.out.println("READY");
@@ -254,18 +382,19 @@ class CompilerDaemon(
                             break;
                         }
 
-                        String[] compilerArgs = line.split("\u0000");
+                        String[] parts = line.split("\u0000");
+                        String command = parts[0];
 
                         try {
-                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                            PrintStream ps = new PrintStream(baos);
-                            Object result = execMethod.invoke(compiler, ps, compilerArgs);
-                            ps.flush();
-                            String output = baos.toString();
-                            if (!output.isEmpty()) {
-                                System.out.print(output);
+                            if (command.equals("DEX")) {
+                                String[] d8Args = Arrays.copyOfRange(parts, 1, parts.length);
+                                handleDex(d8Args);
+                            } else if (command.equals("COMPILE")) {
+                                String[] compilerArgs = Arrays.copyOfRange(parts, 1, parts.length);
+                                handleCompile(compilerArgs);
+                            } else {
+                                handleCompile(parts);
                             }
-                            System.out.println("EXIT_CODE:" + result);
                         } catch (Exception e) {
                             System.out.println("ERROR:" + e.getMessage());
                             e.printStackTrace(System.out);
@@ -274,6 +403,31 @@ class CompilerDaemon(
                         System.out.println("---END---");
                         System.out.flush();
                     }
+                }
+
+                private static void handleCompile(String[] compilerArgs) throws Exception {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    PrintStream ps = new PrintStream(baos);
+                    Object result = kotlinExecMethod.invoke(kotlinCompiler, ps, compilerArgs);
+                    ps.flush();
+                    String output = baos.toString();
+                    if (!output.isEmpty()) {
+                        System.out.print(output);
+                    }
+                    System.out.println("EXIT_CODE:" + result);
+                }
+
+                private static void handleDex(String[] d8Args) throws Exception {
+                    if (d8CommandClass == null) {
+                        d8CommandClass = Class.forName("com.android.tools.r8.D8Command");
+                        d8ParseMethod = d8CommandClass.getMethod("parse", String[].class);
+                        Class<?> d8Class = Class.forName("com.android.tools.r8.D8");
+                        d8RunMethod = d8Class.getMethod("run", d8CommandClass);
+                    }
+
+                    Object cmd = d8ParseMethod.invoke(null, (Object) d8Args);
+                    d8RunMethod.invoke(null, cmd);
+                    System.out.println("DEX_SUCCESS");
                 }
             }
         """.trimIndent()
