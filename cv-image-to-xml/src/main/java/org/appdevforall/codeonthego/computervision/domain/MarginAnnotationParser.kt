@@ -26,12 +26,20 @@ object MarginAnnotationParser {
         "scr" to "src",
         "background" to "background",
         "layout width" to "layout_width",
-        "layout height" to "layout_height"
+        "layout height" to "layout_height",
+        "lavout height" to "layout_height" // Fix for the typo
     )
 
     private val valueCorrectionMap = mapOf(
         "red" to "#FFFF0000",
-        "blue" to "#FF0000FF"
+        "blue" to "#FF0000FF",
+        "green" to "#FF00FF00",
+        "yellow" to "#FFFFFF00",
+        "black" to "#FF000000",
+        "white" to "#FFFFFFFF",
+        "gray" to "#FF888888",
+        "purple" to "#FF800080",
+        "orange" to "#FFFFA500"
     )
 
     private fun isTag(text: String): Boolean {
