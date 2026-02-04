@@ -5,7 +5,6 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.LinearLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -69,7 +68,6 @@ class XmlLayoutParser(
 		xml: String,
 		context: Context,
 	) {
-        Log.d("XmlParser", "parseFromXml called with xml length: ${xml.length}, basePath: $basePath")
 		listViews.clear()
 		viewAttributeMap.clear()
 		clear()
@@ -140,109 +138,51 @@ class XmlLayoutParser(
 
                         "include" -> {
                             val layoutAttr =
-                                (0 until parser.attributeCount)
-                                    .map { i ->
-                                        parser.getAttributeName(i) to parser.getAttributeValue(i)
-                                    }
-                                    .firstOrNull { it.first == "layout" }
-                                    ?.second
+                                XmlParserUtils.getAttribute(parser, "layout")
 
-                            var includedView: View? = null
+                            val includedView = loadIncludedLayout(
+                                context,
+                                basePath,
+                                layoutAttr
+                            )
 
-                            if (layoutAttr != null && basePath != null) {
-                                val layoutName = layoutAttr.substringAfterLast("/")
-                                val file = File(basePath, "$layoutName.xml")
-                                if (file.exists()) {
-                                    try {
-                                        val includedXml = file.readText()
-                                        val convertedXml =
-                                            ConvertImportedXml(includedXml).getXmlConverted(context)
-
-                                        val includedParser = XmlLayoutParser(context, basePath)
-                                        includedParser.parseFromXml(
-                                            convertedXml ?: includedXml,
-                                            context
-                                        )
-                                        includedView = includedParser.root
-                                    } catch (e: Exception) {
-                                        Log.e(
-                                            "XmlParser",
-                                            "Exception parsing included layout: $layoutName",
-                                            e
-                                        )
-                                    }
-                                } else {
-                                    Log.e(
-                                        "XmlParser",
-                                        "Included file does not exist: ${file.absolutePath}"
-                                    )
-                                }
-                            } else {
-                                Log.w(
-                                    "XmlParser",
-                                    "Skipping include. layoutAttr: $layoutAttr, basePath: $basePath"
+                            val view =
+                                includedView ?: XmlParserUtils.createIncludePlaceholder(
+                                    context,
+                                    viewAttributeMap,
+                                    MARKER_IS_INCLUDE
                                 )
-                            }
 
-                            val viewToAdd = includedView ?: View(context).also {
-                                val attrs = AttributeMap()
-                                attrs.putValue(MARKER_IS_INCLUDE, "true")
-                                viewAttributeMap[it] = attrs
-                            }
+                            listViews.add(view)
 
-                            listViews.add(viewToAdd)
-
-                            // Override attributes from the <include> tag
-                            if (includedView != null) {
-                                val map = viewAttributeMap[includedView] ?: AttributeMap()
-                                map.putValue(MARKER_IS_INCLUDE, "true")
-                                for (i in 0 until parser.attributeCount) {
-                                    val attrName = parser.getAttributeName(i)
-                                    if (attrName != "layout") {
-                                        map.putValue(attrName, parser.getAttributeValue(i))
-                                    } else {
-                                        // Ensure layout attribute is preserved
-                                        map.putValue("layout", parser.getAttributeValue(i))
-                                        map.putValue(MARKER_IS_INCLUDE, "true")
-                                    }
-                                }
-                                viewAttributeMap[includedView] = map
-                            } else {
-                                // Fallback for placeholder
-                                val attrs = viewAttributeMap[viewToAdd]!!
-                                for (i in 0 until parser.attributeCount) {
-                                    attrs.putValue(
-                                        parser.getAttributeName(i),
-                                        parser.getAttributeValue(i)
-                                    )
-                                }
-                            }
+                            XmlParserUtils.applyAttributes(
+                                parser = parser,
+                                target = view,
+                                attributeMap = viewAttributeMap,
+                                marker = MARKER_IS_INCLUDE,
+                                skip = if (includedView != null) null else "layout"
+                            )
 
                             parser.next()
                             continue
                         }
 
-						"merge" -> {
-							val mergeWrapper = FrameLayout(context).apply {
-								layoutParams = ViewGroup.LayoutParams(
-									ViewGroup.LayoutParams.MATCH_PARENT,
-									ViewGroup.LayoutParams.WRAP_CONTENT
-								)
-							}
+                        "merge" -> {
 
-							val attrs = AttributeMap()
-							for (i in 0 until parser.attributeCount) {
-								attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
-							}
-							attrs.putValue(MARKER_IS_MERGE, "true")
-							attrs.putValue("android:layout_width", "match_parent")
-							attrs.putValue("android:layout_height", "wrap_content")
-							viewAttributeMap[mergeWrapper] = attrs
+                            val wrapper =
+                                XmlParserUtils.createMergeWrapper(context)
 
-							listViews.add(mergeWrapper)
-						}
+                            applyMergeAttributes(
+                                parser = parser,
+                                target = wrapper,
+                                attributeMap = viewAttributeMap,
+                                marker = MARKER_IS_MERGE
+                            )
 
-						else -> {
+                            listViews.add(wrapper)
+                        }
+
+                        else -> {
 							val result = createView(tagName, context)
 							if (result is Exception) {
 								throw result
@@ -421,4 +361,64 @@ class XmlLayoutParser(
 			attributeMap.putValue("android:layout_marginTop", "${topDp}dp")
 		}
 	}
+
+    fun loadIncludedLayout(
+        context: Context,
+        basePath: String?,
+        layoutAttr: String?
+    ): View? {
+        if (layoutAttr == null || basePath == null) {
+            Log.w(
+                "XmlParser",
+                "Skipping include. layoutAttr=$layoutAttr basePath=$basePath"
+            )
+            return null
+        }
+
+        val layoutName = layoutAttr.substringAfterLast("/")
+        val file = File(basePath, "$layoutName.xml")
+
+        if (!file.exists()) {
+            Log.e(
+                "XmlParser",
+                "Included file not found: ${file.absolutePath}"
+            )
+            return null
+        }
+
+        return try {
+            val xml = file.readText()
+
+            val converted =
+                ConvertImportedXml(xml)
+                    .getXmlConverted(context)
+                    ?: xml
+
+            val parser = XmlLayoutParser(context, basePath)
+            parser.parseFromXml(converted, context)
+            parser.root
+        } catch (e: Exception) {
+            Log.e(
+                "XmlParser",
+                "Failed to parse include: $layoutName",
+                e
+            )
+            null
+        }
+    }
+
+    fun applyMergeAttributes(
+        parser: XmlPullParser,
+        target: View,
+        attributeMap: MutableMap<View, AttributeMap>,
+        marker: String
+    ) {
+        val map = XmlParserUtils.extractAttributes(parser)
+
+        map.putValue(marker, "true")
+        map.putValue("android:layout_width", "match_parent")
+        map.putValue("android:layout_height", "wrap_content")
+
+        attributeMap[target] = map
+    }
 }
