@@ -88,21 +88,21 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
 
             val baseDir = IProjectManager.getInstance().projectDir
 
-            selectedFiles.forEach { it ->
-                val itemText = it.relativeTo(baseDir).path
-                // Create a File object by joining the project root with the relative path (itemText)
-                val file = File(baseDir, itemText)
+            selectedFiles.forEach { selectedPath ->
+                val relativePath = selectedPath.relativeTo(baseDir).path
+                // Create a File object by joining the project root with the relative path
+                val target = File(baseDir, relativePath)
 
-                if (file.exists() && file.isDirectory) {
+                if (target.exists() && target.isDirectory) {
                     // It's a valid directory, so walk through it and add all readable files
-                    file.walkTopDown()
-                        .filter { it.isFile && it.canRead() }
-                        .forEach {
-                            finalContextList.add(it.relativeTo(baseDir).path)
+                    target.walkTopDown()
+                        .filter { walkedFile -> walkedFile.isFile && walkedFile.canRead() }
+                        .forEach { walkedFile ->
+                            finalContextList.add(walkedFile.relativeTo(baseDir).path)
                         }
-                } else if (file.exists() && file.isFile && file.canRead()) {
+                } else if (target.exists() && target.isFile && target.canRead()) {
                     // It's a single, readable file
-                    finalContextList.add(itemText)
+                    finalContextList.add(relativePath)
                 }
             }
 
