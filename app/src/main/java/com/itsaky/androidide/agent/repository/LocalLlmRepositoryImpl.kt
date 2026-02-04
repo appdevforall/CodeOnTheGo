@@ -438,7 +438,17 @@ class LocalLlmRepositoryImpl(
         if (trimmed.contains("<tool_call>")) return trimmed
         val prefix = "<tool_call>{\"name\":\"$requiredTool\",\"args\":"
         return if (trimmed.startsWith("{") || trimmed.startsWith("}")) {
-            val normalized = prefix + trimmed
+            val needsClosingTag = !trimmed.contains("</tool_call>")
+            val needsClosingBrace = !trimmed.trimEnd().endsWith("}")
+            val suffix = buildString {
+                if (needsClosingBrace) {
+                    append("}")
+                }
+                if (needsClosingTag) {
+                    append("</tool_call>")
+                }
+            }
+            val normalized = prefix + trimmed + suffix
             Log.d("AgentDebug", "H2O normalized tool response: \"$normalized\"")
             normalized
         } else {
