@@ -49,6 +49,7 @@ object AssetsInstallationHelper {
 		data class Failure(
 			val cause: Throwable?,
 			val errorMessage: String? = cause?.message,
+			val shouldReportToSentry: Boolean = true
 		) : Result
 	}
 
@@ -282,13 +283,21 @@ object AssetsInstallationHelper {
 		onProgress: AssetsInstallerProgressConsumer,
 	): Result.Failure? {
 		val rootDir = File(DEFAULT_ROOT)
+
+		if (!rootDir.exists()) {
+			runCatching {
+				rootDir.mkdirs()
+			}.onFailure { logger.warn("Failed to create root dir: ${it.message}") }
+		}
+
 		if (!rootDir.exists() || !rootDir.canWrite()) {
 			val errorMsg = context.getString(R.string.storage_not_accessible)
 			logger.error("Storage not accessible: {}", DEFAULT_ROOT)
 			onProgress(Progress(errorMsg))
 			return Result.Failure(
 				IllegalStateException(errorMsg),
-				errorMsg
+				errorMsg,
+				false
 			)
 		}
 		return null
