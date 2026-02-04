@@ -5,6 +5,7 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -38,6 +39,7 @@ class XmlLayoutParser(
 	companion object {
     const val MARKER_IS_INCLUDE = "tools:is_xml_include"
     const val MARKER_IS_FRAGMENT = "tools:is_xml_fragment"
+    const val MARKER_IS_MERGE = "tools:is_xml_merge"
 	}
 
 	enum class CustomAttrs(val key: String) {
@@ -221,7 +223,23 @@ class XmlLayoutParser(
                         }
 
 						"merge" -> {
-							Log.d("XmlParser", "Encountered <merge> tag, skipping itself")
+							val mergeWrapper = FrameLayout(context).apply {
+								layoutParams = ViewGroup.LayoutParams(
+									ViewGroup.LayoutParams.MATCH_PARENT,
+									ViewGroup.LayoutParams.WRAP_CONTENT
+								)
+							}
+
+							val attrs = AttributeMap()
+							for (i in 0 until parser.attributeCount) {
+								attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
+							}
+							attrs.putValue(MARKER_IS_MERGE, "true")
+							attrs.putValue("android:layout_width", "match_parent")
+							attrs.putValue("android:layout_height", "wrap_content")
+							viewAttributeMap[mergeWrapper] = attrs
+
+							listViews.add(mergeWrapper)
 						}
 
 						else -> {
