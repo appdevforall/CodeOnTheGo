@@ -54,6 +54,15 @@ class LlmInferenceEngine(
 
     companion object {
         private const val LOG_TAG = "LlmEngine"
+        private const val DEFAULT_TOTAL_MEM_GB = 6.0
+        private const val LOW_MEM_GB = 4.5
+        private const val MID_MEM_GB = 8.5
+        private const val HIGH_MEM_GB = 12.5
+
+        private const val CONTEXT_SIZE_LOW_MEM = 1024
+        private const val CONTEXT_SIZE_MID_MEM = 2048
+        private const val CONTEXT_SIZE_HIGH_MEM = 3072
+        private const val CONTEXT_SIZE_MAX = 4096
     }
 
     /**
@@ -277,7 +286,7 @@ class LlmInferenceEngine(
         return true
     }
 
-    private fun loadModelFromUri(
+    private suspend fun loadModelFromUri(
         context: Context,
         modelUriString: String,
         expectedSha256: String?
@@ -461,15 +470,4 @@ class LlmInferenceEngine(
         }
     }
 
-    private companion object {
-        private const val DEFAULT_TOTAL_MEM_GB = 6.0
-        private const val LOW_MEM_GB = 4.5
-        private const val MID_MEM_GB = 8.5
-        private const val HIGH_MEM_GB = 12.5
-
-        private const val CONTEXT_SIZE_LOW_MEM = 1024
-        private const val CONTEXT_SIZE_MID_MEM = 2048
-        private const val CONTEXT_SIZE_HIGH_MEM = 3072
-        private const val CONTEXT_SIZE_MAX = 4096
-    }
 }

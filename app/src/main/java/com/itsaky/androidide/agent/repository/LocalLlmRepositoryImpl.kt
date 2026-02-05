@@ -3,6 +3,7 @@ package com.itsaky.androidide.agent.repository
 import android.content.Context
 import android.os.Debug
 import android.os.Process
+import android.util.Log
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
