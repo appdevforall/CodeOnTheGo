@@ -66,10 +66,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 
 class OnboardingActivity : AppIntro2() {
-	private val activityScope =
-		CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
 
 	private var listJdkInstallationsJob: Job? = null
     private lateinit var feedbackButton: FloatingActionButton
@@ -220,16 +219,12 @@ class OnboardingActivity : AppIntro2() {
 
 	override fun onResume() {
 		super.onResume()
-		activityScope.launch {
+
+		lifecycleScope.launch {
 			reloadJdkDistInfo {
 				tryNavigateToMainIfSetupIsCompleted()
 			}
 		}
-	}
-
-	override fun onDestroy() {
-		super.onDestroy()
-		activityScope.cancel("Activity is being destroyed")
 	}
 
 	override fun onDonePressed(currentFragment: Fragment?) {
@@ -284,7 +279,16 @@ class OnboardingActivity : AppIntro2() {
 	}
 
 	private suspend fun reloadJdkDistInfo(distConsumer: (List<JdkDistribution>) -> Unit) {
-		listJdkInstallationsJob?.cancel("Reloading JDK distributions")
+        val distributionProvider = IJdkDistributionProvider.getInstance()
+        val currentDistributions = distributionProvider.installedDistributions
+        if (currentDistributions.isNotEmpty()) {
+            distConsumer(currentDistributions)
+            return
+        }
+
+        if (listJdkInstallationsJob?.isActive == true) {
+            return
+        }
 
 		listJdkInstallationsJob =
 			doAsyncWithProgress(
@@ -293,11 +297,12 @@ class OnboardingActivity : AppIntro2() {
 					builder.message(string.please_wait)
 				},
 			) { _, _ ->
-				val distributionProvider = IJdkDistributionProvider.getInstance()
 				distributionProvider.loadDistributions()
 				withContext(Dispatchers.Main) {
-					distConsumer(distributionProvider.installedDistributions)
-				}
+                    if (!isFinishing && !isDestroyed) {
+                        distConsumer(distributionProvider.installedDistributions)
+                    }
+                }
 			}.also {
 				it?.invokeOnCompletion {
 					listJdkInstallationsJob = null

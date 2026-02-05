@@ -125,6 +125,7 @@
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
 	<string name="template_plugin">Code on the Go Plugin</string>
+	<string name="template_ndk">NDK Activity</string>
 
 	<!-- Plugin Template Wizard -->
 	<string name="wizard_plugin_name">Plugin Name</string>
@@ -795,7 +796,7 @@
                         color: %1$s;
                      }
                      a{
-                        color: #233490;
+                        color: %3$s;
                         text-decoration: underline;
                        }
                 </style>
@@ -806,6 +807,40 @@
 
 		</html>
 		]]></string>
+
+	<!-- Tooltip HTML Components -->
+	<string name="tooltip_buttons_separator"><![CDATA[<br>]]></string>
+	<string name="tooltip_detail_links_template"><![CDATA[%1$s<br><br>%2$s]]></string>
+
+	<!-- Tooltip Debug Dialog -->
+	<string name="tooltip_debug_dialog_title">Tooltip Debug Info</string>
+	<string name="tooltip_debug_metadata_html"><![CDATA[<b>Version</b> <small>%1$s</small><br/>
+<b>Row:</b> %2$d<br/>
+<b>ID:</b> %3$d<br/>
+<b>Category:</b> %4$s<br/>
+<b>Tag:</b> %5$s<br/>
+<b>Raw Summary:</b> %6$s<br/>
+<b>Raw Detail:</b> %7$s<br/>
+<b>Buttons:</b> %8$s<br/>]]></string>
+	<string name="tooltip_debug_plugin_html"><![CDATA[<h3>Plugin Tooltip Debug Info</h3>
+<b>Version:</b> <small>%1$s</small><br/>
+<b>Row:</b> %2$d<br/>
+<b>ID:</b> %3$d<br/>
+<b>Category:</b> %4$s<br/>
+<b>Tag:</b> %5$s<br/>
+<br/>
+<b>Raw Summary:</b><br/>
+<small>%6$s</small><br/>
+<br/>
+<b>Raw Detail:</b><br/>
+<small>%7$s</small><br/>
+<br/>
+<b>Buttons:</b> %8$s]]></string>
+
+	<!-- Tooltip Debug Button Formatting -->
+	<string name="tooltip_debug_button_separator"><![CDATA[<br/>]]></string>
+	<string name="tooltip_debug_button_item_template_simple">• %1$s</string>
+	<string name="tooltip_debug_button_item_template">\'%1$s \u2192 %2$s\'</string>
 
 	<string name="info_icon_content_description">Info icon</string>
 	<string name="feedback_button_description">Send feedback about this tooltip</string>
@@ -974,7 +1009,7 @@
 	<string name="debugger_setup_description_footer"><![CDATA[Some devices (including older Xiaomi devices) also require giving Code on the Go the “Unrestricted battery usage permission”. <a href="http://localhost:6174/i/debug-enable.html">See more information including troubleshooting tips</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
-	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
+	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->

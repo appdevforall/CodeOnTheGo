@@ -45,6 +45,7 @@ object TooltipTag {
     const val TEMPLATE_BASIC_ACTIVITY = "template.basic.activity"
     const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
     const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
+    const val TEMPLATE_NDK_ACTIVITY = "template.ndk.activity"
 
     // Editor screen
     const val EDITOR_PROJECT_OVERVIEW = "project.overview"
@@ -75,6 +76,8 @@ object TooltipTag {
     const val MAIN_PROJECT_DELETE = "main.project.delete"
     const val MAIN_HELP = "main.help"
     const val FEEDBACK = "feedback"
+    const val MAIN_PREFERENCES = "main.prefs"
+    const val MAIN_TERMINAL = "main.terminal"
 
     // Editor toolbar
     const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.computervision.R
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil
 
 class ComputerVisionViewModel(
@@ -62,6 +63,9 @@ class ComputerVisionViewModel(
             ComputerVisionEvent.RequestCameraPermission -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
             }
+            is ComputerVisionEvent.UpdateGuides -> {
+                _uiState.update { it.copy(leftGuidePct = event.leftPct, rightGuidePct = event.rightPct) }
+            }
         }
     }
 
@@ -99,7 +103,9 @@ class ComputerVisionViewModel(
                             currentBitmap = bitmap,
                             imageUri = uri,
                             detections = emptyList(),
-                            visualizedBitmap = null
+                            visualizedBitmap = null,
+                            leftGuidePct = 0.2f, // Reset to default
+                            rightGuidePct = 0.8f  // Reset to default
                         )
                     }
                 } else {
@@ -124,7 +130,8 @@ class ComputerVisionViewModel(
     }
 
     private fun runDetection() {
-        val bitmap = _uiState.value.currentBitmap
+        val state = _uiState.value
+        val bitmap = state.currentBitmap
         if (bitmap == null) {
             viewModelScope.launch {
                 _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_select_image_first))
@@ -140,8 +147,7 @@ class ComputerVisionViewModel(
             val yoloResult = repository.runYoloInference(bitmap)
             if (yoloResult.isFailure) {
                 val endTime = System.currentTimeMillis()
-                val durationMs = endTime - startTime
-                CvAnalyticsUtil.trackDetectionCompleted(success = false, detectionCount = 0, durationMs = durationMs)
+                CvAnalyticsUtil.trackDetectionCompleted(success = false, detectionCount = 0, durationMs = endTime - startTime)
                 handleDetectionError(yoloResult.exceptionOrNull())
                 return@launch
             }
@@ -159,20 +165,32 @@ class ComputerVisionViewModel(
 
             mergeResult
                 .onSuccess { mergedDetections ->
+                    val filteredDetections = filterDetectionsByRoi(mergedDetections, bitmap.width)
                     CvAnalyticsUtil.trackDetectionCompleted(
                         success = true,
-                        detectionCount = mergedDetections.size,
+                        detectionCount = filteredDetections.size,
                         durationMs = System.currentTimeMillis() - startTime
                     )
                     _uiState.update {
                         it.copy(
-                            detections = mergedDetections,
+                            detections = filteredDetections,
                             currentOperation = CvOperation.Idle
                         )
                     }
-                    Log.d(TAG, "Detection complete. ${mergedDetections.size} objects detected.")
+                    Log.d(TAG, "Detection complete. ${filteredDetections.size} objects detected after filtering.")
                 }
                 .onFailure { handleDetectionError(it) }
+        }
+    }
+
+    private fun filterDetectionsByRoi(detections: List<DetectionResult>, imageWidth: Int): List<DetectionResult> {
+        val state = _uiState.value
+        val leftMarginPx = imageWidth * state.leftGuidePct
+        val rightMarginPx = imageWidth * state.rightGuidePct
+
+        return detections.filter { detection ->
+            val centerX = detection.boundingBox.centerX()
+            centerX > leftMarginPx && centerX < rightMarginPx
         }
     }
 
