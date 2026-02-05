@@ -102,8 +102,9 @@ object ApkInstaller {
 				try {
 					addToSession(session, apk)
 					session.commit(callback!!.intentSender)
-				} catch (_: Throwable) {
+				} catch (t: Throwable) {
 					runCatching { installer.abandonSession(sessionId) }
+					throw t
 				} finally { session.close() }
 			}
 		}.onFailure { error ->
