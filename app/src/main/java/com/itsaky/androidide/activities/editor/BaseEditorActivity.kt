@@ -636,8 +636,8 @@ abstract class BaseEditorActivity :
 					this@BaseEditorActivity,
 					binding.editorDrawerLayout,
 					this,
-					string.app_name,
-					string.app_name,
+					string.cd_drawer_open,
+					string.cd_drawer_close,
 				) {
 					override fun onDrawerOpened(drawerView: View) {
 						super.onDrawerOpened(drawerView)
