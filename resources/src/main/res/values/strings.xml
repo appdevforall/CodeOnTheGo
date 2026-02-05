@@ -823,6 +823,28 @@
 	<string name="cd_diagnostic_error">Error</string>
 	<string name="cd_diagnostic_warning">Warning</string>
 	<string name="cd_diagnostic_info">Information</string>
+
+	<!-- Toolbar content descriptions for TalkBack (match actual function) -->
+	<string name="cd_toolbar_quick_run">Quick run</string>
+	<string name="cd_toolbar_cancel_build">Cancel build</string>
+	<string name="cd_toolbar_sync_project">Sync project</string>
+	<string name="cd_toolbar_start_debugger">Start debugger</string>
+	<string name="cd_toolbar_run_gradle_tasks">Run Gradle tasks</string>
+	<string name="cd_toolbar_undo">Undo</string>
+	<string name="cd_toolbar_redo">Redo</string>
+	<string name="cd_toolbar_save">Save</string>
+	<string name="cd_toolbar_preview_layout">Preview layout</string>
+	<string name="cd_toolbar_find">Find</string>
+	<string name="cd_toolbar_find_in_file">Find in file</string>
+	<string name="cd_toolbar_find_in_project">Find in project</string>
+	<string name="cd_toolbar_launch_app">Launch app</string>
+	<string name="cd_toolbar_disconnect_log_senders">Disconnect log senders</string>
+	<string name="cd_toolbar_image_to_layout">Image to layout</string>
+
+	<!-- Drawer toggle content descriptions -->
+	<string name="cd_drawer_open">Open project menu</string>
+	<string name="cd_drawer_close">Close project menu</string>
+
 	<string name="unknown_error">"An unknown error occurred."</string>
 	<string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
 	<string name="error_build_service_not_found">Build service not found.</string>
