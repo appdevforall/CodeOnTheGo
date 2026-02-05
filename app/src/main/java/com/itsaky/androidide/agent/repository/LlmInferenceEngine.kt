@@ -25,7 +25,7 @@ import java.io.FileOutputStream
 class LlmInferenceEngine(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
-    private val log = LoggerFactory.getLogger(LlmInferenceEngine::class.java)
+    private val log = LoggerFactory.getLogger(LOG_TAG)
 
     private var llamaController: ILlamaController? = null
     private var llamaAndroidClass: Class<*>? = null
@@ -52,6 +52,10 @@ class LlmInferenceEngine(
     var currentModelFamily: ModelFamily = ModelFamily.UNKNOWN
         private set
 
+    companion object {
+        private const val LOG_TAG = "LlmEngine"
+    }
+
     /**
      * Initializes the Llama controller by dynamically loading the library.
      * This must be called once on the instance before any other methods are used.
@@ -60,79 +64,32 @@ class LlmInferenceEngine(
     suspend fun initialize(context: Context): Boolean = withContext(ioDispatcher) {
         if (isInitialized) return@withContext true
 
-        android.util.Log.i("LlmEngine", "Initializing Llama Inference Engine...")
         cachedContext = context.applicationContext
         val classLoader = DynamicLibraryLoader.getLlamaClassLoader(context)
         if (classLoader == null) {
-            android.util.Log.e(
-                "LlmEngine",
-                "Failed to create Llama ClassLoader. The library might not be installed."
-            )
+            log.error("Failed to create Llama ClassLoader. The library might not be installed.")
             return@withContext false
         }
-        android.util.Log.d("LlmEngine", "ClassLoader obtained successfully")
 
         try {
-            android.util.Log.d("LlmEngine", "Loading class android.llama.cpp.LLamaAndroid...")
             val llamaAndroidClass = classLoader.loadClass("android.llama.cpp.LLamaAndroid")
             this@LlmInferenceEngine.llamaAndroidClass = llamaAndroidClass
-            android.util.Log.d("LlmEngine", "Class loaded, getting instance method...")
             val hasInstanceMethod = llamaAndroidClass.methods.any { it.name == "instance" }
-            android.util.Log.d(
-                "LlmEngine",
-                "LLamaAndroid loader=${llamaAndroidClass.classLoader} " +
-                        "ILlamaController loader=${ILlamaController::class.java.classLoader} " +
-                        "assignable=${
-                            ILlamaController::class.java.isAssignableFrom(
-                                llamaAndroidClass
-                            )
-                        } " +
-                        "hasInstance=$hasInstanceMethod"
+            log.info(
+                "Llama Android class loaded. assignable={} hasInstance={}",
+                ILlamaController::class.java.isAssignableFrom(llamaAndroidClass),
+                hasInstanceMethod
             )
             configureNativeDefaults(context, llamaAndroidClass)
 
-            val llamaInstance =
-                try {
-                    val instanceMethod = llamaAndroidClass.getMethod("instance")
-                    android.util.Log.d("LlmEngine", "Invoking instance method...")
-                    instanceMethod.invoke(null)
-                } catch (noMethod: NoSuchMethodException) {
-                    android.util.Log.w(
-                        "LlmEngine",
-                        "No static instance() found, trying Companion/field fallback",
-                        noMethod
-                    )
-
-                    val companionInstance =
-                        try {
-                            val companionField = llamaAndroidClass.getField("Companion")
-                            companionField.get(null)
-                        } catch (companionError: Exception) {
-                            android.util.Log.w(
-                                "LlmEngine",
-                                "Companion field not accessible, falling back to _instance field",
-                                companionError
-                            )
-                            null
-                        }
-
-                    if (companionInstance != null) {
-                        val companionClass = companionInstance.javaClass
-                        val companionInstanceMethod = companionClass.getMethod("instance")
-                        companionInstanceMethod.invoke(companionInstance)
-                    } else {
-                        val instanceField = llamaAndroidClass.getDeclaredField("_instance")
-                        instanceField.isAccessible = true
-                        instanceField.get(null)
-                    }
-                }
+            val llamaInstance = resolveLlamaInstance(llamaAndroidClass)
 
             llamaController = llamaInstance as ILlamaController
             isInitialized = true
-            android.util.Log.i("LlmEngine", "Llama Inference Engine initialized successfully.")
+            log.info("Llama Inference Engine initialized successfully.")
             true
         } catch (e: Exception) {
-            android.util.Log.e("LlmEngine", "Failed to initialize Llama class via reflection", e)
+            log.error("Failed to initialize Llama class via reflection", e)
             false
         }
     }
@@ -166,7 +123,53 @@ class LlmInferenceEngine(
                 // Disable KV reuse until native can safely trim KV cache.
                 ?.invoke(null, false)
         } catch (e: Exception) {
-            android.util.Log.w("LlmEngine", "Failed to configure native defaults", e)
+            log.warn("Failed to configure native defaults", e)
+        }
+    }
+
+    private fun resolveLlamaInstance(llamaAndroidClass: Class<*>): Any? {
+        val instance = runCatching {
+            val instanceMethod = llamaAndroidClass.getMethod("instance")
+            instanceMethod.invoke(null)
+        }.getOrElse { error ->
+            if (error is NoSuchMethodException) {
+                log.warn("No static instance() found, trying Companion/field fallback", error)
+            } else {
+                log.warn("Instance() invocation failed", error)
+            }
+            null
+        }
+
+        if (instance != null) return instance
+
+        val companionInstance = runCatching {
+            val companionField = llamaAndroidClass.getField("Companion")
+            companionField.get(null)
+        }.getOrElse { error ->
+            log.warn("Companion field not accessible, falling back to _instance field", error)
+            null
+        }
+
+        val companionResolved = companionInstance?.let { companion ->
+            runCatching {
+                val companionClass = companion.javaClass
+                val companionInstanceMethod = companionClass.getMethod("instance")
+                companionInstanceMethod.invoke(companion)
+            }.getOrElse { error ->
+                log.warn("Companion instance() invocation failed", error)
+                null
+            }
+        }
+
+        if (companionResolved != null) return companionResolved
+
+        return runCatching {
+            val instanceField = llamaAndroidClass.getDeclaredField("_instance")
+            instanceField.isAccessible = true
+            instanceField.get(null)
+        }.getOrElse { error ->
+            log.warn("Fallback _instance field access failed", error)
+            null
         }
     }
 
@@ -182,7 +185,7 @@ class LlmInferenceEngine(
             klass.methods.firstOrNull { it.name == "configureSampling" }
                 ?.invoke(null, temperature, topP, topK)
         } catch (e: Exception) {
-            android.util.Log.w("LlmEngine", "Failed to update sampling", e)
+            log.warn("Failed to update sampling", e)
         }
     }
 
@@ -193,7 +196,7 @@ class LlmInferenceEngine(
             klass.methods.firstOrNull { it.name == "configureMaxTokens" }
                 ?.invoke(null, maxTokens)
         } catch (e: Exception) {
-            android.util.Log.w("LlmEngine", "Failed to update max tokens", e)
+            log.warn("Failed to update max tokens", e)
         }
     }
 
@@ -237,13 +240,13 @@ class LlmInferenceEngine(
         val totalMemGb = if (memInfo.totalMem > 0) {
             memInfo.totalMem.toDouble() / (1024.0 * 1024.0 * 1024.0)
         } else {
-            6.0
+            DEFAULT_TOTAL_MEM_GB
         }
         return when {
-            totalMemGb <= 4.5 -> 1024
-            totalMemGb <= 8.5 -> 2048
-            totalMemGb <= 12.5 -> 3072
-            else -> 4096
+            totalMemGb <= LOW_MEM_GB -> CONTEXT_SIZE_LOW_MEM
+            totalMemGb <= MID_MEM_GB -> CONTEXT_SIZE_MID_MEM
+            totalMemGb <= HIGH_MEM_GB -> CONTEXT_SIZE_HIGH_MEM
+            else -> CONTEXT_SIZE_MAX
         }
     }
 
@@ -257,90 +260,123 @@ class LlmInferenceEngine(
         expectedSha256: String? = null
     ): Boolean {
         return modelLoadMutex.withLock {
-            if (!isInitialized && !initialize(context)) {
-                log.error("Engine initialization failed. Cannot load model.")
-                return@withLock false
-            }
-            if (isModelLoaded) {
-                unloadModel()
-            }
+            if (!ensureInitialized(context)) return@withLock false
+            if (isModelLoaded) unloadModel()
             withContext(ioDispatcher) {
-                try {
-                    val modelUri = modelUriString.toUri()
-                    val displayName =
-                        context.contentResolver.query(modelUri, null, null, null, null)
-                            ?.use { cursor ->
-                                val nameIndex =
-                                    cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                                if (cursor.moveToFirst() && nameIndex != -1) {
-                                    cursor.getString(nameIndex)
-                                } else {
-                                    null
-                                }
-                            } ?: run {
-                            val fileNameFromPath = modelUri.path?.let { File(it).name }
-                            fileNameFromPath ?: "local_model.gguf"
-                        }
-
-                    val destinationFile = File(context.cacheDir, "local_model.gguf")
-
-                    val inputStream =
-                        when (modelUri.scheme) {
-                            "file" -> modelUri.path?.let { path -> File(path).inputStream() }
-                            "content" -> context.contentResolver.openInputStream(modelUri)
-                            else -> context.contentResolver.openInputStream(modelUri)
-                        }
-
-                    inputStream?.use { input ->
-                        FileOutputStream(destinationFile).use { outputStream ->
-                            input.copyTo(outputStream)
-                        }
-                    } ?: run {
-                        android.util.Log.e(
-                            "LlmEngine",
-                            "Failed to open input stream for model URI: $modelUri"
-                        )
-                        return@withContext false
-                    }
-                    log.info("Model copied to cache at {}", destinationFile.path)
-
-                    val normalizedExpected = expectedSha256?.trim()?.lowercase().orEmpty()
-                    if (normalizedExpected.isNotBlank()) {
-                        val actual = sha256(destinationFile)
-                        if (!actual.equals(normalizedExpected, ignoreCase = true)) {
-                            log.error(
-                                "Model hash verification failed. expected={}, actual={}",
-                                normalizedExpected,
-                                actual
-                            )
-                            return@withContext false
-                        }
-                    }
-
-                    llamaController?.load(destinationFile.path)
-                    isModelLoaded = true
-                    loadedModelPath = destinationFile.path
-                    loadedModelSourceUri = modelUriString
-                    loadedModelName = displayName
-                    currentModelFamily = detectModelFamily(displayName)
-                    log.info("Successfully loaded local model: {}", loadedModelName)
-                    true
-                } catch (e: Exception) {
-                    log.error("Failed to initialize or load model from file", e)
-                    android.util.Log.e(
-                        "LlmEngine",
-                        "Failed to initialize or load model from file",
-                        e
-                    )
-                    isModelLoaded = false
-                    loadedModelPath = null
-                    loadedModelSourceUri = null
-                    loadedModelName = null
-                    currentModelFamily = ModelFamily.UNKNOWN
-                    false
-                }
+                loadModelFromUri(context, modelUriString, expectedSha256)
             }
         }
+    }
+
+    private suspend fun ensureInitialized(context: Context): Boolean {
+        if (isInitialized) return true
+        if (!initialize(context)) {
+            log.error("Engine initialization failed. Cannot load model.")
+            return false
+        }
+        return true
+    }
+
+    private fun loadModelFromUri(
+        context: Context,
+        modelUriString: String,
+        expectedSha256: String?
+    ): Boolean {
+        return try {
+            val modelUri = modelUriString.toUri()
+            val displayName = resolveModelDisplayName(context, modelUri)
+            val destinationFile = File(context.cacheDir, "local_model.gguf")
+
+            if (!copyModelToCache(context, modelUri, destinationFile)) {
+                return false
+            }
+            log.info("Model copied to cache at {}", destinationFile.path)
+
+            if (!verifyModelHash(destinationFile, expectedSha256)) {
+                return false
+            }
+
+            llamaController?.load(destinationFile.path)
+            isModelLoaded = true
+            loadedModelPath = destinationFile.path
+            loadedModelSourceUri = modelUriString
+            loadedModelName = displayName
+            currentModelFamily = detectModelFamily(displayName)
+            log.info("Successfully loaded local model: {}", loadedModelName)
+            true
+        } catch (e: Exception) {
+            log.error("Failed to initialize or load model from file", e)
+            resetLoadedModelState()
+            false
+        }
+    }
+
+    private fun resolveModelDisplayName(context: Context, modelUri: android.net.Uri): String {
+        val nameFromProvider =
+            context.contentResolver.query(modelUri, null, null, null, null)
+                ?.use { cursor ->
+                    val nameIndex =
+                        cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && nameIndex != -1) {
+                        cursor.getString(nameIndex)
+                    } else {
+                        null
+                    }
+                }
+        if (!nameFromProvider.isNullOrBlank()) {
+            return nameFromProvider
+        }
+        val fileNameFromPath = modelUri.path?.let { File(it).name }
+        return fileNameFromPath ?: "local_model.gguf"
+    }
+
+    private fun copyModelToCache(
+        context: Context,
+        modelUri: android.net.Uri,
+        destinationFile: File
+    ): Boolean {
+        val inputStream = openModelInputStream(context, modelUri)
+        inputStream?.use { input ->
+            FileOutputStream(destinationFile).use { outputStream ->
+                input.copyTo(outputStream)
+            }
+        } ?: run {
+            log.error("Failed to open input stream for model URI: {}", modelUri)
+            return false
+        }
+        return true
+    }
+
+    private fun openModelInputStream(
+        context: Context,
+        modelUri: android.net.Uri
+    ) = when (modelUri.scheme) {
+        "file" -> modelUri.path?.let { path -> File(path).inputStream() }
+        "content" -> context.contentResolver.openInputStream(modelUri)
+        else -> context.contentResolver.openInputStream(modelUri)
+    }
+
+    private fun verifyModelHash(destinationFile: File, expectedSha256: String?): Boolean {
+        val normalizedExpected = expectedSha256?.trim()?.lowercase().orEmpty()
+        if (normalizedExpected.isBlank()) return true
+        val actual = sha256(destinationFile)
+        if (!actual.equals(normalizedExpected, ignoreCase = true)) {
+            log.error(
+                "Model hash verification failed. expected={}, actual={}",
+                normalizedExpected,
+                actual
+            )
+            return false
+        }
+        return true
+    }
+
+    private fun resetLoadedModelState() {
+        isModelLoaded = false
+        loadedModelPath = null
+        loadedModelSourceUri = null
+        loadedModelName = null
+        currentModelFamily = ModelFamily.UNKNOWN
     }
 
     private fun sha256(file: File): String {
@@ -423,5 +459,17 @@ class LlmInferenceEngine(
             lowerPath.contains("llama") -> ModelFamily.LLAMA3
             else -> ModelFamily.UNKNOWN
         }
+    }
+
+    private companion object {
+        private const val DEFAULT_TOTAL_MEM_GB = 6.0
+        private const val LOW_MEM_GB = 4.5
+        private const val MID_MEM_GB = 8.5
+        private const val HIGH_MEM_GB = 12.5
+
+        private const val CONTEXT_SIZE_LOW_MEM = 1024
+        private const val CONTEXT_SIZE_MID_MEM = 2048
+        private const val CONTEXT_SIZE_HIGH_MEM = 3072
+        private const val CONTEXT_SIZE_MAX = 4096
     }
 }

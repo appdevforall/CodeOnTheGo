@@ -3,7 +3,6 @@ package com.itsaky.androidide.agent.repository
 import android.content.Context
 import android.os.Debug
 import android.os.Process
-import android.util.Log
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
@@ -19,6 +18,7 @@ import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.json.Json
 import java.util.concurrent.atomic.AtomicLong
 import java.util.regex.Pattern
+import org.slf4j.LoggerFactory
 
 private const val SYSTEM_PROMPT = """
 You are a helpful and smart assistant integrated into an Android application.
@@ -46,6 +46,7 @@ class LocalLlmRepositoryImpl(
     private val engine: LlmInferenceEngine
 ) : GeminiRepository {
 
+    private val log = LoggerFactory.getLogger(LocalLlmRepositoryImpl::class.java)
     private val toolTracker = ToolExecutionTracker()
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -111,7 +112,7 @@ class LocalLlmRepositoryImpl(
                     buildGemma2FinalAnswerPrompt(history)
                 } else {
                     if (requiredTool == null) {
-                        history.lastOrNull { it.sender == Sender.USER }?.text ?: ""
+                        buildH2oPrompt(history)
                     } else {
                         buildH2oToolPrompt(history, requiredTool)
                     }
@@ -153,15 +154,17 @@ class LocalLlmRepositoryImpl(
 
         val sessionStartWall = System.currentTimeMillis()
         val sessionStartCpu = Process.getElapsedCpuTime()
-        Log.i(
-            "AgentPerf",
-            "Session start: wall=${sessionStartWall}ms cpu=${sessionStartCpu}ms model=${engine.loadedModelName}"
+        log.info(
+            "Session start: wall={}ms cpu={}ms model={}",
+            sessionStartWall,
+            sessionStartCpu,
+            engine.loadedModelName
         )
 
         val maxTurns = 5
         var currentTurn = 0
         while (currentTurn < maxTurns) {
-            Log.d("AgentDebug", "--- [Step ${currentTurn + 1}] ---")
+            log.debug("--- [Step {}] ---", currentTurn + 1)
             val currentHistory = _messages.value
             val isFinalAnswerTurn =
                 currentHistory.getOrNull(currentHistory.size - 2)?.sender == Sender.TOOL
@@ -169,9 +172,12 @@ class LocalLlmRepositoryImpl(
             val stepStartWall = System.currentTimeMillis()
             val stepStartCpu = Process.getElapsedCpuTime()
             val memStart = getMemSnapshot()
-            Log.i(
-                "AgentPerf",
-                "Step start: turn=${currentTurn + 1} wall=${stepStartWall} cpu=${stepStartCpu} mem=${memStart}"
+            log.info(
+                "Step start: turn={} wall={} cpu={} mem={}",
+                currentTurn + 1,
+                stepStartWall,
+                stepStartCpu,
+                memStart
             )
 
             // 2. UPDATE THE STOP STRINGS
@@ -209,7 +215,7 @@ class LocalLlmRepositoryImpl(
                 requiredTool,
                 false
             )
-            Log.d("AgentDebug", "Final Prompt Sent:\n$fullPromptHistory")
+            log.debug("Final Prompt Sent:\n{}", fullPromptHistory)
             val attempt1 = try {
                 runInferenceWithMetrics(
                     fullPromptHistory,
@@ -218,7 +224,7 @@ class LocalLlmRepositoryImpl(
                     maxTokensOverride
                 )
             } catch (e: Exception) {
-                Log.e("AgentLoop", "Model inference failed", e)
+                log.error("Model inference failed", e)
                 InferenceMetrics(
                     text = "Error: Could not get a response from the model.",
                     durationMs = 0,
@@ -232,8 +238,8 @@ class LocalLlmRepositoryImpl(
             var lastAttempt = attempt1
 
             var finalResponse = modelResponse.split(stopStrings.first()).first()
-            Log.d("AgentDebug", "Raw Model Result: \"$modelResponse\"")
-            Log.d("AgentDebug", "Trimmed Final Result: \"$finalResponse\"")
+            log.debug("Raw Model Result: \"{}\"", modelResponse)
+            log.debug("Trimmed Final Result: \"{}\"", finalResponse)
 
             if (isFinalAnswerTurn) {
                 var cleanResponse = finalResponse
@@ -248,15 +254,21 @@ class LocalLlmRepositoryImpl(
                 val stepEndWall = System.currentTimeMillis()
                 val stepEndCpu = Process.getElapsedCpuTime()
                 val memEnd = getMemSnapshot()
-                Log.i(
-                    "AgentPerf",
-                    "Step end: turn=${currentTurn + 1} wall=${stepEndWall} cpu=${stepEndCpu} mem=${memEnd} " +
-                            "durationMs=${totalDurationMs} responseChars=${modelResponse.length} " +
-                            "ttftMs=${lastAttempt.ttftMs ?: -1} responseTokens=${lastAttempt.responseTokens} " +
-                            "tokPerSec=${"%.2f".format(lastAttempt.tokensPerSec)}"
+                log.info(
+                    "Step end: turn={} wall={} cpu={} mem={} durationMs={} responseChars={} ttftMs={} " +
+                        "responseTokens={} tokPerSec={}",
+                    currentTurn + 1,
+                    stepEndWall,
+                    stepEndCpu,
+                    memEnd,
+                    totalDurationMs,
+                    modelResponse.length,
+                    lastAttempt.ttftMs ?: -1,
+                    lastAttempt.responseTokens,
+                    "%.2f".format(lastAttempt.tokensPerSec)
                 )
 
-                Log.d("AgentDebug", "Final answer received. Concluding.")
+                log.debug("Final answer received. Concluding.")
                 updateLastMessageDuration(totalDurationMs)
                 logSessionSummary(sessionStartWall, sessionStartCpu)
                 break
@@ -269,9 +281,9 @@ class LocalLlmRepositoryImpl(
                     }
                 var toolCall = Util.parseToolCall(responseForParse, tools.keys)
                 if (toolCall == null && requiredTool != null) {
-                    Log.w(
-                        "AgentDebug",
-                        "Tool required ($requiredTool) but no tool call detected. Retrying with forced tool prompt."
+                    log.warn(
+                        "Tool required ({}) but no tool call detected. Retrying with forced tool prompt.",
+                        requiredTool
                     )
                     val forcedPrompt = buildPromptWithHistory(
                         currentHistory,
@@ -279,7 +291,7 @@ class LocalLlmRepositoryImpl(
                         requiredTool,
                         true
                     )
-                    Log.d("AgentDebug", "Forced Tool Prompt Sent:\n$forcedPrompt")
+                    log.debug("Forced Tool Prompt Sent:\n{}", forcedPrompt)
                     val attempt2 = try {
                         runInferenceWithMetrics(
                             forcedPrompt,
@@ -288,7 +300,7 @@ class LocalLlmRepositoryImpl(
                             maxTokensOverride
                         )
                     } catch (e: Exception) {
-                        Log.e("AgentLoop", "Model inference failed on forced tool retry", e)
+                        log.error("Model inference failed on forced tool retry", e)
                         InferenceMetrics(
                             text = "Error: Could not get a response from the model.",
                             durationMs = 0,
@@ -301,8 +313,8 @@ class LocalLlmRepositoryImpl(
                     totalDurationMs += attempt2.durationMs
                     lastAttempt = attempt2
                     finalResponse = modelResponse.split(stopStrings.first()).first()
-                    Log.d("AgentDebug", "Forced Tool Raw Result: \"$modelResponse\"")
-                    Log.d("AgentDebug", "Forced Tool Final Result: \"$finalResponse\"")
+                    log.debug("Forced Tool Raw Result: \"{}\"", modelResponse)
+                    log.debug("Forced Tool Final Result: \"{}\"", finalResponse)
                     val forcedResponseForParse =
                         if (engine.currentModelFamily == ModelFamily.H2O) {
                             normalizeH2oToolResponse(finalResponse, requiredTool)
@@ -315,20 +327,27 @@ class LocalLlmRepositoryImpl(
                 val stepEndWall = System.currentTimeMillis()
                 val stepEndCpu = Process.getElapsedCpuTime()
                 val memEnd = getMemSnapshot()
-                Log.i(
-                    "AgentPerf",
-                    "Step end: turn=${currentTurn + 1} wall=${stepEndWall} cpu=${stepEndCpu} mem=${memEnd} " +
-                            "durationMs=${totalDurationMs} responseChars=${modelResponse.length} " +
-                            "ttftMs=${lastAttempt.ttftMs ?: -1} responseTokens=${lastAttempt.responseTokens} " +
-                            "tokPerSec=${"%.2f".format(lastAttempt.tokensPerSec)}"
+                log.info(
+                    "Step end: turn={} wall={} cpu={} mem={} durationMs={} responseChars={} ttftMs={} " +
+                        "responseTokens={} tokPerSec={}",
+                    currentTurn + 1,
+                    stepEndWall,
+                    stepEndCpu,
+                    memEnd,
+                    totalDurationMs,
+                    modelResponse.length,
+                    lastAttempt.ttftMs ?: -1,
+                    lastAttempt.responseTokens,
+                    "%.2f".format(lastAttempt.tokensPerSec)
                 )
 
                 if (toolCall != null) {
                     val tool = tools[toolCall.name]
                     if (tool != null) {
-                        Log.d(
-                            "AgentDebug",
-                            "Tool Call Detected: ${toolCall.name} with args: ${toolCall.args}"
+                        log.debug(
+                            "Tool Call Detected: {} with args: {}",
+                            toolCall.name,
+                            toolCall.args
                         )
                         // Display a user-friendly version of the tool call
                         updateLastMessage(
@@ -359,7 +378,7 @@ class LocalLlmRepositoryImpl(
                     updateLastMessage(finalResponse)
                     updateLastMessageDuration(totalDurationMs)
                     logSessionSummary(sessionStartWall, sessionStartCpu)
-                    Log.d("AgentDebug", "No tool call detected. Model gave a direct answer.")
+                    log.debug("No tool call detected. Model gave a direct answer.")
                     break
                 }
             }
@@ -371,10 +390,13 @@ class LocalLlmRepositoryImpl(
         val endWall = System.currentTimeMillis()
         val endCpu = Process.getElapsedCpuTime()
         val mem = getMemSnapshot()
-        Log.i(
-            "AgentPerf",
-            "Session end: wall=${endWall} cpu=${endCpu} elapsedWall=${endWall - startWall} " +
-                    "elapsedCpu=${endCpu - startCpu} mem=${mem}"
+        log.info(
+            "Session end: wall={} cpu={} elapsedWall={} elapsedCpu={} mem={}",
+            endWall,
+            endCpu,
+            endWall - startWall,
+            endCpu - startCpu,
+            mem
         )
     }
 
@@ -449,7 +471,7 @@ class LocalLlmRepositoryImpl(
                 }
             }
             val normalized = prefix + trimmed + suffix
-            Log.d("AgentDebug", "H2O normalized tool response: \"$normalized\"")
+            log.debug("H2O normalized tool response: \"{}\"", normalized)
             normalized
         } else {
             trimmed
@@ -601,6 +623,43 @@ Complete the JSON and close the </tool_call> tag.
 User: $userQuestion
 Assistant: $assistantPrefix
         """.trimIndent()
+    }
+
+    private fun buildH2oPrompt(history: List<ChatMessage>): String {
+        val recent = history.takeLast(8)
+        val builder = StringBuilder()
+        builder.append("System: You are a helpful assistant.\n")
+        var lastUserText: String? = null
+        for (message in recent) {
+            when (message.sender) {
+                Sender.USER -> {
+                    if (message.text == lastUserText) continue
+                    lastUserText = message.text
+                    builder.append("User: ${message.text}\n")
+                }
+
+                Sender.AGENT -> {
+                    val text = message.text.trim()
+                    if (text.isBlank()) continue
+                    if (text.contains("<tool_call>", ignoreCase = true) ||
+                        text.contains("Tool Call:", ignoreCase = true)
+                    ) {
+                        continue
+                    }
+                    builder.append("Assistant: $text\n")
+                }
+
+                Sender.TOOL -> {
+                    val text = message.text.trim()
+                    if (text.isBlank()) continue
+                    builder.append("Tool: $text\n")
+                }
+
+                Sender.SYSTEM -> builder.append("System: ${message.text}\n")
+            }
+        }
+        builder.append("Assistant: ")
+        return builder.toString()
     }
 
     private fun buildLlama3Prompt(
