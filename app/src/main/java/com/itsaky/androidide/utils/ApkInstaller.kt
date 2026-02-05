@@ -97,15 +97,19 @@ object ApkInstaller {
 		return runCatching {
 			withContext(Dispatchers.IO) {
 				val sessionId = installer.createSession(params)
-				val session = installer.openSession(sessionId)
-				val callback = getCallbackIntent(context, intent, sessionId)
+				var session: PackageInstaller.Session? = null
+
 				try {
+					session = installer.openSession(sessionId)
+					val callback = requireNotNull(getCallbackIntent(context, intent, sessionId)) {
+						"PackageInstaller callback intent is null"
+					}
 					addToSession(session, apk)
-					session.commit(callback!!.intentSender)
+					session.commit(callback.intentSender)
 				} catch (t: Throwable) {
 					runCatching { installer.abandonSession(sessionId) }
 					throw t
-				} finally { session.close() }
+				} finally { session?.close() }
 			}
 		}.onFailure { error ->
 			log.error("Package installation failed", error)
