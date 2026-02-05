@@ -36,7 +36,7 @@
           android:layout_marginEnd="5dp"
           android:id="@+id/device_size"
           android:layout_centerVertical="true"
-          tools:ignore="ContentDescription" />
+          android:contentDescription="@string/tooltip_size" />
 
         <ImageView
           style="@style/ToolbarButtonStyle"
@@ -45,7 +45,7 @@
           android:layout_centerVertical="true"
           android:layout_marginEnd="5dp"
           android:id="@+id/view_type"
-          tools:ignore="ContentDescription" />
+          android:contentDescription="@string/tooltip_view_type" />
 
         <com.google.android.material.divider.MaterialDivider
           android:layout_height="1px"

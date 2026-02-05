@@ -40,6 +40,7 @@ class ProjectActionsToolbar @JvmOverloads constructor(
     ) {
         val item = ImageButton(context).apply {
             tooltipText = hint
+            contentDescription = hint
             setImageDrawable(icon)
             addCircleRipple()
             // Set layout params for width and height
