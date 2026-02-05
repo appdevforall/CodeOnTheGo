@@ -1,40 +1,26 @@
 package com.itsaky.androidide.plugins.manager.loaders
 
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
 import android.content.res.AssetManager
+import android.content.res.Configuration
 import android.content.res.Resources
 import android.content.res.Resources.Theme
 import android.util.AttributeSet
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
+import com.itsaky.androidide.utils.isSystemInDarkMode
 
-/**
- * Context wrapper that provides plugin-specific resources
- */
 class PluginResourceContext(
     baseContext: Context,
     private val pluginResources: Resources,
     private val pluginPackageInfo: PackageInfo? = null
-) : ContextThemeWrapper(baseContext, android.R.style.Theme_Material_Light) {
+) : ContextThemeWrapper(baseContext, 0) {
 
     private var inflater: LayoutInflater? = null
-
-    init {
-        // Apply plugin's theme if it exists
-        val themeResId = pluginResources.getIdentifier(
-            "PluginTheme",
-            "style",
-            pluginPackageInfo?.packageName
-        )
-        if (themeResId != 0) {
-            theme.applyStyle(themeResId, true)
-        }
-    }
+    private var lastNightMode: Int = -1
 
     override fun getResources(): Resources {
         return pluginResources
@@ -45,7 +31,33 @@ class PluginResourceContext(
     }
 
     override fun getTheme(): Theme {
-        // Return the theme from ContextThemeWrapper which is properly initialized
+        val currentNightMode = baseContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        if (currentNightMode != lastNightMode) {
+            lastNightMode = currentNightMode
+
+            @Suppress("DEPRECATION")
+            pluginResources.updateConfiguration(
+                baseContext.resources.configuration,
+                baseContext.resources.displayMetrics
+            )
+
+            inflater = null
+
+            val pluginThemeResId = pluginResources.getIdentifier(
+                "PluginTheme",
+                "style",
+                pluginPackageInfo?.packageName
+            )
+
+            val themeResId = if (pluginThemeResId != 0) {
+                pluginThemeResId
+            } else if (baseContext.isSystemInDarkMode()) {
+                android.R.style.Theme_Material
+            } else {
+                android.R.style.Theme_Material_Light
+            }
+            setTheme(themeResId)
+        }
         return super.getTheme()
     }
 

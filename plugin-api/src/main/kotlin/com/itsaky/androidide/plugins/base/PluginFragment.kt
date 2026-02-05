@@ -82,12 +82,16 @@ object PluginFragmentHelper {
      */
     @JvmStatic
     fun getPluginInflater(pluginId: String, defaultInflater: LayoutInflater): LayoutInflater {
-        val pluginContext = getPluginContext(pluginId)
-        return if (pluginContext != null) {
-            val inflater = pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
-            inflater ?: defaultInflater.cloneInContext(pluginContext)
-        } else {
-            defaultInflater
-        }
+        val pluginContext = getPluginContext(pluginId) ?: return defaultInflater
+        val activityContext = defaultInflater.context
+
+        @Suppress("DEPRECATION")
+        pluginContext.resources.updateConfiguration(
+            activityContext.resources.configuration,
+            activityContext.resources.displayMetrics
+        )
+
+        val inflater = pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
+        return inflater ?: defaultInflater.cloneInContext(pluginContext)
     }
 }
