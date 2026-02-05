@@ -34,6 +34,7 @@ class XmlLayoutParser(
 
 	companion object {
     const val MARKER_IS_INCLUDE = "tools:is_xml_include"
+    const val MARKER_IS_FRAGMENT = "tools:is_xml_fragment"
 	}
 
 	enum class CustomAttrs(val key: String) {
@@ -110,16 +111,25 @@ class XmlLayoutParser(
 
 					when (tagName) {
 						"fragment" -> {
-							view =
-								FrameLayout(context).apply {
-									id = View.generateViewId()
-									layoutParams =
-										ViewGroup.LayoutParams(
-											ViewGroup.LayoutParams.MATCH_PARENT,
-											ViewGroup.LayoutParams.MATCH_PARENT,
-										)
-								}
-							listViews.add(view)
+							val placeholder = FrameLayout(context).apply {
+								id = View.generateViewId()
+								layoutParams = ViewGroup.LayoutParams(
+									ViewGroup.LayoutParams.MATCH_PARENT,
+									ViewGroup.LayoutParams.MATCH_PARENT,
+								)
+							}
+
+							val attrs = AttributeMap()
+							for (i in 0 until parser.attributeCount) {
+								attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
+							}
+							attrs.putValue(MARKER_IS_FRAGMENT, "true")
+
+							viewAttributeMap[placeholder] = attrs
+							listViews.add(placeholder)
+
+							parser.next()
+							continue
 						}
 
 						"include" -> {
@@ -155,7 +165,7 @@ class XmlLayoutParser(
 						}
 					}
 
-          if (view != null && tagName != "fragment") {
+          if (view != null) {
 						val map = AttributeMap()
 						for (i in 0 until parser.attributeCount) {
 							val fullName = parser.getAttributeName(i)
