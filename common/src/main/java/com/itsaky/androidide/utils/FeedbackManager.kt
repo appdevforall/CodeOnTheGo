@@ -1,6 +1,7 @@
 package com.itsaky.androidide.utils
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -8,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.TransactionTooLargeException
 import android.view.PixelCopy
 import android.view.View
 import android.widget.Toast
@@ -19,10 +21,12 @@ import androidx.core.net.toUri
 import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.eventbus.events.editor.ReportCaughtExceptionEvent
 import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileOutputStream
@@ -334,13 +338,28 @@ object FeedbackManager {
                     feedbackBody,
                 )
 
-            if (emailIntent.resolveActivity(activity.packageManager) != null) {
+            runCatching {
                 activity.startActivity(emailIntent)
-            } else {
-                Toast
-                    .makeText(activity,
-                        activity.getString(R.string.no_email_apps), Toast.LENGTH_LONG)
-                    .show()
+            }.onFailure { e ->
+                when {
+                    e is ActivityNotFoundException -> {
+                        Toast.makeText(activity, R.string.no_email_apps, Toast.LENGTH_LONG).show()
+                    }
+                    e is RuntimeException && e.cause is TransactionTooLargeException -> {
+                        logger.error("Intent transaction failed: Data too large", e)
+                        Toast.makeText(activity, R.string.msg_feedback_log_too_long, Toast.LENGTH_LONG).show()
+                    }
+                    else -> {
+                        logger.error("Intent transaction failed: Unknown error", e)
+                        EventBus.getDefault().post(
+                            ReportCaughtExceptionEvent(
+                                throwable = e,
+                                message = "Feedback email intent failed",
+                                extras = mapOf("screen" to getCurrentScreenName(activity))
+                            )
+                        )
+                    }
+                }
             }
         }
     }
