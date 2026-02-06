@@ -26,19 +26,16 @@ import com.android.aaptcompiler.extractPathData
 import com.blankj.utilcode.util.KeyboardUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
-import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.markInvisible
-import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.compose.preview.ComposePreviewActivity
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import org.appdevforall.codeonthego.layouteditor.activities.EditorActivity
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
+import org.slf4j.LoggerFactory
 import java.io.File
-
-
 
 /** @author Akash Yadav */
 class PreviewLayoutAction(context: Context, override val order: Int) : EditorRelatedAction() {
@@ -47,8 +44,17 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
   override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_PREVIEW_LAYOUT
   override var requiresUIThread: Boolean = false
 
-  companion object{
+  private var previewType: PreviewType = PreviewType.NONE
+
+  private enum class PreviewType {
+    NONE,
+    XML_LAYOUT,
+    COMPOSE
+  }
+
+  companion object {
     const val ID = "ide.editor.previewLayout"
+    private val LOG = LoggerFactory.getLogger(PreviewLayoutAction::class.java)
   }
 
   init {
@@ -58,6 +64,8 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
 
   override fun prepare(data: ActionData) {
     super.prepare(data)
+
+    previewType = PreviewType.NONE
 
     val viewModel = data.requireActivity().editorViewModel
     if (viewModel.isInitializing) {
@@ -71,24 +79,47 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     }
 
     val editor = data.requireEditor()
-    val file = editor.file!!
-
-    val isXml = file.name.endsWith(".xml")
-
-    if (!isXml) {
+    val file = editor.file ?: run {
+      LOG.warn("Editor file is null")
       markInvisible()
       return
     }
 
-    val type = try {
-      extractPathData(file).type
-    } catch (err: Throwable) {
-      markInvisible()
-      return
-    }
+    when {
+      file.name.endsWith(".xml") -> {
+        val type = try {
+          extractPathData(file).type
+        } catch (err: Throwable) {
+          markInvisible()
+          return
+        }
 
-    visible = type == LAYOUT
-    enabled = visible
+        if (type == LAYOUT) {
+          previewType = PreviewType.XML_LAYOUT
+          visible = true
+          enabled = true
+        } else {
+          markInvisible()
+        }
+      }
+      file.name.endsWith(".kt") -> {
+        val content = editor.text.toString()
+        val hasCompose = content.contains("@Composable") ||
+            content.contains("androidx.compose") ||
+            content.contains("@Preview")
+
+        if (hasCompose) {
+          previewType = PreviewType.COMPOSE
+          visible = true
+          enabled = true
+        } else {
+          markInvisible()
+        }
+      }
+      else -> {
+        markInvisible()
+      }
+    }
   }
 
   override fun getShowAsActionFlags(data: ActionData): Int {
@@ -108,21 +139,28 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
 
   override fun postExec(data: ActionData, result: Any) {
     val activity = data.requireActivity()
-    activity.previewLayout(data.requireEditor().file!!)
+    val editor = data.requireEditor()
+    val file = editor.file ?: run {
+      LOG.warn("Editor file is null in postExec")
+      return
+    }
+
+    when (previewType) {
+      PreviewType.XML_LAYOUT -> activity.previewXmlLayout(file)
+      PreviewType.COMPOSE -> activity.showComposePreviewSheet(file, editor.text.toString())
+      PreviewType.NONE -> {}
+    }
   }
 
-  private fun EditorHandlerActivity.previewLayout(file: File) {
-//    //close any open xml files first
-//    val openEditors = editorViewModel.getOpenedFileCount()
-//    for(index in 1..openEditors) {
-//      closeFile(index-1) //zero based
-//    }
-//    invalidateOptionsMenu()
-
+  private fun EditorHandlerActivity.previewXmlLayout(file: File) {
     val intent = Intent(this, EditorActivity::class.java)
     intent.putExtra(Constants.EXTRA_KEY_FILE_PATH, file.absolutePath.substringBefore("layout"))
     intent.putExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME, file.name.substringBefore("."))
     uiDesignerResultLauncher?.launch(intent)
+  }
+
+  private fun EditorHandlerActivity.showComposePreviewSheet(file: File, sourceCode: String) {
+    ComposePreviewActivity.start(this, sourceCode, file.absolutePath)
   }
 
   private fun ActionData.requireEditor(): IDEEditor {
