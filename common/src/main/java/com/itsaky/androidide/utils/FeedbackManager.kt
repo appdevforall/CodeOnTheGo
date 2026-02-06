@@ -345,7 +345,8 @@ object FeedbackManager {
                     e is ActivityNotFoundException -> {
                         Toast.makeText(activity, R.string.no_email_apps, Toast.LENGTH_LONG).show()
                     }
-                    e is RuntimeException && e.cause is TransactionTooLargeException -> {
+                    e is TransactionTooLargeException ||
+                        (e is RuntimeException && e.cause is TransactionTooLargeException) -> {
                         logger.error("Intent transaction failed: Data too large", e)
                         Toast.makeText(activity, R.string.msg_feedback_log_too_long, Toast.LENGTH_LONG).show()
                     }
@@ -358,6 +359,7 @@ object FeedbackManager {
                                 extras = mapOf("screen" to getCurrentScreenName(activity))
                             )
                         )
+                        Toast.makeText(activity, R.string.unknown_error, Toast.LENGTH_LONG).show()
                     }
                 }
             }
