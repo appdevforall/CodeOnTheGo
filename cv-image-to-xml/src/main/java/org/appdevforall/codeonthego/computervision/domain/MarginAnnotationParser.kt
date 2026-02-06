@@ -48,6 +48,22 @@ object MarginAnnotationParser {
     }
 
     /**
+     * Parses a dimension string, correcting common OCR errors and ensuring a valid unit.
+     */
+    private fun parseDimension(value: String): String {
+        val numericPart = value.filter { it.isDigit() }
+        if (numericPart.isEmpty()) return value // Return original if no numbers found
+
+        // Check for presence of a unit, assuming 'dp' if absent or malformed
+        val unitPart = value.filter { it.isLetter() }
+        return if (unitPart.contains("dp", ignoreCase = true) || unitPart.contains("sp", ignoreCase = true) || unitPart.contains("px", ignoreCase = true)) {
+            "$numericPart${unitPart.lowercase()}"
+        } else {
+            "$numericPart" + "dp" // Default to 'dp'
+        }
+    }
+
+    /**
      * Parses a raw annotation string into a clean map of XML attributes.
      */
     private fun parseAnnotationString(rawText: String, widgetType: String): Map<String, String> {
@@ -79,7 +95,7 @@ object MarginAnnotationParser {
                 "id" -> value.replace(Regex("\\s+"), "_").replace(Regex("[^a-zA-Z0-9_]"), "")
                 "background" -> valueCorrectionMap[value] ?: value
                 "src" -> valueCorrectionMap[value] ?: "@drawable/${value.replace(' ', '_')}"
-                "layout_width", "layout_height" -> value.filter { it.isDigit() || it == 'd' || it == 'p' }
+                "layout_width", "layout_height" -> parseDimension(value)
                 else -> value
             }
             parsedAttributes[key] = value
