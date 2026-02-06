@@ -44,13 +44,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install and Configure Git LFS
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-lfs make
-          git lfs install
-          git lfs pull
-
       - name: Initialize submodules
         run: |
           git submodule init
