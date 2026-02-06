@@ -137,7 +137,6 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
         }
 
         if (System.nanoTime() - requestTime < editor.props.cancelCompletionNs) {
-            hide()
             requestTime = System.nanoTime()
             return
         }
