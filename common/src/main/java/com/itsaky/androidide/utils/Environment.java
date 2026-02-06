@@ -55,6 +55,7 @@ public final class Environment {
 	public static File HOME;
 	public static File ANDROIDIDE_HOME;
 	public static File ANDROIDIDE_UI;
+	public static File COMPOSE_HOME;
 	public static File JAVA_HOME;
 	public static File ANDROID_HOME;
 	public static File TMP_DIR;
@@ -152,6 +153,7 @@ public final class Environment {
 		PLUGIN_API_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "plugin-api")),
 				"plugin-api.jar");
 		ANDROIDIDE_UI = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "ui"));
+		COMPOSE_HOME = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "compose"));
 
 		INIT_SCRIPT = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
 		GRADLE_USER_HOME = new File(HOME, ".gradle");

@@ -103,6 +103,24 @@ abstract class ModuleProject(
 	abstract fun getCompileClasspaths(): Set<File>
 
 	/**
+	 * Get the intermediate build output classpaths for this module.
+	 * This includes compiled .class files from the build directory that aren't packaged into JARs yet.
+	 * Used for Compose Preview to reference composables from other files in the same module.
+	 *
+	 * @return The intermediate classpath directories/files.
+	 */
+	abstract fun getIntermediateClasspaths(): Set<File>
+
+	/**
+	 * Get the runtime DEX files for this module.
+	 * These are pre-compiled DEX files from the build directory that can be loaded at runtime.
+	 * Used for Compose Preview to load project classes like themes and shared components.
+	 *
+	 * @return The runtime DEX files.
+	 */
+	abstract fun getRuntimeDexFiles(): Set<File>
+
+	/**
 	 * Get the list of module projects with compile scope. This includes transitive module projects as
 	 * well.
 	 */
