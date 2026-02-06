@@ -811,6 +811,7 @@
 	<!-- Tooltip HTML Components -->
 	<string name="tooltip_buttons_separator"><![CDATA[<br>]]></string>
 	<string name="tooltip_detail_links_template"><![CDATA[%1$s<br><br>%2$s]]></string>
+	<string name="plugin_documentation_third_party_disclaimer">&lt;br&gt;&lt;br&gt;&lt;em style=&quot;color: #888; font-size: 0.9em;&quot;&gt;This documentation is provided by a third-party plugin.&lt;/em&gt;</string>
 
 	<!-- Tooltip Debug Dialog -->
 	<string name="tooltip_debug_dialog_title">Tooltip Debug Info</string>
