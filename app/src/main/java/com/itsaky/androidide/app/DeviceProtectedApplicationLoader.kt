@@ -62,7 +62,7 @@ internal object DeviceProtectedApplicationLoader :
 		StrictModeManager.install(
 			StrictModeConfig(
 				enabled = BuildConfig.DEBUG && !FeatureFlags.isPardonEnabled,
-				isReprieveEnabled = FeatureFlags.isReprieveEnabled,
+                isReprieveEnabled = true,
 			),
 		)
 

@@ -17,8 +17,8 @@
 package com.itsaky.androidide.activities.editor
 
 import android.os.Process
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.transferToStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +43,7 @@ class IDELogcatReader {
   companion object {
 
     private val log = LoggerFactory.getLogger(IDELogcatReader::class.java)
+    private const val MAX_LOG_BYTES: Long = 5L * 1024L * 1024L
   }
 
   /**
@@ -87,20 +88,44 @@ class IDELogcatReader {
 
     outputFile.outputStream().buffered().use { writer ->
       try {
-        val process = ProcessBuilder(
-          "logcat",
-          "--pid=${Process.myPid()}",
-          "-v",
-          "threadtime"
-        ).let { builder ->
+        val captureAllBuffers = GeneralPreferences.logcatCaptureAll
+        val args = mutableListOf("logcat")
+        if (captureAllBuffers) {
+          args.addAll(listOf("-b", "all"))
+        }
+        args.addAll(listOf("--pid", Process.myPid().toString(), "-v", "threadtime"))
+
+        val process = ProcessBuilder(args).let { builder ->
           builder.redirectErrorStream(true)
           builder.start()
         }
+        try {
+          val buffer = ByteArray(8 * 1024)
+          var written = 0L
+          process.inputStream.use { input ->
+            while (shouldRun) {
+              val read = input.read(buffer)
+              if (read <= 0) break
+              val remaining = MAX_LOG_BYTES - written
+              if (remaining <= 0) break
+              val toWrite = if (read > remaining) remaining.toInt() else read
+              writer.write(buffer, 0, toWrite)
+              written += toWrite
+              if (written >= MAX_LOG_BYTES) break
+            }
+          }
 
-        process.inputStream.transferToStream(writer)
-        writer.flush()
-
-        log.info("Process ended with exit code: {}", process.waitFor())
+          writer.flush()
+          if (written >= MAX_LOG_BYTES) {
+            log.warn(
+              "Logcat capture reached max size ({} bytes). Truncating output.",
+              MAX_LOG_BYTES
+            )
+          }
+        } finally {
+          process.destroy()
+          log.info("Process ended with exit code: {}", process.waitFor())
+        }
       } catch (err: Throwable) {
         log.error("Failed to read logs", err)
       }

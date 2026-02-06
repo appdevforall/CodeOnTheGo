@@ -35,24 +35,12 @@ package com.itsaky.androidide.plugins.tasks;
 
 import com.itsaky.androidide.plugins.tasks.internal.WrapperDefaults;
 import com.itsaky.androidide.plugins.tasks.internal.WrapperGenerator;
-import java.io.File;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Properties;
-import javax.annotation.Nullable;
-import javax.inject.Inject;
-import kotlin.io.FilesKt;
+
 import org.gradle.api.GradleException;
 import org.gradle.api.Incubating;
 import org.gradle.api.Project;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.internal.file.FileLookup;
-import org.gradle.api.internal.file.FileOperations;
-import org.gradle.api.internal.file.FileResolver;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.options.Option;
 import org.gradle.api.tasks.options.OptionValues;
@@ -66,6 +54,20 @@ import org.gradle.util.internal.WrapperDistributionUrlConverter;
 import org.gradle.wrapper.Download;
 import org.gradle.wrapper.Logger;
 import org.gradle.wrapper.WrapperExecutor;
+
+import java.io.File;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Properties;
+
+import javax.annotation.Nullable;
+import javax.inject.Inject;
+
+import kotlin.io.FilesKt;
 
 /**
  * <p>Generates scripts (for *nix and windows) which allow you to build your project with Gradle,
@@ -463,7 +465,7 @@ public class IDEWrapperGenerator {
 
   @Option(option = "validate-url", description = "Sets task to validate the configured distribution url.")
   public Boolean getValidateDistributionUrl() {
-    return true;
+      return Boolean.parseBoolean(System.getProperty("androidide.wrapper.validateUrl", "false"));
   }
 
   @Inject
@@ -471,4 +473,3 @@ public class IDEWrapperGenerator {
     throw new UnsupportedOperationException();
   }
 }
-

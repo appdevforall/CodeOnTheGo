@@ -18,11 +18,11 @@
 package com.itsaky.androidide.utils
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.util.DisplayMetrics
 import android.view.Surface
 import android.view.WindowManager
-import com.itsaky.androidide.common.R
 
 class OrientationUtilities {
 
@@ -31,6 +31,14 @@ class OrientationUtilities {
             // not sure what limitations we should add here.
             // But we will add something when we will figure it out.
             function.invoke()
+        }
+
+        fun setAdaptiveOrientation(context: Context, setRequestedOrientation: (Int) -> Unit) {
+            if (isLargeScreen(context)) {
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
+            } else {
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            }
         }
 
         fun getDeviceDefaultOrientation(context: Context): Int {
@@ -56,6 +64,15 @@ class OrientationUtilities {
             return ((context.resources.configuration.screenLayout
                     and Configuration.SCREENLAYOUT_SIZE_MASK)
                     >= Configuration.SCREENLAYOUT_SIZE_LARGE)
+        }
+
+        private fun isLargeScreen(context: Context): Boolean {
+            val config = context.resources.configuration
+            val sizeMask = config.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK
+            val hasSw =
+                config.smallestScreenWidthDp != Configuration.SMALLEST_SCREEN_WIDTH_DP_UNDEFINED
+            val isSwLarge = hasSw && config.smallestScreenWidthDp >= 600
+            return isSwLarge || sizeMask >= Configuration.SCREENLAYOUT_SIZE_LARGE
         }
     }
 

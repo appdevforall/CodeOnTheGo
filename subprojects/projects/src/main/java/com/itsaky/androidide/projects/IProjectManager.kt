@@ -175,5 +175,13 @@ interface IProjectManager {
 }
 
 fun IProjectManager.isPluginProject(): Boolean {
-	return File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
+    val cached = (this as? ProjectManagerImpl)?.pluginProjectCached
+    if (cached != null) {
+        return cached
+    }
+    val result = File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
+    if (this is ProjectManagerImpl) {
+        this.pluginProjectCached = result
+    }
+    return result
 }

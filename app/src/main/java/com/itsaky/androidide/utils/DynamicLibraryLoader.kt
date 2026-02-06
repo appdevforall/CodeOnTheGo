@@ -5,12 +5,11 @@ import android.os.Build
 import android.util.Log
 import dalvik.system.DexClassLoader
 import java.io.File
-import java.nio.file.Path
 import java.util.zip.ZipInputStream
 
 object DynamicLibraryLoader {
 
-    private const val LLAMA_LIB_VERSION = 1 // Increment this if you update the AAR
+    private const val LLAMA_LIB_VERSION = 2 // Increment this if you update the AAR
 
     fun getLlamaClassLoader(context: Context): ClassLoader? {
         val extractedAarFile =

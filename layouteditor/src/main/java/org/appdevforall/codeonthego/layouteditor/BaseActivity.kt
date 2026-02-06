@@ -2,7 +2,6 @@ package org.appdevforall.codeonthego.layouteditor
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -23,7 +22,7 @@ open class BaseActivity : AppCompatActivity() {
     app = LayoutEditor.instance
     window.statusBarColor = SurfaceColors.SURFACE_0.getColor(this)
     OrientationUtilities.setOrientation {
-      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+      OrientationUtilities.setAdaptiveOrientation(this) { requestedOrientation = it }
     }
 
       // Set status bar icons to be dark in light mode and light in dark mode
