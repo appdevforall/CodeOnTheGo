@@ -87,7 +87,6 @@ import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
-import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
@@ -121,6 +120,8 @@ import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
+import com.itsaky.androidide.viewmodel.AppLogsCoordinator
+import com.itsaky.androidide.viewmodel.AppLogsViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
@@ -186,10 +187,13 @@ abstract class BaseEditorActivity :
 	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
 	val wadbConnectionViewModel by viewModels<WADBConnectionViewModel>()
 
+	val appLogsViewModel by viewModels<AppLogsViewModel>()
+	var appLogsCoordinator: AppLogsCoordinator? = null
+
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
 	val binding: ActivityEditorBinding
-		get() = checkNotNull(_binding) { "Activity has been destroyed" }
+		get() = _binding ?: throw IllegalStateException("Activity destroyed; binding not accessible")
 	val content: ContentEditorBinding
 		get() = binding.content
 
@@ -351,6 +355,7 @@ abstract class BaseEditorActivity :
 	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
 	private var editorAppBarInsetTop: Int = 0
+	private var sidebarLastInsetTop: Int = 0
 
 	companion object {
 		private const val TAG = "ResizePanelDebugger"
@@ -398,6 +403,9 @@ abstract class BaseEditorActivity :
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 		if (isAtLeastR()) wadbConnectionViewModel.stop(this)
+
+		appLogsCoordinator?.also(lifecycle::removeObserver)
+		appLogsCoordinator = null
 
 		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
 		drawerToggle = null
@@ -452,15 +460,32 @@ abstract class BaseEditorActivity :
 
 	override fun onApplyWindowInsets(insets: WindowInsetsCompat) {
 		super.onApplyWindowInsets(insets)
-		val height = contentCardRealHeight ?: return
-		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
 
-		_binding?.content?.bottomSheet?.setImeVisible(imeInsets.bottom > 0)
-		_binding?.contentCard?.updateLayoutParams<ViewGroup.LayoutParams> {
-			this.height = height - imeInsets.bottom
-		}
+		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+		_binding?.content?.editorAppBarLayout?.updatePadding(top = systemBars.top)
+		applySidebarInsets(systemBars)
 
 		val isImeVisible = imeInsets.bottom > 0
+		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
+
+		_binding?.contentCard?.apply {
+			when {
+				isImeVisible -> {
+					contentCardRealHeight?.let { baseHeight ->
+						updateLayoutParams<ViewGroup.LayoutParams> {
+							height = (baseHeight - imeInsets.bottom).coerceAtLeast(0)
+						}
+					}
+				}
+				else -> {
+					updateLayoutParams<ViewGroup.LayoutParams> { height = ViewGroup.LayoutParams.MATCH_PARENT }
+					post { contentCardRealHeight = measuredHeight }
+				}
+			}
+		}
+
 		if (this.isImeVisible != isImeVisible) {
 			this.isImeVisible = isImeVisible
 			onSoftInputChanged()
@@ -470,16 +495,13 @@ abstract class BaseEditorActivity :
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		editorAppBarInsetTop = insets.top
-		this._binding?.apply {
-			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
-				?.onApplyWindowInsets(insets)
+	}
 
-			content.apply {
-				editorAppBarLayout.updatePadding(
-					top = insets.top,
-				)
-			}
-		}
+	private fun applySidebarInsets(systemBars: Insets) {
+		val sidebar = _binding?.drawerSidebar ?: return
+		val baseTop = sidebar.paddingTop - sidebarLastInsetTop
+		sidebarLastInsetTop = systemBars.top
+		sidebar.updatePadding(top = baseTop + systemBars.top)
 	}
 
 	@Subscribe(threadMode = MAIN)
@@ -539,7 +561,12 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
+		savedInstanceState?.getString(KEY_PROJECT_PATH)?.let(ProjectManagerImpl.getInstance()::projectPath::set)
 		super.onCreate(savedInstanceState)
+
+		editorViewModel.isBuildInProgress = false
+		editorViewModel.isInitializing = false
+
 		mLifecycleObserver = EditorActivityLifecyclerObserver()
 
 		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
@@ -547,15 +574,13 @@ abstract class BaseEditorActivity :
 			lifecycleScope.launch { wadbConnectionViewModel.start(this@BaseEditorActivity) }
 		}
 
+		appLogsCoordinator =
+			AppLogsCoordinator(appLogsViewModel)
+				.also(lifecycle::addObserver)
+
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
 		registerLanguageServers()
-
-		if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
-			savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
-				ProjectManagerImpl.getInstance().projectPath = path
-			}
-		}
 
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 		mLifecycleObserver?.let {
@@ -611,8 +636,8 @@ abstract class BaseEditorActivity :
 					this@BaseEditorActivity,
 					binding.editorDrawerLayout,
 					this,
-					string.app_name,
-					string.app_name,
+					string.cd_drawer_open,
+					string.cd_drawer_close,
 				) {
 					override fun onDrawerOpened(drawerView: View) {
 						super.onDrawerOpened(drawerView)

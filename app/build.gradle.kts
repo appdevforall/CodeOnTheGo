@@ -755,6 +755,7 @@ afterEvaluate {
         tasks.named("recompressApk").configure {
           extensions.extraProperties["abi"] = "v8"
           extensions.extraProperties["buildName"] = "debug"
+          extensions.extraProperties["noCompressExtensions"] = noCompress
         }
       }
     }
@@ -770,6 +771,7 @@ afterEvaluate {
         tasks.named("recompressApk").configure {
           extensions.extraProperties["abi"] = "v7"
           extensions.extraProperties["buildName"] = "debug"
+          extensions.extraProperties["noCompressExtensions"] = noCompress
         }
       }
     }

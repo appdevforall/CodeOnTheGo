@@ -87,6 +87,7 @@ class EditorActivity : BaseActivity() {
 	private val updateMenuIconsState: Runnable = Runnable { undoRedo!!.updateButtons() }
 	private var originalProductionXml: String? = null
 	private var originalDesignXml: String? = null
+    private var currentLayoutBasePath: String? = null
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -97,6 +98,10 @@ class EditorActivity : BaseActivity() {
 							GravityCompat.END,
 						) -> {
 						drawerLayout.closeDrawers()
+					}
+
+					!isProjectReady() -> {
+						finishAfterTransition()
 					}
 
 					binding.editorLayout.isLayoutModified() -> {
@@ -752,7 +757,8 @@ class EditorActivity : BaseActivity() {
     originalProductionXml = production
     originalDesignXml = design
 
-		binding.editorLayout.loadLayoutFromParser(design)
+      currentLayoutBasePath = File(layoutFile.path).parent
+      binding.editorLayout.loadLayoutFromParser(design, currentLayoutBasePath)
 
 		project.currentLayout = layoutFile
 		supportActionBar?.subtitle = layoutName
@@ -764,6 +770,7 @@ class EditorActivity : BaseActivity() {
 		binding.editorLayout.post {
 			binding.editorLayout.requestLayout()
 			binding.editorLayout.invalidate()
+			binding.editorLayout.updateUndoRedoHistory()
 			binding.editorLayout.markAsSaved()
 		}
 
@@ -773,13 +780,15 @@ class EditorActivity : BaseActivity() {
 			.show()
 	}
 
-	private fun currentLayoutFileOrNull(): LayoutFile? =
-		project.currentLayout as? LayoutFile
+	private fun currentLayoutFileOrNull(): LayoutFile? {
+		if (!::project.isInitialized) return null
+		return project.currentLayout
+	}
 
 	private fun restoreOriginalXmlIfNeeded() {
 		val xmlToRestore = originalDesignXml ?: originalProductionXml
 		if (!xmlToRestore.isNullOrBlank()) {
-			binding.editorLayout.loadLayoutFromParser(xmlToRestore)
+            binding.editorLayout.loadLayoutFromParser(xmlToRestore, currentLayoutBasePath)
 		}
 	}
 

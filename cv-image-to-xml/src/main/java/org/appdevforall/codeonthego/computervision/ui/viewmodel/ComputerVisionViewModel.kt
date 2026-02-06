@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.computervision.R
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil
 
 class ComputerVisionViewModel(
     private val repository: ComputerVisionRepository,
@@ -45,7 +47,11 @@ class ComputerVisionViewModel(
 
     fun onEvent(event: ComputerVisionEvent) {
         when (event) {
-            is ComputerVisionEvent.ImageSelected -> loadImageFromUri(event.uri)
+            is ComputerVisionEvent.ImageSelected -> {
+                CvAnalyticsUtil.trackImageSelected(fromCamera = false)
+                loadImageFromUri(event.uri)
+            }
+
             is ComputerVisionEvent.ImageCaptured -> handleCameraResult(event.uri, event.success)
             ComputerVisionEvent.RunDetection -> runDetection()
             ComputerVisionEvent.UpdateLayoutFile -> showUpdateConfirmation()
@@ -56,6 +62,9 @@ class ComputerVisionViewModel(
             }
             ComputerVisionEvent.RequestCameraPermission -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
+            }
+            is ComputerVisionEvent.UpdateGuides -> {
+                _uiState.update { it.copy(leftGuidePct = event.leftPct, rightGuidePct = event.rightPct) }
             }
         }
     }
@@ -81,6 +90,9 @@ class ComputerVisionViewModel(
         }
     }
 
+    fun onScreenStarted(){
+        CvAnalyticsUtil.trackScreenOpened()
+    }
     private fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
             try {
@@ -91,7 +103,9 @@ class ComputerVisionViewModel(
                             currentBitmap = bitmap,
                             imageUri = uri,
                             detections = emptyList(),
-                            visualizedBitmap = null
+                            visualizedBitmap = null,
+                            leftGuidePct = 0.2f, // Reset to default
+                            rightGuidePct = 0.8f  // Reset to default
                         )
                     }
                 } else {
@@ -106,6 +120,7 @@ class ComputerVisionViewModel(
 
     private fun handleCameraResult(uri: Uri, success: Boolean) {
         if (success) {
+            CvAnalyticsUtil.trackImageSelected(fromCamera = true)
             loadImageFromUri(uri)
         } else {
             viewModelScope.launch {
@@ -115,7 +130,8 @@ class ComputerVisionViewModel(
     }
 
     private fun runDetection() {
-        val bitmap = _uiState.value.currentBitmap
+        val state = _uiState.value
+        val bitmap = state.currentBitmap
         if (bitmap == null) {
             viewModelScope.launch {
                 _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_select_image_first))
@@ -124,10 +140,14 @@ class ComputerVisionViewModel(
         }
 
         viewModelScope.launch {
+            CvAnalyticsUtil.trackDetectionStarted()
+            val startTime = System.currentTimeMillis()
             _uiState.update { it.copy(currentOperation = CvOperation.RunningYolo) }
 
             val yoloResult = repository.runYoloInference(bitmap)
             if (yoloResult.isFailure) {
+                val endTime = System.currentTimeMillis()
+                CvAnalyticsUtil.trackDetectionCompleted(success = false, detectionCount = 0, durationMs = endTime - startTime)
                 handleDetectionError(yoloResult.exceptionOrNull())
                 return@launch
             }
@@ -145,15 +165,32 @@ class ComputerVisionViewModel(
 
             mergeResult
                 .onSuccess { mergedDetections ->
+                    val filteredDetections = filterDetectionsByRoi(mergedDetections, bitmap.width)
+                    CvAnalyticsUtil.trackDetectionCompleted(
+                        success = true,
+                        detectionCount = filteredDetections.size,
+                        durationMs = System.currentTimeMillis() - startTime
+                    )
                     _uiState.update {
                         it.copy(
-                            detections = mergedDetections,
+                            detections = filteredDetections,
                             currentOperation = CvOperation.Idle
                         )
                     }
-                    Log.d(TAG, "Detection complete. ${mergedDetections.size} objects detected.")
+                    Log.d(TAG, "Detection complete. ${filteredDetections.size} objects detected after filtering.")
                 }
                 .onFailure { handleDetectionError(it) }
+        }
+    }
+
+    private fun filterDetectionsByRoi(detections: List<DetectionResult>, imageWidth: Int): List<DetectionResult> {
+        val state = _uiState.value
+        val leftMarginPx = imageWidth * state.leftGuidePct
+        val rightMarginPx = imageWidth * state.rightGuidePct
+
+        return detections.filter { detection ->
+            val centerX = detection.boundingBox.centerX()
+            centerX > leftMarginPx && centerX < rightMarginPx
         }
     }
 
@@ -193,6 +230,8 @@ class ComputerVisionViewModel(
                 sourceImageHeight = state.currentBitmap.height
             )
                 .onSuccess { xml ->
+                    CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
+                    CvAnalyticsUtil.trackXmlExported(toDownloads = false)
                     _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
                     _uiEffect.send(ComputerVisionEffect.ReturnXmlResult(xml))
                 }
@@ -222,6 +261,8 @@ class ComputerVisionViewModel(
                 sourceImageHeight = state.currentBitmap.height
             )
                 .onSuccess { xml ->
+                    CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
+                    CvAnalyticsUtil.trackXmlExported(toDownloads = true)
                     _uiState.update { it.copy(currentOperation = CvOperation.SavingFile) }
                     saveXmlFile(xml)
                 }

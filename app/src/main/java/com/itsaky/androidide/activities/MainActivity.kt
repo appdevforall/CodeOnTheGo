@@ -19,7 +19,6 @@ package com.itsaky.androidide.activities
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.TextUtils
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -46,6 +45,7 @@ import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -56,6 +56,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_L
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.localwebserver.ServerConfig
 import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
@@ -104,7 +105,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// Start WebServer after installation is complete
 		startWebServer()
 
-		openLastProject()
+		if (savedInstanceState == null) { openLastProject() }
 
 		if (FeatureFlags.isExperimentsEnabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
@@ -138,10 +139,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
-		// Show warning dialog if today's date is after January 26, 2026
+		// Show warning dialog if today's date is after April 26, 2026
 		val targetDate =
 			java.util.Calendar.getInstance().apply {
-				set(2026, 0, 26) // Month is 0-indexed, so 0 = January
+				set(2026, 3, 26) // Month is 0-indexed, so 3 = April
 			}
 		val comparisonDate = java.util.Calendar.getInstance()
 		if (comparisonDate.after(targetDate)) {
@@ -259,32 +260,37 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	}
 
 	private fun tryOpenLastProject() {
-		if (!GeneralPreferences.autoOpenProjects) {
-			return
-		}
+		if (!GeneralPreferences.autoOpenProjects) return
 
-		val openedProject = GeneralPreferences.lastOpenedProject
-		if (GeneralPreferences.NO_OPENED_PROJECT == openedProject) {
-			return
-		}
+		lifecycleScope.launch(Dispatchers.IO) {
+			val validProjects = findValidProjects(Environment.PROJECTS_DIR)
+			val lastOpenedPath = GeneralPreferences.lastOpenedProject
 
-		if (TextUtils.isEmpty(openedProject)) {
-			flashInfo(string.msg_opened_project_does_not_exist)
-			return
-		}
+			val projectToOpen = validProjects.find { it.absolutePath == lastOpenedPath }
+				?: validProjects.maxByOrNull { it.lastModified() }
 
-		val project = File(openedProject)
-		if (!project.exists()) {
-			flashInfo(string.msg_opened_project_does_not_exist)
-			return
-		}
+			withContext(Dispatchers.Main) {
+				when {
+        	projectToOpen != null -> handleOpenProject(projectToOpen)
 
+        	lastOpenedPath.isNotBlank() && lastOpenedPath != GeneralPreferences.NO_OPENED_PROJECT -> {
+        		if (!File(lastOpenedPath).exists()) {
+        			flashInfo(string.msg_opened_project_does_not_exist)
+        		}
+        	}
+
+        	else -> Unit
+				}
+			}
+		}
+	}
+
+	private fun handleOpenProject(root: File) {
 		if (GeneralPreferences.confirmProjectOpen) {
-			askProjectOpenPermission(project)
+			askProjectOpenPermission(root)
 			return
 		}
-
-		openProject(project)
+		openProject(root)
 	}
 
 	private fun askProjectOpenPermission(root: File) {
