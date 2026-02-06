@@ -35,7 +35,7 @@ abstract class AbstractPopupWindow(editor: CodeEditor, features: Int) :
   }
 
   override fun show() {
-    (editor as? IDEEditor)?.ensureWindowsDismissed()
+    (editor as? IDEEditor)?.dismissPopupWindows()
     if (!editor.isAttachedToWindow) {
       log.error("Trying to show popup window '{}' when editor is not attached to window",
         javaClass.name)
