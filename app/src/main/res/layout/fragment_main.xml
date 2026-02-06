@@ -26,6 +26,7 @@
       android:id="@+id/main_image"
       android:layout_width="50dp"
       android:layout_height="50dp"
+      android:importantForAccessibility="no"
       android:src="@drawable/ic_launcher_main" />
 <!--      app:shapeAppearance="@style/AppTheme.ShapeAppearance.MainFragment.Logo" />-->
 
