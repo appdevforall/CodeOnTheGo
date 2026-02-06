@@ -119,6 +119,7 @@
       android:layout_height="wrap_content"
       android:layout_margin="16dp"
       android:layout_gravity="bottom|start"
+      android:contentDescription="@string/send_feedback"
       android:elevation="16dp"
       android:src="@drawable/baseline_feedback_64"
       app:fabCustomSize="32dp" />

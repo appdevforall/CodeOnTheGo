@@ -48,6 +48,7 @@
       android:id="@+id/menu"
       style="@style/ToolbarButtonStyle"
       android:src="@drawable/dots_vertical"
+      android:contentDescription="@string/cd_more_options"
       app:layout_constraintRight_toRightOf="parent"
       app:layout_constraintTop_toTopOf="parent"
       app:tint="?attr/colorOnSurface"/>
