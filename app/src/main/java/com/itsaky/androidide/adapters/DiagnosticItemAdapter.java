@@ -58,6 +58,11 @@ public class DiagnosticItemAdapter extends RecyclerView.Adapter<DiagnosticItemAd
     final LayoutDiagnosticItemBinding binding = p1.binding;
 
     binding.icon.setImageResource(getDiagnosticIconId(diagnostic));
+    binding.icon.setContentDescription(
+        binding.icon.getContext().getString(
+            diagnostic.getSeverity() == DiagnosticSeverity.ERROR
+                ? R.string.cd_diagnostic_error
+                : R.string.cd_diagnostic_warning));
     binding.icon.setColorFilter(
         ContextCompat.getColor(
             binding.icon.getContext(),

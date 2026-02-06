@@ -13,6 +13,7 @@
 		android:layout_height="20dp"
 		android:rotation="180"
 		android:src="@drawable/arrow_left"
+		android:importantForAccessibility="no"
 		app:layout_constraintBottom_toBottomOf="parent"
 		app:layout_constraintStart_toStartOf="parent"
 		app:layout_constraintTop_toTopOf="parent"

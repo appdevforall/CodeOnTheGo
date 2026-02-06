@@ -213,9 +213,7 @@ class DefaultActionsRegistry : ActionsRegistry() {
 
         item.isEnabled = action.enabled
 
-        if (action.tooltipTag.isNotEmpty()) {
-            item.contentDescription = action.tooltipTag
-        }
+        item.contentDescription = action.label
 
         item.icon = action.icon?.apply {
             colorFilter = action.createColorFilter(data)
