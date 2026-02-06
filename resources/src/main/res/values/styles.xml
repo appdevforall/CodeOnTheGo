@@ -142,4 +142,22 @@
 		<item name="android:windowBackground">?attr/colorSurface</item>
 		<item name="actionMenuTextColor">?attr/colorOnSurface</item>
 	</style>
+
+	<style name="AppTheme.ComposePreviewSheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+		<item name="bottomSheetStyle">@style/AppTheme.ComposePreviewSheet.Modal</item>
+		<item name="android:windowIsFloating">false</item>
+	</style>
+
+	<style name="AppTheme.ComposePreviewSheet.Modal" parent="Widget.Material3.BottomSheet.Modal">
+		<item name="shapeAppearance">@style/AppTheme.ShapeAppearance.ComposePreviewSheet</item>
+		<item name="backgroundTint">?attr/colorSurface</item>
+	</style>
+
+	<style name="AppTheme.ShapeAppearance.ComposePreviewSheet" parent="">
+		<item name="cornerFamily">rounded</item>
+		<item name="cornerSizeTopLeft">16dp</item>
+		<item name="cornerSizeTopRight">16dp</item>
+		<item name="cornerSizeBottomLeft">0dp</item>
+		<item name="cornerSizeBottomRight">0dp</item>
+	</style>
 </resources>
