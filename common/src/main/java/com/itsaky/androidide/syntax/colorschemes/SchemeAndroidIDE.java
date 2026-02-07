@@ -80,7 +80,7 @@ public class SchemeAndroidIDE extends EditorColorScheme {
    * @return The default style for keywords.
    */
   public static long forKeyword() {
-    return TextStyle.makeStyle(KEYWORD, 0, true, false, false);
+    return TextStyle.makeStyle(KEYWORD, WHOLE_BACKGROUND, true, false, false);
   }
 
   /**

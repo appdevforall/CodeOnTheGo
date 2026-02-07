@@ -147,7 +147,8 @@ data class StyleDef(
    * @see TextStyle.makeStyle
    */
   fun makeStyle(): Long {
-    return TextStyle.makeStyle(fg, bg, bold, italic, strikeThrough, !completion)
+    val effectiveBg = if (bg > 0) bg else EditorColorScheme.WHOLE_BACKGROUND
+    return TextStyle.makeStyle(fg, effectiveBg, bold, italic, strikeThrough, !completion)
   }
 
   /**
