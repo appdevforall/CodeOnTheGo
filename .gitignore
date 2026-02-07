@@ -159,3 +159,6 @@ testing/**/bin/
 # checksum files
 .checksum/
 
+# Compose preview downloaded JARs (generated during build)
+compose-preview/src/main/assets/compose/
+
