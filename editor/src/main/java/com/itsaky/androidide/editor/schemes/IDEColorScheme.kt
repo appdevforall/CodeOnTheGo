@@ -20,6 +20,7 @@ package com.itsaky.androidide.editor.schemes
 import androidx.collection.MutableIntIntMap
 import com.itsaky.androidide.editor.schemes.internal.parser.SchemeParser
 import com.itsaky.androidide.syntax.colorschemes.DynamicColorScheme
+import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import io.github.rosemoe.sora.lang.styling.TextStyle
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import java.io.File
@@ -63,6 +64,9 @@ class IDEColorScheme(internal val file: File, val key: String) : DynamicColorSch
 
   @Suppress("UNNECESSARY_SAFE_CALL", "USELESS_ELVIS")
   override fun getColor(type: Int): Int {
+    if (type == SchemeAndroidIDE.SYNTAX_SPAN_NO_BACKGROUND) {
+      return android.graphics.Color.TRANSPARENT
+    }
     // getColor is called in superclass constructor
     // in this case, the below properties will be null
     val defaultValue = super.getColor(type)
@@ -147,7 +151,8 @@ data class StyleDef(
    * @see TextStyle.makeStyle
    */
   fun makeStyle(): Long {
-    val effectiveBg = if (bg > 0) bg else EditorColorScheme.WHOLE_BACKGROUND
+    val effectiveBg =
+      if (bg > 0) bg else SchemeAndroidIDE.SYNTAX_SPAN_NO_BACKGROUND
     return TextStyle.makeStyle(fg, effectiveBg, bold, italic, strikeThrough, !completion)
   }
 

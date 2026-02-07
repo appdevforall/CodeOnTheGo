@@ -62,6 +62,8 @@ public class SchemeAndroidIDE extends EditorColorScheme {
   public static final int FIXME_COMMENT = ++endColorId;
   public static final int BREAKPOINT_LINE_INDICATOR = ++endColorId;
   public static final int BREAKPOINT_LINE_BG = ++endColorId;
+  /** Color id for syntax spans with no explicit background; resolves to transparent so selection shows through. */
+  public static final int SYNTAX_SPAN_NO_BACKGROUND = ++endColorId;
 
   /**
    * Delegates to {@link TextStyle#makeStyle(int)}
@@ -182,6 +184,7 @@ public class SchemeAndroidIDE extends EditorColorScheme {
 
     setColor(BREAKPOINT_LINE_INDICATOR, 0xfff44336);
     setColor(BREAKPOINT_LINE_BG, 0xfff44336);
+    setColor(SYNTAX_SPAN_NO_BACKGROUND, Color.TRANSPARENT);
   }
 
   @Override
