@@ -105,6 +105,7 @@ class InstallationViewModel : ViewModel() {
 					}
 				} catch (e: Exception) {
 					if (e is CancellationException) {
+						_state.update { InstallationPending }
 						throw e
 					}
 					Sentry.captureException(e)
