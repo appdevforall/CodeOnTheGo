@@ -26,9 +26,7 @@ import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
@@ -350,6 +348,7 @@ open class EditorHandlerActivity :
 			if (existingFiles.isEmpty()) return@launch
 
 			withContext(Dispatchers.Main) {
+				if (contentOrNull == null) return@withContext
 				existingFiles.forEach { file ->
 					openFile(File(file.filePath), file.selection)
 				}
@@ -576,6 +575,7 @@ open class EditorHandlerActivity :
 	}
 
 	override fun getEditorForFile(file: File): CodeEditorView? {
+		val content = contentOrNull ?: return null
 		for (i in 0 until content.editorContainer.childCount) {
 			val child = content.editorContainer.getChildAt(i)
 			if (child is CodeEditorView && file == child.file) {
@@ -629,6 +629,7 @@ open class EditorHandlerActivity :
 		// don't bother to switch the context if we don't need to
 		if (notify || (result.gradleSaved && requestSync)) {
 			withContext(Dispatchers.Main) {
+				if (contentOrNull == null) return@withContext
 				if (notify) {
 					flashSuccess(string.all_saved)
 				}
@@ -700,12 +701,14 @@ open class EditorHandlerActivity :
 		val hasUnsaved = hasUnsavedFiles()
 
 		withContext(Dispatchers.Main) {
+			val content = contentOrNull ?: return@withContext
 			editorViewModel.areFilesModified = hasUnsaved
 
 			// set tab as unmodified
 			val tab = content.tabs.getTabAt(index) ?: return@withContext
-			if (tab.text!!.startsWith('*')) {
-				tab.text = tab.text!!.substring(startIndex = 1)
+			val text = tab.text?.toString() ?: return@withContext
+			if (text.startsWith('*')) {
+				tab.text = text.substring(1)
 			}
 		}
 
@@ -929,6 +932,7 @@ open class EditorHandlerActivity :
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onFileRenamed(event: FileRenameEvent) {
+		val content = contentOrNull ?: return
 		val index = findIndexOfEditorByFile(event.file)
 		if (index < 0 || index >= content.tabs.tabCount) {
 			return
@@ -943,6 +947,7 @@ open class EditorHandlerActivity :
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onDocumentChange(event: DocumentChangeEvent) {
+		if (contentOrNull == null) return
 		editorViewModel.areFilesModified = true
 
 		val fileIndex = findIndexOfEditorByFile(event.file.toFile())
@@ -984,6 +989,7 @@ open class EditorHandlerActivity :
 			}
 
 			withContext(Dispatchers.Main) {
+				val content = contentOrNull ?: return@withContext
 				names.forEach { index, (name, iconId) ->
 					val tab = content.tabs.getTabAt(index) ?: return@forEach
 					tab.icon = ResourcesCompat.getDrawable(resources, iconId, theme)
@@ -1063,6 +1069,8 @@ open class EditorHandlerActivity :
 			Log.d("EditorHandlerActivity", "Creating UI tab for plugin: ${pluginTab.id} (${pluginTab.title})")
 
 			runOnUiThread {
+				val content = contentOrNull ?: return@runOnUiThread
+
 				val tab = content.tabs.newTab()
 				tab.text = pluginTab.title
 
@@ -1280,6 +1288,7 @@ open class EditorHandlerActivity :
 	}
 
 	private fun confirmProjectClose() {
+		val content = contentOrNull ?: return
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
 		builder.setMessage(string.msg_confirm_project_close)
@@ -1304,6 +1313,7 @@ open class EditorHandlerActivity :
 			saveAllAsync(notify = false) {
 
 				runOnUiThread {
+					if (contentOrNull == null) return@runOnUiThread
 					performCloseAllFiles(manualFinish = true)
 				}
 				recentProjectsViewModel.updateProjectModifiedDate(
