@@ -27,37 +27,38 @@ import kotlin.getOrDefault
  * @author Akash Yadav
  */
 object CI {
-
-	private var _commitHash: String? = null
-	private var _branchName: String? = null
+	private var commitHash: String? = null
+	private var branchName: String? = null
 
 	fun commitHash(project: Project): String {
-		if (_commitHash == null) {
+		if (commitHash == null) {
 			val sha = System.getenv("GITHUB_SHA") ?: "HEAD"
-			_commitHash =
+			commitHash =
 				project.cmdOutput(
 					project.rootProject.projectDir,
 					"git",
 					"rev-parse",
 					"--short",
-					sha
+					sha,
 				)
 		}
 
-		return _commitHash ?: "unknown"
+		return commitHash ?: "unknown"
 	}
 
 	fun branchName(project: Project): String {
-		if (_branchName == null) {
-			_branchName = System.getenv("GITHUB_REF_NAME")
+		if (branchName == null) {
+			branchName = System.getenv("GITHUB_REF_NAME")
 				?: project.cmdOutput(
 					project.rootProject.projectDir,
-					"git", "rev-parse", "--abbrev-ref",
-					"HEAD"
+					"git",
+					"rev-parse",
+					"--abbrev-ref",
+					"HEAD",
 				)
 		}
 
-		return _branchName ?: "unknown"
+		return branchName ?: "unknown"
 	}
 
 	/** Whether the current build is a CI build. */
@@ -66,23 +67,28 @@ object CI {
 	/** Whether the current build is for tests. This is set ONLY in CI builds. */
 	val isTestEnv by lazy { "true" == System.getenv("ANDROIDIDE_TEST") }
 
-	private fun Project.cmdOutput(workDir: File, vararg args: String): String? = runCatching {
-		val process = ProcessBuilder(*args)
-			.directory(File("."))
-			.redirectErrorStream(true)
-			.start()
+	private fun Project.cmdOutput(
+		workDir: File,
+		vararg args: String,
+	): String? =
+		runCatching {
+			val process =
+				ProcessBuilder(*args)
+					.directory(File("."))
+					.redirectErrorStream(true)
+					.start()
 
-		val exitCode = process.waitFor()
-		if (exitCode != 0) {
-			throw RuntimeException("Command '$args' failed with exit code $exitCode")
-		}
+			val exitCode = process.waitFor()
+			if (exitCode != 0) {
+				throw RuntimeException("Command '$args' failed with exit code $exitCode")
+			}
 
-		process
-			.inputStream
-			.bufferedReader()
-			.readText()
-			.trim()
-	}.onFailure { err ->
-		logger.warn("Unable to run command: ${args.joinToString(" ")}", err)
-	}.getOrDefault(null)
+			process
+				.inputStream
+				.bufferedReader()
+				.readText()
+				.trim()
+		}.onFailure { err ->
+			logger.warn("Unable to run command: ${args.joinToString(" ")}", err)
+		}.getOrDefault(null)
 }
