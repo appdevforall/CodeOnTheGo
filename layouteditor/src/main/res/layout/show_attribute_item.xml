@@ -39,6 +39,7 @@
       android:id="@+id/btn_remove_attribute"
       style="@style/ToolbarButtonStyle"
       android:src="@drawable/delete_outline"
+      android:contentDescription="@string/cd_delete"
       app:layout_constraintBottom_toBottomOf="parent"
       app:layout_constraintRight_toRightOf="parent"
       app:layout_constraintTop_toTopOf="parent"
