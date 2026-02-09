@@ -117,8 +117,8 @@ val Project.publishingVersion: String
 			return publishing
 		}
 
-		if (CI.isCiBuild && CI.branchName != "main") {
-			publishing += "-${CI.commitHash}-SNAPSHOT"
+		if (CI.isCiBuild && CI.branchName(this) != "main") {
+			publishing += "-${CI.commitHash(this)}-SNAPSHOT"
 		}
 
 		return publishing
