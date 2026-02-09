@@ -705,7 +705,9 @@ open class EditorHandlerActivity :
 			editorViewModel.areFilesModified = hasUnsaved
 
 			// set tab as unmodified
-			val tab = content.tabs.getTabAt(index) ?: return@withContext
+			val tabPosition = getTabPositionForFileIndex(index)
+			if (tabPosition < 0) return@withContext
+			val tab = content.tabs.getTabAt(tabPosition) ?: return@withContext
 			val text = tab.text?.toString() ?: return@withContext
 			if (text.startsWith('*')) {
 				tab.text = text.substring(1)
