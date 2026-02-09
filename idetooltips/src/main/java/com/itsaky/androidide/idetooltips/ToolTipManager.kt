@@ -363,17 +363,33 @@ object TooltipManager {
             popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
         }
 
+        val iconTintColor = if (anchorView.isInOverlayWindow()) {
+            Color.WHITE
+        } else {
+            getColor(
+                context,
+                if (isDarkMode) ResR.color.tooltip_text_color_dark
+                else ResR.color.tooltip_text_color_light
+            )
+        }
+
         val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
-        infoButton.setOnClickListener {
-            onInfoButtonClicked(context, popupWindow, tooltipItem)
+        infoButton.apply {
+            setColorFilter(iconTintColor)
+            setOnClickListener {
+                onInfoButtonClicked(context, popupWindow, tooltipItem)
+            }
         }
 
         val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
         val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
         feedbackButton.startAnimation(pulseAnimation)
 
-        feedbackButton.setOnClickListener {
-            onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+        feedbackButton.apply {
+            setOnClickListener {
+                onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+            }
+            setColorFilter(iconTintColor)
         }
     }
 
