@@ -7,15 +7,16 @@ import org.gradle.api.Project
 import org.gradle.api.provider.Provider
 import java.io.File
 
-fun Project.configureProtoc(protobuf: ProtobufExtension, protocVersion: Provider<String>) {
+fun Project.configureProtoc(
+	protobuf: ProtobufExtension,
+	protocVersion: Provider<String>,
+) {
 	if (configureOnDeviceProtoc(protobuf)) return
 
 	configureProtocArtifact(protobuf, protocVersion)
 }
 
-private fun Project.configureOnDeviceProtoc(
-	protobuf: ProtobufExtension
-): Boolean {
+private fun Project.configureOnDeviceProtoc(protobuf: ProtobufExtension): Boolean {
 	if (isTermuxAppPackageNameSet() || isTermuxJdk()) {
 		// this is an on-device build
 		// find path to the protoc binary
@@ -24,7 +25,7 @@ private fun Project.configureOnDeviceProtoc(
 		if (protocPath == null) {
 			logger.warn(
 				"Unable to get path to protoc binary for on-device build." +
-						" Falling back to using maven artifact, which is likely to fail."
+					" Falling back to using maven artifact, which is likely to fail.",
 			)
 			return false
 		}
@@ -33,7 +34,7 @@ private fun Project.configureOnDeviceProtoc(
 		if (!protoc.exists()) {
 			logger.warn(
 				"protoc path $protocPath does not exist." +
-						" Falling back to using maven artifact"
+					" Falling back to using maven artifact",
 			)
 			return false
 		}
@@ -41,7 +42,7 @@ private fun Project.configureOnDeviceProtoc(
 		if (!protoc.canExecute()) {
 			logger.warn(
 				"protoc path $protocPath is not executable." +
-						" Falling back to using maven artifact"
+					" Falling back to using maven artifact",
 			)
 			return false
 		}
@@ -57,7 +58,10 @@ private fun Project.configureOnDeviceProtoc(
 	return false
 }
 
-fun Project.configureProtocArtifact(protobuf: ProtobufExtension, protocVersion: Provider<String>) {
+fun Project.configureProtocArtifact(
+	protobuf: ProtobufExtension,
+	protocVersion: Provider<String>,
+) {
 	val protocModule = "com.google.protobuf:protoc:${protocVersion.get()}"
 	logger.lifecycle("Using protoc module: $protocModule")
 
@@ -66,10 +70,8 @@ fun Project.configureProtocArtifact(protobuf: ProtobufExtension, protocVersion: 
 	}
 }
 
-
-fun isTermuxAppPackageNameSet() =
-	System.getenv("TERMUX_APP__PACKAGE_NAME") == BuildConfig.PACKAGE_NAME
+fun isTermuxAppPackageNameSet() = System.getenv("TERMUX_APP__PACKAGE_NAME") == BuildConfig.PACKAGE_NAME
 
 fun isTermuxJdk() =
 	System.getProperty("java.vendor") == "Termux" ||
-			System.getProperty("java.vm.vendor") == "Termux"
+		System.getProperty("java.vm.vendor") == "Termux"

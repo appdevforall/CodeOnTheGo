@@ -21,8 +21,8 @@ import com.itsaky.androidide.build.config.AUTH_PASS
 import com.itsaky.androidide.build.config.AUTH_USER
 import com.itsaky.androidide.build.config.KEY_BIN
 import com.itsaky.androidide.build.config.KEY_URL
-import org.gradle.api.Project
 import com.itsaky.androidide.build.config.signingKey
+import org.gradle.api.Project
 import org.gradle.api.invocation.Gradle
 import java.util.Base64
 
@@ -32,8 +32,7 @@ import java.util.Base64
  * @author Akash Yadav
  */
 object SigningKeyUtils {
-
-	private val _warned = mutableMapOf<String, Boolean>()
+	private val warned = mutableMapOf<String, Boolean>()
 
 	@JvmStatic
 	fun Project.downloadSigningKey() {
@@ -59,39 +58,42 @@ object SigningKeyUtils {
 		val pass = getEnvOrProp(AUTH_PASS) ?: return
 
 		logger.info("Downloading signing key...")
-		val result = exec {
-			var rootGradle: Gradle? = gradle
-			while (rootGradle?.parent != null) {
-				rootGradle = rootGradle.parent
-			}
+		val result =
+			exec {
+				var rootGradle: Gradle? = gradle
+				while (rootGradle?.parent != null) {
+					rootGradle = rootGradle.parent
+				}
 
-			workingDir(rootGradle!!.rootProject.projectDir)
-			commandLine(
-				"bash",
-				"./scripts/download_key.sh",
-				signingKey.absolutePath,
-				url,
-				user,
-				pass
-			)
-		}
+				workingDir(rootGradle!!.rootProject.projectDir)
+				commandLine(
+					"bash",
+					"./scripts/download_key.sh",
+					signingKey.absolutePath,
+					url,
+					user,
+					pass,
+				)
+			}
 
 		result.assertNormalExitValue()
 	}
 
-	internal fun Project.getEnvOrProp(key: String, warn: Boolean = true): String? {
+	internal fun Project.getEnvOrProp(
+		key: String,
+		warn: Boolean = true,
+	): String? {
 		var value: String? = System.getenv(key)
 		if (value.isNullOrBlank()) {
 			value = project.properties[key] as? String?
 		}
 
 		if (value.isNullOrBlank()) {
-			if (warn && _warned.putIfAbsent(key, true) != true) {
+			if (warn && warned.putIfAbsent(key, true) != true) {
 				logger.warn("$key is not set. Debug key will be used to sign the APK")
 			}
 			return null
 		}
 		return value
 	}
-
 }

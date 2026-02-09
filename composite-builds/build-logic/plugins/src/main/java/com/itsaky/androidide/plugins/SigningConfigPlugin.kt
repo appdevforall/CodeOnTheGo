@@ -17,16 +17,16 @@
 
 package com.itsaky.androidide.plugins
 
+import com.android.build.gradle.BaseExtension
 import com.itsaky.androidide.build.config.KEY_ALIAS
 import com.itsaky.androidide.build.config.KEY_PASS
 import com.itsaky.androidide.build.config.KEY_STORE_PASS
-import com.android.build.gradle.BaseExtension
+import com.itsaky.androidide.build.config.isFDroidBuild
+import com.itsaky.androidide.build.config.signingKey
 import com.itsaky.androidide.plugins.util.SigningKeyUtils.downloadSigningKey
 import com.itsaky.androidide.plugins.util.SigningKeyUtils.getEnvOrProp
-import com.itsaky.androidide.build.config.isFDroidBuild
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import com.itsaky.androidide.build.config.signingKey
 
 /**
  * Configures the signing keys to application modules.
@@ -34,15 +34,12 @@ import com.itsaky.androidide.build.config.signingKey
  * @author Akash Yadav
  */
 class SigningConfigPlugin : Plugin<Project> {
-
-
 	companion object {
 		private var warned = false
 	}
 
 	override fun apply(target: Project) {
 		target.run {
-
 			if (isFDroidBuild) {
 				logger.warn("!!! Do not apply ${javaClass.simpleName} when building or F-Droid.")
 				return
@@ -61,12 +58,13 @@ class SigningConfigPlugin : Plugin<Project> {
 				val signingKey = signingKey.get().asFile
 
 				if (alias != null && storePass != null && keyPass != null && signingKey.exists()) {
-					val config = extension.signingConfigs.create("common") {
-						storeFile = signingKey
-						keyAlias = alias
-						storePassword = storePass
-						keyPassword = keyPass
-					}
+					val config =
+						extension.signingConfigs.create("common") {
+							storeFile = signingKey
+							keyAlias = alias
+							storePassword = storePass
+							keyPassword = keyPass
+						}
 
 					extension.buildTypes.forEach { buildType ->
 						buildType.signingConfig = config
@@ -76,7 +74,7 @@ class SigningConfigPlugin : Plugin<Project> {
 						warned = true
 						logger.warn(
 							"Signing info not configured. " +
-									"keystoreFile=$signingKey[exists=${signingKey.exists()}]"
+								"keystoreFile=$signingKey[exists=${signingKey.exists()}]",
 						)
 					}
 
