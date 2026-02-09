@@ -365,8 +365,10 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
         if (service == null) return;
 
         if (service.getTermuxSessionsSize() >= MAX_SESSIONS) {
-            new AlertDialog.Builder(mActivity).setTitle(R.string.title_max_terminals_reached).setMessage(R.string.msg_max_terminals_reached)
-                .setPositiveButton(android.R.string.ok, null).show();
+            TermuxExecutor.executeOnMain(() -> {
+                new AlertDialog.Builder(mActivity).setTitle(R.string.title_max_terminals_reached).setMessage(R.string.msg_max_terminals_reached)
+                        .setPositiveButton(android.R.string.ok, null).show();
+            });
         } else {
             TerminalSession currentSession = mActivity.getCurrentSession();
 
@@ -384,7 +386,7 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
             TerminalSession newTerminalSession = newTermuxSession.getTerminalSession();
             setCurrentSession(newTerminalSession);
 
-            mActivity.getDrawer().closeDrawers();
+            TermuxExecutor.executeOnMain(() -> mActivity.getDrawer().closeDrawers());
         }
     }
 
@@ -504,16 +506,14 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
                     }
                 }
 
-                TerminalColors.COLOR_SCHEME.updateWith(props);
-                TerminalSession session = mActivity.getCurrentSession();
-                if (session != null && session.getEmulator() != null) {
-                    session.getEmulator().mColors.reset();
-                }
-                updateBackgroundColor();
-
                 final Typeface newTypeface = (fontFile.exists() && fontFile.length() > 0) ? Typeface.createFromFile(fontFile) : Typeface.MONOSPACE;
                 TermuxExecutor.executeOnMain(() -> {
                     if (mActivity == null || mActivity.isFinishing()) return;
+                    TerminalColors.COLOR_SCHEME.updateWith(props);
+                    TerminalSession session = mActivity.getCurrentSession();
+                    if (session != null && session.getEmulator() != null) {
+                        session.getEmulator().mColors.reset();
+                    }
                     updateBackgroundColor();
                     mActivity.getTerminalView().setTypeface(newTypeface);
                 });

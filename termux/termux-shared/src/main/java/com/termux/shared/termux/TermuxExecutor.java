@@ -18,6 +18,10 @@ public class TermuxExecutor {
     }
 
     public static void execute(Runnable backgroundTask, Runnable mainThreadCallback) {
+        if (backgroundTask == null) {
+            if (mainThreadCallback != null) mainHandler.post(mainThreadCallback);
+            return;
+        }
         backgroundExecutor.execute(() -> {
             try {
                 backgroundTask.run();

@@ -25,7 +25,7 @@ public abstract class TermuxSharedProperties {
     protected final Set<String> mPropertiesList;
     protected final SharedPropertiesParser mSharedPropertiesParser;
     protected File mPropertiesFile;
-    protected SharedProperties mSharedProperties;
+    protected volatile SharedProperties mSharedProperties;
 
     public static final String LOG_TAG = "TermuxSharedProperties";
 
