@@ -45,6 +45,8 @@ public final class Environment {
 	private static final String ANDROIDIDE_PROJECT_CACHE_DIR = SharedEnvironment.PROJECT_CACHE_DIR_NAME;
 	private static final String DATABASE_NAME = "documentation.db";
 
+	public static final String BUILD_TOOLS_VERSION = "35.0.0";
+
 	public static final String PLUGIN_API_JAR_RELATIVE_PATH = "libs/plugin-api.jar";
 
 	private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
@@ -82,6 +84,7 @@ public final class Environment {
 
 	public static File INIT_SCRIPT;
 	public static File GRADLE_USER_HOME;
+	public static File BUILD_TOOLS_DIR;
 	public static File AAPT2;
 	public static File JAVA;
 	public static File BASH_SHELL;
@@ -161,7 +164,8 @@ public final class Environment {
 		ANDROID_HOME = new File(DEFAULT_ANDROID_HOME);
 		JAVA_HOME = new File(DEFAULT_JAVA_HOME);
 
-		AAPT2 = new File(ANDROID_HOME, "build-tools/35.0.0/aapt2");
+		BUILD_TOOLS_DIR = new File(ANDROID_HOME, "build-tools/" + BUILD_TOOLS_VERSION);
+		AAPT2 = new File(BUILD_TOOLS_DIR, "aapt2");
 
 		JAVA = new File(JAVA_HOME, "bin/java");
 		BASH_SHELL = new File(BIN_DIR, "bash");
@@ -181,7 +185,7 @@ public final class Environment {
 		KEYSTORE_RELEASE = new File(KEYSTORE_DIR, KEYSTORE_RELEASE_NAME);
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
 
-		NDK_DIR = new File(ANDROID_HOME,"ndk");
+		NDK_DIR = new File(ANDROID_HOME, "ndk");
 
 		isInitialized.set(true);
 	}
