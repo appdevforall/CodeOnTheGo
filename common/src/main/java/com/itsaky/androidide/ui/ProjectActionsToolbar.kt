@@ -40,6 +40,7 @@ class ProjectActionsToolbar @JvmOverloads constructor(
     ) {
         val item = ImageButton(context).apply {
             tooltipText = hint
+            contentDescription = hint
             setImageDrawable(icon)
             addCircleRipple()
             // Set layout params for width and height
@@ -55,20 +56,6 @@ class ProjectActionsToolbar @JvmOverloads constructor(
             setOnLongClickListener {
                 onLongClick()
                 true
-            }
-            // Prevent DrawerLayout from intercepting touch events on this button
-            setOnTouchListener { view, event ->
-                when (event.action) {
-                    android.view.MotionEvent.ACTION_DOWN -> {
-                        // Request that parent views (like DrawerLayout) don't intercept touch events
-                        parent?.requestDisallowInterceptTouchEvent(true)
-                    }
-                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                        // Allow parent to intercept again after the touch is done
-                        parent?.requestDisallowInterceptTouchEvent(false)
-                    }
-                }
-                false // Don't consume the event, let the click/long-click listeners handle it
             }
         }
         binding.menuContainer.addView(item)

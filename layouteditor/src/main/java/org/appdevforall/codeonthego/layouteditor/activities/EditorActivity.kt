@@ -87,6 +87,7 @@ class EditorActivity : BaseActivity() {
 	private val updateMenuIconsState: Runnable = Runnable { undoRedo!!.updateButtons() }
 	private var originalProductionXml: String? = null
 	private var originalDesignXml: String? = null
+    private var currentLayoutBasePath: String? = null
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -756,7 +757,8 @@ class EditorActivity : BaseActivity() {
     originalProductionXml = production
     originalDesignXml = design
 
-		binding.editorLayout.loadLayoutFromParser(design)
+      currentLayoutBasePath = File(layoutFile.path).parent
+      binding.editorLayout.loadLayoutFromParser(design, currentLayoutBasePath)
 
 		project.currentLayout = layoutFile
 		supportActionBar?.subtitle = layoutName
@@ -768,6 +770,7 @@ class EditorActivity : BaseActivity() {
 		binding.editorLayout.post {
 			binding.editorLayout.requestLayout()
 			binding.editorLayout.invalidate()
+			binding.editorLayout.updateUndoRedoHistory()
 			binding.editorLayout.markAsSaved()
 		}
 
@@ -785,7 +788,7 @@ class EditorActivity : BaseActivity() {
 	private fun restoreOriginalXmlIfNeeded() {
 		val xmlToRestore = originalDesignXml ?: originalProductionXml
 		if (!xmlToRestore.isNullOrBlank()) {
-			binding.editorLayout.loadLayoutFromParser(xmlToRestore)
+            binding.editorLayout.loadLayoutFromParser(xmlToRestore, currentLayoutBasePath)
 		}
 	}
 

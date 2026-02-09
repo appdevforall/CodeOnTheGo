@@ -50,6 +50,7 @@ import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.shared.termux.interact.TextInputDialogUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
 import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
+import com.termux.shared.termux.shell.TermuxShellManager;
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.shared.termux.theme.TermuxThemeUtils;
 import com.termux.shared.theme.NightMode;
@@ -201,9 +202,13 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         // Delete ReportInfo serialized object files from cache older than 14 days
         ReportActivity.deleteReportInfoFilesOlderThanXDays(this, 14, false);
 
+        ensureTermuxPropertiesInitialized();
+
         // Load Termux app SharedProperties from disk
         mProperties = TermuxAppSharedProperties.getProperties();
         reloadProperties();
+
+        ensureTermuxShellManagerInitialized();
 
         setActivityTheme();
 
@@ -439,6 +444,24 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
         // Update the {@link TerminalSession} and {@link TerminalEmulator} clients.
         mTermuxService.setTermuxTerminalSessionClient(mTermuxTerminalSessionActivityClient);
+    }
+
+    /**
+     * Ensures that the TermuxAppSharedProperties singleton is initialized.
+     * This prevents a NullPointerException when the app process is restored from background.
+     */
+    private void ensureTermuxPropertiesInitialized() {
+        if (TermuxAppSharedProperties.getProperties() != null) return;
+        TermuxAppSharedProperties.init(getApplicationContext());
+    }
+
+    /**
+     * Ensures that the TermuxShellManager singleton is initialized.
+     * This is critical before the Service starts to prevent crashes when accessing mTermuxSessions.
+     */
+    private void ensureTermuxShellManagerInitialized() {
+        if (TermuxShellManager.getShellManager() != null) return;
+        TermuxShellManager.init(getApplicationContext());
     }
 
     protected void setupTermuxSessionOnServiceConnected(

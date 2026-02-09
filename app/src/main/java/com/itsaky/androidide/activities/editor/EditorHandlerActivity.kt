@@ -34,8 +34,10 @@ import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
+import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
@@ -378,7 +380,7 @@ open class EditorHandlerActivity :
 
 			content.projectActionsToolbar.addMenuItem(
 				icon = action.icon,
-				hint = action.label,
+				hint = getToolbarContentDescription(action, data),
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
 					TooltipManager.showIdeCategoryTooltip(
@@ -403,6 +405,36 @@ open class EditorHandlerActivity :
 			data.put(File::class.java, currentEditor.file)
 		}
 		return data
+	}
+
+	private fun getToolbarContentDescription(action: ActionItem, data: ActionData): String {
+		val buildInProgress =
+			with(com.itsaky.androidide.actions.build.AbstractCancellableRunAction) {
+				this@EditorHandlerActivity.isBuildInProgress()
+			}
+		if (action.id == QuickRunAction.ID && buildInProgress) {
+			return getString(string.cd_toolbar_cancel_build)
+		}
+		val resId =
+			when (action.id) {
+				QuickRunAction.ID -> string.cd_toolbar_quick_run
+				"ide.editor.syncProject" -> string.cd_toolbar_sync_project
+				"ide.editor.build.debug" -> string.cd_toolbar_start_debugger
+				"ide.editor.build.runTasks" -> string.cd_toolbar_run_gradle_tasks
+				"ide.editor.code.text.undo" -> string.cd_toolbar_undo
+				"ide.editor.code.text.redo" -> string.cd_toolbar_redo
+				"ide.editor.files.saveAll" -> string.cd_toolbar_save
+				"ide.editor.previewLayout" -> string.cd_toolbar_preview_layout
+				"ide.editor.find" -> string.cd_toolbar_find
+				"ide.editor.find.inFile" -> string.cd_toolbar_find_in_file
+				"ide.editor.find.inProject" -> string.cd_toolbar_find_in_project
+				"ide.editor.launchInstalledApp" -> string.cd_toolbar_launch_app
+				"ide.editor.service.logreceiver.disconnectSenders" ->
+					string.cd_toolbar_disconnect_log_senders
+				"ide.editor.generatexml" -> string.cd_toolbar_image_to_layout
+				else -> null
+			}
+		return if (resId != null) getString(resId) else action.label
 	}
 
 	override fun getCurrentEditor(): CodeEditorView? =
@@ -1066,7 +1098,9 @@ open class EditorHandlerActivity :
 					Log.w("EditorHandlerActivity", "Failed to create fragment for plugin tab: ${pluginTab.id}")
 				}
 
-				tab.select()
+				if (!tab.isSelected) {
+					tab.select()
+				}
 				editorViewModel.displayedFileIndex = -1
 				updateTabVisibility()
 
@@ -1166,12 +1200,6 @@ open class EditorHandlerActivity :
 
 	fun showPluginTabPopup(tab: TabLayout.Tab) {
 		val anchorView = tab.view ?: return
-
-		// Don't show popup if this is the only tab open
-		val totalTabs = content.tabs.tabCount
-		if (totalTabs <= 1) {
-			return
-		}
 
 		// Check if this plugin tab can actually be closed
 		val position = tab.position
