@@ -45,15 +45,17 @@ class DebugOverlayManager private constructor(
                     initialWindowY = overlayLayoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
+                    isDragging = false
                     false
                 }
 
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = (event.rawX - initialTouchX).toInt()
                     val deltaY = (event.rawY - initialTouchY).toInt()
-                    if (isDragging || deltaX > touchSlop || deltaY > touchSlop) {
-                        v.parent.requestDisallowInterceptTouchEvent(true)
+                    if (isDragging || abs(deltaX) > touchSlop || abs(deltaY) > touchSlop) {
                         isDragging = true
+                        v.isPressed = false
+                        v.parent.requestDisallowInterceptTouchEvent(true)
                         overlayLayoutParams.x = initialWindowX + deltaX
                         overlayLayoutParams.y = initialWindowY + deltaY
                         windowManager.updateViewLayout(binding.root, overlayLayoutParams)
@@ -62,13 +64,17 @@ class DebugOverlayManager private constructor(
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    isDragging = false
-                    val deltaX = abs(event.rawX - initialTouchX)
-                    val deltaY = abs(event.rawY - initialTouchY)
-                    if (deltaX < touchSlop && deltaY < touchSlop) {
+                    if (isDragging) {
+                        isDragging = false
+                        true
+                    } else {
                         v.performClick()
-                    }
-                    true
+                        false
+                    }}
+
+                MotionEvent.ACTION_CANCEL -> {
+                    isDragging = false
+                    false
                 }
 
                 else -> false
