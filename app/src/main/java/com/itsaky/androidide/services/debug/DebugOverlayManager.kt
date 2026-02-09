@@ -78,7 +78,7 @@ class DebugOverlayManager private constructor(
         binding.dragHandle.root.setOnLongClickListener { view ->
             TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
-                anchorView = view,
+                anchorView = view.rootView,
                 tag = TooltipTag.DEBUGGER_ACTION_MOVE
             )
             true

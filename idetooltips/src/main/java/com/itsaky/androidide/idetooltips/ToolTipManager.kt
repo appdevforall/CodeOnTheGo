@@ -357,7 +357,11 @@ object TooltipManager {
 
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
-        popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        if (anchorView.isInOverlayWindow()) {
+            showOverlayTooltip(popupWindow, popupView, anchorView)
+        } else {
+            popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        }
 
         val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
         infoButton.setOnClickListener {
@@ -457,6 +461,35 @@ object TooltipManager {
 
             ---
         """.trimIndent()
+    }
+
+    private fun View.isInOverlayWindow(): Boolean {
+        val params = layoutParams
+        return params is WindowManager.LayoutParams &&
+                params.type == WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    }
+
+    private fun showOverlayTooltip(
+        popupWindow: PopupWindow,
+        popupView: View,
+        parentView: View
+    ) {
+        popupView.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+
+        val popupWidth = popupView.measuredWidth
+        val popupHeight = popupView.measuredHeight
+
+        val displayMetrics = parentView.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        val x = (screenWidth - popupWidth) / 2
+        val y = (screenHeight - popupHeight) / 2
+
+        popupWindow.showAtLocation(parentView, Gravity.NO_GRAVITY, x, y)
     }
 
 }
