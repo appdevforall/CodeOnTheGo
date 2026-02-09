@@ -74,7 +74,7 @@ object CI {
 		runCatching {
 			val process =
 				ProcessBuilder(*args)
-					.directory(File("."))
+					.directory(workDir)
 					.redirectErrorStream(true)
 					.start()
 
