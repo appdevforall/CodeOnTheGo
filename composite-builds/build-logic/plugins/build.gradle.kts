@@ -45,6 +45,7 @@ dependencies {
     implementation(libs.common.antlr4)
     implementation(libs.google.gson)
     implementation(libs.google.java.format)
+    implementation(libs.google.protobuf.gradle)
 
     val arch = DefaultNativePlatform.getCurrentArchitecture()
     val brotli4jNatives = DefaultNativePlatform.getCurrentOperatingSystem().let { os ->
