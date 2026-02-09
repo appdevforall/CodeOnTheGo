@@ -150,7 +150,8 @@ class FeedbackEmailHandler(
             emailRecipient = emailRecipient,
             subject = subject,
             body = body,
-            attachmentUris = attachmentUris
+            attachmentUris = attachmentUris,
+            hasLogAttachment = logContentUri != null
         )
     }
 
@@ -158,9 +159,10 @@ class FeedbackEmailHandler(
         emailRecipient: String,
         subject: String,
         body: String,
-        attachmentUris: MutableList<Uri>
+        attachmentUris: MutableList<Uri>,
+        hasLogAttachment: Boolean = false
     ): Intent {
-        val safeBody = sanitizeEmailBody(body)
+        val safeBody = sanitizeEmailBody(body, hasLogAttachment)
         return when {
             // No screenshot or log file (if both files failed to be created)
             attachmentUris.isEmpty() -> {
