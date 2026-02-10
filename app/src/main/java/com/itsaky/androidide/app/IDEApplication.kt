@@ -184,16 +184,24 @@ class IDEApplication : BaseApplication() {
 		thread: Thread,
 		exception: Throwable,
 	) {
+		if (isNonFatalGcCleanupFailure(exception)) {
+			logger.warn("Non-fatal: ZipFile GC cleanup failed with I/O error", exception)
+			return
+		}
+
 		if (isUserUnlocked) {
-			// we can access credential protected storage, delegate the job to
-			// to advanced crash handler
 			CredentialProtectedApplicationLoader.handleUncaughtException(thread, exception)
 			return
 		}
 
-		// we can only access device-protected storage, and are not allowed
-		// to show crash handler screen
-		// delegate the job to the basic crash handler
 		DeviceProtectedApplicationLoader.handleUncaughtException(thread, exception)
+	}
+
+	private fun isNonFatalGcCleanupFailure(exception: Throwable): Boolean {
+		if (exception !is java.io.UncheckedIOException) return false
+		return exception.stackTrace.any {
+			it.className.contains("CleanableResource") ||
+				it.className.contains("PhantomCleanable")
+		}
 	}
 }
