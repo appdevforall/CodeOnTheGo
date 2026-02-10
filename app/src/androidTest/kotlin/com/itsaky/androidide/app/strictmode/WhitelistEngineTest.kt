@@ -108,4 +108,31 @@ class WhitelistEngineTest {
 		val allow = decision as WhitelistEngine.Decision.Allow
 		assertThat(allow.reason).contains("Oplus")
 	}
+
+	@Test
+	fun evaluateReturnsAllowForUtilCodeLanguageUtilsDiskReadViolation() {
+		val violatingFrames =
+			listOf(
+				// Minimal "realistic" prelude (similar shape to Sentry)
+				stackTraceElement("android.os.StrictMode\$AndroidBlockGuardPolicy", "onReadFromDisk", "StrictMode.java", 1728),
+				stackTraceElement("android.app.SharedPreferencesImpl", "awaitLoadedLocked", "SharedPreferencesImpl.java", 283),
+
+				// UtilCode path
+				stackTraceElement("com.blankj.utilcode.util.SPUtils", "getString", "SPUtils.java", 131),
+				stackTraceElement("com.blankj.utilcode.util.LanguageUtils", "applyLanguage", "LanguageUtils.java", 231),
+				stackTraceElement("com.blankj.utilcode.util.UtilsActivityLifecycleImpl", "onActivityCreated", "UtilsActivityLifecycleImpl.java", 200),
+
+				// Tail showing this happens during Splash creation
+				stackTraceElement("android.app.Activity", "onCreate", "Activity.java", 1883),
+				stackTraceElement("com.itsaky.androidide.activities.SplashActivity", "onCreate", "SplashActivity.kt", 34),
+			)
+
+		val violation = createViolation<DiskReadViolation>(violatingFrames)
+		val decision = WhitelistEngine.evaluate(violation)
+
+		assertThat(decision).isInstanceOf(WhitelistEngine.Decision.Allow::class.java)
+
+		val allow = decision as WhitelistEngine.Decision.Allow
+		assertThat(allow.reason).contains("UtilCode")
+	}
 }

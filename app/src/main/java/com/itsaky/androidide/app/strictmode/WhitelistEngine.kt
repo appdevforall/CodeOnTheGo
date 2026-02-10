@@ -202,6 +202,25 @@ object WhitelistEngine {
 					classAndMethod("com.itsaky.androidide.activities.OnboardingActivity", "checkToolsIsInstalled"),
 				)
 			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					UtilCode auto-initializes and registers UtilsActivityLifecycleImpl via a ContentProvider.
+					On every Activity creation, it calls LanguageUtils.applyLanguage(activity), which reads
+					the persisted locale from SharedPreferences (SPUtils) on the main thread. This happens
+					during app startup (e.g., SplashActivity.onCreate) and is outside app control unless we
+					disable UtilCode auto-init or fork the library. We allow this specific DiskReadViolation.
+					""".trimIndent(),
+				)
+
+				matchFramesInOrder(
+					classAndMethod("com.blankj.utilcode.util.LanguageUtils", "applyLanguage"),
+					classAndMethod("com.blankj.utilcode.util.UtilsActivityLifecycleImpl", "onActivityCreated"),
+					classAndMethod("com.itsaky.androidide.activities.SplashActivity", "onCreate"),
+				)
+			}
 		}
 
 	/**
