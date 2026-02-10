@@ -146,6 +146,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
      * time, so if the session causing a change is not in the foreground it should probably be treated as background.
      */
     protected boolean mIsVisible;
+    protected boolean mIsResumed;
 
     /**
      * If onResume() was called after onCreate().
@@ -304,6 +305,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
              if (mTermuxTerminalViewClient != null) mTermuxTerminalViewClient.onStart();
              if (mPreferences.isTerminalMarginAdjustmentEnabled()) addTermuxActivityRootViewGlobalLayoutListener();
         }
+        if (mIsResumed && mIsOnResumeAfterOnCreate) { runOnResumeCallbacks(); }
     }
 
     @Override
@@ -336,19 +338,23 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         Logger.logVerbose(LOG_TAG, "onResume");
 
         if (mIsInvalidState) return;
+        mIsResumed = true;
         if (mPreferences == null) return;
 
+        runOnResumeCallbacks();
+    }
+
+    private void runOnResumeCallbacks() {
         if (mTermuxTerminalSessionActivityClient != null)
             mTermuxTerminalSessionActivityClient.onResume();
 
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onResume();
 
-        // Check if a crash happened on last run of the app or if a plugin crashed and show a
-        // notification with the crash details if it did
         TermuxExecutor.executeInBackground(() -> TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG));
 
         mIsOnResumeAfterOnCreate = false;
+
         if (feedbackButtonManager != null) { feedbackButtonManager.loadFabPosition(); }
     }
 
@@ -361,6 +367,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         if (mIsInvalidState) return;
 
         mIsVisible = false;
+        mIsResumed = false;
         if (mPreferences == null) return;
 
         if (mTermuxTerminalSessionActivityClient != null)
