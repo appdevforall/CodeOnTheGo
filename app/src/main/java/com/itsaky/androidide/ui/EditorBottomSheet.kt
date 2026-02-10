@@ -27,7 +27,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.core.graphics.Insets
@@ -64,6 +63,7 @@ import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
 import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
@@ -550,6 +550,6 @@ constructor(
 		val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 		clipboard.setPrimaryClip(ClipData.newPlainText("diagnostics", formatted))
 
-		Toast.makeText(context, string.msg_diagnostics_copied, Toast.LENGTH_SHORT).show()
+		flashSuccess(context.getString(string.msg_diagnostics_copied))
 	}
 }
