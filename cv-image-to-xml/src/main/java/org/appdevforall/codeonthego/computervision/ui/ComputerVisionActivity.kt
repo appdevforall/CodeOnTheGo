@@ -18,18 +18,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.FeedbackButtonManager
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.computervision.R
+import org.appdevforall.codeonthego.computervision.databinding.ActivityComputerVisionBinding
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.ui.viewmodel.ComputerVisionViewModel
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import org.appdevforall.codeonthego.computervision.ui.viewmodel.ComputerVisionViewModel
-import org.appdevforall.codeonthego.computervision.R
-import org.appdevforall.codeonthego.computervision.databinding.ActivityComputerVisionBinding
-import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class ComputerVisionActivity : AppCompatActivity() {
 
@@ -96,6 +96,7 @@ class ComputerVisionActivity : AppCompatActivity() {
         setupClickListeners()
         observeViewModel()
         setupFeedbackButton()
+        setupGuidelines()
     }
 
     private fun setupToolbar() {
@@ -107,10 +108,6 @@ class ComputerVisionActivity : AppCompatActivity() {
     private fun setupClickListeners() {
         binding.imageView.setOnClickListener {
             viewModel.onEvent(ComputerVisionEvent.OpenImagePicker)
-        }
-        binding.imageView.setOnLongClickListener {
-            viewModel.onEvent(ComputerVisionEvent.RequestCameraPermission)
-            true
         }
         binding.detectButton.setOnClickListener {
             viewModel.onEvent(ComputerVisionEvent.RunDetection)
@@ -126,6 +123,7 @@ class ComputerVisionActivity : AppCompatActivity() {
     private fun observeViewModel() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.onScreenStarted()
                 viewModel.uiState.collect { state -> updateUi(state) }
             }
         }
@@ -144,6 +142,16 @@ class ComputerVisionActivity : AppCompatActivity() {
             )
         feedbackButtonManager?.setupDraggableFab()
     }
+
+    private fun setupGuidelines() {
+        binding.imageView.onMatrixChangeListener = { matrix ->
+            binding.guidelinesView.updateMatrix(matrix)
+        }
+        binding.guidelinesView.onGuidelinesChanged = { left, right ->
+            viewModel.onEvent(ComputerVisionEvent.UpdateGuides(left, right))
+        }
+    }
+
     private fun updateUi(state: ComputerVisionUiState) {
         val displayBitmap = if (state.hasDetections && state.currentBitmap != null) {
             visualizeDetections(state.currentBitmap, state.detections)
@@ -151,6 +159,10 @@ class ComputerVisionActivity : AppCompatActivity() {
             state.currentBitmap
         }
         binding.imageView.setImageBitmap(displayBitmap)
+        state.currentBitmap?.let {
+            binding.guidelinesView.setImageDimensions(it.width, it.height)
+        }
+        binding.guidelinesView.updateGuidelines(state.leftGuidePct, state.rightGuidePct)
 
         val isIdle = state.currentOperation == CvOperation.Idle
         binding.detectButton.isEnabled = state.canRunDetection

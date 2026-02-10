@@ -3,6 +3,7 @@ package com.itsaky.androidide.actions.debug
 import android.content.Context
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.idetooltips.TooltipTag
 
 /**
  * @author Akash Yadav
@@ -13,6 +14,7 @@ class StepOutAction(
     override val id = "ide.debug.step-out"
     override var label = context.getString(R.string.debugger_step_out)
     override val order = 3
+    override var tooltipTag = TooltipTag.DEBUGGER_ACTION_STEP_OUT
 
     override suspend fun execAction(data: ActionData) {
         debugClient.stepOut()

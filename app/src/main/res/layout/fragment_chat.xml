@@ -42,7 +42,7 @@
         app:layout_constraintTop_toBottomOf="@id/chat_toolbar"
         tools:listitem="@layout/list_item_chat_message" />
 
-    <RelativeLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/agent_status_container"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -58,31 +58,34 @@
 
         <TextView
             android:id="@+id/agent_status_message"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_centerVertical="true"
             android:layout_marginEnd="8dp"
-            android:layout_toStartOf="@+id/agent_status_timer"
             android:ellipsize="end"
             android:fontFamily="monospace"
-            android:maxLines="10"
+            android:maxLines="1"
             android:textAppearance="?attr/textAppearanceCaption"
+            app:layout_constrainedWidth="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/agent_status_timer"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             tools:text="Executing tool: create_file..." />
 
         <TextView
             android:id="@+id/agent_status_timer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
             android:fontFamily="monospace"
             android:gravity="end"
             android:minWidth="130dp"
             android:textAppearance="?attr/textAppearanceCaption"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             tools:text="(1m 20.5s of 5m 10.1s)" />
 
-    </RelativeLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/input_bar_card"

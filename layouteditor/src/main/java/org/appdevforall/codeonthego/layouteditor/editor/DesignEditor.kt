@@ -14,6 +14,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.TooltipCompat
 import androidx.core.view.isEmpty
@@ -91,6 +92,7 @@ class DesignEditor : LinearLayout {
 	private var isModified = false
 	private lateinit var preferencesManager: PreferencesManager
 	private var parser: XmlLayoutParser? = null
+	private var currentBasePath: String? = null
 	private val attrTranslationX = "android:translationX"
 	private val attrTranslationY = "android:translationY"
 	private val widgetIdOverrides = mapOf(
@@ -449,11 +451,16 @@ class DesignEditor : LinearLayout {
 
 	private fun sanitizeIdName(base: String): String = widgetIdOverrides[base] ?: base
 
-	fun loadLayoutFromParser(xml: String) {
+	fun loadLayoutFromParser(xml: String, basePath: String? = null) {
 		clearAll()
 		if (xml.isEmpty()) return
 
-		val parser = XmlLayoutParser(context)
+		// Store basePath for undo/redo operations
+		if (basePath != null) {
+			currentBasePath = basePath
+		}
+
+		val parser = XmlLayoutParser(context, currentBasePath)
 		this.parser = parser
 
 		parser.parseFromXml(xml, context)
@@ -538,6 +545,9 @@ class DesignEditor : LinearLayout {
 		if (undoRedoManager == null) return
 		val result = XmlLayoutGenerator().generate(this, false)
 
+		// Don't add empty states to history
+		if (result.isEmpty()) return
+
 		undoRedoManager!!.addToHistory(result)
 		markAsModified()
 	}
@@ -552,23 +562,35 @@ class DesignEditor : LinearLayout {
 
 	fun isLayoutModified(): Boolean = isModified
 
+	/**
+	 * Configures the View for the design editor by disabling focus and input.
+	 *
+	 * For [TextView] subclasses, it explicitly disables text selection to prevent the
+	 * internal `android.widget.Editor` from intercepting drag events, avoiding a
+	 * `NullPointerException` on Android 12+ (API 31) caused by conflictive base class interactions.
+	 */
+	private fun View.configureForDesignMode() {
+		isFocusable = false
+		isFocusableInTouchMode = false
+
+		if (this is TextView) {
+			keyListener = null
+			isCursorVisible = false
+			setTextIsSelectable(false)
+		}
+	}
+
 	private fun rearrangeListeners(view: View) {
+		view.configureForDesignMode()
+
 		when (view) {
 			is Spinner -> {
-				view.onItemSelectedListener =
-					object : AdapterView.OnItemSelectedListener {
-						override fun onItemSelected(
-							parent: AdapterView<*>?,
-							v: View?,
-							position: Int,
-							id: Long,
-						) {
-							showDefinedAttributes(view)
-						}
-
-						override fun onNothingSelected(parent: AdapterView<*>?) {
-						}
+				view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+					override fun onItemSelected(parent: AdapterView<*>?, v: View?, position: Int, id: Long) {
+						showDefinedAttributes(view)
 					}
+					override fun onNothingSelected(parent: AdapterView<*>?) {}
+				}
 			}
 			is AdapterView<*> -> {
 				view.setOnItemClickListener { _, _, _, _ ->

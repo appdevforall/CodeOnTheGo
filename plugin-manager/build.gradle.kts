@@ -38,6 +38,7 @@ dependencies {
   implementation(projects.logger)
   implementation(projects.lookup)
   implementation(projects.preferences)
+  implementation(projects.resources)
   implementation(projects.idetooltips)
   implementation(projects.shared)
   implementation(projects.subprojects.projects)

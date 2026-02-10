@@ -290,6 +290,7 @@ dependencies {
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
     implementation(projects.cvImageToXml)
+    implementation(projects.composePreview)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -755,6 +756,7 @@ afterEvaluate {
         tasks.named("recompressApk").configure {
           extensions.extraProperties["abi"] = "v8"
           extensions.extraProperties["buildName"] = "debug"
+          extensions.extraProperties["noCompressExtensions"] = noCompress
         }
       }
     }
@@ -770,6 +772,7 @@ afterEvaluate {
         tasks.named("recompressApk").configure {
           extensions.extraProperties["abi"] = "v7"
           extensions.extraProperties["buildName"] = "debug"
+          extensions.extraProperties["noCompressExtensions"] = noCompress
         }
       }
     }

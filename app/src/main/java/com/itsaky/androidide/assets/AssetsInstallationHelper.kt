@@ -35,7 +35,6 @@ import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
-import kotlin.io.path.pathString
 import kotlin.math.pow
 
 typealias AssetsInstallerProgressConsumer = (AssetsInstallationHelper.Progress) -> Unit
@@ -50,6 +49,7 @@ object AssetsInstallationHelper {
 		data class Failure(
 			val cause: Throwable?,
 			val errorMessage: String? = cause?.message,
+			val shouldReportToSentry: Boolean = true
 		) : Result
 	}
 
@@ -176,14 +176,18 @@ object AssetsInstallationHelper {
                     val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
                     val snapshot =
-                        buildString {
-                            entryStatusMap.forEach { (entry, status) ->
-                                appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+                        if (percent >= 99.0) {
+                            "Post install processing in progress...."
+                        } else {
+                            buildString {
+                                entryStatusMap.forEach { (entry, status) ->
+                                    appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+                                }
+                                appendLine("--------------------")
+                                appendLine("Progress: ${formatPercent(percent)}")
+                                appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
+                                appendLine("Remaining storage: ${formatBytes(freeStorage)}")
                             }
-                            appendLine("--------------------")
-                            appendLine("Progress: ${formatPercent(percent)}")
-                            appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
-                            appendLine("Remaining storage: ${formatBytes(freeStorage)}")
                         }
 
                     if (snapshot != previousSnapshot) {
@@ -279,13 +283,21 @@ object AssetsInstallationHelper {
 		onProgress: AssetsInstallerProgressConsumer,
 	): Result.Failure? {
 		val rootDir = File(DEFAULT_ROOT)
+
+		if (!rootDir.exists()) {
+			runCatching {
+				rootDir.mkdirs()
+			}.onFailure { logger.warn("Failed to create root dir: ${it.message}") }
+		}
+
 		if (!rootDir.exists() || !rootDir.canWrite()) {
 			val errorMsg = context.getString(R.string.storage_not_accessible)
 			logger.error("Storage not accessible: {}", DEFAULT_ROOT)
 			onProgress(Progress(errorMsg))
 			return Result.Failure(
 				IllegalStateException(errorMsg),
-				errorMsg
+				errorMsg,
+				false
 			)
 		}
 		return null

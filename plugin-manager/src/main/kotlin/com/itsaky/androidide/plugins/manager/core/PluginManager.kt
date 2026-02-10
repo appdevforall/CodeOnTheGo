@@ -6,6 +6,7 @@ import android.app.Activity
 import android.content.Context
 import com.itsaky.androidide.plugins.*
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
+import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeBuildService
@@ -441,6 +442,9 @@ class PluginManager private constructor(
             // Unregister the plugin's resource context
             PluginFragmentHelper.unregisterPluginContext(pluginId)
 
+            // Unregister all fragment classloaders for this plugin to avoid leaks
+            PluginFragmentFactory.unregisterAllClassLoadersForPlugin(pluginId)
+
             logger.info("Unloaded plugin: $pluginId")
             return true
         } catch (e: Exception) {
@@ -561,6 +565,16 @@ class PluginManager private constructor(
         return loadedPlugins.entries
             .find { it.value.plugin === plugin }
             ?.key
+    }
+
+    fun getClassLoaderForPlugin(plugin: IPlugin): ClassLoader? {
+        return loadedPlugins.values
+            .find { it.plugin === plugin }
+            ?.classLoader
+    }
+
+    fun getClassLoaderForPluginId(pluginId: String): ClassLoader? {
+        return loadedPlugins[pluginId]?.classLoader
     }
 
     fun enablePlugin(pluginId: String): Boolean {

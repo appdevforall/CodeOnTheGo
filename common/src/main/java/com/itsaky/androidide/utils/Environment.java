@@ -45,6 +45,8 @@ public final class Environment {
 	private static final String ANDROIDIDE_PROJECT_CACHE_DIR = SharedEnvironment.PROJECT_CACHE_DIR_NAME;
 	private static final String DATABASE_NAME = "documentation.db";
 
+	public static final String BUILD_TOOLS_VERSION = "35.0.0";
+
 	public static final String PLUGIN_API_JAR_RELATIVE_PATH = "libs/plugin-api.jar";
 
 	private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
@@ -55,6 +57,7 @@ public final class Environment {
 	public static File HOME;
 	public static File ANDROIDIDE_HOME;
 	public static File ANDROIDIDE_UI;
+	public static File COMPOSE_HOME;
 	public static File JAVA_HOME;
 	public static File ANDROID_HOME;
 	public static File TMP_DIR;
@@ -81,6 +84,7 @@ public final class Environment {
 
 	public static File INIT_SCRIPT;
 	public static File GRADLE_USER_HOME;
+	public static File BUILD_TOOLS_DIR;
 	public static File AAPT2;
 	public static File JAVA;
 	public static File BASH_SHELL;
@@ -111,6 +115,9 @@ public final class Environment {
 			"DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL",
 			"PL", "PT", "RO", "SK", "SI", "ES", "SE"
 	};
+
+	public static final String NDK_TAR_XZ = "ndk-cmake.tar.xz";
+	public static File NDK_DIR;
 
 	public static String getArchitecture() {
 		return IDEBuildConfigProvider.getInstance().getCpuAbiName();
@@ -149,6 +156,7 @@ public final class Environment {
 		PLUGIN_API_JAR = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "plugin-api")),
 				"plugin-api.jar");
 		ANDROIDIDE_UI = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "ui"));
+		COMPOSE_HOME = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "compose"));
 
 		INIT_SCRIPT = new File(mkdirIfNotExists(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
 		GRADLE_USER_HOME = new File(HOME, ".gradle");
@@ -156,7 +164,8 @@ public final class Environment {
 		ANDROID_HOME = new File(DEFAULT_ANDROID_HOME);
 		JAVA_HOME = new File(DEFAULT_JAVA_HOME);
 
-		AAPT2 = new File(ANDROID_HOME, "build-tools/35.0.0/aapt2");
+		BUILD_TOOLS_DIR = new File(ANDROID_HOME, "build-tools/" + BUILD_TOOLS_VERSION);
+		AAPT2 = new File(BUILD_TOOLS_DIR, "aapt2");
 
 		JAVA = new File(JAVA_HOME, "bin/java");
 		BASH_SHELL = new File(BIN_DIR, "bash");
@@ -175,6 +184,8 @@ public final class Environment {
 		KEYSTORE_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "keystore"));
 		KEYSTORE_RELEASE = new File(KEYSTORE_DIR, KEYSTORE_RELEASE_NAME);
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
+
+		NDK_DIR = new File(ANDROID_HOME, "ndk");
 
 		isInitialized.set(true);
 	}

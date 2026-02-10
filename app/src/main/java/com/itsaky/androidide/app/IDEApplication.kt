@@ -25,6 +25,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.di.coreModule
+import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.utils.RecyclableObjectPool
@@ -35,10 +37,14 @@ import com.topjohnwu.superuser.Shell
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.plus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
+import org.appdevforall.codeonthego.computervision.di.computerVisionModule
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.GlobalContext
+import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
@@ -46,7 +52,6 @@ import java.lang.Thread.UncaughtExceptionHandler
 const val EXIT_CODE_CRASH = 1
 
 class IDEApplication : BaseApplication() {
-
 	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
@@ -60,7 +65,7 @@ class IDEApplication : BaseApplication() {
 			) {
 				if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
 					runCatching { unregisterReceiver(this) }
-					coroutineScope.launch {
+					coroutineScope.launch(Dispatchers.Default) {
 						logger.info("Device unlocked! Loading all components...")
 						CredentialProtectedApplicationLoader.load(this@IDEApplication)
 					}
@@ -148,9 +153,11 @@ class IDEApplication : BaseApplication() {
 		// https://appdevforall.atlassian.net/browse/ADFA-2026
 		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
 
+		ensureKoinStarted()
+
 		coroutineScope.launch(Dispatchers.Default) {
-		// load common stuff, which doesn't depend on access to
-		// credential protected storage
+			// load common stuff, which doesn't depend on access to
+			// credential protected storage
 			DeviceProtectedApplicationLoader.load(instance)
 
 			// if we can access credential-protected storage, then initialize
@@ -162,6 +169,14 @@ class IDEApplication : BaseApplication() {
 				logger.info("Device in Direct Boot Mode: postponing initialization...")
 				registerReceiver(deviceUnlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
 			}
+		}
+	}
+
+	private fun ensureKoinStarted() {
+		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
+		startKoin {
+			androidContext(this@IDEApplication)
+			modules(coreModule, pluginModule, computerVisionModule)
 		}
 	}
 
