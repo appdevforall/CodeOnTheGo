@@ -185,7 +185,8 @@ include(
     ":llama-impl",
     ":cv-image-to-xml",
     ":llama-api",
-    ":llama-impl"
+    ":llama-impl",
+    ":compose-preview"
 )
 
 object FDroidConfig {
