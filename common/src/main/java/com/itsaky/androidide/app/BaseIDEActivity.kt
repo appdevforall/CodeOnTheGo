@@ -17,7 +17,6 @@
 package com.itsaky.androidide.app
 
 import android.annotation.SuppressLint
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -61,7 +60,7 @@ abstract class BaseIDEActivity : AppCompatActivity() {
     preSetContentLayout()
     setContentView(bindLayout())
     OrientationUtilities.setOrientation {
-      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        OrientationUtilities.setAdaptiveOrientation(this) { requestedOrientation = it }
     }
   }
 

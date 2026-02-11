@@ -182,6 +182,10 @@ desugaring {
 	}
 }
 
+configurations.matching { it.name.contains("AndroidTest") }.configureEach {
+    exclude(group = "com.google.protobuf", module = "protobuf-lite")
+}
+
 dependencies {
 	// debugImplementation(libs.common.leakcanary)
 
@@ -299,7 +303,9 @@ dependencies {
 	testImplementation(projects.testing.unit)
 	testImplementation(libs.core.tests.anroidx.arch)
 	androidTestImplementation(projects.common)
-	androidTestImplementation(projects.testing.android)
+    androidTestImplementation(projects.testing.android) {
+        exclude(group = "com.google.protobuf", module = "protobuf-lite")
+    }
 	androidTestImplementation(libs.tests.kaspresso)
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
