@@ -169,6 +169,39 @@ object WhitelistEngine {
 					classAndMethod("com.oplus.uifirst.OplusUIFirstManager", "setBinderThreadUxFlag"),
 				)
 			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					IJdkDistributionProvider.getInstance() lazily initializes via ServiceLoader,
+					which reads from a JAR/ZIP on disk. This is triggered from
+					OnboardingActivity.onCreate to check if setup is completed. The lazy init
+					is a one-time cost and cannot be deferred.
+					""".trimIndent(),
+				)
+
+				matchFramesInOrder(
+					classAndMethod("com.itsaky.androidide.utils.ServiceLoader", "parse"),
+					classAndMethod("com.itsaky.androidide.app.configuration.IJdkDistributionProvider\$Companion", "_instance_delegate\$lambda\$0"),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					OnboardingActivity checks if ANDROID_HOME exists during onCreate to
+					determine if setup is completed. This File.exists() call is a lightweight
+					stat check required before navigating to the main screen.
+					""".trimIndent(),
+				)
+
+				matchFramesInOrder(
+					classAndMethod("java.io.File", "exists"),
+					classAndMethod("com.itsaky.androidide.activities.OnboardingActivity", "checkToolsIsInstalled"),
+				)
+			}
 		}
 
 	/**

@@ -102,7 +102,10 @@ class AgenticRunner(
         val cancelledToken = nextRunToken()
         log.info("Stop requested for AgenticRunner. Cancelling job. token=$cancelledToken")
 
-        updateLastMessageIfActive(cancelledToken, "Operation cancelled by user.")
+        updateLastMessageIfActive(
+            cancelledToken,
+            context.getString(R.string.agent_operation_cancelled_by_user)
+        )
         onStateUpdate?.invoke(AgentState.Idle)
 
         runnerScope.cancel("User requested to stop the agent.")
@@ -245,8 +248,9 @@ class AgenticRunner(
             }.await()
         } catch (e: CancellationException) {
             log.warn("generateASimpleResponse caught cancellation. token=$token")
-            updateLastMessageIfActive(token, "Operation cancelled by user.") // Update UI on cancellation
-            "Operation cancelled by user."
+            val cancelMessage = context.getString(R.string.agent_operation_cancelled_by_user)
+            updateLastMessageIfActive(token, cancelMessage) // Update UI on cancellation
+            cancelMessage
         }
 
         if (isTokenActive(token)) {
@@ -255,7 +259,9 @@ class AgenticRunner(
     }
 
     private suspend fun run(token: Long): String {
-        if (!isTokenActive(token)) return "Operation cancelled by user."
+        if (!isTokenActive(token)) {
+            return context.getString(R.string.agent_operation_cancelled_by_user)
+        }
 
         startLog()
         currentAIAgentThought = ""
@@ -344,7 +350,7 @@ class AgenticRunner(
         } catch (err: Exception) {
             if (err is CancellationException) {
                 log.warn("Agentic run was cancelled during execution. token=$token")
-                return "Operation cancelled by user."
+                return context.getString(R.string.agent_operation_cancelled_by_user)
             }
             log.error("Agentic run failed", err)
             updateLastMessageIfActive(token, "An error occurred: ${err.message}")
@@ -563,8 +569,7 @@ class AgenticRunner(
                 handlePlannerToolCallException(token, history, e, attempts)
             }
         }
-        val instruction =
-            "The planner could not produce a valid tool invocation after multiple attempts. Provide a direct textual answer without calling any tools."
+        val instruction = context.getString(R.string.agent_planner_tool_fallback)
         history.add(
             Content.builder().role("user").parts(Part.builder().text(instruction).build()).build()
         )
@@ -578,21 +583,28 @@ class AgenticRunner(
         attempt: Int
     ) {
         val reason = when (error) {
-            is UnexpectedToolCallException -> "The previous plan was rejected because the model attempted to call a tool even though no tool calls were allowed at that time."
-            is MalformedToolCallException -> "The previous plan failed because the tool invocation was malformed."
-            else -> "The previous plan was rejected due to an invalid tool invocation."
+            is UnexpectedToolCallException ->
+                context.getString(R.string.agent_planner_reject_unexpected_tool)
+            is MalformedToolCallException ->
+                context.getString(R.string.agent_planner_reject_malformed_tool)
+            else -> context.getString(R.string.agent_planner_reject_invalid_tool)
         }
         log.warn("Planner tool call rejected on attempt {}: {}", attempt, error.message)
-        val toolNote = error.toolName?.let { " Tool `${it}` is now blocked until you can explain how to call it safely." } ?: ""
-        val instructionText =
-            "$reason$toolNote Before attempting another tool call, double-check the required parameters and confirm that calling a tool is necessary. If the request can be answered conceptually, respond with text instead of forcing a tool call."
+        val toolNote = error.toolName?.let {
+            context.getString(R.string.agent_planner_tool_blocked_note, it)
+        } ?: ""
+        val instructionText = context.getString(
+            R.string.agent_planner_retry_instruction,
+            reason,
+            toolNote
+        )
         history.add(
             Content.builder().role("user")
                 .parts(Part.builder().text(instructionText).build()).build()
         )
         updateLastMessageIfActive(
             token,
-            "Planner output was invalid. Asking it to correct the plan..."
+            context.getString(R.string.agent_planner_invalid_output_notice)
         )
     }
 
@@ -601,16 +613,16 @@ class AgenticRunner(
         functionCalls.forEach { call ->
             val name = call.name().getOrNull().orEmpty()
             if (name.isBlank()) {
-                errors += "A function call without a name was emitted. Provide a valid tool name."
+                errors += context.getString(R.string.agent_tool_call_missing_name)
                 return@forEach
             }
             if (!toolRequirements.containsKey(name)) {
                 blockedToolNames.add(name)
-                errors += "Unknown tool `$name` was requested. Use only the supported tools."
+                errors += context.getString(R.string.agent_tool_call_unknown_tool, name)
                 return@forEach
             }
             if (blockedToolNames.contains(name)) {
-                errors += "Tool `$name` is temporarily blocked after a malformed invocation. Choose a different tool or respond with a textual answer."
+                errors += context.getString(R.string.agent_tool_call_blocked, name)
             }
             val requiredArgs = toolRequirements[name].orEmpty()
             val args = call.args().getOrNull() ?: emptyMap()
@@ -619,7 +631,11 @@ class AgenticRunner(
             }
             if (missingArgs.isNotEmpty()) {
                 blockedToolNames.add(name)
-                errors += "Tool `$name` is missing required arguments: ${missingArgs.joinToString(", ")}."
+                errors += context.getString(
+                    R.string.agent_tool_call_missing_args,
+                    name,
+                    missingArgs.joinToString(", ")
+                )
             }
         }
         return errors.distinct()
@@ -635,9 +651,9 @@ class AgenticRunner(
             validationErrors.joinToString(" | ")
         )
         val instruction = buildString {
-            append("The previous plan violated tool requirements:\n")
+            append(context.getString(R.string.agent_planner_invalid_tool_usage_header))
             validationErrors.forEach { append("- ").append(it).append("\n") }
-            append("Re-plan with valid tool arguments, or provide a textual response if tools are unnecessary.")
+            append(context.getString(R.string.agent_planner_invalid_tool_usage_footer))
         }
         history.add(
             Content.builder().role("user")
@@ -645,7 +661,7 @@ class AgenticRunner(
         )
         updateLastMessageIfActive(
             token,
-            "Planner proposed invalid tool usage. Requesting a corrected plan..."
+            context.getString(R.string.agent_planner_invalid_tool_usage_notice)
         )
     }
 

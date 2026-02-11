@@ -1,10 +1,16 @@
 #include <android/log.h>
 #include <jni.h>
+#include <atomic>
+#include <chrono>
 #include <iomanip>
 #include <math.h>
 #include <string>
+#include <unordered_map>
+#include <mutex>
 #include <unistd.h>
 #include "llama.h"
+#include <codecvt>
+#include <locale>
 #include "common.h"
 
 #define TAG "llama-android.cpp"
@@ -16,6 +22,11 @@ jmethodID la_int_var_value;
 jmethodID la_int_var_inc;
 
 std::string cached_token_chars;
+static std::unordered_map<llama_batch *, int> g_batch_n_tokens;
+static std::vector<std::string> g_stop_strings;
+static std::string g_generated_text;
+static std::atomic<bool> g_stop_requested(false);
+static std::mutex g_globals_mutex;
 
 bool is_valid_utf8(const char *string) {
     if (!string) {
@@ -54,13 +65,85 @@ bool is_valid_utf8(const char *string) {
     return true;
 }
 
-#define TAG "llama-android.cpp"
-#define LOGi(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-#define LOGe(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
-
 static JavaVM *g_jvm = nullptr;
 static jclass g_llama_android_class = nullptr;
 static jmethodID g_log_from_native_method = nullptr;
+static std::atomic<int> g_n_threads(-1);
+static std::atomic<int> g_n_threads_batch(-1);
+static std::atomic<float> g_temperature(0.7f);
+static std::atomic<float> g_top_p(0.9f);
+static std::atomic<int> g_top_k(40);
+static std::atomic<int> g_n_ctx(4096);
+static std::atomic<bool> g_kv_cache_reuse(true);
+static std::vector<llama_token> g_cached_tokens;
+
+static jstring new_jstring_utf8(JNIEnv *env, const char *text) {
+    if (!text) {
+        return env->NewStringUTF("");
+    }
+
+    try {
+        std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> converter;
+        std::u16string u16 = converter.from_bytes(text);
+        return env->NewString(reinterpret_cast<const jchar *>(u16.data()),
+                              static_cast<jsize>(u16.size()));
+    } catch (const std::range_error &) {
+        std::string sanitized;
+        sanitized.reserve(strlen(text));
+        for (const unsigned char ch: std::string(text)) {
+            sanitized.push_back(ch < 0x80 ? static_cast<char>(ch) : '?');
+        }
+        return env->NewStringUTF(sanitized.c_str());
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_android_llama_cpp_LLamaAndroid_configureThreads(JNIEnv *, jclass, jint n_threads,
+                                                     jint n_threads_batch) {
+    g_n_threads.store(n_threads);
+    g_n_threads_batch.store(n_threads_batch);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_android_llama_cpp_LLamaAndroid_configureSampling(JNIEnv *, jclass, jfloat temperature,
+                                                      jfloat top_p, jint top_k) {
+    float validated_temperature = temperature;
+    if (validated_temperature < 0.0f) {
+        validated_temperature = 0.0f;
+    } else if (validated_temperature > 5.0f) {
+        validated_temperature = 5.0f;
+    }
+
+    float validated_top_p = top_p;
+    if (validated_top_p < 0.0f) {
+        validated_top_p = 0.0f;
+    } else if (validated_top_p > 1.0f) {
+        validated_top_p = 1.0f;
+    }
+
+    int validated_top_k = top_k < 0 ? 0 : top_k;
+
+    g_temperature.store(validated_temperature);
+    g_top_p.store(validated_top_p);
+    g_top_k.store(validated_top_k);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_android_llama_cpp_LLamaAndroid_configureContext(JNIEnv *, jclass, jint n_ctx) {
+    if (n_ctx <= 0) {
+        return;
+    }
+    g_n_ctx.store(n_ctx);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_android_llama_cpp_LLamaAndroid_configureKvCacheReuse(JNIEnv *, jclass, jboolean enabled) {
+    g_kv_cache_reuse.store(enabled == JNI_TRUE);
+}
 
 template<typename JVM>
 static auto attach_current_thread_impl(JVM *jvm, JNIEnv **env, int)
@@ -103,7 +186,7 @@ void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
         return;
     }
 
-    jstring jni_message = env->NewStringUTF(message);
+    jstring jni_message = new_jstring_utf8(env, message);
     if (jni_message == nullptr) {
         // Handle potential out-of-memory error
         if (did_attach_thread) {
@@ -192,14 +275,23 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
         return 0;
     }
 
-    int n_threads = std::max(1, std::min(8, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
-    LOGi("Using %d threads", n_threads);
+    int default_threads = std::max(1, std::min(8, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
+    int n_threads = g_n_threads.load();
+    if (n_threads <= 0) {
+        n_threads = default_threads;
+    }
+    int n_threads_batch = g_n_threads_batch.load();
+    if (n_threads_batch <= 0) {
+        n_threads_batch = n_threads;
+    }
+    LOGi("Using %d threads (batch=%d)", n_threads, n_threads_batch);
 
     llama_context_params ctx_params = llama_context_default_params();
 
-    ctx_params.n_ctx = 4096;
+    const int configured_ctx = g_n_ctx.load();
+    ctx_params.n_ctx = configured_ctx > 0 ? configured_ctx : 4096;
     ctx_params.n_threads = n_threads;
-    ctx_params.n_threads_batch = n_threads;
+    ctx_params.n_threads_batch = n_threads_batch;
 
     llama_context *context = llama_init_from_model(model, ctx_params);
 
@@ -344,7 +436,7 @@ Java_android_llama_cpp_LLamaAndroid_bench_1model(
     result << "| " << model_desc << " | " << model_size << "GiB | " << model_n_params << "B | "
            << backend << " | tg " << tg << " | " << tg_avg << " ± " << tg_std << " |\n";
 
-    return env->NewStringUTF(result.str().c_str());
+    return new_jstring_utf8(env, result.str().c_str());
 }
 
 extern "C"
@@ -378,6 +470,10 @@ Java_android_llama_cpp_LLamaAndroid_new_1batch(JNIEnv *, jobject, jint n_tokens,
     }
     batch->logits = (int8_t *) malloc(sizeof(int8_t) * n_tokens);
 
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        g_batch_n_tokens[batch] = n_tokens;
+    }
     return reinterpret_cast<jlong>(batch);
 }
 
@@ -391,6 +487,16 @@ Java_android_llama_cpp_LLamaAndroid_free_1batch(JNIEnv *, jobject, jlong batch_p
     free(batch->embd);
     free(batch->pos);
     free(batch->n_seq_id);
+    if (batch->seq_id) {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        auto it = g_batch_n_tokens.find(batch);
+        if (it != g_batch_n_tokens.end()) {
+            for (int i = 0; i < it->second; ++i) {
+                free(batch->seq_id[i]);
+            }
+            g_batch_n_tokens.erase(it);
+        }
+    }
     free(batch->seq_id);
     free(batch->logits);
     delete batch;
@@ -423,9 +529,27 @@ Java_android_llama_cpp_LLamaAndroid_new_1sampler(JNIEnv *, jobject) {
             penalty_present
     ));
 
-    // The chain must end with a sampler that actually selects a token.
-    // Greedy is the simplest (always picks the most likely token).
-    llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+    const float temperature = g_temperature.load();
+    const float top_p = g_top_p.load();
+    const int top_k = g_top_k.load();
+
+    if (temperature > 0.0f) {
+        if (top_k > 0) {
+            llama_sampler_chain_add(smpl, llama_sampler_init_top_k(top_k));
+        }
+        if (top_p > 0.0f && top_p < 1.0f) {
+            llama_sampler_chain_add(smpl, llama_sampler_init_top_p(top_p, 1));
+        }
+        llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
+        const auto seed = static_cast<uint32_t>(
+                std::chrono::steady_clock::now().time_since_epoch().count()
+        );
+        llama_sampler_chain_add(smpl, llama_sampler_init_dist(seed));
+    } else {
+        // The chain must end with a sampler that actually selects a token.
+        // Greedy is the simplest (always picks the most likely token).
+        llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+    }
 
     return reinterpret_cast<jlong>(smpl);
 }
@@ -445,8 +569,10 @@ Java_android_llama_cpp_LLamaAndroid_backend_1init(JNIEnv *, jobject, jboolean nu
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_android_llama_cpp_LLamaAndroid_system_1info(JNIEnv *env, jobject) {
-    return env->NewStringUTF(llama_print_system_info());
+    return new_jstring_utf8(env, llama_print_system_info());
 }
+
+static int g_prompt_tokens = 0;
 
 extern "C"
 JNIEXPORT jint JNICALL
@@ -459,7 +585,31 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
         jboolean format_chat,
         jint n_len, jobjectArray stop) {
 
-    cached_token_chars.clear();
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        cached_token_chars.clear();
+        g_generated_text.clear();
+        g_stop_requested.store(false);
+        // Parse stop strings from the Java array
+        g_stop_strings.clear();
+    }
+    if (stop != nullptr) {
+        int stop_count = env->GetArrayLength(stop);
+        for (int i = 0; i < stop_count; i++) {
+            auto jstr = (jstring) env->GetObjectArrayElement(stop, i);
+            if (jstr) {
+                const char *chars = env->GetStringUTFChars(jstr, nullptr);
+                if (chars) {
+                    {
+                        std::lock_guard<std::mutex> lock(g_globals_mutex);
+                        g_stop_strings.emplace_back(chars);
+                    }
+                    env->ReleaseStringUTFChars(jstr, chars);
+                }
+                env->DeleteLocalRef(jstr);
+            }
+        }
+    }
 
     const auto text = env->GetStringUTFChars(jtext, 0);
     const auto context = reinterpret_cast<llama_context *>(context_pointer);
@@ -479,27 +629,71 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
         return 0;
     }
 
+    g_prompt_tokens = static_cast<int>(tokens_list.size());
+
     for (auto id: tokens_list) {
         LOGi("token: `%s`-> %d ", common_token_to_piece(context, id).c_str(), id);
     }
 
     common_batch_clear(*batch);
 
-    // evaluate the initial prompt
-    for (auto i = 0; i < tokens_list.size(); i++) {
-        common_batch_add(*batch, tokens_list[i], i, {0}, false);
+    bool reuse = false;
+    size_t reuse_prefix = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        if (g_kv_cache_reuse.load() && !g_cached_tokens.empty()) {
+            if (g_cached_tokens.size() <= tokens_list.size()) {
+                reuse = true;
+                for (size_t i = 0; i < g_cached_tokens.size(); i++) {
+                    if (g_cached_tokens[i] != tokens_list[i]) {
+                        reuse = false;
+                        break;
+                    }
+                }
+                if (reuse) {
+                    reuse_prefix = g_cached_tokens.size();
+                }
+            }
+        }
     }
 
-    // llama_decode will output logits only for the last token of the prompt
-    batch->logits[batch->n_tokens - 1] = true;
+    if (!reuse) {
+        // Fully reset KV cache to avoid non-consecutive sequence positions.
+        llama_memory_clear(llama_get_memory(context), true);
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            if (!g_kv_cache_reuse.load()) {
+                g_cached_tokens.clear();
+            }
+            g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
+        }
+        // evaluate the initial prompt
+        for (auto i = 0; i < tokens_list.size(); i++) {
+            common_batch_add(*batch, tokens_list[i], i, {0}, false);
+        }
+    } else {
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            g_cached_tokens.assign(tokens_list.begin(), tokens_list.end());
+        }
+        if (reuse_prefix < tokens_list.size()) {
+            for (auto i = reuse_prefix; i < tokens_list.size(); i++) {
+                common_batch_add(*batch, tokens_list[i], i, {0}, false);
+            }
+        }
+    }
 
-    if (llama_decode(context, *batch) != 0) {
-        LOGe("llama_decode() failed");
+    if (batch->n_tokens > 0) {
+        // llama_decode will output logits only for the last token of the prompt
+        batch->logits[batch->n_tokens - 1] = true;
+        if (llama_decode(context, *batch) != 0) {
+            LOGe("llama_decode() failed");
+        }
     }
 
     env->ReleaseStringUTFChars(jtext, text);
 
-    return batch->n_tokens;
+    return g_prompt_tokens;
 }
 
 extern "C"
@@ -523,26 +717,98 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
     if (!la_int_var_value) la_int_var_value = env->GetMethodID(la_int_var, "getValue", "()I");
     if (!la_int_var_inc) la_int_var_inc = env->GetMethodID(la_int_var, "inc", "()V");
 
+    if (g_stop_requested.load()) {
+        return nullptr;
+    }
+
     const auto new_token_id = llama_sampler_sample(sampler, context, -1);
 
     const auto n_cur = env->CallIntMethod(intvar_ncur, la_int_var_value);
-    if (llama_vocab_is_eog(vocab, new_token_id) || n_cur == n_len) {
+    const auto generated = n_cur - g_prompt_tokens;
+    if (llama_vocab_is_eog(vocab, new_token_id) || generated >= n_len) {
         return nullptr;
     }
 
     auto new_token_chars = common_token_to_piece(context, new_token_id);
-    cached_token_chars += new_token_chars;
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        cached_token_chars += new_token_chars;
+    }
 
     jstring new_token = nullptr;
-    if (is_valid_utf8(cached_token_chars.c_str())) {
-        new_token = env->NewStringUTF(cached_token_chars.c_str());
+    std::string cached_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        cached_snapshot = cached_token_chars;
+    }
+    if (is_valid_utf8(cached_snapshot.c_str())) {
+        size_t prior_len = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            prior_len = g_generated_text.size();
+            g_generated_text += cached_token_chars;
+        }
 
-        log_info_to_kt("cached: %s, new_token_chars: `%s`, id: %d", cached_token_chars.c_str(),
+        // Check if any stop string has been generated
+        std::vector<std::string> stop_strings_snapshot;
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            stop_strings_snapshot = g_stop_strings;
+        }
+        std::string generated_snapshot;
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            generated_snapshot = g_generated_text;
+        }
+        for (const auto &stop_str : stop_strings_snapshot) {
+            if (!stop_str.empty() && generated_snapshot.length() >= stop_str.length()) {
+                auto pos = generated_snapshot.find(stop_str);
+                if (pos != std::string::npos) {
+                    LOGi("Stop string matched: %s", stop_str.c_str());
+                    size_t prefix_len = pos > prior_len ? pos - prior_len : 0;
+                    if (prefix_len > 0) {
+                        std::string prefix;
+                        {
+                            std::lock_guard<std::mutex> lock(g_globals_mutex);
+                            cached_token_chars = cached_token_chars.substr(0, prefix_len);
+                            prefix = cached_token_chars;
+                        }
+                        new_token = new_jstring_utf8(env, prefix.c_str());
+                    } else {
+                        {
+                            std::lock_guard<std::mutex> lock(g_globals_mutex);
+                            cached_token_chars.clear();
+                        }
+                        new_token = new_jstring_utf8(env, "");
+                    }
+                    {
+                        std::lock_guard<std::mutex> lock(g_globals_mutex);
+                        g_generated_text = g_generated_text.substr(0, pos);
+                        cached_token_chars.clear();
+                    }
+                    g_stop_requested.store(true);
+                    return new_token;
+                }
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            new_token = new_jstring_utf8(env, cached_token_chars.c_str());
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            log_info_to_kt("cached: %s, new_token_chars: `%s`, id: %d", cached_token_chars.c_str(),
                        new_token_chars.c_str(), new_token_id);
+        }
 
-        cached_token_chars.clear();
+        {
+            std::lock_guard<std::mutex> lock(g_globals_mutex);
+            cached_token_chars.clear();
+        }
     } else {
-        new_token = env->NewStringUTF("");
+        new_token = new_jstring_utf8(env, "");
     }
 
     common_batch_clear(*batch);
@@ -552,6 +818,12 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
 
     if (llama_decode(context, *batch) != 0) {
         LOGe("llama_decode() returned null");
+        return nullptr;
+    }
+
+    if (g_kv_cache_reuse.load()) {
+        std::lock_guard<std::mutex> lock(g_globals_mutex);
+        g_cached_tokens.push_back(new_token_id);
     }
 
     return new_token;
@@ -561,6 +833,8 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_android_llama_cpp_LLamaAndroid_kv_1cache_1clear(JNIEnv *, jobject, jlong context) {
     llama_memory_clear(llama_get_memory(reinterpret_cast<llama_context *>(context)), true);
+    std::lock_guard<std::mutex> lock(g_globals_mutex);
+    g_cached_tokens.clear();
 }
 
 

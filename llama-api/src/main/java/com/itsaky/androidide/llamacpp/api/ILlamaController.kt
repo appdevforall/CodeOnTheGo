@@ -15,6 +15,8 @@ interface ILlamaController {
         clearCache: Boolean = false
     ): Flow<String>
 
+    suspend fun countTokens(text: String): Int
+
     suspend fun unload()
     fun stop()
     suspend fun clearKvCache()
