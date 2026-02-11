@@ -76,4 +76,26 @@ class WhitelistRulesTest {
 			// @formatter:on
 		)
 	}
+
+	@Test
+	fun allow_DiskRead_on_ServiceLoader_JdkDistributionProvider() {
+		assertAllowed<DiskReadViolation>(
+			stackTraceElement("com.itsaky.androidide.utils.ServiceLoader", "parse"),
+			stackTraceElement(
+				"com.itsaky.androidide.app.configuration.IJdkDistributionProvider\$Companion",
+				"_instance_delegate\$lambda\$0"
+			),
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_OnboardingActivity_ToolsCheck() {
+		assertAllowed<DiskReadViolation>(
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement(
+				"com.itsaky.androidide.activities.OnboardingActivity",
+				"checkToolsIsInstalled"
+			),
+		)
+	}
 }

@@ -44,4 +44,28 @@
         android:text="Load from saved"
         tools:enabled="true" />
 
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/local_model_sha_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="Optional SHA-256 (for verification)">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/local_model_sha_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textNoSuggestions"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/switch_simple_local_prompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/pref_use_simple_local_prompt"
+        android:checked="true"
+        style="@style/Widget.Material3.CompoundButton.MaterialSwitch"
+        android:layout_marginTop="16dp" />
+
 </LinearLayout>
