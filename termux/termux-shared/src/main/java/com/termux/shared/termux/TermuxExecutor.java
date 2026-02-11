@@ -10,6 +10,7 @@ public class TermuxExecutor {
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public static void executeInBackground(Runnable task) {
+        if (task == null) return;
         backgroundExecutor.execute(task);
     }
 
