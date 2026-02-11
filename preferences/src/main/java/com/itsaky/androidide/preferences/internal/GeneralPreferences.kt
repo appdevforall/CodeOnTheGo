@@ -33,6 +33,7 @@ object GeneralPreferences {
 	const val CONFIRM_PROJECT_OPEN = "idepref_general_confirmProjectOpen"
 	const val TERMINAL_USE_SYSTEM_SHELL = "idepref_general_terminalShell"
 	const val LAST_OPENED_PROJECT = "ide_last_project"
+	const val LOGCAT_CAPTURE_ALL = "idepref_general_logcatCaptureAll"
 
 	const val NO_OPENED_PROJECT = "<NO_OPENED_PROJECT>"
 
@@ -92,5 +93,11 @@ object GeneralPreferences {
 		get() = prefManager.getString(LAST_OPENED_PROJECT, NO_OPENED_PROJECT)!!
 		set(value) {
 			prefManager.putString(LAST_OPENED_PROJECT, value)
+		}
+
+	var logcatCaptureAll: Boolean
+		get() = prefManager.getBoolean(LOGCAT_CAPTURE_ALL, false)
+		set(value) {
+			prefManager.putBoolean(LOGCAT_CAPTURE_ALL, value)
 		}
 }
