@@ -76,16 +76,10 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     }
 
     val viewModel = data.requireActivity().editorViewModel
-    if (viewModel.isInitializing) {
-      visible = true
-      enabled = false
-      return
-    }
-
     val editor = data.getEditor()
     val file = editor?.file
 
-    if (file != null) {
+    if (file != null && !viewModel.isInitializing) {
       when {
         file.name.endsWith(".xml") -> {
           val type = try {
@@ -103,7 +97,7 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
             markInvisible()
           }
         }
-        file.name.endsWith(".kt") && projectUsesCompose() -> {
+        file.name.endsWith(".kt") && moduleUsesCompose(file) -> {
           previewType = PreviewType.COMPOSE
           visible = true
           enabled = true
@@ -113,7 +107,7 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
         }
       }
     } else {
-      if (projectUsesCompose()) {
+      if (moduleUsesCompose()) {
         previewType = PreviewType.COMPOSE
         visible = true
         enabled = false
@@ -167,10 +161,15 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     ComposePreviewActivity.start(this, sourceCode, file.absolutePath)
   }
 
-  private fun projectUsesCompose(): Boolean {
+  private fun moduleUsesCompose(): Boolean {
     val workspace = IProjectManager.getInstance().workspace ?: return false
     return workspace.findAndroidModules().any { module ->
       module.hasExternalDependency("androidx.compose.runtime", "runtime")
     }
+  }
+
+  private fun moduleUsesCompose(file: File): Boolean {
+    val module = IProjectManager.getInstance().findModuleForFile(file) ?: return false
+    return module.hasExternalDependency("androidx.compose.runtime", "runtime")
   }
 }
