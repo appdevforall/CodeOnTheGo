@@ -2,6 +2,9 @@ package com.itsaky.androidide.agent.repository
 
 import android.content.Context
 import android.os.BatteryManager
+import com.itsaky.androidide.api.commands.ListFilesCommand
+import com.itsaky.androidide.projects.IProjectManager
+import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -43,5 +46,38 @@ class GetDateTimeTool : Tool {
         val formatter = DateTimeFormatter.ofPattern("eeee, MMMM d, yyyy h:mm a")
         val formatted = currentDateTime.format(formatter)
         return "[Tool Result for $name]: The current date and time is $formatted."
+    }
+}
+
+class ListFilesTool : Tool {
+    override val name: String = "list_files"
+    override val description: String =
+        "Lists files and directories in the current project. Args: path (optional), recursive (optional)."
+
+    override fun execute(context: Context, args: Map<String, String>): String {
+        val path = args["path"].orEmpty()
+        val recursive = args["recursive"]?.toBoolean() ?: false
+        val result = try {
+            val baseDir = IProjectManager.getInstance().projectDir.canonicalFile
+            val targetDir = when (val sanitizedPath = path.trim()) {
+                "", ".", "./" -> baseDir
+                else -> File(baseDir, sanitizedPath).canonicalFile
+            }
+            val basePath = baseDir.path
+            val targetPath = targetDir.path
+            val isInside =
+                targetPath == basePath || targetPath.startsWith(basePath + File.separator)
+            if (!isInside) {
+                return "Access denied: path outside project directory"
+            }
+            ListFilesCommand(path, recursive).execute()
+        } catch (e: Exception) {
+            return "Failed to list files: ${e.message}"
+        }
+        return if (result.success) {
+            result.data?.ifBlank { result.message ?: "" } ?: result.message ?: ""
+        } else {
+            listOfNotNull(result.message, result.error_details).joinToString("\n")
+        }
     }
 }
