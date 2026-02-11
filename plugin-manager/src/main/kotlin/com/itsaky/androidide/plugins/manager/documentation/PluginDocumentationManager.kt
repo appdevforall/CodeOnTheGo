@@ -326,6 +326,7 @@ class PluginDocumentationManager(private val context: Context) {
         categoryId: Long,
         entry: PluginTooltipEntry
     ): Long {
+        val disclaimer = context.getString(R.string.plugin_documentation_third_party_disclaimer)
         // Check if tooltip with same tag already exists in this category
         val existingCursor = db.query(
             "PluginTooltips",
@@ -340,7 +341,6 @@ class PluginDocumentationManager(private val context: Context) {
             existingCursor.close()
 
             // Update existing tooltip with disclaimer
-            val disclaimer = context.getString(R.string.plugin_documentation_third_party_disclaimer)
             val updateValues = ContentValues().apply {
                 put("summary", entry.summary + disclaimer)
                 put("detail", if (entry.detail.isNotBlank()) entry.detail + disclaimer else "")
@@ -355,7 +355,6 @@ class PluginDocumentationManager(private val context: Context) {
         existingCursor.close()
 
         // Insert new tooltip with disclaimer
-        val disclaimer = context.getString(R.string.plugin_documentation_third_party_disclaimer)
         val values = ContentValues().apply {
             put("categoryId", categoryId)
             put("tag", entry.tag)
