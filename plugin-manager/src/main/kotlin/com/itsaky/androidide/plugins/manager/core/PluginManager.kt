@@ -441,6 +441,11 @@ class PluginManager private constructor(
             loadedPlugin.plugin.deactivate()
             loadedPlugin.plugin.dispose()
 
+            val themeService = loadedPlugin.context.services.get(IdeThemeService::class.java)
+            if (themeService is IdeThemeServiceImpl) {
+                themeService.dispose()
+            }
+
             // Unregister the plugin's resource context
             PluginFragmentHelper.unregisterPluginContext(pluginId)
 

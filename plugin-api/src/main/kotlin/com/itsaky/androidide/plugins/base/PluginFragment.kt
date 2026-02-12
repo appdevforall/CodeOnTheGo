@@ -1,7 +1,6 @@
 package com.itsaky.androidide.plugins.base
 
 import android.content.Context
-import android.os.Bundle
 import android.view.LayoutInflater
 import com.itsaky.androidide.plugins.ServiceRegistry
 
@@ -83,13 +82,8 @@ object PluginFragmentHelper {
     @JvmStatic
     fun getPluginInflater(pluginId: String, defaultInflater: LayoutInflater): LayoutInflater {
         val pluginContext = getPluginContext(pluginId) ?: return defaultInflater
-        val activityContext = defaultInflater.context
 
-        @Suppress("DEPRECATION")
-        pluginContext.resources.updateConfiguration(
-            activityContext.resources.configuration,
-            activityContext.resources.displayMetrics
-        )
+        pluginContext.theme
 
         val inflater = pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
         return inflater ?: defaultInflater.cloneInContext(pluginContext)
