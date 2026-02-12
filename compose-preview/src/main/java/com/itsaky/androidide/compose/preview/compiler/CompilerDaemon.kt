@@ -353,7 +353,7 @@ class CompilerDaemon(
         private const val IDLE_TIMEOUT_MS = 120_000L
         private const val SHUTDOWN_TIMEOUT_SECONDS = 5L
         private const val COMPILE_TIMEOUT_MS = 300_000L
-        private const val WRAPPER_VERSION = 2
+        private const val WRAPPER_VERSION = 3
 
         private val WRAPPER_SOURCE = """
             import java.io.*;
@@ -363,9 +363,7 @@ class CompilerDaemon(
             public class CompilerWrapper {
                 private static Object kotlinCompiler;
                 private static Method kotlinExecMethod;
-                private static Method d8ParseMethod;
-                private static Method d8RunMethod;
-                private static Class<?> d8CommandClass;
+                private static Method d8MainMethod;
 
                 public static void main(String[] args) throws Exception {
                     Class<?> compilerClass = Class.forName("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler");
@@ -418,15 +416,12 @@ class CompilerDaemon(
                 }
 
                 private static void handleDex(String[] d8Args) throws Exception {
-                    if (d8CommandClass == null) {
-                        d8CommandClass = Class.forName("com.android.tools.r8.D8Command");
-                        d8ParseMethod = d8CommandClass.getMethod("parse", String[].class);
+                    if (d8MainMethod == null) {
                         Class<?> d8Class = Class.forName("com.android.tools.r8.D8");
-                        d8RunMethod = d8Class.getMethod("run", d8CommandClass);
+                        d8MainMethod = d8Class.getMethod("main", String[].class);
                     }
 
-                    Object cmd = d8ParseMethod.invoke(null, (Object) d8Args);
-                    d8RunMethod.invoke(null, cmd);
+                    d8MainMethod.invoke(null, (Object) d8Args);
                     System.out.println("DEX_SUCCESS");
                 }
             }
