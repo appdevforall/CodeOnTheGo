@@ -5,6 +5,8 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -25,6 +27,7 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.IOException
 import java.io.File
 import java.io.StringReader
+import androidx.core.view.isNotEmpty
 
 class XmlLayoutParser(
 	context: Context,
@@ -228,14 +231,13 @@ class XmlLayoutParser(
 
 				XmlPullParser.END_TAG -> {
 					val depth = parser.depth
-					if (depth >= 2 && listViews.size >= 2) {
-						val parent = listViews.getOrNull(depth - 2) ?: return
-						val child = listViews.getOrNull(depth - 1) ?: return
-						if (parent is ViewGroup) {
-							parent.addView(child)
-							listViews.removeAt(depth - 1)
-						}
-					}
+					if (depth < 2 || listViews.size < 2) return
+
+					val parent = listViews.getOrNull(depth - 2) as? ViewGroup ?: return
+					val child = listViews.getOrNull(depth - 1) ?: return
+
+					parent.tryAddChild(child)
+					listViews.removeAt(depth - 1)
 				}
 			}
 			parser.next()
@@ -244,6 +246,23 @@ class XmlLayoutParser(
 		root?.let {
 			restorePositionsAfterLoad(it, viewAttributeMap)
 		}
+	}
+
+	private fun ViewGroup.tryAddChild(child: View) {
+		if (isSingleChildContainer() && isNotEmpty()) {
+			Log.w("XmlLayoutParser", "Ignored extra child in ${this::class.simpleName}: Only 1 child allowed.")
+			return
+		}
+
+		runCatching {
+			addView(child)
+		}.onFailure { e ->
+			Log.e("XmlLayoutParser", "Failed to add ${child::class.simpleName} to ${this::class.simpleName}", e)
+		}
+	}
+
+	private fun ViewGroup.isSingleChildContainer(): Boolean {
+		return this is ScrollView || this is HorizontalScrollView
 	}
 
 	private fun applyInitialPosition(target: View, attrs: AttributeMap) {
