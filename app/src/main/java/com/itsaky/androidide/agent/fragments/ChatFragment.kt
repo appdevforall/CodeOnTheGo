@@ -3,6 +3,7 @@ package com.itsaky.androidide.agent.fragments
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
+import android.text.util.Linkify
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -105,7 +106,7 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 		markwon =
 			Markwon
 				.builder(requireContext())
-				.usePlugin(LinkifyPlugin.create())
+                .usePlugin(LinkifyPlugin.create(Linkify.WEB_URLS))
 				.build()
 
 		setupUI()

@@ -42,6 +42,7 @@ import com.itsaky.androidide.tooling.api.IAndroidProject
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DocumentUtils
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.withStopWatch
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +52,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -75,6 +77,9 @@ class ProjectManagerImpl :
 	EventReceiver {
 	lateinit var projectPath: String
 
+    @Volatile
+    internal var pluginProjectCached: Boolean? = null
+
 	override var gradleBuild: GradleModels.GradleBuild? = null
 	override var workspace: Workspace? = null
 
@@ -98,6 +103,15 @@ class ProjectManagerImpl :
 	suspend fun isGradleSyncNeeded(projectDir: File): Boolean = ProjectSyncHelper.checkSyncNeeded(projectDir)
 
 	override suspend fun setup(gradleBuild: GradleModels.GradleBuild) {
+		if (!this::projectPath.isInitialized) {
+			log.warn("Project path not initialized before setup(); skipping plugin project cache check.")
+			pluginProjectCached = null
+		} else {
+			pluginProjectCached = withContext(Dispatchers.IO) {
+				File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
+			}
+		}
+
 		this.gradleBuild = gradleBuild
 		this.workspace =
 			Workspace(
@@ -216,6 +230,7 @@ class ProjectManagerImpl :
 	override fun destroy() {
 		log.info("Destroying project manager")
 		this.workspace = null
+		pluginProjectCached = null
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}
