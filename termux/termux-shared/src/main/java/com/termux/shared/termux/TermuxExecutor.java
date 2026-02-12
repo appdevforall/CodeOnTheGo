@@ -15,6 +15,7 @@ public class TermuxExecutor {
     }
 
     public static void executeOnMain(Runnable task) {
+        if (task == null) return;
         mainHandler.post(task);
     }
 
