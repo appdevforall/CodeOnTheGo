@@ -44,6 +44,7 @@ import com.termux.shared.data.DataUtils;
 import com.termux.shared.data.IntentUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY;
+import com.termux.shared.termux.TermuxExecutor;
 import com.termux.shared.termux.TermuxUtils;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
@@ -145,6 +146,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
      * time, so if the session causing a change is not in the foreground it should probably be treated as background.
      */
     protected boolean mIsVisible;
+    protected boolean mIsResumed;
 
     /**
      * If onResume() was called after onCreate().
@@ -202,6 +204,14 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         // Delete ReportInfo serialized object files from cache older than 14 days
         ReportActivity.deleteReportInfoFilesOlderThanXDays(this, 14, false);
 
+        TermuxExecutor.executeInBackground(() -> {
+            try {
+                Class.forName("com.termux.terminal.JNI");
+            } catch (ClassNotFoundException e) {
+                Logger.logStackTraceWithMessage(LOG_TAG, "JNI preload failed", e);
+            }
+        });
+
         ensureTermuxPropertiesInitialized();
 
         // Load Termux app SharedProperties from disk
@@ -214,15 +224,27 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
         super.onCreate(savedInstanceState);
 
-        // Load termux shared preferences
-        // This will also fail if TermuxConstants.TERMUX_PACKAGE_NAME does not equal applicationId
-        mPreferences = TermuxAppSharedPreferences.build(this, true);
-        if (mPreferences == null) {
-            // An AlertDialog should have shown to kill the app, so we don't continue running activity code
-            mIsInvalidState = true;
-            return;
-        }
+        TermuxExecutor.executeInBackground(() -> {
+            // Load termux shared preferences
+            // This will also fail if TermuxConstants.TERMUX_PACKAGE_NAME does not equal applicationId
+            final TermuxAppSharedPreferences loadedPrefs = TermuxAppSharedPreferences.build(getApplicationContext(), true);
 
+            TermuxExecutor.executeOnMain(() -> {
+                if (isFinishing() || isDestroyed()) return;
+
+                mPreferences = loadedPrefs;
+
+                if (mPreferences == null) {
+                    // An AlertDialog should have shown to kill the app, so we don't continue running activity code
+                    mIsInvalidState = true;
+                    return;
+                }
+                completeOnCreate(savedInstanceState);
+            });
+        });
+    }
+
+    private void completeOnCreate(Bundle savedInstanceState) {
         setMargins();
 
         mTermuxActivityRootView = findViewById(R.id.activity_termux_root_view);
@@ -277,6 +299,13 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         // Send the {@link TermuxConstants#BROADCAST_TERMUX_OPENED} broadcast to notify apps that Termux
         // app has been opened.
         TermuxUtils.sendTermuxOpenedBroadcast(this);
+
+        if (mIsVisible) {
+             if (mTermuxTerminalSessionActivityClient != null) mTermuxTerminalSessionActivityClient.onStart();
+             if (mTermuxTerminalViewClient != null) mTermuxTerminalViewClient.onStart();
+             if (mPreferences.isTerminalMarginAdjustmentEnabled()) addTermuxActivityRootViewGlobalLayoutListener();
+        }
+        if (mIsResumed && mIsOnResumeAfterOnCreate) { runOnResumeCallbacks(); }
     }
 
     @Override
@@ -288,6 +317,8 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         if (mIsInvalidState) return;
 
         mIsVisible = true;
+
+        if (mPreferences == null) return;
 
         if (mTermuxTerminalSessionActivityClient != null)
             mTermuxTerminalSessionActivityClient.onStart();
@@ -307,19 +338,24 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         Logger.logVerbose(LOG_TAG, "onResume");
 
         if (mIsInvalidState) return;
+        mIsResumed = true;
+        if (mPreferences == null) return;
 
+        runOnResumeCallbacks();
+    }
+
+    private void runOnResumeCallbacks() {
         if (mTermuxTerminalSessionActivityClient != null)
             mTermuxTerminalSessionActivityClient.onResume();
 
         if (mTermuxTerminalViewClient != null)
             mTermuxTerminalViewClient.onResume();
 
-        // Check if a crash happened on last run of the app or if a plugin crashed and show a
-        // notification with the crash details if it did
-        TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG);
+        TermuxExecutor.executeInBackground(() -> TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG));
 
         mIsOnResumeAfterOnCreate = false;
-        feedbackButtonManager.loadFabPosition();
+
+        if (feedbackButtonManager != null) { feedbackButtonManager.loadFabPosition(); }
     }
 
     @Override
@@ -331,6 +367,8 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         if (mIsInvalidState) return;
 
         mIsVisible = false;
+        mIsResumed = false;
+        if (mPreferences == null) return;
 
         if (mTermuxTerminalSessionActivityClient != null)
             mTermuxTerminalSessionActivityClient.onStop();
@@ -514,10 +552,14 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
 
     private void reloadProperties() {
-        mProperties.loadTermuxPropertiesFromDisk();
-
-        if (mTermuxTerminalViewClient != null)
-            mTermuxTerminalViewClient.onReloadProperties();
+        TermuxExecutor.execute(
+            () -> mProperties.loadTermuxPropertiesFromDisk(),
+            () -> {
+                if (mTermuxTerminalViewClient != null) {
+                    mTermuxTerminalViewClient.onReloadProperties();
+                }
+            }
+        );
     }
 
 
@@ -570,7 +612,17 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
     @NonNull
     protected TermuxTerminalSessionActivityClient onCreateTerminalSessionClient() {
-        return new TermuxTerminalSessionActivityClient(this);
+        return new TermuxTerminalSessionActivityClient(this) {
+            @Override
+            public void setCurrentSession(TerminalSession session) {
+                TermuxExecutor.executeOnMain(() -> super.setCurrentSession(session));
+            }
+
+            @Override
+            public void onResetTerminalSession() {
+                TermuxExecutor.executeOnMain(super::onResetTerminalSession);
+            }
+        };
     }
 
     private void setTermuxSessionsListView() {
@@ -650,7 +702,11 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
     }
 
     protected void onCreateNewSession(boolean isFailsafe, String sessionName, String workingDirectory) {
-        mTermuxTerminalSessionActivityClient.addNewSession(isFailsafe, sessionName, workingDirectory);
+        if (mTermuxTerminalSessionActivityClient == null) return;
+
+        TermuxExecutor.executeInBackground(() -> {
+            mTermuxTerminalSessionActivityClient.addNewSession(isFailsafe, sessionName, workingDirectory);
+        });
     }
 
     private void setToggleKeyboardView() {
@@ -917,7 +973,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
 
     public void termuxSessionListNotifyUpdated() {
-        mTermuxSessionListViewController.notifyDataSetChanged();
+        TermuxExecutor.executeOnMain(() -> mTermuxSessionListViewController.notifyDataSetChanged());
     }
 
     public boolean isVisible() {
@@ -1030,5 +1086,4 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         return intent;
     }
-
 }

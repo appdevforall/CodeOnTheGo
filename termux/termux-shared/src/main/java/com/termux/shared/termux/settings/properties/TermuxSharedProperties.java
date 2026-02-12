@@ -25,7 +25,7 @@ public abstract class TermuxSharedProperties {
     protected final Set<String> mPropertiesList;
     protected final SharedPropertiesParser mSharedPropertiesParser;
     protected File mPropertiesFile;
-    protected SharedProperties mSharedProperties;
+    protected volatile SharedProperties mSharedProperties;
 
     public static final String LOG_TAG = "TermuxSharedProperties";
 
@@ -36,23 +36,27 @@ public abstract class TermuxSharedProperties {
         mPropertiesFilePaths = propertiesFilePaths;
         mPropertiesList = propertiesList;
         mSharedPropertiesParser = sharedPropertiesParser;
+        mSharedProperties = new SharedProperties(mContext, null, mPropertiesList, mSharedPropertiesParser);
         loadTermuxPropertiesFromDisk();
     }
 
     /**
      * Reload the termux properties from disk into an in-memory cache.
      */
-    public synchronized void loadTermuxPropertiesFromDisk() {
+    public void loadTermuxPropertiesFromDisk() {
         // Properties files must be searched everytime since no file may exist when constructor is
         // called or a higher priority file may have been created afterward. Otherwise, if no file
         // was found, then default props would keep loading, since mSharedProperties would be null. #2836
-        mPropertiesFile = SharedProperties.getPropertiesFileFromList(mPropertiesFilePaths, LOG_TAG);
-        mSharedProperties = null;
-        mSharedProperties = new SharedProperties(mContext, mPropertiesFile, mPropertiesList, mSharedPropertiesParser);
+        File propertiesFile = SharedProperties.getPropertiesFileFromList(mPropertiesFilePaths, LOG_TAG);
+        SharedProperties loadedProperties = new SharedProperties(mContext, propertiesFile, mPropertiesList, mSharedPropertiesParser);
+        loadedProperties.loadPropertiesFromDisk();
 
-        mSharedProperties.loadPropertiesFromDisk();
-        dumpPropertiesToLog();
-        dumpInternalPropertiesToLog();
+        synchronized (this) {
+            mPropertiesFile = propertiesFile;
+            mSharedProperties = loadedProperties;
+            dumpPropertiesToLog();
+            dumpInternalPropertiesToLog();
+        }
     }
 
 
@@ -150,7 +154,7 @@ public abstract class TermuxSharedProperties {
      * @return Returns the {@link Object} object. This will be {@code null} if key is not found or
      * the object stored against the key is {@code null}.
      */
-    public Object getInternalPropertyValue(String key, boolean cached) {
+    public synchronized Object getInternalPropertyValue(String key, boolean cached) {
         Object value;
         if (cached) {
             value = mSharedProperties.getInternalProperty(key);
