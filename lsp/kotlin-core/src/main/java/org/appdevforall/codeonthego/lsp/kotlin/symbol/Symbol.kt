@@ -598,6 +598,8 @@ data class TypeReference(
 
     fun render(): String = buildString {
         if (functionTypeInfo != null) {
+            val wrapInParens = isNullable
+            if (wrapInParens) append('(')
             if (functionTypeInfo.receiverType != null) {
                 append(functionTypeInfo.receiverType.render())
                 append(".")
@@ -606,6 +608,7 @@ data class TypeReference(
             functionTypeInfo.parameterTypes.joinTo(this) { it.render() }
             append(") -> ")
             append(functionTypeInfo.returnType.render())
+            if (wrapInParens) append(')')
         } else {
             append(name)
             if (typeArguments.isNotEmpty()) {

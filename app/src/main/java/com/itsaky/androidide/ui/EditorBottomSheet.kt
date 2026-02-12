@@ -547,9 +547,14 @@ constructor(
 		}
 
 		val formatted = DiagnosticsFormatter.format(diagnostics)
-		val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-		clipboard.setPrimaryClip(ClipData.newPlainText("diagnostics", formatted))
+		val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+		if (clipboard == null) {
+			flashError(context.getString(string.msg_clipboard_copy_failed))
+			return
+		}
 
-		flashSuccess(context.getString(string.msg_diagnostics_copied))
+		runCatching { clipboard.setPrimaryClip(ClipData.newPlainText("diagnostics", formatted)) }
+			.onSuccess { flashSuccess(context.getString(string.msg_diagnostics_copied)) }
+			.onFailure { flashError(context.getString(string.msg_clipboard_copy_failed)) }
 	}
 }

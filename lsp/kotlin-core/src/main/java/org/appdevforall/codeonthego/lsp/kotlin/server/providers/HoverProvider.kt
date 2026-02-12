@@ -38,11 +38,11 @@ class HoverProvider(
                 val name = node.text
                 getIdentifierHover(name, symbolTable, line, character)
             }
-            node.kind.isKeyword -> {
-                getKeywordHover(node.kind)
-            }
             node.kind.isLiteral -> {
                 getLiteralHover(node)
+            }
+            node.kind.isKeyword -> {
+                getKeywordHover(node.kind)
             }
             else -> null
         }
