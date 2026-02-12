@@ -229,12 +229,12 @@ class XmlLayoutParser(
 				 * view will become empty.
 				 */
 
-				XmlPullParser.END_TAG -> {
+				XmlPullParser.END_TAG -> run {
 					val depth = parser.depth
-					if (depth < 2 || listViews.size < 2) return
+					if (depth < 2 || listViews.size < 2) return@run
 
-					val parent = listViews.getOrNull(depth - 2) as? ViewGroup ?: return
-					val child = listViews.getOrNull(depth - 1) ?: return
+					val parent = listViews.getOrNull(depth - 2) as? ViewGroup ?: return@run
+					val child = listViews.getOrNull(depth - 1) ?: return@run
 
 					parent.tryAddChild(child)
 					listViews.removeAt(depth - 1)
