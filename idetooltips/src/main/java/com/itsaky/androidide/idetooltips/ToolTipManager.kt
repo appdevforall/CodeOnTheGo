@@ -357,19 +357,39 @@ object TooltipManager {
 
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
-        popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        if (anchorView.isInOverlayWindow()) {
+            showOverlayTooltip(popupWindow, popupView, anchorView)
+        } else {
+            popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        }
+
+        val iconTintColor = if (anchorView.isInOverlayWindow()) {
+            Color.WHITE
+        } else {
+            getColor(
+                context,
+                if (isDarkMode) ResR.color.tooltip_text_color_dark
+                else ResR.color.tooltip_text_color_light
+            )
+        }
 
         val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
-        infoButton.setOnClickListener {
-            onInfoButtonClicked(context, popupWindow, tooltipItem)
+        infoButton.apply {
+            setColorFilter(iconTintColor)
+            setOnClickListener {
+                onInfoButtonClicked(context, popupWindow, tooltipItem)
+            }
         }
 
         val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
         val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
         feedbackButton.startAnimation(pulseAnimation)
 
-        feedbackButton.setOnClickListener {
-            onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+        feedbackButton.apply {
+            setOnClickListener {
+                onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+            }
+            setColorFilter(iconTintColor)
         }
     }
 
@@ -457,6 +477,35 @@ object TooltipManager {
 
             ---
         """.trimIndent()
+    }
+
+    private fun View.isInOverlayWindow(): Boolean {
+        val params = layoutParams
+        return params is WindowManager.LayoutParams &&
+                params.type == WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    }
+
+    private fun showOverlayTooltip(
+        popupWindow: PopupWindow,
+        popupView: View,
+        parentView: View
+    ) {
+        popupView.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+
+        val popupWidth = popupView.measuredWidth
+        val popupHeight = popupView.measuredHeight
+
+        val displayMetrics = parentView.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        val x = (screenWidth - popupWidth) / 2
+        val y = (screenHeight - popupHeight) / 2
+
+        popupWindow.showAtLocation(parentView, Gravity.NO_GRAVITY, x, y)
     }
 
 }
