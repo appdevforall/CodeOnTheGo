@@ -112,21 +112,31 @@ FROM   LastChange
             while (true) {
                 var clientSocket: Socket? = null
                 try {
-                    clientSocket = serverSocket.accept()
-                    if (debugEnabled) log.debug("Returned from socket accept().")
-                    handleClient(clientSocket)
-                } catch (e: Exception) {
-                    if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
-                        if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
-                        break
+                    try {
+                        clientSocket = serverSocket.accept()
+                        if (debugEnabled) log.debug("Returned from socket accept().")
+                    } catch (e: java.net.SocketException) {
+                        if (e.message?.contains("Closed", ignoreCase = true) == true) {
+                            if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
+                            break
+                        }
+                        log.error("Accept failed: {}", e.message)
+                        continue
                     }
-                    log.error("Error handling client: {}", e.message)
-                    clientSocket?.let { socket ->
-                        try {
-                            val writer = PrintWriter(socket.getOutputStream(), true)
-                            sendError(writer, 500, "Internal Server Error 1")
-                        } catch (e2: Exception) {
-                            log.error("Error sending error response: {}", e2.message)
+                    try {
+                        clientSocket?.let { handleClient(it) }
+                    } catch (e: Exception) {
+                        if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
+                            if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+                        } else {
+                            log.error("Error handling client: {}", e.message)
+                            clientSocket?.let { socket ->
+                                try {
+                                    sendError(PrintWriter(socket.getOutputStream(), true), 500, "Internal Server Error 1")
+                                } catch (e2: Exception) {
+                                    log.error("Error sending error response: {}", e2.message)
+                                }
+                            }
                         }
                     }
                 } finally {
