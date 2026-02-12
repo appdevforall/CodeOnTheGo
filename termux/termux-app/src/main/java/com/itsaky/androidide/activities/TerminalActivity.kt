@@ -22,8 +22,11 @@ import android.os.Bundle
 import android.os.IBinder
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.utils.Environment
 import com.termux.app.TermuxActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * @author Akash Yadav
@@ -45,6 +48,8 @@ class TerminalActivity : TermuxActivity() {
 
   override fun onServiceConnected(componentName: ComponentName?, service: IBinder?) {
     super.onServiceConnected(componentName, service)
-    Environment.mkdirIfNotExists(Environment.TMP_DIR)
+    lifecycleScope.launch(Dispatchers.IO) {
+      Environment.mkdirIfNotExists(Environment.TMP_DIR)
+    }
   }
 }
