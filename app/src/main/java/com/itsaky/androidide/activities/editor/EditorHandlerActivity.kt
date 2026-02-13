@@ -19,6 +19,7 @@ package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Looper
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
@@ -62,7 +63,6 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
@@ -454,17 +454,55 @@ open class EditorHandlerActivity :
 		file: File,
 		selection: Range?,
 	) {
-		openFile(file, selection)
+		lifecycleScope.launch {
+			val editorView = openFileInternal(file, selection)
 
-		getEditorForFile(file)?.editor?.also { editor ->
-			editor.postInLifecycle {
-				if (selection == null) {
-					editor.setSelection(0, 0)
-					return@postInLifecycle
+			editorView?.editor?.also { editor ->
+				editor.postInLifecycle {
+					if (selection == null) {
+						editor.setSelection(0, 0)
+						return@postInLifecycle
+					}
+					editor.validateRange(selection)
+					editor.setSelection(selection)
 				}
+			}
+		}
+	}
 
-				editor.validateRange(selection)
-				editor.setSelection(selection)
+	private suspend fun openFileInternal(
+	  file: File,
+	  selection: Range?
+	): CodeEditorView? {
+		val range = selection ?: Range.NONE
+
+		val isImage = withContext(Dispatchers.IO) {
+			ImageUtils.isImage(file)
+		}
+
+		if (isImage) {
+			withContext(Dispatchers.Main) { openImage(this@EditorHandlerActivity, file) }
+			return null
+		}
+
+		return withContext(Dispatchers.Main) {
+			val fileIndex = openFileAndGetIndex(file, range)
+			if (fileIndex < 0) return@withContext null
+
+			editorViewModel.startDrawerOpened = false
+			editorViewModel.displayedFileIndex = fileIndex
+
+			val tabPosition = getTabPositionForFileIndex(fileIndex)
+			val tab = content.tabs.getTabAt(tabPosition)
+			if (tab != null && !tab.isSelected) {
+				tab.select()
+			}
+
+			try {
+				getEditorAtIndex(fileIndex)
+			} catch (th: Throwable) {
+				log.error("Unable to get editor at file index {}", fileIndex, th)
+				null
 			}
 		}
 	}
@@ -473,33 +511,12 @@ open class EditorHandlerActivity :
 		file: File,
 		selection: Range?,
 	): CodeEditorView? {
-		val range = selection ?: Range.NONE
-		val isImage = runBlocking {
-			withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
-		}
-
-		if (isImage) {
-			openImage(this, file)
-			return null
-		}
-
-		val fileIndex = openFileAndGetIndex(file, range)
-		if (fileIndex < 0) return null
-
-		editorViewModel.startDrawerOpened = false
-		editorViewModel.displayedFileIndex = fileIndex
-
-		val tabPosition = getTabPositionForFileIndex(fileIndex)
-		val tab = content.tabs.getTabAt(tabPosition)
-		if (tab != null && !tab.isSelected) {
-			tab.select()
-		}
-
-		return try {
-			getEditorAtIndex(fileIndex)
-		} catch (th: Throwable) {
-			log.error("Unable to get editor at file index {}", fileIndex, th)
+		val isMainThread = Looper.myLooper() == Looper.getMainLooper()
+		return if (isMainThread) {
+			lifecycleScope.launch { openFileInternal(file, selection) }
 			null
+		} else {
+			runBlocking { openFileInternal(file, selection) }
 		}
 	}
 
