@@ -347,8 +347,6 @@ WHERE  path = ?
                 val columnNames = mutableListOf<String>()
 
                 while (schemaCursor.moveToNext()) {
-                    if (debugEnabled) log.debug("columnNames are {}.", columnNames)
-
                     columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
                 }
 
@@ -475,10 +473,6 @@ SELECT id,
 FROM     recent_project_table
 ORDER BY last_modified DESC"""
 
-        val cursor = projectDatabase.rawQuery(query, arrayOf())
-
-        if (debugEnabled) log.debug("Retrieved {} rows.", cursor.count)
-
         var html = getTableHtml("Projects", "Projects") + """
 <tr>
 <th>Id</th>
@@ -490,8 +484,13 @@ ORDER BY last_modified DESC"""
 <th>Language</th>
 </tr>"""
 
-        while (cursor.moveToNext()) {
-            html += """<tr>
+        val cursor = projectDatabase.rawQuery(query, arrayOf())
+
+        try {
+            if (debugEnabled) log.debug("Retrieved {} rows.", cursor.count)
+
+            while (cursor.moveToNext()) {
+                html += """<tr>
 <td>${escapeHtml(cursor.getString(0) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(1) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(2) ?: "")}</td>
@@ -500,12 +499,14 @@ ORDER BY last_modified DESC"""
 <td>${escapeHtml(cursor.getString(5) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(6) ?: "")}</td>
 </tr>"""
+            }
+
+            html += "</table></body></html>"
+
+        } finally {
+            cursor.close()
         }
-
-        html += "</table></body></html>"
-
-        cursor.close()
-
+        
         if (debugEnabled) log.debug("html is '$html'.")
 
         writeNormalToClient(writer, output, html)
