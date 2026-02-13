@@ -33,6 +33,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
 import kotlin.math.pow
@@ -77,6 +78,9 @@ object AssetsInstallationHelper {
 
 			if (result.isFailure) {
 				val e = result.exceptionOrNull()
+				if (e is CancellationException) {
+					throw e
+				}
 				val msg = e?.message ?: "Failed to install assets"
 				logger.error("Failed to install assets", e)
 				onProgress(Progress(msg))
