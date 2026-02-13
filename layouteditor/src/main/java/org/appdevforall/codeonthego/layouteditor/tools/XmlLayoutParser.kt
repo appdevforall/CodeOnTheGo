@@ -28,6 +28,7 @@ import java.io.IOException
 import java.io.File
 import java.io.StringReader
 import androidx.core.view.isNotEmpty
+import androidx.core.widget.NestedScrollView
 
 class XmlLayoutParser(
 	context: Context,
@@ -262,7 +263,7 @@ class XmlLayoutParser(
 	}
 
 	private fun ViewGroup.isSingleChildContainer(): Boolean {
-		return this is ScrollView || this is HorizontalScrollView
+		return this is ScrollView || this is HorizontalScrollView || this is NestedScrollView
 	}
 
 	private fun applyInitialPosition(target: View, attrs: AttributeMap) {
