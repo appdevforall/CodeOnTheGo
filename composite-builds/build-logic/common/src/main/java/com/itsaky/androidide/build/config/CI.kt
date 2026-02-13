@@ -35,7 +35,8 @@ object CI {
 			val sha = System.getenv("GITHUB_SHA") ?: "HEAD"
 			commitHash =
 				project.cmdOutput(
-					project.rootProject.projectDir,
+					workDir = project.rootProject.projectDir,
+					failOnError = false,
 					"git",
 					"rev-parse",
 					"--short",
@@ -50,7 +51,8 @@ object CI {
 		if (branchName == null) {
 			branchName = System.getenv("GITHUB_REF_NAME")
 				?: project.cmdOutput(
-					project.rootProject.projectDir,
+					workDir = project.rootProject.projectDir,
+					failOnError = false,
 					"git",
 					"rev-parse",
 					"--abbrev-ref",
@@ -69,6 +71,7 @@ object CI {
 
 	private fun Project.cmdOutput(
 		workDir: File,
+		failOnError: Boolean = false,
 		vararg args: String,
 	): String? =
 		runCatching {
@@ -79,7 +82,7 @@ object CI {
 					.start()
 
 			val exitCode = process.waitFor()
-			if (exitCode != 0) {
+			if (exitCode != 0 && failOnError) {
 				throw RuntimeException("Command '$args' failed with exit code $exitCode")
 			}
 
