@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStreamReader
 import java.io.PrintWriter
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.file.Files
@@ -74,8 +75,20 @@ FROM   LastChange
         }
     }
 
+    /**
+     * Stops the server by closing the listening socket. Safe to call from any thread.
+     * Causes [start]'s accept loop to exit. No-op if not started or already stopped.
+     */
+    fun stop() {
+        if (!::serverSocket.isInitialized) return
+        try {
+            serverSocket.close()
+        } catch (e: Exception) {
+            log.debug("Error closing server socket: {}", e.message)
+        }
+    }
+
     fun start() {
-        lateinit var clientSocket: Socket
         try {
             log.debug("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.", 
                      config.bindName, config.port, debugEnabled, config.debugEnablePath, config.debugDatabasePath)
@@ -92,24 +105,42 @@ FROM   LastChange
             // NEW FEATURE: Log database metadata when debug is enabled
             if (debugEnabled) logDatabaseLastChanged()
 
-            serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
+            serverSocket = ServerSocket().apply { setReuseAddress(true) }
+            serverSocket.bind(InetSocketAddress(config.bindName, config.port))
             log.info("WebServer started successfully.")
 
             while (true) {
+                var clientSocket: Socket? = null
                 try {
-                    clientSocket = serverSocket.accept()
-                    if (debugEnabled) log.debug("Returned from socket accept().")
-                    handleClient(clientSocket)
-                } catch (e: Exception) {
-                    log.error("Error handling client: {}", e.message)
                     try {
-                        val writer = PrintWriter(clientSocket.getOutputStream(), true)
-                        sendError(writer, 500, "Internal Server Error 1")
+                        clientSocket = serverSocket.accept()
+                        if (debugEnabled) log.debug("Returned from socket accept().")
+                    } catch (e: java.net.SocketException) {
+                        if (e.message?.contains("Closed", ignoreCase = true) == true) {
+                            if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
+                            break
+                        }
+                        log.error("Accept failed: {}", e.message)
+                        continue
+                    }
+                    try {
+                        clientSocket?.let { handleClient(it) }
                     } catch (e: Exception) {
-                        log.error("Error sending error response: {}", e.message)
+                        if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
+                            if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+                        } else {
+                            log.error("Error handling client: {}", e.message)
+                            clientSocket?.let { socket ->
+                                try {
+                                    sendError(PrintWriter(socket.getOutputStream(), true), 500, "Internal Server Error 1")
+                                } catch (e2: Exception) {
+                                    log.error("Error sending error response: {}", e2.message)
+                                }
+                            }
+                        }
                     }
                 } finally {
-                    clientSocket.close() // TODO: What if the client socket isn't open? How to check? --DS, 22-Jul-2025
+                    clientSocket?.close()
                 }
             }
         } catch (e: Exception) {
