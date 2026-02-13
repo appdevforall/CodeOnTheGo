@@ -67,13 +67,19 @@ SELECT changeTime, who
 FROM   LastChange
 """
             val cursor = database.rawQuery(query, arrayOf())
-            if (cursor.count > 0) {
-                cursor.moveToFirst()
-                log.debug("Database last change: {} {}.", cursor.getString(0), cursor.getString(1))
+
+            try {
+                if (cursor.count > 0) {
+                    cursor.moveToFirst()
+                    log.debug("Database last change: {} {}.", cursor.getString(0), cursor.getString(1))
+                }
+
+            } finally {
+                cursor.close()
             }
-            cursor.close()
+
         } catch (e: Exception) {
-            log.debug("Could not retrieve database last change info: {}", e.message)
+            log.error("Could not retrieve database last change info: {}", e.message)
         }
     }
 
@@ -85,8 +91,9 @@ FROM   LastChange
         if (!::serverSocket.isInitialized) return
         try {
             serverSocket.close()
+
         } catch (e: Exception) {
-            log.debug("Error closing server socket: {}", e.message)
+            log.error("Cannot close server socket: {}", e.message)
         }
     }
 
@@ -122,7 +129,7 @@ FROM   LastChange
                             if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
                             break
                         }
-                        log.error("Accept failed: {}", e.message)
+                        log.error("Accept() failed: {}", e.message)
                         continue
                     }
                     try {
@@ -135,18 +142,22 @@ FROM   LastChange
                             clientSocket?.let { socket ->
                                 try {
                                     sendError(PrintWriter(socket.getOutputStream(), true), 500, "Internal Server Error 1")
+
                                 } catch (e2: Exception) {
                                     log.error("Error sending error response: {}", e2.message)
                                 }
                             }
                         }
                     }
+
                 } finally {
                     clientSocket?.close()
                 }
             }
+
         } catch (e: Exception) {
             log.error("Error: {}", e.message)
+
         } finally {
             if (::serverSocket.isInitialized) {
                 serverSocket.close()
@@ -266,11 +277,7 @@ WHERE  path = ?
 
             while (dbContent2.size == 1024 * 1024) {
                 val path2 = "$path-$fragmentNumber"
-                if (debugEnabled) log.debug(
-                    "DB item > 1 MB. fragment#{} path2='{}'.",
-                    fragmentNumber,
-                    path2
-                )
+                if (debugEnabled) log.debug("DB item > 1 MB. fragment#{} path2='{}'.", fragmentNumber, path2)
 
                 val cursor2 = database.rawQuery(query2, arrayOf(path2))
                 try {
@@ -300,12 +307,13 @@ WHERE  path = ?
         if (compression == "brotli") {
             if (brotliSupported) {
                 compression = "br"
+
             } else {
                 try {
                     if (debugEnabled) log.debug("Brotli content but client doesn't support Brotli. Decoding locally.")
-                    dbContent =
-                        BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+                    dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                     compression = "none"
+
                 } catch (e: Exception) {
                     log.error("Error decompressing Brotli content: {}", e.message)
                     return sendError(writer, 500, "Internal Server Error 3")
@@ -347,14 +355,11 @@ WHERE  path = ?
                 val columnNames = mutableListOf<String>()
 
                 while (schemaCursor.moveToNext()) {
+                // Values come from schema introspection, therefore not subject to a SQL injection attack.
                     columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
                 }
 
-                if (debugEnabled) log.debug(
-                    "LastChange table has {} columns: {}",
-                    columnCount,
-                    columnNames
-                )
+                if (debugEnabled) log.debug("LastChange table has {} columns: {}", columnCount, columnNames)
 
                 // Build the SELECT query for the 20 most recent rows
                 selectColumns = columnNames.joinToString(", ")
@@ -370,8 +375,7 @@ WHERE  path = ?
                 schemaCursor.close()
             }
 
-            val dataQuery =
-                "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
+            val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
 
             val dataCursor = database.rawQuery(dataQuery, arrayOf())
 
@@ -403,12 +407,7 @@ WHERE  path = ?
 
         } catch (e: Exception) {
             log.error("Error handling /pr/db endpoint: {}", e.message)
-            sendError(
-                writer,
-                500,
-                "Internal Server Error 4",
-                "Error generating database table."
-            )
+            sendError(writer, 500, "Internal Server Error 4", "Error generating database table.")
         }
     }
 
