@@ -23,6 +23,7 @@ import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
+import com.itsaky.androidide.utils.FeatureFlags
 
 /**
  *
@@ -33,7 +34,9 @@ object LspHandler {
   fun registerLanguageServers() {
     ILanguageServerRegistry.getDefault().apply {
       getServer(JavaLanguageServer.SERVER_ID) ?: register(JavaLanguageServer())
-      getServer(KotlinLanguageServer.SERVER_ID) ?: register(KotlinLanguageServer())
+      if (FeatureFlags.isExperimentsEnabled) {
+        getServer(KotlinLanguageServer.SERVER_ID) ?: register(KotlinLanguageServer())
+      }
       getServer(XMLLanguageServer.SERVER_ID) ?: register(XMLLanguageServer())
     }
   }
