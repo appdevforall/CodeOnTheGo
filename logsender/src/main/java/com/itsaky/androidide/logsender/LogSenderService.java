@@ -41,9 +41,6 @@ import com.itsaky.androidide.logsender.utils.Logger;
 public class LogSenderService extends Service {
 
 	private static final int NOTIFICATION_ID = 644;
-	private static final String NOTIFICATION_CHANNEL_NAME = "LogSender Service";
-	private static final String NOTIFICATION_TITLE = "LogSender Service";
-	private static final String NOTIFICATION_TEXT = "Connected to AndroidIDE";
 	private static final String NOTIFICATION_CHANNEL_ID = "ide.logsender.service";
 	public static final String ACTION_START_SERVICE = "ide.logsender.service.start";
 	public static final String ACTION_STOP_SERVICE = "ide.logsender.service.stop";
@@ -67,7 +64,7 @@ public class LogSenderService extends Service {
 	public void onDestroy() {
 		Logger.debug("[LogSenderService] [onDestroy]");
 		if (!logSender.isConnected() && !logSender.isBinding()) {
-			Logger.debug("Not bound to AndroidIDE. Ignored.");
+			Logger.debug("Not bound to Code On The Go. Ignored.");
 		} else {
 			Logger.warn("Service is being destroyed. Destroying log sender...");
 			logSender.destroy(getApplicationContext());
@@ -106,7 +103,7 @@ public class LogSenderService extends Service {
 		Logger.debug("[LogSenderService] [onTaskRemoved]", rootIntent);
 
 		if (!logSender.isConnected() && !logSender.isBinding()) {
-			Logger.debug("Not bound to AndroidIDE. Ignored.");
+			Logger.debug("Not bound to Code On The Go. Ignored.");
 			return;
 		}
 
@@ -121,7 +118,7 @@ public class LogSenderService extends Service {
 		boolean result = false;
 		try {
 			result = logSender.bind(getApplicationContext());
-			Logger.debug("Bind to AndroidIDE:", result);
+			Logger.debug("Bind to Code On The Go:", result);
 		} catch (Exception err) {
 			Logger.error(getString(R.string.msg_bind_service_failed), err);
 		}
@@ -147,9 +144,11 @@ public class LogSenderService extends Service {
 
 		// Build the notification
 		final Builder builder = new Builder(this);
-		builder.setContentTitle(NOTIFICATION_TITLE);
-		builder.setContentText(NOTIFICATION_TEXT);
-		builder.setStyle(new BigTextStyle().bigText(NOTIFICATION_TEXT));
+		String title = getString(R.string.notification_title);
+		String text = getString(R.string.notification_text);
+		builder.setContentTitle(title);
+		builder.setContentText(text);
+		builder.setStyle(new BigTextStyle().bigText(text));
 		builder.setPriority(priority);
 
 		if (VERSION.SDK_INT >= VERSION_CODES.O) {
@@ -184,7 +183,7 @@ public class LogSenderService extends Service {
 
 		NotificationChannel channel = new NotificationChannel(
 				NOTIFICATION_CHANNEL_ID,
-				NOTIFICATION_CHANNEL_NAME,
+				getString(R.string.notification_channel_name),
 				NotificationManager.IMPORTANCE_LOW);
 
 		NotificationManager notificationManager = getSystemService(NotificationManager.class);
