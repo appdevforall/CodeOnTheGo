@@ -107,7 +107,7 @@ FROM   LastChange
             // NEW FEATURE: Log database metadata when debug is enabled
             if (debugEnabled) logDatabaseLastChanged()
 
-            serverSocket = ServerSocket().apply { setReuseAddress(true) }
+            serverSocket = ServerSocket().apply { reuseAddress = true }
             serverSocket.bind(InetSocketAddress(config.bindName, config.port))
             log.info("WebServer started successfully.")
 
@@ -188,11 +188,9 @@ FROM   LastChange
 
            if (debugEnabled) log.debug("Header: {}", requestLine)
 
-            if(requestLine.startsWith(encodingHeader)) {
+            if (requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-                if(parts.isEmpty()) {
-                    break
-                }
+
                 brotliSupported = parts.contains(brotliCompression)
                 break
             }
@@ -215,7 +213,7 @@ FROM   LastChange
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, 500, "Internal Server Error 7")
+                else    -> sendError(writer, 404, "Not Found")
             }
         }
 
@@ -228,19 +226,33 @@ WHERE  C.contentTypeID = CT.id
         val cursor = database.rawQuery(query, arrayOf(path,))
         val rowCount = cursor.count
 
-        if (rowCount != 1) {
-            return when (rowCount) {
-                0 -> sendError(writer, 404, "Not Found", "Path requested: $path")
-                else -> sendError(writer, 500, "Internal Server Error 2", "Corrupt database - multiple records found when unique record expected, Path requested: $path")
+        var dbContent   : ByteArray
+        var dbMimeType  : String
+        var compression : String
+
+        try {
+            if (rowCount != 1) {
+                return when (rowCount) {
+                    0 -> sendError(writer, 404, "Not Found", "Path requested: $path")
+                    else -> sendError(
+                        writer,
+                        500,
+                        "Internal Server Error 2",
+                        "Corrupt database - multiple records found when unique record expected, Path requested: $path"
+                    )
+                }
             }
+
+            cursor.moveToFirst()
+            dbContent   = cursor.getBlob(0)
+            dbMimeType  = cursor.getString(1)
+            compression = cursor.getString(2)
+
+            if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
+
+        } finally {
+            cursor.close()
         }
-
-        cursor.moveToFirst()
-        var dbContent   = cursor.getBlob(0)
-        val dbMimeType  = cursor.getString(1)
-        var compression = cursor.getString(2)
-
-        if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
 
         if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
             val query2 = """
@@ -262,10 +274,9 @@ WHERE  path = ?
 
                 val cursor2 = database.rawQuery(query2, arrayOf(path2))
                 try {
-                    cursor2.moveToFirst()
-
                     if (cursor2.moveToFirst()) {
                         dbContent2 = cursor2.getBlob(0)
+
                     } else {
                         if (debugEnabled) log.error("No fragment found for path '{}'.", path2)
                         break
@@ -525,7 +536,7 @@ Connection: close
      * Converts <, >, &, ", and ' to their HTML entity equivalents.
      */
     private fun escapeHtml(text: String): String {
-        if (debugEnabled) log.debug("Entering escapeHtml(), html='$text'.")
+//        if (debugEnabled) log.debug("Entering escapeHtml(), html='$text'.")
 
         return text
             .replace("&", "&amp;")   // Must be first to avoid double-escaping
