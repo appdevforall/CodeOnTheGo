@@ -1,4 +1,5 @@
 import com.google.protobuf.gradle.id
+import com.itsaky.androidide.plugins.conf.configureProtoc
 
 plugins {
 	id("java-library")
@@ -6,10 +7,9 @@ plugins {
 	alias(libs.plugins.google.protobuf)
 }
 
+configureProtoc(protobuf = protobuf, protocVersion = libs.versions.protobuf.asProvider())
+
 protobuf {
-	protoc {
-		artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.asProvider().get()}"
-	}
 	plugins {
 		id("kotlin-ext") {
 			artifact = "dev.hsbrysk:protoc-gen-kotlin-ext:${libs.versions.protoc.gen.kotlin.ext.get()}:jdk8@jar"
