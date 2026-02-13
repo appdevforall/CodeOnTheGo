@@ -21,6 +21,8 @@ import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
 import java.util.zip.ZipInputStream
 import kotlin.system.measureTimeMillis
 
@@ -40,6 +42,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 			zipFile = ZipFile(Environment.SPLIT_ASSETS_ZIP)
 		}
 
+	@OptIn(ExperimentalPathApi::class)
 	@WorkerThread
 	override suspend fun doInstall(
 		context: Context,
@@ -60,6 +63,10 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 							GRADLE_API_NAME_JAR_ZIP,
 							-> {
 								val destDir = destinationDirForArchiveEntry(entry.name).toPath()
+								if (Files.exists(destDir)) {
+									destDir.deleteRecursively()
+								}
+								Files.createDirectories(destDir)
 								logger.debug("Extracting '{}' to dir: {}", entry.name, destDir)
 								AssetsInstallationHelper.extractZipToDir(zipInput, destDir)
 								logger.debug("Completed extracting '{}' to dir: {}", entry.name, destDir)
@@ -128,8 +135,11 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
                                 logger.debug("Extracting plugin artifacts from '{}'", entry.name)
                                 val pluginDir = Environment.PLUGIN_API_JAR.parentFile
                                     ?: throw IllegalStateException("Plugin API parent directory is null")
-                                pluginDir.mkdirs()
                                 val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
+                                if (Files.exists(pluginDirPath)) {
+                                    pluginDirPath.deleteRecursively()
+                                }
+                                Files.createDirectories(pluginDirPath)
 
                                 ZipInputStream(zipInput).use { pluginZip ->
                                     var pluginEntry = pluginZip.nextEntry
