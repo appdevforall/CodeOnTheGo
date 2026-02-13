@@ -9,19 +9,21 @@
 #include "llama.h"
 
 struct llama_model_deleter {
-    void operator()(llama_model *model) { llama_model_free(model); }
+    void operator()(llama_model * model) { llama_model_free(model); }
 };
 
 struct llama_context_deleter {
-    void operator()(llama_context *context) { llama_free(context); }
+    void operator()(llama_context * context) { llama_free(context); }
 };
 
 struct llama_sampler_deleter {
-    void operator()(llama_sampler *sampler) { llama_sampler_free(sampler); }
+    void operator()(llama_sampler * sampler) { llama_sampler_free(sampler); }
 };
 
 struct llama_adapter_lora_deleter {
-    void operator()(llama_adapter_lora *adapter) { llama_adapter_lora_free(adapter); }
+    void operator()(llama_adapter_lora *) {
+        // llama_adapter_lora_free is deprecated
+    }
 };
 
 typedef std::unique_ptr<llama_model, llama_model_deleter> llama_model_ptr;

@@ -765,6 +765,11 @@ afterEvaluate {
         }
       }
     }
+
+    dependsOn(bundleLlamaV8Assets)
+    if (!isCiCd) {
+      dependsOn("assetsDownloadDebug")
+    }
   }
 
   tasks.named("assembleV7Debug").configure {
@@ -780,6 +785,11 @@ afterEvaluate {
           extensions.extraProperties["noCompressExtensions"] = noCompress
         }
       }
+    }
+
+    dependsOn(bundleLlamaV7Assets)
+    if (!isCiCd) {
+      dependsOn("assetsDownloadDebug")
     }
   }
 
@@ -1118,4 +1128,3 @@ tasks.register("assetsDownloadRelease") {
         assetsDownload(releaseAssets, rootProject.projectDir)
     }
 }
-
