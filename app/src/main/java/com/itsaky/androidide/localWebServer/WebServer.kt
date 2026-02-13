@@ -10,7 +10,6 @@ import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.net.ServerSocket
 import java.net.Socket
-import java.nio.file.Files
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -22,6 +21,9 @@ data class ServerConfig(
             "/Download/documentation.db",
     val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/CodeOnTheGo.webserver.debug",
+    val experimentsEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+            "/Download/CodeOnTheGo.exp", // TODO: Centralize this concept. --DS, 9-Feb-2026
+
 // Yes, this is hack code.
     val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
 )
@@ -150,14 +152,14 @@ FROM   LastChange
 
         //the HTTP headers follow the the method line, read until eof or 0 length
         //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
-        while(requestLine.length > 0) {
+        while(requestLine.isNotEmpty()) {
             requestLine = reader.readLine() ?: break
 
            if (debugEnabled) log.debug("Header: {}", requestLine)
 
             if(requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-                if(parts.size == 0) {
+                if(parts.isEmpty()) {
                     break
                 }
                 brotliSupported = parts.contains(brotliCompression)
@@ -174,11 +176,16 @@ FROM   LastChange
             databaseTimestamp = debugDatabaseTimestamp
         }
 
-        // Handle the special "/db" endpoint with highest priority
-        if (path == "db") {
-            return handleDbEndpoint(writer, output)
-        } else if (path == "pr") {
-            return handlePrEndpoint(writer, output)
+        // Handle the special "pr" endpoint with highest priority
+        if (path.startsWith("pr/", false)) {
+            if (debugEnabled) log.debug("Found a pr/ path, '$path'.")
+
+            return when (path) {
+                "pr/db" -> handleDbEndpoint(writer, output)
+                "pr/pr" -> handlePrEndpoint(writer, output)
+                "pr/ex" -> handleExEndpoint(writer, output)
+                else    -> sendError(writer, 500, "Internal Server Error 7")
+            }
         }
 
         val query = """
@@ -188,12 +195,12 @@ WHERE  C.contentTypeID = CT.id
   AND  C.path = ?
         """
         val cursor = database.rawQuery(query, arrayOf(path,))
-        val rowCount = cursor.getCount()
+        val rowCount = cursor.count
 
         if (rowCount != 1) {
             return when (rowCount) {
-                0 -> sendError(writer, 404, "Not Found", "Path requested: " + path)
-                else -> sendError(writer, 500, "Internal Server Error 2", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
+                0 -> sendError(writer, 404, "Not Found", "Path requested: $path")
+                else -> sendError(writer, 500, "Internal Server Error 2", "Corrupt database - multiple records found when unique record expected, Path requested: $path")
             }
         }
 
@@ -216,11 +223,20 @@ WHERE  path = ?
 
             while (dbContent2.size == 1024 * 1024) {
                 val path2 = "${path}-${fragmentNumber}"
-                if (debugEnabled) log.debug("DB item > 1 MB. fragment#{} path2='{}'.", fragmentNumber, path2)
+                if (debugEnabled) log.debug(
+                    "DB item > 1 MB. fragment#{} path2='{}'.",
+                    fragmentNumber,
+                    path2
+                )
 
                 val cursor2 = database.rawQuery(query2, arrayOf(path2))
-                cursor2.moveToFirst()
-                dbContent2 = cursor2.getBlob(0)
+                try {
+                    cursor2.moveToFirst()
+                    dbContent2 = cursor2.getBlob(0)
+                } finally {
+                    cursor2.close()
+                }
+
                 dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 22-Jul-2025
                 fragmentNumber += 1
                 if (debugEnabled) log.debug("Fragment size={}, dbContent.length={}.", dbContent2.size, dbContent.size)
@@ -243,7 +259,7 @@ WHERE  path = ?
                     compression = "none"
                 } catch (e: Exception) {
                     log.error("Error decompressing Brotli content: {}", e.message)
-                    return sendError(writer, 500, "Internal Server Error")
+                    return sendError(writer, 500, "Internal Server Error 3")
                 }
             }
         }
@@ -254,7 +270,7 @@ WHERE  path = ?
         writer.println("Content-Length: ${dbContent.size}")
 
         if (compression != "none") {
-            writer.println("Content-Encoding: ${compression}")
+            writer.println("Content-Encoding: $compression")
         }
 
         writer.println("Connection: close")
@@ -266,6 +282,8 @@ WHERE  path = ?
     }
 
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        if (debugEnabled) log.debug("Entering handleDbEndpoint().")
+
         try {
             // First, get the schema of the LastChange table to determine column count
             val schemaQuery = "PRAGMA table_info(LastChange)"
@@ -274,6 +292,8 @@ WHERE  path = ?
             val columnNames = mutableListOf<String>()
             
             while (schemaCursor.moveToNext()) {
+                if (debugEnabled) log.debug("columnNames are {}.", columnNames)
+
                 columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
             }
             schemaCursor.close()
@@ -310,16 +330,40 @@ WHERE  path = ?
             html += """</table></body></html>"""
             
             dataCursor.close()
-            
+
+            if (debugEnabled) log.debug("html is '$html'.")
+
             writeNormalToClient(writer, output, html)
-            
+
+            if (debugEnabled) log.debug("Leaving handleDbEndpoint().")
+
         } catch (e: Exception) {
-            log.error("Error handling /db endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+            log.error("Error handling /pr/db endpoint: {}", e.message)
+            sendError(writer, 500, "Internal Server Error 4", "Error generating database table: ${e.message}")
         }
     }
 
+    private fun handleExEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        if (debugEnabled) log.debug("Entering handleExEndpoint().")
+
+        // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
+        if (File(config.experimentsEnablePath).exists()) {
+            if (debugEnabled) log.debug("Experimental mode is on. Returning 200.")
+
+            writeNormalToClient(writer, output, """<html><head><title>Experiments</title></head><body>1</body></html>""")
+
+        } else {
+            if (debugEnabled) log.debug("Experimental mode is off. Returning 404.")
+
+            sendError(writer, 404, "Not Found", "Experiments disabled")
+        }
+
+        if (debugEnabled) log.debug("Leaving handleExEndpoint().")
+    }
+
     private fun handlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        if (debugEnabled) log.debug("Entering handlePrEndpoint().")
+
         var projectDatabase : SQLiteDatabase? = null
 
         try {
@@ -328,25 +372,27 @@ WHERE  path = ?
                                                           SQLiteDatabase.OPEN_READONLY)
 
             if (projectDatabase == null) {
-                log.error("Error handling /pr endpoint 2. Could not open ${config.projectDatabasePath}.")
-                sendError(writer, 500, "Internal Server Error", "Error accessing database 2")
+                log.error("Error handling /pr/pr endpoint 2. Could not open ${config.projectDatabasePath}.")
+                sendError(writer, 500, "Internal Server Error 5", "Error accessing database 2")
 
             } else {
                 realHandlePrEndpoint(writer, output, projectDatabase)
             }
 
         } catch (e: Exception) {
-            log.error("Error handling /pr endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+            log.error("Error handling /pr/pr endpoint: {}", e.message)
+            sendError(writer, 500, "Internal Server Error 6", "Error generating database table: ${e.message}")
             
         } finally {
-            if (projectDatabase != null) {
-                projectDatabase.close()
-            }
+            projectDatabase?.close()
         }
+
+        if (debugEnabled) log.debug("Leaving handlePrEndpoint().")
     }
 
     private fun realHandlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) {
+        if (debugEnabled) log.debug("Entering realHandlePrEndpoint().")
+
         val query = """
 SELECT id,
        name,
@@ -360,7 +406,7 @@ ORDER BY last_modified DESC"""
 
         val cursor = projectDatabase.rawQuery(query, arrayOf())
 
-        if (debugEnabled) log.debug("Retrieved {} rows.", cursor.getCount())
+        if (debugEnabled) log.debug("Retrieved {} rows.", cursor.count)
 
         var html = getTableHtml("Projects", "Projects") + """
 <tr>
@@ -389,14 +435,20 @@ ORDER BY last_modified DESC"""
 
         cursor.close()
 
+        if (debugEnabled) log.debug("html is '$html'.")
+
         writeNormalToClient(writer, output, html)
+
+        if (debugEnabled) log.debug("Leaving realHandleDbEndpoint().")
     }
 
     /**
      * Get HTML for table response page.
      */
     private fun getTableHtml(title: String, tableName: String): String {
-         return """<!DOCTYPE html>
+        if (debugEnabled) log.debug("Entering getTableHtml(), title='$title', tableName='$tableName'.")
+
+        return """<!DOCTYPE html>
 <html>
 <head>
 <title>${escapeHtml(title)}</title>
@@ -415,13 +467,15 @@ th { background-color: #f2f2f2; }
      * Tail of writing table data back to client.
      */
     private fun writeNormalToClient(writer: PrintWriter, output: java.io.OutputStream, html: String) {
+        if (debugEnabled) log.debug("Entering writeNormalToClient(), html='$html'.")
+
         val htmlBytes = html.toByteArray(Charsets.UTF_8)
 
-        writer.println("HTTP/1.1 200 OK")
-        writer.println("Content-Type: text/html; charset=utf-8")
-        writer.println("Content-Length: ${htmlBytes.size}")
-        writer.println("Connection: close")
-        writer.println()
+        writer.println("""HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Content-Length: ${htmlBytes.size}
+Connection: close
+""")
         writer.flush()
 
         output.write(htmlBytes)
@@ -433,6 +487,8 @@ th { background-color: #f2f2f2; }
      * Converts <, >, &, ", and ' to their HTML entity equivalents.
      */
     private fun escapeHtml(text: String): String {
+        if (debugEnabled) log.debug("Entering escapeHtml(), html='$text'.")
+
         return text
             .replace("&", "&amp;")   // Must be first to avoid double-escaping
             .replace("<", "&lt;")
@@ -442,13 +498,15 @@ th { background-color: #f2f2f2; }
     }
 
     private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
-        writer.println("HTTP/1.1 $code $message")
-        writer.println("Content-Type: text/plain")
-        writer.println("Connection: close")
-        writer.println()
-        writer.println("$code $message")
-        if (details.isNotEmpty()) {
-            writer.println(details)
-        }
+        if (debugEnabled) log.debug("Entering sendError(), code=$code, message='$message', details='$details'.")
+
+        val messageBytes = "$code $message" + if (details.isEmpty()) "" else "\n$details"
+
+        writer.println("""HTTP/1.1 $code $message
+Content-Type: text/plain
+Content-Length: ${messageBytes.length + 1}
+Connection: close
+
+$messageBytes""")
     }
 }
