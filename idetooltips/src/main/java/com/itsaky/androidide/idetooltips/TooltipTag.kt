@@ -93,6 +93,7 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_REDO = "editor.redo"
     const val EDITOR_TOOLBAR_QUICK_SAVE = "project.save"
     const val EDITOR_TOOLBAR_PREVIEW_LAYOUT = "editor.layout.preview"
+    const val EDITOR_TOOLBAR_PREVIEW_COMPOSE = "editor.compose.preview"
     const val EDITOR_TOOLBAR_COMPUTER_VISION = "project.layout.vision"
     const val EDITOR_TOOLBAR_LOG_SENDER = "editor.disconnect.logsenders"
 
