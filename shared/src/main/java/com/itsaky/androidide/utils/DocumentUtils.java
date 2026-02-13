@@ -42,6 +42,16 @@ public class DocumentUtils {
     return PathsKt.getExtension(file).equals("xml") && Files.exists(file) && !Files.isDirectory(file);
   }
 
+  public static boolean isKotlinFile(Path file) {
+    if (file == null) {
+      return false;
+    }
+    final var extension = PathsKt.getExtension(file);
+    return (extension.equals("kt") || extension.equals("kts"))
+        && Files.exists(file)
+        && !Files.isDirectory(file);
+  }
+
   public static boolean isSameFile(Path first, Path second) {
     try {
       return Files.isSameFile(first, second);

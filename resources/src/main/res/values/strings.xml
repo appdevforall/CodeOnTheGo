@@ -1127,4 +1127,9 @@
 	<string name="preview_build_project">Build Project</string>
 	<string name="preview_building_project">Building project…</string>
 	<string name="preview_initializing">Initializing Compose preview…</string>
+
+	<!-- Copy Diagnostics -->
+	<string name="msg_diagnostics_copied">Diagnostics copied to clipboard</string>
+	<string name="msg_no_diagnostics_to_copy">No diagnostics to copy</string>
+	<string name="msg_clipboard_copy_failed">Failed to copy to clipboard</string>
 </resources>
