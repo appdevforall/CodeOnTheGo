@@ -26,13 +26,19 @@ android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.testing.android"
 }
 
+configurations.configureEach {
+    exclude(group = "com.google.protobuf", module = "protobuf-lite")
+}
+
 dependencies {
 	api(libs.tests.androidx.test.core)
 	api(libs.tests.androidx.test.runner)
 	api(libs.tests.androidx.test.rules)
 	api(libs.tests.androidx.junit)
 	api(libs.tests.androidx.espresso.core)
-	api(libs.tests.androidx.espresso.contrib)
+    api(libs.tests.androidx.espresso.contrib) {
+        exclude(group = "com.google.protobuf", module = "protobuf-lite")
+    }
 	api(libs.tests.androidx.uiautomator)
 	api(libs.tests.junit)
 	api(libs.tests.mockk.android)
@@ -40,6 +46,8 @@ dependencies {
 	api(libs.tests.barista) {
 		exclude("org.jetbrains.kotlin")
 	}
+    // Align protobuf runtime with app (protobuf-javalite provides GeneratedMessageLite APIs).
+    api(libs.google.protobuf.java)
 
 	api(projects.testing.common)
 
