@@ -59,7 +59,6 @@ class WebServer(private val config: ServerConfig) {
         return timestamp
     }
 
-    // NEW FEATURE: Log database last change information
     fun logDatabaseLastChanged() {
         try {
             val query = """
