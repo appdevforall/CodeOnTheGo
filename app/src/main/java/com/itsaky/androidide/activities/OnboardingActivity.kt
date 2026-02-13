@@ -19,7 +19,6 @@ package com.itsaky.androidide.activities
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -31,7 +30,9 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -57,16 +58,11 @@ import com.itsaky.androidide.utils.resolveAttr
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import androidx.core.view.isVisible
-import androidx.lifecycle.lifecycleScope
 
 class OnboardingActivity : AppIntro2() {
 
@@ -87,7 +83,7 @@ class OnboardingActivity : AppIntro2() {
 		IThemeManager.getInstance().applyTheme(this)
 		setOrientationFunction {
 			OrientationUtilities.setOrientation {
-				requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                OrientationUtilities.setAdaptiveOrientation(this) { requestedOrientation = it }
 			}
 		}
 

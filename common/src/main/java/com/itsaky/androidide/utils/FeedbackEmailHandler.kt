@@ -31,7 +31,19 @@ class FeedbackEmailHandler(
         const val AUTHORITY_SUFFIX = "providers.fileprovider"
         const val SCREENSHOTS_DIR = "feedback_screenshots"
         const val LOGS_DIR = "feedback_logs"
+        const val MAX_EMAIL_BODY_CHARS = 50_000
 		private val log = LoggerFactory.getLogger(FeedbackEmailHandler::class.java)
+	}
+
+	private fun sanitizeEmailBody(body: String, hasLogAttachment: Boolean = true): String {
+		if (body.length <= MAX_EMAIL_BODY_CHARS) return body
+		val suffix = if (hasLogAttachment) " See attached file." else ""
+		return buildString {
+			append(body.take(MAX_EMAIL_BODY_CHARS))
+			append("\n\n---\n(Log truncated: ")
+			append(body.length - MAX_EMAIL_BODY_CHARS)
+			append(" chars omitted.$suffix)")
+		}
 	}
 
 	suspend fun captureAndPrepareScreenshotUri(
@@ -138,7 +150,8 @@ class FeedbackEmailHandler(
             emailRecipient = emailRecipient,
             subject = subject,
             body = body,
-            attachmentUris = attachmentUris
+            attachmentUris = attachmentUris,
+            hasLogAttachment = logContentUri != null
         )
     }
 
@@ -146,8 +159,10 @@ class FeedbackEmailHandler(
         emailRecipient: String,
         subject: String,
         body: String,
-        attachmentUris: MutableList<Uri>
+        attachmentUris: MutableList<Uri>,
+        hasLogAttachment: Boolean = false
     ): Intent {
+        val safeBody = sanitizeEmailBody(body, hasLogAttachment)
         return when {
             // No screenshot or log file (if both files failed to be created)
             attachmentUris.isEmpty() -> {
@@ -155,7 +170,7 @@ class FeedbackEmailHandler(
                     data = "mailto:".toUri()
                     putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
                     putExtra(Intent.EXTRA_SUBJECT, subject)
-                    putExtra(Intent.EXTRA_TEXT, body)
+                    putExtra(Intent.EXTRA_TEXT, safeBody)
                 }
             }
             // Screenshot and/or log file
@@ -163,7 +178,7 @@ class FeedbackEmailHandler(
                 Intent(Intent.ACTION_SEND_MULTIPLE).apply {
                     putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
                     putExtra(Intent.EXTRA_SUBJECT, subject)
-                    putExtra(Intent.EXTRA_TEXT, body)
+                    putExtra(Intent.EXTRA_TEXT, safeBody)
                     putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachmentUris))
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     type = "message/rfc822"
