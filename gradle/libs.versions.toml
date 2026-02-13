@@ -242,6 +242,7 @@ google-auto-service-annotations = { module = "com.google.auto.service:auto-servi
 google-auto-service = { module = "com.google.auto.service:auto-service", version = "1.1.1" }
 google-protobuf-java = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
 google-protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "protobuf" }
+google-protobuf-gradle = { module = "com.google.protobuf:protobuf-gradle-plugin", version.ref = "protobuf-plugin" }
 google-java-format = { module = "com.google.googlejavaformat:google-java-format", version = "1.20.0" }
 google-flexbox = { module = "com.google.android.flexbox:flexbox", version = "3.0.0" }
 
