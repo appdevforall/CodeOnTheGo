@@ -223,7 +223,7 @@ FROM   Content C, ContentTypes CT
 WHERE  C.contentTypeID = CT.id
   AND  C.path = ?
         """
-        val cursor = database.rawQuery(query, arrayOf(path,))
+        val cursor = database.rawQuery(query, arrayOf(path))
         val rowCount = cursor.count
 
         var dbContent   : ByteArray
@@ -327,7 +327,6 @@ WHERE  path = ?
         writer.flush()
         output.write(dbContent)
         output.flush()
-        cursor.close()
     }
 
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
@@ -337,48 +336,66 @@ WHERE  path = ?
             // First, get the schema of the LastChange table to determine column count
             val schemaQuery = "PRAGMA table_info(LastChange)"
             val schemaCursor = database.rawQuery(schemaQuery, arrayOf())
-            val columnCount = schemaCursor.count
-            val columnNames = mutableListOf<String>()
-            
-            while (schemaCursor.moveToNext()) {
-                if (debugEnabled) log.debug("columnNames are {}.", columnNames)
 
-                columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
-            }
-            schemaCursor.close()
-            
-            if (debugEnabled) log.debug("LastChange table has {} columns: {}", columnCount, columnNames)
-            
-            // Build the SELECT query for the 20 most recent rows
-            val selectColumns = columnNames.joinToString(", ")
-            val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
-            
-            val dataCursor = database.rawQuery(dataQuery, arrayOf())
-            val rowCount = dataCursor.count
-            
-            if (debugEnabled) log.debug("Retrieved {} rows from LastChange table", rowCount)
-            
+            var columnCount   : Int
+            var selectColumns : String
+
             var html = getTableHtml("LastChange Table", "LastChange Table (20 Most Recent Rows)")
-                
-            // Add header row
-            html += """<tr>"""
-            for (columnName in columnNames) {
-                html += """<th>${escapeHtml(columnName)}</th>"""
-            }
-            html += """</tr>"""
-                
-            // Add data rows
-            while (dataCursor.moveToNext()) {
+
+            try {
+                columnCount = schemaCursor.count
+                val columnNames = mutableListOf<String>()
+
+                while (schemaCursor.moveToNext()) {
+                    if (debugEnabled) log.debug("columnNames are {}.", columnNames)
+
+                    columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
+                }
+
+                if (debugEnabled) log.debug(
+                    "LastChange table has {} columns: {}",
+                    columnCount,
+                    columnNames
+                )
+
+                // Build the SELECT query for the 20 most recent rows
+                selectColumns = columnNames.joinToString(", ")
+
+                // Add header row
                 html += """<tr>"""
-                for (i in 0 until columnCount) {
-                    html += """<td>${escapeHtml(dataCursor.getString(i) ?: "")}</td>"""
+                for (columnName in columnNames) {
+                    html += """<th>${escapeHtml(columnName)}</th>"""
                 }
                 html += """</tr>"""
+
+            } finally {
+                schemaCursor.close()
             }
-                
-            html += """</table></body></html>"""
-            
-            dataCursor.close()
+
+            val dataQuery =
+                "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
+
+            val dataCursor = database.rawQuery(dataQuery, arrayOf())
+
+            try {
+                val rowCount = dataCursor.count
+
+                if (debugEnabled) log.debug("Retrieved {} rows from LastChange table", rowCount)
+
+                // Add data rows
+                while (dataCursor.moveToNext()) {
+                    html += """<tr>"""
+                    for (i in 0 until columnCount) {
+                        html += """<td>${escapeHtml(dataCursor.getString(i) ?: "")}</td>"""
+                    }
+                    html += """</tr>"""
+                }
+
+                html += """</table></body></html>"""
+
+            } finally {
+                dataCursor.close()
+            }
 
             if (debugEnabled) log.debug("html is '$html'.")
 
@@ -388,7 +405,12 @@ WHERE  path = ?
 
         } catch (e: Exception) {
             log.error("Error handling /pr/db endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error 4", "Error generating database table: ${e.message}")
+            sendError(
+                writer,
+                500,
+                "Internal Server Error 4",
+                "Error generating database table."
+            )
         }
     }
 
@@ -430,7 +452,7 @@ WHERE  path = ?
 
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error 6", "Error generating database table: ${e.message}")
+            sendError(writer, 500, "Internal Server Error 6", "Error generating database table.")
             
         } finally {
             projectDatabase?.close()
