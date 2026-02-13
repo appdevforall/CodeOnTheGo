@@ -82,8 +82,12 @@ object CI {
 					.start()
 
 			val exitCode = process.waitFor()
-			if (exitCode != 0 && failOnError) {
-				throw RuntimeException("Command '$args' failed with exit code $exitCode")
+			if (exitCode != 0) {
+				if (failOnError) {
+					throw RuntimeException("Command '$args' failed with exit code $exitCode")
+				}
+
+				return null
 			}
 
 			process
