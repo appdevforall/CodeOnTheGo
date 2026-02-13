@@ -222,7 +222,7 @@ WHERE  path = ?
             var dbContent2 = dbContent
 
             while (dbContent2.size == 1024 * 1024) {
-                val path2 = "${path}-${fragmentNumber}"
+                val path2 = "$path-$fragmentNumber"
                 if (debugEnabled) log.debug(
                     "DB item > 1 MB. fragment#{} path2='{}'.",
                     fragmentNumber,
@@ -232,7 +232,14 @@ WHERE  path = ?
                 val cursor2 = database.rawQuery(query2, arrayOf(path2))
                 try {
                     cursor2.moveToFirst()
-                    dbContent2 = cursor2.getBlob(0)
+
+                    if (cursor2.moveToFirst()) {
+                        dbContent2 = cursor2.getBlob(0)
+                    } else {
+                        if (debugEnabled) log.error("No fragment found for path '{}'.", path2)
+                        break
+                    }
+
                 } finally {
                     cursor2.close()
                 }
@@ -439,7 +446,7 @@ ORDER BY last_modified DESC"""
 
         writeNormalToClient(writer, output, html)
 
-        if (debugEnabled) log.debug("Leaving realHandleDbEndpoint().")
+        if (debugEnabled) log.debug("Leaving realHandlePrEndpoint().")
     }
 
     /**
@@ -500,13 +507,14 @@ Connection: close
     private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
         if (debugEnabled) log.debug("Entering sendError(), code=$code, message='$message', details='$details'.")
 
-        val messageBytes = "$code $message" + if (details.isEmpty()) "" else "\n$details"
+        val messageString = "$code $message" + if (details.isEmpty()) "" else "\n$details"
+        val messageStringLength = messageString.length + 1
 
         writer.println("""HTTP/1.1 $code $message
 Content-Type: text/plain
-Content-Length: ${messageBytes.length + 1}
+Content-Length: $messageStringLength
 Connection: close
 
-$messageBytes""")
+$messageString""")
     }
 }
