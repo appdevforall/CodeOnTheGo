@@ -278,7 +278,7 @@ WHERE  path = ?
                         dbContent2 = cursor2.getBlob(0)
 
                     } else {
-                        if (debugEnabled) log.error("No fragment found for path '{}'.", path2)
+                        log.error("No fragment found for path '{}'.", path2)
                         break
                     }
 
@@ -506,7 +506,7 @@ ORDER BY last_modified DESC"""
         } finally {
             cursor.close()
         }
-        
+
         if (debugEnabled) log.debug("html is '$html'.")
 
         writeNormalToClient(writer, output, html)
