@@ -202,6 +202,34 @@ object WhitelistEngine {
 					classAndMethod("com.itsaky.androidide.activities.OnboardingActivity", "checkToolsIsInstalled"),
 				)
 			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					UtilCode SPUtils initialization. The library checks for file existence 
+					and loads preferences into memory during the first access (getInstance).
+					""".trimIndent()
+				)
+				matchFramesInOrder(
+					classAndMethod("com.blankj.utilcode.util.SPUtils", "<init>"),
+					classAndMethod("com.blankj.utilcode.util.SPUtils", "getInstance")
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					UtilCode LanguageUtils reading persisted locale. This happens during 
+					Activity lifecycle callbacks to apply the saved language configuration.
+					""".trimIndent()
+				)
+				matchFramesInOrder(
+					classAndMethod("com.blankj.utilcode.util.SPUtils", "getString"),
+					classAndMethod("com.blankj.utilcode.util.LanguageUtils", "applyLanguage")
+				)
+			}
 		}
 
 	/**

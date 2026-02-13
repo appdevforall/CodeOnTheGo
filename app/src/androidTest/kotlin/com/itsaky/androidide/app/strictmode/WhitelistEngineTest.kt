@@ -108,4 +108,46 @@ class WhitelistEngineTest {
 		val allow = decision as WhitelistEngine.Decision.Allow
 		assertThat(allow.reason).contains("Oplus")
 	}
+
+	@Test
+	fun evaluateReturnsAllowForUtilCodeSPUtilsInitialization() {
+		val violatingFrames = listOf(
+			stackTraceElement("android.os.StrictMode\$AndroidBlockGuardPolicy", "onReadFromDisk", "StrictMode.java", 1728),
+			stackTraceElement("java.io.File", "exists", "File.java", 829),
+			stackTraceElement("android.app.ContextImpl", "getSharedPreferences", "ContextImpl.java", 605),
+
+			stackTraceElement("com.blankj.utilcode.util.SPUtils", "<init>", "SPUtils.java", 84),
+			stackTraceElement("com.blankj.utilcode.util.SPUtils", "getInstance", "SPUtils.java", 71),
+
+			stackTraceElement("com.itsaky.androidide.activities.SplashActivity", "onCreate", "SplashActivity.kt", 34)
+		)
+
+		val violation = createViolation<DiskReadViolation>(violatingFrames)
+		val decision = WhitelistEngine.evaluate(violation)
+
+		assertThat(decision).isInstanceOf(WhitelistEngine.Decision.Allow::class.java)
+		val allow = decision as WhitelistEngine.Decision.Allow
+		assertThat(allow.reason).contains("SPUtils initialization")
+	}
+
+	@Test
+	fun evaluateReturnsAllowForUtilCodeLanguageUtilsDiskRead() {
+		val violatingFrames = listOf(
+			stackTraceElement("android.os.StrictMode\$AndroidBlockGuardPolicy", "onReadFromDisk", "StrictMode.java", 1728),
+			stackTraceElement("android.app.SharedPreferencesImpl", "awaitLoadedLocked", "SharedPreferencesImpl.java", 283),
+
+			stackTraceElement("com.blankj.utilcode.util.SPUtils", "getString", "SPUtils.java", 131),
+			stackTraceElement("com.blankj.utilcode.util.LanguageUtils", "applyLanguage", "LanguageUtils.java", 231),
+
+			stackTraceElement("com.blankj.utilcode.util.UtilsActivityLifecycleImpl", "onActivityCreated", "UtilsActivityLifecycleImpl.java", 200),
+			stackTraceElement("com.itsaky.androidide.activities.OnboardingActivity", "onCreate", "OnboardingActivity.kt", 111)
+		)
+
+		val violation = createViolation<DiskReadViolation>(violatingFrames)
+		val decision = WhitelistEngine.evaluate(violation)
+
+		assertThat(decision).isInstanceOf(WhitelistEngine.Decision.Allow::class.java)
+		val allow = decision as WhitelistEngine.Decision.Allow
+		assertThat(allow.reason).contains("LanguageUtils reading persisted locale")
+	}
 }
