@@ -171,6 +171,11 @@ public class IDELanguageClientImpl implements ILanguageClient {
     return DiagnosticUtil.binarySearchDiagnostic(this.diagnostics.get(file), line, column);
   }
 
+  @NonNull
+  public Map<File, List<DiagnosticItem>> getAllDiagnostics() {
+    return new HashMap<>(this.diagnostics);
+  }
+
   @Override
   public void performCodeAction(PerformCodeActionParams params) {
     if (params == null) {

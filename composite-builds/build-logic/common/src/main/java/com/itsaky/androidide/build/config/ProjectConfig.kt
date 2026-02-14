@@ -87,7 +87,7 @@ val Project.simpleVersionName: String
 
 private var shouldPrintVersionCode = true
 val Project.projectVersionCode: Int
-    get() {
+	get() {
 		val calendar = java.util.Calendar.getInstance()
 		val year = calendar.get(java.util.Calendar.YEAR) % 100 // Just last two digits of year
 		val month = calendar.get(java.util.Calendar.MONTH) + 1
@@ -117,8 +117,8 @@ val Project.publishingVersion: String
 			return publishing
 		}
 
-		if (CI.isCiBuild && CI.branchName != "main") {
-			publishing += "-${CI.commitHash}-SNAPSHOT"
+		if (CI.isCiBuild && CI.branchName(this) != "main") {
+			publishing += "-${CI.commitHash(this)}-SNAPSHOT"
 		}
 
 		return publishing

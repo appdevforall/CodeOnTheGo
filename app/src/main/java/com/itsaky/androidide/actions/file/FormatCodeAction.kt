@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /**
@@ -32,6 +33,8 @@ import com.itsaky.androidide.resources.R
 class FormatCodeAction(context: Context, override val order: Int) : EditorRelatedAction() {
   override val id: String = "ide.editor.code.text.format"
   override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) =
+    TooltipTag.EDITOR_TOOLBAR_FORMAT_CODE
 
   init {
     label = context.getString(R.string.title_format_code)
