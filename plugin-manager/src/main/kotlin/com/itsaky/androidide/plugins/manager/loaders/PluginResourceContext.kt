@@ -1,11 +1,10 @@
 package com.itsaky.androidide.plugins.manager.loaders
 
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
 import android.content.res.AssetManager
+import android.content.res.Configuration
 import android.content.res.Resources
 import android.content.res.Resources.Theme
 import android.util.AttributeSet
@@ -13,28 +12,16 @@ import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 
-/**
- * Context wrapper that provides plugin-specific resources
- */
 class PluginResourceContext(
     baseContext: Context,
-    private val pluginResources: Resources,
+    pluginResources: Resources,
     private val pluginPackageInfo: PackageInfo? = null
-) : ContextThemeWrapper(baseContext, android.R.style.Theme_Material_Light) {
+) : ContextThemeWrapper(baseContext, 0) {
 
+    private var pluginResources: Resources = pluginResources
     private var inflater: LayoutInflater? = null
-
-    init {
-        // Apply plugin's theme if it exists
-        val themeResId = pluginResources.getIdentifier(
-            "PluginTheme",
-            "style",
-            pluginPackageInfo?.packageName
-        )
-        if (themeResId != 0) {
-            theme.applyStyle(themeResId, true)
-        }
-    }
+    private var lastNightMode: Int = -1
+    private var pluginTheme: Theme? = null
 
     override fun getResources(): Resources {
         return pluginResources
@@ -44,9 +31,43 @@ class PluginResourceContext(
         return pluginResources.assets
     }
 
+    private fun recreatePluginResources(newConfig: Configuration) {
+        val sourceDir = pluginPackageInfo?.applicationInfo?.sourceDir ?: return
+        @Suppress("DEPRECATION")
+        val assetManager = AssetManager::class.java.getDeclaredConstructor().newInstance()
+        val addAssetPath = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
+        addAssetPath.invoke(assetManager, sourceDir)
+        @Suppress("DEPRECATION")
+        pluginResources = Resources(assetManager, baseContext.resources.displayMetrics, newConfig)
+    }
+
     override fun getTheme(): Theme {
-        // Return the theme from ContextThemeWrapper which is properly initialized
-        return super.getTheme()
+        val currentNightMode = baseContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+
+        if (currentNightMode != lastNightMode || pluginTheme == null) {
+            lastNightMode = currentNightMode
+            recreatePluginResources(baseContext.resources.configuration)
+            inflater = null
+
+            val pluginThemeResId = pluginResources.getIdentifier(
+                "PluginTheme",
+                "style",
+                pluginPackageInfo?.packageName
+            )
+
+            val themeResId = if (pluginThemeResId != 0) {
+                pluginThemeResId
+            } else if (currentNightMode == Configuration.UI_MODE_NIGHT_YES) {
+                android.R.style.Theme_Material
+            } else {
+                android.R.style.Theme_Material_Light
+            }
+
+            pluginTheme = pluginResources.newTheme().apply {
+                applyStyle(themeResId, true)
+            }
+        }
+        return pluginTheme!!
     }
 
     override fun getClassLoader(): ClassLoader {
