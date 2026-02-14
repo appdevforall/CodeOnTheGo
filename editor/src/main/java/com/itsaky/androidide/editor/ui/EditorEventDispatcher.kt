@@ -69,6 +69,12 @@ class EditorEventDispatcher(
   }
 
   fun dispatch(event: DocumentEvent) {
+    when (event) {
+      is DocumentOpenEvent -> onDocumentOpen(event)
+      is DocumentChangeEvent -> onDocumentContentChange(event)
+      is DocumentCloseEvent -> onDocumentClose(event)
+    }
+
     check(eventQueue.offer(event)) {
       "Failed to dispatch event: $event"
     }
@@ -94,12 +100,10 @@ class EditorEventDispatcher(
   }
 
   private fun dispatchOpen(event: DocumentOpenEvent) {
-    onDocumentOpen(event)
     post(event)
   }
 
   private fun dispatchChange(event: DocumentChangeEvent) {
-    onDocumentContentChange(event)
     post(event)
   }
 
@@ -108,7 +112,6 @@ class EditorEventDispatcher(
   }
 
   private fun dispatchClose(event: DocumentCloseEvent) {
-    onDocumentClose(event)
     post(event)
   }
 
