@@ -110,8 +110,9 @@ class ComposableRenderer(
 
         if (invokeResult.isFailure) {
             val e = invokeResult.exceptionOrNull()
-            LOG.error("Failed to invoke composable method: {}", method.name, e)
-            ErrorContent("Invocation failed: ${e?.message ?: "Unknown error"}")
+            val rootCause = if (e is java.lang.reflect.InvocationTargetException) e.cause ?: e else e
+            LOG.error("Failed to invoke composable method: {}", method.name, rootCause)
+            ErrorContent("Invocation failed: ${rootCause?.message ?: "Unknown error"}")
         }
     }
 
