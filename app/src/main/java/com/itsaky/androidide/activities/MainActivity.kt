@@ -72,6 +72,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private var _binding: ActivityMainBinding? = null
 	private val analyticsManager: IAnalyticsManager by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var webServer: WebServer? = null
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -328,15 +329,19 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			try {
 				val dbFile = Environment.DOC_DB
 				log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
-				val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath, fileDirPath = this@MainActivity.filesDir.absolutePath))
-				webServer.start()
+				val server = WebServer(ServerConfig(databasePath = dbFile.absolutePath, fileDirPath = this@MainActivity.filesDir.absolutePath))
+				webServer = server
+				server.start()
 			} catch (e: Exception) {
 				log.error("Failed to start WebServer", e)
+			} finally {
+				webServer = null
 			}
 		}
 	}
 
 	override fun onDestroy() {
+		webServer?.stop()
 		ITemplateProvider.getInstance().release()
 		super.onDestroy()
 		_binding = null
