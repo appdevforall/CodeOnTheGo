@@ -21,6 +21,7 @@ import com.itsaky.androidide.zipfs2.ZipFileSystem
 import com.itsaky.androidide.zipfs2.ZipFileSystemProvider
 import jdkx.lang.model.SourceVersion
 import openjdk.tools.javac.file.RelativePath.RelativeDirectory
+import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.nio.file.Path
 
@@ -34,7 +35,11 @@ class CachedJarFileSystem(
   zfpath: Path?,
   env: MutableMap<String, *>?
 ) : ZipFileSystem(provider, zfpath, env) {
-  
+
+  companion object {
+    private val log = LoggerFactory.getLogger(CachedJarFileSystem::class.java)
+  }
+
   internal val packages = mutableMapOf<RelativeDirectory, Path>()
 
   override fun close() {
@@ -44,7 +49,11 @@ class CachedJarFileSystem(
 
   @Throws(IOException::class)
   fun doClose() {
-    super.close()
+    try {
+      super.close()
+    } catch (e: IOException) {
+      log.warn("IOException during CachedJarFileSystem close", e)
+    }
   }
 
   fun storeJARPackageDir(dir: Path?): Boolean {

@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
@@ -27,7 +28,6 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.viewmodel.SortCriteria
 import com.itsaky.androidide.ui.ProjectInfoBottomSheet
 import io.sentry.Sentry
@@ -36,8 +36,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.findValidProjects
+import com.itsaky.androidide.utils.isProjectCandidateDir
+import com.itsaky.androidide.utils.isValidProjectDirectory
+import com.itsaky.androidide.utils.isValidProjectOrContainerDirectory
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -76,6 +80,7 @@ class RecentProjectsFragment : BaseFragment() {
 		setupObservers()
 		setupClickListeners()
         bootstrapFromFixedFolderIfNeeded()
+        observeDeletionStatus()
 	}
 
 	private fun setupRecyclerView() {
@@ -216,7 +221,7 @@ class RecentProjectsFragment : BaseFragment() {
 	}
 
 
-    private fun File.isProjectCandidateDir(): Boolean = isDirectory && canRead() && !name.startsWith(".") && !isHidden
+
 
     private fun bootstrapFromFixedFolderIfNeeded() {
         if (viewModel.didBootstrap) return
@@ -228,40 +233,10 @@ class RecentProjectsFragment : BaseFragment() {
                 if (validProjects.isEmpty()) return@launch
 
                 loadProjectsIntoViewModel(validProjects)
-
-                if (GeneralPreferences.autoOpenProjects) {
-                    val lastOpenedPath = GeneralPreferences.lastOpenedProject
-
-                    val projectToOpen = validProjects.find {
-                        it.absolutePath == lastOpenedPath
-                    }
-
-                    if (projectToOpen != null) {
-                        withContext(Dispatchers.Main) { openProject(projectToOpen) }
-                        return@launch
-                    }
-
-                    val lastCreated = validProjects.maxByOrNull { it.lastModified() }
-
-                    if (lastCreated != null) {
-                        withContext(Dispatchers.Main) { openProject(lastCreated) }
-                    }
-                }
             } catch (e: Throwable) {
                 Sentry.captureException(e)
             }
         }
-    }
-
-    private fun findValidProjects(projectsRoot: File): List<File> {
-        if (!projectsRoot.isProjectCandidateDir()) return emptyList()
-
-        val subdirs = projectsRoot.listFiles()
-            ?.filter { it.isProjectCandidateDir() }
-            .orEmpty()
-        if (subdirs.isEmpty()) return emptyList()
-
-        return subdirs.filter { dir -> isValidProjectDirectory(dir) }
     }
 
     private suspend fun loadProjectsIntoViewModel(projects: List<File>) {
@@ -393,33 +368,6 @@ class RecentProjectsFragment : BaseFragment() {
         }
     }
 
-	fun isValidProjectDirectory(selectedDir: File): Boolean {
-        val appFolder = File(selectedDir, "app")
-        val buildGradleFile = File(appFolder, "build.gradle")
-        val buildGradleKtsFile = File(appFolder, "build.gradle.kts")
-        return appFolder.exists() && appFolder.isDirectory &&
-                (buildGradleFile.exists() || buildGradleKtsFile.exists())
-    }
-
-    /**
-     * Determines if the selected directory is either:
-     *  1. A valid Android project itself, OR
-     *  2. A container that includes one or more valid Android projects.
-     */
-    fun isValidProjectOrContainerDirectory(selectedDir: File): Boolean {
-        if (!selectedDir.isProjectCandidateDir()) {
-            return false
-        }
-
-        if (isValidProjectDirectory(selectedDir)) {
-            return true
-        }
-
-        // Check if it contains valid Android projects as subdirectories
-        val subDirs = selectedDir.listFiles()?.filter { it.isProjectCandidateDir() } ?: return false
-        return subDirs.any { sub -> isValidProjectDirectory(sub) }
-    }
-
 		private fun openProjectInfo(project: ProjectFile) {
 		    viewLifecycleScope.launch {
 		        val recentProject = viewModel.getProjectByName(project.name)
@@ -466,4 +414,22 @@ class RecentProjectsFragment : BaseFragment() {
 	private fun showToolTip(tag: String) {
 		TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
 	}
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.loadProjects()
+    }
+
+    private fun observeDeletionStatus() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.deletionStatus.collect { status ->
+                if (status) {
+                    flashSuccess(R.string.deleted)
+                } else {
+                    flashError(R.string.delete_failed)
+                }
+            }
+        }
+    }
+
 }

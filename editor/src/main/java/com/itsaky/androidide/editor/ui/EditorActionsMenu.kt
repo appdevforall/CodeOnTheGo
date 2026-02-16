@@ -41,6 +41,8 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.EditorActionItem
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.actions.TextTarget
+import com.itsaky.androidide.editor.adapters.IdeEditorAdapter
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -285,7 +287,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
         registry.registerActionExecListener(this)
         onFillMenu(registry, data)
 
-        this.list.adapter = ActionsListAdapter(getMenu(),  editor = editor)
+        this.list.adapter = ActionsListAdapter(getMenu(),  editor = editor, location = onGetActionLocation())
 
     }
 
@@ -315,6 +317,8 @@ open class EditorActionsMenu(val editor: IDEEditor) :
             ILanguageServerRegistry.getDefault().getServer(XMLLanguageServer.SERVER_ID)
                     as? XMLLanguageServer?
         )
+        data.put(TextTarget::class.java, IdeEditorAdapter(this.editor))
+        data.put(IDEEditor::class.java, this.editor)
         return data
     }
 
@@ -364,7 +368,8 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     private class ActionsListAdapter(
         val menu: Menu?,
         val forceShowTitle: Boolean = false,
-        val editor: IDEEditor
+        val editor: IDEEditor,
+        val location: ActionItem.Location
     ) : RecyclerView.Adapter<VH>() {
 
 
@@ -386,6 +391,11 @@ open class EditorActionsMenu(val editor: IDEEditor) :
 
     override fun onBindViewHolder(holder: VH, position: Int) {
       val item = getItem(position) ?: return
+
+      val action = getInstance().findAction(location, item.itemId)
+      val tooltipTag = action?.retrieveTooltipTag(false) ?: ""
+      val tag = tooltipTag.ifEmpty { item.contentDescription?.toString() ?: "" }
+
       val button = holder.binding.root
       button.text = if (forceShowTitle) item.title else ""
       button.tooltipText = item.title
@@ -408,8 +418,6 @@ open class EditorActionsMenu(val editor: IDEEditor) :
             }
 
             button.setOnLongClickListener {
-                val tag = item.contentDescription?.toString() ?: ""
-
                 if (tag.isNotEmpty()) {
                     TooltipManager.showIdeCategoryTooltip(
                         context = editor.context,
@@ -439,7 +447,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
             TransitionManager.beginDelayedTransition(this.list, ChangeBounds())
             this.list.layoutManager = LinearLayoutManager(editor.context)
             this.list.adapter =
-                ActionsListAdapter(item.subMenu,  true, editor)
+                ActionsListAdapter(item.subMenu,  true, editor, location = onGetActionLocation())
 
             this.list.post {
                 measureActionsList()

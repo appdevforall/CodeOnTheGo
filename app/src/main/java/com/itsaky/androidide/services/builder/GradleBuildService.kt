@@ -60,10 +60,12 @@ import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
+import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -223,7 +225,8 @@ class GradleBuildService :
 	}
 
 	override fun onDestroy() {
-		mBinder?.release()
+		buildServiceScope.cancel()
+        mBinder?.release()
 		mBinder = null
 
 		log.info("Service is being destroyed. Dismissing the shown notification...")
@@ -239,7 +242,23 @@ class GradleBuildService :
 				// the service should not block the onDestroy call in order to avoid timeouts
 				// the tooling server must release resources and exit automatically
 				IDEApplication.instance.coroutineScope.launch(Dispatchers.IO) {
-					server.shutdown().await()
+					// This might result in an `IOException: stream closed` if the tooling server
+					// process exited before we had a chance to send the shutdown request. Since
+					// the server exits before we have a chance to communicate with it, the
+					// OutputStream we use to send the request is closed as well, resulting in the
+					// IOException.
+					runCatching { server.shutdown().await() }
+						.onFailure { err ->
+                            val actualCause = err.cause ?: err
+                            val message = actualCause.message?.lowercase() ?: ""
+                            if (message.contains("stream closed") || message.contains("broken pipe")) {
+                                log.error("Tooling API server stream closed during shutdown (expected)")
+                            } else {
+                                // log if the error is not due to the stream being closed
+                                log.error("Failed to shutdown Tooling API server", err)
+                                Sentry.captureException(err)
+                            }
+						}
 				}
 			} catch (e: Throwable) {
 				if (e !is TimeoutException) {
@@ -254,11 +273,6 @@ class GradleBuildService :
 
 		toolingApiClient?.client = null
 		toolingApiClient = null
-
-		log.debug("Cancelling tooling server output reader job...")
-		outputReaderJob?.cancel()
-		outputReaderJob = null
-
 		isToolingServerStarted = false
 	}
 
@@ -274,6 +288,11 @@ class GradleBuildService :
 		errorStream: InputStream,
 	) {
 		startServerOutputReader(errorStream)
+			.invokeOnCompletion { err ->
+				log.info("tooling API server reader stopped: ${err?.message ?: "OK"}", err)
+				outputReaderJob = null
+			}
+
 		this.server = server
 		this.isToolingServerStarted = true
 	}
@@ -632,13 +651,15 @@ class GradleBuildService :
 			}
 		}
 
-	private fun startServerOutputReader(input: InputStream) {
-		if (outputReaderJob?.isActive == true) {
-			return
+	private fun startServerOutputReader(input: InputStream): Job {
+		outputReaderJob?.let { job ->
+			if (job.isActive) {
+				return job
+			}
 		}
 
-		outputReaderJob =
-			buildServiceScope.launch(
+		return buildServiceScope
+			.launch(
 				Dispatchers.IO + CoroutineName("ToolingServerErrorReader"),
 			) {
 				val reader = input.bufferedReader()
@@ -656,6 +677,8 @@ class GradleBuildService :
 					// log the error and fail silently
 					log.error("Failed to read tooling server output", e)
 				}
+			}.also { job ->
+				outputReaderJob = job
 			}
 	}
 

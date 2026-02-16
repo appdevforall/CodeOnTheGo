@@ -19,9 +19,13 @@ package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
 import android.os.Bundle
+import android.system.ErrnoException
+import android.system.OsConstants
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
@@ -31,7 +35,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
@@ -42,6 +45,7 @@ import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.FindActionDialog
+import com.itsaky.androidide.fragments.SearchFieldToolbar
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
 import com.itsaky.androidide.handlers.EditorBuildEventListener
 import com.itsaky.androidide.handlers.LspHandler.connectClient
@@ -55,6 +59,8 @@ import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
+import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
@@ -73,6 +79,7 @@ import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -84,13 +91,17 @@ import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
+import io.github.rosemoe.sora.text.ICUUtils
+import io.github.rosemoe.sora.util.IntPair
+import org.koin.android.ext.android.inject
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.FileNotFoundException
 import org.adfa.constants.CONTENT_KEY
 import java.io.File
+import java.io.FileNotFoundException
+import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
@@ -99,6 +110,7 @@ import java.util.stream.Collectors
 @Suppress("MemberVisibilityCanBePrivate")
 abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	protected val buildVariantsViewModel by viewModels<BuildVariantsViewModel>()
+	private val pluginRepository: PluginRepository by inject()
 
 	protected var mSearchingProgress: ProgressSheet? = null
 	protected var mFindInProjectDialog: AlertDialog? = null
@@ -106,13 +118,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+	private val Throwable?.isFileNotFound: Boolean
+		get() = this is FileNotFoundException ||
+			this is NoSuchFileException ||
+			(this is ErrnoException && this.errno == OsConstants.ENOENT)
 
-	val findInProjectDialog: AlertDialog
+	val findInProjectDialog: AlertDialog?
 		get() {
 			if (mFindInProjectDialog == null) {
 				createFindInProjectDialog()
 			}
-			return mFindInProjectDialog!!
+			return mFindInProjectDialog
 		}
 
 	fun findActionDialog(actionData: ActionData): FindActionDialog {
@@ -120,7 +136,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val registry = getInstance() as DefaultActionsRegistry
 
 		return FindActionDialog(
-			anchor = content.customToolbar.findViewById(R.id.menu_container),
+			anchor = content.projectActionsToolbar.findViewById(R.id.menu_container),
 			context = this,
 			actionData = actionData,
 			shouldShowFindInFileAction = shouldHideFindInFileAction,
@@ -225,6 +241,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				installApk(state)
 				buildViewModel.installationAttempted()
 			}
+
+			is BuildState.AwaitingPluginInstall -> {
+				showPluginInstallDialog(state.cgpFile)
+			}
 		}
 		// Refresh the toolbar icons (e.g., the run/stop button).
 		invalidateOptionsMenu()
@@ -236,6 +256,42 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
 		)
+	}
+
+	private fun showPluginInstallDialog(cgpFile: File) {
+		if (!cgpFile.exists()) {
+			flashError(getString(string.msg_plugin_file_not_found))
+			buildViewModel.pluginInstallationAttempted()
+			return
+		}
+		val pluginName = cgpFile.nameWithoutExtension
+		newMaterialDialogBuilder(this)
+			.setTitle(string.title_install_plugin)
+			.setMessage(getString(string.msg_install_plugin_prompt, pluginName))
+			.setPositiveButton(string.btn_install) { dialog, _ ->
+				dialog.dismiss()
+				installPlugin(cgpFile)
+			}.setNegativeButton(string.btn_later) { dialog, _ ->
+				dialog.dismiss()
+				buildViewModel.pluginInstallationAttempted()
+			}.setOnCancelListener {
+				buildViewModel.pluginInstallationAttempted()
+			}.show()
+	}
+
+	private fun installPlugin(cgpFile: File) {
+		lifecycleScope.launch {
+			setStatus(getString(string.status_installing_plugin))
+			val result = pluginRepository.installPluginFromFile(cgpFile)
+			result
+				.onSuccess {
+					showRestartPrompt(this@ProjectHandlerActivity)
+				}.onFailure { error ->
+					flashError(getString(string.msg_plugin_install_failed, error.message ?: "Unknown error"))
+				}
+			setStatus("")
+			buildViewModel.pluginInstallationAttempted()
+		}
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {
@@ -325,11 +381,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	fun appendBuildOutput(str: String) {
+        if (_binding == null || isDestroyed || isFinishing) return
 		content.bottomSheet.appendBuildOut(str)
 	}
 
 	fun notifySyncNeeded() {
-		notifySyncNeeded { initializeProject() }
+		notifySyncNeeded { initializeProject(forceSync = true) }
 	}
 
 	private fun notifySyncNeeded(onConfirm: () -> Unit) {
@@ -427,17 +484,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		Toast.makeText(this@ProjectHandlerActivity, message, Toast.LENGTH_LONG).show()
 	}
 
-	private suspend fun handleMissingProjectDirectory(projectName: String) = withContext(Dispatchers.Main) {
-		recentProjectsViewModel.deleteProject(projectName)
-		showToast(getString(string.msg_project_dir_doesnt_exist))
+	private suspend fun handleMissingProjectDirectory(projectName: String) =
+		withContext(Dispatchers.Main) {
+			recentProjectsViewModel.deleteProject(projectName)
+			showToast(getString(string.msg_project_dir_doesnt_exist))
 
-		val intent = Intent(this@ProjectHandlerActivity, MainActivity::class.java).apply {
-			addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+			val intent =
+				Intent(this@ProjectHandlerActivity, MainActivity::class.java).apply {
+					addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+				}
+
+			startActivity(intent)
+			this@ProjectHandlerActivity.finish()
 		}
-
-		startActivity(intent)
-		this@ProjectHandlerActivity.finish()
-	}
 
 	/**
 	 * Initialize (sync) the project.
@@ -456,17 +515,18 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			return@launch
 		}
 
-		val needsSync = try {
-			forceSync || manager.isGradleSyncNeeded(projectDir)
-		} catch (e: Exception) {
-			when (e) {
-				is FileNotFoundException -> {
-					handleMissingProjectDirectory(projectDir.name)
-					return@launch
+		val needsSync =
+			try {
+				forceSync || manager.isGradleSyncNeeded(projectDir)
+			} catch (e: Exception) {
+				when (e) {
+					is FileNotFoundException -> {
+						handleMissingProjectDirectory(projectDir.name)
+						return@launch
+					}
+					else -> throw e
 				}
-				else -> throw e
 			}
-		}
 
 		withContext(Dispatchers.Main.immediate) {
 			preProjectInit()
@@ -583,7 +643,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
-				if (error != null) {
+
+				val isExpectedError = error.isFileNotFound
+
+				if (error != null && !isExpectedError) {
 					Sentry.captureException(error)
 				}
 
@@ -785,17 +848,52 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 		val dialog = builder.create()
-		dialog.onLongPress {
-			TooltipManager.showIdeCategoryTooltip(
-				context = this,
-				anchorView = binding.root,
-				tag = TooltipTag.DIALOG_FIND_IN_PROJECT,
-			)
-			true
+		dialog.onLongPress { view ->
+			if (
+				view is EditText
+			) {
+				view.selectCurrentWord()
+				view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+				SearchFieldToolbar(view).show()
+				true
+			} else if (view === binding.input || view === binding.filter || view.parent === binding.input || view.parent === binding.filter) {
+				true
+			} else {
+				TooltipManager.showIdeCategoryTooltip(
+					context = this,
+					anchorView = binding.root,
+					tag = TooltipTag.DIALOG_FIND_IN_PROJECT,
+				)
+				true
+			}
 		}
 
 		mFindInProjectDialog = dialog
 		return mFindInProjectDialog
+	}
+
+	fun EditText.selectCurrentWord() {
+		val content = text ?: return
+		if (content.isEmpty()) return
+
+		val currentStart = selectionStart
+		val currentEnd = selectionEnd
+
+		if (currentStart < 0 || currentEnd > content.length || currentStart != currentEnd) {
+			return
+		}
+
+		val range = ICUUtils.getWordRange(content, currentStart, true)
+		val newStart = IntPair.getFirst(range)
+		val newEnd = IntPair.getSecond(range)
+
+		val isValidRange = newStart >= 0 &&
+			newEnd <= content.length &&
+			newStart <= newEnd
+
+		if (isValidRange && newStart != newEnd) {
+			setSelection(newStart, newEnd)
+		}
 	}
 
 	private fun initialSetup() {

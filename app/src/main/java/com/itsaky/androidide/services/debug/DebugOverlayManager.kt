@@ -13,6 +13,8 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
@@ -33,6 +35,7 @@ class DebugOverlayManager private constructor(
     private var isDragging = false
 
     init {
+        binding.dragHandle.root.isLongClickable = true
         binding.dragHandle.root.icon = ContextCompat.getDrawable(binding.root.context, R.drawable.ic_drag_handle)
 
         binding.dragHandle.root.setOnTouchListener { v, event ->
@@ -42,14 +45,17 @@ class DebugOverlayManager private constructor(
                     initialWindowY = overlayLayoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
-                    true
+                    isDragging = false
+                    false
                 }
 
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = (event.rawX - initialTouchX).toInt()
                     val deltaY = (event.rawY - initialTouchY).toInt()
-                    if (isDragging || deltaX > touchSlop || deltaY > touchSlop) {
+                    if (isDragging || abs(deltaX) > touchSlop || abs(deltaY) > touchSlop) {
                         isDragging = true
+                        v.isPressed = false
+                        v.parent.requestDisallowInterceptTouchEvent(true)
                         overlayLayoutParams.x = initialWindowX + deltaX
                         overlayLayoutParams.y = initialWindowY + deltaY
                         windowManager.updateViewLayout(binding.root, overlayLayoutParams)
@@ -58,17 +64,30 @@ class DebugOverlayManager private constructor(
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    isDragging = false
-                    val deltaX = abs(event.rawX - initialTouchX)
-                    val deltaY = abs(event.rawY - initialTouchY)
-                    if (deltaX < touchSlop && deltaY < touchSlop) {
+                    if (isDragging) {
+                        isDragging = false
+                        true
+                    } else {
                         v.performClick()
-                    }
-                    true
+                        false
+                    }}
+
+                MotionEvent.ACTION_CANCEL -> {
+                    isDragging = false
+                    false
                 }
 
                 else -> false
             }
+        }
+
+        binding.dragHandle.root.setOnLongClickListener { view ->
+            TooltipManager.showIdeCategoryTooltip(
+                context = view.context,
+                anchorView = view.rootView,
+                tag = TooltipTag.DEBUGGER_ACTION_MOVE
+            )
+            true
         }
     }
 

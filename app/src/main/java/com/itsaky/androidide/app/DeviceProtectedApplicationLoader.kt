@@ -1,13 +1,12 @@
 package com.itsaky.androidide.app
 
-import android.os.StrictMode
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
-import com.itsaky.androidide.di.coreModule
-import com.itsaky.androidide.di.pluginModule
+import com.itsaky.androidide.app.strictmode.StrictModeConfig
+import com.itsaky.androidide.app.strictmode.StrictModeManager
 import com.itsaky.androidide.events.AppEventsIndex
 import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
@@ -15,65 +14,57 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
+import com.itsaky.androidide.ui.themes.IThemeManager
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
 import io.sentry.SentryReplayOptions.SentryReplayQuality
 import io.sentry.android.core.SentryAndroid
-import io.sentry.android.core.SentryAndroidOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
-import org.koin.android.ext.koin.androidContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
-import kotlinx.coroutines.*
-
-
 
 /**
  * @author Akash Yadav
  */
-internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLifecycleObserver,
+internal object DeviceProtectedApplicationLoader :
+	ApplicationLoader,
+	DefaultLifecycleObserver,
 	KoinComponent {
-
 	private val logger = LoggerFactory.getLogger(DeviceProtectedApplicationLoader::class.java)
 
 	private val crashEventSubscriber = CrashEventSubscriber()
 	val analyticsManager: IAnalyticsManager by inject()
 
-	override fun load(app: IDEApplication) {
+	override suspend fun load(app: IDEApplication) {
 		logger.info("Loading device protected storage context components...")
 
-        // Enable StrictMode for debug builds
-        if (BuildConfig.DEBUG) {
-            CoroutineScope(Dispatchers.Main).launch {
-                val reprieve = withContext(Dispatchers.IO) {
-                    FeatureFlags.isReprieveEnabled()
-                }
-
-                StrictMode.setThreadPolicy(
-                    StrictMode.ThreadPolicy.Builder()
-                        .detectAll()
-                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
-                        .build()
-                )
-                StrictMode.setVmPolicy(
-                    StrictMode.VmPolicy.Builder()
-                        .detectAll()
-                        .apply { if (reprieve) penaltyLog() else penaltyDeath() }
-                        .build()
-                )
-            }
-        }
-
-        startKoin {
-			androidContext(app)
-			modules(coreModule, pluginModule)
+		runCatching {
+			Environment.init(app)
 		}
+
+		runCatching {
+			// try to initialize feature flags
+			// this may fail when running in direct boot mode, so we wrap this
+			// in runCatching and ignore errors, if any
+			FeatureFlags.initialize()
+		}
+
+		// Enable StrictMode for debug builds
+		StrictModeManager.install(
+			StrictModeConfig(
+				enabled = BuildConfig.DEBUG && !FeatureFlags.isPardonEnabled,
+                isReprieveEnabled = true,
+			),
+		)
 
 		SentryAndroid.init(app) { options ->
 			// Reduce replay quality to LOW to prevent OOM
@@ -101,7 +92,14 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
 		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
 
-		initializeAnalytics()
+		app.coroutineScope.launch(Dispatchers.IO) {
+			// early-init theme manager since it may need to perform disk reads
+			IThemeManager.getInstance()
+		}
+
+		withContext(Dispatchers.Main) {
+			initializeAnalytics()
+		}
 	}
 
 	private fun initializeAnalytics() {
@@ -116,7 +114,7 @@ internal object DeviceProtectedApplicationLoader : ApplicationLoader, DefaultLif
 
 	fun handleUncaughtException(
 		thread: Thread,
-		exception: Throwable
+		exception: Throwable,
 	) {
 		// we can't write logs to files, nor we can show the crash handler
 		// activity to the user. Just report to Sentry and exit.

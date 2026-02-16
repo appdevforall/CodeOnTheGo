@@ -20,7 +20,7 @@
       }
     },
     "hook": {
-      "on-activate": "  set -eu\n  set -o pipefail\n\n  if ! [ -f \".androidide_root\" ]; then\n    echo \"Run `flox activate` from the root directory\"\n    echo \"Abort.\"\n    exit 1\n  fi\n\n  # Use these env vars if set; otherwise fall back to default\n  DEFAULT_ANDROID_HOME=\"$HOME/Android/Sdk\"\n  DEFAULT_GRADLE_USER_HOME=\"$HOME/.gradle\"\n  ANDROID_HOME=\"${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}\"\n  GRADLE_USER_HOME=\"${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}\"\n  export ANDROID_HOME\n  export GRADLE_USER_HOME\n\n  echo \"Using ANDROID_HOME=$ANDROID_HOME\"\n  echo \"Using GRADLE_USER_HOME=$GRADLE_USER_HOME\"\n\n  # Accept licenses\n  echo \"Accepting SDK licenses...\"\n  { yes || true; } | sdkmanager --sdk_root=\"$ANDROID_HOME\" --licenses 2>&1 > /dev/null\n\n  install_sdk_tools_if_required() {\n    installed_tools=$(sdkmanager --sdk_root=\"$ANDROID_HOME\" --list_installed)\n\n    declare -a to_install=()\n    for package in \"$@\"; do\n        if ! echo \"$installed_tools\" | grep -q \"$package\"; then\n            echo \"'$package' is missing.\"\n            to_install+=(\"$package\")\n        fi\n    done\n\n    if [ ${#to_install[@]} -ne 0 ]; then\n        echo \"Installing SDK Tools: ${to_install[*]}\"\n        sdkmanager --sdk_root=\"$ANDROID_HOME\" --install \"${to_install[@]}\"\n    fi\n  }\n\n  # The packages we need\n  install_sdk_tools_if_required \\\n    \"build-tools;35.0.0\" \\\n    \"cmake;3.31.6\" \\\n    \"platforms;android-35\" \\\n    \"platform-tools\" \\\n    \"ndk;26.1.10909125\"\n\n  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  for hook_name in \"pre-commit\" \"pre-push\"; do\n    hook=\".git/hooks/$hook_name\"\n    if ! [ -f \"$hook\" ] || ! grep -q 'COGO_GIT_HOOK' \"$hook\"; then\n      echo \"Updating $hook_name hook...\"\n      cat >\"$hook\" <<'EOF'\n#!/bin/bash\n# -- COGO_GIT_HOOK\nexec \"$(git rev-parse --show-toplevel)/.githooks/hook\" \"$(basename \"$0\")\"\nEOF\n      chmod +x \"$hook\"\n    fi\n  done\n"
+      "on-activate": "  set -eu\n  set -o pipefail\n\n  if ! [ -f \".androidide_root\" ]; then\n    echo \"Run `flox activate` from the root directory\"\n    echo \"Abort.\"\n    exit 1\n  fi\n\n  # Use these env vars if set; otherwise fall back to default\n  DEFAULT_ANDROID_HOME=\"$HOME/Android/Sdk\"\n  DEFAULT_GRADLE_USER_HOME=\"$HOME/.gradle\"\n  ANDROID_HOME=\"${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}\"\n  GRADLE_USER_HOME=\"${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}\"\n  export ANDROID_HOME\n  export GRADLE_USER_HOME\n\n  echo \"Using ANDROID_HOME=$ANDROID_HOME\"\n  echo \"Using GRADLE_USER_HOME=$GRADLE_USER_HOME\"\n\n  # Accept licenses\n  echo \"Accepting SDK licenses...\"\n  { yes || true; } | sdkmanager --sdk_root=\"$ANDROID_HOME\" --licenses 2>&1 > /dev/null\n\n  install_sdk_tools_if_required() {\n    installed_tools=$(sdkmanager --sdk_root=\"$ANDROID_HOME\" --list_installed)\n\n    declare -a to_install=()\n    for package in \"$@\"; do\n        if ! echo \"$installed_tools\" | grep -q \"$package\"; then\n            echo \"'$package' is missing.\"\n            to_install+=(\"$package\")\n        fi\n    done\n\n    if [ ${#to_install[@]} -ne 0 ]; then\n        echo \"Installing SDK Tools: ${to_install[*]}\"\n        sdkmanager --sdk_root=\"$ANDROID_HOME\" --install \"${to_install[@]}\"\n    fi\n  }\n\n  # The packages we need\n  install_sdk_tools_if_required \\\n    \"build-tools;35.0.0\" \\\n    \"cmake;3.31.6\" \\\n    \"platforms;android-35\" \\\n    \"platform-tools\" \\\n    \"ndk;26.1.10909125\"\n\n  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  if git rev-parse --git-dir >/dev/null 2>&1; then\n    hooks_dir=\"$(git rev-parse --git-common-dir)/hooks\"\n    mkdir -p \"$hooks_dir\"\n    for hook_name in \"pre-commit\" \"pre-push\"; do\n      hook=\"$hooks_dir/$hook_name\"\n      if ! [ -f \"$hook\" ] || ! grep -q 'COGO_GIT_HOOK' \"$hook\"; then\n        echo \"Updating $hook_name hook...\"\n        cat >\"$hook\" <<'EOF'\n#!/bin/bash\n# -- COGO_GIT_HOOK\nexec \"$(git rev-parse --show-toplevel)/.githooks/hook\" \"$(basename \"$0\")\"\nEOF\n        chmod +x \"$hook\"\n      fi\n    done\n  fi\n"
     },
     "profile": {
       "common": "  # Override the 'sdkmanager' command so that we don't have to\n  #   specify --sdk_root everytime\n  sdkman=$(command -v sdkmanager)\n  alias sdkmanager=\"$sdkman --sdk_root=$ANDROID_HOME\"\n"
@@ -38,27 +38,27 @@
     {
       "attr_path": "android-studio-tools",
       "broken": false,
-      "derivation": "/nix/store/2i6ak64hm734brsna7s9gjmyr6lgf95q-android-studio-tools-13114758.drv",
+      "derivation": "/nix/store/vhyaxdy4xryr3nx5mamzsbf3qwjadd7l-android-studio-tools-14742923.drv",
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "name": "android-studio-tools-13114758",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "android-studio-tools-14742923",
       "pname": "android-studio-tools",
-      "rev": "c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "rev_count": 861038,
-      "rev_date": "2025-09-13T06:43:22Z",
-      "scrape_date": "2025-09-15T02:00:42.055294Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T04:38:28.050685Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": true,
-      "version": "13114758",
+      "version": "14742923",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/ipmsim83nk5p6irh4a7kd8fi983ck8h8-android-studio-tools-13114758"
+        "out": "/nix/store/ylk0irn4x6disrc3pr264hrwz55d0wfb-android-studio-tools-14742923"
       },
       "system": "aarch64-darwin",
       "group": "toplevel",
@@ -67,27 +67,27 @@
     {
       "attr_path": "android-studio-tools",
       "broken": false,
-      "derivation": "/nix/store/dcgsdr5y9q1g0pv8f95pm56b69h8q439-android-studio-tools-13114758.drv",
+      "derivation": "/nix/store/3caszvf7iwda9mz4s3y32284lpy9jbai-android-studio-tools-14742923.drv",
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "name": "android-studio-tools-13114758",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "android-studio-tools-14742923",
       "pname": "android-studio-tools",
-      "rev": "c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "rev_count": 861038,
-      "rev_date": "2025-09-13T06:43:22Z",
-      "scrape_date": "2025-09-15T02:29:39.883163Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:10:35.133392Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": true,
-      "version": "13114758",
+      "version": "14742923",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/sx46la5cq5wm9gdmrhvpw7kii3m3nsnn-android-studio-tools-13114758"
+        "out": "/nix/store/z4w03mvvnl0lhhckpgih6g7km3xg1kn4-android-studio-tools-14742923"
       },
       "system": "aarch64-linux",
       "group": "toplevel",
@@ -96,27 +96,27 @@
     {
       "attr_path": "android-studio-tools",
       "broken": false,
-      "derivation": "/nix/store/pws0hiiri6kxm6yb68igsqqq1kz69hzb-android-studio-tools-13114758.drv",
+      "derivation": "/nix/store/mawk8al7s30mffyg6cfivjsq5zfiay9l-android-studio-tools-14742923.drv",
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "name": "android-studio-tools-13114758",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "android-studio-tools-14742923",
       "pname": "android-studio-tools",
-      "rev": "c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "rev_count": 861038,
-      "rev_date": "2025-09-13T06:43:22Z",
-      "scrape_date": "2025-09-15T02:56:35.462994Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:44:13.238819Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": true,
-      "version": "13114758",
+      "version": "14742923",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/3jn85yfkr8jv379r5aamavbqdmikrsry-android-studio-tools-13114758"
+        "out": "/nix/store/vcjrjb9v8ynvwc15532kk50aslhnvma9-android-studio-tools-14742923"
       },
       "system": "x86_64-darwin",
       "group": "toplevel",
@@ -125,27 +125,27 @@
     {
       "attr_path": "android-studio-tools",
       "broken": false,
-      "derivation": "/nix/store/90rmparlkjhxwvpxs13sr3xmcakxw1yd-android-studio-tools-13114758.drv",
+      "derivation": "/nix/store/1cf9g64f0v1yp8xg6wwc8jxs9v0lccn2-android-studio-tools-14742923.drv",
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "name": "android-studio-tools-13114758",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "android-studio-tools-14742923",
       "pname": "android-studio-tools",
-      "rev": "c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "rev_count": 861038,
-      "rev_date": "2025-09-13T06:43:22Z",
-      "scrape_date": "2025-09-15T03:26:55.955488Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T06:20:15.887378Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": true,
-      "version": "13114758",
+      "version": "14742923",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/crlhb7hyxw9g04124hs11mkzxbsq6dv7-android-studio-tools-13114758"
+        "out": "/nix/store/3k85k06y7lpzhhc2wipw7pc3gsd936xs-android-studio-tools-14742923"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -154,17 +154,17 @@
     {
       "attr_path": "findutils",
       "broken": false,
-      "derivation": "/nix/store/5g6bcrzmasmmm300pkks93fpjdc79p1j-findutils-4.10.0.drv",
+      "derivation": "/nix/store/n61i8m1yy4l3jjr2kacp0kf4pximp46p-findutils-4.10.0.drv",
       "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
       "install_id": "findutils",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "findutils-4.10.0",
       "pname": "findutils",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:22:55.014147Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T04:38:29.072956Z",
       "stabilities": [
         "unstable"
       ],
@@ -174,9 +174,9 @@
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/qbmnbqgwyr11l968v5gp9ghpmn7s8kq6-findutils-4.10.0-info",
-        "locate": "/nix/store/kpp7crnbczf9z65km9ckiiva32cshicd-findutils-4.10.0-locate",
-        "out": "/nix/store/9gfvy5dd2kp4xf7m3k5gm79dx1mja2lj-findutils-4.10.0"
+        "info": "/nix/store/9wh1zv8qi8p4kr1cnzvmv1n7x1wrrqbf-findutils-4.10.0-info",
+        "locate": "/nix/store/3wg0r18yal9jglc596kbsb4g62jax7n7-findutils-4.10.0-locate",
+        "out": "/nix/store/5v87jn1n1a622ccfk0pag63fw0bz232z-findutils-4.10.0"
       },
       "system": "aarch64-darwin",
       "group": "toplevel",
@@ -185,17 +185,17 @@
     {
       "attr_path": "findutils",
       "broken": false,
-      "derivation": "/nix/store/7nv23qxgv9g1d3g516cr9azaz2aq4j6g-findutils-4.10.0.drv",
+      "derivation": "/nix/store/vv13jafjz79mscvx6v241p9bnrbarvwm-findutils-4.10.0.drv",
       "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
       "install_id": "findutils",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "findutils-4.10.0",
       "pname": "findutils",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:41:02.067356Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:10:36.613759Z",
       "stabilities": [
         "unstable"
       ],
@@ -205,9 +205,9 @@
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/x9q8nxdz72fgp06i2lglry6abi657dql-findutils-4.10.0-info",
-        "locate": "/nix/store/smdalgdz7ay689qpw7w7hslyvyramyfc-findutils-4.10.0-locate",
-        "out": "/nix/store/x2fl51igajig0r3njllwajrkv2n5k70p-findutils-4.10.0"
+        "info": "/nix/store/3z3xx3hc9hvmgkwx259cadc6shbw9574-findutils-4.10.0-info",
+        "locate": "/nix/store/cq88mbcx5d6ablhmqlz5n0zff178sp91-findutils-4.10.0-locate",
+        "out": "/nix/store/5xiydli2zwmmk5a3diqvidb0ch6pz436-findutils-4.10.0"
       },
       "system": "aarch64-linux",
       "group": "toplevel",
@@ -216,17 +216,17 @@
     {
       "attr_path": "findutils",
       "broken": false,
-      "derivation": "/nix/store/66lhwzg9dpnz284brz64n9irx2xs2jxm-findutils-4.10.0.drv",
+      "derivation": "/nix/store/hhs7fr10aijgavkfgsjwgls829hmv464-findutils-4.10.0.drv",
       "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
       "install_id": "findutils",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "findutils-4.10.0",
       "pname": "findutils",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:56:59.405761Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:44:14.236194Z",
       "stabilities": [
         "unstable"
       ],
@@ -236,9 +236,9 @@
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/xq02cyxzd9rbk66g5hkcshz0crzf06ry-findutils-4.10.0-info",
-        "locate": "/nix/store/21aa2fm847039hnvsy89chskd831zi0c-findutils-4.10.0-locate",
-        "out": "/nix/store/gay4p2hpdnaf04lzs8k6wgv99brmpx80-findutils-4.10.0"
+        "info": "/nix/store/75mkc0b190yhq9sjnib1akylw4g1xapb-findutils-4.10.0-info",
+        "locate": "/nix/store/m3v66am0isra854d6mnvn0pj5w0rmbx2-findutils-4.10.0-locate",
+        "out": "/nix/store/60p50fcwd57dihf8ks941klrlhimdjhf-findutils-4.10.0"
       },
       "system": "x86_64-darwin",
       "group": "toplevel",
@@ -247,17 +247,17 @@
     {
       "attr_path": "findutils",
       "broken": false,
-      "derivation": "/nix/store/j2wdja1m2v1k524ydbvxbdf6fjb7fw0c-findutils-4.10.0.drv",
+      "derivation": "/nix/store/j03vi5rbki1d6pk6zacqq7vrq2y7s9m1-findutils-4.10.0.drv",
       "description": "GNU Find Utilities, the basic directory searching utilities of the GNU operating system",
       "install_id": "findutils",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "findutils-4.10.0",
       "pname": "findutils",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T05:15:56.571321Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T06:20:17.533575Z",
       "stabilities": [
         "unstable"
       ],
@@ -267,9 +267,9 @@
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/yjab7vlimxzqpndjdqzann33i34x6pyy-findutils-4.10.0-info",
-        "locate": "/nix/store/5pvwgdzsdfag7iivrdjg946pr2if0f39-findutils-4.10.0-locate",
-        "out": "/nix/store/7y59hzi3svdj1xjddjn2k7km96pifcyl-findutils-4.10.0"
+        "info": "/nix/store/r7ij2k3ps4jzj68yisgxis2bq5f7lacf-findutils-4.10.0-info",
+        "locate": "/nix/store/p99ac3k0wfj0l79wxrhym8viyk6h1d73-findutils-4.10.0-locate",
+        "out": "/nix/store/16wfacfgap3chf7mcjnd8dwi85dj4qqi-findutils-4.10.0"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -278,28 +278,31 @@
     {
       "attr_path": "gnugrep",
       "broken": false,
-      "derivation": "/nix/store/1cb279q6fbv22bdz6qxcvczs9c8iaivd-gnugrep-3.11.drv",
+      "derivation": "/nix/store/rwwn4kk3chbpq7qm4qd8yssmfbs0q5s0-gnugrep-3.12.drv",
       "description": "GNU implementation of the Unix grep command",
       "install_id": "gnugrep",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "name": "gnugrep-3.11",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "gnugrep-3.12",
       "pname": "gnugrep",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:22:55.262211Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T04:38:29.434971Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "3.11",
+      "version": "3.12",
       "outputs_to_install": [
+        "out",
+        "out",
+        "out",
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/5aq64a9951nhk7s005rvswmsgpdwc528-gnugrep-3.11-info",
-        "out": "/nix/store/6rdq4hg48bmqy7d8da38niai5ngg1x1s-gnugrep-3.11"
+        "info": "/nix/store/i484zygrqw554k0ddswv6k7lkn7i3za1-gnugrep-3.12-info",
+        "out": "/nix/store/vh7z511kn1g6c4j4rrj2fgxnjsbny5mw-gnugrep-3.12"
       },
       "system": "aarch64-darwin",
       "group": "toplevel",
@@ -308,28 +311,29 @@
     {
       "attr_path": "gnugrep",
       "broken": false,
-      "derivation": "/nix/store/xlx281cariqlrxzcldxb7mhsf9m2vkv8-gnugrep-3.11.drv",
+      "derivation": "/nix/store/xyv9gp18n072py5knaigpgry7nzc2v39-gnugrep-3.12.drv",
       "description": "GNU implementation of the Unix grep command",
       "install_id": "gnugrep",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "name": "gnugrep-3.11",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "gnugrep-3.12",
       "pname": "gnugrep",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:41:02.771075Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:10:37.588729Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "3.11",
+      "version": "3.12",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/mhlv3zz5vag1w0b8wv1z1m1ms43k52h5-gnugrep-3.11-info",
-        "out": "/nix/store/f5qzw97sf24p9nr550sr7gipnpkaw82a-gnugrep-3.11"
+        "info": "/nix/store/2lj0xvg84lzn5bvap89grjzvrgx43kz9-gnugrep-3.12-info",
+        "out": "/nix/store/r21ffchrdgccar73w3skkah0aj15mj2b-gnugrep-3.12"
       },
       "system": "aarch64-linux",
       "group": "toplevel",
@@ -338,28 +342,28 @@
     {
       "attr_path": "gnugrep",
       "broken": false,
-      "derivation": "/nix/store/4h8n6idcd6p0yg7rsda8nj33xmximxps-gnugrep-3.11.drv",
+      "derivation": "/nix/store/2lpl54fl85bbvyfpnr1xqnzvr7mhsamy-gnugrep-3.12.drv",
       "description": "GNU implementation of the Unix grep command",
       "install_id": "gnugrep",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "name": "gnugrep-3.11",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "gnugrep-3.12",
       "pname": "gnugrep",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:56:59.695964Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:44:14.639688Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "3.11",
+      "version": "3.12",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/1gwcxf8z8xkz5q54wnkm8msxi1vh0wdg-gnugrep-3.11-info",
-        "out": "/nix/store/xagpmxlwfr18i8c7wlpcm4rw6658833c-gnugrep-3.11"
+        "info": "/nix/store/zvgc176fjzpnyhlp6y0f7pd1jl6zvv91-gnugrep-3.12-info",
+        "out": "/nix/store/jblpqghdm8kbsk6lm2szsfz6qqy3ldfd-gnugrep-3.12"
       },
       "system": "x86_64-darwin",
       "group": "toplevel",
@@ -368,28 +372,30 @@
     {
       "attr_path": "gnugrep",
       "broken": false,
-      "derivation": "/nix/store/k3v3crqfmwdqi1hj5cb99q74qk6548r4-gnugrep-3.11.drv",
+      "derivation": "/nix/store/m6651s32nkx8l7rq453mwpmz361vkb15-gnugrep-3.12.drv",
       "description": "GNU implementation of the Unix grep command",
       "install_id": "gnugrep",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "name": "gnugrep-3.11",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "gnugrep-3.12",
       "pname": "gnugrep",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T05:15:57.337960Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T06:20:18.588962Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "3.11",
+      "version": "3.12",
       "outputs_to_install": [
+        "out",
+        "out",
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/ikhb97s6a22dn21lhxlzhambsmisrvff-gnugrep-3.11-info",
-        "out": "/nix/store/gqmr3gixlddz3667ba1iyqck3c0dkpvd-gnugrep-3.11"
+        "info": "/nix/store/cgk1j37lw5vw7lxdlzhdhji3fii5b5id-gnugrep-3.12-info",
+        "out": "/nix/store/02vv0r262agf9j5n2y1gmbjvdf12zkl0-gnugrep-3.12"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -398,28 +404,29 @@
     {
       "attr_path": "gnused",
       "broken": false,
-      "derivation": "/nix/store/mzm98am1pfdbvi5r11n8xc6w7wqvyvd6-gnused-4.9.drv",
+      "derivation": "/nix/store/vw4n1g5kkihx1dx8ghj27y01zpx11a64-gnused-4.9.drv",
       "description": "GNU sed, a batch stream editor",
       "install_id": "gnused",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "gnused-4.9",
       "pname": "gnused",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:22:55.267405Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T04:38:29.442066Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
       "version": "4.9",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/pbkxwn9a1nkz5ym428fkwgkdsk05y5is-gnused-4.9-info",
-        "out": "/nix/store/3p81h24g11jfcdd7ifql71lr5mjag102-gnused-4.9"
+        "info": "/nix/store/2q7ry9sap952dh21xda36g2gx44m9jvl-gnused-4.9-info",
+        "out": "/nix/store/bdhywjmavg1hw3515cxsh8vxx8p42ixw-gnused-4.9"
       },
       "system": "aarch64-darwin",
       "group": "toplevel",
@@ -428,28 +435,29 @@
     {
       "attr_path": "gnused",
       "broken": false,
-      "derivation": "/nix/store/lgk6l6bqmrf380fvd0p5bcp78668adnq-gnused-4.9.drv",
+      "derivation": "/nix/store/776si0hqchydj3qs6wxlbqg375lcrxrg-gnused-4.9.drv",
       "description": "GNU sed, a batch stream editor",
       "install_id": "gnused",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "gnused-4.9",
       "pname": "gnused",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:41:02.779833Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:10:37.600285Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
       "version": "4.9",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/cyy5a0r1blpnkmsj8kvy18ria1ss1c6h-gnused-4.9-info",
-        "out": "/nix/store/qarfi1yp1r71kqwbxipncgnsj5qsnm69-gnused-4.9"
+        "info": "/nix/store/srvxijm4zzcqp6krhxk8qhfcr52mh39a-gnused-4.9-info",
+        "out": "/nix/store/wl7cvwbv3p0ag201jry906ydpij3a9ij-gnused-4.9"
       },
       "system": "aarch64-linux",
       "group": "toplevel",
@@ -458,17 +466,17 @@
     {
       "attr_path": "gnused",
       "broken": false,
-      "derivation": "/nix/store/3859rjk5ris7w2yhmpm4pnszbn08lmph-gnused-4.9.drv",
+      "derivation": "/nix/store/z498qcl6515g8sy4gan0w1khhccpvqvs-gnused-4.9.drv",
       "description": "GNU sed, a batch stream editor",
       "install_id": "gnused",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "gnused-4.9",
       "pname": "gnused",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T04:56:59.701507Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:44:14.647197Z",
       "stabilities": [
         "unstable"
       ],
@@ -478,8 +486,8 @@
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/zagjaa6iilp4bnip2ra45qbylgfws7qm-gnused-4.9-info",
-        "out": "/nix/store/3fqggn1iq66h3yk73h455yyjc2q7895p-gnused-4.9"
+        "info": "/nix/store/12wwcnqr14xnbjs9mf6l5igpqc167y61-gnused-4.9-info",
+        "out": "/nix/store/b882ldrvxjjkc130pqy53948y09hci8m-gnused-4.9"
       },
       "system": "x86_64-darwin",
       "group": "toplevel",
@@ -488,28 +496,29 @@
     {
       "attr_path": "gnused",
       "broken": false,
-      "derivation": "/nix/store/x0cw2kvqs4m62dymbbhm51p66v0k1s93-gnused-4.9.drv",
+      "derivation": "/nix/store/l9v6k09j2rgf7v93qz1b2j7r49cif497-gnused-4.9.drv",
       "description": "GNU sed, a batch stream editor",
       "install_id": "gnused",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "gnused-4.9",
       "pname": "gnused",
-      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
-      "rev_count": 807377,
-      "rev_date": "2025-05-28T19:24:49Z",
-      "scrape_date": "2025-05-31T05:15:57.346963Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T06:20:18.601107Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
       "version": "4.9",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
-        "info": "/nix/store/i65zra2i21y5khnsnvl0pvd5rkvw5qhl-gnused-4.9-info",
-        "out": "/nix/store/clbb2cvigynr235ab5zgi18dyavznlk2-gnused-4.9"
+        "info": "/nix/store/rr44gnjkn0j0h67blxaf7c69w6y5xv03-gnused-4.9-info",
+        "out": "/nix/store/ryz8kcrm2bxpccllfqlb7qldsfnqp5c2-gnused-4.9"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -518,17 +527,17 @@
     {
       "attr_path": "jdk17",
       "broken": false,
-      "derivation": "/nix/store/l4gld4px128pcwm3xjkbn77w67gz6x44-zulu-ca-jdk-17.0.12.drv",
+      "derivation": "/nix/store/xx509k55hn8r84wjakw52p5ahdjl02bz-zulu-ca-jdk-17.0.12.drv",
       "description": "Certified builds of OpenJDK",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=c23193b943c6c689d70ee98ce3128239ed9e32d1",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "zulu-ca-jdk-17.0.12",
       "pname": "jdk17",
-      "rev": "c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "rev_count": 861038,
-      "rev_date": "2025-09-13T06:43:22Z",
-      "scrape_date": "2025-09-15T02:00:57.656477Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T04:38:44.033208Z",
       "stabilities": [
         "unstable"
       ],
@@ -538,7 +547,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/c0zwkd0idwp22ic1aw5ax3ncn0648689-zulu-ca-jdk-17.0.12"
+        "out": "/nix/store/dccfc40cyivwlmd4qbl6lbfq4fzjfp95-zulu-ca-jdk-17.0.12"
       },
       "system": "aarch64-darwin",
       "group": "toplevel",
@@ -547,28 +556,28 @@
     {
       "attr_path": "jdk17",
       "broken": false,
-      "derivation": "/nix/store/6d6vxy4aaav86qxvxrx75b97dcwsk0n5-openjdk-17.0.15+6.drv",
+      "derivation": "/nix/store/hc72vibk8a3hmavkx9g7xrklfxkm7flg-openjdk-17.0.18+8.drv",
       "description": "Open-source Java Development Kit",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "name": "openjdk-17.0.15+6",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "openjdk-17.0.18+8",
       "pname": "jdk17",
-      "rev": "c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "rev_count": 861038,
-      "rev_date": "2025-09-13T06:43:22Z",
-      "scrape_date": "2025-09-15T02:30:00.637943Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:10:56.109630Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "17.0.15+6",
+      "version": "17.0.18+8",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "debug": "/nix/store/s5x3xzyl6scfnv1rbamkmc229w2l0c06-openjdk-17.0.15+6-debug",
-        "out": "/nix/store/bv0sikfx5p8b7nxrsla4q7h9yf3n80nm-openjdk-17.0.15+6"
+        "debug": "/nix/store/g6vpm0myzf17la8jn2rfc0mvysv0z4l0-openjdk-17.0.18+8-debug",
+        "out": "/nix/store/1qnl43l4a7slw15crlkza325ncjjkdz5-openjdk-17.0.18+8"
       },
       "system": "aarch64-linux",
       "group": "toplevel",
@@ -577,17 +586,17 @@
     {
       "attr_path": "jdk17",
       "broken": false,
-      "derivation": "/nix/store/d452shgw78m914yip5w71z5qds7zq6z0-zulu-ca-jdk-17.0.12.drv",
+      "derivation": "/nix/store/2w3m7i6286g2zg8p9a10q6nb4sckmciy-zulu-ca-jdk-17.0.12.drv",
       "description": "Certified builds of OpenJDK",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=c23193b943c6c689d70ee98ce3128239ed9e32d1",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
       "name": "zulu-ca-jdk-17.0.12",
       "pname": "jdk17",
-      "rev": "c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "rev_count": 861038,
-      "rev_date": "2025-09-13T06:43:22Z",
-      "scrape_date": "2025-09-15T02:56:50.645139Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T05:44:29.488179Z",
       "stabilities": [
         "unstable"
       ],
@@ -597,7 +606,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/j01jsl0zi023b9s8kkw9smczzxrs3bnz-zulu-ca-jdk-17.0.12"
+        "out": "/nix/store/r41s31mplgaalz912kyw7vn3p7m49fqi-zulu-ca-jdk-17.0.12"
       },
       "system": "x86_64-darwin",
       "group": "toplevel",
@@ -606,28 +615,28 @@
     {
       "attr_path": "jdk17",
       "broken": false,
-      "derivation": "/nix/store/ifv5wykv6h9jjm7zr9si1vqvcjvqgz25-openjdk-17.0.15+6.drv",
+      "derivation": "/nix/store/lxfin90gamdk5xjp477cf27p2k0mf7n7-openjdk-17.0.18+8.drv",
       "description": "Open-source Java Development Kit",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "name": "openjdk-17.0.15+6",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d6c71932130818840fc8fe9509cf50be8c64634f",
+      "name": "openjdk-17.0.18+8",
       "pname": "jdk17",
-      "rev": "c23193b943c6c689d70ee98ce3128239ed9e32d1",
-      "rev_count": 861038,
-      "rev_date": "2025-09-13T06:43:22Z",
-      "scrape_date": "2025-09-15T03:27:17.677315Z",
+      "rev": "d6c71932130818840fc8fe9509cf50be8c64634f",
+      "rev_count": 942779,
+      "rev_date": "2026-02-08T14:52:16Z",
+      "scrape_date": "2026-02-09T06:20:37.494225Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "17.0.15+6",
+      "version": "17.0.18+8",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "debug": "/nix/store/s25hxyzvyqhw2zx7gp336a0n8dxvx890-openjdk-17.0.15+6-debug",
-        "out": "/nix/store/pj4xvc9mcv7bxldz22xcqp9zjp4c2yqz-openjdk-17.0.15+6"
+        "debug": "/nix/store/i24xcpm0g4aakfhl6mpbig05ywvkyh9a-openjdk-17.0.18+8-debug",
+        "out": "/nix/store/3xf2cjni3xqn10xnsa0cyvjmnd8sqg7b-openjdk-17.0.18+8"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -649,7 +658,7 @@
         }
       },
       "hook": {
-        "on-activate": "  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  for hook_name in \"pre-commit\" \"pre-push\"; do\n    hook=\".git/hooks/$hook_name\"\n    if ! [ -f \"$hook\" ] || ! grep -q 'COGO_GIT_HOOK' \"$hook\"; then\n      echo \"Updating $hook_name hook...\"\n      cat >\"$hook\" <<'EOF'\n#!/bin/bash\n# -- COGO_GIT_HOOK\nexec \"$(git rev-parse --show-toplevel)/.githooks/hook\" \"$(basename \"$0\")\"\nEOF\n      chmod +x \"$hook\"\n    fi\n  done\n"
+        "on-activate": "  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  if git rev-parse --git-dir >/dev/null 2>&1; then\n    hooks_dir=\"$(git rev-parse --git-common-dir)/hooks\"\n    mkdir -p \"$hooks_dir\"\n    for hook_name in \"pre-commit\" \"pre-push\"; do\n      hook=\"$hooks_dir/$hook_name\"\n      if ! [ -f \"$hook\" ] || ! grep -q 'COGO_GIT_HOOK' \"$hook\"; then\n        echo \"Updating $hook_name hook...\"\n        cat >\"$hook\" <<'EOF'\n#!/bin/bash\n# -- COGO_GIT_HOOK\nexec \"$(git rev-parse --show-toplevel)/.githooks/hook\" \"$(basename \"$0\")\"\nEOF\n        chmod +x \"$hook\"\n      fi\n    done\n  fi\n"
       },
       "profile": {},
       "options": {

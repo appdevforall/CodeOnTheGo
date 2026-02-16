@@ -31,7 +31,6 @@ import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.IBinder;
 import android.widget.Toast;
-
 import com.itsaky.androidide.logsender.utils.Logger;
 
 /**
@@ -41,151 +40,155 @@ import com.itsaky.androidide.logsender.utils.Logger;
  */
 public class LogSenderService extends Service {
 
-  private final LogSender logSender = new LogSender();
-  private static final int NOTIFICATION_ID = 644;
-  private static final String NOTIFICATION_CHANNEL_NAME = "LogSender Service";
-  private static final String NOTIFICATION_TITLE = "LogSender Service";
-  private static final String NOTIFICATION_TEXT = "Connected to AndroidIDE";
-  private static final String NOTIFICATION_CHANNEL_ID = "ide.logsender.service";
-  public static final String ACTION_START_SERVICE = "ide.logsender.service.start";
-  public static final String ACTION_STOP_SERVICE = "ide.logsender.service.stop";
+	private static final int NOTIFICATION_ID = 644;
+	private static final String NOTIFICATION_CHANNEL_ID = "ide.logsender.service";
+	public static final String ACTION_START_SERVICE = "ide.logsender.service.start";
+	public static final String ACTION_STOP_SERVICE = "ide.logsender.service.stop";
+	private final LogSender logSender = new LogSender();
 
-  @Override
-  public void onCreate() {
-    Logger.debug("[LogSenderService] onCreate()");
-    super.onCreate();
-    setupNotificationChannel();
-//    startForeground(NOTIFICATION_ID, buildNotification());
-  }
+	@Override
+	public IBinder onBind(Intent intent) {
+		Logger.debug("Unexpected request to bind.", intent);
+		return null;
+	}
 
-  @Override
-  public IBinder onBind(Intent intent) {
-    Logger.debug("Unexpected request to bind.", intent);
-    return null;
-  }
+	@Override
+	public void onCreate() {
+		Logger.debug("[LogSenderService] onCreate()");
+		super.onCreate();
+		setupNotificationChannel();
+		startForeground(NOTIFICATION_ID, buildNotification());
+	}
 
-  @Override
-  public int onStartCommand(Intent intent, int flags, int startId) {
-    Logger.debug("onStartCommand", intent, flags, startId);
+	@Override
+	public void onDestroy() {
+		Logger.debug("[LogSenderService] [onDestroy]");
+		if (!logSender.isConnected() && !logSender.isBinding()) {
+			Logger.debug("Not bound to Code On The Go. Ignored.");
+		} else {
+			Logger.warn("Service is being destroyed. Destroying log sender...");
+			logSender.destroy(getApplicationContext());
+		}
 
-    switch (intent.getAction()) {
-      case ACTION_START_SERVICE:
-        actionStartService();
-        break;
-      case ACTION_STOP_SERVICE:
-        actionStopService();
-        break;
-      default:
-        Logger.error("Unknown service action:", intent.getAction());
-        break;
-    }
+		super.onDestroy();
+	}
 
-    return START_NOT_STICKY;
-  }
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		Logger.debug("onStartCommand", intent, flags, startId);
 
-  private void actionStartService() {
-    Logger.info("Starting log sender service...");
+		if (intent == null || intent.getAction() == null) {
+			Logger.warn("LogSenderService started with null intent: " + intent);
+			stopSelf();
+			return START_NOT_STICKY;
+		}
 
-    boolean result = false;
-    try {
-      result = logSender.bind(getApplicationContext());
-      Logger.debug("Bind to AndroidIDE:", result);
-    } catch (Exception err) {
-      Logger.error(getString(R.string.msg_bind_service_failed), err);
-    }
+		switch (intent.getAction()) {
+		case ACTION_START_SERVICE:
+			actionStartService();
+			break;
+		case ACTION_STOP_SERVICE:
+			actionStopService();
+			break;
+		default:
+			Logger.error("Unknown service action:", intent.getAction());
+			break;
+		}
 
-    if (!result) {
-      Toast.makeText(this, getString(R.string.msg_bind_service_failed), Toast.LENGTH_SHORT).show();
-      actionStopService();
-    }
-  }
+		return START_NOT_STICKY;
+	}
 
-  private void actionStopService() {
-    Logger.info("Stopping log sender service...");
-    stopSelf();
-  }
+	@Override
+	public void onTaskRemoved(Intent rootIntent) {
+		Logger.debug("[LogSenderService] [onTaskRemoved]", rootIntent);
 
-  @Override
-  public void onTaskRemoved(Intent rootIntent) {
-    Logger.debug("[LogSenderService] [onTaskRemoved]", rootIntent);
+		if (!logSender.isConnected() && !logSender.isBinding()) {
+			Logger.debug("Not bound to Code On The Go. Ignored.");
+			return;
+		}
 
-    if (!logSender.isConnected() && !logSender.isBinding()) {
-      Logger.debug("Not bound to AndroidIDE. Ignored.");
-      return;
-    }
+		Logger.warn("Task removed. Destroying log sender...");
+		logSender.destroy(getApplicationContext());
+		stopSelf();
+	}
 
-    Logger.warn("Task removed. Destroying log sender...");
-    logSender.destroy(getApplicationContext());
-    stopSelf();
-  }
+	private void actionStartService() {
+		Logger.info("Starting log sender service...");
 
-  @Override
-  public void onDestroy() {
-    Logger.debug("[LogSenderService] [onDestroy]");
-    if (!logSender.isConnected() && !logSender.isBinding()) {
-      Logger.debug("Not bound to AndroidIDE. Ignored.");
-      return;
-    }
+		boolean result = false;
+		try {
+			result = logSender.bind(getApplicationContext());
+			Logger.debug("Bind to Code On The Go:", result);
+		} catch (Exception err) {
+			Logger.error(getString(R.string.msg_bind_service_failed), err);
+		}
 
-    Logger.warn("Service is being destroyed. Destroying log sender...");
-    logSender.destroy(getApplicationContext());
-    super.onDestroy();
-  }
+		if (!result) {
+			Toast.makeText(this, getString(R.string.msg_bind_service_failed), Toast.LENGTH_SHORT).show();
+			actionStopService();
+		}
+	}
 
-  private void setupNotificationChannel() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      return;
-    }
+	private void actionStopService() {
+		Logger.info("Stopping log sender service...");
+		stopSelf();
+	}
 
-    NotificationChannel channel = new NotificationChannel(
-        NOTIFICATION_CHANNEL_ID,
-        NOTIFICATION_CHANNEL_NAME,
-        NotificationManager.IMPORTANCE_LOW
-    );
+	private Notification buildNotification() {
+		Resources res = getResources();
 
-    NotificationManager notificationManager = getSystemService(NotificationManager.class);
-    if (notificationManager != null) {
-      notificationManager.createNotificationChannel(channel);
-    }
-  }
+		// Set notification priority
+		// If holding a wake or wifi lock consider the notification of high priority since it's using power,
+		// otherwise use a low priority
+		int priority = Notification.PRIORITY_LOW;
 
-  private Notification buildNotification() {
-    Resources res = getResources();
+		// Build the notification
+		final Builder builder = new Builder(this);
+		String title = getString(R.string.notification_title);
+		String text = getString(R.string.notification_text);
+		builder.setContentTitle(title);
+		builder.setContentText(text);
+		builder.setStyle(new BigTextStyle().bigText(text));
+		builder.setPriority(priority);
 
-    // Set notification priority
-    // If holding a wake or wifi lock consider the notification of high priority since it's using power,
-    // otherwise use a low priority
-    int priority = Notification.PRIORITY_LOW;
+		if (VERSION.SDK_INT >= VERSION_CODES.O) {
+			builder.setChannelId(NOTIFICATION_CHANNEL_ID);
+		}
 
-    // Build the notification
-    final Builder builder = new Builder(this);
-    builder.setContentTitle(NOTIFICATION_TITLE);
-    builder.setContentText(NOTIFICATION_TEXT);
-    builder.setStyle(new BigTextStyle().bigText(NOTIFICATION_TEXT));
-    builder.setPriority(priority);
+		if (VERSION.SDK_INT >= VERSION_CODES.JELLY_BEAN_MR1) {
+			builder.setShowWhen(false);
+		}
 
-    if (VERSION.SDK_INT >= VERSION_CODES.O) {
-      builder.setChannelId(NOTIFICATION_CHANNEL_ID);
-    }
+		builder.setSmallIcon(R.drawable.ic_androidide_log);
 
-    if (VERSION.SDK_INT >= VERSION_CODES.JELLY_BEAN_MR1) {
-      builder.setShowWhen(false);
-    }
+		if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
+			builder.setColor(0xFF607D8B);
+		}
 
-    builder.setSmallIcon(R.drawable.ic_androidide_log);
+		builder.setOngoing(true);
 
-    if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
-      builder.setColor(0xFF607D8B);
-    }
+		// Set Exit button action
+		Intent exitIntent = new Intent(this, LogSenderService.class).setAction(ACTION_STOP_SERVICE);
+		builder.addAction(android.R.drawable.ic_delete,
+				res.getString(R.string.notification_action_exit),
+				PendingIntent.getService(this, 0, exitIntent, PendingIntent.FLAG_IMMUTABLE));
 
-    builder.setOngoing(true);
+		return builder.build();
+	}
 
-    // Set Exit button action
-    Intent exitIntent = new Intent(this, LogSenderService.class).setAction(ACTION_STOP_SERVICE);
-    builder.addAction(android.R.drawable.ic_delete,
-        res.getString(R.string.notification_action_exit),
-        PendingIntent.getService(this, 0, exitIntent, PendingIntent.FLAG_IMMUTABLE));
+	private void setupNotificationChannel() {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+			return;
+		}
 
-    return builder.build();
-  }
+		NotificationChannel channel = new NotificationChannel(
+				NOTIFICATION_CHANNEL_ID,
+				getString(R.string.notification_channel_name),
+				NotificationManager.IMPORTANCE_LOW);
+
+		NotificationManager notificationManager = getSystemService(NotificationManager.class);
+		if (notificationManager != null) {
+			notificationManager.createNotificationChannel(channel);
+		}
+	}
 }

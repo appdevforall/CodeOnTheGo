@@ -64,7 +64,7 @@ abstract class AbstractModelBuilder<P, R> : IModelBuilder<P, R> {
 			if (agpVersion < MINIMUM_SUPPORTED) {
 				throw ModelBuilderException(
 					agpVersion.toString() +
-						" is not supported by AndroidIDE. " +
+						" is not supported by Code On The Go. " +
 						"Please update your project to use at least " +
 						MINIMUM_SUPPORTED +
 						" to build this project.",
@@ -76,7 +76,7 @@ abstract class AbstractModelBuilder<P, R> : IModelBuilder<P, R> {
 				val syncIssue =
 					DefaultSyncIssue(
 						data = "${agpVersion.toStringSimple()}:${ToolingProps.latestTestedAgpVersion.toStringSimple()}",
-						message = "You are using Android Gradle Plugin version that has not been tested with AndroidIDE.",
+						message = "You are using Android Gradle Plugin version that has not been tested with Code On The Go.",
 						multiLineMessage = null,
 						severity = SyncIssue.SEVERITY_WARNING,
 						type = IDESyncIssue.TYPE_AGP_VERSION_TOO_NEW,

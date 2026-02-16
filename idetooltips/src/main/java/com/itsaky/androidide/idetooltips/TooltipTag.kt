@@ -11,11 +11,12 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_COPY = "editor.toolbar.copy"
 	const val EDITOR_TOOLBAR_OUTPUT_COPY = "output.selection.copy"
 	const val EDITOR_TOOLBAR_CUT = "editor.toolbar.cut"
-	const val EDITOR_TOOLBAR_EXPAND_SELECTION = "editor.toolbar.expandselection"
+	const val EDITOR_TOOLBAR_EXPAND_SELECTION = "editor.toolbar.expandselect"
 	const val EDITOR_TOOLBAR_LONG_SELECT = "editor.toolbar.longselect"
 	const val EDITOR_TOOLBAR_PASTE = "editor.toolbar.paste"
 	const val EDITOR_TOOLBAR_SELECT_ALL = "editor.toolbar.selectall"
 	const val EDITOR_TOOLBAR_OUTPUT_SELECT_ALL = "output.selection.selectall"
+  const val EDITOR_TOOLBAR_FORMAT_CODE = "editor.toolbar.formatcode"
 	const val EDITOR_TOOLBAR_HELP = "editor.toolbar.help"
 	const val PROJECT_APP_LOGS = "project.applogs"
 	const val PROJECT_IDE_LOGS = "project.idelogs"
@@ -45,6 +46,7 @@ object TooltipTag {
     const val TEMPLATE_BASIC_ACTIVITY = "template.basic.activity"
     const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
     const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
+    const val TEMPLATE_NDK_ACTIVITY = "template.ndk.activity"
 
     // Editor screen
     const val EDITOR_PROJECT_OVERVIEW = "project.overview"
@@ -75,6 +77,8 @@ object TooltipTag {
     const val MAIN_PROJECT_DELETE = "main.project.delete"
     const val MAIN_HELP = "main.help"
     const val FEEDBACK = "feedback"
+    const val MAIN_PREFERENCES = "main.prefs"
+    const val MAIN_TERMINAL = "main.terminal"
 
     // Editor toolbar
     const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"
@@ -89,6 +93,9 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_REDO = "editor.redo"
     const val EDITOR_TOOLBAR_QUICK_SAVE = "project.save"
     const val EDITOR_TOOLBAR_PREVIEW_LAYOUT = "editor.layout.preview"
+    const val EDITOR_TOOLBAR_PREVIEW_COMPOSE = "editor.compose.preview"
+    const val EDITOR_TOOLBAR_COMPUTER_VISION = "project.layout.vision"
+    const val EDITOR_TOOLBAR_LOG_SENDER = "editor.disconnect.logsenders"
 
     // Delete project
     const val DELETE_PROJECT = "project.delete"
@@ -139,4 +146,13 @@ object TooltipTag {
     const val PROJECT_FILENAME = "project.filename"
     const val EDITOR_FILE_CLOSE_OPTIONS = "editor.file.close.options"
     const val PROJECT_FILE_HELP = "project.file.help"
+
+    // Debugger Actions
+    const val DEBUGGER_ACTION_MOVE = "debug.toolbar.move"
+    const val DEBUGGER_ACTION_PAUSE_RESUME = "debug.toolbar.pauseresume"
+    const val DEBUGGER_ACTION_STEP_OVER = "debug.toolbar.stepover"
+    const val DEBUGGER_ACTION_STEP_INTO = "debug.toolbar.stepinto"
+    const val DEBUGGER_ACTION_STEP_OUT = "debug.toolbar.stepout"
+    const val DEBUGGER_ACTION_KILL = "debug.toolbar.kill"
+    const val DEBUGGER_ACTION_RESTART = "debug.toolbar.restart"
 }

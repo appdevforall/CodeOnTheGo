@@ -25,6 +25,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.di.coreModule
+import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.utils.RecyclableObjectPool
@@ -35,8 +37,14 @@ import com.topjohnwu.superuser.Shell
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import org.appdevforall.codeonthego.computervision.di.computerVisionModule
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.GlobalContext
+import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
@@ -44,22 +52,26 @@ import java.lang.Thread.UncaughtExceptionHandler
 const val EXIT_CODE_CRASH = 1
 
 class IDEApplication : BaseApplication() {
-
 	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var currentActivity: Activity? = null
 
-	private val deviceUnlockReceiver = object : BroadcastReceiver() {
-		override fun onReceive(context: Context?, intent: Intent?) {
-			if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
-				runCatching { unregisterReceiver(this) }
-
-				logger.info("Device unlocked! Loading all components...")
-				CredentialProtectedApplicationLoader.load(this@IDEApplication)
+	private val deviceUnlockReceiver =
+		object : BroadcastReceiver() {
+			override fun onReceive(
+				context: Context?,
+				intent: Intent?,
+			) {
+				if (intent?.action == Intent.ACTION_USER_UNLOCKED) {
+					runCatching { unregisterReceiver(this) }
+					coroutineScope.launch(Dispatchers.Default) {
+						logger.info("Device unlocked! Loading all components...")
+						CredentialProtectedApplicationLoader.load(this@IDEApplication)
+					}
+				}
 			}
 		}
-	}
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(IDEApplication::class.java)
@@ -141,19 +153,30 @@ class IDEApplication : BaseApplication() {
 		// https://appdevforall.atlassian.net/browse/ADFA-2026
 		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
 
+		ensureKoinStarted()
 
-		// load common stuff, which doesn't depend on access to
-		// credential protected storage
-		DeviceProtectedApplicationLoader.load(this)
+		coroutineScope.launch(Dispatchers.Default) {
+			// load common stuff, which doesn't depend on access to
+			// credential protected storage
+			DeviceProtectedApplicationLoader.load(instance)
 
-		// if we can access credential-protected storage, then initialize
-		// other components right away, otherwise wait for the user to unlock
-		// the device
-		if (isUserUnlocked) {
-			CredentialProtectedApplicationLoader.load(this)
-		} else {
-			logger.info("Device in Direct Boot Mode: postponing initialization...")
-			registerReceiver(deviceUnlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+			// if we can access credential-protected storage, then initialize
+			// other components right away, otherwise wait for the user to unlock
+			// the device
+			if (isUserUnlocked) {
+				CredentialProtectedApplicationLoader.load(instance)
+			} else {
+				logger.info("Device in Direct Boot Mode: postponing initialization...")
+				registerReceiver(deviceUnlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+			}
+		}
+	}
+
+	private fun ensureKoinStarted() {
+		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
+		startKoin {
+			androidContext(this@IDEApplication)
+			modules(coreModule, pluginModule, computerVisionModule)
 		}
 	}
 
@@ -161,16 +184,24 @@ class IDEApplication : BaseApplication() {
 		thread: Thread,
 		exception: Throwable,
 	) {
+		if (isNonFatalGcCleanupFailure(exception)) {
+			logger.warn("Non-fatal: ZipFile GC cleanup failed with I/O error", exception)
+			return
+		}
+
 		if (isUserUnlocked) {
-			// we can access credential protected storage, delegate the job to
-			// to advanced crash handler
 			CredentialProtectedApplicationLoader.handleUncaughtException(thread, exception)
 			return
 		}
 
-		// we can only access device-protected storage, and are not allowed
-		// to show crash handler screen
-		// delegate the job to the basic crash handler
 		DeviceProtectedApplicationLoader.handleUncaughtException(thread, exception)
+	}
+
+	private fun isNonFatalGcCleanupFailure(exception: Throwable): Boolean {
+		if (exception !is java.io.UncheckedIOException) return false
+		return exception.stackTrace.any {
+			it.className.contains("CleanableResource") ||
+				it.className.contains("PhantomCleanable")
+		}
 	}
 }

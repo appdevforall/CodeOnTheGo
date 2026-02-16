@@ -15,7 +15,9 @@ import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_HELP
+import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_PREFERENCES
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_PROJECT_DELETE
+import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_TERMINAL
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN
 import com.itsaky.androidide.models.MainScreenAction
@@ -89,19 +91,6 @@ class MainFragment : BaseFragment() {
 				actions.forEach { action ->
 					action.onClick = onClick
 					action.onLongClick = onLongClick
-
-					if (action.id == MainScreenAction.ACTION_OPEN_TERMINAL) {
-						action.onLongClick = { _: MainScreenAction, _: View ->
-							ifAttached {
-								val intent =
-									Intent(requireActivity(), TerminalActivity::class.java).apply {
-										putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
-									}
-								startActivity(intent)
-							}
-							true
-						}
-					}
 				}
 			}
 
@@ -136,6 +125,8 @@ class MainFragment : BaseFragment() {
 			ACTION_OPEN_PROJECT -> PROJECT_OPEN
 			ACTION_DELETE_PROJECT -> MAIN_PROJECT_DELETE
 			ACTION_DOCS -> MAIN_HELP
+            ACTION_OPEN_TERMINAL -> MAIN_TERMINAL
+            ACTION_PREFERENCES -> MAIN_PREFERENCES
 			else -> ""
 		}
 

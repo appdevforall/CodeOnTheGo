@@ -27,6 +27,9 @@ public class XmlLayoutGenerator {
   public String generate(@NonNull DesignEditor editor, boolean useSuperclasses) {
     this.useSuperclasses = useSuperclasses;
 
+    // Clear builder to avoid accumulating content from previous calls
+    builder.setLength(0);
+
     if (editor.getChildCount() == 0) {
       return "";
     }
@@ -38,6 +41,12 @@ public class XmlLayoutGenerator {
   private String peek(View view, HashMap<View, AttributeMap> attributeMap, int depth) {
     if (attributeMap == null || view == null) return "";
     if (tryWriteInclude(view, attributeMap, depth)) {
+      return builder.toString();
+    }
+    if (tryWriteFragment(view, attributeMap, depth)) {
+      return builder.toString();
+    }
+    if (tryWriteMerge(view, attributeMap, depth)) {
       return builder.toString();
     }
     String indent = getIndent(depth);
@@ -120,6 +129,61 @@ public class XmlLayoutGenerator {
     }
     return false;
   }
+
+  private boolean tryWriteFragment(View view, HashMap<View, AttributeMap> attributeMap, int depth) {
+    AttributeMap attrs = attributeMap.get(view);
+
+    if (attrs != null && attrs.contains("tools:is_xml_fragment")) {
+      String indent = getIndent(depth);
+      builder.append(indent).append("<fragment");
+
+      for (String key : attrs.keySet()) {
+        if (key.equals("tools:is_xml_fragment")) continue;
+
+        builder.append("\n").append(indent).append(TAB)
+          .append(key).append("=\"")
+          .append(StringEscapeUtils.escapeXml11(attrs.getValue(key)))
+          .append("\"");
+      }
+      builder.append(" />\n\n");
+      return true;
+    }
+    return false;
+  }
+
+    private boolean tryWriteMerge(View view, HashMap<View, AttributeMap> attributeMap, int depth) {
+        AttributeMap attrs = attributeMap.get(view);
+
+        if (attrs != null && attrs.contains("tools:is_xml_merge")) {
+            String indent = getIndent(depth);
+            builder.append(indent).append("<merge");
+
+            for (String key : attrs.keySet()) {
+                if (key.equals("tools:is_xml_merge")) continue;
+
+                builder.append("\n").append(indent).append(TAB)
+                        .append(key).append("=\"")
+                        .append(StringEscapeUtils.escapeXml11(attrs.getValue(key)))
+                        .append("\"");
+            }
+
+            // Check if merge has children
+            if (view instanceof ViewGroup group && group.getChildCount() > 0) {
+                builder.append(">\n\n");
+
+                for (int i = 0; i < group.getChildCount(); i++) {
+                    peek(group.getChildAt(i), attributeMap, depth + 1);
+                }
+
+                builder.append(indent).append("</merge>\n\n");
+            } else {
+                // Handle empty merge
+                builder.append(" />\n\n");
+            }
+            return true;
+        }
+        return false;
+    }
 
   @NonNull
   private String getIndent(int depth) {

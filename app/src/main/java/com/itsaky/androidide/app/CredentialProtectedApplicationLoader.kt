@@ -17,12 +17,16 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
+import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.VMUtils
 import io.sentry.Sentry
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -41,7 +45,6 @@ import kotlin.system.exitProcess
  * @author Akash Yadav
  */
 internal object CredentialProtectedApplicationLoader : ApplicationLoader {
-
 	private val logger = LoggerFactory.getLogger(CredentialProtectedApplicationLoader::class.java)
 
 	private val _isLoaded = AtomicBoolean(false)
@@ -56,8 +59,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	val isLoaded: Boolean
 		get() = _isLoaded.get()
 
-	@OptIn(DelicateCoroutinesApi::class)
-	override fun load(app: IDEApplication) {
+	override suspend fun load(app: IDEApplication) {
 		if (isLoaded) {
 			logger.warn("Attempt to perform multiple loads of the application. Ignoring.")
 			return
@@ -68,6 +70,10 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		logger.info("Loading credential protected storage context components...")
 		application = app
 
+		Environment.init(app)
+
+		FeatureFlags.initialize()
+
 		EventBus.getDefault().register(this)
 
 		// Load termux application
@@ -77,15 +83,19 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			startLogcatReader()
 		}
 
-		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		withContext(Dispatchers.Main) {
+			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
-		if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-			DynamicColors.applyToActivitiesIfAvailable(app)
+			if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+				DynamicColors.applyToActivitiesIfAvailable(app)
+			}
 		}
 
 		initializePluginSystem()
 
-		GlobalScope.launch {
+		app.coroutineScope.launch(Dispatchers.IO) {
+			// color schemes are stored in files
+			// initialize scheme provider on the IO dispatcher
 			IDEColorSchemeProvider.init()
 		}
 
@@ -96,7 +106,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 	fun handleUncaughtException(
 		thread: Thread,
-		exception: Throwable
+		exception: Throwable,
 	) {
 		writeException(exception)
 		Sentry.captureException(exception)
@@ -107,7 +117,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			intent.action = CrashHandlerActivity.REPORT_ACTION
 			intent.putExtra(
 				CrashHandlerActivity.TRACE_KEY,
-				ThrowableUtils.getFullStackTrace(exception)
+				ThrowableUtils.getFullStackTrace(exception),
 			)
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			IDEApplication.instance.startActivity(intent)
@@ -123,14 +133,16 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		exitProcess(EXIT_CODE_CRASH)
 	}
 
-	private fun writeException(throwable: Throwable?) = runCatching { // ignore errors
-		File(FileUtil.getExternalStorageDir(), "idelog.txt")
-			.writer()
-			.buffered()
-			.use { outputStream ->
-				outputStream.write(ThrowableUtils.getFullStackTrace(throwable))
-			}
-	}
+	private fun writeException(throwable: Throwable?) =
+		runCatching {
+			// ignore errors
+			File(FileUtil.getExternalStorageDir(), "idelog.txt")
+				.writer()
+				.buffered()
+				.use { outputStream ->
+					outputStream.write(ThrowableUtils.getFullStackTrace(throwable))
+				}
+		}
 
 	private fun startLogcatReader() {
 		if (ideLogcatReader != null) {

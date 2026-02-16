@@ -39,7 +39,7 @@
                     android:layout_centerVertical="true"
                     android:layout_marginEnd="5dp"
                     android:src="@drawable/cellphone_screenshot"
-                    tools:ignore="ContentDescription" />
+                    android:contentDescription="@string/tooltip_size" />
 
                 <ImageView
                     android:id="@+id/view_type"
@@ -48,7 +48,7 @@
                     android:layout_marginEnd="5dp"
                     android:layout_toStartOf="@id/device_size"
                     android:src="@drawable/view_type"
-                    tools:ignore="ContentDescription" />
+                    android:contentDescription="@string/tooltip_view_type" />
 
                 <com.google.android.material.divider.MaterialDivider
                     android:id="@+id/divider"
@@ -176,6 +176,7 @@
         android:elevation="16dp"
         android:contentDescription="@string/send_feedback"
         android:src="@drawable/baseline_feedback_64"
+        app:fabCustomSize="32dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

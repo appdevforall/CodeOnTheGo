@@ -128,10 +128,15 @@ tests/test-home
 /sample-plugin/build/
 /keystore-generator-plugin/build/
 /keystore-generator-plugin/.kotlin/
-**/build
+**/build/
+!**/src/**/build/
 
 # Release files
 *.zim
+
+# Plugin build artifacts
+plugin-api.jar
+plugin-artifacts.zip
 
 # Other IDEs
 .cursor/
@@ -147,11 +152,16 @@ gradle-plugin/bin/
 logger/bin/
 lookup/bin/
 shared/bin/
+llama-api/bin/
 subprojects/**/bin/
 testing/**/bin/
 
 # checksum files
 .checksum/
 
-# assets files
-assets/
+# Compose preview downloaded JARs (generated during build)
+compose-preview/src/main/assets/compose/
+
+# Generated stdlib index (generated at build time by :lsp:kotlin-stdlib-generator)
+lsp/kotlin/src/main/resources/stdlib-index.json
+

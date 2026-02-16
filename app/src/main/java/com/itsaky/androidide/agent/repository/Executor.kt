@@ -6,7 +6,8 @@ import com.google.genai.types.Part
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.projects.IProjectManager
-import kotlinx.serialization.encodeToString
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -26,18 +27,24 @@ class Executor {
     ): List<Part> {
         log.info("Executor: Executing ${functionCalls.size} tool call(s)...")
 
-        return functionCalls.map { call ->
+        val out = ArrayList<Part>(functionCalls.size)
+        for (call in functionCalls) {
+            currentCoroutineContext().ensureActive()
+
             val toolName = call.name().getOrNull() ?: ""
             val toolResult = dispatchToolCall(call)
             log.info("Executor: Resulting ${toolResult.toResultMap()}")
 
-            Part.builder().functionResponse(
-                FunctionResponse.builder()
+            out.add(
+                Part.builder().functionResponse(
+                    FunctionResponse.builder()
                     .name(toolName)
                     .response(toolResult.toResultMap())
                     .build()
-            ).build()
+                ).build()
+            )
         }
+        return out
     }
 
     private suspend fun dispatchToolCall(functionCall: FunctionCall): ToolResult {
@@ -70,16 +77,49 @@ class Executor {
             }
 
             "list_files" -> {
-                val path = args["path"] as? String ?: ""
+                val rawPath = args["path"] as? String
+                val path = when {
+                    rawPath.isNullOrBlank() -> "."
+                    rawPath.startsWith("/home/") -> "."
+                    else -> rawPath
+                }
                 val recursive = args["recursive"]?.toString()?.toBoolean() ?: false
-                IDEApiFacade.listFiles(path, recursive)
+                return try {
+                    val baseDir = IProjectManager.getInstance().projectDir.canonicalFile
+                    val targetDir = when (path.trim()) {
+                        "", ".", "./" -> baseDir
+                        else -> File(baseDir, path).canonicalFile
+                    }
+                    val basePath = baseDir.path
+                    val targetPath = targetDir.path
+                    val isInside =
+                        targetPath == basePath || targetPath.startsWith(basePath + File.separator)
+                    if (!isInside) {
+                        ToolResult.failure("Access denied: path outside project directory")
+                    } else {
+                        val relativePath =
+                            if (targetPath == basePath) "." else targetDir.relativeTo(baseDir).path
+                        log.debug(
+                            "Executor: list_files normalized path='{}', recursive={}",
+                            relativePath,
+                            recursive
+                        )
+                        IDEApiFacade.listFiles(relativePath, recursive)
+                    }
+                } catch (e: Exception) {
+                    ToolResult.failure("Failed to list files.", e.message)
+                }
             }
 
             "add_dependency" -> {
-                val dependency = args["dependency"] as? String
+                val dependency =
+                    (args["dependency_string"] as? String)?.takeIf { it.isNotBlank() }
+                        ?: (args["dependency"] as? String)
                 val buildFilePath = args["build_file_path"] as? String
                 if (dependency.isNullOrEmpty() || buildFilePath.isNullOrEmpty()) {
-                    ToolResult.failure("Both 'dependency' and 'build_file_path' are required.")
+                    ToolResult.failure(
+                        "Both 'dependency_string' and 'build_file_path' are required."
+                    )
                 } else {
                     val dependencyString = if (buildFilePath.endsWith(".kts")) {
                         "implementation(\"$dependency\")"

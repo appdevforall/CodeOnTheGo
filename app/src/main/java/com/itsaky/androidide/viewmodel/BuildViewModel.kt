@@ -5,15 +5,20 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.ApkMetadata
 import com.itsaky.androidide.project.AndroidModels
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 
 class BuildViewModel : ViewModel() {
@@ -42,7 +47,20 @@ class BuildViewModel : ViewModel() {
 			}
 
 			try {
-				val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
+				val isPluginProject = withContext(Dispatchers.IO) {
+					IProjectManager.getInstance().isPluginProject()
+				}
+
+				val taskName = if (isPluginProject) {
+					if (variant.name.contains("debug", ignoreCase = true)) {
+						":assemblePluginDebug"
+					} else {
+						":assemblePlugin"
+					}
+				} else {
+					"${module.path}:${variant.mainArtifact.assembleTaskName}"
+				}
+
 				val message = TaskExecutionMessage(tasks = listOf(taskName))
 				val result = buildService.executeTasks(message).await()
 
@@ -50,13 +68,26 @@ class BuildViewModel : ViewModel() {
 					throw RuntimeException("Task execution failed.")
 				}
 
+				if (isPluginProject) {
+					val projectRoot = IProjectManager.getInstance().projectDirPath
+					val cgpFile = withContext(Dispatchers.IO) { findPluginCgpFile(projectRoot, variant) }
+					if (cgpFile != null) {
+						_buildState.value = BuildState.AwaitingPluginInstall(cgpFile)
+					} else {
+						log.warn("Plugin built successfully but .cgp file not found")
+						_buildState.value = BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin")
+					}
+					return@launch
+				}
+
 				val outputListingFile = variant.mainArtifact.assembleTaskOutputListingFile
 
-				val apkFile =
+				val apkFile = withContext(Dispatchers.IO) {
 					ApkMetadata.findApkFile(outputListingFile)
-						?: throw RuntimeException("No APK found in output listing file.")
+				} ?: throw RuntimeException("No APK found in output listing file.")
 
-				if (!apkFile.exists()) {
+				val apkExists = withContext(Dispatchers.IO) { apkFile.exists() }
+				if (!apkExists) {
 					throw RuntimeException("APK file specified does not exist: $apkFile")
 				}
 
@@ -78,5 +109,22 @@ class BuildViewModel : ViewModel() {
 		if (_buildState.value is BuildState.AwaitingInstall) {
 			_buildState.value = BuildState.Idle
 		}
+	}
+
+	/** Call this after the plugin installation attempt to reset the state. */
+	fun pluginInstallationAttempted() {
+		if (_buildState.value is BuildState.AwaitingPluginInstall) {
+			_buildState.value = BuildState.Idle
+		}
+	}
+
+	private fun findPluginCgpFile(projectRoot: String, variant: AndroidModels.AndroidVariant): File? {
+		val pluginDir = File(projectRoot, "build/plugin")
+		if (!pluginDir.exists()) return null
+
+		val isDebug = variant.name.contains("debug", ignoreCase = true)
+		return pluginDir.listFiles { file -> file.extension.equals("cgp", ignoreCase = true) }
+			?.filter { it.name.contains("-debug") == isDebug }
+			?.maxByOrNull { it.lastModified() }
 	}
 }

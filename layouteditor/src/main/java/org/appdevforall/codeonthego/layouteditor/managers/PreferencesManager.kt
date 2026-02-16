@@ -5,7 +5,26 @@ import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
 
-class PreferencesManager(val context: Context) {
+class PreferencesManager private constructor(context: Context) {
+	private val appContext = context.applicationContext
+
+  val prefs: SharedPreferences by lazy {
+		PreferenceManager.getDefaultSharedPreferences(appContext)
+	}
+
+	companion object {
+		@Volatile
+		private var INSTANCE: PreferencesManager? = null
+		fun getInstance(context: Context): PreferencesManager {
+			return INSTANCE ?: synchronized(this) {
+				INSTANCE ?: PreferencesManager(context).also { INSTANCE = it }
+			}
+		}
+
+		operator fun invoke(context: Context): PreferencesManager {
+			return getInstance(context)
+		}
+	}
 
   val isEnableVibration: Boolean
     get() = prefs.getBoolean(SharedPreferencesKeys.KEY_VIBRATION, false)
@@ -22,7 +41,4 @@ class PreferencesManager(val context: Context) {
       "Dark" -> AppCompatDelegate.MODE_NIGHT_YES
       else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
     }
-
-  val prefs: SharedPreferences
-    get() = PreferenceManager.getDefaultSharedPreferences(context)
 }

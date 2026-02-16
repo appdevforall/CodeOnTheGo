@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
+import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -24,7 +25,6 @@ class PluginDocumentationManager(private val context: Context) {
 
     private val databaseVersion = 1
     private val databaseName = "plugin_documentation.db"
-    private val thirdPartyDisclaimer = "<br><br><em style='color: #888; font-size: 0.9em;'>⚠️ This documentation is provided by a third-party plugin.</em>"
 
     // Database schema creation statements
     private val createCategoriesTable = """
@@ -326,6 +326,7 @@ class PluginDocumentationManager(private val context: Context) {
         categoryId: Long,
         entry: PluginTooltipEntry
     ): Long {
+        val disclaimer = context.getString(R.string.plugin_documentation_third_party_disclaimer)
         // Check if tooltip with same tag already exists in this category
         val existingCursor = db.query(
             "PluginTooltips",
@@ -341,8 +342,8 @@ class PluginDocumentationManager(private val context: Context) {
 
             // Update existing tooltip with disclaimer
             val updateValues = ContentValues().apply {
-                put("summary", entry.summary + thirdPartyDisclaimer)
-                put("detail", if (entry.detail.isNotBlank()) entry.detail + thirdPartyDisclaimer else "")
+                put("summary", entry.summary + disclaimer)
+                put("detail", if (entry.detail.isNotBlank()) entry.detail + disclaimer else "")
             }
             db.update("PluginTooltips", updateValues, "id = ?", arrayOf(existingId.toString()))
 
@@ -357,8 +358,8 @@ class PluginDocumentationManager(private val context: Context) {
         val values = ContentValues().apply {
             put("categoryId", categoryId)
             put("tag", entry.tag)
-            put("summary", entry.summary + thirdPartyDisclaimer)
-            put("detail", if (entry.detail.isNotBlank()) entry.detail + thirdPartyDisclaimer else "")
+            put("summary", entry.summary + disclaimer)
+            put("detail", if (entry.detail.isNotBlank()) entry.detail + disclaimer else "")
         }
         return db.insert("PluginTooltips", null, values)
     }
@@ -499,8 +500,8 @@ class PluginDocumentationManager(private val context: Context) {
         plugin: DocumentationExtension
     ): Boolean = withContext(Dispatchers.IO) {
         if (!isDatabaseAvailable()) {
-            Log.w(TAG, "Documentation database not available, skipping verification for $pluginId")
-            return@withContext false
+            Log.d(TAG, "Documentation database does not exist, initializing for $pluginId...")
+            initialize()
         }
 
         val isInstalled = isPluginDocumentationInstalled(pluginId)
@@ -521,9 +522,13 @@ class PluginDocumentationManager(private val context: Context) {
     suspend fun verifyAllPluginDocumentation(
         plugins: Map<String, DocumentationExtension>
     ): Int = withContext(Dispatchers.IO) {
-        if (!isDatabaseAvailable()) {
-            Log.w(TAG, "Documentation database not available, skipping verification")
+        if (plugins.isEmpty()) {
             return@withContext 0
+        }
+
+        if (!isDatabaseAvailable()) {
+            Log.d(TAG, "Documentation database does not exist, initializing...")
+            initialize()
         }
 
         var recreatedCount = 0

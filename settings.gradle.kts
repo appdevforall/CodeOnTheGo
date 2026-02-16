@@ -23,6 +23,9 @@ pluginManagement {
 	includeBuild("composite-builds/build-logic") {
 		name = "build-logic"
 	}
+	includeBuild("plugin-api/plugin-builder") {
+		name = "plugin-builder"
+	}
 
 	repositories {
 		gradlePluginPortal()
@@ -141,6 +144,9 @@ include(
 	":lsp:api",
 	":lsp:models",
 	":lsp:java",
+	":lsp:kotlin",
+	":lsp:kotlin-core",
+	":lsp:kotlin-stdlib-generator",
 	":lsp:xml",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
@@ -176,9 +182,14 @@ include(
 	":testing:tooling",
 	":testing:unit",
 	":plugin-api",
+	":plugin-api:plugin-builder",
 	":plugin-manager",
     ":llama-api",
-    ":llama-impl"
+    ":llama-impl",
+    ":cv-image-to-xml",
+    ":llama-api",
+    ":llama-impl",
+    ":compose-preview"
 )
 
 object FDroidConfig {

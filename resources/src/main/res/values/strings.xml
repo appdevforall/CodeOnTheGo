@@ -28,6 +28,54 @@
 	<string name="ide_logs">IDE Logs</string>
 	<string name="default_tooltip">General information about this feature.</string>
 
+	<!-- Agent -->
+	<string name="agent_backend_selected">🤖 System: %1$s backend selected.</string>
+	<string name="agent_current_model">Current model: %1$s</string>
+	<string name="agent_no_model_selected_warning">⚠️ Warning: No model file selected.</string>
+	<string name="agent_local_model_not_loaded">Local model is not loaded. Open AI Settings, pick a model, and try again.</string>
+	<string name="agent_backend_not_ready">The AI backend is not ready. Please review your AI settings.</string>
+	<string name="agent_local_model_loaded_success">Local model loaded successfully!</string>
+	<string name="agent_local_model_loaded_failure">Error: Failed to load local model.</string>
+	<string name="agent_operation_cancelled_by_user">Operation cancelled by user.</string>
+	<string name="agent_planner_tool_fallback">The planner could not produce a valid tool invocation after multiple attempts. Provide a direct textual answer without calling any tools.</string>
+	<string name="agent_planner_reject_unexpected_tool">The previous plan was rejected because the model attempted to call a tool even though no tool calls were allowed at that time.</string>
+	<string name="agent_planner_reject_malformed_tool">The previous plan failed because the tool invocation was malformed.</string>
+	<string name="agent_planner_reject_invalid_tool">The previous plan was rejected due to an invalid tool invocation.</string>
+	<string name="agent_planner_tool_blocked_note"> Tool `%1$s` is now blocked until you can explain how to call it safely.</string>
+	<string name="agent_planner_retry_instruction">%1$s%2$s Before attempting another tool call, double-check the required parameters and confirm that calling a tool is necessary. If the request can be answered conceptually, respond with text instead of forcing a tool call.</string>
+	<string name="agent_planner_invalid_output_notice">Planner output was invalid. Asking it to correct the plan...</string>
+	<string name="agent_tool_call_missing_name">A function call without a name was emitted. Provide a valid tool name.</string>
+	<string name="agent_tool_call_unknown_tool">Unknown tool `%1$s` was requested. Use only the supported tools.</string>
+	<string name="agent_tool_call_blocked">Tool `%1$s` is temporarily blocked after a malformed invocation. Choose a different tool or respond with a textual answer.</string>
+	<string name="agent_tool_call_missing_args">Tool `%1$s` is missing required arguments: %2$s.</string>
+	<string name="agent_planner_invalid_tool_usage_header">The previous plan violated tool requirements:\n</string>
+	<string name="agent_planner_invalid_tool_usage_footer">Re-plan with valid tool arguments, or provide a textual response if tools are unnecessary.</string>
+	<string name="agent_planner_invalid_tool_usage_notice">Planner proposed invalid tool usage. Requesting a corrected plan...</string>
+	<string name="agent_approval_deny">Deny</string>
+	<string name="agent_approval_once">Approve Once</string>
+	<string name="agent_approval_session">Approve for Session</string>
+	<string name="agent_approval_title">Approve \'%1$s\'?</string>
+	<string name="agent_dialog_cancel">Cancel</string>
+	<string name="agent_dialog_run">Run</string>
+	<string name="agent_hint_boolean">true or false</string>
+	<string name="agent_hint_file_content">File content...</string>
+	<string name="agent_hint_limit">1000</string>
+	<string name="agent_hint_number">Enter a number</string>
+	<string name="agent_hint_offset">0</string>
+	<string name="agent_hint_param">Enter %1$s</string>
+	<string name="agent_hint_path_example">e.g., app/src/main/AndroidManifest.xml</string>
+	<string name="agent_hint_search_pattern">Search pattern...</string>
+	<string name="agent_images_selected">%1$d images selected.</string>
+	<string name="agent_required_fields_missing">Please fill in all required fields (marked with *).</string>
+	<string name="agent_select_tool_to_test">Select a tool to test</string>
+	<string name="agent_test_tool_title">Test Tool: %1$s</string>
+	<string name="agent_title_ellipsis_suffix">...</string>
+	<string name="agent_tokens_na">Tokens: N/A</string>
+	<string name="agent_tokens_percentage">Tokens: %1$d%%</string>
+	<string name="agent_tool_description_missing">No description</string>
+	<string name="agent_tool_no_params">Description: %1$s\n\nThis tool has no parameters.</string>
+	<string name="agent_tool_not_found">Tool not found: %1$s</string>
+	<string name="agent_run_tool_title">Run %1$s</string>
 
 	<!-- LSP, Diagnostics & Completions -->
 	<string name="get_started">Get started</string>
@@ -48,6 +96,9 @@
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
+	<string name="storage_not_accessible">Storage is not accessible. Please ensure the device is unlocked and try again.</string>
+	<string name="terminal_installation_failed_low_storage">Terminal setup failed. Storage space is insufficient, or files were removed during installation. Please free up some space and try again.</string>
+	<string name="terminal_installation_failed_secondary_user">Terminal installation is only supported for the primary user.</string>
 
 	<!-- Project Builder -->
 	<string name="title_unsupported_device">This device is not supported</string>
@@ -121,6 +172,33 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
+	<string name="template_plugin">Code on the Go Plugin</string>
+	<string name="template_ndk">NDK Activity</string>
+
+	<!-- Plugin Template Wizard -->
+	<string name="wizard_plugin_name">Plugin Name</string>
+	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
+	<string name="wizard_plugin_description">Plugin description</string>
+	<string name="wizard_plugin_author">Author Name</string>
+	<string name="wizard_include_sample_code">Include sample code</string>
+	<string name="wizard_plugin_permissions">Permissions</string>
+	<string name="wizard_plugin_extensions">Extensions</string>
+	<string name="wizard_plugin_options">Options</string>
+
+	<!-- Plugin Permissions -->
+	<string name="perm_filesystem_read">Filesystem Read</string>
+	<string name="perm_filesystem_write">Filesystem Write</string>
+	<string name="perm_network_access">Network access</string>
+	<string name="perm_system_commands">System commands</string>
+	<string name="perm_ide_settings">IDE settings</string>
+	<string name="perm_project_structure">Project structure</string>
+
+	<!-- Plugin Extensions -->
+	<string name="ext_ui">UI extension</string>
+	<string name="ext_editor_tab">Editor tab extension</string>
+	<string name="ext_documentation">Documentation extension</string>
+	<string name="ext_editor">Editor extension</string>
+	<string name="ext_project">Project extension</string>
 	<string name="unknown">Unknown</string>
 
 	<!-- Files -->
@@ -182,6 +260,9 @@
 	<string name="classtype_activity">Activity</string>
 	<string name="title_interface">Interface</string>
 	<string name="classtype_enum">Enum</string>
+	<string name="lang_java">Java</string>
+	<string name="lang_kotlin">Kotlin</string>
+	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
 
 	<!-- Code Editor -->
@@ -211,6 +292,7 @@
 	<string name="msg_open_projects">When enabled, restarting Code on the Go will automatically open the last project that was open.</string>
 	<string name="title_confirm_project_open">Confirm project opening</string>
 	<string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
+	<string name="msg_error_opening_project">Error opening project.</string>
 	<string name="title_default_shell">Use system shell in terminal</string>
 	<string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
 	<string name="title_general">General</string>
@@ -225,6 +307,7 @@
 
 	<!-- Layout preview and designer -->
 	<string name="title_preview_layout">Preview Layout</string>
+	<string name="title_preview_compose">Preview Compose</string>
 	<string name="title_viewaction_delete">Delete</string>
 	<string name="msg_yesno_def_title">Please confirm</string>
 	<string name="msg_yesno_def_message">Are you sure?</string>
@@ -232,6 +315,8 @@
 	<string name="msg_generate_xml_failed">Failed to generate XML code</string>
 	<string name="title_generating_xml">Generating XML code</string>
 	<string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
+	<string name="preview_render_error_title">Preview Unavailable</string>
+	<string name="preview_render_error_message">Could not create a root view. The XML is empty or missing a valid top-level element.</string>
 
 	<!-- Crash Screen -->
 	<string name="msg_ide_crashed">Code on the Go crashed</string>
@@ -282,7 +367,7 @@
 	<string name="msg_replacement">Replacement</string>
 	<string name="title_sync_project">Sync project</string>
 	<string name="wizard_save_location">Save location</string>
-	<string name="wizard_language">Project Language</string>
+	<string name="wizard_language">Project language</string>
 	<string name="next">Next</string>
 	<string name="exit">Exit</string>
 	<string name="idepref_title_customGradleInstallation">Custom Gradle installation</string>
@@ -593,9 +678,8 @@
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
-	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions.</string>
-	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
+	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow up to four permissions.</string>
+	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages. On Android 12 and earlier, notifications are enabled by default and won’t appear as a permission request.</string>
 	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
 	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
 	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
@@ -649,6 +733,8 @@
 	<string name="debugger_restart">Restart</string>
 	<string name="debugger_status_resolving">Resolving…</string>
 	<string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
+	<string name="debugger_loading_variable_value">Loading variable value</string>
+	<string name="debugger_variable_truncated">Truncated due to size</string>
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
@@ -702,6 +788,7 @@
 		Internet access is required.</string>
 	<string name="code_on_the_go">Code on the Go</string>
 	<string name="feedback_email_subject">Feedback for Code on the Go</string>
+	<string name="msg_feedback_log_too_long">The log is too large to send directly.</string>
 	<string name="msg_no_internet_no_problem">No computer? No Internet?\nNo problem.</string>
 	<string name="offline_message">Offline</string>
 	<string name="more_label">More</string>
@@ -759,7 +846,7 @@
                         color: %1$s;
                      }
                      a{
-                        color: #233490;
+                        color: %3$s;
                         text-decoration: underline;
                        }
                 </style>
@@ -771,8 +858,79 @@
 		</html>
 		]]></string>
 
+	<!-- Tooltip HTML Components -->
+	<string name="tooltip_buttons_separator"><![CDATA[<br>]]></string>
+	<string name="tooltip_detail_links_template"><![CDATA[%1$s<br><br>%2$s]]></string>
+	<string name="plugin_documentation_third_party_disclaimer">&lt;br&gt;&lt;br&gt;&lt;em style=&quot;color: #888; font-size: 0.9em;&quot;&gt;This documentation is provided by a third-party plugin.&lt;/em&gt;</string>
+
+	<!-- Tooltip Debug Dialog -->
+	<string name="tooltip_debug_dialog_title">Tooltip Debug Info</string>
+	<string name="tooltip_debug_metadata_html"><![CDATA[<b>Version</b> <small>%1$s</small><br/>
+<b>Row:</b> %2$d<br/>
+<b>ID:</b> %3$d<br/>
+<b>Category:</b> %4$s<br/>
+<b>Tag:</b> %5$s<br/>
+<b>Raw Summary:</b> %6$s<br/>
+<b>Raw Detail:</b> %7$s<br/>
+<b>Buttons:</b> %8$s<br/>]]></string>
+	<string name="tooltip_debug_plugin_html"><![CDATA[<h3>Plugin Tooltip Debug Info</h3>
+<b>Version:</b> <small>%1$s</small><br/>
+<b>Row:</b> %2$d<br/>
+<b>ID:</b> %3$d<br/>
+<b>Category:</b> %4$s<br/>
+<b>Tag:</b> %5$s<br/>
+<br/>
+<b>Raw Summary:</b><br/>
+<small>%6$s</small><br/>
+<br/>
+<b>Raw Detail:</b><br/>
+<small>%7$s</small><br/>
+<br/>
+<b>Buttons:</b> %8$s]]></string>
+
+	<!-- Tooltip Debug Button Formatting -->
+	<string name="tooltip_debug_button_separator"><![CDATA[<br/>]]></string>
+	<string name="tooltip_debug_button_item_template_simple">• %1$s</string>
+	<string name="tooltip_debug_button_item_template">\'%1$s \u2192 %2$s\'</string>
+
 	<string name="info_icon_content_description">Info icon</string>
 	<string name="feedback_button_description">Send feedback about this tooltip</string>
+	<string name="cd_more_options">More options</string>
+	<string name="cd_expand_collapse">Expand or collapse</string>
+	<string name="cd_file_icon">File icon</string>
+	<string name="cd_folder_icon">Folder icon</string>
+	<string name="cd_close">Close</string>
+	<string name="cd_save">Save</string>
+	<string name="cd_undo">Undo</string>
+	<string name="cd_redo">Redo</string>
+	<string name="cd_delete">Delete</string>
+	<string name="cd_add">Add</string>
+	<string name="cd_search">Search</string>
+	<string name="cd_diagnostic_error">Error</string>
+	<string name="cd_diagnostic_warning">Warning</string>
+	<string name="cd_diagnostic_info">Information</string>
+
+	<!-- Toolbar content descriptions for TalkBack (match actual function) -->
+	<string name="cd_toolbar_quick_run">Quick run</string>
+	<string name="cd_toolbar_cancel_build">Cancel build</string>
+	<string name="cd_toolbar_sync_project">Sync project</string>
+	<string name="cd_toolbar_start_debugger">Start debugger</string>
+	<string name="cd_toolbar_run_gradle_tasks">Run Gradle tasks</string>
+	<string name="cd_toolbar_undo">Undo</string>
+	<string name="cd_toolbar_redo">Redo</string>
+	<string name="cd_toolbar_save">Save</string>
+	<string name="cd_toolbar_preview_layout">Preview layout</string>
+	<string name="cd_toolbar_find">Find</string>
+	<string name="cd_toolbar_find_in_file">Find in file</string>
+	<string name="cd_toolbar_find_in_project">Find in project</string>
+	<string name="cd_toolbar_launch_app">Launch app</string>
+	<string name="cd_toolbar_disconnect_log_senders">Disconnect log senders</string>
+	<string name="cd_toolbar_image_to_layout">Image to layout</string>
+
+	<!-- Drawer toggle content descriptions -->
+	<string name="cd_drawer_open">Open project menu</string>
+	<string name="cd_drawer_close">Close project menu</string>
+
 	<string name="unknown_error">"An unknown error occurred."</string>
 	<string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
 	<string name="error_build_service_not_found">Build service not found.</string>
@@ -783,6 +941,17 @@
 	<string name="info_build_cancelled">Build was cancelled by the user.</string>
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
+	<string name="status_installing_plugin">Installing plugin…</string>
+	<string name="title_install_plugin">Install Plugin</string>
+	<string name="msg_install_plugin_prompt">Plugin \'%1$s\' built successfully. Would you like to install it now?</string>
+	<string name="btn_install">Install</string>
+	<string name="btn_later">Later</string>
+	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
+	<string name="title_restart_required">Restart Required</string>
+	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
+	<string name="btn_restart_now">Restart Now</string>
+	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
+	<string name="msg_plugin_file_not_found">Plugin file not found</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
@@ -891,7 +1060,7 @@
 	<string name="debugger_setup_description_footer"><![CDATA[Some devices (including older Xiaomi devices) also require giving Code on the Go the “Unrestricted battery usage permission”. <a href="http://localhost:6174/i/debug-enable.html">See more information including troubleshooting tips</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
-	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
+	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
@@ -945,4 +1114,22 @@
     <string name="type_a_message_or_prompt">Type a message or prompt…</string>
     <string name="ai_setting_initializing_engine">Initializing engine</string>
     <string name="ai_setting_engine_ready">Engine is ready.</string>
+	<string name="title_image_to_layout">Image to Layout</string>
+
+	<!-- Compose Preview -->
+	<string name="preview_error_title">Preview Error</string>
+	<string name="preview_empty_title">No @Preview composables found</string>
+	<string name="preview_empty_message">Add @Preview annotation to a @Composable function to see it here</string>
+	<string name="title_compose_preview">Compose Preview</string>
+	<string name="toggle_preview_mode">Toggle preview mode</string>
+	<string name="preview_build_required_title">Build Required</string>
+	<string name="preview_build_required_message">Build the project to enable multi-file preview support</string>
+	<string name="preview_build_project">Build Project</string>
+	<string name="preview_building_project">Building project…</string>
+	<string name="preview_initializing">Initializing Compose preview…</string>
+
+	<!-- Copy Diagnostics -->
+	<string name="msg_diagnostics_copied">Diagnostics copied to clipboard</string>
+	<string name="msg_no_diagnostics_to_copy">No diagnostics to copy</string>
+	<string name="msg_clipboard_copy_failed">Failed to copy to clipboard</string>
 </resources>

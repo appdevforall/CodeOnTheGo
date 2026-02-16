@@ -6,6 +6,7 @@ import android.app.Activity
 import android.content.Context
 import com.itsaky.androidide.plugins.*
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
+import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeBuildService
@@ -193,7 +194,19 @@ class PluginManager private constructor(
     suspend fun verifyAllPluginDocumentation() = withContext(Dispatchers.IO) {
         verifyDocumentationForLoadedPlugins()
     }
-    
+
+    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> {
+        if (!pluginFile.exists()) {
+            return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
+        }
+        if (!pluginFile.canRead()) {
+            return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
+        }
+        val pluginLoader = PluginLoader(context, pluginFile)
+        val manifest = pluginLoader.getPluginMetadata()
+            ?: return Result.failure(IllegalArgumentException("Plugin manifest not found in: ${pluginFile.name}"))
+        return Result.success(manifest)
+    }
 
     /**
      * Load plugin and return both the plugin instance and its metadata
@@ -429,6 +442,9 @@ class PluginManager private constructor(
             // Unregister the plugin's resource context
             PluginFragmentHelper.unregisterPluginContext(pluginId)
 
+            // Unregister all fragment classloaders for this plugin to avoid leaks
+            PluginFragmentFactory.unregisterAllClassLoadersForPlugin(pluginId)
+
             logger.info("Unloaded plugin: $pluginId")
             return true
         } catch (e: Exception) {
@@ -549,6 +565,16 @@ class PluginManager private constructor(
         return loadedPlugins.entries
             .find { it.value.plugin === plugin }
             ?.key
+    }
+
+    fun getClassLoaderForPlugin(plugin: IPlugin): ClassLoader? {
+        return loadedPlugins.values
+            .find { it.plugin === plugin }
+            ?.classLoader
+    }
+
+    fun getClassLoaderForPluginId(pluginId: String): ClassLoader? {
+        return loadedPlugins[pluginId]?.classLoader
     }
 
     fun enablePlugin(pluginId: String): Boolean {

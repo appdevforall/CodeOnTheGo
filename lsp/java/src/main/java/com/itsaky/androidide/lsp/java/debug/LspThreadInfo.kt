@@ -11,8 +11,10 @@ import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.debug.utils.isOpaque
 import com.sun.jdi.Location
 import com.sun.jdi.Method
+import com.sun.jdi.ObjectCollectedException
 import com.sun.jdi.StackFrame
 import com.sun.jdi.ThreadReference
+import com.sun.jdi.VMDisconnectedException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -65,7 +67,25 @@ class JavaStackFrame(
 						frame.location() == location
 					}?.run {
 						val variables = mutableListOf<AbstractJavaVariable<*>>()
-						val thisObject = this.thisObject()
+
+						val thisObject = runCatching {
+							this.thisObject()
+						}.getOrElse { e ->
+							when (e) {
+								is VMDisconnectedException -> {
+									logger.warn("VM disconnected while fetching 'this' object.", e)
+									return@evaluate emptyList()
+								}
+								is ObjectCollectedException -> {
+									logger.warn("Object collected by GC during debug", e)
+									null
+								}
+								else -> {
+									logger.error("Unexpected error fetching thisObject", e)
+									null
+								}
+							}
+						}
 						if (thisObject != null) {
 							variables.add(
 								ThisVariable<Value>(
@@ -76,31 +96,40 @@ class JavaStackFrame(
 							)
 						}
 
-						visibleVariables()
-							?.mapNotNull { variable ->
-								if (variable.name().isBlank()) {
-									// some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
-									return@mapNotNull null
-								}
+						try {
+							visibleVariables()
+								?.mapNotNull { variable ->
+									if (variable.name().isBlank()) {
+										// some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
+										return@mapNotNull null
+									}
 
-								try {
-									JavaLocalVariable.forVariable(
-										thread = thread,
-										stackFrame = this@JavaStackFrame,
-										variable = variable,
-										value = frame.getValue(variable),
-									)
-								} catch (err: Throwable) {
-									logger.error(
-										"Failed to create variable wrapper for {}",
-										variable.name(),
-										err,
-									)
-									null
+									try {
+										JavaLocalVariable.forVariable(
+											thread = thread,
+											stackFrame = this@JavaStackFrame,
+											variable = variable,
+											value = frame.getValue(variable),
+										)
+									} catch (e: VMDisconnectedException) {
+										throw e
+									} catch (err: Throwable) {
+										logger.error(
+											"Failed to create variable wrapper for {}",
+											variable.name(),
+											err,
+										)
+										null
+									}
+								}?.also { localVariables ->
+									variables.addAll(localVariables as List<AbstractJavaVariable<*>>)
 								}
-							}?.also { localVariables ->
-								variables.addAll(localVariables as List<AbstractJavaVariable<*>>)
-							}
+						} catch (e: VMDisconnectedException) {
+							logger.warn("VM disconnected while reading local variables. Aborting.")
+							return@evaluate emptyList()
+						} catch (e: Throwable) {
+							logger.error("Error reading local variables", e)
+						}
 
 						variables
 					}

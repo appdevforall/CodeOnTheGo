@@ -31,84 +31,55 @@ fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
 
 	setOnLongClickListener { listener(it) }
 	isLongClickable = true
-	if (this is ViewGroup) {
-		for (i in 0 until childCount) {
-			val currentView = getChildAt(i)
-			if (currentView is Slider) {
-				currentView.setupGestureHandling(
-					onLongPress = { view -> listener(view) },
-					onDrag = {},
-				)
-			} else {
-				currentView.applyLongPressRecursively(listener)
-			}
-		}
-	}
+    if (this is ViewGroup) {
+        for (i in 0 until childCount) {
+            val currentView = getChildAt(i)
+            currentView.applyLongPressRecursively(listener)
+        }
+    }
 }
 
 @SuppressLint("ClickableViewAccessibility")
 fun View.setupGestureHandling(
-	onLongPress: (View) -> Unit,
-	onDrag: (View) -> Unit,
+    onLongPress: (View) -> Unit,
+    onDrag: (View) -> Unit
 ) {
-	val handler = Handler(Looper.getMainLooper())
-	var isDragging = false
-	var longPressFired = false
-	val touchSlop = ViewConfiguration.get(this.context).scaledTouchSlop
-	var downX = 0f
-	var downY = 0f
+    val handler = Handler(Looper.getMainLooper())
+    var isTooltipStarted = false
+    var startTime = 0L
 
-	val longPressRunnable =
-		Runnable {
-			if (!isDragging) {
-				longPressFired = true
-				this.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-				onLongPress(this)
-			}
-		}
+    setOnTouchListener { view, event ->
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                isTooltipStarted = false
+                startTime = System.currentTimeMillis()
 
-	this.setOnTouchListener { view, event ->
-		when (event.action) {
-			MotionEvent.ACTION_DOWN -> {
-				isDragging = false
-				longPressFired = false
-				downX = event.x
-				downY = event.y
+                // Trigger long press after 800ms
+                handler.postDelayed({
+                    if (!isTooltipStarted) {
+                        isTooltipStarted = true
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        onLongPress(view)
+                    }
+                }, LONG_PRESS_TIMEOUT_MS)
+            }
 
-				view.parent.requestDisallowInterceptTouchEvent(true)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                handler.removeCallbacksAndMessages(null)
 
-				handler.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout().toLong())
-				true
-			}
-
-			MotionEvent.ACTION_MOVE -> {
-				if (!isDragging && (abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop)) {
-					isDragging = true
-					handler.removeCallbacks(longPressRunnable)
-					onDrag(view)
-				}
-				isDragging
-			}
-
-			MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-				view.parent.requestDisallowInterceptTouchEvent(false)
-
-				val wasDragging = isDragging
-				val wasLongPressed = longPressFired
-
-				if (!wasDragging && !wasLongPressed) {
-					view.performClick()
-				}
-
-				handler.removeCallbacks(longPressRunnable)
-				isDragging = false
-				longPressFired = false
-				true
-			}
-
-			else -> false
-		}
-	}
+                if (!isTooltipStarted) {
+                    val holdDuration = System.currentTimeMillis() - startTime
+                    if (holdDuration >= HOLD_DURATION_MS) {
+                        // Medium hold for drag (600-800ms)
+                        onDrag(view)
+                    } else {
+                        view.performClick()
+                    }
+                }
+            }
+        }
+        true
+    }
 }
 
 /**
@@ -142,7 +113,6 @@ fun View.handleLongClicksAndDrag(
 	var longPressFired = false
 
 	val handler = Handler(Looper.getMainLooper())
-	val longPressTimeout = 800L
 
 	val longPressRunnable =
 		Runnable {
@@ -166,7 +136,7 @@ fun View.handleLongClicksAndDrag(
 				viewInitialX = view.x
 				viewInitialY = view.y
 
-				handler.postDelayed(longPressRunnable, longPressTimeout)
+				handler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT_MS)
 				true
 			}
 
@@ -219,3 +189,6 @@ fun View.handleLongClicksAndDrag(
 		}
 	}
 }
+
+const val HOLD_DURATION_MS = 600L
+const val LONG_PRESS_TIMEOUT_MS = 800L

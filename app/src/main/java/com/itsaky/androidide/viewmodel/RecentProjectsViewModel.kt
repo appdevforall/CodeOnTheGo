@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.app.Application
+import android.database.SQLException
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -17,8 +18,12 @@ import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
+import java.io.File
+import java.io.IOException
 
 enum class SortCriteria {
     NAME,
@@ -27,6 +32,10 @@ enum class SortCriteria {
 }
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(RecentProjectsViewModel::class.java)
+    }
 
     private val _projects = MutableLiveData<List<ProjectFile>>()
     private var allProjects: List<ProjectFile> = emptyList()
@@ -43,10 +52,13 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     val hasActiveFilters: Boolean
         get() = currentSort != null || !isAscending || currentQuery.isNotEmpty()
 
+    private val _deletionStatus = MutableSharedFlow<Boolean>(replay = 1)
+    val deletionStatus = _deletionStatus.asSharedFlow()
 
     // Get the database and DAO instance
-    private val recentProjectDao: RecentProjectDao =
-        RecentProjectRoomDatabase.getDatabase(application, viewModelScope).recentProjectDao()
+    private val recentProjectDatabase: RecentProjectRoomDatabase =
+        RecentProjectRoomDatabase.getDatabase(application, viewModelScope)
+    private val recentProjectDao: RecentProjectDao = recentProjectDatabase.recentProjectDao()
 
     fun loadProjects(): Job {
         return viewModelScope.launch(Dispatchers.IO) {
@@ -143,14 +155,42 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
 	fun deleteProject(project: ProjectFile) = deleteProject(project.name)
 
-    fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
-        recentProjectDao.deleteByName(name)
-        // Update the LiveData by removing the deleted project
-        _projects.value?.let { currentList ->
-            val updatedList = currentList.filter { it.name != name }
-            _projects.postValue(updatedList)
+    fun deleteProject(name: String) = viewModelScope.launch {
+        try {
+            val success = withContext(Dispatchers.IO) {
+                // Delete files from storage first
+                val projectToDelete = recentProjectDao.getProjectByName(name)
+                    ?: return@withContext false
+                val isDeleted = File(projectToDelete.location).deleteRecursively()
+
+                // Delete from DB if storage deletion was successful
+                if (isDeleted) {
+                    recentProjectDao.deleteByName(name)
+                }
+                isDeleted
+            }
+
+            if (success) {
+                // Update LiveData
+                val currentList = _projects.value ?: emptyList()
+                allProjects = allProjects.filter { it.name != name }
+                _projects.value = currentList.filter { it.name != name }
+                _deletionStatus.emit(true)
+            } else {
+                // Emit failure if files couldn't be deleted
+                _deletionStatus.emit(false)
+            }
+        } catch (e: IOException) {
+            logger.error("An I/O error occurred during project deletion", e)
+            _deletionStatus.emit(false)
+        } catch (e: SQLException) {
+            logger.error("A database error occurred during project deletion", e)
+            _deletionStatus.emit(false)
+        } catch (e: SecurityException) {
+            logger.error("Security error during project deletion", e)
+            _deletionStatus.emit(false)
         }
-        loadProjects()
+        vacuumDatabase()
     }
 
 	fun updateProject(renamedFile: RecentProjectsAdapter.RenamedFile) =
@@ -181,10 +221,55 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 			loadProjects()
 		}
 
-    fun deleteSelectedProjects(selectedNames: List<String>) =
-        viewModelScope.launch(Dispatchers.IO) {
-            // Delete the selected projects from the database
-            recentProjectDao.deleteByNames(selectedNames)
-            loadProjects()
-        }
+  fun deleteSelectedProjects(selectedNames: List<String>) =
+      viewModelScope.launch {
+          if (selectedNames.isEmpty()) {
+              return@launch
+          }
+
+          var allDeletionsSucceeded = true
+
+          try {
+              withContext(Dispatchers.IO) {
+                  // Find the full project details for the selected project names
+                  val projectsToDelete = recentProjectDao.getProjectsByNames(selectedNames)
+                  val successfullyDeletedNames = mutableListOf<String>()
+
+                  for (project in projectsToDelete) {
+                      // Delete from storage
+                      val isDeletedFromStorage = File(project.location).deleteRecursively()
+
+                      if (isDeletedFromStorage) {
+                          successfullyDeletedNames.add(project.name)
+                      } else {
+                          logger.warn("Failed to delete project files from storage: ${project.location}")
+                          allDeletionsSucceeded = false
+                      }
+                  }
+
+                  if (successfullyDeletedNames.isNotEmpty()) {
+                      // Delete from database
+                      recentProjectDao.deleteByNames(successfullyDeletedNames)
+                  }
+              }
+
+              vacuumDatabase()
+              loadProjects()
+
+              _deletionStatus.emit(allDeletionsSucceeded)
+
+          } catch (e: Exception) {
+              logger.error("An exception occurred during project deletion", e)
+              _deletionStatus.emit(false)
+          }
+      }
+
+
+    private suspend fun vacuumDatabase() {
+    withContext(Dispatchers.IO) {
+      runCatching {
+      	recentProjectDatabase.vacuum()
+			}
+    }
+  }
 }
