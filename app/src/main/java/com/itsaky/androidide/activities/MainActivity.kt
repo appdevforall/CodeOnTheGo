@@ -72,7 +72,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private var _binding: ActivityMainBinding? = null
 	private val analyticsManager: IAnalyticsManager by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
-	private var webServer: WebServer? = null
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -325,21 +324,21 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	}
 
     private fun startWebServer() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val dbFile = Environment.DOC_DB
-                log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
-                val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath, fileDirPath = this@MainActivity.filesDir.absolutePath))
-                webServer.start()
-            } catch (e: Exception) {
-                log.error("Failed to start WebServer", e)
-            }
-        }
-    }
+		lifecycleScope.launch(Dispatchers.IO) {
+			try {
+				val dbFile = Environment.DOC_DB
+				log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
+				val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath, fileDirPath = this@MainActivity.filesDir.absolutePath))
+				webServer.start()
+			} catch (e: Exception) {
+				log.error("Failed to start WebServer", e)
+			}
+		}
+	}
 
-    override fun onDestroy() {
-        ITemplateProvider.getInstance().release()
-        super.onDestroy()
-        _binding = null
-    }
+	override fun onDestroy() {
+		ITemplateProvider.getInstance().release()
+		super.onDestroy()
+		_binding = null
+	}
 }

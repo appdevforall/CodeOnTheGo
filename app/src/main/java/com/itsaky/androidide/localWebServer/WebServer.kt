@@ -1,8 +1,6 @@
 package org.appdevforall.localwebserver
 
-import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import android.util.Log
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
@@ -13,15 +11,16 @@ import java.io.PrintWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.sql.Date
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.concurrent.TimeUnit;
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.io.IOException;
+
 
 data class ServerConfig(
     val port: Int = 6174,
@@ -35,22 +34,24 @@ data class ServerConfig(
             "/Download/CodeOnTheGo.exp", // TODO: Centralize this concept. --DS, 9-Feb-2026
 
 // Yes, this is hack code.
-    val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
+    val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database",
+    val fileDirPath: String
 )
 
 class WebServer(private val config: ServerConfig) {
     private lateinit var serverSocket: ServerSocket
     private lateinit var database: SQLiteDatabase
-    private var databaseTimestamp: Long = -1
-    private val log = LoggerFactory.getLogger(WebServer::class.java)
-    private var debugEnabled: Boolean = File(config.debugEnablePath).exists()
-    private val encodingHeader: String = "Accept-Encoding"
-    private var brotliSupported = false
-    private val brotliCompression: String = "br"
+    private          var databaseTimestamp: Long = -1
+    private          val log = LoggerFactory.getLogger(WebServer::class.java)
+    private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
+    private          val encodingHeader : String = "Accept-Encoding"
+    private          var brotliSupported = false
+    private          val brotliCompression : String = "br"
     private val playgroundFilePath = "${config.fileDirPath}/Playground.java"
     private val truncationLimit = 10000
     private val postDataFieldName = "data"
     private val playgroundEndpoint = "playground/execute"
+
 
     //function to obtain the last modified date of a documentation.db database
     // this is used to see if there is a newer version of the database on the sdcard
@@ -64,11 +65,7 @@ class WebServer(private val config: ServerConfig) {
             if (!silent) {
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
-                if (debugEnabled) log.debug(
-                    "{} was last modified at {}.",
-                    pathname,
-                    dateFormat.format(Date(timestamp))
-                )
+                if (debugEnabled) log.debug("{} was last modified at {}.", pathname, dateFormat.format(Date(timestamp)))
             }
         }
 
@@ -114,23 +111,13 @@ FROM   LastChange
 
     fun start() {
         try {
-            log.debug(
-                "Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.",
-                config.bindName,
-                config.port,
-                debugEnabled,
-                config.debugEnablePath,
-                config.debugDatabasePath
-            )
+            log.debug("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.",
+                config.bindName, config.port, debugEnabled, config.debugEnablePath, config.debugDatabasePath)
 
             databaseTimestamp = getDatabaseTimestamp(config.databasePath)
 
             try {
-                database = SQLiteDatabase.openDatabase(
-                    config.databasePath,
-                    null,
-                    SQLiteDatabase.OPEN_READONLY
-                )
+                database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
             } catch (e: Exception) {
                 log.error("Cannot open database: {}", e.message)
                 return
@@ -217,16 +204,12 @@ FROM   LastChange
             return sendError(writer, 501, "Not Implemented")
         }
 
-
         var contentLength = 0
 
         //the HTTP headers follow the the method line, read until eof or 0 length
         //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
-        while(requestLine.isNotEmpty()) {
+        while (requestLine.isNotEmpty()) {
             requestLine = reader.readLine() ?: break
-            if (requestLine.isEmpty()) {
-                break
-            }
 
             if (debugEnabled) log.debug("Header: {}", requestLine)
 
@@ -235,12 +218,12 @@ FROM   LastChange
 
                 brotliSupported = parts.contains(brotliCompression)
             }
+
+            if (requestLine.contains("Content-Length")) {
+                contentLength = requestLine.split(" ")[1].toInt()
+            }
         }
 
-        if (method == "POST" && path != playgroundEndpoint) {
-            log.debug("Received POST request to an invalid endpoint: " + path)
-            return sendError(writer, 404, "Not found")
-        }
 
         if (method == "POST" && path == playgroundEndpoint) {
             val data = CharArray(contentLength)
@@ -316,148 +299,161 @@ FROM   LastChange
                 appendLine("</body></html>")
             }
 
-
             // Send the HTML response using the new helper function
             sendHtmlResponse(writer, output, html)
             return
+
+
         }
 
-        // Check to see if there is a newer version of the documentation.db database on the sdcard
-        // if there is use that for our responses
-        val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-        if (debugDatabaseTimestamp > databaseTimestamp) {
-            database.close()
-            database = SQLiteDatabase.openDatabase(
-                config.debugDatabasePath,
-                null,
-                SQLiteDatabase.OPEN_READONLY
-            )
-            databaseTimestamp = debugDatabaseTimestamp
-        }
 
-        // Handle the special "pr" endpoint with highest priority
-        if (path.startsWith("pr/", false)) {
-            if (debugEnabled) log.debug("Found a pr/ path, '$path'.")
-
-            return when (path) {
-                "pr/db" -> handleDbEndpoint(writer, output)
-                "pr/pr" -> handlePrEndpoint(writer, output)
-                "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, 404, "Not Found")
+            //check to see if there is a newer version of the documentation.db database on the sdcard
+            // if there is use that for our responses
+            val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
+            if (debugDatabaseTimestamp > databaseTimestamp) {
+                database.close()
+                database = SQLiteDatabase.openDatabase(
+                    config.debugDatabasePath,
+                    null,
+                    SQLiteDatabase.OPEN_READONLY
+                )
+                databaseTimestamp = debugDatabaseTimestamp
             }
-        }
 
-        val query = """
+            // Handle the special "pr" endpoint with highest priority
+            if (path.startsWith("pr/", false)) {
+                if (debugEnabled) log.debug("Found a pr/ path, '$path'.")
+
+                return when (path) {
+                    "pr/db" -> handleDbEndpoint(writer, output)
+                    "pr/pr" -> handlePrEndpoint(writer, output)
+                    "pr/ex" -> handleExEndpoint(writer, output)
+                    else -> sendError(writer, 404, "Not Found")
+                }
+            }
+
+            val query = """
 SELECT C.content, CT.value, CT.compression
 FROM   Content C, ContentTypes CT
 WHERE  C.contentTypeID = CT.id
   AND  C.path = ?
         """
-        val cursor = database.rawQuery(query, arrayOf(path))
-        val rowCount = cursor.count
+            val cursor = database.rawQuery(query, arrayOf(path))
+            val rowCount = cursor.count
 
-        var dbContent   : ByteArray
-        var dbMimeType  : String
-        var compression : String
+            var dbContent: ByteArray
+            var dbMimeType: String
+            var compression: String
 
-        try {
-            if (rowCount != 1) {
-                return when (rowCount) {
-                    0 -> sendError(writer, 404, "Not Found", "Path requested: $path")
-                    else -> sendError(
-                        writer,
-                        500,
-                        "Internal Server Error 2",
-                        "Corrupt database - multiple records found when unique record expected, Path requested: $path"
-                    )
+            try {
+                if (rowCount != 1 && path != playgroundEndpoint) {
+                    return when (rowCount) {
+                        0 -> sendError(writer, 404, "Not Found", "Path requested: $path")
+                        else -> sendError(
+                            writer,
+                            500,
+                            "Internal Server Error 2",
+                            "Corrupt database - multiple records found when unique record expected, Path requested: $path"
+                        )
+                    }
                 }
+
+                cursor.moveToFirst()
+                dbContent = cursor.getBlob(0)
+                dbMimeType = cursor.getString(1)
+                compression = cursor.getString(2)
+
+                if (debugEnabled) log.debug(
+                    "len(content)={}, MIME type={}, compression={}.",
+                    dbContent.size,
+                    dbMimeType,
+                    compression
+                )
+
+            } finally {
+                cursor.close()
             }
 
-            cursor.moveToFirst()
-            dbContent   = cursor.getBlob(0)
-            dbMimeType  = cursor.getString(1)
-            compression = cursor.getString(2)
-
-            if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
-
-        } finally {
-            cursor.close()
-        }
-
-        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
-            val query2 = """
+            if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
+                val query2 = """
 SELECT content
 FROM   Content
 WHERE  path = ?
   AND  languageId = 1
         """
-            var fragmentNumber = 1
-            var dbContent2 = dbContent
+                var fragmentNumber = 1
+                var dbContent2 = dbContent
 
-            while (dbContent2.size == 1024 * 1024) {
-                val path2 = "$path-$fragmentNumber"
-                if (debugEnabled) log.debug("DB item > 1 MB. fragment#{} path2='{}'.", fragmentNumber, path2)
+                while (dbContent2.size == 1024 * 1024) {
+                    val path2 = "$path-$fragmentNumber"
+                    if (debugEnabled) log.debug(
+                        "DB item > 1 MB. fragment#{} path2='{}'.",
+                        fragmentNumber,
+                        path2
+                    )
 
-                val cursor2 = database.rawQuery(query2, arrayOf(path2))
-                try {
-                    if (cursor2.moveToFirst()) {
-                        dbContent2 = cursor2.getBlob(0)
+                    val cursor2 = database.rawQuery(query2, arrayOf(path2))
+                    try {
+                        if (cursor2.moveToFirst()) {
+                            dbContent2 = cursor2.getBlob(0)
 
-                    } else {
-                        log.error("No fragment found for path '{}'.", path2)
-                        break
+                        } else {
+                            log.error("No fragment found for path '{}'.", path2)
+                            break
+                        }
+
+                    } finally {
+                        cursor2.close()
                     }
 
-                } finally {
-                    cursor2.close()
-                }
-
-                dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 22-Jul-2025
-                fragmentNumber += 1
-                if (debugEnabled) log.debug(
-                    "Fragment size={}, dbContent.length={}.",
-                    dbContent2.size,
-                    dbContent.size
-                )
-            }
-        }
-
-        // If the Accept-Encoding header contains "br", the client can handle
-        // Brotli. Send Brotli data as-is, without decompressing it here.
-        // If the client can't handle Brotli, and the content is Brotli-
-        // compressed, decompress the content here.
-
-        if (compression == "brotli") {
-            if (brotliSupported) {
-                compression = "br"
-
-            } else {
-                try {
-                    if (debugEnabled) log.debug("Brotli content but client doesn't support Brotli. Decoding locally.")
-                    dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
-                    compression = "none"
-
-                } catch (e: Exception) {
-                    log.error("Error decompressing Brotli content: {}", e.message)
-                    return sendError(writer, 500, "Internal Server Error 3")
+                    dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 22-Jul-2025
+                    fragmentNumber += 1
+                    if (debugEnabled) log.debug(
+                        "Fragment size={}, dbContent.length={}.",
+                        dbContent2.size,
+                        dbContent.size
+                    )
                 }
             }
-        }
 
-        //send our response
-        writer.println("HTTP/1.1 200 OK")
-        writer.println("Content-Type: $dbMimeType")
-        writer.println("Content-Length: ${dbContent.size}")
-        if (compression != "none") {
-            writer.println("Content-Encoding: $compression")
-        }
+            // If the Accept-Encoding header contains "br", the client can handle
+            // Brotli. Send Brotli data as-is, without decompressing it here.
+            // If the client can't handle Brotli, and the content is Brotli-
+            // compressed, decompress the content here.
 
-        writer.println("Connection: close")
-        writer.println()
-        writer.flush()
-        output.write(dbContent)
-        output.flush()
-    }
+            if (compression == "brotli") {
+                if (brotliSupported) {
+                    compression = "br"
+
+                } else {
+                    try {
+                        if (debugEnabled) log.debug("Brotli content but client doesn't support Brotli. Decoding locally.")
+                        dbContent =
+                            BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+                        compression = "none"
+
+                    } catch (e: Exception) {
+                        log.error("Error decompressing Brotli content: {}", e.message)
+                        return sendError(writer, 500, "Internal Server Error 3")
+                    }
+                }
+            }
+
+            //send our response
+            writer.println("HTTP/1.1 200 OK")
+            writer.println("Content-Type: $dbMimeType")
+            writer.println("Content-Length: ${dbContent.size}")
+
+            if (compression != "none") {
+                writer.println("Content-Encoding: $compression")
+            }
+
+            writer.println("Connection: close")
+            writer.println()
+            writer.flush()
+            output.write(dbContent)
+            output.flush()
+        }
 
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleDbEndpoint().")
@@ -477,7 +473,7 @@ WHERE  path = ?
                 val columnNames = mutableListOf<String>()
 
                 while (schemaCursor.moveToNext()) {
-                // Values come from schema introspection, therefore not subject to a SQL injection attack.
+                    // Values come from schema introspection, therefore not subject to a SQL injection attack.
                     columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
                 }
 
@@ -558,8 +554,8 @@ WHERE  path = ?
 
         try {
             projectDatabase = SQLiteDatabase.openDatabase(config.projectDatabasePath,
-                                                          null,
-                                                          SQLiteDatabase.OPEN_READONLY)
+                null,
+                SQLiteDatabase.OPEN_READONLY)
 
             if (projectDatabase == null) {
                 log.error("Error handling /pr/pr endpoint 2. Could not open ${config.projectDatabasePath}.")
@@ -572,7 +568,7 @@ WHERE  path = ?
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
             sendError(writer, 500, "Internal Server Error 6", "Error generating database table.")
-            
+
         } finally {
             projectDatabase?.close()
         }
@@ -680,7 +676,6 @@ Connection: close
      * Converts <, >, &, ", and ' to their HTML entity equivalents.
      */
     private fun escapeHtml(text: String): String {
-//        if (debugEnabled) log.debug("Entering escapeHtml(), html='$text'.")
 
         return text
             .replace("&", "&amp;")   // Must be first to avoid double-escaping
@@ -704,7 +699,6 @@ Connection: close
 $messageString""")
     }
 
-
     private fun createFileFromPost(input: CharArray): File {
         val decoded =
             URLDecoder.decode(String(input), StandardCharsets.UTF_8.name())
@@ -727,83 +721,80 @@ $messageString""")
         return file
     }
 
-private fun compileAndRunJava(sourceFile: File): JavaExecutionResult {
-    val dir = sourceFile.parentFile
-    val fileName = sourceFile.nameWithoutExtension
-    val classFile = File(dir, "$fileName.class")
-    val javacPath = "${config.fileDirPath}/usr/bin/javac"
-    val javaPath = "${config.fileDirPath}/usr/bin/java"
-    val timeoutSeconds = 5L
-
-    // Compilation Timing
-    val startTime = System.currentTimeMillis()
-    val javac = ProcessBuilder(javacPath, sourceFile.absolutePath)
-        .directory(dir).redirectErrorStream(true).start()
-
-    val compileOutputBuilder = StringBuilder()
-    val javacGobbler = Thread {
-        try { javac.inputStream.bufferedReader().forEachLine { compileOutputBuilder.appendLine(it) } } catch (_: IOException) {}
-    }.apply { start() }
-
-    val didJavacFinish = javac.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-    val endTime = System.currentTimeMillis()
-    val compileTime = endTime - startTime
-
-    if (!didJavacFinish) javac.destroyForcibly()
-    javacGobbler.join(1000)
-
-    var compileOutput = compileOutputBuilder.toString()
-    if (compileOutput.length > truncationLimit) compileOutput = compileOutput.substring(0, truncationLimit) + " [Truncated]"
-
-    if (!classFile.exists()) {
-        return JavaExecutionResult(compileOutput, "Execution skipped.", !didJavacFinish, compileTime, timeoutSeconds)
-    }
-
-    // Execution
-    val java = ProcessBuilder(javaPath, "-cp", dir.absolutePath, fileName)
-        .directory(dir).redirectErrorStream(true).start()
-
-    val runOutputBuilder = StringBuilder()
-    val javaGobbler = Thread {
-        try { java.inputStream.bufferedReader().forEachLine { runOutputBuilder.appendLine(it) } } catch (_: IOException) {}
-    }.apply { start() }
-
-    val didJavaFinish = java.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-    if (!didJavaFinish) java.destroyForcibly()
-    javaGobbler.join(1000)
-
-    var runOutput = runOutputBuilder.toString()
-    if (runOutput.length > truncationLimit) runOutput = runOutput.substring(0, truncationLimit) + " [Truncated]"
-
-    Files.deleteIfExists(Paths.get(classFile.path))
-
-    return JavaExecutionResult(compileOutput, runOutput, !didJavaFinish, compileTime, timeoutSeconds)
-}
-
     data class JavaExecutionResult(
         val compileOutput: String,
         val runOutput: String,
         val timedOut: Boolean,
         val compileTimeMs: Long,
-        val timeoutLimit: Long
+        val timeoutLimit: Long // Added field
     )
+    private fun compileAndRunJava(sourceFile: File): JavaExecutionResult {
+        val dir = sourceFile.parentFile
+        val fileName = sourceFile.nameWithoutExtension
+        val classFile = File(dir, "$fileName.class")
+        val javacPath = "${config.fileDirPath}/usr/bin/javac"
+        val javaPath = "${config.fileDirPath}/usr/bin/java"
+        val timeoutSeconds = 5L
 
-    private fun sendHtmlResponse(
-        writer: PrintWriter,
-        output: java.io.OutputStream,
-        htmlContent: String,
-        code: Int = 200,
-        message: String = "OK"
-    ) {
-        val htmlBytes = htmlContent.toByteArray(Charsets.UTF_8)
-        writer.println("HTTP/1.1 $code $message")
-        writer.println("Content-Type: text/html; charset=utf-8")
-        writer.println("Content-Length: ${htmlBytes.size}")
-        writer.println("Connection: close")
-        writer.println()
-        writer.flush()
-        output.write(htmlBytes)
-        output.flush()
+        // Compilation Timing
+        val startTime = System.currentTimeMillis()
+        val javac = ProcessBuilder(javacPath, sourceFile.absolutePath)
+            .directory(dir).redirectErrorStream(true).start()
+
+        val compileOutputBuilder = StringBuilder()
+        val javacGobbler = Thread {
+            try { javac.inputStream.bufferedReader().forEachLine { compileOutputBuilder.appendLine(it) } } catch (_: IOException) {}
+        }.apply { start() }
+
+        val didJavacFinish = javac.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+        val endTime = System.currentTimeMillis()
+        val compileTime = endTime - startTime
+
+        if (!didJavacFinish) javac.destroyForcibly()
+        javacGobbler.join(1000)
+
+        var compileOutput = compileOutputBuilder.toString()
+        if (compileOutput.length > truncationLimit) compileOutput = compileOutput.substring(0, truncationLimit) + " [Truncated]"
+
+        if (!classFile.exists()) {
+            return JavaExecutionResult(compileOutput, "Execution skipped.", !didJavacFinish, compileTime, timeoutSeconds)
+        }
+
+        // Execution
+        val java = ProcessBuilder(javaPath, "-cp", dir.absolutePath, fileName)
+            .directory(dir).redirectErrorStream(true).start()
+
+        val runOutputBuilder = StringBuilder()
+        val javaGobbler = Thread {
+            try { java.inputStream.bufferedReader().forEachLine { runOutputBuilder.appendLine(it) } } catch (_: IOException) {}
+        }.apply { start() }
+
+        val didJavaFinish = java.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+        if (!didJavaFinish) java.destroyForcibly()
+        javaGobbler.join(1000)
+
+        var runOutput = runOutputBuilder.toString()
+        if (runOutput.length > truncationLimit) runOutput = runOutput.substring(0, truncationLimit) + " [Truncated]"
+
+        Files.deleteIfExists(Paths.get(classFile.path))
+
+        return JavaExecutionResult(compileOutput, runOutput, !didJavaFinish, compileTime, timeoutSeconds)
     }
 }
-
+private fun sendHtmlResponse(
+    writer: PrintWriter,
+    output: java.io.OutputStream,
+    htmlContent: String,
+    code: Int = 200,
+    message: String = "OK"
+) {
+    val htmlBytes = htmlContent.toByteArray(Charsets.UTF_8)
+    writer.println("HTTP/1.1 $code $message")
+    writer.println("Content-Type: text/html; charset=utf-8")
+    writer.println("Content-Length: ${htmlBytes.size}")
+    writer.println("Connection: close")
+    writer.println()
+    writer.flush()
+    output.write(htmlBytes)
+    output.flush()
+}
