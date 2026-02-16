@@ -11,6 +11,7 @@ import android.util.AttributeSet
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
+import androidx.appcompat.app.AppCompatDelegate
 
 class PluginResourceContext(
     baseContext: Context,
@@ -41,12 +42,23 @@ class PluginResourceContext(
         pluginResources = Resources(assetManager, baseContext.resources.displayMetrics, newConfig)
     }
 
+    private fun resolveCurrentNightMode(): Int {
+        return when (AppCompatDelegate.getDefaultNightMode()) {
+            AppCompatDelegate.MODE_NIGHT_YES -> Configuration.UI_MODE_NIGHT_YES
+            AppCompatDelegate.MODE_NIGHT_NO -> Configuration.UI_MODE_NIGHT_NO
+            else -> baseContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        }
+    }
+
     override fun getTheme(): Theme {
-        val currentNightMode = baseContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        val currentNightMode = resolveCurrentNightMode()
 
         if (currentNightMode != lastNightMode || pluginTheme == null) {
             lastNightMode = currentNightMode
-            recreatePluginResources(baseContext.resources.configuration)
+            val correctedConfig = Configuration(baseContext.resources.configuration).apply {
+                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or currentNightMode
+            }
+            recreatePluginResources(correctedConfig)
             inflater = null
 
             val pluginThemeResId = pluginResources.getIdentifier(

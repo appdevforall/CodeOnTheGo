@@ -18,6 +18,7 @@
 package com.itsaky.androidide.ui.themes
 
 import android.app.Activity
+import androidx.appcompat.app.AppCompatDelegate
 import com.google.auto.service.AutoService
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.utils.isSystemInDarkMode
