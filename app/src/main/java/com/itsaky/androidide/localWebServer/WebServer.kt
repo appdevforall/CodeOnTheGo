@@ -223,9 +223,12 @@ FROM   LastChange
                 contentLength = requestLine.split(" ")[1].toInt()
             }
         }
-
-
+        val maxContentLength = 1000000 // 1 MB limit for playground code
         if (method == "POST" && path == playgroundEndpoint) {
+
+            if (contentLength <= 0 || contentLength > maxContentLength) {
+                return sendError(writer, 413, "Payload Too Large")
+            }
             val data = CharArray(contentLength)
 
             var bytesRead = 0
@@ -777,6 +780,7 @@ $messageString""")
         if (runOutput.length > truncationLimit) runOutput = runOutput.substring(0, truncationLimit) + " [Truncated]"
 
         Files.deleteIfExists(Paths.get(classFile.path))
+        Files.deleteIfExists(Paths.get(sourceFile.path))
 
         return JavaExecutionResult(compileOutput, runOutput, !didJavaFinish, compileTime, timeoutSeconds)
     }
