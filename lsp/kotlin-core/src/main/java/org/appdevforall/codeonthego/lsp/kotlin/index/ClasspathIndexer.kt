@@ -108,6 +108,15 @@ class ClasspathIndexer {
         index.addSourceJar(directory.absolutePath)
     }
 
+    private fun detectExtensionReceiver(
+        extensionFunctionNames: Set<String>,
+        method: MethodInfo
+    ): String? {
+        if (method.name !in extensionFunctionNames) return null
+        if (method.parameters.isEmpty()) return null
+        return method.parameters.first().type
+    }
+
     private fun shouldIndex(className: String): Boolean {
         if (className.startsWith("java.") || className.startsWith("javax.")) {
             return false
@@ -149,16 +158,26 @@ class ClasspathIndexer {
                 if (method.name.startsWith("access$") || method.name.contains('$')) {
                     continue
                 }
+                if (method.name == "<clinit>") continue
+
+                val extensionReceiver = detectExtensionReceiver(classInfo.extensionFunctionNames, method)
+
+                val params = if (extensionReceiver != null && method.parameters.isNotEmpty()) {
+                    method.parameters.drop(1)
+                } else {
+                    method.parameters
+                }
 
                 val methodSymbol = IndexedSymbol(
                     name = method.name,
                     fqName = "$className.${method.name}",
                     kind = if (method.name == "<init>") IndexedSymbolKind.CONSTRUCTOR else IndexedSymbolKind.FUNCTION,
                     packageName = packageName,
-                    containingClass = className,
+                    containingClass = if (extensionReceiver != null) null else className,
                     visibility = method.visibility,
-                    parameters = method.parameters,
+                    parameters = params,
                     returnType = method.returnType,
+                    receiverType = extensionReceiver,
                     typeParameters = method.typeParameters,
                     filePath = sourcePath
                 )
@@ -273,14 +292,240 @@ internal object ClassFileReader {
         }
         superTypes.addAll(interfaces)
 
+        val attributesCount = readU2(bytes, offset)
+        offset += 2
+        val extensionNames = mutableSetOf<String>()
+        for (i in 0 until attributesCount) {
+            val attrNameIndex = readU2(bytes, offset)
+            offset += 2
+            val attrLength = readU4(bytes, offset)
+            offset += 4
+            val attrName = constantPool.getUtf8(attrNameIndex)
+            if (attrName == "RuntimeVisibleAnnotations") {
+                val parsed = parseKotlinMetadataExtensions(bytes, offset, attrLength, constantPool)
+                extensionNames.addAll(parsed)
+            }
+            offset += attrLength
+        }
+
         return ClassInfo(
             kind = parseClassKind(accessFlags),
             visibility = parseVisibility(accessFlags),
             typeParameters = emptyList(),
             superTypes = superTypes,
             methods = methods,
-            fields = fields
+            fields = fields,
+            extensionFunctionNames = extensionNames
         )
+    }
+
+    private fun parseKotlinMetadataExtensions(
+        bytes: ByteArray,
+        offset: Int,
+        length: Int,
+        constantPool: ConstantPool
+    ): Set<String> {
+        try {
+            val endOffset = offset + length
+            if (offset >= bytes.size) return emptySet()
+            val numAnnotations = readU2(bytes, offset)
+            var pos = offset + 2
+
+            for (a in 0 until numAnnotations) {
+                if (pos >= endOffset) break
+                val typeIndex = readU2(bytes, pos)
+                pos += 2
+                val typeName = constantPool.getUtf8(typeIndex) ?: ""
+                val numPairs = readU2(bytes, pos)
+                pos += 2
+
+                if (typeName != "Lkotlin/Metadata;") {
+                    for (p in 0 until numPairs) {
+                        pos = skipAnnotationElementValue(bytes, pos + 2)
+                    }
+                    continue
+                }
+
+                var d1Bytes: List<ByteArray> = emptyList()
+                var d2Strings: List<String> = emptyList()
+
+                for (p in 0 until numPairs) {
+                    val nameIdx = readU2(bytes, pos)
+                    pos += 2
+                    val pairName = constantPool.getUtf8(nameIdx) ?: ""
+
+                    when (pairName) {
+                        "d1" -> {
+                            val result = parseAnnotationArrayOfStrings(bytes, pos, constantPool)
+                            d1Bytes = result.first.map { it.toByteArray(Charsets.ISO_8859_1) }
+                            pos = result.second
+                        }
+                        "d2" -> {
+                            val result = parseAnnotationArrayOfStrings(bytes, pos, constantPool)
+                            d2Strings = result.first
+                            pos = result.second
+                        }
+                        else -> {
+                            pos = skipAnnotationElementValue(bytes, pos)
+                        }
+                    }
+                }
+
+                if (d1Bytes.isNotEmpty() && d2Strings.isNotEmpty()) {
+                    val combined = d1Bytes.fold(ByteArray(0)) { acc, b -> acc + b }
+                    return extractExtensionFunctionNames(combined, d2Strings)
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return emptySet()
+    }
+
+    private fun parseAnnotationArrayOfStrings(
+        bytes: ByteArray,
+        offset: Int,
+        constantPool: ConstantPool
+    ): Pair<List<String>, Int> {
+        if (bytes[offset].toInt().toChar() != '[') {
+            return emptyList<String>() to skipAnnotationElementValue(bytes, offset)
+        }
+        var pos = offset + 1
+        val count = readU2(bytes, pos)
+        pos += 2
+        val strings = mutableListOf<String>()
+        for (i in 0 until count) {
+            val tag = bytes[pos].toInt().toChar()
+            pos++
+            if (tag == 's') {
+                val idx = readU2(bytes, pos)
+                pos += 2
+                constantPool.getUtf8(idx)?.let { strings.add(it) }
+            } else {
+                pos = skipAnnotationElementValueAfterTag(bytes, tag, pos)
+            }
+        }
+        return strings to pos
+    }
+
+    private fun skipAnnotationElementValue(bytes: ByteArray, offset: Int): Int {
+        val tag = bytes[offset].toInt().toChar()
+        return skipAnnotationElementValueAfterTag(bytes, tag, offset + 1)
+    }
+
+    private fun skipAnnotationElementValueAfterTag(bytes: ByteArray, tag: Char, offset: Int): Int {
+        return when (tag) {
+            'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z', 's' -> offset + 2
+            'e' -> offset + 4
+            'c' -> offset + 2
+            '@' -> {
+                var pos = offset + 2
+                val numPairs = readU2(bytes, pos)
+                pos += 2
+                for (i in 0 until numPairs) {
+                    pos = skipAnnotationElementValue(bytes, pos + 2)
+                }
+                pos
+            }
+            '[' -> {
+                val count = readU2(bytes, offset)
+                var pos = offset + 2
+                for (i in 0 until count) {
+                    pos = skipAnnotationElementValue(bytes, pos)
+                }
+                pos
+            }
+            else -> offset + 2
+        }
+    }
+
+    private fun extractExtensionFunctionNames(d1: ByteArray, d2: List<String>): Set<String> {
+        val extensionNames = mutableSetOf<String>()
+        try {
+            var pos = 0
+            while (pos < d1.size) {
+                val byte = d1[pos].toInt() and 0xFF
+                val fieldNumber = byte ushr 3
+                val wireType = byte and 0x07
+                pos++
+
+                if (fieldNumber == 0 && wireType == 0) break
+
+                when (wireType) {
+                    0 -> {
+                        while (pos < d1.size && (d1[pos].toInt() and 0x80) != 0) pos++
+                        pos++
+                    }
+                    1 -> pos += 8
+                    2 -> {
+                        val (msgLen, newPos) = readVarInt(d1, pos)
+                        pos = newPos
+
+                        if (fieldNumber == 9) {
+                            val msgEnd = pos + msgLen
+                            var nameIndex = -1
+                            var hasReceiver = false
+                            var innerPos = pos
+
+                            while (innerPos < msgEnd) {
+                                val innerByte = d1[innerPos].toInt() and 0xFF
+                                val innerField = innerByte ushr 3
+                                val innerWire = innerByte and 0x07
+                                innerPos++
+
+                                when (innerWire) {
+                                    0 -> {
+                                        var value = 0
+                                        var shift = 0
+                                        while (innerPos < msgEnd) {
+                                            val b = d1[innerPos].toInt() and 0xFF
+                                            innerPos++
+                                            value = value or ((b and 0x7F) shl shift)
+                                            if ((b and 0x80) == 0) break
+                                            shift += 7
+                                        }
+                                        if (innerField == 2) nameIndex = value
+                                    }
+                                    1 -> innerPos += 8
+                                    2 -> {
+                                        val (innerLen, np) = readVarInt(d1, innerPos)
+                                        innerPos = np
+                                        if (innerField == 6) hasReceiver = true
+                                        innerPos += innerLen
+                                    }
+                                    5 -> innerPos += 4
+                                    else -> break
+                                }
+                            }
+
+                            if (hasReceiver && nameIndex >= 0 && nameIndex < d2.size) {
+                                extensionNames.add(d2[nameIndex])
+                            }
+                            pos = msgEnd
+                        } else {
+                            pos += msgLen
+                        }
+                    }
+                    5 -> pos += 4
+                    else -> break
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return extensionNames
+    }
+
+    private fun readVarInt(bytes: ByteArray, startPos: Int): Pair<Int, Int> {
+        var pos = startPos
+        var value = 0
+        var shift = 0
+        while (pos < bytes.size) {
+            val b = bytes[pos].toInt() and 0xFF
+            pos++
+            value = value or ((b and 0x7F) shl shift)
+            if ((b and 0x80) == 0) break
+            shift += 7
+        }
+        return value to pos
     }
 
     private fun parseConstantPool(bytes: ByteArray, count: Int): ConstantPool {
@@ -596,7 +841,8 @@ data class ClassInfo(
     val typeParameters: List<String>,
     val superTypes: List<String>,
     val methods: List<MethodInfo>,
-    val fields: List<FieldInfo>
+    val fields: List<FieldInfo>,
+    val extensionFunctionNames: Set<String> = emptySet()
 ) {
     companion object {
         val EMPTY = ClassInfo(

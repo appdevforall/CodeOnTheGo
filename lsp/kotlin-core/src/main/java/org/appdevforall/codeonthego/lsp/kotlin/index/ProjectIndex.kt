@@ -223,6 +223,11 @@ class ProjectIndex : SymbolIndex {
         results.addAll(extensionIndex.findFor(receiverType, supertypes, includeAnyExtensions))
         stdlibIndex?.findExtensions(receiverType, supertypes, includeAnyExtensions)?.let { results.addAll(it) }
 
+        classpathIndex?.let { cpIndex ->
+            results.addAll(cpIndex.findExtensionsFor(receiverType))
+            supertypes.forEach { st -> results.addAll(cpIndex.findExtensionsFor(st)) }
+        }
+
         return results.distinctBy { it.fqName }
     }
 

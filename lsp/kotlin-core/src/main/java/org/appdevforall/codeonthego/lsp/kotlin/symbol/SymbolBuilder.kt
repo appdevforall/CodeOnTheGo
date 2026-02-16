@@ -887,7 +887,13 @@ class SymbolBuilder private constructor(
             "emptyList" -> TypeReference.generic("List", TypeReference.ANY)
             "emptySet" -> TypeReference.generic("Set", TypeReference.ANY)
             "emptyMap" -> TypeReference.generic("Map", TypeReference.ANY, TypeReference.ANY)
-            else -> null
+            else -> {
+                if (calleeName != null && calleeName.first().isUpperCase()) {
+                    TypeReference(calleeName)
+                } else {
+                    null
+                }
+            }
         }
     }
 
@@ -1217,10 +1223,8 @@ class SymbolBuilder private constructor(
                 SyntaxKind.WHEN_EXPRESSION -> processWhenExpression(child)
                 SyntaxKind.TRY_EXPRESSION -> processTryExpression(child)
                 SyntaxKind.LAMBDA_LITERAL -> processLambda(child)
-                else -> {
-                    android.util.Log.d("SymbolBuilder", "    -> else branch, recursing into ${child.kind}")
-                    processBody(child)
-                }
+                SyntaxKind.ERROR -> processBody(child)
+                else -> processBody(child)
             }
         }
     }
