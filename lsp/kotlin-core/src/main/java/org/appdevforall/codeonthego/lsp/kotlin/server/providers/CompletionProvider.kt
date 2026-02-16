@@ -656,13 +656,29 @@ class CompletionProvider(
             }
         }
 
+        if (symbolTable != null) {
+            val pkg = symbolTable.packageName
+            val hasDeclaredType = symbolTable.classes.any { it.name == typeName }
+                || symbolTable.typeAliases.any { it.name == typeName }
+            if (hasDeclaredType) {
+                return if (pkg.isNotEmpty()) "$pkg.$typeName" else typeName
+            }
+        }
+
+        val projectMatches = projectIndex.findInProjectFiles(typeName).filter { it.kind.isClass }
+        if (projectMatches.isNotEmpty()) {
+            if (projectMatches.size == 1) return projectMatches.first().fqName
+            val samePackage = projectMatches.firstOrNull { it.packageName == symbolTable?.packageName }
+            return (samePackage ?: projectMatches.first()).fqName
+        }
+
+        symbolTable?.imports?.filter { it.isStar }?.forEach { import ->
+            val candidate = "${import.fqName}.$typeName"
+            if (projectIndex.findByFqName(candidate) != null) return candidate
+        }
+
         val classpathIndex = projectIndex.getClasspathIndex()
         if (classpathIndex != null) {
-            symbolTable?.imports?.filter { it.isStar }?.forEach { import ->
-                val candidate = "${import.fqName}.$typeName"
-                if (classpathIndex.findByFqName(candidate) != null) return candidate
-            }
-
             val matches = classpathIndex.findBySimpleName(typeName).filter { it.kind.isClass }
             if (matches.size == 1) return matches.first().fqName
         }
@@ -701,7 +717,7 @@ class CompletionProvider(
 
         val seen = mutableSetOf<String>()
         return result.filter { member ->
-            val key = member.name + "(" + member.parameters.joinToString(",") { it.type } + ")"
+            val key = member.kind.name + ":" + member.name + "(" + member.parameters.joinToString(",") { it.type } + ")"
             seen.add(key)
         }
     }
@@ -729,7 +745,7 @@ class CompletionProvider(
 
         val seen = mutableSetOf<String>()
         return result.filter { member ->
-            val key = member.name + "(" + member.parameters.joinToString(",") { it.type } + ")"
+            val key = member.kind.name + ":" + member.name + "(" + member.parameters.joinToString(",") { it.type } + ")"
             seen.add(key)
         }
     }
@@ -771,8 +787,7 @@ class CompletionProvider(
 
     private fun isFilteredMember(name: String): Boolean {
         if (name == "<init>" || name == "<clinit>") return true
-        if (name.length > 1 && name.all { it.isUpperCase() || it == '_' || it.isDigit() }) return true
-        if (name.startsWith("access$")) return true
+        if (name.startsWith("access$") || name.startsWith("$")) return true
         return false
     }
 

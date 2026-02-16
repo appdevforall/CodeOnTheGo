@@ -68,6 +68,14 @@ class ProjectIndex : SymbolIndex {
         return results.distinctBy { it.fqName }
     }
 
+    fun findInProjectFiles(name: String): List<IndexedSymbol> {
+        val results = mutableListOf<IndexedSymbol>()
+        for (fgiveileIndex in fileIndexes.values) {
+            results.addAll(fileIndex.findBySimpleName(name))
+        }
+        return results
+    }
+
     override fun findByPackage(packageName: String): List<IndexedSymbol> {
         val results = mutableListOf<IndexedSymbol>()
 

@@ -108,11 +108,8 @@ class ClasspathIndexer {
         index.addSourceJar(directory.absolutePath)
     }
 
-    private fun detectExtensionReceiver(
-        extensionFunctionNames: Set<String>,
-        method: MethodInfo
-    ): String? {
-        if (method.name !in extensionFunctionNames) return null
+    private fun detectExtensionReceiver(method: MethodInfo): String? {
+        if (!method.isExtension) return null
         if (method.parameters.isEmpty()) return null
         return method.parameters.first().type
     }
@@ -160,7 +157,7 @@ class ClasspathIndexer {
                 }
                 if (method.name == "<clinit>") continue
 
-                val extensionReceiver = detectExtensionReceiver(classInfo.extensionFunctionNames, method)
+                val extensionReceiver = detectExtensionReceiver(method)
 
                 val params = if (extensionReceiver != null && method.parameters.isNotEmpty()) {
                     method.parameters.drop(1)
@@ -294,7 +291,7 @@ internal object ClassFileReader {
 
         val attributesCount = readU2(bytes, offset)
         offset += 2
-        val extensionNames = mutableSetOf<String>()
+        var extensionFunctions = emptyMap<String, List<Int>>()
         for (i in 0 until attributesCount) {
             val attrNameIndex = readU2(bytes, offset)
             offset += 2
@@ -302,10 +299,23 @@ internal object ClassFileReader {
             offset += 4
             val attrName = constantPool.getUtf8(attrNameIndex)
             if (attrName == "RuntimeVisibleAnnotations") {
-                val parsed = parseKotlinMetadataExtensions(bytes, offset, attrLength, constantPool)
-                extensionNames.addAll(parsed)
+                extensionFunctions = parseKotlinMetadataExtensions(bytes, offset, attrLength, constantPool)
             }
             offset += attrLength
+        }
+
+        val markedMethods = if (extensionFunctions.isNotEmpty()) {
+            val remaining = extensionFunctions.mapValues { it.value.toMutableList() }.toMutableMap()
+            methods.map { method ->
+                val valueCounts = remaining[method.name] ?: return@map method
+                if (method.parameters.isEmpty()) return@map method
+                val idx = valueCounts.indexOf(method.parameters.size - 1)
+                if (idx < 0) return@map method
+                valueCounts.removeAt(idx)
+                method.copy(isExtension = true)
+            }
+        } else {
+            methods
         }
 
         return ClassInfo(
@@ -313,9 +323,8 @@ internal object ClassFileReader {
             visibility = parseVisibility(accessFlags),
             typeParameters = emptyList(),
             superTypes = superTypes,
-            methods = methods,
-            fields = fields,
-            extensionFunctionNames = extensionNames
+            methods = markedMethods,
+            fields = fields
         )
     }
 
@@ -324,10 +333,10 @@ internal object ClassFileReader {
         offset: Int,
         length: Int,
         constantPool: ConstantPool
-    ): Set<String> {
+    ): Map<String, MutableList<Int>> {
         try {
             val endOffset = offset + length
-            if (offset >= bytes.size) return emptySet()
+            if (offset >= bytes.size) return emptyMap()
             val numAnnotations = readU2(bytes, offset)
             var pos = offset + 2
 
@@ -373,12 +382,12 @@ internal object ClassFileReader {
 
                 if (d1Bytes.isNotEmpty() && d2Strings.isNotEmpty()) {
                     val combined = d1Bytes.fold(ByteArray(0)) { acc, b -> acc + b }
-                    return extractExtensionFunctionNames(combined, d2Strings)
+                    return extractExtensionFunctions(combined, d2Strings)
                 }
             }
         } catch (_: Exception) {
         }
-        return emptySet()
+        return emptyMap()
     }
 
     private fun parseAnnotationArrayOfStrings(
@@ -438,8 +447,8 @@ internal object ClassFileReader {
         }
     }
 
-    private fun extractExtensionFunctionNames(d1: ByteArray, d2: List<String>): Set<String> {
-        val extensionNames = mutableSetOf<String>()
+    private fun extractExtensionFunctions(d1: ByteArray, d2: List<String>): Map<String, MutableList<Int>> {
+        val extensionFunctions = mutableMapOf<String, MutableList<Int>>()
         try {
             var pos = 0
             while (pos < d1.size) {
@@ -464,6 +473,7 @@ internal object ClassFileReader {
                             val msgEnd = pos + msgLen
                             var nameIndex = -1
                             var hasReceiver = false
+                            var valueParamCount = 0
                             var innerPos = pos
 
                             while (innerPos < msgEnd) {
@@ -489,6 +499,7 @@ internal object ClassFileReader {
                                     2 -> {
                                         val (innerLen, np) = readVarInt(d1, innerPos)
                                         innerPos = np
+                                        if (innerField == 5) valueParamCount++
                                         if (innerField == 6) hasReceiver = true
                                         innerPos += innerLen
                                     }
@@ -498,7 +509,9 @@ internal object ClassFileReader {
                             }
 
                             if (hasReceiver && nameIndex >= 0 && nameIndex < d2.size) {
-                                extensionNames.add(d2[nameIndex])
+                                extensionFunctions
+                                    .getOrPut(d2[nameIndex]) { mutableListOf() }
+                                    .add(valueParamCount)
                             }
                             pos = msgEnd
                         } else {
@@ -511,7 +524,7 @@ internal object ClassFileReader {
             }
         } catch (_: Exception) {
         }
-        return extensionNames
+        return extensionFunctions
     }
 
     private fun readVarInt(bytes: ByteArray, startPos: Int): Pair<Int, Int> {
@@ -841,8 +854,7 @@ data class ClassInfo(
     val typeParameters: List<String>,
     val superTypes: List<String>,
     val methods: List<MethodInfo>,
-    val fields: List<FieldInfo>,
-    val extensionFunctionNames: Set<String> = emptySet()
+    val fields: List<FieldInfo>
 ) {
     companion object {
         val EMPTY = ClassInfo(
@@ -861,7 +873,8 @@ data class MethodInfo(
     val parameters: List<IndexedParameter>,
     val returnType: String,
     val visibility: Visibility,
-    val typeParameters: List<String>
+    val typeParameters: List<String>,
+    val isExtension: Boolean = false
 )
 
 data class FieldInfo(
