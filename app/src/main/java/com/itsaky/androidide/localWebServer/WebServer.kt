@@ -225,55 +225,56 @@ FROM   LastChange
             }
 
             // Call the revised function that returns a data class
+
+            // Inside the POST handler...
             val result = compileAndRunJava(file)
 
-            // Build the HTML response
-            val html = buildString {
-                appendLine("<!DOCTYPE html>")
-                appendLine("<html>")
-                appendLine("<head>")
-                appendLine("<meta charset='UTF-8'>")
-                appendLine("<title>Java Code Execution Result</title>")
-                // Link to the CSS file that must be in the database
-                appendLine("<link rel='stylesheet' type='text/css' href='playground_response_style.css'>")
-                appendLine("</head>")
-                appendLine("<body>")
-                appendLine("<button onclick=\"window.history.back()\">Back to code editor</button>")
-                // Program Output Section
-                appendLine("<div id='program-output-container'>")
-                appendLine("<h2>Program Output</h2>")
+            // Dynamic Styling Logic
+            val hasError = result.compileOutput.contains("error:", ignoreCase = true)
+            val hasWarning = result.compileOutput.contains("warning:", ignoreCase = true) ||
+                    result.compileOutput.contains("deprecation", ignoreCase = true)
 
-                // Add a status message for timeouts or lack of output
-                val runOutputDisplay =
-                    if (result.runOutput.isBlank() && result.compileOutput.isBlank()) {
-                        "No output was generated."
-                    } else if (result.runOutput.isBlank()) {
-                        "--- No run output. See Compiler Output below. ---"
-                    } else {
-                        result.runOutput
-                    }
-
-                // Display program output
-                appendLine("<pre id='program-output'>${escapeHtml(runOutputDisplay)}</pre>")
-                appendLine("</div>")
-
-                // Dividing Line
-                appendLine("<hr>")
-
-                // Compiler Output Section
-                appendLine("<div id='compiler-output-container'>")
-                appendLine("<h2>Compiler Output</h2>")
-                if (result.compileOutput.isNotBlank()) {
-                    // Wrap compiler output in <pre> for preservation of whitespace and line breaks
-                    appendLine("<pre id='compiler-output'>${escapeHtml(result.compileOutput)}</pre>")
-                } else {
-                    appendLine("<p>Compilation successful. No compiler messages.</p>")
-                }
-                appendLine("</div>")
-
-                appendLine("</body>")
-                appendLine("</html>")
+            val (compBorderColor, compBorderWidth) = when {
+                hasError -> "#ff0000" to "3px"
+                hasWarning -> "#ffff00" to "3px"
+                else -> "#00ff00" to "1px"
             }
+
+            val runBorderColor = if (result.timedOut) "#ff0000" else "#00ff00"
+            val runBorderWidth = if (result.timedOut) "3px" else "1px"
+
+            val html = buildString {
+                appendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'>")
+                appendLine("<style>")
+                appendLine("body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; font-size: 24px; }")
+                appendLine("h2 { font-size: 28px; margin-top: 0; }")
+                appendLine("pre, p, button { font-size: 24px; }")
+                appendLine(".output-box { background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; overflow-x: auto; }")
+                appendLine("#compiler-output-container { border: $compBorderWidth solid $compBorderColor; }")
+                appendLine("#program-output-container { border: $runBorderWidth solid $runBorderColor; }")
+                appendLine("pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; }")
+                appendLine("</style></head><body>")
+                appendLine("<button onclick='window.history.back()'>Back to code editor</button>")
+
+                // Program Output - Logic updated for timeout message
+                appendLine("<div id='program-output-container' class='output-box'><h2>Program Output</h2>")
+
+                val runOutputDisplay = when {
+                    result.timedOut -> "Program timed out after ${result.timeoutLimit} seconds."
+                    result.runOutput.isBlank() -> "No output."
+                    else -> result.runOutput
+                }
+
+                appendLine("<pre id='program-output'>${escapeHtml(runOutputDisplay)}</pre></div>")
+
+                // Compiler Output
+                appendLine("<div id='compiler-output-container' class='output-box'><h2>Compiler Output</h2>")
+                appendLine("<p style='margin: 0 0 10px 0; font-weight: bold;'>Time to compile: ${result.compileTimeMs}ms</p>")
+                appendLine("<pre id='compiler-output'>${escapeHtml(result.compileOutput.ifBlank { "Compilation successful." })}</pre></div>")
+
+                appendLine("</body></html>")
+            }
+
 
             // Send the HTML response using the new helper function
             sendHtmlResponse(writer, output, html)
@@ -536,116 +537,65 @@ WHERE  path = ?
         return file
     }
 
-    private fun compileAndRunJava(sourceFile: File): JavaExecutionResult {
-        val dir = sourceFile.parentFile
-        val fileName = sourceFile.nameWithoutExtension
-        val classFile = File(dir, "$fileName.class")
+private fun compileAndRunJava(sourceFile: File): JavaExecutionResult {
+    val dir = sourceFile.parentFile
+    val fileName = sourceFile.nameWithoutExtension
+    val classFile = File(dir, "$fileName.class")
+    val javacPath = "${config.fileDirPath}/usr/bin/javac"
+    val javaPath = "${config.fileDirPath}/usr/bin/java"
+    val timeoutSeconds = 5L
 
-        val javacPath = "${config.fileDirPath}/usr/bin/javac"
-        val javaPath = "${config.fileDirPath}/usr/bin/java"
-        val timeoutSeconds = 5L
+    // Compilation Timing
+    val startTime = System.currentTimeMillis()
+    val javac = ProcessBuilder(javacPath, sourceFile.absolutePath)
+        .directory(dir).redirectErrorStream(true).start()
 
-        // Compilation
-        val javac = ProcessBuilder(javacPath, playgroundFilePath)
-            .directory(dir)
-            .redirectErrorStream(true)
-            .start()
+    val compileOutputBuilder = StringBuilder()
+    val javacGobbler = Thread {
+        try { javac.inputStream.bufferedReader().forEachLine { compileOutputBuilder.appendLine(it) } } catch (_: IOException) {}
+    }.apply { start() }
 
-        val compileOutputBuilder = StringBuilder()
-        val javacGobbler = Thread {
-            try {
-                javac.inputStream.bufferedReader().forEachLine { compileOutputBuilder.appendLine(it) }
-            } catch (_: IOException) {}
-        }.apply { start() }
+    val didJavacFinish = javac.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+    val endTime = System.currentTimeMillis()
+    val compileTime = endTime - startTime
 
-        val didJavacFinish = javac.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+    if (!didJavacFinish) javac.destroyForcibly()
+    javacGobbler.join(1000)
 
-        if (!didJavacFinish) {
-            javac.destroyForcibly()
-            javac.waitFor(2, TimeUnit.SECONDS)
-            log.debug("Javac didn't finish, terminating process.")
-        }
+    var compileOutput = compileOutputBuilder.toString()
+    if (compileOutput.length > truncationLimit) compileOutput = compileOutput.substring(0, truncationLimit) + " [Truncated]"
 
-        javacGobbler.join(1000)
-        var compileOutput = compileOutputBuilder.toString()
-
-        // Compiler output truncation
-        val originalCompileLength = compileOutput.length
-        if (originalCompileLength > truncationLimit) {
-            compileOutput = "Compiler output truncated at $truncationLimit characters. The full length of the output was $originalCompileLength characters.\n\n" + compileOutput.substring(0, truncationLimit)
-        }
-        log.debug("Compiler output length: {}. Truncated to: {}.", originalCompileLength, compileOutput.length)
-
-        if (!classFile.exists()) {
-            // Compilation failed or timed out during compile. No run attempt.
-            val failureMessage = if (!didJavacFinish) {
-                "\n*** Compilation timed out after $timeoutSeconds seconds. ***"
-            } else {
-                ""
-            }
-            return JavaExecutionResult(
-                compileOutput = compileOutput + failureMessage,
-                runOutput = "Program execution skipped due to compilation failure.",
-                timedOut = !didJavacFinish
-            )
-        }
-
-        // Execution
-        val java = ProcessBuilder(
-            javaPath,
-            "-cp",
-            dir?.absolutePath,
-            fileName
-        )
-            .directory(dir)
-            .redirectErrorStream(true)
-            .start()
-
-        val runOutputBuilder = StringBuilder()
-        val javaGobbler = Thread {
-            try {
-                java.inputStream.bufferedReader().forEachLine { runOutputBuilder.appendLine(it) }
-            } catch (_: IOException) {}
-        }.apply { start() }
-
-        val didJavaFinish = java.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-
-        if (!didJavaFinish) {
-            java.destroyForcibly()
-            java.waitFor(2, TimeUnit.SECONDS)
-            log.debug("Java was timed out and terminated.")
-        }
-
-        javaGobbler.join(1000)
-        var runOutput = runOutputBuilder.toString()
-
-        // Run output truncation
-        val originalRunLength = runOutput.length
-        if (originalRunLength > truncationLimit) {
-            runOutput = "(Run) output truncated at $truncationLimit characters. The full length of the output was $originalRunLength characters.\n\n" + runOutput.substring(0, truncationLimit)
-        }
-        log.debug("Run output length: {}. Truncated to: {}.", originalRunLength, runOutput.length)
-
-        Files.deleteIfExists(Paths.get(classFile.path))
-
-        // Timeout for executing program
-        val finalRunOutput = if (!didJavaFinish) {
-            runOutput + "\n*** Program execution timed out after $timeoutSeconds seconds. ***"
-        } else {
-            runOutput
-        }
-
-        return JavaExecutionResult(
-            compileOutput = compileOutput,
-            runOutput = finalRunOutput,
-            timedOut = !didJavaFinish
-        )
+    if (!classFile.exists()) {
+        return JavaExecutionResult(compileOutput, "Execution skipped.", !didJavacFinish, compileTime, timeoutSeconds)
     }
+
+    // Execution
+    val java = ProcessBuilder(javaPath, "-cp", dir.absolutePath, fileName)
+        .directory(dir).redirectErrorStream(true).start()
+
+    val runOutputBuilder = StringBuilder()
+    val javaGobbler = Thread {
+        try { java.inputStream.bufferedReader().forEachLine { runOutputBuilder.appendLine(it) } } catch (_: IOException) {}
+    }.apply { start() }
+
+    val didJavaFinish = java.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+    if (!didJavaFinish) java.destroyForcibly()
+    javaGobbler.join(1000)
+
+    var runOutput = runOutputBuilder.toString()
+    if (runOutput.length > truncationLimit) runOutput = runOutput.substring(0, truncationLimit) + " [Truncated]"
+
+    Files.deleteIfExists(Paths.get(classFile.path))
+
+    return JavaExecutionResult(compileOutput, runOutput, !didJavaFinish, compileTime, timeoutSeconds)
+}
 
     data class JavaExecutionResult(
         val compileOutput: String,
         val runOutput: String,
-        val timedOut: Boolean
+        val timedOut: Boolean,
+        val compileTimeMs: Long,
+        val timeoutLimit: Long
     )
 
     private fun sendHtmlResponse(
