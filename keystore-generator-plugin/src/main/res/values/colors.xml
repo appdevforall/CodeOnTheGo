@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="plugin_primary">#485D92</color>
+    <color name="plugin_on_primary">#FFFFFF</color>
+    <color name="plugin_primary_container">#DAE2FF</color>
+    <color name="plugin_on_primary_container">#001847</color>
+
+    <color name="status_text">#1B1B1F</color>
+    <color name="status_background">#E1E2EC</color>
+
+    <color name="status_success_text">#2E7D32</color>
+    <color name="status_success_background">#E8F5E9</color>
+
+    <color name="status_error_text">#B3261E</color>
+    <color name="status_error_background">#F9DEDC</color>
+</resources>

@@ -16,7 +16,7 @@
 
         <meta-data
             android:name="plugin.version"
-            android:value="1.0.1" />
+            android:value="1.0.2" />
 
         <meta-data
             android:name="plugin.description"
