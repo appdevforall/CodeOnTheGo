@@ -46,8 +46,6 @@ class RootProjectModelBuilderParams(
 	operator fun component2() = cancellationToken
 	operator fun component3() = projectCacheFile
 	operator fun component4() = projectSyncMetaFile
-	operator fun component5() = gradleArgs
-	operator fun component6() = jvmArgs
 }
 
 /**

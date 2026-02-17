@@ -206,8 +206,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					cancellationToken = cancellationToken.token(),
 					projectCacheFile = cacheFile,
 					projectSyncMetaFile = syncMetaFile,
-					gradleArgs = params.gradleArgs,
-					jvmArgs = params.jvmArgs,
+					buildParams = params.buildParams,
 				)
 
 			RootModelBuilder.build(params, modelBuilderParams)
@@ -264,7 +263,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			builder.setStandardError(out)
 			builder.setStandardOutput(out)
 			builder.forTasks(*message.tasks.filter { it.isNotBlank() }.toTypedArray())
-			builder.configureFrom(message)
+			builder.configureFrom(message.buildParams)
 
 			this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
 			builder.withCancellationToken(this.buildCancellationToken!!.token())
@@ -277,6 +276,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				notifyBuildSuccess(message.tasks)
 				return@runBuild TaskExecutionResult.SUCCESS
 			} catch (error: Throwable) {
+				log.error("Failed to run tasks: {}", message.tasks, error)
 				notifyBuildFailure(message.tasks)
 				return@runBuild TaskExecutionResult(false, getTaskFailureType(error))
 			}

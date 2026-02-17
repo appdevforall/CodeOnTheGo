@@ -15,7 +15,6 @@ data class DeviceProfile(
 	val thermal: ThermalState,
 	val storageFreeMb: Long,
 ) {
-
 	/**
 	 * Whether the device is thermal throttled.
 	 */
@@ -27,7 +26,6 @@ data class DeviceProfile(
  * The thermal state of the device.
  */
 enum class ThermalState {
-
 	/**
 	 * The device is not thermal throttled.
 	 */

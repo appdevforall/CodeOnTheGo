@@ -19,7 +19,7 @@ data class GradleTuningConfig(
 /**
  * Configuration for the Gradle daemon.
  *
- * @property enabled Whether the daemon is enabled.
+ * @property daemonEnabled Whether the daemon is enabled.
  * @property jvm The configuration for the JVM instance.
  * @property maxWorkers The maximum number of workers.
  * @property parallel Whether parallel mode is enabled.
@@ -29,7 +29,7 @@ data class GradleTuningConfig(
  * @property configurationCache Whether configuration cache is enabled.
  */
 data class GradleDaemonConfig(
-	val enabled: Boolean,
+	val daemonEnabled: Boolean,
 	val jvm: JvmConfig,
 	val maxWorkers: Int,
 	val parallel: Boolean,
@@ -70,7 +70,7 @@ sealed interface KotlinCompilerExecution {
  * @property xmxMb The maximum JVM heap size.
  * @property maxMetaspaceSize The maximum size of the metaspace (class metadata cap).
  * @property reservedCodeCacheSize The size of the reserved code (JIT) cache.
- * @property useG1Gc Whether to use the G1 garbage collector.
+ * @property gcType The type of garbage collector to use.
  * @property heapDumpOnOutOfMemory Whether to dump the heap on out of memory.
  */
 data class JvmConfig(
@@ -78,9 +78,27 @@ data class JvmConfig(
 	val xmxMb: Int,
 	val maxMetaspaceSize: Int,
 	val reservedCodeCacheSize: Int,
-	val useG1Gc: Boolean = true,
+	val gcType: GcType = GcType.Default,
 	val heapDumpOnOutOfMemory: Boolean = false,
 )
+
+sealed class GcType {
+	data object Default : GcType()
+
+	data object Serial : GcType()
+
+	/**
+	 * Generational garbage collector.
+	 *
+	 * @property useAdaptiveIHOP Whether to use adaptive IHOP. Can be null to use default, JVM-determined value.
+	 * @property softRefLRUPolicyMSPerMB The soft reference LRU policy in milliseconds per MB. Can
+	 *                                   be null to use default, JVM-determined value.
+	 */
+	data class Generational(
+		val useAdaptiveIHOP: Boolean? = null,
+		val softRefLRUPolicyMSPerMB: Int? = null,
+	) : GcType()
+}
 
 /**
  * Configuration for D8/R8.

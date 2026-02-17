@@ -1,11 +1,11 @@
 package com.itsaky.androidide.services.builder
 
 import androidx.annotation.VisibleForTesting
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 object GradleBuildTuner {
-
 	private val logger = LoggerFactory.getLogger(GradleBuildTuner::class.java)
 
 	const val LOW_MEM_THRESHOLD_MB = 3 * 1024 // 3GB
@@ -37,17 +37,168 @@ object GradleBuildTuner {
 		thermalSafe: Boolean,
 		previousConfig: GradleTuningConfig?,
 	): GradleTuningStrategy {
+		val isLowMemDevice = device.mem.isLowMemDevice
+		val totalMemMb = device.mem.totalMemMb
+		val totalCores = device.cpu.totalCores
+		val isThermallyConstrained = thermalSafe || device.isThermalThrottled
+		val hasPreviousConfig = previousConfig != null
+		val meetsHighPerfMem = totalMemMb >= HIGH_PERF_MIN_MEM_MB
+		val meetsHighPerfCores = totalCores >= HIGH_PERF_MIN_CORE
+
+		logger.info(
+			"Evaluating strategy selection: " +
+				"isLowMemDevice={}, totalMemMb={}, totalCores={}, " +
+				"thermalSafe={}, isThermalThrottled={}, previousConfigPresent={}",
+			isLowMemDevice,
+			totalMemMb,
+			totalCores,
+			thermalSafe,
+			device.isThermalThrottled,
+			hasPreviousConfig,
+		)
+
 		val strategy =
 			when {
-				device.mem.isLowMemDevice || device.mem.totalMemMb <= LOW_MEM_THRESHOLD_MB -> LowMemoryStrategy()
-				(thermalSafe || device.isThermalThrottled) && previousConfig != null ->
-					ThermalSafeStrategy(
-						previousConfig,
+				isLowMemDevice || totalMemMb <= LOW_MEM_THRESHOLD_MB -> {
+					logger.info(
+						"Selected LowMemoryStrategy: isLowMemDevice={} OR totalMemMb({}) <= LOW_MEM_THRESHOLD_MB({})",
+						isLowMemDevice,
+						totalMemMb,
+						LOW_MEM_THRESHOLD_MB,
+					)
+					LowMemoryStrategy()
+				}
+
+				isThermallyConstrained && hasPreviousConfig -> {
+					logger.info(
+						"Selected ThermalSafeStrategy: (thermalSafe={} OR isThermalThrottled={}) AND previousConfigPresent",
+						thermalSafe,
+						device.isThermalThrottled,
 					)
 
-				device.mem.totalMemMb >= HIGH_PERF_MIN_MEM_MB && device.cpu.totalCores >= HIGH_PERF_MIN_CORE -> HighPerformanceStrategy()
-				else -> BalancedStrategy()
+					ThermalSafeStrategy(previousConfig)
+				}
+
+				meetsHighPerfMem && meetsHighPerfCores -> {
+					logger.info(
+						"Selected HighPerformanceStrategy: totalMemMb({}) >= HIGH_PERF_MIN_MEM_MB({}) " +
+							"AND totalCores({}) >= HIGH_PERF_MIN_CORE({})",
+						totalMemMb,
+						HIGH_PERF_MIN_MEM_MB,
+						totalCores,
+						HIGH_PERF_MIN_CORE,
+					)
+					HighPerformanceStrategy()
+				}
+
+				else -> {
+					logger.info("Selected BalancedStrategy: no other conditions matched")
+					BalancedStrategy()
+				}
 			}
+
 		return strategy
 	}
+
+	/**
+	 * Convert the given tuning configuration to a Gradle build parameters.
+	 *
+	 * @param tuningConfig The tuning configuration to convert.
+	 */
+	fun toGradleBuildParams(tuningConfig: GradleTuningConfig): GradleBuildParams {
+		val gradleArgs =
+			buildList {
+				val gradle = tuningConfig.gradle
+
+				// Daemon
+				if (!gradle.daemonEnabled) add("--no-daemon")
+
+				// Worker count
+				add("--max-workers=${gradle.maxWorkers}")
+
+				// Parallel execution
+				add(if (gradle.parallel) "--parallel" else "--no-parallel")
+
+				// Build cache
+				add(if (gradle.caching) "--build-cache" else "--no-build-cache")
+
+				// Configure on demand
+				add(if (gradle.configureOnDemand) "--configure-on-demand" else "--no-configure-on-demand")
+
+				// Configuration cache
+				add(if (gradle.configurationCache) "--configuration-cache" else "--no-configuration-cache")
+
+				// VFS watch (file system watching)
+				add(if (gradle.vfsWatch) "--watch-fs" else "--no-watch-fs")
+
+				// Kotlin compiler strategy
+				when (val kotlin = tuningConfig.kotlin) {
+					is KotlinCompilerExecution.InProcess -> {
+						add("-Pkotlin.compiler.execution.strategy=in-process")
+						add("-Pkotlin.incremental=${kotlin.incremental}")
+					}
+
+					is KotlinCompilerExecution.Daemon -> {
+						add("-Pkotlin.compiler.execution.strategy=daemon")
+						add("-Pkotlin.incremental=${kotlin.incremental}")
+
+						val daemonJvmArgs = toJvmArgs(kotlin.jvm)
+						if (daemonJvmArgs.isNotEmpty()) {
+							add("-Pkotlin.daemon.jvm.options=${daemonJvmArgs.joinToString(" ")}")
+						}
+					}
+				}
+
+				// D8/R8
+				add("-Pandroid.enableR8=${tuningConfig.dex.enableR8}")
+
+				// AAPT2
+				val aapt2 = tuningConfig.aapt2
+				add("-Pandroid.enableAapt2Daemon=${aapt2.enableDaemon}")
+				add("-Pandroid.aapt2ThreadPoolSize=${aapt2.threadPoolSize}")
+				add("-Pandroid.enableResourceOptimizations=${aapt2.enableResourceOptimizations}")
+			}
+
+		val jvmArgs = toJvmArgs(tuningConfig.gradle.jvm)
+
+		return GradleBuildParams(
+			gradleArgs = gradleArgs,
+			jvmArgs = jvmArgs,
+		)
+	}
+
+	private fun toJvmArgs(jvm: JvmConfig) =
+		buildList {
+			// Heap sizing
+			add("-Xms${jvm.xmsMb}m")
+			add("-Xmx${jvm.xmxMb}m")
+
+			// Metaspace cap (class metadata)
+			add("-XX:MaxMetaspaceSize=${jvm.maxMetaspaceSize}m")
+
+			// JIT code cache
+			add("-XX:ReservedCodeCacheSize=${jvm.reservedCodeCacheSize}m")
+
+			// GC strategy
+			when (val gc = jvm.gcType) {
+				GcType.Default -> Unit
+				GcType.Serial -> add("-XX:+UseSerialGC")
+				is GcType.Generational -> {
+					add("-XX:+UseG1GC")
+
+					when (val adaptive = gc.useAdaptiveIHOP) {
+						true -> add("-XX:+G1UseAdaptiveIHOP")
+						false -> add("-XX:-G1UseAdaptiveIHOP")
+						null -> Unit
+					}
+
+					if (gc.softRefLRUPolicyMSPerMB != null) add("-XX:SoftRefLRUPolicyMSPerMB=${gc.softRefLRUPolicyMSPerMB}")
+				}
+			}
+
+			// Heap dump on OOM (useful for diagnosing memory issues)
+			if (jvm.heapDumpOnOutOfMemory) {
+				add("-XX:+HeapDumpOnOutOfMemoryError")
+			}
+		}
 }

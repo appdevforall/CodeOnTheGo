@@ -35,7 +35,7 @@ class LowMemoryStrategy : GradleTuningStrategy {
 		val workersHardCap = min(GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT, min(workersMemBound, workersCpuBound))
 		val gradleDaemon =
 			GradleDaemonConfig(
-				enabled = true,
+				daemonEnabled = true,
 				jvm =
 					JvmConfig(
 						xmxMb = gradleXmx,

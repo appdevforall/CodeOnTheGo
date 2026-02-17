@@ -37,7 +37,7 @@ class HighPerformanceStrategy : GradleTuningStrategy {
 		val maxWorkers = min(workersHardCap, device.cpu.totalCores - 1)
 		val gradleDaemon =
 			GradleDaemonConfig(
-				enabled = true,
+				daemonEnabled = true,
 				jvm =
 					JvmConfig(
 						xmxMb = gradleXmx,

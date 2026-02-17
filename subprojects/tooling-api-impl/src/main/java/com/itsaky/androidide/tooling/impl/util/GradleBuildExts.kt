@@ -11,9 +11,7 @@ import java.nio.charset.StandardCharsets
 
 private val logger = LoggerFactory.getLogger("GradleBuildExts")
 
-fun ConfigurableLauncher<*>.configureFrom(
-	buildParams: GradleBuildParams? = null
-) {
+fun ConfigurableLauncher<*>.configureFrom(buildParams: GradleBuildParams? = null) {
 	val out = LoggingOutputStream()
 	setStandardError(out)
 	setStandardOutput(out)
@@ -21,9 +19,17 @@ fun ConfigurableLauncher<*>.configureFrom(
 	addProgressListener(ForwardingProgressListener(), Main.progressUpdateTypes())
 
 	Main.client?.also { client ->
-		val clientGradleArgs = client.getBuildArguments().get().filter(String::isNotBlank)
+		val buildConfig = client.getGradleBuildConfig().get()
+
+		val clientGradleArgs =
+			(buildConfig.buildParams.gradleArgs + buildConfig.extraArgs).filter(String::isNotBlank).distinct()
 		logger.debug("Client Gradle args: {}", clientGradleArgs)
+
+		val clientJvmArgs = buildConfig.buildParams.jvmArgs.filter(String::isNotBlank)
+		logger.debug("Client JVM args: {}", clientJvmArgs)
+
 		addArguments(clientGradleArgs)
+		addJvmArguments(clientJvmArgs)
 	}
 
 	if (buildParams != null) {

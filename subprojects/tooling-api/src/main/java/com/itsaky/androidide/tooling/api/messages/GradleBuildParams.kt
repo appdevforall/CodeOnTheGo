@@ -9,6 +9,6 @@ import java.io.Serializable
  * @author Akash Yadav
  */
 data class GradleBuildParams(
-    val gradleArgs: List<String> = emptyList(),
-    val jvmArgs: List<String> = emptyList(),
-): Serializable
+	val gradleArgs: List<String> = emptyList(),
+	val jvmArgs: List<String> = emptyList(),
+) : Serializable

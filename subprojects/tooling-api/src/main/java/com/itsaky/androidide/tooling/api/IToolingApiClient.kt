@@ -34,7 +34,6 @@ import java.util.concurrent.CompletableFuture
  */
 @JsonSegment("client")
 interface IToolingApiClient {
-
 	/**
 	 * Log the given log message.
 	 *

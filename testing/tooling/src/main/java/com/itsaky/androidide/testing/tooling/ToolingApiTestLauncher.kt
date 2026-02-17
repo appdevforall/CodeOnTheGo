@@ -143,8 +143,8 @@ object ToolingApiTestLauncher {
 			if (process != null) {
 				println(
 					"[ToolingApiTestLauncher]" +
-							" Tooling API server process finished with exit code: " +
-							process.exitValue(),
+						" Tooling API server process finished with exit code: " +
+						process.exitValue(),
 				)
 			}
 			if (error != null) {
@@ -337,11 +337,12 @@ object ToolingApiTestLauncher {
 		override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> =
 			CompletableFuture.completedFuture(
 				ClientGradleBuildConfig(
-					extraArgs = mutableListOf(
-						"--stacktrace",
-						"--info"
-					).also { it.addAll(extraArgs) }
-				)
+					extraArgs =
+						mutableListOf(
+							"--stacktrace",
+							"--info",
+						).also { it.addAll(extraArgs) },
+				),
 			)
 
 		override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =

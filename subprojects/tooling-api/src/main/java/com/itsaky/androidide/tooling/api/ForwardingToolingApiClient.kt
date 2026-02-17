@@ -30,8 +30,9 @@ import java.util.concurrent.CompletableFuture
  *
  * @author Akash Yadav
  */
-class ForwardingToolingApiClient(var client: IToolingApiClient?) : IToolingApiClient {
-
+class ForwardingToolingApiClient(
+	var client: IToolingApiClient?,
+) : IToolingApiClient {
 	override fun logMessage(params: LogMessageParams) {
 		client?.logMessage(params)
 	}
@@ -56,14 +57,12 @@ class ForwardingToolingApiClient(var client: IToolingApiClient?) : IToolingApiCl
 		client?.onProgressEvent(event)
 	}
 
-	override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> {
-		return client?.getGradleBuildConfig() ?: CompletableFuture.completedFuture(
-			ClientGradleBuildConfig()
+	override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> =
+		client?.getGradleBuildConfig() ?: CompletableFuture.completedFuture(
+			ClientGradleBuildConfig(),
 		)
-	}
 
-	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> {
-		return client?.checkGradleWrapperAvailability()
+	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
+		client?.checkGradleWrapperAvailability()
 			?: CompletableFuture.completedFuture(GradleWrapperCheckResult(false))
-	}
 }

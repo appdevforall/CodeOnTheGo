@@ -9,44 +9,50 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class GradleBuildTunerTest {
 	companion object {
-		private val LOW_MEM_INFO = MemInfo(
-			totalMemMb = 2 * 1024,
-			availRamMb = 768,
-			isLowMemDevice = true,
-		)
+		private val LOW_MEM_INFO =
+			MemInfo(
+				totalMemMb = 2 * 1024,
+				availRamMb = 768,
+				isLowMemDevice = true,
+			)
 
-		private val LOW_PERF_CPU = CpuTopology(
-			primeCores = null,
-			bigCores = 2,
-			smallCores = 2,
-			totalCores = 2,
-		)
+		private val LOW_PERF_CPU =
+			CpuTopology(
+				primeCores = null,
+				bigCores = 2,
+				smallCores = 2,
+				totalCores = 2,
+			)
 
-		private val MID_MEM_INFO = MemInfo(
-			totalMemMb = 4 * 1024,
-			availRamMb = 2 * 1024,
-			isLowMemDevice = false,
-		)
+		private val MID_MEM_INFO =
+			MemInfo(
+				totalMemMb = 4 * 1024,
+				availRamMb = 2 * 1024,
+				isLowMemDevice = false,
+			)
 
-		private val MID_PERF_CPU = CpuTopology(
-			primeCores = null,
-			bigCores = 4,
-			smallCores = 4,
-			totalCores = 8,
-		)
+		private val MID_PERF_CPU =
+			CpuTopology(
+				primeCores = null,
+				bigCores = 4,
+				smallCores = 4,
+				totalCores = 8,
+			)
 
-		private val HIGH_MEM_INFO = MemInfo(
-			totalMemMb = 8 * 1024,
-			availRamMb = 6 * 1024,
-			isLowMemDevice = false,
-		)
+		private val HIGH_MEM_INFO =
+			MemInfo(
+				totalMemMb = 8 * 1024,
+				availRamMb = 6 * 1024,
+				isLowMemDevice = false,
+			)
 
-		private val HIGH_PERF_CPU = CpuTopology(
-			primeCores = 2,
-			bigCores = 2,
-			smallCores = 4,
-			totalCores = 8,
-		)
+		private val HIGH_PERF_CPU =
+			CpuTopology(
+				primeCores = 2,
+				bigCores = 2,
+				smallCores = 4,
+				totalCores = 8,
+			)
 
 		private val LOW_MEM_DEVICE =
 			DeviceProfile(

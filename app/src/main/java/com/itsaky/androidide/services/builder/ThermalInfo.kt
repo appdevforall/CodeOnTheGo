@@ -11,7 +11,6 @@ import java.io.File
 
 /** @author Akash Yadav */
 object ThermalInfo {
-
 	private val logger = LoggerFactory.getLogger(ThermalInfo::class.java)
 
 	/**
@@ -28,29 +27,31 @@ object ThermalInfo {
 	 *    Android devices down to API 21.
 	 * 3. [ThermalState.Unknown] if neither source is available or readable.
 	 */
-	suspend fun getThermalState(context: Context): ThermalState = withContext(Dispatchers.IO) {
-		// --- Strategy 1: PowerManager.getCurrentThermalStatus (API 29+) ---
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-			runCatching {
-				return@withContext getThermalStateFromPowerManager(context)
-			}.onFailure { err ->
-				logger.warn(
-					"Unable to read thermal state from PowerManager. " +
-							"Falling back to sysfs thermal zones: {}", err.message
-				)
+	suspend fun getThermalState(context: Context): ThermalState =
+		withContext(Dispatchers.IO) {
+			// --- Strategy 1: PowerManager.getCurrentThermalStatus (API 29+) ---
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+				runCatching {
+					return@withContext getThermalStateFromPowerManager(context)
+				}.onFailure { err ->
+					logger.warn(
+						"Unable to read thermal state from PowerManager. " +
+							"Falling back to sysfs thermal zones: {}",
+						err.message,
+					)
+				}
 			}
-		}
 
-		// --- Strategy 2: sysfs thermal zones ---
-		runCatching {
-			return@withContext getThermalStateFromSysFs()
-		}.onFailure { err ->
-			logger.warn("Unable to read thermal state from sysfs thermal zones: {}", err.message)
-		}
+			// --- Strategy 2: sysfs thermal zones ---
+			runCatching {
+				return@withContext getThermalStateFromSysFs()
+			}.onFailure { err ->
+				logger.warn("Unable to read thermal state from sysfs thermal zones: {}", err.message)
+			}
 
-		// --- Strategy 3: unknown ---
-		ThermalState.Unknown
-	}
+			// --- Strategy 3: unknown ---
+			ThermalState.Unknown
+		}
 
 	private fun getThermalStateFromSysFs(): ThermalState {
 		// TODO(itsaky): This may not be the most reliable approach
@@ -63,46 +64,51 @@ object ThermalInfo {
 
 		val thermalRoot = File("/sys/class/thermal")
 		if (thermalRoot.isDirectory) {
-			val zones = thermalRoot.listFiles { f ->
-				f.isDirectory && f.name.startsWith("thermal_zone")
-			} ?: emptyArray()
+			val zones =
+				thermalRoot.listFiles { f ->
+					f.isDirectory && f.name.startsWith("thermal_zone")
+				} ?: emptyArray()
 
 			for (zone in zones) {
-				val currentTemp = File(zone, "temp")
-					.takeIf { it.exists() }
-					?.readText()
-					?.trim()
-					?.toLongOrNull()
-					?: continue
-
-				// Find all passive trip points for this zone.
-				// Trip point files come in pairs: trip_point_N_temp / trip_point_N_type.
-				val tripFiles = zone.listFiles { f ->
-					f.name.matches(Regex("trip_point_\\d+_type"))
-				} ?: continue
-
-				for (typeFile in tripFiles) {
-					val tripType = typeFile.readText().trim()
-					if (tripType != "passive") continue
-
-					// Extract index N from "trip_point_N_type"
-					val index = typeFile.name
-						.removePrefix("trip_point_")
-						.removeSuffix("_type")
-
-					val tripTemp = File(zone, "trip_point_${index}_temp")
+				val currentTemp =
+					File(zone, "temp")
 						.takeIf { it.exists() }
 						?.readText()
 						?.trim()
 						?.toLongOrNull()
 						?: continue
 
+				// Find all passive trip points for this zone.
+				// Trip point files come in pairs: trip_point_N_temp / trip_point_N_type.
+				val tripFiles =
+					zone.listFiles { f ->
+						f.name.matches(Regex("trip_point_\\d+_type"))
+					} ?: continue
+
+				for (typeFile in tripFiles) {
+					val tripType = typeFile.readText().trim()
+					if (tripType != "passive") continue
+
+					// Extract index N from "trip_point_N_type"
+					val index =
+						typeFile.name
+							.removePrefix("trip_point_")
+							.removeSuffix("_type")
+
+					val tripTemp =
+						File(zone, "trip_point_${index}_temp")
+							.takeIf { it.exists() }
+							?.readText()
+							?.trim()
+							?.toLongOrNull()
+							?: continue
+
 					if (currentTemp >= tripTemp) {
 						logger.info(
 							"Thermal zone {} is throttled at {}°C (trip point: {}°C)",
 							zone.name,
 							currentTemp / 1000.0,
-							tripTemp / 1000.0
+							tripTemp / 1000.0,
 						)
 						return ThermalState.Throttled
 					}
@@ -121,13 +127,13 @@ object ThermalInfo {
 			PowerManager.THERMAL_STATUS_NONE,
 			PowerManager.THERMAL_STATUS_LIGHT,
 			PowerManager.THERMAL_STATUS_MODERATE,
-				-> ThermalState.NotThrottled
+			-> ThermalState.NotThrottled
 
 			PowerManager.THERMAL_STATUS_SEVERE,
 			PowerManager.THERMAL_STATUS_CRITICAL,
 			PowerManager.THERMAL_STATUS_EMERGENCY,
 			PowerManager.THERMAL_STATUS_SHUTDOWN,
-				-> ThermalState.Throttled
+			-> ThermalState.Throttled
 
 			else -> ThermalState.Unknown
 		}

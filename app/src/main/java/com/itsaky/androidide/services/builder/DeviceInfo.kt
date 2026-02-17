@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 object DeviceInfo {
-
 	private val logger = LoggerFactory.getLogger(DeviceInfo::class.java)
 
 	/**
@@ -45,16 +44,17 @@ object DeviceInfo {
 		val memInfo = getMemInfo(context)
 		val cpuTopology = CpuInfo.getCpuTopology()
 		val thermalState = ThermalInfo.getThermalState(context)
-		val availableStorageMb = runCatching {
-			val stat = StatFs(Environment.DEFAULT_ROOT)
-			stat.availableBytes / 1024 / 1024
-		}.getOrDefault(0L)
+		val availableStorageMb =
+			runCatching {
+				val stat = StatFs(Environment.DEFAULT_ROOT)
+				stat.availableBytes / 1024 / 1024
+			}.getOrDefault(0L)
 
 		return DeviceProfile(
 			mem = memInfo,
 			cpu = cpuTopology,
 			thermal = thermalState,
-			storageFreeMb = availableStorageMb
+			storageFreeMb = availableStorageMb,
 		)
 	}
 }

@@ -68,7 +68,9 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.future.asCompletableFuture
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -231,7 +233,7 @@ class GradleBuildService :
 
 	override fun onDestroy() {
 		buildServiceScope.cancel()
-        mBinder?.release()
+		mBinder?.release()
 		mBinder = null
 
 		log.info("Service is being destroyed. Dismissing the shown notification...")
@@ -254,15 +256,15 @@ class GradleBuildService :
 					// IOException.
 					runCatching { server.shutdown().await() }
 						.onFailure { err ->
-                            val actualCause = err.cause ?: err
-                            val message = actualCause.message?.lowercase() ?: ""
-                            if (message.contains("stream closed") || message.contains("broken pipe")) {
-                                log.error("Tooling API server stream closed during shutdown (expected)")
-                            } else {
-                                // log if the error is not due to the stream being closed
-                                log.error("Failed to shutdown Tooling API server", err)
-                                Sentry.captureException(err)
-                            }
+							val actualCause = err.cause ?: err
+							val message = actualCause.message?.lowercase() ?: ""
+							if (message.contains("stream closed") || message.contains("broken pipe")) {
+								log.error("Tooling API server stream closed during shutdown (expected)")
+							} else {
+								// log if the error is not due to the stream being closed
+								log.error("Failed to shutdown Tooling API server", err)
+								Sentry.captureException(err)
+							}
 						}
 				}
 			} catch (e: Throwable) {
@@ -375,55 +377,64 @@ class GradleBuildService :
 		eventListener?.onProgressEvent(event)
 	}
 
-	override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> {
-		val extraArgs = ArrayList<String>()
-		extraArgs.add("--init-script")
-		extraArgs.add(Environment.INIT_SCRIPT.absolutePath)
+	override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> =
+		buildServiceScope
+			.async {
+				val extraArgs = ArrayList<String>()
+				extraArgs.add("--init-script")
+				extraArgs.add(Environment.INIT_SCRIPT.absolutePath)
 
-		// Override AAPT2 binary
-		// The one downloaded from Maven is not built for Android
-		extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+				// Override AAPT2 binary
+				// The one downloaded from Maven is not built for Android
+				extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
+				extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
+				extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
-		if (BuildPreferences.isStacktraceEnabled) {
-			extraArgs.add("--stacktrace")
-		}
-		if (BuildPreferences.isInfoEnabled) {
-			extraArgs.add("--info")
-		}
-		if (BuildPreferences.isDebugEnabled) {
-			extraArgs.add("--debug")
-		}
-		if (BuildPreferences.isWarningModeAllEnabled) {
-			extraArgs.add("--warning-mode")
-			extraArgs.add("all")
-		}
-		if (BuildPreferences.isBuildCacheEnabled) {
-			extraArgs.add("--build-cache")
-		}
-		if (BuildPreferences.isOfflineEnabled) {
-			extraArgs.add("--offline")
-		}
-		if (BuildPreferences.isScanEnabled) {
-			if (isGradleEnterprisePluginAvailable()) {
-				extraArgs.add("--scan")
-			} else {
-				log.warn("Gradle Enterprise plugin is not available. The --scan option has been disabled for this build.")
-			}
-		}
+				if (BuildPreferences.isStacktraceEnabled) {
+					extraArgs.add("--stacktrace")
+				}
+				if (BuildPreferences.isInfoEnabled) {
+					extraArgs.add("--info")
+				}
+				if (BuildPreferences.isDebugEnabled) {
+					extraArgs.add("--debug")
+				}
+				if (BuildPreferences.isWarningModeAllEnabled) {
+					extraArgs.add("--warning-mode")
+					extraArgs.add("all")
+				}
+				if (BuildPreferences.isBuildCacheEnabled) {
+					extraArgs.add("--build-cache")
+				}
+				if (BuildPreferences.isOfflineEnabled) {
+					extraArgs.add("--offline")
+				}
+				if (BuildPreferences.isScanEnabled) {
+					if (isGradleEnterprisePluginAvailable()) {
+						extraArgs.add("--scan")
+					} else {
+						log.warn("Gradle Enterprise plugin is not available. The --scan option has been disabled for this build.")
+					}
+				}
 
-		val buildParams = if (FeatureFlags.isExperimentsEnabled) {
-			GradleBuildTuner.autoTune()
-		} else GradleBuildParams()
+				val buildParams =
+					if (FeatureFlags.isExperimentsEnabled) {
+						val tuningConfig =
+							GradleBuildTuner.autoTune(
+								DeviceInfo.buildDeviceProfile(applicationContext),
+								build = BuildProfile(isDebugBuild = false),
+							)
 
-		return CompletableFuture.completedFuture(
-			ClientGradleBuildConfig(
-				buildParams = buildParams,
-				extraArgs = extraArgs
-			)
-		)
-	}
+						GradleBuildTuner.toGradleBuildParams(tuningConfig)
+					} else {
+						GradleBuildParams()
+					}
+
+				return@async ClientGradleBuildConfig(
+					buildParams = buildParams,
+					extraArgs = extraArgs,
+				)
+			}.asCompletableFuture()
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
 		if (isGradleWrapperAvailable) {
