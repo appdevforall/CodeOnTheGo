@@ -58,7 +58,7 @@ class GradleBuildTunerTest {
 			DeviceProfile(
 				mem = LOW_MEM_INFO,
 				cpu = LOW_PERF_CPU,
-				isThermalThrottled = false,
+				thermal = ThermalState.NotThrottled,
 				storageFreeMb = 10 * 1024,
 			)
 
@@ -66,7 +66,7 @@ class GradleBuildTunerTest {
 			DeviceProfile(
 				mem = MID_MEM_INFO,
 				cpu = MID_PERF_CPU,
-				isThermalThrottled = false,
+				thermal = ThermalState.NotThrottled,
 				storageFreeMb = 10 * 1024,
 			)
 
@@ -74,7 +74,7 @@ class GradleBuildTunerTest {
 			DeviceProfile(
 				mem = HIGH_MEM_INFO,
 				cpu = HIGH_PERF_CPU,
-				isThermalThrottled = false,
+				thermal = ThermalState.NotThrottled,
 				storageFreeMb = 10 * 1024,
 			)
 	}
@@ -106,7 +106,7 @@ class GradleBuildTunerTest {
 
 		val strategy =
 			GradleBuildTuner.pickStrategy(
-				MID_PERF_DEVICE.copy(isThermalThrottled = true),
+				MID_PERF_DEVICE.copy(thermal = ThermalState.Throttled),
 				thermalSafe = false,
 				previousConfig = prevConfig,
 			)
@@ -151,7 +151,7 @@ class GradleBuildTunerTest {
 
 		val strategy =
 			GradleBuildTuner.pickStrategy(
-				HIGH_PERF_DEVICE.copy(isThermalThrottled = true),
+				HIGH_PERF_DEVICE.copy(thermal = ThermalState.Throttled),
 				thermalSafe = false,
 				previousConfig = prevConfig,
 			)
