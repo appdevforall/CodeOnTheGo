@@ -31,9 +31,9 @@ class BalancedStrategy : GradleTuningStrategy {
 		device: DeviceProfile,
 		build: BuildProfile,
 	): GradleTuningConfig {
-		val gradleXmx = GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.totalRamMb * 0.33).toInt())
-		val workersMemBound = device.totalRamMb / GRADLE_MEM_PER_WORKER
-		val workersCpuBound = device.cpuCores
+		val gradleXmx = GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.mem.totalMemMb * 0.33).toInt())
+		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
+		val workersCpuBound = device.cpu.totalCores
 		val workersHardCap = min(GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT, min(workersMemBound, workersCpuBound))
 		val maxWorkers = min(LowMemoryStrategy.GRADLE_WORKERS_MAX, workersHardCap)
 		val gradleDaemon =
@@ -50,7 +50,7 @@ class BalancedStrategy : GradleTuningStrategy {
 				parallel = maxWorkers >= GRADLE_WORKERS_MAX,
 				configureOnDemand = true,
 				caching = true,
-				vfsWatch = device.totalRamMb >= GRADLE_VFS_WATCH_MEMORY_REQUIRED_MB,
+				vfsWatch = device.mem.totalMemMb >= GRADLE_VFS_WATCH_MEMORY_REQUIRED_MB,
 				configurationCache = false,
 			)
 
@@ -70,7 +70,7 @@ class BalancedStrategy : GradleTuningStrategy {
 		val aapt2 =
 			Aapt2Config(
 				enableDaemon = true,
-				threadPoolSize = (device.cpuCores / 2).coerceIn(AAPT2_MIN_THREADS, AAPT2_MAX_THREADS),
+				threadPoolSize = (device.cpu.totalCores / 2).coerceIn(AAPT2_MIN_THREADS, AAPT2_MAX_THREADS),
 				enableResourceOptimizations = true,
 			)
 

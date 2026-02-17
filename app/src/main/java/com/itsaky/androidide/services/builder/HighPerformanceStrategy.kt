@@ -30,11 +30,11 @@ class HighPerformanceStrategy : GradleTuningStrategy {
 		device: DeviceProfile,
 		build: BuildProfile,
 	): GradleTuningConfig {
-		val gradleXmx = GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.totalRamMb * 0.35).toInt())
-		val workersMemBound = device.totalRamMb / GRADLE_MEM_PER_WORKER
-		val workersCpuBound = device.cpuCores
+		val gradleXmx = GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.mem.totalMemMb * 0.35).toInt())
+		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
+		val workersCpuBound = device.cpu.totalCores
 		val workersHardCap = min(GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT, min(workersMemBound, workersCpuBound))
-		val maxWorkers = min(workersHardCap, device.cpuCores - 1)
+		val maxWorkers = min(workersHardCap, device.cpu.totalCores - 1)
 		val gradleDaemon =
 			GradleDaemonConfig(
 				enabled = true,
@@ -50,7 +50,7 @@ class HighPerformanceStrategy : GradleTuningStrategy {
 				configureOnDemand = false,
 				caching = true,
 				vfsWatch = true,
-				configurationCache = device.totalRamMb >= GRADLE_CONF_CACHE_MEM_REQUIRED_MB,
+				configurationCache = device.mem.totalMemMb >= GRADLE_CONF_CACHE_MEM_REQUIRED_MB,
 			)
 
 		val kotlinXmx = KOTLIN_XMX_TARGET_MB.coerceIn(KOTLIN_XMX_MIN_MB, (gradleXmx * 0.5).toInt())
@@ -69,7 +69,7 @@ class HighPerformanceStrategy : GradleTuningStrategy {
 		val aapt2 =
 			Aapt2Config(
 				enableDaemon = true,
-				threadPoolSize = (device.cpuCores / 2).coerceIn(AAPT2_MIN_THREADS, AAPT2_MAX_THREADS),
+				threadPoolSize = (device.cpu.totalCores / 2).coerceIn(AAPT2_MIN_THREADS, AAPT2_MAX_THREADS),
 				enableResourceOptimizations = true,
 			)
 

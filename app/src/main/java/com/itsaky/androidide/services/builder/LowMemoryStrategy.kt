@@ -27,10 +27,11 @@ class LowMemoryStrategy : GradleTuningStrategy {
 		device: DeviceProfile,
 		build: BuildProfile,
 	): GradleTuningConfig {
-		val gradleXmx = GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.totalRamMb * 0.33).toInt())
+		val gradleXmx =
+			GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.mem.totalMemMb * 0.33).toInt())
 		val gradleXms = gradleXmx / 2
-		val workersMemBound = device.totalRamMb / GRADLE_MEM_PER_WORKER
-		val workersCpuBound = device.cpuCores
+		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
+		val workersCpuBound = device.cpu.totalCores
 		val workersHardCap = min(GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT, min(workersMemBound, workersCpuBound))
 		val gradleDaemon =
 			GradleDaemonConfig(
@@ -54,7 +55,7 @@ class LowMemoryStrategy : GradleTuningStrategy {
 		val aapt2 =
 			Aapt2Config(
 				enableDaemon = true,
-				threadPoolSize = if (device.cpuCores >= 6) AAPT2_MAX_THREADS else AAPT2_MIN_THREADS,
+				threadPoolSize = if (device.cpu.totalCores >= 6) AAPT2_MAX_THREADS else AAPT2_MIN_THREADS,
 				enableResourceOptimizations = false,
 			)
 

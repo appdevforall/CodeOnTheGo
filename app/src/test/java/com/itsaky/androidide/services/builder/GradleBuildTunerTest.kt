@@ -9,36 +9,66 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class GradleBuildTunerTest {
 	companion object {
+		private val LOW_MEM_INFO = MemInfo(
+			totalMemMb = 2 * 1024,
+			availRamMb = 768,
+			isLowMemDevice = true,
+		)
+
+		private val LOW_PERF_CPU = CpuTopology(
+			primeCores = null,
+			bigCores = 2,
+			smallCores = 2,
+			totalCores = 2,
+		)
+
+		private val MID_MEM_INFO = MemInfo(
+			totalMemMb = 4 * 1024,
+			availRamMb = 2 * 1024,
+			isLowMemDevice = false,
+		)
+
+		private val MID_PERF_CPU = CpuTopology(
+			primeCores = null,
+			bigCores = 4,
+			smallCores = 4,
+			totalCores = 8,
+		)
+
+		private val HIGH_MEM_INFO = MemInfo(
+			totalMemMb = 8 * 1024,
+			availRamMb = 6 * 1024,
+			isLowMemDevice = false,
+		)
+
+		private val HIGH_PERF_CPU = CpuTopology(
+			primeCores = 2,
+			bigCores = 2,
+			smallCores = 4,
+			totalCores = 8,
+		)
+
 		private val LOW_MEM_DEVICE =
 			DeviceProfile(
-				totalRamMb = 2 * 1024,
-				availRamMb = 768,
-				lowRam = true,
-				cpuCores = 4,
-				bigCores = 2,
-				thermalThrottled = false,
+				mem = LOW_MEM_INFO,
+				cpu = LOW_PERF_CPU,
+				isThermalThrottled = false,
 				storageFreeMb = 10 * 1024,
 			)
 
 		private val MID_PERF_DEVICE =
 			DeviceProfile(
-				totalRamMb = 4 * 1024,
-				availRamMb = 2 * 1024,
-				lowRam = false,
-				cpuCores = 8,
-				bigCores = 4,
-				thermalThrottled = false,
+				mem = MID_MEM_INFO,
+				cpu = MID_PERF_CPU,
+				isThermalThrottled = false,
 				storageFreeMb = 10 * 1024,
 			)
 
 		private val HIGH_PERF_DEVICE =
 			DeviceProfile(
-				totalRamMb = 8 * 1024,
-				availRamMb = 6 * 1024,
-				lowRam = false,
-				cpuCores = 8,
-				bigCores = 4,
-				thermalThrottled = false,
+				mem = HIGH_MEM_INFO,
+				cpu = HIGH_PERF_CPU,
+				isThermalThrottled = false,
 				storageFreeMb = 10 * 1024,
 			)
 	}
@@ -70,7 +100,7 @@ class GradleBuildTunerTest {
 
 		val strategy =
 			GradleBuildTuner.pickStrategy(
-				MID_PERF_DEVICE.copy(thermalThrottled = true),
+				MID_PERF_DEVICE.copy(isThermalThrottled = true),
 				thermalSafe = false,
 				previousConfig = prevConfig,
 			)
@@ -115,7 +145,7 @@ class GradleBuildTunerTest {
 
 		val strategy =
 			GradleBuildTuner.pickStrategy(
-				HIGH_PERF_DEVICE.copy(thermalThrottled = true),
+				HIGH_PERF_DEVICE.copy(isThermalThrottled = true),
 				thermalSafe = false,
 				previousConfig = prevConfig,
 			)

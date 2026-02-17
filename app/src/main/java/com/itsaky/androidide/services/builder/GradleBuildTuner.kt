@@ -1,11 +1,15 @@
 package com.itsaky.androidide.services.builder
 
 import androidx.annotation.VisibleForTesting
+import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 object GradleBuildTuner {
-	const val LOW_RAM_THRESHOLD_MB = 3 * 1024 // 3GB
-	const val HIGH_PERF_MIN_RAM_MB = 6 * 1024 // 6GB
+
+	private val logger = LoggerFactory.getLogger(GradleBuildTuner::class.java)
+
+	const val LOW_MEM_THRESHOLD_MB = 3 * 1024 // 3GB
+	const val HIGH_PERF_MIN_MEM_MB = 6 * 1024 // 6GB
 	const val HIGH_PERF_MIN_CORE = 4
 
 	/**
@@ -35,13 +39,13 @@ object GradleBuildTuner {
 	): GradleTuningStrategy {
 		val strategy =
 			when {
-				device.lowRam || device.totalRamMb <= LOW_RAM_THRESHOLD_MB -> LowMemoryStrategy()
-				(thermalSafe || device.thermalThrottled) && previousConfig != null ->
+				device.mem.isLowMemDevice || device.mem.totalMemMb <= LOW_MEM_THRESHOLD_MB -> LowMemoryStrategy()
+				(thermalSafe || device.isThermalThrottled) && previousConfig != null ->
 					ThermalSafeStrategy(
 						previousConfig,
 					)
 
-				device.totalRamMb >= HIGH_PERF_MIN_RAM_MB && device.cpuCores >= HIGH_PERF_MIN_CORE -> HighPerformanceStrategy()
+				device.mem.totalMemMb >= HIGH_PERF_MIN_MEM_MB && device.cpu.totalCores >= HIGH_PERF_MIN_CORE -> HighPerformanceStrategy()
 				else -> BalancedStrategy()
 			}
 		return strategy
