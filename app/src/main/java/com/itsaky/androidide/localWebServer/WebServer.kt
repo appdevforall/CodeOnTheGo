@@ -224,8 +224,8 @@ FROM   LastChange
             }
         }
         val maxContentLength = 1000000 // 1 MB limit for playground code
-        if (method == "POST" && path == playgroundEndpoint) {
 
+        if (method == "POST" && path == playgroundEndpoint) {
             if (contentLength <= 0 || contentLength > maxContentLength) {
                 return sendError(writer, 413, "Payload Too Large")
             }
@@ -256,6 +256,10 @@ FROM   LastChange
             // Inside the POST handler...
             val result = compileAndRunJava(file)
 
+            val html = generatePlaygroundHtml(result)
+
+
+            /*
             // Dynamic Styling Logic
             val hasError = result.compileOutput.contains("error:", ignoreCase = true)
             val hasWarning = result.compileOutput.contains("warning:", ignoreCase = true) ||
@@ -302,7 +306,7 @@ FROM   LastChange
                 appendLine("</body></html>")
             }
 
-            // Send the HTML response using the new helper function
+            // Send the HTML response using the new helper function */
             sendHtmlResponse(writer, output, html)
             return
         }
@@ -745,7 +749,7 @@ $messageString""")
         if (!File(javaPath).exists()) {
             throw IOException("java executable not found at " + javaPath)
         } else if (!File(javacPath).exists()) {
-            throw IOException("javac executable not found at " + javaPath)
+            throw IOException("javac executable not found at " + javacPath)
         }
 
         // Compilation Timing
@@ -810,5 +814,74 @@ $messageString""")
         writer.flush()
         output.write(htmlBytes)
         output.flush()
+    }
+
+    // CSS template definition used in playground execution response
+    companion object {
+        private const val ERROR_COLOR = "#ff0000"
+        private const val WARNING_COLOR = "#ffff00"
+        private const val SUCCESS_COLOR = "#00ff00"
+        private const val ERROR_WIDTH = "3px"
+        private const val SUCCESS_WIDTH = "1px"
+
+        private val CSS_TEMPLATE = """                                                                                                     
+        body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; font-size: 24px; }                                         
+        h2 { font-size: 28px; margin-top: 0; }                                                                                               
+        pre, p, button { font-size: 24px; }                                                                                                  
+        .output-box {                                                                                                                        
+            background-color: white;                                                                                                         
+            padding: 15px;                                                                                                                   
+            border-radius: 5px;                                                                                                              
+            margin-bottom: 20px;                                                                                                             
+            overflow-x: auto;                                                                                                                
+        }                                                                                                                                    
+        .error-border { border: $ERROR_WIDTH solid $ERROR_COLOR; }                                                                           
+        .warning-border { border: $ERROR_WIDTH solid $WARNING_COLOR; }                                                                       
+        .success-border { border: $SUCCESS_WIDTH solid $SUCCESS_COLOR; }                                                                     
+        pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; }                                                                     
+    """.trimIndent()
+    }
+
+    private fun generatePlaygroundHtml(result: JavaExecutionResult): String {
+        val compilerStatus = when {
+            result.compileOutput.contains("error:", ignoreCase = true) -> "error"
+            result.compileOutput.contains("warning:", ignoreCase = true) ||
+                    result.compileOutput.contains("deprecation", ignoreCase = true) -> "warning"
+            else -> "success"
+        }
+
+        val runtimeStatus = if (result.timedOut) "error" else "success"
+
+        return buildString {
+            appendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'>")
+            appendLine("<style>$CSS_TEMPLATE</style>")
+            appendLine("</head><body>")
+            appendLine("<button onclick='window.history.back()' class='back-button'>← Back to Editor</button>")
+
+            // Program Output
+            appendLine("""                                                                                                                       
+            <div class='output-box ${runtimeStatus}-border'>                                                                                 
+                <h2>Program Output</h2>                                                                                                   
+                <pre>${escapeHtml(getRunOutputDisplay(result))}</pre>                                                                        
+            </div>                                                                                                                           
+        """.trimIndent())
+
+            // Compiler Output
+            appendLine("""                                                                                                                       
+            <div class='output-box ${compilerStatus}-border'>                                                                                
+                <h2>Compiler Output</h2>                                                                                                  
+                <p><strong>Compile time:</strong> ${result.compileTimeMs}ms</p>                                                              
+                <pre>${escapeHtml(result.compileOutput.ifBlank { "Compilation successful!" })}</pre>                                     
+            </div>                                                                                                                           
+        """.trimIndent())
+
+            appendLine("</body></html>")
+        }
+    }
+
+    private fun getRunOutputDisplay(result: JavaExecutionResult): String = when {
+        result.timedOut -> " Program timed out after ${result.timeoutLimit} seconds."
+        result.runOutput.isBlank() -> "No output produced."
+        else -> result.runOutput
     }
 }
