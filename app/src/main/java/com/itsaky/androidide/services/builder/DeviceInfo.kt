@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.os.StatFs
 import com.itsaky.androidide.utils.Environment
+import org.slf4j.LoggerFactory
 
 /**
  * Utilities to get information about the device.
@@ -11,6 +12,8 @@ import com.itsaky.androidide.utils.Environment
  * @author Akash Yadav
  */
 object DeviceInfo {
+
+	private val logger = LoggerFactory.getLogger(DeviceInfo::class.java)
 
 	/**
 	 * Get the memory information of the device.
@@ -33,22 +36,6 @@ object DeviceInfo {
 	}
 
 	/**
-	 * Get the CPU topology of the device.
-	 *
-	 * @return The CPU topology.
-	 */
-	suspend fun getCpuTopology(): CpuTopology {
-		TODO()
-	}
-
-	/**
-	 * Check if the device is thermal throttled.
-	 */
-	suspend fun getThermalState(context: Context): ThermalState {
-		TODO()
-	}
-
-	/**
 	 * Create a device profile for the current device.
 	 *
 	 * @param context The context to use.
@@ -56,8 +43,8 @@ object DeviceInfo {
 	 */
 	suspend fun buildDeviceProfile(context: Context): DeviceProfile {
 		val memInfo = getMemInfo(context)
-		val cpuTopology = getCpuTopology()
-		val thermalState = getThermalState(context)
+		val cpuTopology = CpuInfo.getCpuTopology()
+		val thermalState = ThermalInfo.getThermalState(context)
 		val availableStorageMb = runCatching {
 			val stat = StatFs(Environment.DEFAULT_ROOT)
 			stat.availableBytes / 1024 / 1024
