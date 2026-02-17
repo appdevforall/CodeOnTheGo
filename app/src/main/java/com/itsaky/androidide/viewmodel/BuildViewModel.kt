@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
@@ -45,7 +47,9 @@ class BuildViewModel : ViewModel() {
 			}
 
 			try {
-				val isPluginProject = IProjectManager.getInstance().isPluginProject()
+				val isPluginProject = withContext(Dispatchers.IO) {
+					IProjectManager.getInstance().isPluginProject()
+				}
 
 				val taskName = if (isPluginProject) {
 					if (variant.name.contains("debug", ignoreCase = true)) {
@@ -66,7 +70,7 @@ class BuildViewModel : ViewModel() {
 
 				if (isPluginProject) {
 					val projectRoot = IProjectManager.getInstance().projectDirPath
-					val cgpFile = findPluginCgpFile(projectRoot, variant)
+					val cgpFile = withContext(Dispatchers.IO) { findPluginCgpFile(projectRoot, variant) }
 					if (cgpFile != null) {
 						_buildState.value = BuildState.AwaitingPluginInstall(cgpFile)
 					} else {
@@ -78,11 +82,12 @@ class BuildViewModel : ViewModel() {
 
 				val outputListingFile = variant.mainArtifact.assembleTaskOutputListingFile
 
-				val apkFile =
+				val apkFile = withContext(Dispatchers.IO) {
 					ApkMetadata.findApkFile(outputListingFile)
-						?: throw RuntimeException("No APK found in output listing file.")
+				} ?: throw RuntimeException("No APK found in output listing file.")
 
-				if (!apkFile.exists()) {
+				val apkExists = withContext(Dispatchers.IO) { apkFile.exists() }
+				if (!apkExists) {
 					throw RuntimeException("APK file specified does not exist: $apkFile")
 				}
 

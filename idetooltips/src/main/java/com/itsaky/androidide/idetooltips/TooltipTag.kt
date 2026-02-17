@@ -11,11 +11,12 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_COPY = "editor.toolbar.copy"
 	const val EDITOR_TOOLBAR_OUTPUT_COPY = "output.selection.copy"
 	const val EDITOR_TOOLBAR_CUT = "editor.toolbar.cut"
-	const val EDITOR_TOOLBAR_EXPAND_SELECTION = "editor.toolbar.expandselection"
+	const val EDITOR_TOOLBAR_EXPAND_SELECTION = "editor.toolbar.expandselect"
 	const val EDITOR_TOOLBAR_LONG_SELECT = "editor.toolbar.longselect"
 	const val EDITOR_TOOLBAR_PASTE = "editor.toolbar.paste"
 	const val EDITOR_TOOLBAR_SELECT_ALL = "editor.toolbar.selectall"
 	const val EDITOR_TOOLBAR_OUTPUT_SELECT_ALL = "output.selection.selectall"
+  const val EDITOR_TOOLBAR_FORMAT_CODE = "editor.toolbar.formatcode"
 	const val EDITOR_TOOLBAR_HELP = "editor.toolbar.help"
 	const val PROJECT_APP_LOGS = "project.applogs"
 	const val PROJECT_IDE_LOGS = "project.idelogs"
@@ -92,7 +93,9 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_REDO = "editor.redo"
     const val EDITOR_TOOLBAR_QUICK_SAVE = "project.save"
     const val EDITOR_TOOLBAR_PREVIEW_LAYOUT = "editor.layout.preview"
+    const val EDITOR_TOOLBAR_PREVIEW_COMPOSE = "editor.compose.preview"
     const val EDITOR_TOOLBAR_COMPUTER_VISION = "project.layout.vision"
+    const val EDITOR_TOOLBAR_LOG_SENDER = "editor.disconnect.logsenders"
 
     // Delete project
     const val DELETE_PROJECT = "project.delete"

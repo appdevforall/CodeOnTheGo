@@ -53,7 +53,7 @@ class DebuggerActionsOverlayAdapter(
             setOnLongClickListener {
                 TooltipManager.showIdeCategoryTooltip(
                     context = this.context,
-                    anchorView = this,
+                    anchorView = this.rootView,
                     tag = action.tooltipTag
                 )
                 true

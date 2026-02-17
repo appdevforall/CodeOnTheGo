@@ -182,6 +182,10 @@ desugaring {
 	}
 }
 
+configurations.matching { it.name.contains("AndroidTest") }.configureEach {
+    exclude(group = "com.google.protobuf", module = "protobuf-lite")
+}
+
 dependencies {
 	// debugImplementation(libs.common.leakcanary)
 
@@ -273,6 +277,7 @@ dependencies {
 	implementation(projects.logsender)
 	implementation(projects.lsp.api)
 	implementation(projects.lsp.java)
+	implementation(projects.lsp.kotlin)
 	implementation(projects.lsp.xml)
 	implementation(projects.lexers)
 	implementation(projects.lookup)
@@ -289,6 +294,7 @@ dependencies {
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
     implementation(projects.cvImageToXml)
+    implementation(projects.composePreview)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -297,7 +303,9 @@ dependencies {
 	testImplementation(projects.testing.unit)
 	testImplementation(libs.core.tests.anroidx.arch)
 	androidTestImplementation(projects.common)
-	androidTestImplementation(projects.testing.android)
+    androidTestImplementation(projects.testing.android) {
+        exclude(group = "com.google.protobuf", module = "protobuf-lite")
+    }
 	androidTestImplementation(libs.tests.kaspresso)
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)

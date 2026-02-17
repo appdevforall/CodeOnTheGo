@@ -144,6 +144,9 @@ include(
 	":lsp:api",
 	":lsp:models",
 	":lsp:java",
+	":lsp:kotlin",
+	":lsp:kotlin-core",
+	":lsp:kotlin-stdlib-generator",
 	":lsp:xml",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
@@ -185,7 +188,8 @@ include(
     ":llama-impl",
     ":cv-image-to-xml",
     ":llama-api",
-    ":llama-impl"
+    ":llama-impl",
+    ":compose-preview"
 )
 
 object FDroidConfig {

@@ -19,7 +19,8 @@ class PreviewLayoutActivity : BaseActivity() {
         setContentView(binding.getRoot())
         @Suppress("DEPRECATION")
         val layoutFile = intent.extras?.getParcelable<LayoutFile>(Constants.EXTRA_KEY_LAYOUT)
-        val parser = XmlLayoutParser(this)
+        val basePath = layoutFile?.path?.let { java.io.File(it).parent }
+        val parser = XmlLayoutParser(this, basePath)
         layoutFile?.readDesignFile()?.let { parser.parseFromXml(it, this) }
 
         val previewContainer = binding.root.findViewById<ViewGroup>(R.id.preview_container)
