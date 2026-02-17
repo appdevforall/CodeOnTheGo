@@ -784,21 +784,22 @@ $messageString""")
 
         return JavaExecutionResult(compileOutput, runOutput, !didJavaFinish, compileTime, timeoutSeconds)
     }
-}
-private fun sendHtmlResponse(
-    writer: PrintWriter,
-    output: java.io.OutputStream,
-    htmlContent: String,
-    code: Int = 200,
-    message: String = "OK"
-) {
-    val htmlBytes = htmlContent.toByteArray(Charsets.UTF_8)
-    writer.println("HTTP/1.1 $code $message")
-    writer.println("Content-Type: text/html; charset=utf-8")
-    writer.println("Content-Length: ${htmlBytes.size}")
-    writer.println("Connection: close")
-    writer.println()
-    writer.flush()
-    output.write(htmlBytes)
-    output.flush()
+
+    private fun sendHtmlResponse(
+        writer: PrintWriter,
+        output: java.io.OutputStream,
+        htmlContent: String,
+        code: Int = 200,
+        message: String = "OK"
+    ) {
+        val htmlBytes = htmlContent.toByteArray(Charsets.UTF_8)
+        writer.println("HTTP/1.1 $code $message")
+        writer.println("Content-Type: text/html; charset=utf-8")
+        writer.println("Content-Length: ${htmlBytes.size}")
+        writer.println("Connection: close")
+        writer.println()
+        writer.flush()
+        output.write(htmlBytes)
+        output.flush()
+    }
 }
