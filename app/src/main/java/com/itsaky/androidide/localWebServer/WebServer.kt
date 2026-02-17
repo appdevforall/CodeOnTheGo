@@ -741,6 +741,12 @@ $messageString""")
         val javaPath = "${config.fileDirPath}/usr/bin/java"
         val timeoutSeconds = 5L
 
+        if (!File(javaPath).exists()) {
+            throw IOException("java executable not found at " + javaPath)
+        } else if (!File(javacPath).exists()) {
+            throw IOException("javac executable not found at " + javaPath)
+        }
+
         // Compilation Timing
         val startTime = System.currentTimeMillis()
         val javac = ProcessBuilder(javacPath, sourceFile.absolutePath)
