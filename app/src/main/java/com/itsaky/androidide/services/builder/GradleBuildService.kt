@@ -419,13 +419,15 @@ class GradleBuildService :
 
 				val buildParams =
 					if (FeatureFlags.isExperimentsEnabled) {
-						val tuningConfig =
+						val newConfig =
 							GradleBuildTuner.autoTune(
-								DeviceInfo.buildDeviceProfile(applicationContext),
+								device = DeviceInfo.buildDeviceProfile(applicationContext),
 								build = BuildProfile(isDebugBuild = false),
+								previousConfig = tuningConfig,
 							)
 
-						GradleBuildTuner.toGradleBuildParams(tuningConfig)
+						tuningConfig = newConfig
+						GradleBuildTuner.toGradleBuildParams(tuningConfig = newConfig)
 					} else {
 						GradleBuildParams()
 					}
