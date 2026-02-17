@@ -706,10 +706,11 @@ $messageString""")
         val decoded =
             URLDecoder.decode(String(input), StandardCharsets.UTF_8.name())
 
-        val inputAsString = if (decoded.startsWith(postDataFieldName)) {
+        val prefix = "$postDataFieldName="
+        val inputAsString = if (decoded.startsWith(prefix)) {
             // Add 1 to substring start index to handle the "=" between the POST data
             // field name and the POST data field data.
-            decoded.substring(postDataFieldName.length + 1)
+            decoded.substring(prefix.length)
         } else{
             log.warn("Expecting a data field named " + postDataFieldName)
             ""
@@ -719,7 +720,8 @@ $messageString""")
         try {
             file.writeText(inputAsString)
         } catch (e: Exception) {
-            log.debug("Error creating file")
+            log.error("Error creating playground file: {}", e.message)
+            throw IOException("Failed to write playground source file", e)
         }
         return file
     }
