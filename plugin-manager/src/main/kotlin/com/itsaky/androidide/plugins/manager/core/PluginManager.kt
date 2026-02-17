@@ -33,6 +33,8 @@ import com.itsaky.androidide.plugins.services.IdeFileService
 import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
+import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.SidebarSlotExceededException
 import kotlinx.coroutines.CoroutineScope
@@ -439,6 +441,11 @@ class PluginManager private constructor(
             loadedPlugin.plugin.deactivate()
             loadedPlugin.plugin.dispose()
 
+            val themeService = loadedPlugin.context.services.get(IdeThemeService::class.java)
+            if (themeService is IdeThemeServiceImpl) {
+                themeService.dispose()
+            }
+
             // Unregister the plugin's resource context
             PluginFragmentHelper.unregisterPluginContext(pluginId)
 
@@ -816,6 +823,15 @@ class PluginManager private constructor(
             IdeSidebarServiceImpl(pluginId)
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeThemeService::class.java,
+            pluginId,
+            "theme"
+        ) {
+            IdeThemeServiceImpl(context)
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -930,8 +946,14 @@ class PluginManager private constructor(
             IdeSidebarServiceImpl(pluginId)
         }
 
-        // Copy other services from global registry
-        // TODO: Add mechanism to copy global services to plugin-specific registry
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeThemeService::class.java,
+            pluginId,
+            "theme"
+        ) {
+            IdeThemeServiceImpl(context)
+        }
 
         return PluginContextImpl(
             androidContext = context,
