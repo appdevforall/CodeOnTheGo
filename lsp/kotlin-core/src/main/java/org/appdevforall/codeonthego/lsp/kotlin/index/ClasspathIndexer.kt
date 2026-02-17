@@ -109,8 +109,7 @@ class ClasspathIndexer {
     }
 
     private fun detectExtensionReceiver(method: MethodInfo): String? {
-        if (!method.isExtension) return null
-        if (method.parameters.isEmpty()) return null
+        if (!method.isExtension ||  (method.parameters.isEmpty())) return null
         return method.parameters.first().type
     }
 

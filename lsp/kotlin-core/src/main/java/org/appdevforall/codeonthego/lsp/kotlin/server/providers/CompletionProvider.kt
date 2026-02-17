@@ -23,8 +23,6 @@ class CompletionProvider(
     private val projectIndex: ProjectIndex,
     private val analysisScheduler: AnalysisScheduler
 ) {
-    private val completionParser = KotlinParser()
-
     fun provideCompletions(
         uri: String,
         line: Int,
@@ -36,7 +34,7 @@ class CompletionProvider(
         val content = state.content
         val triggerChar = context?.triggerCharacter
 
-        val patchResult = analyzeWithCompletionPatch(state, uri)
+        val patchResult = analyzeWithCompletionPatch(state, uri, line)
         val symbolTable = patchResult.first
         val analysisContext = patchResult.second
 
@@ -604,13 +602,15 @@ class CompletionProvider(
 
     private fun analyzeWithCompletionPatch(
         state: DocumentState,
-        uri: String
+        uri: String,
+        cursorLine: Int
     ): Pair<SymbolTable?, AnalysisContext?> {
         val content = state.content
-        val patchedContent = patchDanglingDots(content)
+        val patchedContent = patchDanglingDots(content, cursorLine)
 
         if (patchedContent != content) {
-            val parseResult = completionParser.parse(patchedContent, state.filePath)
+            val parser = KotlinParser()
+            val parseResult = parser.parse(patchedContent, state.filePath)
             val symbolTable = SymbolBuilder.build(parseResult.tree, state.filePath)
             val analysisContext = AnalysisContext(
                 tree = parseResult.tree,
@@ -627,18 +627,27 @@ class CompletionProvider(
         return state.symbolTable to state.analysisContext
     }
 
-    private fun patchDanglingDots(content: String): String {
+    private fun patchDanglingDots(content: String, cursorLine: Int): String {
         val lines = content.split('\n').toMutableList()
         var patched = false
 
-        for (i in lines.indices) {
-            val trimmed = lines[i].trimEnd()
+        if (cursorLine in lines.indices) {
+            val trimmed = lines[cursorLine].trimEnd()
             if (trimmed.endsWith('.')) {
-                val dotPos = lines[i].lastIndexOf('.')
-                val beforeDot = lines[i].substring(0, dotPos).trimEnd()
-                if (beforeDot.isNotEmpty() && (beforeDot.last().isLetterOrDigit() || beforeDot.last() == '_' || beforeDot.last() == ')' || beforeDot.last() == ']')) {
-                    lines[i] = lines[i].substring(0, dotPos + 1) + "toString()"
-                    patched = true
+                val nextNonBlank = ((cursorLine + 1) until lines.size)
+                    .firstOrNull { lines[it].isNotBlank() }
+                    ?.let { lines[it].trimStart() }
+                val isContinuation = nextNonBlank != null &&
+                    nextNonBlank.isNotEmpty() &&
+                    (nextNonBlank[0].isLetterOrDigit() || nextNonBlank[0] == '_' || nextNonBlank[0] == '.')
+
+                if (!isContinuation) {
+                    val dotPos = lines[cursorLine].lastIndexOf('.')
+                    val beforeDot = lines[cursorLine].substring(0, dotPos).trimEnd()
+                    if (beforeDot.isNotEmpty() && (beforeDot.last().isLetterOrDigit() || beforeDot.last() == '_' || beforeDot.last() == ')' || beforeDot.last() == ']')) {
+                        lines[cursorLine] = lines[cursorLine].substring(0, dotPos + 1) + "toString()"
+                        patched = true
+                    }
                 }
             }
         }
