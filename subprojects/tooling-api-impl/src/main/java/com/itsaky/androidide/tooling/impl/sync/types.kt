@@ -25,6 +25,7 @@ import org.gradle.tooling.ProjectConnection
 import org.gradle.tooling.model.idea.IdeaModule
 import org.gradle.tooling.model.idea.IdeaProject
 import java.io.File
+import java.io.Serializable
 
 /**
  * Parameters for the root project model builder.
@@ -39,9 +40,8 @@ class RootProjectModelBuilderParams(
 	val cancellationToken: CancellationToken?,
 	val projectCacheFile: File,
 	val projectSyncMetaFile: File,
-	gradleArgs: List<String>,
-	jvmArgs: List<String>,
-) : GradleBuildParams(gradleArgs, jvmArgs) {
+	val buildParams: GradleBuildParams,
+): Serializable {
 	operator fun component1() = projectConnection
 	operator fun component2() = cancellationToken
 	operator fun component3() = projectCacheFile

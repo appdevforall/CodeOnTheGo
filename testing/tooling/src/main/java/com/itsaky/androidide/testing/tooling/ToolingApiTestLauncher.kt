@@ -20,6 +20,7 @@ package com.itsaky.androidide.testing.tooling
 import ch.qos.logback.core.CoreConstants
 import com.itsaky.androidide.testing.tooling.models.ToolingApiTestLauncherParams
 import com.itsaky.androidide.testing.tooling.models.ToolingApiTestScope
+import com.itsaky.androidide.tooling.api.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
@@ -142,8 +143,8 @@ object ToolingApiTestLauncher {
 			if (process != null) {
 				println(
 					"[ToolingApiTestLauncher]" +
-						" Tooling API server process finished with exit code: " +
-						process.exitValue(),
+							" Tooling API server process finished with exit code: " +
+							process.exitValue(),
 				)
 			}
 			if (error != null) {
@@ -333,9 +334,14 @@ object ToolingApiTestLauncher {
 
 		override fun onProgressEvent(event: ProgressEvent) {}
 
-		override fun getBuildArguments(): CompletableFuture<List<String>> =
+		override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> =
 			CompletableFuture.completedFuture(
-				mutableListOf("--stacktrace", "--info").also { it.addAll(extraArgs) },
+				ClientGradleBuildConfig(
+					extraArgs = mutableListOf(
+						"--stacktrace",
+						"--info"
+					).also { it.addAll(extraArgs) }
+				)
 			)
 
 		override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =

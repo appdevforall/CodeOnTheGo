@@ -42,11 +42,13 @@ import com.itsaky.androidide.services.ToolingServerNotStartedException
 import com.itsaky.androidide.services.builder.ToolingServerRunner.OnServerStartListener
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tasks.runOnUiThread
+import com.itsaky.androidide.tooling.api.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_AAR
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
@@ -59,6 +61,7 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
@@ -109,6 +112,8 @@ class GradleBuildService :
 	private var eventListener: EventListener? = null
 	private val analyticsManager: IAnalyticsManager by inject()
 	private var buildStartTime: Long = 0
+
+	private var tuningConfig: GradleTuningConfig? = null
 
 	private val buildServiceScope =
 		CoroutineScope(
@@ -370,7 +375,7 @@ class GradleBuildService :
 		eventListener?.onProgressEvent(event)
 	}
 
-	override fun getBuildArguments(): CompletableFuture<List<String>> {
+	override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> {
 		val extraArgs = ArrayList<String>()
 		extraArgs.add("--init-script")
 		extraArgs.add(Environment.INIT_SCRIPT.absolutePath)
@@ -407,7 +412,17 @@ class GradleBuildService :
 				log.warn("Gradle Enterprise plugin is not available. The --scan option has been disabled for this build.")
 			}
 		}
-		return CompletableFuture.completedFuture(extraArgs)
+
+		val buildParams = if (FeatureFlags.isExperimentsEnabled) {
+			GradleBuildTuner.autoTune()
+		} else GradleBuildParams()
+
+		return CompletableFuture.completedFuture(
+			ClientGradleBuildConfig(
+				buildParams = buildParams,
+				extraArgs = extraArgs
+			)
+		)
 	}
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =

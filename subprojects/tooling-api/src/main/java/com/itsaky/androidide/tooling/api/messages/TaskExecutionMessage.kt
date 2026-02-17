@@ -17,12 +17,13 @@
 
 package com.itsaky.androidide.tooling.api.messages
 
+import java.io.Serializable
+
 /**
  * Message sent by client to execute given tasks using the Tooling API.
  * @author Akash Yadav
  */
-class TaskExecutionMessage(
+data class TaskExecutionMessage(
   val tasks: List<String>,
-  gradleArgs: List<String> = emptyList(),
-  jvmArgs: List<String> = emptyList(),
-): GradleBuildParams(gradleArgs, jvmArgs)
+  val buildParams: GradleBuildParams = GradleBuildParams(),
+): Serializable

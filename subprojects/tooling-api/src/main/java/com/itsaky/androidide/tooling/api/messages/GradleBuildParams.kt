@@ -8,7 +8,7 @@ import java.io.Serializable
  * @property gradleArgs Extra arguments to set to the Gradle build.
  * @author Akash Yadav
  */
-abstract class GradleBuildParams(
+data class GradleBuildParams(
     val gradleArgs: List<String> = emptyList(),
     val jvmArgs: List<String> = emptyList(),
 ): Serializable
