@@ -70,7 +70,7 @@ class ProjectIndex : SymbolIndex {
 
     fun findInProjectFiles(name: String): List<IndexedSymbol> {
         val results = mutableListOf<IndexedSymbol>()
-        for (fgiveileIndex in fileIndexes.values) {
+        for (fileIndex in fileIndexes.values) {
             results.addAll(fileIndex.findBySimpleName(name))
         }
         return results
