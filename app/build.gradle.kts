@@ -153,6 +153,10 @@ android {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/gradle/incremental.annotation.processors")
         }
+
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

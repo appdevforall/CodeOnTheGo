@@ -38,9 +38,10 @@ dependencies {
 
     implementation(libs.koin.android)
 
-    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    // TensorFlow Lite with 16KB page size support  
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.16.1")
 
     implementation("com.google.mlkit:text-recognition:16.0.0")
 
