@@ -42,6 +42,7 @@ class LowMemoryStrategy : GradleTuningStrategy {
 						xmsMb = gradleXms,
 						maxMetaspaceSize = GRADLE_METASPACE_MB,
 						reservedCodeCacheSize = GRADLE_CODE_CACHE_MB,
+						gcType = GcType.Serial,
 					),
 				maxWorkers = min(GRADLE_WORKERS_MAX, workersHardCap),
 				parallel = false,
