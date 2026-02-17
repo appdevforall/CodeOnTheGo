@@ -176,6 +176,7 @@ common-jkotlin = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.r
 common-javapoet = { module = "com.squareup:javapoet", version = "1.13.0" }
 common-ksp = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 common-jsonrpc = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc", version = "0.22.0" }
+common-lsp4j = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j", version = "0.22.0" }
 common-retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 common-retrofit-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }
 common-leakcanary = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanary" }
