@@ -305,10 +305,11 @@ FROM   LastChange
             // Send the HTML response using the new helper function
             sendHtmlResponse(writer, output, html)
             return
-
-
         }
 
+        if (method == "POST") {
+            return sendError(writer, 405, "Method Not Allowed")
+        }
 
             //check to see if there is a newer version of the documentation.db database on the sdcard
             // if there is use that for our responses
