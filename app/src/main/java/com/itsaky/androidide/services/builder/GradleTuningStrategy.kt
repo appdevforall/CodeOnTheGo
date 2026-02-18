@@ -11,6 +11,11 @@ interface GradleTuningStrategy {
 	}
 
 	/**
+	 * Name of the strategy.
+	 */
+	val name: String
+
+	/**
 	 * Create a tuning configuration for the given device profile.
 	 *
 	 * @param device The device profile to tune for.

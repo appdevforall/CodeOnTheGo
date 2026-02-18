@@ -4,8 +4,6 @@ import android.content.Context
 import android.os.Build
 import android.os.PowerManager
 import androidx.annotation.RequiresApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -27,31 +25,30 @@ object ThermalInfo {
 	 *    Android devices down to API 21.
 	 * 3. [ThermalState.Unknown] if neither source is available or readable.
 	 */
-	suspend fun getThermalState(context: Context): ThermalState =
-		withContext(Dispatchers.IO) {
-			// --- Strategy 1: PowerManager.getCurrentThermalStatus (API 29+) ---
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-				runCatching {
-					return@withContext getThermalStateFromPowerManager(context)
-				}.onFailure { err ->
-					logger.warn(
-						"Unable to read thermal state from PowerManager. " +
-							"Falling back to sysfs thermal zones: {}",
-						err.message,
-					)
-				}
-			}
-
-			// --- Strategy 2: sysfs thermal zones ---
+	fun getThermalState(context: Context): ThermalState {
+		// --- Strategy 1: PowerManager.getCurrentThermalStatus (API 29+) ---
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 			runCatching {
-				return@withContext getThermalStateFromSysFs()
+				return getThermalStateFromPowerManager(context)
 			}.onFailure { err ->
-				logger.warn("Unable to read thermal state from sysfs thermal zones: {}", err.message)
+				logger.warn(
+					"Unable to read thermal state from PowerManager. " +
+							"Falling back to sysfs thermal zones: {}",
+					err.message,
+				)
 			}
-
-			// --- Strategy 3: unknown ---
-			ThermalState.Unknown
 		}
+
+		// --- Strategy 2: sysfs thermal zones ---
+		runCatching {
+			return getThermalStateFromSysFs()
+		}.onFailure { err ->
+			logger.warn("Unable to read thermal state from sysfs thermal zones: {}", err.message)
+		}
+
+		// --- Strategy 3: unknown ---
+		return ThermalState.Unknown
+	}
 
 	private fun getThermalStateFromSysFs(): ThermalState {
 		// TODO(itsaky): This may not be the most reliable approach

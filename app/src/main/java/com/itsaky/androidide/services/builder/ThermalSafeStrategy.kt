@@ -10,14 +10,18 @@ import kotlin.math.max
 class ThermalSafeStrategy(
 	private val previousConfig: GradleTuningConfig,
 ) : GradleTuningStrategy {
+
+	override val name = "thermal_safe"
+
 	override fun tune(
 		device: DeviceProfile,
 		build: BuildProfile,
 	): GradleTuningConfig =
-		previousConfig.apply {
+		previousConfig.run {
 			val newMaxWorkers = max(1, gradle.maxWorkers - 1)
 
 			copy(
+				strategyName = this@ThermalSafeStrategy.name,
 				gradle =
 					gradle.run {
 						copy(

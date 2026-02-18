@@ -10,6 +10,7 @@ package com.itsaky.androidide.services.builder
  * @author Akash Yadav
  */
 data class GradleTuningConfig(
+	val strategyName: String,
 	val gradle: GradleDaemonConfig,
 	val kotlin: KotlinCompilerExecution,
 	val dex: DexConfig,
@@ -45,6 +46,7 @@ data class GradleDaemonConfig(
  * @property incremental Whether incremental compilation is enabled.
  */
 sealed interface KotlinCompilerExecution {
+	val name: String
 	val incremental: Boolean
 
 	/**
@@ -52,7 +54,9 @@ sealed interface KotlinCompilerExecution {
 	 */
 	data class InProcess(
 		override val incremental: Boolean,
-	) : KotlinCompilerExecution
+	) : KotlinCompilerExecution {
+		override val name = "in_process"
+	}
 
 	/**
 	 * Daemon Kotlin compilation.
@@ -60,7 +64,9 @@ sealed interface KotlinCompilerExecution {
 	data class Daemon(
 		override val incremental: Boolean,
 		val jvm: JvmConfig,
-	) : KotlinCompilerExecution
+	) : KotlinCompilerExecution {
+		override val name = "daemon"
+	}
 }
 
 /**
@@ -68,24 +74,31 @@ sealed interface KotlinCompilerExecution {
  *
  * @property xmsMb The initial JVM heap size.
  * @property xmxMb The maximum JVM heap size.
- * @property maxMetaspaceSize The maximum size of the metaspace (class metadata cap).
- * @property reservedCodeCacheSize The size of the reserved code (JIT) cache.
+ * @property maxMetaspaceSizeMb The maximum size of the metaspace (class metadata cap).
+ * @property reservedCodeCacheSizeMb The size of the reserved code (JIT) cache.
  * @property gcType The type of garbage collector to use.
  * @property heapDumpOnOutOfMemory Whether to dump the heap on out of memory.
  */
 data class JvmConfig(
 	val xmsMb: Int,
 	val xmxMb: Int,
-	val maxMetaspaceSize: Int,
-	val reservedCodeCacheSize: Int,
+	val maxMetaspaceSizeMb: Int,
+	val reservedCodeCacheSizeMb: Int,
 	val gcType: GcType = GcType.Default,
 	val heapDumpOnOutOfMemory: Boolean = false,
 )
 
 sealed class GcType {
-	data object Default : GcType()
 
-	data object Serial : GcType()
+	abstract val name: String
+
+	data object Default : GcType() {
+		override val name: String = "default"
+	}
+
+	data object Serial : GcType() {
+		override val name: String = "serial"
+	}
 
 	/**
 	 * Generational garbage collector.
@@ -97,7 +110,9 @@ sealed class GcType {
 	data class Generational(
 		val useAdaptiveIHOP: Boolean? = null,
 		val softRefLRUPolicyMSPerMB: Int? = null,
-	) : GcType()
+	) : GcType() {
+		override val name: String = "generational"
+	}
 }
 
 /**

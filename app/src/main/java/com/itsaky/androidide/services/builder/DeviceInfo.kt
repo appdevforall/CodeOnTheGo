@@ -3,6 +3,7 @@ package com.itsaky.androidide.services.builder
 import android.app.ActivityManager
 import android.content.Context
 import android.os.StatFs
+import androidx.annotation.WorkerThread
 import com.itsaky.androidide.utils.Environment
 import org.slf4j.LoggerFactory
 
@@ -40,7 +41,8 @@ object DeviceInfo {
 	 * @param context The context to use.
 	 * @return The device profile.
 	 */
-	suspend fun buildDeviceProfile(context: Context): DeviceProfile {
+	@WorkerThread
+	fun buildDeviceProfile(context: Context): DeviceProfile {
 		val memInfo = getMemInfo(context)
 		val cpuTopology = CpuInfo.getCpuTopology()
 		val thermalState = ThermalInfo.getThermalState(context)

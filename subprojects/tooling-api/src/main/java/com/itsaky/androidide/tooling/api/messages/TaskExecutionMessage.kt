@@ -25,5 +25,6 @@ import java.io.Serializable
  */
 data class TaskExecutionMessage(
 	val tasks: List<String>,
+	val buildId: BuildId,
 	val buildParams: GradleBuildParams = GradleBuildParams(),
 ) : Serializable

@@ -16,8 +16,8 @@ class GradleBuildParamsTest {
 	) = JvmConfig(
 		xmsMb = xmsMb,
 		xmxMb = xmxMb,
-		maxMetaspaceSize = maxMetaspaceSize,
-		reservedCodeCacheSize = reservedCodeCacheSize,
+		maxMetaspaceSizeMb = maxMetaspaceSize,
+		reservedCodeCacheSizeMb = reservedCodeCacheSize,
 		gcType = gcType,
 		heapDumpOnOutOfMemory = heapDumpOnOutOfMemory,
 	)

@@ -65,6 +65,7 @@ import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
@@ -120,8 +121,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
 	private val Throwable?.isFileNotFound: Boolean
 		get() = this is FileNotFoundException ||
-			this is NoSuchFileException ||
-			(this is ErrnoException && this.errno == OsConstants.ENOENT)
+				this is NoSuchFileException ||
+				(this is ErrnoException && this.errno == OsConstants.ENOENT)
 
 	val findInProjectDialog: AlertDialog?
 		get() {
@@ -287,7 +288,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				.onSuccess {
 					showRestartPrompt(this@ProjectHandlerActivity)
 				}.onFailure { error ->
-					flashError(getString(string.msg_plugin_install_failed, error.message ?: "Unknown error"))
+					flashError(
+						getString(
+							string.msg_plugin_install_failed,
+							error.message ?: "Unknown error"
+						)
+					)
 				}
 			setStatus("")
 			buildViewModel.pluginInstallationAttempted()
@@ -318,7 +324,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	override fun onResume() {
 		super.onResume()
 
-		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
+		val service =
+			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		editorViewModel.isBuildInProgress = service?.isBuildInProgress == true
 		editorViewModel.isInitializing = initializingFuture?.isDone == false
 
@@ -381,7 +388,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	fun appendBuildOutput(str: String) {
-        if (_binding == null || isDestroyed || isFinishing) return
+		if (_binding == null || isDestroyed || isFinishing) return
 		content.bottomSheet.appendBuildOut(str)
 	}
 
@@ -452,7 +459,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		if (currentVariants == null) {
 			log.debug(
 				"No variant selection information available. " +
-					"Default build variants will be selected.",
+						"Default build variants will be selected.",
 			)
 			initializeProject(buildVariants = emptyMap(), forceSync = forceSync)
 			return
@@ -466,7 +473,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			newSelections.putAll(buildVariantsViewModel.updatedBuildVariants)
 
 			val selectedVariants = newSelections.mapToSelectedVariants()
-			log.debug("Initializing project with new build variant selections: {}", selectedVariants)
+			log.debug(
+				"Initializing project with new build variant selections: {}",
+				selectedVariants
+			)
 
 			initializeProject(buildVariants = selectedVariants, forceSync = forceSync)
 			return
@@ -501,7 +511,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	/**
 	 * Initialize (sync) the project.
 	 *
-	 * @param buildVariants A map of project paths to the selected build variants.
+	 * @param buildVariants A map of project paths to the selected build
+	 *    variants.
 	 */
 	fun initializeProject(
 		buildVariants: Map<String, String>,
@@ -524,6 +535,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						handleMissingProjectDirectory(projectDir.name)
 						return@launch
 					}
+
 					else -> throw e
 				}
 			}
@@ -532,7 +544,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			preProjectInit()
 		}
 
-		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+		val buildService =
+			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		if (buildService == null) {
 			log.error("No build service found. Cannot initialize project.")
 			return@launch
@@ -544,7 +557,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 
 		log.info("Sending init request to tooling server (needs sync: {})...", needsSync)
-		initializingFuture = buildService.initializeProject(params = createProjectInitParams(projectDir, buildVariants, needsSync))
+		initializingFuture = buildService.initializeProject(
+			params = createProjectInitParams(
+				projectDir = projectDir,
+				buildVariants = buildVariants,
+				needsGradleSync = needsSync,
+				buildId = buildService.nextBuildId()
+			)
+		)
 
 		initializingFuture!!.whenCompleteAsync { result, error ->
 			releaseServerListener()
@@ -568,12 +588,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		projectDir: File,
 		buildVariants: Map<String, String>,
 		needsGradleSync: Boolean,
+		buildId: BuildId,
 	): InitializeProjectParams =
 		InitializeProjectParams(
 			directory = projectDir.absolutePath,
 			gradleDistribution = gradleDistributionParams,
 			androidParams = createAndroidParams(buildVariants),
 			needsGradleSync = needsGradleSync,
+			buildId = buildId,
 		)
 
 	private fun createAndroidParams(buildVariants: Map<String, String>): AndroidInitializationParams {
@@ -888,8 +910,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val newEnd = IntPair.getSecond(range)
 
 		val isValidRange = newStart >= 0 &&
-			newEnd <= content.length &&
-			newStart <= newEnd
+				newEnd <= content.length &&
+				newStart <= newEnd
 
 		if (isValidRange && newStart != newEnd) {
 			setSelection(newStart, newEnd)

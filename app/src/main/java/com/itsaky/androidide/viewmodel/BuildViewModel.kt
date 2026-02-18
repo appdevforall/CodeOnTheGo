@@ -10,7 +10,6 @@ import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
-import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,8 +62,9 @@ class BuildViewModel : ViewModel() {
 						"${module.path}:${variant.mainArtifact.assembleTaskName}"
 					}
 
-				val message = TaskExecutionMessage(tasks = listOf(taskName))
-				val result = buildService.executeTasks(message).await()
+				val result = withContext(Dispatchers.IO) {
+					buildService.executeTasks(tasks = listOf(taskName))
+				}.await()
 
 				if (result == null || !result.isSuccessful) {
 					throw RuntimeException("Task execution failed: ${result.failure}")
@@ -72,12 +72,14 @@ class BuildViewModel : ViewModel() {
 
 				if (isPluginProject) {
 					val projectRoot = IProjectManager.getInstance().projectDirPath
-					val cgpFile = withContext(Dispatchers.IO) { findPluginCgpFile(projectRoot, variant) }
+					val cgpFile =
+						withContext(Dispatchers.IO) { findPluginCgpFile(projectRoot, variant) }
 					if (cgpFile != null) {
 						_buildState.value = BuildState.AwaitingPluginInstall(cgpFile)
 					} else {
 						log.warn("Plugin built successfully but .cgp file not found")
-						_buildState.value = BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin")
+						_buildState.value =
+							BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin")
 					}
 					return@launch
 				}

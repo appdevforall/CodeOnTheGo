@@ -17,10 +17,15 @@
 
 package com.itsaky.androidide.tooling.api.messages.result
 
+import com.itsaky.androidide.tooling.api.messages.BuildId
+
 /**
  * Information about a build sent to the client before the build is executed.
  *
  * @property tasks The tasks that will be executed.
  * @author Akash Yadav
  */
-data class BuildInfo(val tasks: List<String>)
+data class BuildInfo(
+	val buildId: BuildId,
+	val tasks: List<String>
+)

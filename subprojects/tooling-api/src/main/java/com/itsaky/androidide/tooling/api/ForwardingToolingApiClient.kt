@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.tooling.api
 
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.api.messages.result.BuildResult
@@ -41,8 +42,8 @@ class ForwardingToolingApiClient(
 		client?.logOutput(line)
 	}
 
-	override fun prepareBuild(buildInfo: BuildInfo) {
-		client?.prepareBuild(buildInfo)
+	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> {
+		return client?.prepareBuild(buildInfo) ?: CompletableFuture.completedFuture(ClientGradleBuildConfig())
 	}
 
 	override fun onBuildSuccessful(result: BuildResult) {
@@ -56,11 +57,6 @@ class ForwardingToolingApiClient(
 	override fun onProgressEvent(event: ProgressEvent) {
 		client?.onProgressEvent(event)
 	}
-
-	override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> =
-		client?.getGradleBuildConfig() ?: CompletableFuture.completedFuture(
-			ClientGradleBuildConfig(),
-		)
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
 		client?.checkGradleWrapperAvailability()

@@ -1,16 +1,29 @@
 package com.itsaky.androidide.services.builder
 
 import androidx.annotation.VisibleForTesting
+import com.itsaky.androidide.analytics.IAnalyticsManager
+import com.itsaky.androidide.analytics.gradle.StrategySelectedMetric
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 object GradleBuildTuner {
+
 	private val logger = LoggerFactory.getLogger(GradleBuildTuner::class.java)
 
 	const val LOW_MEM_THRESHOLD_MB = 3 * 1024 // 3GB
 	const val HIGH_PERF_MIN_MEM_MB = 6 * 1024 // 6GB
 	const val HIGH_PERF_MIN_CORE = 4
+
+	enum class SelectionReason(val label: String) {
+		LowMemDevice("low_mem_device"),
+		LowMemThreshold("low_mem_threshold"),
+		ThermalWithPrevious("thermal_with_previous"),
+		ThermalWithoutPrevious("thermal_without_previous"),
+		HighPerf("high_perf_mem"),
+		BalancedFallback("balanced_fallback"),
+	}
 
 	/**
 	 * Automatically tune the Gradle build for the given device and build
@@ -26,8 +39,16 @@ object GradleBuildTuner {
 		build: BuildProfile,
 		previousConfig: GradleTuningConfig? = null,
 		thermalSafe: Boolean = false,
+		analyticsManager: IAnalyticsManager? = null,
+		buildId: BuildId? = null,
 	): GradleTuningConfig {
-		val strategy = pickStrategy(device, thermalSafe, previousConfig)
+		val strategy = pickStrategy(
+			device,
+			thermalSafe,
+			previousConfig,
+			analyticsManager,
+			buildId
+		)
 		return strategy.tune(device, build)
 	}
 
@@ -36,6 +57,8 @@ object GradleBuildTuner {
 		device: DeviceProfile,
 		thermalSafe: Boolean,
 		previousConfig: GradleTuningConfig?,
+		analyticsManager: IAnalyticsManager? = null,
+		buildId: BuildId? = null,
 	): GradleTuningStrategy {
 		val isLowMemDevice = device.mem.isLowMemDevice
 		val totalMemMb = device.mem.totalMemMb
@@ -47,8 +70,8 @@ object GradleBuildTuner {
 
 		logger.info(
 			"Evaluating strategy selection: " +
-				"isLowMemDevice={}, totalMemMb={}, totalCores={}, " +
-				"thermalSafe={}, isThermalThrottled={}, previousConfigPresent={}",
+					"isLowMemDevice={}, totalMemMb={}, totalCores={}, " +
+					"thermalSafe={}, isThermalThrottled={}, previousConfigPresent={}",
 			isLowMemDevice,
 			totalMemMb,
 			totalCores,
@@ -57,48 +80,49 @@ object GradleBuildTuner {
 			hasPreviousConfig,
 		)
 
-		val strategy =
+		val (strategy, reason) =
 			when {
-				isLowMemDevice || totalMemMb <= LOW_MEM_THRESHOLD_MB -> {
-					logger.info(
-						"Selected LowMemoryStrategy: isLowMemDevice={} OR totalMemMb({}) <= LOW_MEM_THRESHOLD_MB({})",
-						isLowMemDevice,
-						totalMemMb,
-						LOW_MEM_THRESHOLD_MB,
-					)
-					LowMemoryStrategy()
-				}
+				isLowMemDevice -> LowMemoryStrategy() to SelectionReason.LowMemDevice
+				totalMemMb <= LOW_MEM_THRESHOLD_MB -> LowMemoryStrategy() to SelectionReason.LowMemThreshold
 
-				isThermallyConstrained && hasPreviousConfig -> {
-					logger.info(
-						"Selected ThermalSafeStrategy: (thermalSafe={} OR isThermalThrottled={}) AND previousConfigPresent",
-						thermalSafe,
-						device.isThermalThrottled,
-					)
+				isThermallyConstrained && hasPreviousConfig -> ThermalSafeStrategy(previousConfig) to SelectionReason.ThermalWithPrevious
+				isThermallyConstrained && !hasPreviousConfig -> BalancedStrategy() to SelectionReason.ThermalWithoutPrevious
 
-					ThermalSafeStrategy(previousConfig)
-				}
+				meetsHighPerfMem && meetsHighPerfCores -> HighPerformanceStrategy() to SelectionReason.HighPerf
 
-				meetsHighPerfMem && meetsHighPerfCores -> {
-					logger.info(
-						"Selected HighPerformanceStrategy: totalMemMb({}) >= HIGH_PERF_MIN_MEM_MB({}) " +
-							"AND totalCores({}) >= HIGH_PERF_MIN_CORE({})",
-						totalMemMb,
-						HIGH_PERF_MIN_MEM_MB,
-						totalCores,
-						HIGH_PERF_MIN_CORE,
-					)
-					HighPerformanceStrategy()
-				}
-
-				else -> {
-					logger.info("Selected BalancedStrategy: no other conditions matched")
-					BalancedStrategy()
-				}
+				else -> BalancedStrategy() to SelectionReason.BalancedFallback
 			}
+
+		logger.info("selected {} build strategy because: {}", strategy.name, reason.label)
+		analyticsManager?.trackGradleStrategySelected(
+			metric = StrategySelectedMetric(
+				buildId = buildId ?: BuildId.Unknown,
+				totalMemBucketed = getMemBucket(totalMemMb),
+				totalCores = totalCores,
+				isThermalThrottled = isThermallyConstrained,
+				isLowMemDevice = isLowMemDevice,
+				lowMemThresholdMb = LOW_MEM_THRESHOLD_MB,
+				highPerfMinMemMb = HIGH_PERF_MIN_MEM_MB,
+				highPerfMinCores = HIGH_PERF_MIN_CORE,
+				hasPreviousConfig = hasPreviousConfig,
+				previousStrategy = previousConfig?.strategyName,
+				newStrategy = strategy,
+				reason = reason,
+			)
+		)
 
 		return strategy
 	}
+
+	private fun getMemBucket(memMb: Long): String =
+		when {
+			memMb < 2 * 1024 -> "<2GB"
+			memMb < 4 * 1024 -> "2-4GB"
+			memMb < 6 * 1024 -> "4-6GB"
+			memMb < 8 * 1024 -> "6-8GB"
+			memMb < 12 * 1024 -> "8-12GB"
+			else -> "12GB+"
+		}
 
 	/**
 	 * Convert the given tuning configuration to a Gradle build parameters.
@@ -174,10 +198,10 @@ object GradleBuildTuner {
 			add("-Xmx${jvm.xmxMb}m")
 
 			// Metaspace cap (class metadata)
-			add("-XX:MaxMetaspaceSize=${jvm.maxMetaspaceSize}m")
+			add("-XX:MaxMetaspaceSize=${jvm.maxMetaspaceSizeMb}m")
 
 			// JIT code cache
-			add("-XX:ReservedCodeCacheSize=${jvm.reservedCodeCacheSize}m")
+			add("-XX:ReservedCodeCacheSize=${jvm.reservedCodeCacheSizeMb}m")
 
 			// GC strategy
 			when (val gc = jvm.gcType) {
@@ -186,7 +210,7 @@ object GradleBuildTuner {
 				is GcType.Generational -> {
 					add("-XX:+UseG1GC")
 
-					when (val adaptive = gc.useAdaptiveIHOP) {
+					when (gc.useAdaptiveIHOP) {
 						true -> add("-XX:+G1UseAdaptiveIHOP")
 						false -> add("-XX:-G1UseAdaptiveIHOP")
 						null -> Unit

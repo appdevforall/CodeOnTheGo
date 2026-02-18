@@ -18,7 +18,7 @@
 package com.itsaky.androidide.tooling.impl.sync
 
 import com.android.builder.model.v2.models.Versions
-import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import org.gradle.tooling.BuildController
 import org.gradle.tooling.CancellationToken
 import org.gradle.tooling.ProjectConnection
@@ -40,7 +40,7 @@ class RootProjectModelBuilderParams(
 	val cancellationToken: CancellationToken?,
 	val projectCacheFile: File,
 	val projectSyncMetaFile: File,
-	val buildParams: GradleBuildParams,
+	val clientConfig: ClientGradleBuildConfig?,
 ): Serializable {
 	operator fun component1() = projectConnection
 	operator fun component2() = cancellationToken

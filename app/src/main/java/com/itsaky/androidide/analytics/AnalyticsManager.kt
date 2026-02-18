@@ -1,10 +1,12 @@
 package com.itsaky.androidide.analytics
 
-import android.app.Application
 import android.os.Bundle
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.ktx.analytics
 import com.google.firebase.ktx.Firebase
+import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
+import com.itsaky.androidide.analytics.gradle.BuildStartedMetric
+import com.itsaky.androidide.analytics.gradle.StrategySelectedMetric
 import java.util.concurrent.TimeUnit
 
 interface IAnalyticsManager {
@@ -13,17 +15,19 @@ interface IAnalyticsManager {
     fun startSession()
     fun endSession()
     fun trackProjectOpened(projectPath: String)
-    fun trackBuildRun(buildType: String, projectPath: String)
-    fun trackBuildCompleted(buildType: String, success: Boolean, durationMs: Long)
     fun trackFeatureUsed(featureName: String)
     fun trackError(errorType: String, errorMessage: String)
     fun setUserProperty(key: String, value: String)
     fun trackScreenView(screenName: String)
+
+	fun trackBuildRun(metric: BuildStartedMetric) = trackMetric(metric)
+	fun trackGradleStrategySelected(metric: StrategySelectedMetric) = trackMetric(metric)
+	fun trackBuildCompleted(metric: BuildCompletedMetric) = trackMetric(metric)
+
+	fun trackMetric(metric: Metric)
 }
 
-class AnalyticsManager(
-    private val application: Application
-) : IAnalyticsManager {
+class AnalyticsManager : IAnalyticsManager {
 
     private val analytics: FirebaseAnalytics by lazy {
         Firebase.analytics.apply {
@@ -87,29 +91,6 @@ class AnalyticsManager(
         analytics.logEvent("project_opened", bundle)
     }
 
-    override fun trackBuildRun(buildType: String, projectPath: String) {
-        val bundle = Bundle().apply {
-            putString("build_type", buildType)
-            putLong("project_hash", projectPath.hashCode().toLong())
-            putLong("timestamp", System.currentTimeMillis())
-        }
-        analytics.logEvent("build_started", bundle)
-    }
-
-    override fun trackBuildCompleted(
-        buildType: String,
-        success: Boolean,
-        durationMs: Long
-    ) {
-        val bundle = Bundle().apply {
-            putString("build_type", buildType)
-            putBoolean("success", success)
-            putLong("duration_ms", durationMs)
-            putLong("timestamp", System.currentTimeMillis())
-        }
-        analytics.logEvent("build_completed", bundle)
-    }
-
     override fun trackFeatureUsed(featureName: String) {
         val bundle = Bundle().apply {
             putString("feature_name", featureName)
@@ -138,4 +119,11 @@ class AnalyticsManager(
         }
         analytics.logEvent(FirebaseAnalytics.Event.SCREEN_VIEW, bundle)
     }
+
+	override fun trackMetric(metric: Metric) {
+		val bundle = metric.asBundle()
+		bundle.putLong("timestamp", System.currentTimeMillis())
+
+		analytics.logEvent(metric.eventName, bundle)
+	}
 }

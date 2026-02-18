@@ -1,5 +1,6 @@
 package com.itsaky.androidide.tooling.impl.util
 
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.impl.LoggingOutputStream
 import com.itsaky.androidide.tooling.impl.Main
@@ -11,21 +12,29 @@ import java.nio.charset.StandardCharsets
 
 private val logger = LoggerFactory.getLogger("GradleBuildExts")
 
-fun ConfigurableLauncher<*>.configureFrom(buildParams: GradleBuildParams? = null) {
+fun ConfigurableLauncher<*>.configureFrom(
+	clientConfig: ClientGradleBuildConfig? = null,
+	buildParams: GradleBuildParams? = null
+) {
+	logger.debug(
+		"configuring build launcher: hasClientConfig={}, hasBuildParams: {}",
+		clientConfig != null,
+		buildParams != null
+	)
+
 	val out = LoggingOutputStream()
 	setStandardError(out)
 	setStandardOutput(out)
-	setStandardInput(ByteArrayInputStream("NoOp".toByteArray(StandardCharsets.UTF_8)))
+	setStandardInput(ByteArrayInputStream("".toByteArray(StandardCharsets.UTF_8)))
 	addProgressListener(ForwardingProgressListener(), Main.progressUpdateTypes())
 
-	Main.client?.also { client ->
-		val buildConfig = client.getGradleBuildConfig().get()
-
+	if (clientConfig != null) {
 		val clientGradleArgs =
-			(buildConfig.buildParams.gradleArgs + buildConfig.extraArgs).filter(String::isNotBlank).distinct()
+			clientConfig.buildParams.gradleArgs.filter(String::isNotBlank)
+				.distinct()
 		logger.debug("Client Gradle args: {}", clientGradleArgs)
 
-		val clientJvmArgs = buildConfig.buildParams.jvmArgs.filter(String::isNotBlank)
+		val clientJvmArgs = clientConfig.buildParams.jvmArgs.filter(String::isNotBlank)
 		logger.debug("Client JVM args: {}", clientJvmArgs)
 
 		addArguments(clientGradleArgs)

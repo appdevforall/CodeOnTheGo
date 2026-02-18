@@ -23,6 +23,8 @@ class LowMemoryStrategy : GradleTuningStrategy {
 		const val AAPT2_MAX_THREADS = 2
 	}
 
+	override val name = "low_memory"
+
 	override fun tune(
 		device: DeviceProfile,
 		build: BuildProfile,
@@ -40,8 +42,8 @@ class LowMemoryStrategy : GradleTuningStrategy {
 					JvmConfig(
 						xmxMb = gradleXmx,
 						xmsMb = gradleXms,
-						maxMetaspaceSize = GRADLE_METASPACE_MB,
-						reservedCodeCacheSize = GRADLE_CODE_CACHE_MB,
+						maxMetaspaceSizeMb = GRADLE_METASPACE_MB,
+						reservedCodeCacheSizeMb = GRADLE_CODE_CACHE_MB,
 						gcType = GcType.Serial,
 					),
 				maxWorkers = min(GRADLE_WORKERS_MAX, workersHardCap),
@@ -66,6 +68,7 @@ class LowMemoryStrategy : GradleTuningStrategy {
 			)
 
 		return GradleTuningConfig(
+			strategyName = name,
 			gradle = gradleDaemon,
 			kotlin = kotlinExec,
 			dex = dex,

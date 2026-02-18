@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.tooling.api
 
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.api.messages.result.BuildResult
@@ -50,9 +51,14 @@ interface IToolingApiClient {
 	@JsonNotification
 	fun logOutput(line: String)
 
-	/** Called just before a build is started. */
-	@JsonNotification
-	fun prepareBuild(buildInfo: BuildInfo)
+	/**
+	 * Called just before a build is started.
+	 *
+	 * @param buildInfo The build information.
+	 * @return The build configuration parameters for this build.
+	 */
+	@JsonRequest
+	fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig>
 
 	/**
 	 * Called when a build is successful.
@@ -81,15 +87,6 @@ interface IToolingApiClient {
 	 */
 	@JsonNotification
 	fun onProgressEvent(event: ProgressEvent)
-
-	/**
-	 * Get the build configuration parameters. This will be called before every
-	 * build.
-	 *
-	 * @return The extra build arguments.
-	 */
-	@JsonRequest
-	fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig>
 
 	/**
 	 * Tells the client to check if the Gradle wrapper files are available.

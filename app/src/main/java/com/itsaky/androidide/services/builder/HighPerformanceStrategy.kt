@@ -26,6 +26,8 @@ class HighPerformanceStrategy : GradleTuningStrategy {
 		const val AAPT2_MAX_THREADS = 3
 	}
 
+	override val name = "high_performance"
+
 	override fun tune(
 		device: DeviceProfile,
 		build: BuildProfile,
@@ -42,8 +44,8 @@ class HighPerformanceStrategy : GradleTuningStrategy {
 					JvmConfig(
 						xmxMb = gradleXmx,
 						xmsMb = gradleXmx / 2,
-						maxMetaspaceSize = GRADLE_METASPACE_MB,
-						reservedCodeCacheSize = GRADLE_CODE_CACHE_MB,
+						maxMetaspaceSizeMb = GRADLE_METASPACE_MB,
+						reservedCodeCacheSizeMb = GRADLE_CODE_CACHE_MB,
 					),
 				maxWorkers = maxWorkers,
 				parallel = true,
@@ -61,8 +63,8 @@ class HighPerformanceStrategy : GradleTuningStrategy {
 					JvmConfig(
 						xmxMb = kotlinXmx,
 						xmsMb = kotlinXmx / 2,
-						maxMetaspaceSize = KOTLIN_METASPACE_MB,
-						reservedCodeCacheSize = KOTLIN_CODE_CACHE_MB,
+						maxMetaspaceSizeMb = KOTLIN_METASPACE_MB,
+						reservedCodeCacheSizeMb = KOTLIN_CODE_CACHE_MB,
 					),
 			)
 
@@ -79,6 +81,7 @@ class HighPerformanceStrategy : GradleTuningStrategy {
 			)
 
 		return GradleTuningConfig(
+			strategyName = name,
 			gradle = gradleDaemon,
 			kotlin = kotlinExec,
 			dex = dex,
