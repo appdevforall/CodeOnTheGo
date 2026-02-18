@@ -360,7 +360,7 @@ class GradleBuildService :
 					newTuningConfig =
 						GradleBuildTuner.autoTune(
 							device = DeviceInfo.buildDeviceProfile(applicationContext),
-							build = BuildProfile(isDebugBuild = false),
+							build = BuildProfile(isDebugBuild = buildType == "debug"),
 							previousConfig = currentTuningConfig,
 							analyticsManager = analyticsManager,
 							buildId = buildInfo.buildId,
