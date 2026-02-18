@@ -20,9 +20,11 @@ package com.itsaky.androidide.testing.tooling
 import ch.qos.logback.core.CoreConstants
 import com.itsaky.androidide.testing.tooling.models.ToolingApiTestLauncherParams
 import com.itsaky.androidide.testing.tooling.models.ToolingApiTestScope
-import com.itsaky.androidide.tooling.api.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
@@ -46,11 +48,13 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.file.Path
 import java.util.Collections
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.bufferedWriter
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.pathString
+import kotlin.random.Random
 
 /**
  * Launches the Tooling API server in a separate JVM process.
@@ -85,6 +89,10 @@ object ToolingApiTestLauncher {
 			InitializeProjectParams(
 				projectDir.pathString,
 				client.gradleDistParams,
+				buildId = BuildId(
+					buildSessionId = UUID.randomUUID().toString(),
+					buildId = Random.nextLong(),
+				)
 			),
 		log: Logger = LoggerFactory.getLogger("BuildOutputLogger"),
 		sysProps: Map<String, String> = emptyMap(),
@@ -143,8 +151,8 @@ object ToolingApiTestLauncher {
 			if (process != null) {
 				println(
 					"[ToolingApiTestLauncher]" +
-						" Tooling API server process finished with exit code: " +
-						process.exitValue(),
+							" Tooling API server process finished with exit code: " +
+							process.exitValue(),
 				)
 			}
 			if (error != null) {
@@ -287,35 +295,45 @@ object ToolingApiTestLauncher {
 			log.debug(trimmed)
 		}
 
-		override fun prepareBuild(buildInfo: BuildInfo) {
-			log.debug("---------- PREPARE BUILD ----------")
-			log.debug("AGP Version : ${this.agpVersion}")
-			log.debug("Gradle Version : ${this.gradleVersion}")
-			log.debug("-----------------------------------")
+		override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
+			CompletableFuture.supplyAsync {
+				log.debug("---------- PREPARE BUILD ----------")
+				log.debug("AGP Version : ${this.agpVersion}")
+				log.debug("Gradle Version : ${this.gradleVersion}")
+				log.debug("-----------------------------------")
 
-			projectDir
-				.resolve(buildFileIn)
-				.replaceContents(
-					dest = projectDir.resolve(buildFile),
-					candidate = "@@TOOLING_API_TEST_AGP_VERSION@@" to this.agpVersion,
+				projectDir
+					.resolve(buildFileIn)
+					.replaceContents(
+						dest = projectDir.resolve(buildFile),
+						candidate = "@@TOOLING_API_TEST_AGP_VERSION@@" to this.agpVersion,
+					)
+
+				val unresolvedDependency =
+					if (!excludeUnresolvedDependency) {
+						"implementation 'unresolved:unresolved:unresolved'"
+					} else {
+						""
+					}
+
+				projectDir
+					.resolve(appBuildFileIn)
+					.replaceContents(
+						projectDir.resolve(appBuildFile),
+						"//",
+						"@@ANDROID_BLOCK_CONFIG@@" to androidBlockConfig,
+						"@@UNRESOLVED_DEPENDENCY@@" to unresolvedDependency,
+					)
+
+				return@supplyAsync ClientGradleBuildConfig(
+					buildParams = GradleBuildParams(
+						gradleArgs = mutableListOf(
+							"--stacktrace",
+							"--info",
+						).also { it.addAll(extraArgs) }
+					),
 				)
-
-			val unresolvedDependency =
-				if (!excludeUnresolvedDependency) {
-					"implementation 'unresolved:unresolved:unresolved'"
-				} else {
-					""
-				}
-
-			projectDir
-				.resolve(appBuildFileIn)
-				.replaceContents(
-					projectDir.resolve(appBuildFile),
-					"//",
-					"@@ANDROID_BLOCK_CONFIG@@" to androidBlockConfig,
-					"@@UNRESOLVED_DEPENDENCY@@" to unresolvedDependency,
-				)
-		}
+			}
 
 		override fun onBuildSuccessful(result: BuildResult) {
 			onBuildResult(result)
@@ -333,17 +351,6 @@ object ToolingApiTestLauncher {
 		}
 
 		override fun onProgressEvent(event: ProgressEvent) {}
-
-		override fun getGradleBuildConfig(): CompletableFuture<ClientGradleBuildConfig> =
-			CompletableFuture.completedFuture(
-				ClientGradleBuildConfig(
-					extraArgs =
-						mutableListOf(
-							"--stacktrace",
-							"--info",
-						).also { it.addAll(extraArgs) },
-				),
-			)
 
 		override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
 			CompletableFuture.completedFuture(GradleWrapperCheckResult(true))
