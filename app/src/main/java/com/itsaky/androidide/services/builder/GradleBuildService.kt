@@ -355,26 +355,35 @@ class GradleBuildService :
 			val currentTuningConfig = tuningConfig
 			var newTuningConfig: GradleTuningConfig? = null
 			val extraArgs = getGradleExtraArgs()
-			val buildParams =
-				if (FeatureFlags.isExperimentsEnabled) {
-					newTuningConfig =
-						GradleBuildTuner.autoTune(
-							device = DeviceInfo.buildDeviceProfile(applicationContext),
-							build = BuildProfile(isDebugBuild = buildType == "debug"),
-							previousConfig = currentTuningConfig,
-							analyticsManager = analyticsManager,
-							buildId = buildInfo.buildId,
-						)
 
-					tuningConfig = newTuningConfig
-					GradleBuildTuner
-						.toGradleBuildParams(tuningConfig = newTuningConfig)
-						.run {
-							copy(gradleArgs = gradleArgs + extraArgs)
+			var buildParams =
+				if (FeatureFlags.isExperimentsEnabled) {
+					runCatching {
+						newTuningConfig =
+							GradleBuildTuner.autoTune(
+								device = DeviceInfo.buildDeviceProfile(applicationContext),
+								build = BuildProfile(isDebugBuild = buildType == "debug"),
+								previousConfig = currentTuningConfig,
+								analyticsManager = analyticsManager,
+								buildId = buildInfo.buildId,
+							)
+
+						tuningConfig = newTuningConfig
+						GradleBuildTuner
+							.toGradleBuildParams(tuningConfig = newTuningConfig)
+							.run {
+								copy(gradleArgs = gradleArgs + extraArgs)
+							}
+					}
+						.onFailure { err ->
+							log.error("Failed to auto-tune Gradle build", err)
 						}
-				} else {
-					GradleBuildParams(gradleArgs = extraArgs)
-				}
+						.getOrDefault(null)
+				} else null
+
+			if (buildParams == null) {
+				buildParams = GradleBuildParams(gradleArgs = extraArgs)
+			}
 
 			analyticsManager.trackBuildRun(
 				metric =
@@ -590,9 +599,9 @@ class GradleBuildService :
 				} catch (e: Throwable) {
 					if (BuildPreferences.isScanEnabled &&
 						(
-							e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
-								e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
-						)
+								e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+										e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
+								)
 					) {
 						BuildPreferences.isScanEnabled = false
 
