@@ -3,6 +3,9 @@ package com.itsaky.androidide.services.builder
 import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.gradle.StrategySelectedMetric
+import com.itsaky.androidide.services.builder.GradleBuildTuner.HIGH_PERF_MIN_CORE
+import com.itsaky.androidide.services.builder.GradleBuildTuner.HIGH_PERF_MIN_MEM_MB
+import com.itsaky.androidide.services.builder.GradleBuildTuner.LOW_MEM_THRESHOLD_MB
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import org.slf4j.LoggerFactory
@@ -111,15 +114,15 @@ object GradleBuildTuner {
 
 		val (strategy, reason) =
 			when {
-				isLowMemDevice -> LowMemoryStrategy() to SelectionReason.LowMemDevice
-				totalMemMb <= LOW_MEM_THRESHOLD_MB -> LowMemoryStrategy() to SelectionReason.LowMemThreshold
+				isLowMemDevice -> LowMemoryStrategy to SelectionReason.LowMemDevice
+				totalMemMb <= LOW_MEM_THRESHOLD_MB -> LowMemoryStrategy to SelectionReason.LowMemThreshold
 
 				isThermallyConstrained && hasPreviousConfig -> ThermalSafeStrategy(previousConfig) to SelectionReason.ThermalWithPrevious
-				isThermallyConstrained && !hasPreviousConfig -> BalancedStrategy() to SelectionReason.ThermalWithoutPrevious
+				isThermallyConstrained && !hasPreviousConfig -> BalancedStrategy to SelectionReason.ThermalWithoutPrevious
 
-				meetsHighPerfMem && meetsHighPerfCores -> HighPerformanceStrategy() to SelectionReason.HighPerf
+				meetsHighPerfMem && meetsHighPerfCores -> HighPerformanceStrategy to SelectionReason.HighPerf
 
-				else -> BalancedStrategy() to SelectionReason.BalancedFallback
+				else -> BalancedStrategy to SelectionReason.BalancedFallback
 			}
 
 		logger.info("selected {} build strategy because: {}", strategy.name, reason.label)

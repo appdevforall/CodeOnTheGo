@@ -7,21 +7,19 @@ import kotlin.math.min
  *
  * @author Akash Yadav
  */
-class LowMemoryStrategy : GradleTuningStrategy {
-	companion object {
-		const val GRADLE_XMX_MIN_MB = 384
-		const val GRADLE_XMX_TARGET_MB = 512
-		const val GRADLE_METASPACE_MB = 192
-		const val GRADLE_CODE_CACHE_MB = 128
+object LowMemoryStrategy : GradleTuningStrategy {
+	const val GRADLE_XMX_MIN_MB = 384
+	const val GRADLE_XMX_TARGET_MB = 512
+	const val GRADLE_METASPACE_MB = 192
+	const val GRADLE_CODE_CACHE_MB = 128
 
-		const val GRADLE_MEM_PER_WORKER = 512
-		const val GRADLE_WORKERS_MAX = 2
+	const val GRADLE_MEM_PER_WORKER = 512
+	const val GRADLE_WORKERS_MAX = 2
 
-		const val GRADLE_CACHING_STORAGE_REQUIRED_MB = 2048
+	const val GRADLE_CACHING_STORAGE_REQUIRED_MB = 2048
 
-		const val AAPT2_MIN_THREADS = 1
-		const val AAPT2_MAX_THREADS = 2
-	}
+	const val AAPT2_MIN_THREADS = 1
+	const val AAPT2_MAX_THREADS = 2
 
 	override val name = "low_memory"
 
@@ -45,7 +43,10 @@ class LowMemoryStrategy : GradleTuningStrategy {
 		val gradleXms = gradleXmx / 2
 		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
 		val workersCpuBound = device.cpu.totalCores
-		val workersHardCap = min(GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT, min(workersMemBound, workersCpuBound))
+		val workersHardCap = min(
+			GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT,
+			min(workersMemBound, workersCpuBound)
+		)
 		val gradleDaemon =
 			GradleDaemonConfig(
 				daemonEnabled = true,

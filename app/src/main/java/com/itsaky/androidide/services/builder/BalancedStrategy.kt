@@ -7,25 +7,24 @@ import kotlin.math.min
  *
  * @author Akash Yadav
  */
-class BalancedStrategy : GradleTuningStrategy {
-	companion object {
-		const val GRADLE_XMX_MIN_MB = 768
-		const val GRADLE_XMX_TARGET_MB = 1024
-		const val GRADLE_METASPACE_MB = 192
-		const val GRADLE_CODE_CACHE_MB = 128
+object BalancedStrategy : GradleTuningStrategy {
 
-		const val GRADLE_MEM_PER_WORKER = 512
-		const val GRADLE_WORKERS_MAX = 3
+	const val GRADLE_XMX_MIN_MB = 768
+	const val GRADLE_XMX_TARGET_MB = 1024
+	const val GRADLE_METASPACE_MB = 192
+	const val GRADLE_CODE_CACHE_MB = 128
 
-		const val GRADLE_VFS_WATCH_MEMORY_REQUIRED_MB = 5 * 1024 // 5GB
+	const val GRADLE_MEM_PER_WORKER = 512
+	const val GRADLE_WORKERS_MAX = 3
 
-		const val KOTLIN_XMX_TARGET_MB = 512
-		const val KOTLIN_METASPACE_MB = 128
-		const val KOTLIN_CODE_CACHE_MB = 128
+	const val GRADLE_VFS_WATCH_MEMORY_REQUIRED_MB = 5 * 1024 // 5GB
 
-		const val AAPT2_MIN_THREADS = 2
-		const val AAPT2_MAX_THREADS = 3
-	}
+	const val KOTLIN_XMX_TARGET_MB = 512
+	const val KOTLIN_METASPACE_MB = 128
+	const val KOTLIN_CODE_CACHE_MB = 128
+
+	const val AAPT2_MIN_THREADS = 2
+	const val AAPT2_MAX_THREADS = 3
 
 	override val name = "balanced"
 
@@ -33,10 +32,14 @@ class BalancedStrategy : GradleTuningStrategy {
 		device: DeviceProfile,
 		build: BuildProfile,
 	): GradleTuningConfig {
-		val gradleXmx = GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.mem.totalMemMb * 0.33).toInt())
+		val gradleXmx =
+			GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.mem.totalMemMb * 0.33).toInt())
 		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
 		val workersCpuBound = device.cpu.totalCores
-		val workersHardCap = min(GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT, min(workersMemBound, workersCpuBound))
+		val workersHardCap = min(
+			GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT,
+			min(workersMemBound, workersCpuBound)
+		)
 		val maxWorkers = min(GRADLE_WORKERS_MAX, workersHardCap)
 		val gradleDaemon =
 			GradleDaemonConfig(
@@ -72,7 +75,10 @@ class BalancedStrategy : GradleTuningStrategy {
 		val aapt2 =
 			Aapt2Config(
 				enableDaemon = true,
-				threadPoolSize = (device.cpu.totalCores / 2).coerceIn(AAPT2_MIN_THREADS, AAPT2_MAX_THREADS),
+				threadPoolSize = (device.cpu.totalCores / 2).coerceIn(
+					AAPT2_MIN_THREADS,
+					AAPT2_MAX_THREADS
+				),
 				enableResourceOptimizations = true,
 			)
 
