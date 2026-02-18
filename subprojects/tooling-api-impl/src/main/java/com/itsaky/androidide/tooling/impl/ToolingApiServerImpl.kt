@@ -138,7 +138,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		return runBuild {
 			val start = System.currentTimeMillis()
 			try {
-				return@runBuild doInitialize(params)
+				return@runBuild doInitialize(params, start)
 			} catch (err: Throwable) {
 				log.error("Failed to initialize project", err)
 				notifyBuildFailure(
@@ -154,10 +154,12 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	}
 
 	@VisibleForTesting
-	internal fun doInitialize(params: InitializeProjectParams): InitializeResult {
+	internal fun doInitialize(
+		params: InitializeProjectParams,
+		start: Long,
+	): InitializeResult {
 		log.debug("Received project initialization request with params: {}", params)
 
-		val start = System.currentTimeMillis()
 		if (params.gradleDistribution.type == GradleDistributionType.GRADLE_WRAPPER) {
 			Main.checkGradleWrapper()
 		}
