@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.tooling.api.messages
 
+import java.io.Serializable
+
 /**
  * Message sent from client to server to initialize the tooling API client in the given directory.
  *
@@ -35,4 +37,4 @@ class InitializeProjectParams
 		val needsGradleSync: Boolean = true,
 		val buildId: BuildId,
 		val buildParams: GradleBuildParams = GradleBuildParams(),
-	)
+	) : Serializable
