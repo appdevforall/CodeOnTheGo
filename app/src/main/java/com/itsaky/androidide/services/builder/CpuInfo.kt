@@ -51,7 +51,7 @@ object CpuInfo {
 								File(policy, "cpuinfo_max_freq")
 									.readText()
 									.trim()
-									.toLongOrNull() ?: 0L
+									.toLongOrNull() ?: return@mapNotNull null
 
 							Pair(maxFreq, cpuCount)
 						}?.sortedBy { it.first }
