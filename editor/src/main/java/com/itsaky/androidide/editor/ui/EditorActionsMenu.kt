@@ -399,6 +399,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
       val button = holder.binding.root
       button.text = if (forceShowTitle) item.title else ""
       button.tooltipText = item.title
+      button.contentDescription = item.contentDescription
 
             button.icon =
                 item.icon ?: run {
