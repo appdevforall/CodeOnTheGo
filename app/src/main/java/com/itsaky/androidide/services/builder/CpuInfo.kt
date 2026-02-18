@@ -57,7 +57,7 @@ object CpuInfo {
 						}?.sortedBy { it.first }
 
 				if (!clusters.isNullOrEmpty()) {
-					return buildTopologyFromClusters(clusters, total)
+					return buildTopologyFromClusters(clusters, clusters.sumOf { it.second })
 				}
 			}
 		}.onFailure { err ->
