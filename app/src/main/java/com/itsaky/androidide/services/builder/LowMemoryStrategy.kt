@@ -43,10 +43,11 @@ object LowMemoryStrategy : GradleTuningStrategy {
 		val gradleXms = gradleXmx / 2
 		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
 		val workersCpuBound = device.cpu.totalCores
-		val workersHardCap = min(
-			GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT,
-			min(workersMemBound, workersCpuBound)
-		)
+		val workersHardCap =
+			min(
+				GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT,
+				min(workersMemBound, workersCpuBound),
+			)
 		val gradleDaemon =
 			GradleDaemonConfig(
 				daemonEnabled = true,

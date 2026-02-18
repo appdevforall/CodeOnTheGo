@@ -374,12 +374,12 @@ class GradleBuildService :
 							.run {
 								copy(gradleArgs = gradleArgs + extraArgs)
 							}
-					}
-						.onFailure { err ->
-							log.error("Failed to auto-tune Gradle build", err)
-						}
-						.getOrDefault(null)
-				} else null
+					}.onFailure { err ->
+						log.error("Failed to auto-tune Gradle build", err)
+					}.getOrDefault(null)
+				} else {
+					null
+				}
 
 			if (buildParams == null) {
 				buildParams = GradleBuildParams(gradleArgs = extraArgs)
@@ -599,9 +599,9 @@ class GradleBuildService :
 				} catch (e: Throwable) {
 					if (BuildPreferences.isScanEnabled &&
 						(
-								e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
-										e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
-								)
+							e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+								e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
+						)
 					) {
 						BuildPreferences.isScanEnabled = false
 

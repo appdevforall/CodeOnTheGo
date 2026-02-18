@@ -241,7 +241,6 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				if (err is InterruptedException) {
 					Thread.currentThread().interrupt()
 				}
-
 			}.getOrDefault(null)
 
 		log.debug("got client config: {} (client={})", clientConfig, client)

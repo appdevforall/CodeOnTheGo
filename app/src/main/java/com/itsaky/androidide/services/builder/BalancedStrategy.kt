@@ -8,7 +8,6 @@ import kotlin.math.min
  * @author Akash Yadav
  */
 object BalancedStrategy : GradleTuningStrategy {
-
 	const val GRADLE_XMX_MIN_MB = 768
 	const val GRADLE_XMX_TARGET_MB = 1024
 	const val GRADLE_METASPACE_MB = 192
@@ -36,10 +35,11 @@ object BalancedStrategy : GradleTuningStrategy {
 			GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.mem.totalMemMb * 0.33).toInt())
 		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
 		val workersCpuBound = device.cpu.totalCores
-		val workersHardCap = min(
-			GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT,
-			min(workersMemBound, workersCpuBound)
-		)
+		val workersHardCap =
+			min(
+				GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT,
+				min(workersMemBound, workersCpuBound),
+			)
 		val maxWorkers = min(GRADLE_WORKERS_MAX, workersHardCap)
 		val gradleDaemon =
 			GradleDaemonConfig(
@@ -75,10 +75,11 @@ object BalancedStrategy : GradleTuningStrategy {
 		val aapt2 =
 			Aapt2Config(
 				enableDaemon = true,
-				threadPoolSize = (device.cpu.totalCores / 2).coerceIn(
-					AAPT2_MIN_THREADS,
-					AAPT2_MAX_THREADS
-				),
+				threadPoolSize =
+					(device.cpu.totalCores / 2).coerceIn(
+						AAPT2_MIN_THREADS,
+						AAPT2_MAX_THREADS,
+					),
 				enableResourceOptimizations = true,
 			)
 
