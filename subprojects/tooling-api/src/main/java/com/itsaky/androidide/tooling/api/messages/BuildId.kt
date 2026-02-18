@@ -10,7 +10,7 @@ import java.io.Serializable
 data class BuildId(
 	val buildSessionId: String,
 	val buildId: Long,
-): Serializable {
+) : Serializable {
 	companion object {
 		val Unknown = BuildId("unknown", -1)
 	}

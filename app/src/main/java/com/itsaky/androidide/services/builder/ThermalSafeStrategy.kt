@@ -10,7 +10,6 @@ import kotlin.math.max
 class ThermalSafeStrategy(
 	private val previousConfig: GradleTuningConfig,
 ) : GradleTuningStrategy {
-
 	override val name = "thermal_safe"
 
 	override fun tune(

@@ -18,7 +18,6 @@ data class BuildStartedMetric(
 	val projectPath: String,
 	val tuningConfig: GradleTuningConfig? = null,
 ) : BuildMetric() {
-
 	override val eventName = "build_started"
 
 	override fun asBundle(): Bundle =
@@ -57,7 +56,7 @@ data class BuildStartedMetric(
 	@Suppress("NOTHING_TO_INLINE")
 	private inline fun Bundle.record(
 		prefix: String,
-		config: JvmConfig
+		config: JvmConfig,
 	) = config.apply {
 		putInt("${prefix}_xms_mb", xmsMb)
 		putInt("${prefix}_xmx_mb", xmxMb)

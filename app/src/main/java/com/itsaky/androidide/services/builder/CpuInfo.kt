@@ -63,7 +63,7 @@ object CpuInfo {
 		}.onFailure { err ->
 			logger.warn(
 				"Unable to read CPU topology from policy directories. " +
-						"Falling back to per-cpu max-freq grouping: {}",
+					"Falling back to per-cpu max-freq grouping: {}",
 				err.message,
 			)
 		}
@@ -96,7 +96,7 @@ object CpuInfo {
 		}.onFailure { err ->
 			logger.warn(
 				"Unable to read CPU topology from per-cpu max-freq grouping. " +
-						"Falling back to 'bigCores = total': {}",
+					"Falling back to 'bigCores = total': {}",
 				err.message,
 			)
 		}

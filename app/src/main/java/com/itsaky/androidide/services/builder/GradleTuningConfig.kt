@@ -89,7 +89,6 @@ data class JvmConfig(
 )
 
 sealed class GcType {
-
 	abstract val name: String
 
 	data object Default : GcType() {

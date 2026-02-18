@@ -33,7 +33,7 @@ object ThermalInfo {
 			}.onFailure { err ->
 				logger.warn(
 					"Unable to read thermal state from PowerManager. " +
-							"Falling back to sysfs thermal zones: {}",
+						"Falling back to sysfs thermal zones: {}",
 					err.message,
 				)
 			}

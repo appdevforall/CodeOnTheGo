@@ -42,9 +42,8 @@ class ForwardingToolingApiClient(
 		client?.logOutput(line)
 	}
 
-	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> {
-		return client?.prepareBuild(buildInfo) ?: CompletableFuture.completedFuture(ClientGradleBuildConfig())
-	}
+	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
+		client?.prepareBuild(buildInfo) ?: CompletableFuture.completedFuture(ClientGradleBuildConfig())
 
 	override fun onBuildSuccessful(result: BuildResult) {
 		client?.onBuildSuccessful(result)

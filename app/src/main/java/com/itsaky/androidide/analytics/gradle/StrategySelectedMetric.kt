@@ -22,7 +22,6 @@ class StrategySelectedMetric(
 	val newStrategy: GradleTuningStrategy,
 	val reason: GradleBuildTuner.SelectionReason,
 ) : BuildMetric() {
-
 	override val eventName = "gradle_strategy_selected"
 
 	override fun asBundle(): Bundle =

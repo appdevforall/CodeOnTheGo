@@ -13,7 +13,6 @@ class BuildCompletedMetric(
 	val isSuccess: Boolean,
 	val buildResult: BuildResult,
 ) : BuildMetric() {
-
 	override val eventName = "build_completed"
 
 	override fun asBundle(): Bundle =

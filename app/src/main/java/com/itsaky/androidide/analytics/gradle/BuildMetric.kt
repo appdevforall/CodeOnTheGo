@@ -10,7 +10,6 @@ import com.itsaky.androidide.tooling.api.messages.BuildId
  * @author Akash Yadav
  */
 abstract class BuildMetric : Metric {
-
 	/**
 	 * Unique ID of the build session.
 	 */

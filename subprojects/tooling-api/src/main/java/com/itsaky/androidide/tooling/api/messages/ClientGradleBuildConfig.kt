@@ -10,4 +10,4 @@ import java.io.Serializable
  */
 data class ClientGradleBuildConfig(
 	val buildParams: GradleBuildParams = GradleBuildParams(),
-): Serializable
+) : Serializable

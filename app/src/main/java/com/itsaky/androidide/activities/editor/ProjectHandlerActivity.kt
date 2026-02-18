@@ -94,12 +94,12 @@ import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
 import io.github.rosemoe.sora.text.ICUUtils
 import io.github.rosemoe.sora.util.IntPair
-import org.koin.android.ext.android.inject
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
+import org.koin.android.ext.android.inject
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.NoSuchFileException
@@ -120,7 +120,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
 	private val Throwable?.isFileNotFound: Boolean
-		get() = this is FileNotFoundException ||
+		get() =
+			this is FileNotFoundException ||
 				this is NoSuchFileException ||
 				(this is ErrnoException && this.errno == OsConstants.ENOENT)
 
@@ -291,8 +292,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					flashError(
 						getString(
 							string.msg_plugin_install_failed,
-							error.message ?: "Unknown error"
-						)
+							error.message ?: "Unknown error",
+						),
 					)
 				}
 			setStatus("")
@@ -459,7 +460,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		if (currentVariants == null) {
 			log.debug(
 				"No variant selection information available. " +
-						"Default build variants will be selected.",
+					"Default build variants will be selected.",
 			)
 			initializeProject(buildVariants = emptyMap(), forceSync = forceSync)
 			return
@@ -475,7 +476,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			val selectedVariants = newSelections.mapToSelectedVariants()
 			log.debug(
 				"Initializing project with new build variant selections: {}",
-				selectedVariants
+				selectedVariants,
 			)
 
 			initializeProject(buildVariants = selectedVariants, forceSync = forceSync)
@@ -557,14 +558,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 
 		log.info("Sending init request to tooling server (needs sync: {})...", needsSync)
-		initializingFuture = buildService.initializeProject(
-			params = createProjectInitParams(
-				projectDir = projectDir,
-				buildVariants = buildVariants,
-				needsGradleSync = needsSync,
-				buildId = buildService.nextBuildId()
+		initializingFuture =
+			buildService.initializeProject(
+				params =
+					createProjectInitParams(
+						projectDir = projectDir,
+						buildVariants = buildVariants,
+						needsGradleSync = needsSync,
+						buildId = buildService.nextBuildId(),
+					),
 			)
-		)
 
 		initializingFuture!!.whenCompleteAsync { result, error ->
 			releaseServerListener()
@@ -878,7 +881,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 				SearchFieldToolbar(view).show()
 				true
-			} else if (view === binding.input || view === binding.filter || view.parent === binding.input || view.parent === binding.filter) {
+			} else if (view === binding.input ||
+				view === binding.filter ||
+				view.parent === binding.input ||
+				view.parent === binding.filter
+			) {
 				true
 			} else {
 				TooltipManager.showIdeCategoryTooltip(
@@ -909,7 +916,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val newStart = IntPair.getFirst(range)
 		val newEnd = IntPair.getSecond(range)
 
-		val isValidRange = newStart >= 0 &&
+		val isValidRange =
+			newStart >= 0 &&
 				newEnd <= content.length &&
 				newStart <= newEnd
 

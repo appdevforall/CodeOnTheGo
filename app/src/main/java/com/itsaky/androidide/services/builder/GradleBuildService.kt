@@ -159,10 +159,11 @@ class GradleBuildService :
 			}
 		} ?: "unknown"
 
-	internal fun nextBuildId(): BuildId = BuildId(
-		buildSessionId = buildSessionId,
-		buildId = buildId.incrementAndGet(),
-	)
+	internal fun nextBuildId(): BuildId =
+		BuildId(
+			buildSessionId = buildSessionId,
+			buildId = buildId.incrementAndGet(),
+		)
 
 	companion object {
 		private val log = LoggerFactory.getLogger(GradleBuildService::class.java)
@@ -366,7 +367,8 @@ class GradleBuildService :
 						)
 
 					tuningConfig = newTuningConfig
-					GradleBuildTuner.toGradleBuildParams(tuningConfig = newTuningConfig)
+					GradleBuildTuner
+						.toGradleBuildParams(tuningConfig = newTuningConfig)
 						.run {
 							copy(gradleArgs = gradleArgs + extraArgs)
 						}
@@ -375,12 +377,13 @@ class GradleBuildService :
 				}
 
 			analyticsManager.trackBuildRun(
-				metric = BuildStartedMetric(
-					buildId = buildInfo.buildId,
-					buildType = buildType,
-					projectPath = projectPath,
-					tuningConfig = newTuningConfig,
-				)
+				metric =
+					BuildStartedMetric(
+						buildId = buildInfo.buildId,
+						buildType = buildType,
+						projectPath = projectPath,
+						tuningConfig = newTuningConfig,
+					),
 			)
 
 			eventListener?.prepareBuild(buildInfo)
@@ -395,12 +398,13 @@ class GradleBuildService :
 
 		val buildType = getBuildType(result.tasks)
 		analyticsManager.trackBuildCompleted(
-			metric = BuildCompletedMetric(
-				buildId = result.buildId,
-				isSuccess = true,
-				buildType = buildType,
-				buildResult = result,
-			)
+			metric =
+				BuildCompletedMetric(
+					buildId = result.buildId,
+					isSuccess = true,
+					buildType = buildType,
+					buildResult = result,
+				),
 		)
 		eventListener?.onBuildSuccessful(result.tasks)
 	}
@@ -410,12 +414,13 @@ class GradleBuildService :
 
 		val buildType = getBuildType(result.tasks)
 		analyticsManager.trackBuildCompleted(
-			metric = BuildCompletedMetric(
-				buildId = result.buildId,
-				isSuccess = false,
-				buildType = buildType,
-				buildResult = result,
-			)
+			metric =
+				BuildCompletedMetric(
+					buildId = result.buildId,
+					isSuccess = false,
+					buildType = buildType,
+					buildResult = result,
+				),
 		)
 		eventListener?.onBuildFailed(result.tasks)
 	}
@@ -546,10 +551,11 @@ class GradleBuildService :
 
 	override fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult> =
 		executeTasks(
-			message = TaskExecutionMessage(
-				tasks = tasks,
-				buildId = nextBuildId(),
-			)
+			message =
+				TaskExecutionMessage(
+					tasks = tasks,
+					buildId = nextBuildId(),
+				),
 		)
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
@@ -584,9 +590,9 @@ class GradleBuildService :
 				} catch (e: Throwable) {
 					if (BuildPreferences.isScanEnabled &&
 						(
-								e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
-										e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
-								)
+							e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+								e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
+						)
 					) {
 						BuildPreferences.isScanEnabled = false
 

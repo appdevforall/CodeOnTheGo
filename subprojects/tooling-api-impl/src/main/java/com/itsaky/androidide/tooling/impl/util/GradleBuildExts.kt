@@ -14,12 +14,12 @@ private val logger = LoggerFactory.getLogger("GradleBuildExts")
 
 fun ConfigurableLauncher<*>.configureFrom(
 	clientConfig: ClientGradleBuildConfig? = null,
-	buildParams: GradleBuildParams? = null
+	buildParams: GradleBuildParams? = null,
 ) {
 	logger.debug(
 		"configuring build launcher: hasClientConfig={}, hasBuildParams: {}",
 		clientConfig != null,
-		buildParams != null
+		buildParams != null,
 	)
 
 	val out = LoggingOutputStream()
@@ -30,7 +30,8 @@ fun ConfigurableLauncher<*>.configureFrom(
 
 	if (clientConfig != null) {
 		val clientGradleArgs =
-			clientConfig.buildParams.gradleArgs.filter(String::isNotBlank)
+			clientConfig.buildParams.gradleArgs
+				.filter(String::isNotBlank)
 				.distinct()
 		logger.debug("Client Gradle args: {}", clientGradleArgs)
 

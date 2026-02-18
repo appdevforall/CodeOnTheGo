@@ -8,7 +8,6 @@ import android.os.Bundle
  * @author Akash Yadav
  */
 interface Metric {
-
 	/**
 	 * The name of the event used to log this metric.
 	 */

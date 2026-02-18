@@ -62,9 +62,10 @@ class BuildViewModel : ViewModel() {
 						"${module.path}:${variant.mainArtifact.assembleTaskName}"
 					}
 
-				val result = withContext(Dispatchers.IO) {
-					buildService.executeTasks(tasks = listOf(taskName))
-				}.await()
+				val result =
+					withContext(Dispatchers.IO) {
+						buildService.executeTasks(tasks = listOf(taskName))
+					}.await()
 
 				if (result == null || !result.isSuccessful) {
 					throw RuntimeException("Task execution failed: ${result.failure}")

@@ -8,14 +8,15 @@ import com.itsaky.androidide.analytics.IAnalyticsManager
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 
-val coreModule = module {
-    single { FileActionManager() }
-    single { GeminiMacroProcessor(get()) }
+val coreModule =
+	module {
+		single { FileActionManager() }
+		single { GeminiMacroProcessor(get()) }
 
-    // Analytics
-    single<IAnalyticsManager> { AnalyticsManager() }
+		// Analytics
+		single<IAnalyticsManager> { AnalyticsManager() }
 
-    viewModel {
-        ChatViewModel()
-    }
-}
+		viewModel {
+			ChatViewModel()
+		}
+	}

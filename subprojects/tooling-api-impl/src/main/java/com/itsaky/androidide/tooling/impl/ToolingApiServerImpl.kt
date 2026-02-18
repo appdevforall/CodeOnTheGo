@@ -145,8 +145,8 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					BuildResult(
 						tasks = emptyList(),
 						buildId = params.buildId,
-						durationMs = System.currentTimeMillis() - start
-					)
+						durationMs = System.currentTimeMillis() - start,
+					),
 				)
 				return@runBuild InitializeResult.Failure(getTaskFailureType(err))
 			}
@@ -220,8 +220,8 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				BuildResult(
 					tasks = emptyList(),
 					buildId = params.buildId,
-					durationMs = System.currentTimeMillis() - start
-				)
+					durationMs = System.currentTimeMillis() - start,
+				),
 			)
 		}
 
@@ -238,8 +238,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			else -> null
 		}
 
-	override fun isServerInitialized(): CompletableFuture<Boolean> =
-		CompletableFuture.supplyAsync { isInitialized }
+	override fun isServerInitialized(): CompletableFuture<Boolean> = CompletableFuture.supplyAsync { isInitialized }
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		return runBuild {
@@ -290,21 +289,23 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				builder.run()
 				this.buildCancellationToken = null
 				notifyBuildSuccess(
-					result = BuildResult(
-						tasks = message.tasks,
-						buildId = message.buildId,
-						durationMs = System.currentTimeMillis() - start,
-					)
+					result =
+						BuildResult(
+							tasks = message.tasks,
+							buildId = message.buildId,
+							durationMs = System.currentTimeMillis() - start,
+						),
 				)
 				return@runBuild TaskExecutionResult.SUCCESS
 			} catch (error: Throwable) {
 				log.error("Failed to run tasks: {}", message.tasks, error)
 				notifyBuildFailure(
-					result = BuildResult(
-						tasks = message.tasks,
-						buildId = message.buildId,
-						durationMs = System.currentTimeMillis() - start,
-					)
+					result =
+						BuildResult(
+							tasks = message.tasks,
+							buildId = message.buildId,
+							durationMs = System.currentTimeMillis() - start,
+						),
 				)
 				return@runBuild TaskExecutionResult(false, getTaskFailureType(error))
 			}

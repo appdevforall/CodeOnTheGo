@@ -27,5 +27,5 @@ import com.itsaky.androidide.tooling.api.messages.BuildId
  */
 data class BuildInfo(
 	val buildId: BuildId,
-	val tasks: List<String>
+	val tasks: List<String>,
 )
