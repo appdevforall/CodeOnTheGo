@@ -29,8 +29,18 @@ class LowMemoryStrategy : GradleTuningStrategy {
 		device: DeviceProfile,
 		build: BuildProfile,
 	): GradleTuningConfig {
-		val gradleXmx =
-			GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.mem.totalMemMb * 0.33).toInt())
+		val memBound = (device.mem.totalMemMb * 0.33).toInt()
+		val gradleXmx = if (memBound > GRADLE_XMX_MIN_MB) {
+			GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, memBound)
+		} else {
+			// The device has very low memory (<=1GB)
+			// In this case, GRADLE_XMX_MIN_MB might be too large
+			// and the device may not be able to allocate such
+			// amount of memory
+			// fall back to using the memory-bound limit
+			memBound
+		}
+
 		val gradleXms = gradleXmx / 2
 		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
 		val workersCpuBound = device.cpu.totalCores
