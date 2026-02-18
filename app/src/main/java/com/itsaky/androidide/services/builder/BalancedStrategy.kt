@@ -56,7 +56,7 @@ class BalancedStrategy : GradleTuningStrategy {
 				configurationCache = false,
 			)
 
-		val kotlinXmx = min(KOTLIN_XMX_TARGET_MB, (gradleXmx / 0.5).toInt())
+		val kotlinXmx = min(KOTLIN_XMX_TARGET_MB, (gradleXmx * 0.5).toInt())
 		val kotlinExec =
 			KotlinCompilerExecution.Daemon(
 				incremental = true,
