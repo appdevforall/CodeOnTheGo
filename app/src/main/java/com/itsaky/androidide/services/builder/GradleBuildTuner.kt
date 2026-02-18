@@ -99,8 +99,8 @@ object GradleBuildTuner {
 
 		logger.info(
 			"Evaluating strategy selection: " +
-					"isLowMemDevice={}, totalMemMb={}, totalCores={}, " +
-					"thermalSafe={}, isThermalThrottled={}, previousConfigPresent={}",
+				"isLowMemDevice={}, totalMemMb={}, totalCores={}, " +
+				"thermalSafe={}, isThermalThrottled={}, previousConfigPresent={}",
 			isLowMemDevice,
 			totalMemMb,
 			totalCores,

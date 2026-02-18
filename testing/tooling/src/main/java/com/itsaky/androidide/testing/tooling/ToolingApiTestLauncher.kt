@@ -89,10 +89,11 @@ object ToolingApiTestLauncher {
 			InitializeProjectParams(
 				projectDir.pathString,
 				client.gradleDistParams,
-				buildId = BuildId(
-					buildSessionId = UUID.randomUUID().toString(),
-					buildId = Random.nextLong(),
-				)
+				buildId =
+					BuildId(
+						buildSessionId = UUID.randomUUID().toString(),
+						buildId = Random.nextLong(),
+					),
 			),
 		log: Logger = LoggerFactory.getLogger("BuildOutputLogger"),
 		sysProps: Map<String, String> = emptyMap(),
@@ -151,8 +152,8 @@ object ToolingApiTestLauncher {
 			if (process != null) {
 				println(
 					"[ToolingApiTestLauncher]" +
-							" Tooling API server process finished with exit code: " +
-							process.exitValue(),
+						" Tooling API server process finished with exit code: " +
+						process.exitValue(),
 				)
 			}
 			if (error != null) {
@@ -326,12 +327,14 @@ object ToolingApiTestLauncher {
 					)
 
 				return@supplyAsync ClientGradleBuildConfig(
-					buildParams = GradleBuildParams(
-						gradleArgs = mutableListOf(
-							"--stacktrace",
-							"--info",
-						).also { it.addAll(extraArgs) }
-					),
+					buildParams =
+						GradleBuildParams(
+							gradleArgs =
+								mutableListOf(
+									"--stacktrace",
+									"--info",
+								).also { it.addAll(extraArgs) },
+						),
 				)
 			}
 

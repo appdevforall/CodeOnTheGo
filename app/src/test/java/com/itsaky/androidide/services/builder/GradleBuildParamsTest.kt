@@ -58,7 +58,7 @@ class GradleBuildParamsTest {
 		kotlin = kotlin,
 		dex = dex,
 		aapt2 = aapt2,
-		strategyName = strategyName
+		strategyName = strategyName,
 	)
 
 	@Test

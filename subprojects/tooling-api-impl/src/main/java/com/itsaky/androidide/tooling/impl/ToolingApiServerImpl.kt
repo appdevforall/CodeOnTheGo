@@ -233,11 +233,12 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	}
 
 	private fun doPrepareBuild(buildInfo: BuildInfo): ClientGradleBuildConfig? {
-		val clientConfig = runCatching {
-			client?.prepareBuild(buildInfo)?.get(30, TimeUnit.SECONDS)
-		}.onFailure {
-			log.error("An error occurred while preparing build", it)
-		}.getOrDefault(null)
+		val clientConfig =
+			runCatching {
+				client?.prepareBuild(buildInfo)?.get(30, TimeUnit.SECONDS)
+			}.onFailure {
+				log.error("An error occurred while preparing build", it)
+			}.getOrDefault(null)
 
 		log.debug("got client config: {} (client={})", clientConfig, client)
 
@@ -253,8 +254,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			else -> null
 		}
 
-	override fun isServerInitialized(): CompletableFuture<Boolean> =
-		CompletableFuture.supplyAsync { isInitialized }
+	override fun isServerInitialized(): CompletableFuture<Boolean> = CompletableFuture.supplyAsync { isInitialized }
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		return runBuild {
