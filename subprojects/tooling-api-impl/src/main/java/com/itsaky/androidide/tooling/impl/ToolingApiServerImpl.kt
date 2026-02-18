@@ -236,8 +236,12 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		val clientConfig =
 			runCatching {
 				client?.prepareBuild(buildInfo)?.get(30, TimeUnit.SECONDS)
-			}.onFailure {
-				log.error("An error occurred while preparing build", it)
+			}.onFailure { err ->
+				log.error("An error occurred while preparing build", err)
+				if (err is InterruptedException) {
+					Thread.currentThread().interrupt()
+				}
+
 			}.getOrDefault(null)
 
 		log.debug("got client config: {} (client={})", clientConfig, client)
