@@ -37,7 +37,7 @@ class BalancedStrategy : GradleTuningStrategy {
 		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
 		val workersCpuBound = device.cpu.totalCores
 		val workersHardCap = min(GradleTuningStrategy.GRADLE_WORKERS_MAX_DEFAULT, min(workersMemBound, workersCpuBound))
-		val maxWorkers = min(LowMemoryStrategy.GRADLE_WORKERS_MAX, workersHardCap)
+		val maxWorkers = min(GRADLE_WORKERS_MAX, workersHardCap)
 		val gradleDaemon =
 			GradleDaemonConfig(
 				daemonEnabled = true,
