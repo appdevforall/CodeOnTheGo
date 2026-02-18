@@ -52,7 +52,14 @@ class GradleBuildParamsTest {
 				threadPoolSize = 2,
 				enableResourceOptimizations = false,
 			),
-	) = GradleTuningConfig(gradle = gradle, kotlin = kotlin, dex = dex, aapt2 = aapt2)
+		strategyName: String = "test",
+	) = GradleTuningConfig(
+		gradle = gradle,
+		kotlin = kotlin,
+		dex = dex,
+		aapt2 = aapt2,
+		strategyName = strategyName
+	)
 
 	@Test
 	fun `daemon enabled does not add --no-daemon flag`() {

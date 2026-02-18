@@ -21,7 +21,7 @@ class GradleBuildTunerTest {
 				primeCores = null,
 				bigCores = 2,
 				smallCores = 2,
-				totalCores = 2,
+				totalCores = 4,
 			)
 
 		private val MID_MEM_INFO =
