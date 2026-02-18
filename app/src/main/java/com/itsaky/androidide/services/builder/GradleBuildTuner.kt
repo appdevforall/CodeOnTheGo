@@ -19,34 +19,36 @@ object GradleBuildTuner {
 		val label: String,
 	) {
 		/**
-		 * The device has low memory, as reported by [isLowRamDevice][android.app.ActivityManager.isLowRamDevice].
+		 * The device has low memory, as reported by
+		 * [isLowRamDevice][android.app.ActivityManager.isLowRamDevice].
 		 */
 		LowMemDevice("low_mem_device"),
 
-		/**
-		 * The device has memory below our [LOW_MEM_THRESHOLD_MB].
-		 */
+		/** The device has memory below our [LOW_MEM_THRESHOLD_MB]. */
 		LowMemThreshold("low_mem_threshold"),
 
 		/**
-		 * The device is thermal throttled and a previous tuning configuration was available.
+		 * The device is thermal throttled and a previous tuning configuration was
+		 * available.
 		 */
 		ThermalWithPrevious("thermal_with_previous"),
 
 		/**
-		 * The device is thermal throttled and no previous tuning configuration was available.
+		 * The device is thermal throttled and no previous tuning configuration was
+		 * available.
 		 */
 		ThermalWithoutPrevious("thermal_without_previous"),
 
 		/**
 		 * The device has enough memory and cores to run a high performance build,
-		 * as determined by our [HIGH_PERF_MIN_MEM_MB] and [HIGH_PERF_MIN_CORE] thresholds.
+		 * as determined by our [HIGH_PERF_MIN_MEM_MB] and [HIGH_PERF_MIN_CORE]
+		 * thresholds.
 		 */
 		HighPerf("high_perf_mem"),
 
 		/**
-		 * The specs could not be classified into any of the above categories,
-		 * so we use the fallback strategy.
+		 * The specs could not be classified into any of the above categories, so
+		 * we use the fallback strategy.
 		 */
 		BalancedFallback("balanced_fallback"),
 	}
@@ -97,8 +99,8 @@ object GradleBuildTuner {
 
 		logger.info(
 			"Evaluating strategy selection: " +
-				"isLowMemDevice={}, totalMemMb={}, totalCores={}, " +
-				"thermalSafe={}, isThermalThrottled={}, previousConfigPresent={}",
+					"isLowMemDevice={}, totalMemMb={}, totalCores={}, " +
+					"thermalSafe={}, isThermalThrottled={}, previousConfigPresent={}",
 			isLowMemDevice,
 			totalMemMb,
 			totalCores,
@@ -196,7 +198,14 @@ object GradleBuildTuner {
 
 						val daemonJvmArgs = toJvmArgs(kotlin.jvm)
 						if (daemonJvmArgs.isNotEmpty()) {
-							add("-Pkotlin.daemon.jvm.options=${daemonJvmArgs.joinToString(" ")}")
+							add("-Pkotlin.daemon.jvm.options=${daemonJvmArgs.joinToString(",") { it.trim() }}")
+
+							// Required when ALL the following conditions are met :
+							// - Gradle is using JDK 1.9 or higher.
+							// - The version of Gradle is between 7.0 and 7.1.1 inclusively.
+							// - Gradle is compiling Kotlin DSL scripts.
+							// - The Kotlin daemon isn't running.
+							add("-Pkotlin.daemon.jvmargs=${daemonJvmArgs.joinToString(" ") { it.trim() }}")
 						}
 					}
 				}
