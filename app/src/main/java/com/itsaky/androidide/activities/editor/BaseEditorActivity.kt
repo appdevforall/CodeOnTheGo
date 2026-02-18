@@ -200,6 +200,14 @@ abstract class BaseEditorActivity :
 	override val subscribeToEvents: Boolean
 		get() = true
 
+	protected val contentOrNull: ContentEditorBinding?
+		get() {
+			if (_binding == null || isDestroyed || isDestroying) {
+				return null
+			}
+			return _binding!!.content
+		}
+
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
@@ -929,6 +937,9 @@ abstract class BaseEditorActivity :
 	}
 
 	private fun updateBottomSheetState(state: BottomSheetViewModel.SheetState = BottomSheetViewModel.SheetState.EMPTY) {
+		when (state.sheetState) {
+			BottomSheetBehavior.STATE_DRAGGING, BottomSheetBehavior.STATE_SETTLING -> return
+		}
 		log.debug("updateSheetState: {}", state)
 		content.bottomSheet.setCurrentTab(state.currentTab)
 		if (editorBottomSheet?.state != state.sheetState) {
