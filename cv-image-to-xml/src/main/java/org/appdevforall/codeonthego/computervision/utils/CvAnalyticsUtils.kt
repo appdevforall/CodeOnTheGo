@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import com.google.firebase.analytics.ktx.analytics
 import com.google.firebase.ktx.Firebase
+import org.appdevforall.codeonthego.computervision.BuildConfig
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil.EventNames.CV_DETECTION_COMPLETED
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil.EventNames.CV_DETECTION_STARTED
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil.EventNames.CV_IMAGE_SELECTED
@@ -25,6 +26,10 @@ object CvAnalyticsUtil {
     }
 
     private fun logEvent(eventName: String, params: Bundle) {
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "skipping analytics event on Debug build")
+            return
+        }
         try {
             analytics?.logEvent(eventName, params)
         } catch (e: Exception) {
@@ -37,6 +42,7 @@ object CvAnalyticsUtil {
             putLong("timestamp", System.currentTimeMillis())
         })
     }
+
     fun trackImageSelected(fromCamera: Boolean) {
         logEvent(CV_IMAGE_SELECTED, Bundle().apply {
             putString("source", if (fromCamera) "camera" else "gallery")
