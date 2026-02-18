@@ -19,6 +19,7 @@ package com.itsaky.androidide.tooling.impl
 
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionType
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
@@ -63,6 +64,7 @@ import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -205,8 +207,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			buildCancellationToken = cancellationToken
 
 			val buildInfo = BuildInfo(params.buildId, emptyList())
-			val clientConfig = client?.prepareBuild(buildInfo)?.get()
-			log.debug("doInitialize: got client config: {} (client={})", clientConfig, client)
+			val clientConfig = doPrepareBuild(buildInfo)
 
 			val modelBuilderParams =
 				RootProjectModelBuilderParams(
@@ -231,6 +232,18 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		return InitializeResult.Success(cacheFile)
 	}
 
+	private fun doPrepareBuild(buildInfo: BuildInfo): ClientGradleBuildConfig? {
+		val clientConfig = runCatching {
+			client?.prepareBuild(buildInfo)?.get(30, TimeUnit.SECONDS)
+		}.onFailure {
+			log.error("An error occurred while preparing build", it)
+		}.getOrDefault(null)
+
+		log.debug("got client config: {} (client={})", clientConfig, client)
+
+		return clientConfig
+	}
+
 	@VisibleForTesting
 	internal fun validateProjectDirectory(projectDirectory: File) =
 		when {
@@ -240,7 +253,8 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			else -> null
 		}
 
-	override fun isServerInitialized(): CompletableFuture<Boolean> = CompletableFuture.supplyAsync { isInitialized }
+	override fun isServerInitialized(): CompletableFuture<Boolean> =
+		CompletableFuture.supplyAsync { isInitialized }
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		return runBuild {
@@ -272,8 +286,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			val builder = connection.newBuild()
 
 			val buildInfo = BuildInfo(message.buildId, message.tasks)
-			val clientConfig = client?.prepareBuild(buildInfo)?.get()
-			log.debug("executeTasks: got client config: {} (client={})", clientConfig, client)
+			val clientConfig = doPrepareBuild(buildInfo)
 
 			// System.in and System.out are used for communication between this server and the
 			// client.
