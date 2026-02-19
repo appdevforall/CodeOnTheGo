@@ -329,7 +329,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			try {
 				val dbFile = Environment.DOC_DB
 				log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
-				val server = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
+				val server = WebServer(ServerConfig(databasePath = dbFile.absolutePath, fileDirPath = this@MainActivity.filesDir.absolutePath))
 				webServer = server
 				server.start()
 			} catch (e: Exception) {
