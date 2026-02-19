@@ -9,6 +9,9 @@ import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 import java.io.File
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 /**
  * JGit-based implementation of the [GitRepository] interface.
  */
@@ -21,7 +24,7 @@ class JGitRepository(override val rootDir: File) : GitRepository {
 
     private val git: Git = Git(repository)
 
-    override fun getStatus(): GitStatus {
+    override suspend fun getStatus(): GitStatus = withContext(Dispatchers.IO) {
         val jgitStatus = git.status().call()
         
         val staged = mutableListOf<FileChange>()
@@ -40,7 +43,7 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         
         jgitStatus.conflicting.forEach { conflicted.add(FileChange(it, ChangeType.CONFLICTED)) }
 
-        return GitStatus(
+        GitStatus(
             isClean = jgitStatus.isClean,
             hasConflicts = jgitStatus.conflicting.isNotEmpty(),
             staged = staged,
@@ -50,10 +53,10 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         )
     }
 
-    override fun getCurrentBranch(): GitBranch? {
-        val head = repository.fullBranch ?: return null
+    override suspend fun getCurrentBranch(): GitBranch? = withContext(Dispatchers.IO) {
+        val head = repository.fullBranch ?: return@withContext null
         val shortName = repository.branch ?: head
-        return GitBranch(
+        GitBranch(
             name = shortName,
             fullName = head,
             isCurrent = true,
@@ -61,9 +64,9 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         )
     }
 
-    override fun getBranches(): List<GitBranch> {
+    override suspend fun getBranches(): List<GitBranch> = withContext(Dispatchers.IO) {
         val currentBranch = repository.fullBranch
-        return git.branchList().setListMode(ListMode.ALL).call().map { ref ->
+        git.branchList().setListMode(ListMode.ALL).call().map { ref ->
             GitBranch(
                 name = Repository.shortenRefName(ref.name),
                 fullName = ref.name,
@@ -73,8 +76,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         }
     }
 
-    override fun getHistory(limit: Int): List<GitCommit> {
-        return try {
+    override suspend fun getHistory(limit: Int): List<GitCommit> = withContext(Dispatchers.IO) {
+        try {
             git.log().setMaxCount(limit).call().map { revCommit ->
                 revCommit.toGitCommit()
             }
@@ -83,8 +86,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         }
     }
 
-    override fun getDiff(file: File): String {
-        return ""
+    override suspend fun getDiff(file: File): String = withContext(Dispatchers.IO) {
+        ""
     }
 
     private fun RevCommit.toGitCommit(): GitCommit {

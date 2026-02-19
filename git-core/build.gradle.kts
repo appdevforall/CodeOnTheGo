@@ -39,6 +39,9 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.git.jgit)
     coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
+    implementation(libs.common.kotlin.coroutines.core)
+    implementation(libs.common.kotlin.coroutines.android)
+
     testImplementation(libs.tests.junit)
     androidTestImplementation(libs.tests.androidx.junit)
     androidTestImplementation(libs.tests.androidx.espresso.core)

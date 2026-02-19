@@ -13,9 +13,9 @@ import java.io.Closeable
 interface GitRepository : Closeable {
     val rootDir: File
     
-    fun getStatus(): GitStatus
-    fun getCurrentBranch(): GitBranch?
-    fun getBranches(): List<GitBranch>
-    fun getHistory(limit: Int = 50): List<GitCommit>
-    fun getDiff(file: File): String
+    suspend fun getStatus(): GitStatus
+    suspend fun getCurrentBranch(): GitBranch?
+    suspend fun getBranches(): List<GitBranch>
+    suspend fun getHistory(limit: Int = 50): List<GitCommit>
+    suspend fun getDiff(file: File): String
 }
