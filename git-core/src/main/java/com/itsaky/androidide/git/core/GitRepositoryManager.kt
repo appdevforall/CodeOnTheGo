@@ -14,13 +14,12 @@ object GitRepositoryManager {
      */
     fun isRepository(dir: File): Boolean {
         return try {
-            val repository = FileRepositoryBuilder()
+            FileRepositoryBuilder()
                 .readEnvironment()
                 .findGitDir(dir)
-                .build()
-            val exists = repository.objectDatabase.exists()
-            repository.close()
-            exists
+                .build().use { repository ->
+                    repository.objectDatabase.exists()
+                }
         } catch (e: Exception) {
             Log.e("GitRepositoryManager", "Error checking Git repository: ${e.message}")
             false
