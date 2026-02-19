@@ -114,7 +114,6 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
 
     private fun initializeViews(view: View) {
         statusContainer = view.findViewById(R.id.status_container)
-        headerContainer = view.findViewById(R.id.header_container)
         statusText = view.findViewById(R.id.tv_status)
         progressBar = view.findViewById(R.id.progress_bar)
 
@@ -163,17 +162,6 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
 
         // Main interface tooltip (on the header area)
         statusContainer.setOnLongClickListener { view ->
-            tooltipService?.showTooltip(
-                anchorView = view,
-                category = "plugin_keystore_generator",
-                tag = "keystore_generator.editor_tab"
-            ) ?: run {
-                showToast("Long press detected! Documentation not available.")
-            }
-            true
-        }
-
-        headerContainer.setOnLongClickListener { view ->
             tooltipService?.showTooltip(
                 anchorView = view,
                 category = "plugin_keystore_generator",
