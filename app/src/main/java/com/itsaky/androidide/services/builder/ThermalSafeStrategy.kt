@@ -12,6 +12,11 @@ class ThermalSafeStrategy(
 ) : GradleTuningStrategy {
 	override val name = "thermal_safe"
 
+	companion object {
+		const val GRADLE_XMX_REDUCTION_FACTOR = 0.85 // 85% of previous Xmx
+		const val KOTLIN_XMX_REDUCTION_FACTOR = 0.80 // 80% of previous Xmx
+	}
+
 	override fun tune(
 		device: DeviceProfile,
 		build: BuildProfile,
@@ -26,7 +31,7 @@ class ThermalSafeStrategy(
 						copy(
 							jvm =
 								jvm.run {
-									val newXmxMb = (xmxMb * 0.85).toInt()
+									val newXmxMb = (xmxMb * GRADLE_XMX_REDUCTION_FACTOR).toInt()
 									copy(
 										xmxMb = newXmxMb,
 										xmsMb = newXmxMb / 2,
@@ -45,7 +50,7 @@ class ThermalSafeStrategy(
 								copy(
 									jvm =
 										jvm.run {
-											val newXmxMb = (xmxMb * 0.8).toInt()
+											val newXmxMb = (xmxMb * KOTLIN_XMX_REDUCTION_FACTOR).toInt()
 											copy(
 												xmxMb = newXmxMb,
 												xmsMb = newXmxMb / 2,

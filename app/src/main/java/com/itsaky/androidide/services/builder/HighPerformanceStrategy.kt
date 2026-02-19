@@ -8,16 +8,13 @@ import kotlin.math.min
  * @author Akash Yadav
  */
 object HighPerformanceStrategy : GradleTuningStrategy {
-	const val GRADLE_XMX_MIN_MB = 1536
-	const val GRADLE_XMX_TARGET_MB = 2048
+	const val GRADLE_MEM_TO_XMX_FACTOR = 0.4
 	const val GRADLE_METASPACE_MB = 384
 	const val GRADLE_CODE_CACHE_MB = 256
 
 	const val GRADLE_MEM_PER_WORKER = 512
 	const val GRADLE_CONF_CACHE_MEM_REQUIRED_MB = 6 * 1024 // 6GB
 
-	const val KOTLIN_XMX_MIN_MB = 512
-	const val KOTLIN_XMX_TARGET_MB = 768
 	const val KOTLIN_METASPACE_MB = 128
 	const val KOTLIN_CODE_CACHE_MB = 128
 
@@ -30,8 +27,7 @@ object HighPerformanceStrategy : GradleTuningStrategy {
 		device: DeviceProfile,
 		build: BuildProfile,
 	): GradleTuningConfig {
-		val gradleXmx =
-			GRADLE_XMX_TARGET_MB.coerceIn(GRADLE_XMX_MIN_MB, (device.mem.totalMemMb * 0.35).toInt())
+		val gradleXmx = (device.mem.totalMemMb * GRADLE_MEM_TO_XMX_FACTOR).toInt()
 		val workersMemBound = (device.mem.totalMemMb / GRADLE_MEM_PER_WORKER).toInt()
 		val workersCpuBound = device.cpu.totalCores
 		val workersHardCap =
@@ -58,14 +54,7 @@ object HighPerformanceStrategy : GradleTuningStrategy {
 				configurationCache = device.mem.totalMemMb >= GRADLE_CONF_CACHE_MEM_REQUIRED_MB,
 			)
 
-		val kotlinXmxMemBound = (gradleXmx * 0.5).toInt()
-		val kotlinXmx =
-			if (KOTLIN_XMX_MIN_MB > kotlinXmxMemBound) {
-				kotlinXmxMemBound
-			} else {
-				KOTLIN_XMX_TARGET_MB.coerceIn(KOTLIN_XMX_MIN_MB, (gradleXmx * 0.5).toInt())
-			}
-
+		val kotlinXmx = (gradleXmx * 0.7).toInt()
 		val kotlinExec =
 			KotlinCompilerExecution.Daemon(
 				incremental = true,
