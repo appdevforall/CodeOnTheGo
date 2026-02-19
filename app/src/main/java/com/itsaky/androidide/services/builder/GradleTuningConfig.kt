@@ -5,7 +5,6 @@ package com.itsaky.androidide.services.builder
  *
  * @property gradle The configuration for the Gradle daemon.
  * @property kotlin The configuration for the Kotlin compiler.
- * @property dex The configuration for D8/R8.
  * @property aapt2 The configuration for the AAPT2 tool.
  * @author Akash Yadav
  */
