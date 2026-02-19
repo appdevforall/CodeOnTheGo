@@ -8,9 +8,9 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStreamReader
 import java.io.PrintWriter
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.nio.file.Files
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -22,6 +22,9 @@ data class ServerConfig(
             "/Download/documentation.db",
     val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/CodeOnTheGo.webserver.debug",
+    val experimentsEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+            "/Download/CodeOnTheGo.exp", // TODO: Centralize this concept. --DS, 9-Feb-2026
+
 // Yes, this is hack code.
     val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
 )
@@ -56,7 +59,6 @@ class WebServer(private val config: ServerConfig) {
         return timestamp
     }
 
-    // NEW FEATURE: Log database last change information
     fun logDatabaseLastChanged() {
         try {
             val query = """
@@ -64,18 +66,37 @@ SELECT changeTime, who
 FROM   LastChange
 """
             val cursor = database.rawQuery(query, arrayOf())
-            if (cursor.count > 0) {
-                cursor.moveToFirst()
-                log.debug("Database last change: {} {}.", cursor.getString(0), cursor.getString(1))
+
+            try {
+                if (cursor.count > 0) {
+                    cursor.moveToFirst()
+                    log.debug("Database last change: {} {}.", cursor.getString(0), cursor.getString(1))
+                }
+
+            } finally {
+                cursor.close()
             }
-            cursor.close()
+
         } catch (e: Exception) {
-            log.debug("Could not retrieve database last change info: {}", e.message)
+            log.error("Could not retrieve database last change info: {}", e.message)
+        }
+    }
+
+    /**
+     * Stops the server by closing the listening socket. Safe to call from any thread.
+     * Causes [start]'s accept loop to exit. No-op if not started or already stopped.
+     */
+    fun stop() {
+        if (!::serverSocket.isInitialized) return
+        try {
+            serverSocket.close()
+
+        } catch (e: Exception) {
+            log.error("Cannot close server socket: {}", e.message)
         }
     }
 
     fun start() {
-        lateinit var clientSocket: Socket
         try {
             log.debug("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.", 
                      config.bindName, config.port, debugEnabled, config.debugEnablePath, config.debugDatabasePath)
@@ -92,28 +113,50 @@ FROM   LastChange
             // NEW FEATURE: Log database metadata when debug is enabled
             if (debugEnabled) logDatabaseLastChanged()
 
-            serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
+            serverSocket = ServerSocket().apply { reuseAddress = true }
+            serverSocket.bind(InetSocketAddress(config.bindName, config.port))
             log.info("WebServer started successfully.")
 
             while (true) {
+                var clientSocket: Socket? = null
                 try {
-                    clientSocket = serverSocket.accept()
-                    if (debugEnabled) log.debug("Returned from socket accept().")
-                    handleClient(clientSocket)
-                } catch (e: Exception) {
-                    log.error("Error handling client: {}", e.message)
                     try {
-                        val writer = PrintWriter(clientSocket.getOutputStream(), true)
-                        sendError(writer, 500, "Internal Server Error 1")
-                    } catch (e: Exception) {
-                        log.error("Error sending error response: {}", e.message)
+                        clientSocket = serverSocket.accept()
+                        if (debugEnabled) log.debug("Returned from socket accept().")
+                    } catch (e: java.net.SocketException) {
+                        if (e.message?.contains("Closed", ignoreCase = true) == true) {
+                            if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
+                            break
+                        }
+                        log.error("Accept() failed: {}", e.message)
+                        continue
                     }
+                    try {
+                        clientSocket?.let { handleClient(it) }
+                    } catch (e: Exception) {
+                        if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
+                            if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+                        } else {
+                            log.error("Error handling client: {}", e.message)
+                            clientSocket?.let { socket ->
+                                try {
+                                    sendError(PrintWriter(socket.getOutputStream(), true), 500, "Internal Server Error 1")
+
+                                } catch (e2: Exception) {
+                                    log.error("Error sending error response: {}", e2.message)
+                                }
+                            }
+                        }
+                    }
+
                 } finally {
-                    clientSocket.close() // TODO: What if the client socket isn't open? How to check? --DS, 22-Jul-2025
+                    clientSocket?.close()
                 }
             }
+
         } catch (e: Exception) {
             log.error("Error: {}", e.message)
+
         } finally {
             if (::serverSocket.isInitialized) {
                 serverSocket.close()
@@ -150,16 +193,14 @@ FROM   LastChange
 
         //the HTTP headers follow the the method line, read until eof or 0 length
         //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
-        while(requestLine.length > 0) {
+        while(requestLine.isNotEmpty()) {
             requestLine = reader.readLine() ?: break
 
            if (debugEnabled) log.debug("Header: {}", requestLine)
 
-            if(requestLine.startsWith(encodingHeader)) {
+            if (requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-                if(parts.size == 0) {
-                    break
-                }
+
                 brotliSupported = parts.contains(brotliCompression)
                 break
             }
@@ -174,11 +215,16 @@ FROM   LastChange
             databaseTimestamp = debugDatabaseTimestamp
         }
 
-        // Handle the special "/db" endpoint with highest priority
-        if (path == "db") {
-            return handleDbEndpoint(writer, output)
-        } else if (path == "pr") {
-            return handlePrEndpoint(writer, output)
+        // Handle the special "pr" endpoint with highest priority
+        if (path.startsWith("pr/", false)) {
+            if (debugEnabled) log.debug("Found a pr/ path, '$path'.")
+
+            return when (path) {
+                "pr/db" -> handleDbEndpoint(writer, output)
+                "pr/pr" -> handlePrEndpoint(writer, output)
+                "pr/ex" -> handleExEndpoint(writer, output)
+                else    -> sendError(writer, 404, "Not Found")
+            }
         }
 
         val query = """
@@ -187,22 +233,36 @@ FROM   Content C, ContentTypes CT
 WHERE  C.contentTypeID = CT.id
   AND  C.path = ?
         """
-        val cursor = database.rawQuery(query, arrayOf(path,))
-        val rowCount = cursor.getCount()
+        val cursor = database.rawQuery(query, arrayOf(path))
+        val rowCount = cursor.count
 
-        if (rowCount != 1) {
-            return when (rowCount) {
-                0 -> sendError(writer, 404, "Not Found", "Path requested: " + path)
-                else -> sendError(writer, 500, "Internal Server Error 2", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
+        var dbContent   : ByteArray
+        var dbMimeType  : String
+        var compression : String
+
+        try {
+            if (rowCount != 1) {
+                return when (rowCount) {
+                    0 -> sendError(writer, 404, "Not Found", "Path requested: $path")
+                    else -> sendError(
+                        writer,
+                        500,
+                        "Internal Server Error 2",
+                        "Corrupt database - multiple records found when unique record expected, Path requested: $path"
+                    )
+                }
             }
+
+            cursor.moveToFirst()
+            dbContent   = cursor.getBlob(0)
+            dbMimeType  = cursor.getString(1)
+            compression = cursor.getString(2)
+
+            if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
+
+        } finally {
+            cursor.close()
         }
-
-        cursor.moveToFirst()
-        var dbContent   = cursor.getBlob(0)
-        val dbMimeType  = cursor.getString(1)
-        var compression = cursor.getString(2)
-
-        if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
 
         if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
             val query2 = """
@@ -215,12 +275,23 @@ WHERE  path = ?
             var dbContent2 = dbContent
 
             while (dbContent2.size == 1024 * 1024) {
-                val path2 = "${path}-${fragmentNumber}"
+                val path2 = "$path-$fragmentNumber"
                 if (debugEnabled) log.debug("DB item > 1 MB. fragment#{} path2='{}'.", fragmentNumber, path2)
 
                 val cursor2 = database.rawQuery(query2, arrayOf(path2))
-                cursor2.moveToFirst()
-                dbContent2 = cursor2.getBlob(0)
+                try {
+                    if (cursor2.moveToFirst()) {
+                        dbContent2 = cursor2.getBlob(0)
+
+                    } else {
+                        log.error("No fragment found for path '{}'.", path2)
+                        break
+                    }
+
+                } finally {
+                    cursor2.close()
+                }
+
                 dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 22-Jul-2025
                 fragmentNumber += 1
                 if (debugEnabled) log.debug("Fragment size={}, dbContent.length={}.", dbContent2.size, dbContent.size)
@@ -235,15 +306,16 @@ WHERE  path = ?
         if (compression == "brotli") {
             if (brotliSupported) {
                 compression = "br"
+
             } else {
                 try {
                     if (debugEnabled) log.debug("Brotli content but client doesn't support Brotli. Decoding locally.")
-                    dbContent =
-                        BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+                    dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                     compression = "none"
+
                 } catch (e: Exception) {
                     log.error("Error decompressing Brotli content: {}", e.message)
-                    return sendError(writer, 500, "Internal Server Error")
+                    return sendError(writer, 500, "Internal Server Error 3")
                 }
             }
         }
@@ -254,7 +326,7 @@ WHERE  path = ?
         writer.println("Content-Length: ${dbContent.size}")
 
         if (compression != "none") {
-            writer.println("Content-Encoding: ${compression}")
+            writer.println("Content-Encoding: $compression")
         }
 
         writer.println("Connection: close")
@@ -262,64 +334,103 @@ WHERE  path = ?
         writer.flush()
         output.write(dbContent)
         output.flush()
-        cursor.close()
     }
 
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        if (debugEnabled) log.debug("Entering handleDbEndpoint().")
+
         try {
             // First, get the schema of the LastChange table to determine column count
             val schemaQuery = "PRAGMA table_info(LastChange)"
             val schemaCursor = database.rawQuery(schemaQuery, arrayOf())
-            val columnCount = schemaCursor.count
-            val columnNames = mutableListOf<String>()
-            
-            while (schemaCursor.moveToNext()) {
-                columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
-            }
-            schemaCursor.close()
-            
-            if (debugEnabled) log.debug("LastChange table has {} columns: {}", columnCount, columnNames)
-            
-            // Build the SELECT query for the 20 most recent rows
-            val selectColumns = columnNames.joinToString(", ")
-            val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
-            
-            val dataCursor = database.rawQuery(dataQuery, arrayOf())
-            val rowCount = dataCursor.count
-            
-            if (debugEnabled) log.debug("Retrieved {} rows from LastChange table", rowCount)
-            
+
+            var columnCount   : Int
+            var selectColumns : String
+
             var html = getTableHtml("LastChange Table", "LastChange Table (20 Most Recent Rows)")
-                
-            // Add header row
-            html += """<tr>"""
-            for (columnName in columnNames) {
-                html += """<th>${escapeHtml(columnName)}</th>"""
-            }
-            html += """</tr>"""
-                
-            // Add data rows
-            while (dataCursor.moveToNext()) {
+
+            try {
+                columnCount = schemaCursor.count
+                val columnNames = mutableListOf<String>()
+
+                while (schemaCursor.moveToNext()) {
+                // Values come from schema introspection, therefore not subject to a SQL injection attack.
+                    columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
+                }
+
+                if (debugEnabled) log.debug("LastChange table has {} columns: {}", columnCount, columnNames)
+
+                // Build the SELECT query for the 20 most recent rows
+                selectColumns = columnNames.joinToString(", ")
+
+                // Add header row
                 html += """<tr>"""
-                for (i in 0 until columnCount) {
-                    html += """<td>${escapeHtml(dataCursor.getString(i) ?: "")}</td>"""
+                for (columnName in columnNames) {
+                    html += """<th>${escapeHtml(columnName)}</th>"""
                 }
                 html += """</tr>"""
+
+            } finally {
+                schemaCursor.close()
             }
-                
-            html += """</table></body></html>"""
-            
-            dataCursor.close()
-            
+
+            val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
+
+            val dataCursor = database.rawQuery(dataQuery, arrayOf())
+
+            try {
+                val rowCount = dataCursor.count
+
+                if (debugEnabled) log.debug("Retrieved {} rows from LastChange table", rowCount)
+
+                // Add data rows
+                while (dataCursor.moveToNext()) {
+                    html += """<tr>"""
+                    for (i in 0 until columnCount) {
+                        html += """<td>${escapeHtml(dataCursor.getString(i) ?: "")}</td>"""
+                    }
+                    html += """</tr>"""
+                }
+
+                html += """</table></body></html>"""
+
+            } finally {
+                dataCursor.close()
+            }
+
+            if (debugEnabled) log.debug("html is '$html'.")
+
             writeNormalToClient(writer, output, html)
-            
+
+            if (debugEnabled) log.debug("Leaving handleDbEndpoint().")
+
         } catch (e: Exception) {
-            log.error("Error handling /db endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+            log.error("Error handling /pr/db endpoint: {}", e.message)
+            sendError(writer, 500, "Internal Server Error 4", "Error generating database table.")
         }
     }
 
+    private fun handleExEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        if (debugEnabled) log.debug("Entering handleExEndpoint().")
+
+        // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
+        if (File(config.experimentsEnablePath).exists()) {
+            if (debugEnabled) log.debug("Experimental mode is on. Returning 200.")
+
+            writeNormalToClient(writer, output, """<html><head><title>Experiments</title></head><body>1</body></html>""")
+
+        } else {
+            if (debugEnabled) log.debug("Experimental mode is off. Returning 404.")
+
+            sendError(writer, 404, "Not Found", "Experiments disabled")
+        }
+
+        if (debugEnabled) log.debug("Leaving handleExEndpoint().")
+    }
+
     private fun handlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        if (debugEnabled) log.debug("Entering handlePrEndpoint().")
+
         var projectDatabase : SQLiteDatabase? = null
 
         try {
@@ -328,25 +439,27 @@ WHERE  path = ?
                                                           SQLiteDatabase.OPEN_READONLY)
 
             if (projectDatabase == null) {
-                log.error("Error handling /pr endpoint 2. Could not open ${config.projectDatabasePath}.")
-                sendError(writer, 500, "Internal Server Error", "Error accessing database 2")
+                log.error("Error handling /pr/pr endpoint 2. Could not open ${config.projectDatabasePath}.")
+                sendError(writer, 500, "Internal Server Error 5", "Error accessing database 2")
 
             } else {
                 realHandlePrEndpoint(writer, output, projectDatabase)
             }
 
         } catch (e: Exception) {
-            log.error("Error handling /pr endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+            log.error("Error handling /pr/pr endpoint: {}", e.message)
+            sendError(writer, 500, "Internal Server Error 6", "Error generating database table.")
             
         } finally {
-            if (projectDatabase != null) {
-                projectDatabase.close()
-            }
+            projectDatabase?.close()
         }
+
+        if (debugEnabled) log.debug("Leaving handlePrEndpoint().")
     }
 
     private fun realHandlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) {
+        if (debugEnabled) log.debug("Entering realHandlePrEndpoint().")
+
         val query = """
 SELECT id,
        name,
@@ -357,10 +470,6 @@ SELECT id,
        language
 FROM     recent_project_table
 ORDER BY last_modified DESC"""
-
-        val cursor = projectDatabase.rawQuery(query, arrayOf())
-
-        if (debugEnabled) log.debug("Retrieved {} rows.", cursor.getCount())
 
         var html = getTableHtml("Projects", "Projects") + """
 <tr>
@@ -373,8 +482,13 @@ ORDER BY last_modified DESC"""
 <th>Language</th>
 </tr>"""
 
-        while (cursor.moveToNext()) {
-            html += """<tr>
+        val cursor = projectDatabase.rawQuery(query, arrayOf())
+
+        try {
+            if (debugEnabled) log.debug("Retrieved {} rows.", cursor.count)
+
+            while (cursor.moveToNext()) {
+                html += """<tr>
 <td>${escapeHtml(cursor.getString(0) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(1) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(2) ?: "")}</td>
@@ -383,20 +497,28 @@ ORDER BY last_modified DESC"""
 <td>${escapeHtml(cursor.getString(5) ?: "")}</td>
 <td>${escapeHtml(cursor.getString(6) ?: "")}</td>
 </tr>"""
+            }
+
+            html += "</table></body></html>"
+
+        } finally {
+            cursor.close()
         }
 
-        html += "</table></body></html>"
-
-        cursor.close()
+        if (debugEnabled) log.debug("html is '$html'.")
 
         writeNormalToClient(writer, output, html)
+
+        if (debugEnabled) log.debug("Leaving realHandlePrEndpoint().")
     }
 
     /**
      * Get HTML for table response page.
      */
     private fun getTableHtml(title: String, tableName: String): String {
-         return """<!DOCTYPE html>
+        if (debugEnabled) log.debug("Entering getTableHtml(), title='$title', tableName='$tableName'.")
+
+        return """<!DOCTYPE html>
 <html>
 <head>
 <title>${escapeHtml(title)}</title>
@@ -415,13 +537,15 @@ th { background-color: #f2f2f2; }
      * Tail of writing table data back to client.
      */
     private fun writeNormalToClient(writer: PrintWriter, output: java.io.OutputStream, html: String) {
+        if (debugEnabled) log.debug("Entering writeNormalToClient(), html='$html'.")
+
         val htmlBytes = html.toByteArray(Charsets.UTF_8)
 
-        writer.println("HTTP/1.1 200 OK")
-        writer.println("Content-Type: text/html; charset=utf-8")
-        writer.println("Content-Length: ${htmlBytes.size}")
-        writer.println("Connection: close")
-        writer.println()
+        writer.println("""HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Content-Length: ${htmlBytes.size}
+Connection: close
+""")
         writer.flush()
 
         output.write(htmlBytes)
@@ -433,6 +557,8 @@ th { background-color: #f2f2f2; }
      * Converts <, >, &, ", and ' to their HTML entity equivalents.
      */
     private fun escapeHtml(text: String): String {
+//        if (debugEnabled) log.debug("Entering escapeHtml(), html='$text'.")
+
         return text
             .replace("&", "&amp;")   // Must be first to avoid double-escaping
             .replace("<", "&lt;")
@@ -442,13 +568,16 @@ th { background-color: #f2f2f2; }
     }
 
     private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
-        writer.println("HTTP/1.1 $code $message")
-        writer.println("Content-Type: text/plain")
-        writer.println("Connection: close")
-        writer.println()
-        writer.println("$code $message")
-        if (details.isNotEmpty()) {
-            writer.println(details)
-        }
+        if (debugEnabled) log.debug("Entering sendError(), code=$code, message='$message', details='$details'.")
+
+        val messageString = "$code $message" + if (details.isEmpty()) "" else "\n$details"
+        val messageStringLength = messageString.length + 1
+
+        writer.println("""HTTP/1.1 $code $message
+Content-Type: text/plain
+Content-Length: $messageStringLength
+Connection: close
+
+$messageString""")
     }
 }

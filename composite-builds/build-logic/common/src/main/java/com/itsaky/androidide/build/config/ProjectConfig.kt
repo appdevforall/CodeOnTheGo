@@ -51,7 +51,7 @@ val Project.simpleVersionName: String
 	get() {
 
 		val version = rootProject.version.toString()
-		// Format: CodeOnTheGo-{debug|release}-MMDD-HHMM
+		// Format: C-{d|r}-MMDD-HHMM
 		val buildType =
 			if (project.gradle.startParameter.taskNames.any {
 					it.contains(
@@ -65,6 +65,7 @@ val Project.simpleVersionName: String
 			} else {
 				"release"
 			}
+		val buildTypeShort = if (buildType == "debug") "d" else "r"
 
 		val calendar = java.util.Calendar.getInstance()
 		val month = calendar.get(java.util.Calendar.MONTH) + 1
@@ -75,7 +76,7 @@ val Project.simpleVersionName: String
 		val formattedDate = String.format(Locale.getDefault(), "%02d%02d", month, day)
 		val formattedTime = String.format(Locale.getDefault(), "%02d%02d", hour, minute)
 
-		val simpleVersion = "CodeOnTheGo-$buildType-$formattedDate-$formattedTime"
+		val simpleVersion = "C-$buildTypeShort-$formattedDate-$formattedTime"
 
 		if (shouldPrintVersionName) {
 			logger.warn("Simple version name is '$simpleVersion' (from version $version)")
@@ -87,7 +88,7 @@ val Project.simpleVersionName: String
 
 private var shouldPrintVersionCode = true
 val Project.projectVersionCode: Int
-    get() {
+	get() {
 		val calendar = java.util.Calendar.getInstance()
 		val year = calendar.get(java.util.Calendar.YEAR) % 100 // Just last two digits of year
 		val month = calendar.get(java.util.Calendar.MONTH) + 1
@@ -117,8 +118,8 @@ val Project.publishingVersion: String
 			return publishing
 		}
 
-		if (CI.isCiBuild && CI.branchName != "main") {
-			publishing += "-${CI.commitHash}-SNAPSHOT"
+		if (CI.isCiBuild && CI.branchName(this) != "main") {
+			publishing += "-${CI.commitHash(this)}-SNAPSHOT"
 		}
 
 		return publishing
