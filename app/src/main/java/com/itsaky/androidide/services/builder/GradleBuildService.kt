@@ -376,6 +376,7 @@ class GradleBuildService :
 							}
 					}.onFailure { err ->
 						log.error("Failed to auto-tune Gradle build", err)
+						Sentry.captureException(err)
 					}.getOrDefault(null)
 				} else {
 					null
