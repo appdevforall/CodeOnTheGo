@@ -75,16 +75,10 @@ object LowMemoryStrategy : GradleTuningStrategy {
 				enableResourceOptimizations = false,
 			)
 
-		val dex =
-			DexConfig(
-				enableR8 = !build.isDebugBuild,
-			)
-
 		return GradleTuningConfig(
 			strategyName = name,
 			gradle = gradleDaemon,
 			kotlin = kotlinExec,
-			dex = dex,
 			aapt2 = aapt2,
 		)
 	}

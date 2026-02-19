@@ -213,9 +213,6 @@ object GradleBuildTuner {
 					}
 				}
 
-				// D8/R8
-				add("-Pandroid.enableR8=${tuningConfig.dex.enableR8}")
-
 				// AAPT2
 				val aapt2 = tuningConfig.aapt2
 				add("-Pandroid.enableAapt2Daemon=${aapt2.enableDaemon}")

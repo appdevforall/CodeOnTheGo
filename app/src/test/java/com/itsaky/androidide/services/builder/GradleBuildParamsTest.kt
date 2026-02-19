@@ -45,7 +45,6 @@ class GradleBuildParamsTest {
 	private fun tuningConfig(
 		gradle: GradleDaemonConfig = gradleDaemonConfig(),
 		kotlin: KotlinCompilerExecution = KotlinCompilerExecution.InProcess(incremental = true),
-		dex: DexConfig = DexConfig(enableR8 = false),
 		aapt2: Aapt2Config =
 			Aapt2Config(
 				enableDaemon = true,
@@ -56,7 +55,6 @@ class GradleBuildParamsTest {
 	) = GradleTuningConfig(
 		gradle = gradle,
 		kotlin = kotlin,
-		dex = dex,
 		aapt2 = aapt2,
 		strategyName = strategyName,
 	)
@@ -307,18 +305,6 @@ class GradleBuildParamsTest {
 				),
 			)
 		assertThat(params.gradleArgs).doesNotContain("-Pkotlin.compiler.execution.strategy=in-process")
-	}
-
-	@Test
-	fun `R8 enabled sets enableR8 to true`() {
-		val params = toGradleBuildParams(tuningConfig(dex = DexConfig(enableR8 = true)))
-		assertThat(params.gradleArgs).contains("-Pandroid.enableR8=true")
-	}
-
-	@Test
-	fun `R8 disabled sets enableR8 to false`() {
-		val params = toGradleBuildParams(tuningConfig(dex = DexConfig(enableR8 = false)))
-		assertThat(params.gradleArgs).contains("-Pandroid.enableR8=false")
 	}
 
 	@Test

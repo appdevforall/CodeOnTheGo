@@ -13,7 +13,6 @@ data class GradleTuningConfig(
 	val strategyName: String,
 	val gradle: GradleDaemonConfig,
 	val kotlin: KotlinCompilerExecution,
-	val dex: DexConfig,
 	val aapt2: Aapt2Config,
 )
 
@@ -113,15 +112,6 @@ sealed class GcType {
 		override val name: String = "generational"
 	}
 }
-
-/**
- * Configuration for D8/R8.
- *
- * @property enableR8 Whether R8 is enabled.
- */
-data class DexConfig(
-	val enableR8: Boolean,
-)
 
 /**
  * Configuration for the AAPT2 tool.

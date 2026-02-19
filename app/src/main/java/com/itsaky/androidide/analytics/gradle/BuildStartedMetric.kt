@@ -43,8 +43,6 @@ data class BuildStartedMetric(
 					record("kt_daemon", kotlin.jvm)
 				}
 
-				putBoolean("dx_r8_enabled", dex.enableR8)
-
 				aapt2.apply {
 					putBoolean("aapt2_daemon_enabled", enableDaemon)
 					putInt("aapt2_thread_pool_size", threadPoolSize)
