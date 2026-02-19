@@ -18,10 +18,13 @@ package com.itsaky.androidide.fragments.output
 
 import android.os.Bundle
 import android.view.View
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -30,6 +33,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 class BuildOutputFragment : NonEditableEditorFragment() {
+
+	private val buildOutputViewModel: BuildOutputViewModel by activityViewModels()
+
 	companion object {
 		private const val LAYOUT_TIMEOUT_MS = 2000L
 	}
@@ -46,11 +52,40 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
 			processLogs()
 		}
+
+		restoreWindowFromViewModel()
+	}
+
+	private fun restoreWindowFromViewModel() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			val content = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
+			if (content.isNotEmpty()) {
+				withContext(Dispatchers.Main) {
+					editor?.run {
+						withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+						}
+						appendBatch(content)
+						emptyStateViewModel.setEmpty(false)
+					}
+				}
+			}
+		}
 	}
 
 	override fun onDestroyView() {
 		editor?.release()
 		super.onDestroyView()
+	}
+
+	override fun clearOutput() {
+		buildOutputViewModel.clear()
+		super.clearOutput()
+	}
+
+	override fun getShareableContent(): String {
+		val fullContent = buildOutputViewModel.getFullContent()
+		return if (fullContent.isEmpty()) "" else BuildInfoUtils.BASIC_INFO + System.lineSeparator() + fullContent
 	}
 
 	fun appendOutput(output: String?) {
@@ -110,6 +145,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
 	 */
 	private suspend fun flushToEditor(text: String) = withContext(Dispatchers.Main) {
+		buildOutputViewModel.append(text)
 		editor?.run {
 			withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
 				awaitLayout(onForceVisible = {

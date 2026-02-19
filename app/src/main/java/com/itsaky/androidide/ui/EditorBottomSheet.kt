@@ -37,6 +37,7 @@ import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -67,6 +68,7 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
+import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
@@ -427,6 +429,9 @@ constructor(
 		suppressedGradleWarnings.any { msg.contains(it) }
 
 	fun clearBuildOutput() {
+		(context as? FragmentActivity)?.let { activity ->
+			ViewModelProvider(activity)[BuildOutputViewModel::class.java].clear()
+		}
 		pagerAdapter.buildOutputFragment?.clearOutput()
 	}
 
