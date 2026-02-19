@@ -76,6 +76,8 @@ sonarqube = "7.0.0.6105"
 compose-bom = "2024.02.00"
 compose-compiler = "2.1.21"
 
+leakcanary = "2.14"
+
 [libraries]
 
 # Dependencies in composite build
@@ -177,6 +179,7 @@ common-jsonrpc = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc", versi
 common-lsp4j = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j", version = "0.22.0" }
 common-retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 common-retrofit-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }
+common-leakcanary = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanary" }
 common-markwon-core = { module = "io.noties.markwon:core", version.ref = "markwon" }
 common-markwon-extStrikethrough = { module = "io.noties.markwon:ext-strikethrough", version.ref = "markwon" }
 common-markwon-linkify = { module = "io.noties.markwon:linkify", version.ref = "markwon" }
