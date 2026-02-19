@@ -1,6 +1,5 @@
 package com.appdevforall.keygen.plugin.fragments
 
-import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -115,7 +114,6 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
 
     private fun initializeViews(view: View) {
         statusContainer = view.findViewById(R.id.status_container)
-        headerContainer = view.findViewById(R.id.header_container)
         statusText = view.findViewById(R.id.tv_status)
         progressBar = view.findViewById(R.id.progress_bar)
 
@@ -163,19 +161,7 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
         }
 
         // Main interface tooltip (on the header area)
-        val headerView = view?.findViewById<View>(android.R.id.content) // Use root view
         statusContainer.setOnLongClickListener { view ->
-            tooltipService?.showTooltip(
-                anchorView = view,
-                category = "plugin_keystore_generator",
-                tag = "keystore_generator.editor_tab"
-            ) ?: run {
-                showToast("Long press detected! Documentation not available.")
-            }
-            true
-        }
-
-        headerContainer.setOnLongClickListener { view ->
             tooltipService?.showTooltip(
                 anchorView = view,
                 category = "plugin_keystore_generator",
@@ -342,8 +328,9 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
         progressBar.visibility = View.VISIBLE
         statusContainer.visibility = View.VISIBLE
         statusText.text = message
-        statusText.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.primary_text_light))
-        statusContainer.setBackgroundColor(ContextCompat.getColor(requireContext(), android.R.color.background_light))
+        val ctx = statusContainer.context
+        statusText.setTextColor(ContextCompat.getColor(ctx, R.color.status_text))
+        statusContainer.setBackgroundColor(ContextCompat.getColor(ctx, R.color.status_background))
     }
 
     private fun hideProgress() {
@@ -353,15 +340,17 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
     private fun showSuccess(message: String) {
         statusContainer.visibility = View.VISIBLE
         statusText.text = message
-        statusText.setTextColor(Color.parseColor("#4CAF50"))
-        statusContainer.setBackgroundColor(Color.parseColor("#E8F5E8"))
+        val ctx = statusContainer.context
+        statusText.setTextColor(ContextCompat.getColor(ctx, R.color.status_success_text))
+        statusContainer.setBackgroundColor(ContextCompat.getColor(ctx, R.color.status_success_background))
     }
 
     private fun showError(message: String) {
         statusContainer.visibility = View.VISIBLE
         statusText.text = message
-        statusText.setTextColor(Color.parseColor("#F44336"))
-        statusContainer.setBackgroundColor(Color.parseColor("#FFF3F3"))
+        val ctx = statusContainer.context
+        statusText.setTextColor(ContextCompat.getColor(ctx, R.color.status_error_text))
+        statusContainer.setBackgroundColor(ContextCompat.getColor(ctx, R.color.status_error_background))
     }
 
     private fun hideStatus() {
