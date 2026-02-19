@@ -74,8 +74,12 @@ class JGitRepository(override val rootDir: File) : GitRepository {
     }
 
     override fun getHistory(limit: Int): List<GitCommit> {
-        return git.log().setMaxCount(limit).call().map { revCommit ->
-            revCommit.toGitCommit()
+        return try {
+            git.log().setMaxCount(limit).call().map { revCommit ->
+                revCommit.toGitCommit()
+            }
+        } catch (_: org.eclipse.jgit.api.errors.NoHeadException) {
+            emptyList()
         }
     }
 
