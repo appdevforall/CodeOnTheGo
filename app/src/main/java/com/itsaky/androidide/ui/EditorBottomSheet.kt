@@ -214,8 +214,9 @@ constructor(
 
 			shareJob = context.lifecycleScope.launch {
 				try {
-					val filename = fragment.getShareableFilename()
-					val content = fragment.getShareableContent()
+					val (filename, content) = withContext(Dispatchers.IO) {
+						fragment.getShareableFilename() to fragment.getShareableContent()
+					}
 
 					if (!isAttachedToWindow) return@launch
 					shareText(text = content, type = filename)
