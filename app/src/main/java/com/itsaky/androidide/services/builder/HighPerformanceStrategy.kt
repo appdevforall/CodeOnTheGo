@@ -58,7 +58,13 @@ object HighPerformanceStrategy : GradleTuningStrategy {
 				configurationCache = device.mem.totalMemMb >= GRADLE_CONF_CACHE_MEM_REQUIRED_MB,
 			)
 
-		val kotlinXmx = KOTLIN_XMX_TARGET_MB.coerceIn(KOTLIN_XMX_MIN_MB, (gradleXmx * 0.5).toInt())
+		val kotlinXmxMemBound = (gradleXmx * 0.5).toInt()
+		val kotlinXmx = if (KOTLIN_XMX_MIN_MB > kotlinXmxMemBound) {
+			kotlinXmxMemBound
+		} else {
+			KOTLIN_XMX_TARGET_MB.coerceIn(KOTLIN_XMX_MIN_MB, (gradleXmx * 0.5).toInt())
+		}
+
 		val kotlinExec =
 			KotlinCompilerExecution.Daemon(
 				incremental = true,
