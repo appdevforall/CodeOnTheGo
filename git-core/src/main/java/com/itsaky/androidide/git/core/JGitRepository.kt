@@ -95,7 +95,7 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         )
     }
     
-    fun close() {
+    override fun close() {
         repository.close()
         git.close()
     }

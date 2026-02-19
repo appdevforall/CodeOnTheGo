@@ -5,10 +5,12 @@ import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
 import java.io.File
 
+import java.io.Closeable
+
 /**
  * Interface defining core Git repository operations.
  */
-interface GitRepository {
+interface GitRepository : Closeable {
     val rootDir: File
     
     fun getStatus(): GitStatus
