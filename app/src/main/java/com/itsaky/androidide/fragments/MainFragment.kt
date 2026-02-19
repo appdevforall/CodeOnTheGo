@@ -94,10 +94,19 @@ class MainFragment : BaseFragment() {
 				}
 			}
 
-		binding!!.actions.adapter = MainActionsListAdapter(actions)
+		// Portrait: single list. Landscape: first 3 (Create, Open, Delete) in middle, last 3 (Terminal, Preferences, Docs) on right.
+		val leftActions = if (binding!!.actionsRight != null) actions.take(3) else actions
+		binding!!.actions.adapter = MainActionsListAdapter(leftActions)
+		binding!!.actionsRight?.adapter = MainActionsListAdapter(actions.drop(3))
 
 		binding!!.headerContainer?.setOnClickListener { ifAttached { openQuickstartPageAction() } }
 		binding!!.headerContainer?.setOnLongClickListener {
+			ifAttached { TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED) }
+			true
+		}
+		// Landscape layout uses "greeting" instead of "headerContainer"
+		binding!!.greeting?.setOnClickListener { ifAttached { openQuickstartPageAction() } }
+		binding!!.greeting?.setOnLongClickListener {
 			ifAttached { TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED) }
 			true
 		}

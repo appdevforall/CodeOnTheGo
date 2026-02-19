@@ -34,11 +34,7 @@ class OrientationUtilities {
         }
 
         fun setAdaptiveOrientation(context: Context, setRequestedOrientation: (Int) -> Unit) {
-            if (isLargeScreen(context)) {
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
-            } else {
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-            }
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
         }
 
         fun getDeviceDefaultOrientation(context: Context): Int {
@@ -60,20 +56,6 @@ class OrientationUtilities {
             }
         }
 
-        private fun isTablet(context: Context): Boolean {
-            return ((context.resources.configuration.screenLayout
-                    and Configuration.SCREENLAYOUT_SIZE_MASK)
-                    >= Configuration.SCREENLAYOUT_SIZE_LARGE)
-        }
-
-        private fun isLargeScreen(context: Context): Boolean {
-            val config = context.resources.configuration
-            val sizeMask = config.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK
-            val hasSw =
-                config.smallestScreenWidthDp != Configuration.SMALLEST_SCREEN_WIDTH_DP_UNDEFINED
-            val isSwLarge = hasSw && config.smallestScreenWidthDp >= 600
-            return isSwLarge || sizeMask >= Configuration.SCREENLAYOUT_SIZE_LARGE
-        }
     }
 
 }

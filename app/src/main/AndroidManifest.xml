@@ -84,9 +84,11 @@
         </activity>
         <activity
             android:name=".activities.OnboardingActivity"
+            android:configChanges="orientation|screenSize"
             android:exported="false" />
         <activity
             android:name=".activities.MainActivity"
+            android:configChanges="orientation|screenSize"
             android:exported="false"
             android:theme="@style/Theme.AndroidIDE" />
         <activity
@@ -94,14 +96,27 @@
             android:configChanges="orientation|screenSize"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".activities.PreferencesActivity" />
-        <activity android:name=".activities.PluginManagerActivity" />
-        <activity android:name=".activities.AboutActivity" />
-        <activity android:name=".activities.editor.FAQActivity" />
-        <activity android:name=".activities.editor.HelpActivity" />
-        <activity android:name=".activities.ContributorsActivity" />
+        <activity
+            android:name=".activities.PreferencesActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name=".activities.PluginManagerActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name=".activities.AboutActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name=".activities.editor.FAQActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name=".activities.editor.HelpActivity"
+            android:configChanges="orientation|screenSize" />
+        <activity
+            android:name=".activities.ContributorsActivity"
+            android:configChanges="orientation|screenSize" />
         <activity
             android:name=".activities.TerminalActivity"
+            android:configChanges="orientation|screenSize"
             android:windowSoftInputMode="adjustResize" />
 
         <!-- Required: set your sentry.io project identifier (DSN) -->
