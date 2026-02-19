@@ -57,21 +57,27 @@ private fun Flashbar.Builder.applyIcon(iconType: IconType): Flashbar.Builder =
 private fun Activity.showFlashBar(
 	msg: Any?,
 	iconType: IconType,
-	gravity: Flashbar.Gravity = Flashbar.Gravity.TOP,
+	gravity: Flashbar.Gravity = TOP,
 	duration: Long = Flashbar.DURATION_SHORT,
 ) {
+  val builder = flashbarBuilder(gravity, duration)
+    .applyIcon(iconType)
+
+  // Add a close button if the flashbar is an indefinite error
+  if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
+    builder.positiveActionText(getString(R.string.dismiss))
+    builder.positiveActionTapListener { it.dismiss() }
+  }
+
 	when (msg) {
 		null -> return
 		is Int ->
-			flashbarBuilder(gravity, duration)
-				.applyIcon(iconType)
+			builder
 				.message(msg)
 				.showOnUiThread()
 
 		is String ->
-			this
-				.flashbarBuilder(gravity, duration)
-				.applyIcon(iconType)
+      builder
 				.message(msg)
 				.showOnUiThread()
 
@@ -118,9 +124,7 @@ fun Activity.flashMessage(
 
 fun Activity.flashSuccess(msg: String?) = showFlashBar(msg, IconType.SUCCESS)
 
-fun Activity.flashError(msg: String?) = showFlashBar(msg, IconType.ERROR)
-
-fun Activity.flashErrorForLong(msg: String?) = showFlashBar(msg = msg, iconType = IconType.ERROR, duration = DURATION_LONG)
+fun Activity.flashError(msg: String?) = showFlashBar(msg, IconType.ERROR, duration = DURATION_INDEFINITE)
 
 fun Activity.flashInfo(msg: String?) = showFlashBar(msg, IconType.INFO)
 
