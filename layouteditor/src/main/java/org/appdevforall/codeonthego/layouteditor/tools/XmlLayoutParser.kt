@@ -15,6 +15,7 @@ import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
 import org.appdevforall.codeonthego.layouteditor.editor.positioning.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addNewId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
+import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.Constants.ATTR_INITIAL_POS
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
@@ -30,11 +31,20 @@ import java.io.StringReader
 import androidx.core.view.isNotEmpty
 import androidx.core.widget.NestedScrollView
 
+
+sealed class ValidationResult {
+	object Success : ValidationResult()
+	data class Error(val errors: List<String>) : ValidationResult() {
+		val formattedMessage: String get() = errors.joinToString(separator = "\n\n• ", prefix = "• ")
+	}
+}
+
 class XmlLayoutParser(
 	context: Context,
-    private val basePath: String? = null,
+  private val basePath: String? = null,
 ) {
 	val viewAttributeMap: HashMap<View, AttributeMap> = HashMap()
+	private val validationErrors = mutableListOf<String>()
 
 	private val initializer: AttributeInitializer
 	private val listViews: MutableList<View> = ArrayList()
@@ -43,6 +53,7 @@ class XmlLayoutParser(
     const val MARKER_IS_INCLUDE = "tools:is_xml_include"
     const val MARKER_IS_FRAGMENT = "tools:is_xml_fragment"
     const val MARKER_IS_MERGE = "tools:is_xml_merge"
+    const val TAG = "XmlLayoutParser"
 	}
 
 	enum class CustomAttrs(val key: String) {
@@ -68,32 +79,55 @@ class XmlLayoutParser(
 	val root: View?
 		get() = listViews.getOrNull(0)
 
-	fun parseFromXml(
+	fun validateXml(
 		xml: String,
 		context: Context,
-	) {
+	): ValidationResult {
 		listViews.clear()
 		viewAttributeMap.clear()
+		validationErrors.clear()
 		clear()
 
-		try {
+		return try {
 			val factory = XmlPullParserFactory.newInstance()
 			val parser = factory.newPullParser()
 			parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
 			parser.setInput(StringReader(xml))
 			parseFromXml(parser, context)
-		} catch (e: XmlPullParserException) {
-			e.printStackTrace()
-		} catch (e: IOException) {
-			e.printStackTrace()
-		}
 
+			if (validationErrors.isEmpty()) {
+				ValidationResult.Success
+			} else {
+				ValidationResult.Error(validationErrors.toList())
+			}
+		} catch (e: XmlPullParserException) {
+			ValidationResult.Error(listOf(context.getString(R.string.xml_error_parse, e.message ?: "")))
+		} catch (e: IOException) {
+			ValidationResult.Error(listOf(context.getString(R.string.xml_error_io, e.message ?: "")))
+		} catch (e: Exception) {
+			ValidationResult.Error(listOf(context.getString(R.string.xml_error_generic, e.message ?: "")))
+		}
+	}
+
+	fun parseFromXml() {
 		for ((view, map) in viewAttributeMap) {
 			if (map.contains("android:id")) {
 				addNewId(view, map.getValue("android:id"))
 			}
 			applyAttributes(view, map)
 		}
+	}
+
+	fun processXml(xml: String, context: Context): ValidationResult {
+		val result = validateXml(xml, context)
+
+		if (result is ValidationResult.Success) {
+			parseFromXml()
+		} else if (result is ValidationResult.Error) {
+			Log.e(TAG, "Failed to parse layout. Errors:\n${result.formattedMessage}")
+		}
+
+		return result
 	}
 
 	private fun parseFromXml(
@@ -108,7 +142,7 @@ class XmlLayoutParser(
 					// Skip NavigationView to avoid invalid parent crash
 					if (tagName == "com.google.android.material.navigation.NavigationView") {
 						Log.w(
-							"XmlParser",
+							TAG,
 							"Skipping NavigationView tag to avoid drawer hierarchy crash",
 						)
 						parser.next()
@@ -251,14 +285,25 @@ class XmlLayoutParser(
 
 	private fun ViewGroup.tryAddChild(child: View) {
 		if (isSingleChildContainer() && isNotEmpty()) {
-			Log.w("XmlLayoutParser", "Ignored extra child in ${this::class.simpleName}: Only 1 child allowed.")
+			val errorMsg = context.getString(
+				R.string.xml_error_single_child_container,
+				this::class.simpleName
+			)
+			Log.w(TAG, errorMsg)
+			validationErrors.add(errorMsg)
 			return
 		}
 
 		runCatching {
 			addView(child)
 		}.onFailure { e ->
-			Log.e("XmlLayoutParser", "Failed to add ${child::class.simpleName} to ${this::class.simpleName}", e)
+			val errorMsg = context.getString(
+				R.string.xml_error_add_child_failed,
+				child::class.simpleName,
+				this::class.simpleName
+			)
+			Log.e(TAG, errorMsg, e)
+			validationErrors.add(errorMsg)
 		}
 	}
 
@@ -310,7 +355,7 @@ class XmlLayoutParser(
 			val attr = initializer.getAttributeFromKey(key, allAttrs)
 			if (attr == null) {
 				Log.w(
-					"XmlParser",
+					TAG,
 					"Could not find attribute $key for view ${target.javaClass.simpleName}",
 				)
 				continue
@@ -320,7 +365,7 @@ class XmlLayoutParser(
 			val className = attr[Constants.KEY_CLASS_NAME].toString()
 			val value = attributeMap.getValue(key)
 
-			Log.d("applyAttributes", "Applying attribute $key to view $target with value $value")
+			Log.d(TAG, "Applying attribute $key to view $target with value $value")
 			invokeMethod(methodName, className, target, value, target.context)
 		}
 	}
@@ -389,7 +434,7 @@ class XmlLayoutParser(
     ): View? {
         if (layoutAttr == null || basePath == null) {
             Log.w(
-                "XmlParser",
+                TAG,
                 "Skipping include. layoutAttr=$layoutAttr basePath=$basePath"
             )
             return null
@@ -400,7 +445,7 @@ class XmlLayoutParser(
 
         if (!file.exists()) {
             Log.e(
-                "XmlParser",
+                TAG,
                 "Included file not found: ${file.absolutePath}"
             )
             return null
@@ -415,11 +460,17 @@ class XmlLayoutParser(
                     ?: xml
 
             val parser = XmlLayoutParser(context, basePath)
-            parser.parseFromXml(converted, context)
+
+            val result = parser.processXml(converted, context)
+						if (result is ValidationResult.Error) {
+						    Log.e(TAG, "Included layout has errors: ${result.formattedMessage}")
+						    return null
+						}
+
             parser.root
         } catch (e: Exception) {
             Log.e(
-                "XmlParser",
+                TAG,
                 "Failed to parse include: $layoutName",
                 e
             )
