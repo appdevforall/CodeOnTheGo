@@ -2,6 +2,7 @@ package com.itsaky.androidide.git.core
 
 import com.itsaky.androidide.git.core.models.*
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.ListBranchCommand.ListMode
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.revwalk.RevCommit
@@ -62,7 +63,7 @@ class JGitRepository(override val rootDir: File) : GitRepository {
 
     override fun getBranches(): List<GitBranch> {
         val currentBranch = repository.fullBranch
-        return git.branchList().call().map { ref ->
+        return git.branchList().setListMode(ListMode.ALL).call().map { ref ->
             GitBranch(
                 name = Repository.shortenRefName(ref.name),
                 fullName = ref.name,
