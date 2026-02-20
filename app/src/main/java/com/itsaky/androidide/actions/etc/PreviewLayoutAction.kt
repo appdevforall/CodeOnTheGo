@@ -160,7 +160,7 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
             is ValidationResult.Error -> showXmlValidationError(activity, result.formattedMessage)
           }
         } catch (e: Exception) {
-          showXmlValidationError(activity, "Unexpected error: ${e.message}")
+          showXmlValidationError(activity, activity.getString(R.string.xml_error_generic, e.message ?: ""))
         }
       }
       PreviewType.COMPOSE -> {
