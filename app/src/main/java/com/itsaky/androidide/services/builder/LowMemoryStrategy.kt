@@ -46,7 +46,7 @@ object LowMemoryStrategy : GradleTuningStrategy {
 						reservedCodeCacheSizeMb = GRADLE_CODE_CACHE_MB,
 						gcType = GcType.Serial,
 					),
-				maxWorkers = min(GRADLE_WORKERS_MAX, workersHardCap),
+				maxWorkers = min(GRADLE_WORKERS_MAX, workersHardCap).coerceAtLeast(1),
 				parallel = false,
 				configureOnDemand = true,
 				caching = device.storageFreeMb >= GRADLE_CACHING_STORAGE_REQUIRED_MB,

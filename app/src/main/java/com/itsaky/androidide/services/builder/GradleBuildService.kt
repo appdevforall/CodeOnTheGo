@@ -122,6 +122,7 @@ class GradleBuildService :
 	private val buildSessionId = UUID.randomUUID().toString()
 	private val buildId = AtomicLong(0)
 
+	@Volatile
 	private var tuningConfig: GradleTuningConfig? = null
 
 	private val buildServiceScope =
@@ -272,7 +273,7 @@ class GradleBuildService :
 							val actualCause = err.cause ?: err
 							val message = actualCause.message?.lowercase() ?: ""
 							if (message.contains("stream closed") || message.contains("broken pipe")) {
-								log.error("Tooling API server stream closed during shutdown (expected)")
+								log.info("Tooling API server stream closed during shutdown (expected)")
 							} else {
 								// log if the error is not due to the stream being closed
 								log.error("Failed to shutdown Tooling API server", err)
