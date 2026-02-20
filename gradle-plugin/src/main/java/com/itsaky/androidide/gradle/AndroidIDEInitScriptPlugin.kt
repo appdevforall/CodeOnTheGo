@@ -49,7 +49,7 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 		removeDaemonLogs(target)
 
 		target.settingsEvaluated { settings ->
-			settings.addDependencyRepositories()
+			settings.addLocalRepos()
 		}
 
 		target.rootProject { rootProject ->
@@ -109,25 +109,32 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 		}
 	}
 
-	private fun Settings.addDependencyRepositories() {
+	private fun Settings.addLocalRepos() {
+		// Add our local maven repo, always.
+		addLocalRepos(mavenLocalRepos = listOf(MAVEN_LOCAL_REPOSITORY))
+
+		// Then check if we need to add additional repos, based on whether
+		// we're in a test environment
 		val (isTestEnv, mavenLocalRepos) = getTestEnvProps(startParameter)
-		addDependencyRepositories(
-			isMavenLocalEnabled = isTestEnv,
-			mavenLocalRepos = listOf(MAVEN_LOCAL_REPOSITORY) + mavenLocalRepos,
-		)
+		if (isTestEnv) {
+			addLocalRepos(mavenLocalRepos = mavenLocalRepos)
+		}
+	}
+
+	private fun RepositoryHandler.addLocalRepos(repos: List<String>) {
+		repos.forEach { repo ->
+			addLocalMavenRepoIfMissing(logger, repo)
+		}
 	}
 
 	@Suppress("UnstableApiUsage")
-	private fun Settings.addDependencyRepositories(
-		isMavenLocalEnabled: Boolean,
-		mavenLocalRepos: List<String>,
-	) {
+	private fun Settings.addLocalRepos(mavenLocalRepos: List<String>) {
 		dependencyResolutionManagement.repositories { repositories ->
-			repositories.configureRepositories(isMavenLocalEnabled, mavenLocalRepos)
+			repositories.addLocalRepos(mavenLocalRepos)
 		}
 
 		pluginManagement.repositories { repositories ->
-			repositories.configureRepositories(isMavenLocalEnabled, mavenLocalRepos)
+			repositories.addLocalRepos(mavenLocalRepos)
 		}
 	}
 
@@ -141,30 +148,6 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 
 			isTestEnv to mavenLocalRepos.split(':').toList().filter { it.isNotBlank() }
 		}
-
-	private fun RepositoryHandler.configureRepositories(
-		isMavenLocalEnabled: Boolean,
-		mavenLocalRepos: List<String>,
-	) {
-		if (!isMavenLocalEnabled) {
-			// For AndroidIDE CI builds
-			addMavenRepoIfMissing(logger, URI.create(BuildInfo.SNAPSHOTS_REPOSITORY))
-		} else {
-			logger.info("Using local maven repository for classpath resolution...")
-
-			for (mavenLocalRepo in mavenLocalRepos) {
-				addLocalMavenRepoIfMissing(logger, mavenLocalRepo)
-			}
-		}
-
-		// for AGP API dependency
-		google()
-
-		addMavenRepoIfMissing(logger, URI.create(BuildInfo.PUBLIC_REPOSITORY))
-
-		mavenCentral()
-		gradlePluginPortal()
-	}
 }
 
 private fun RepositoryHandler.addLocalMavenRepoIfMissing(
