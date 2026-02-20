@@ -21,9 +21,6 @@ import com.itsaky.androidide.builder.model.DefaultJavaCompileOptions
 import com.itsaky.androidide.builder.model.IJavaCompilerSettings
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
-import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
-import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
-import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.models.AndroidProjectMetadata
 import com.itsaky.androidide.tooling.api.models.AndroidVariantMetadata
@@ -115,11 +112,6 @@ object ToolingApiLauncher {
 			InitializeResult::class.java,
 			InitializeResult.Success::class.java,
 			InitializeResult.Failure::class.java,
-		)
-		builder.runtimeTypeAdapter(
-			GradleBuildParams::class.java,
-			InitializeProjectParams::class.java,
-			TaskExecutionMessage::class.java,
 		)
 
 		// some methods return BasicProjectMetadata while some return ProjectMetadata
