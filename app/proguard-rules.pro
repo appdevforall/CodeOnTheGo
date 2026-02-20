@@ -133,6 +133,11 @@
 -keep class io.sentry.** { *; }
 -dontwarn io.sentry.**
 
+## Compose runtime - accessed via DexClassLoader from compose-preview
+-keep class androidx.compose.** { *; }
+-keep class kotlin.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+
 ## Prevent R8 from moving what it thinks as unused classes
 -dontshrink
 
