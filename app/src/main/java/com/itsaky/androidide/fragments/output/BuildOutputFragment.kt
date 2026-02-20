@@ -54,6 +54,10 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		}
 
 		restoreWindowFromViewModel()
+		viewLifecycleOwner.lifecycleScope.launch {
+			val content = buildOutputViewModel.getFullContent()
+			buildOutputViewModel.setCachedSnapshot(content)
+		}
 	}
 
 	private fun restoreWindowFromViewModel() {
@@ -84,8 +88,8 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	}
 
 	override fun getShareableContent(): String {
-		val fullContent = kotlinx.coroutines.runBlocking { buildOutputViewModel.getFullContent() }
-		return if (fullContent.isEmpty()) "" else BuildInfoUtils.BASIC_INFO + System.lineSeparator() + fullContent
+		val snapshot = buildOutputViewModel.getCachedContentSnapshot()
+		return if (snapshot.isEmpty()) "" else BuildInfoUtils.BASIC_INFO + System.lineSeparator() + snapshot
 	}
 
 	fun appendOutput(output: String?) {

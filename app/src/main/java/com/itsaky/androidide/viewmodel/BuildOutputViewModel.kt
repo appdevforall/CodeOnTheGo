@@ -39,6 +39,25 @@ import kotlinx.coroutines.withContext
 class BuildOutputViewModel(application: Application) : AndroidViewModel(application) {
 
   private val lock = ReentrantLock()
+
+  /**
+   * Thread-safe snapshot of content for synchronous [getShareableContent] without blocking.
+   * Updated on [append] and [clear]; primed on restore via [setCachedSnapshot].
+   * Capped at [CACHE_SNAPSHOT_MAX_CHARS] to bound memory.
+   */
+  @Volatile
+  private var cachedContentSnapshot: String = ""
+
+  /** Returns the current cached snapshot for share/copy (non-blocking). */
+  fun getCachedContentSnapshot(): String = cachedContentSnapshot
+
+  /** Updates the cached snapshot (e.g. after loading full content on restore). Capped to [CACHE_SNAPSHOT_MAX_CHARS]. */
+  fun setCachedSnapshot(content: String) {
+    cachedContentSnapshot =
+      if (content.length <= CACHE_SNAPSHOT_MAX_CHARS) content
+      else content.takeLast(CACHE_SNAPSHOT_MAX_CHARS)
+  }
+
   private val sessionFile: File
     get() = File(getApplication<Application>().cacheDir, SESSION_FILE_NAME)
 
@@ -54,6 +73,8 @@ class BuildOutputViewModel(application: Application) : AndroidViewModel(applicat
           FileOutputStream(sessionFile, true).use {
             it.write(text.toByteArray(StandardCharsets.UTF_8))
           }
+          cachedContentSnapshot =
+            (cachedContentSnapshot + text).takeLast(CACHE_SNAPSHOT_MAX_CHARS)
         } catch (e: Exception) {
           log.error("Failed to append build output to session file", e)
         }
@@ -110,6 +131,7 @@ class BuildOutputViewModel(application: Application) : AndroidViewModel(applicat
    */
   fun clear() {
     lock.withLock {
+      cachedContentSnapshot = ""
       try {
         if (sessionFile.exists()) {
           sessionFile.delete()
@@ -143,6 +165,8 @@ class BuildOutputViewModel(application: Application) : AndroidViewModel(applicat
   companion object {
     private const val SESSION_FILE_NAME = "build_output_session.txt"
     private const val WINDOW_SIZE_CHARS = 512 * 1024
+    /** Max length of [cachedContentSnapshot] to bound memory. */
+    private const val CACHE_SNAPSHOT_MAX_CHARS = WINDOW_SIZE_CHARS
     private val log = org.slf4j.LoggerFactory.getLogger(BuildOutputViewModel::class.java)
   }
 }

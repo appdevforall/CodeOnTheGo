@@ -37,7 +37,6 @@ import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -120,6 +119,7 @@ constructor(
 
 	private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 	private val apkViewModel by (context as FragmentActivity).viewModels<ApkInstallationViewModel>()
+	private val buildOutputViewModel by (context as FragmentActivity).viewModels<BuildOutputViewModel>()
 	private lateinit var mediator: TabLayoutMediator
 	private var shareJob: Job? = null
 
@@ -430,9 +430,6 @@ constructor(
 		suppressedGradleWarnings.any { msg.contains(it) }
 
 	fun clearBuildOutput() {
-		(context as? FragmentActivity)?.let { activity ->
-			ViewModelProvider(activity)[BuildOutputViewModel::class.java].clear()
-		}
 		pagerAdapter.buildOutputFragment?.clearOutput()
 	}
 
