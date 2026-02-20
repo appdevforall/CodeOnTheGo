@@ -100,10 +100,18 @@ data class MainScreenAction
 					R.drawable.ic_action_help_outlined,
 				)
 
+			val cloneRepo =
+				MainScreenAction(
+					ACTION_CLONE_REPO,
+					R.string.download_git_project,
+					R.drawable.ic_clone_repo,
+				)
+
 			private val allActions: List<MainScreenAction> =
 				listOf(
 					createProject,
 					openProject,
+					cloneRepo,
 					deleteProject,
 					openTerminal,
 					preferences,
