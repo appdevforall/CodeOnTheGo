@@ -47,6 +47,7 @@ class MainViewModel : ViewModel() {
         const val TOOLTIPS_WEB_VIEW = 3
         const val SCREEN_SAVED_PROJECTS = 4
         const val SCREEN_DELETE_PROJECTS = 5
+        const val SCREEN_CLONE_REPO = 6
     }
 
     private val _currentScreen = MutableLiveData(-1)

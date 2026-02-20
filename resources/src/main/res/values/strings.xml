@@ -131,6 +131,7 @@
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>
+	<string name="download_git_project">Download a Git project</string>
 	<string name="msg_delete_existing_project_failed">Failed to delete existing project.</string>
 	<string name="title_confirm_project_close">Close project</string>
 	<string name="cancel_project_text">Cancel</string>
@@ -1133,4 +1134,16 @@
 	<string name="msg_no_diagnostics_to_copy">No diagnostics to copy</string>
 	<string name="msg_clipboard_copy_failed">Failed to copy to clipboard</string>
     <string name="dismiss">Dismiss</string>
+
+    <!-- Git -->
+    <string name="repository_url">Repository URL</string>
+    <string name="local_path">Local Path</string>
+    <string name="use_authentication">Use Authentication</string>
+    <string name="username">Username</string>
+    <string name="password_token">Password / Token</string>
+    <string name="clone">Clone</string>
+    <string name="destination_directory_not_empty">Destination directory is not empty</string>
+    <string name="clone_successful">Clone successful!</string>
+    <string name="clone_failed">Clone failed: %1$s</string>
+    <string name="cloning_repo">Cloning repository…</string>
 </resources>

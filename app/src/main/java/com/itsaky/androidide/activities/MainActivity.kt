@@ -48,6 +48,7 @@ import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_CLONE_REPO
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJECTS
@@ -222,6 +223,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				TOOLTIPS_WEB_VIEW -> binding.tooltipWebView
 				SCREEN_SAVED_PROJECTS -> binding.savedProjectsView
 				SCREEN_DELETE_PROJECTS -> binding.deleteProjectsView
+        SCREEN_CLONE_REPO -> binding.cloneRepositoryView
 				else -> throw IllegalArgumentException("Invalid screen id: '$screen'")
 			}
 
@@ -232,6 +234,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			binding.tooltipWebView,
 			binding.savedProjectsView,
 			binding.deleteProjectsView,
+            binding.cloneRepositoryView,
 		)) {
 			fragment.isVisible = fragment == currentFragment
 		}

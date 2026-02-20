@@ -21,6 +21,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_TERMINAL
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN
 import com.itsaky.androidide.models.MainScreenAction
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_CLONE_REPO
 import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_CREATE_PROJECT
 import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_DELETE_PROJECT
 import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_DOCS
@@ -61,6 +62,7 @@ class MainFragment : BaseFragment() {
 						when (action.id) {
 						ACTION_CREATE_PROJECT -> showCreateProject()
 						ACTION_OPEN_PROJECT -> showViewSavedProjects()
+						ACTION_CLONE_REPO -> showCloneRepository()
 						ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
 						ACTION_OPEN_TERMINAL ->
 							startActivity(
@@ -154,6 +156,10 @@ class MainFragment : BaseFragment() {
 
 	private fun showViewSavedProjects() {
 		viewModel.setScreen(MainViewModel.SCREEN_SAVED_PROJECTS)
+	}
+
+	private fun showCloneRepository() {
+		viewModel.setScreen(MainViewModel.SCREEN_CLONE_REPO)
 	}
 
 	private fun gotoPreferences() {
