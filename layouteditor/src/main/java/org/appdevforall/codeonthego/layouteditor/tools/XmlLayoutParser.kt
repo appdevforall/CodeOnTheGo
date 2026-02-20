@@ -42,6 +42,7 @@ sealed class ValidationResult {
 class XmlLayoutParser(
 	context: Context,
   private val basePath: String? = null,
+  private val isRoot: Boolean = true
 ) {
 	val viewAttributeMap: HashMap<View, AttributeMap> = HashMap()
 	private val validationErrors = mutableListOf<String>()
@@ -86,7 +87,7 @@ class XmlLayoutParser(
 		listViews.clear()
 		viewAttributeMap.clear()
 		validationErrors.clear()
-		clear()
+		if (isRoot) clear()
 
 		return try {
 			val factory = XmlPullParserFactory.newInstance()
@@ -291,6 +292,7 @@ class XmlLayoutParser(
 			)
 			Log.w(TAG, errorMsg)
 			validationErrors.add(errorMsg)
+			viewAttributeMap.remove(child)
 			return
 		}
 
@@ -304,6 +306,7 @@ class XmlLayoutParser(
 			)
 			Log.e(TAG, errorMsg, e)
 			validationErrors.add(errorMsg)
+			viewAttributeMap.remove(child)
 		}
 	}
 
@@ -454,12 +457,9 @@ class XmlLayoutParser(
         return try {
             val xml = file.readText()
 
-            val converted =
-                ConvertImportedXml(xml)
-                    .getXmlConverted(context)
-                    ?: xml
+            val converted = ConvertImportedXml(xml).getXmlConverted(context) ?: xml
 
-            val parser = XmlLayoutParser(context, basePath)
+            val parser = XmlLayoutParser(context, basePath, false)
 
             val result = parser.processXml(converted, context)
 						if (result is ValidationResult.Error) {
