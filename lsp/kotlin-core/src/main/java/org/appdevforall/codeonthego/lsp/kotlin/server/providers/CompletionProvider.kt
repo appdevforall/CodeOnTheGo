@@ -1,12 +1,16 @@
 package org.appdevforall.codeonthego.lsp.kotlin.server.providers
 
+import org.appdevforall.codeonthego.lsp.kotlin.index.ClasspathIndex
 import org.appdevforall.codeonthego.lsp.kotlin.index.IndexedSymbol
 import org.appdevforall.codeonthego.lsp.kotlin.index.IndexedSymbolKind
 import org.appdevforall.codeonthego.lsp.kotlin.index.ProjectIndex
+import org.appdevforall.codeonthego.lsp.kotlin.index.StdlibIndex
+import org.appdevforall.codeonthego.lsp.kotlin.parser.KotlinParser
 import org.appdevforall.codeonthego.lsp.kotlin.parser.Position
 import org.appdevforall.codeonthego.lsp.kotlin.semantic.AnalysisContext
 import org.appdevforall.codeonthego.lsp.kotlin.server.AnalysisScheduler
 import org.appdevforall.codeonthego.lsp.kotlin.server.DocumentManager
+import org.appdevforall.codeonthego.lsp.kotlin.server.DocumentState
 import org.appdevforall.codeonthego.lsp.kotlin.symbol.*
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
@@ -27,12 +31,12 @@ class CompletionProvider(
     ): CompletionList {
         val state = documentManager.get(uri) ?: return CompletionList(false, emptyList())
 
-        analysisScheduler.analyzeSync(uri)
-
-        val symbolTable = state.symbolTable
-        val analysisContext = state.analysisContext
         val content = state.content
         val triggerChar = context?.triggerCharacter
+
+        val patchResult = analyzeWithCompletionPatch(state, uri, line)
+        val symbolTable = patchResult.first
+        val analysisContext = patchResult.second
 
         val completionContext = analyzeCompletionContext(content, line, character, triggerChar)
 
@@ -218,6 +222,7 @@ class CompletionProvider(
         character: Int
     ): List<CompletionItem> {
         val items = mutableListOf<CompletionItem>()
+        val addedMemberNames = mutableSetOf<String>()
 
         val typeRef = resolveReceiverType(receiver, symbolTable, analysisContext, line, character)
         val typeName = typeRef?.name ?: receiver
@@ -233,6 +238,7 @@ class CompletionProvider(
                         ?: symbol.members.filterIsInstance<ClassSymbol>()
                             .find { it.kind == ClassKind.COMPANION_OBJECT }
                     companion?.members?.forEach { member ->
+                        addedMemberNames.add(member.name)
                         items.add(createCompletionItem(member, CompletionItemPriority.MEMBER, analysisContext))
                     }
                 }
@@ -242,12 +248,46 @@ class CompletionProvider(
                         val classSymbol = symbolTable.resolve(resolvedType, position).firstOrNull()
                         if (classSymbol is ClassSymbol) {
                             classSymbol.members.forEach { member ->
+                                addedMemberNames.add(member.name)
                                 items.add(createCompletionItem(member, CompletionItemPriority.MEMBER, analysisContext))
                             }
                         }
                     }
                 }
                 else -> {}
+            }
+        }
+
+        val classpathIndex = projectIndex.getClasspathIndex()
+        if (classpathIndex != null) {
+            val fqName = resolveToFqName(typeName, symbolTable)
+            val classpathMembers = findClasspathMembersWithInheritance(fqName, classpathIndex)
+            classpathMembers.forEach { member ->
+                if (member.name !in addedMemberNames && !isFilteredMember(member.name)) {
+                    addedMemberNames.add(member.name)
+                    items.add(createCompletionItemFromIndexed(member, CompletionItemPriority.MEMBER))
+                }
+            }
+
+            for (member in classpathMembers) {
+                val name = member.name
+                val propName = when {
+                    name.startsWith("get") && name.length > 3 && name[3].isUpperCase() ->
+                        name[3].lowercase() + name.substring(4)
+                    name.startsWith("is") && name.length > 2 && name[2].isUpperCase() ->
+                        name[2].lowercase() + name.substring(3)
+                    else -> null
+                }
+                if (propName != null && propName !in addedMemberNames) {
+                    addedMemberNames.add(propName)
+                    items.add(CompletionItem().apply {
+                        label = propName
+                        kind = CompletionItemKind.Property
+                        detail = member.returnType ?: ""
+                        sortText = "${CompletionItemPriority.MEMBER.ordinal}_$propName"
+                        insertText = propName
+                    })
+                }
             }
         }
 
@@ -263,9 +303,18 @@ class CompletionProvider(
         if (stdlibIndex != null) {
             val simpleTypeName = typeName.substringAfterLast('.')
 
+            val stdlibMembers = findStdlibMembersWithInheritance(simpleTypeName, stdlibIndex)
+            stdlibMembers.forEach { member ->
+                if (member.name !in addedMemberNames) {
+                    addedMemberNames.add(member.name)
+                    items.add(createCompletionItemFromIndexed(member, CompletionItemPriority.MEMBER))
+                }
+            }
+
             val typeExtensions = stdlibIndex.findExtensions(simpleTypeName, emptyList())
             typeExtensions.forEach { ext ->
-                if (items.none { it.label == ext.name }) {
+                if (ext.name !in addedMemberNames) {
+                    addedMemberNames.add(ext.name)
                     items.add(createCompletionItemFromIndexed(ext, CompletionItemPriority.MEMBER))
                 }
             }
@@ -278,7 +327,8 @@ class CompletionProvider(
                     val superSimpleName = superType.substringAfterLast('.')
                     val superExtensions = stdlibIndex.findExtensions(superSimpleName, emptyList())
                     superExtensions.forEach { ext ->
-                        if (items.none { it.label == ext.name }) {
+                        if (ext.name !in addedMemberNames) {
+                            addedMemberNames.add(ext.name)
                             items.add(createCompletionItemFromIndexed(ext, CompletionItemPriority.MEMBER))
                         }
                     }
@@ -550,6 +600,165 @@ class CompletionProvider(
         return items
     }
 
+    private fun analyzeWithCompletionPatch(
+        state: DocumentState,
+        uri: String,
+        cursorLine: Int
+    ): Pair<SymbolTable?, AnalysisContext?> {
+        val content = state.content
+        val patchedContent = patchDanglingDots(content, cursorLine)
+
+        if (patchedContent != content) {
+            val parser = KotlinParser()
+            val parseResult = parser.parse(patchedContent, state.filePath)
+            val symbolTable = SymbolBuilder.build(parseResult.tree, state.filePath)
+            val analysisContext = AnalysisContext(
+                tree = parseResult.tree,
+                symbolTable = symbolTable,
+                filePath = state.filePath,
+                stdlibIndex = projectIndex.getStdlibIndex(),
+                projectIndex = projectIndex,
+                syntaxErrorRanges = parseResult.syntaxErrors.map { it.range }
+            )
+            return symbolTable to analysisContext
+        }
+
+        analysisScheduler.analyzeSync(uri)
+        return state.symbolTable to state.analysisContext
+    }
+
+    private fun patchDanglingDots(content: String, cursorLine: Int): String {
+        val lines = content.split('\n').toMutableList()
+        var patched = false
+
+        if (cursorLine in lines.indices) {
+            val trimmed = lines[cursorLine].trimEnd()
+            if (trimmed.endsWith('.')) {
+                val nextNonBlank = ((cursorLine + 1) until lines.size)
+                    .firstOrNull { lines[it].isNotBlank() }
+                    ?.let { lines[it].trimStart() }
+                val isContinuation = nextNonBlank != null &&
+                    nextNonBlank.isNotEmpty() &&
+                    (nextNonBlank[0].isLetterOrDigit() || nextNonBlank[0] == '_' || nextNonBlank[0] == '.')
+
+                if (!isContinuation) {
+                    val dotPos = lines[cursorLine].lastIndexOf('.')
+                    val beforeDot = lines[cursorLine].substring(0, dotPos).trimEnd()
+                    if (beforeDot.isNotEmpty() && (beforeDot.last().isLetterOrDigit() || beforeDot.last() == '_' || beforeDot.last() == ')' || beforeDot.last() == ']')) {
+                        lines[cursorLine] = lines[cursorLine].substring(0, dotPos + 1) + "toString()"
+                        patched = true
+                    }
+                }
+            }
+        }
+
+        return if (patched) lines.joinToString("\n") else content
+    }
+
+    private fun resolveToFqName(typeName: String, symbolTable: SymbolTable?): String {
+        if (typeName.contains('.')) return typeName
+
+        symbolTable?.imports?.forEach { import ->
+            if (!import.isStar) {
+                val importedName = import.alias ?: import.fqName.substringAfterLast('.')
+                if (importedName == typeName) return import.fqName
+            }
+        }
+
+        if (symbolTable != null) {
+            val pkg = symbolTable.packageName
+            val hasDeclaredType = symbolTable.classes.any { it.name == typeName }
+                || symbolTable.typeAliases.any { it.name == typeName }
+            if (hasDeclaredType) {
+                return if (pkg.isNotEmpty()) "$pkg.$typeName" else typeName
+            }
+        }
+
+        val projectMatches = projectIndex.findInProjectFiles(typeName).filter { it.kind.isClass }
+        if (projectMatches.isNotEmpty()) {
+            if (projectMatches.size == 1) return projectMatches.first().fqName
+            val samePackage = projectMatches.firstOrNull { it.packageName == symbolTable?.packageName }
+            return (samePackage ?: projectMatches.first()).fqName
+        }
+
+        symbolTable?.imports?.filter { it.isStar }?.forEach { import ->
+            val candidate = "${import.fqName}.$typeName"
+            if (projectIndex.findByFqName(candidate) != null) return candidate
+        }
+
+        val classpathIndex = projectIndex.getClasspathIndex()
+        if (classpathIndex != null) {
+            val matches = classpathIndex.findBySimpleName(typeName).filter { it.kind.isClass }
+            if (matches.size == 1) return matches.first().fqName
+        }
+
+        val stdlibIndex = projectIndex.getStdlibIndex()
+        if (stdlibIndex != null) {
+            val stdlibMatch = stdlibIndex.findBySimpleName(typeName).firstOrNull { it.kind.isClass }
+            if (stdlibMatch != null) return stdlibMatch.fqName
+        }
+
+        return typeName
+    }
+
+    private fun findStdlibMembersWithInheritance(
+        simpleTypeName: String,
+        stdlibIndex: StdlibIndex
+    ): List<IndexedSymbol> {
+        val visited = mutableSetOf<String>()
+        val result = mutableListOf<IndexedSymbol>()
+        val queue = ArrayDeque<String>()
+        queue.add(simpleTypeName)
+
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            if (!visited.add(current)) continue
+
+            val fqCandidates = stdlibIndex.findBySimpleName(current).filter { it.kind.isClass }
+            for (classSymbol in fqCandidates) {
+                result.addAll(stdlibIndex.findMembers(classSymbol.fqName))
+                classSymbol.superTypes.forEach { superType ->
+                    val superSimple = superType.substringAfterLast('.')
+                    if (superSimple !in visited) queue.add(superSimple)
+                }
+            }
+        }
+
+        val seen = mutableSetOf<String>()
+        return result.filter { member ->
+            val key = member.kind.name + ":" + member.name + "(" + member.parameters.joinToString(",") { it.type } + ")"
+            seen.add(key)
+        }
+    }
+
+    private fun findClasspathMembersWithInheritance(
+        classFqName: String,
+        classpathIndex: ClasspathIndex
+    ): List<IndexedSymbol> {
+        val visited = mutableSetOf<String>()
+        val result = mutableListOf<IndexedSymbol>()
+        val queue = ArrayDeque<String>()
+        queue.add(classFqName)
+
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            if (!visited.add(current)) continue
+
+            result.addAll(classpathIndex.findMembers(current))
+
+            val classSymbol = classpathIndex.findByFqName(current)
+            classSymbol?.superTypes?.forEach { superType ->
+                if (superType !in visited) queue.add(superType)
+            }
+        }
+
+        val seen = mutableSetOf<String>()
+        return result.filter { member ->
+            val key = member.kind.name + ":" + member.name + "(" + member.parameters.joinToString(",") { it.type } + ")"
+            seen.add(key)
+        }
+    }
+
     private fun resolveReceiverType(
         receiver: String,
         symbolTable: SymbolTable?,
@@ -583,6 +792,12 @@ class CompletionProvider(
         }
 
         return null
+    }
+
+    private fun isFilteredMember(name: String): Boolean {
+        if (name == "<init>" || name == "<clinit>") return true
+        if (name.startsWith("access$") || name.startsWith("$")) return true
+        return false
     }
 
     private fun createCompletionItem(

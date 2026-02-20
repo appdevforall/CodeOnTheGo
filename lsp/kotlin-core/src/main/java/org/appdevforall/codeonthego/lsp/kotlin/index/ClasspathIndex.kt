@@ -6,6 +6,7 @@ class ClasspathIndex : SymbolIndex {
     private val symbolsByFqName = mutableMapOf<String, IndexedSymbol>()
     private val symbolsByName = mutableMapOf<String, MutableList<IndexedSymbol>>()
     private val symbolsByPackage = mutableMapOf<String, MutableList<IndexedSymbol>>()
+    private val extensionsByReceiver = mutableMapOf<String, MutableList<IndexedSymbol>>()
     private val allSymbols = mutableListOf<IndexedSymbol>()
     private val sourceJars = mutableSetOf<String>()
 
@@ -55,6 +56,16 @@ class ClasspathIndex : SymbolIndex {
         return allSymbols.filter { it.containingClass == classFqName }
     }
 
+    fun findExtensionsFor(receiverType: String): List<IndexedSymbol> {
+        val results = mutableListOf<IndexedSymbol>()
+        extensionsByReceiver[receiverType]?.let { results.addAll(it) }
+        val simpleName = receiverType.substringAfterLast('.')
+        if (simpleName != receiverType) {
+            extensionsByReceiver[simpleName]?.let { results.addAll(it) }
+        }
+        return results
+    }
+
     fun hasPackage(packageName: String): Boolean {
         return symbolsByPackage.containsKey(packageName)
     }
@@ -81,8 +92,16 @@ class ClasspathIndex : SymbolIndex {
         symbolsByFqName[symbol.fqName] = symbol
         symbolsByName.getOrPut(symbol.name) { mutableListOf() }.add(symbol)
 
-        if (symbol.isTopLevel) {
+        if (symbol.isTopLevel && !symbol.isExtension) {
             symbolsByPackage.getOrPut(symbol.packageName) { mutableListOf() }.add(symbol)
+        }
+
+        if (symbol.isExtension && symbol.receiverType != null) {
+            extensionsByReceiver.getOrPut(symbol.receiverType) { mutableListOf() }.add(symbol)
+            val simpleName = symbol.receiverType.substringAfterLast('.')
+            if (simpleName != symbol.receiverType) {
+                extensionsByReceiver.getOrPut(simpleName) { mutableListOf() }.add(symbol)
+            }
         }
     }
 
@@ -103,6 +122,7 @@ class ClasspathIndex : SymbolIndex {
         symbolsByFqName.clear()
         symbolsByName.clear()
         symbolsByPackage.clear()
+        extensionsByReceiver.clear()
         sourceJars.clear()
     }
 
