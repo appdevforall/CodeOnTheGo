@@ -162,15 +162,22 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		buildOutputViewModel.append(text)
 		withContext(Dispatchers.Main) {
 			editor?.run {
-				withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-					awaitLayout(onForceVisible = {
-						emptyStateViewModel.setEmpty(false)
-					})
+				val layoutCompleted = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+					awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
 				}
-
-				appendBatch(text)
-
-				emptyStateViewModel.setEmpty(false)
+				if (layoutCompleted != null) {
+					appendBatch(text)
+					emptyStateViewModel.setEmpty(false)
+				} else {
+					// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
+					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+						editor?.run {
+							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+							appendBatch(text)
+							emptyStateViewModel.setEmpty(false)
+						}
+					}
+				}
 			}
 		}
 	}
