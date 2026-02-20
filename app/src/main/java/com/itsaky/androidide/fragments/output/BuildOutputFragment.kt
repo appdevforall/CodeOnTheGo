@@ -49,31 +49,30 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
 
-		viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
-			processLogs()
-		}
-
-		restoreWindowFromViewModel()
 		viewLifecycleOwner.lifecycleScope.launch {
-			val content = buildOutputViewModel.getFullContent()
-			buildOutputViewModel.setCachedSnapshot(content)
+			restoreWindowFromViewModel()
+			launch(Dispatchers.Default) { processLogs() }
+			launch {
+				val content = buildOutputViewModel.getFullContent()
+				buildOutputViewModel.setCachedSnapshot(content)
+			}
 		}
 	}
 
-	private fun restoreWindowFromViewModel() {
-		viewLifecycleOwner.lifecycleScope.launch {
-			val content = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-			if (content.isEmpty()) return@launch
-			withContext(Dispatchers.Main) {
-				val editor = this@BuildOutputFragment.editor ?: return@withContext
-				val layoutCompleted = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-					editor.awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
-				}
-				if (layoutCompleted != null) {
-					editor.appendBatch(content)
-					emptyStateViewModel.setEmpty(false)
-				} else {
-					// Timeout: defer append until layout is ready so content is not lost
+	private suspend fun restoreWindowFromViewModel() {
+		val content = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
+		if (content.isEmpty()) return
+		withContext(Dispatchers.Main) {
+			val editor = this@BuildOutputFragment.editor ?: return@withContext
+			val layoutCompleted = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+				editor.awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+			}
+			if (layoutCompleted != null) {
+				editor.appendBatch(content)
+				emptyStateViewModel.setEmpty(false)
+			} else {
+				// Timeout: defer append until layout is ready so content is not lost
+				val job =
 					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
 						editor.run {
 							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
@@ -81,7 +80,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 							emptyStateViewModel.setEmpty(false)
 						}
 					}
-				}
+				job.join()
 			}
 		}
 	}
