@@ -33,8 +33,8 @@ interface IEditorHandler {
   fun getEditorAtIndex(index: Int) : CodeEditorView?
   fun getEditorForFile(file: File) : CodeEditorView?
   
-  fun openFile(file: File) : CodeEditorView? = openFile(file, null)
-  fun openFile(file: File, selection: Range?) : CodeEditorView?
+  suspend fun openFile(file: File) : CodeEditorView? = openFile(file, null)
+  suspend fun openFile(file: File, selection: Range?) : CodeEditorView?
   fun openFileAndSelect(file: File, selection: Range?)
   fun openFileAndGetIndex(file: File, selection: Range?) : Int
   

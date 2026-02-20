@@ -62,7 +62,6 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
@@ -75,7 +74,6 @@ import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
@@ -454,37 +452,35 @@ open class EditorHandlerActivity :
 		file: File,
 		selection: Range?,
 	) {
-		openFile(file, selection)
+		lifecycleScope.launch {
+			val editorView = openFile(file, selection)
 
-		getEditorForFile(file)?.editor?.also { editor ->
-			editor.postInLifecycle {
-				if (selection == null) {
-					editor.setSelection(0, 0)
-					return@postInLifecycle
+			editorView?.editor?.also { editor ->
+				editor.postInLifecycle {
+					if (selection == null) {
+						editor.setSelection(0, 0)
+						return@postInLifecycle
+					}
+					editor.validateRange(selection)
+					editor.setSelection(selection)
 				}
-
-				editor.validateRange(selection)
-				editor.setSelection(selection)
 			}
 		}
 	}
 
-	override fun openFile(
+	override suspend fun openFile(
 		file: File,
 		selection: Range?,
-	): CodeEditorView? {
+	): CodeEditorView? = withContext(Dispatchers.Main) {
 		val range = selection ?: Range.NONE
-		val isImage = runBlocking {
-			withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
-		}
-
+		val isImage = withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
 		if (isImage) {
-			openImage(this, file)
-			return null
+			openImage(this@EditorHandlerActivity, file)
+			return@withContext null
 		}
 
 		val fileIndex = openFileAndGetIndex(file, range)
-		if (fileIndex < 0) return null
+		if (fileIndex < 0) return@withContext null
 
 		editorViewModel.startDrawerOpened = false
 		editorViewModel.displayedFileIndex = fileIndex
@@ -495,11 +491,21 @@ open class EditorHandlerActivity :
 			tab.select()
 		}
 
-		return try {
+		return@withContext try {
 			getEditorAtIndex(fileIndex)
 		} catch (th: Throwable) {
 			log.error("Unable to get editor at file index {}", fileIndex, th)
 			null
+		}
+	}
+
+	fun openFileAsync(
+		file: File,
+		selection: Range? = null,
+		onResult: (CodeEditorView?) -> Unit
+	) {
+		lifecycleScope.launch {
+			onResult(openFile(file, selection))
 		}
 	}
 
