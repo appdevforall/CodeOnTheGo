@@ -108,7 +108,7 @@
         android:layout_marginStart="5dp"
         android:layout_below="@id/palette_text"
         android:layout_toEndOf="@id/palette_navigation"
-        android:textColor="?attr/colorSecondaryVariant"
+        android:textColor="?attr/colorOnSurfaceVariant"
         android:text="Common"
         android:textSize="12sp"
         android:ellipsize="end"

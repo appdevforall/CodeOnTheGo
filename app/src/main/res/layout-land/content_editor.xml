@@ -131,7 +131,7 @@
                 android:gravity="start"
                 android:textAlignment="viewStart"
                 android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                android:textColor="?attr/colorSecondaryVariant"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="13sp"
                 android:paddingHorizontal="16dp"
                 app:layout_constraintEnd_toEndOf="parent"

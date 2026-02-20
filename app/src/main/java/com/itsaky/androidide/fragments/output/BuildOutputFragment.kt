@@ -84,7 +84,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	}
 
 	override fun getShareableContent(): String {
-		val fullContent = buildOutputViewModel.getFullContent()
+		val fullContent = kotlinx.coroutines.runBlocking { buildOutputViewModel.getFullContent() }
 		return if (fullContent.isEmpty()) "" else BuildInfoUtils.BASIC_INFO + System.lineSeparator() + fullContent
 	}
 
@@ -141,21 +141,24 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	/**
 	 * Performs the safe UI update on the Main Thread.
 	 *
+	 * Appends to the session file on a background dispatcher before switching to Main.
 	 * Uses [IDEEditor.awaitLayout] to guarantee the editor has physical dimensions (width > 0)
 	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
 	 */
-	private suspend fun flushToEditor(text: String) = withContext(Dispatchers.Main) {
+	private suspend fun flushToEditor(text: String) {
 		buildOutputViewModel.append(text)
-		editor?.run {
-			withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-				awaitLayout(onForceVisible = {
-					emptyStateViewModel.setEmpty(false)
-				})
+		withContext(Dispatchers.Main) {
+			editor?.run {
+				withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+					awaitLayout(onForceVisible = {
+						emptyStateViewModel.setEmpty(false)
+					})
+				}
+
+				appendBatch(text)
+
+				emptyStateViewModel.setEmpty(false)
 			}
-
-			appendBatch(text)
-
-			emptyStateViewModel.setEmpty(false)
 		}
 	}
 }

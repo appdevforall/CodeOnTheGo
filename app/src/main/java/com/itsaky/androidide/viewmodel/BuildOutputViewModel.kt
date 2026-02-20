@@ -25,6 +25,8 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.math.max
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * File-backed build output with a moving window in memory. All output is appended to a session
@@ -41,15 +43,20 @@ class BuildOutputViewModel(application: Application) : AndroidViewModel(applicat
     get() = File(getApplication<Application>().cacheDir, SESSION_FILE_NAME)
 
   /**
-   * Appends text to the session file. Call from main thread. File I/O is done under the lock.
+   * Appends text to the session file. File I/O is performed on a background dispatcher; call from
+   * any thread. Prefer calling before switching to Main so disk write does not block the UI.
    */
-  fun append(text: String) {
+  suspend fun append(text: String) {
     if (text.isEmpty()) return
-    lock.withLock {
-      try {
-        FileOutputStream(sessionFile, true).use { it.write(text.toByteArray(StandardCharsets.UTF_8)) }
-      } catch (e: Exception) {
-        log.error("Failed to append build output to session file", e)
+    withContext(Dispatchers.IO) {
+      lock.withLock {
+        try {
+          FileOutputStream(sessionFile, true).use {
+            it.write(text.toByteArray(StandardCharsets.UTF_8))
+          }
+        } catch (e: Exception) {
+          log.error("Failed to append build output to session file", e)
+        }
       }
     }
   }
@@ -65,16 +72,18 @@ class BuildOutputViewModel(application: Application) : AndroidViewModel(applicat
 
   /**
    * Returns the full build output from the session file. Used for [BuildOutputProvider.getBuildOutputContent]
-   * and share/copy. Returns empty string if no content.
+   * and share/copy. Returns empty string if no content. File I/O is performed on [Dispatchers.IO].
    */
-  fun getFullContent(): String =
-    lock.withLock {
-      if (!sessionFile.exists()) return ""
-      try {
-        sessionFile.readText()
-      } catch (e: Exception) {
-        log.error("Failed to read full build output from session file", e)
-        ""
+  suspend fun getFullContent(): String =
+    withContext(Dispatchers.IO) {
+      lock.withLock {
+        if (!sessionFile.exists()) return@withContext ""
+        try {
+          sessionFile.readText()
+        } catch (e: Exception) {
+          log.error("Failed to read full build output from session file", e)
+          ""
+        }
       }
     }
 
