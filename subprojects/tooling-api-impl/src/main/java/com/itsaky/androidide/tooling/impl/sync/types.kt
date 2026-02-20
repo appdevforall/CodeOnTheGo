@@ -18,13 +18,14 @@
 package com.itsaky.androidide.tooling.impl.sync
 
 import com.android.builder.model.v2.models.Versions
-import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import org.gradle.tooling.BuildController
 import org.gradle.tooling.CancellationToken
 import org.gradle.tooling.ProjectConnection
 import org.gradle.tooling.model.idea.IdeaModule
 import org.gradle.tooling.model.idea.IdeaProject
 import java.io.File
+import java.io.Serializable
 
 /**
  * Parameters for the root project model builder.
@@ -39,15 +40,12 @@ class RootProjectModelBuilderParams(
 	val cancellationToken: CancellationToken?,
 	val projectCacheFile: File,
 	val projectSyncMetaFile: File,
-	gradleArgs: List<String>,
-	jvmArgs: List<String>,
-) : GradleBuildParams(gradleArgs, jvmArgs) {
+	val clientConfig: ClientGradleBuildConfig?,
+): Serializable {
 	operator fun component1() = projectConnection
 	operator fun component2() = cancellationToken
 	operator fun component3() = projectCacheFile
 	operator fun component4() = projectSyncMetaFile
-	operator fun component5() = gradleArgs
-	operator fun component6() = jvmArgs
 }
 
 /**
