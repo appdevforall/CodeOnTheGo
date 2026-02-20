@@ -63,14 +63,23 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	private fun restoreWindowFromViewModel() {
 		viewLifecycleOwner.lifecycleScope.launch {
 			val content = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-			if (content.isNotEmpty()) {
-				withContext(Dispatchers.Main) {
-					editor?.run {
-						withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+			if (content.isEmpty()) return@launch
+			withContext(Dispatchers.Main) {
+				val editor = this@BuildOutputFragment.editor ?: return@withContext
+				val layoutCompleted = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+					editor.awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+				}
+				if (layoutCompleted != null) {
+					editor.appendBatch(content)
+					emptyStateViewModel.setEmpty(false)
+				} else {
+					// Timeout: defer append until layout is ready so content is not lost
+					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+						editor.run {
 							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+							appendBatch(content)
+							emptyStateViewModel.setEmpty(false)
 						}
-						appendBatch(content)
-						emptyStateViewModel.setEmpty(false)
 					}
 				}
 			}

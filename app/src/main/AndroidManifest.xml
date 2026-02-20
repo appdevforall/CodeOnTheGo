@@ -88,7 +88,6 @@
             android:exported="false" />
         <activity
             android:name=".activities.MainActivity"
-            android:configChanges="orientation|screenSize"
             android:exported="false"
             android:theme="@style/Theme.AndroidIDE" />
         <activity
@@ -101,9 +100,7 @@
         <activity
             android:name=".activities.PluginManagerActivity"
             android:configChanges="orientation|screenSize" />
-        <activity
-            android:name=".activities.AboutActivity"
-            android:configChanges="orientation|screenSize" />
+        <activity android:name=".activities.AboutActivity" />
         <activity
             android:name=".activities.editor.FAQActivity"
             android:configChanges="orientation|screenSize" />

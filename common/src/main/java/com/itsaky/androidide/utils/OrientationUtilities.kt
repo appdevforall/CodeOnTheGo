@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.utils
 
-import android.content.Context
 import android.content.pm.ActivityInfo
 
 class OrientationUtilities {
@@ -29,7 +28,7 @@ class OrientationUtilities {
             function.invoke()
         }
 
-        fun setAdaptiveOrientation(context: Context, setRequestedOrientation: (Int) -> Unit) {
+        fun setAdaptiveOrientation(setRequestedOrientation: (Int) -> Unit) {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
         }
     }

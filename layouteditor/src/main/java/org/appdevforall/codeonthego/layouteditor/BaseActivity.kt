@@ -22,7 +22,7 @@ open class BaseActivity : AppCompatActivity() {
     app = LayoutEditor.instance
     window.statusBarColor = SurfaceColors.SURFACE_0.getColor(this)
     OrientationUtilities.setOrientation {
-      OrientationUtilities.setAdaptiveOrientation(this) { requestedOrientation = it }
+      OrientationUtilities.setAdaptiveOrientation { requestedOrientation = it }
     }
 
       // Set status bar icons to be dark in light mode and light in dark mode
