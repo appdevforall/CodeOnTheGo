@@ -19,10 +19,6 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.content.pm.ActivityInfo
-import android.content.res.Configuration
-import android.util.DisplayMetrics
-import android.view.Surface
-import android.view.WindowManager
 
 class OrientationUtilities {
 
@@ -36,26 +32,6 @@ class OrientationUtilities {
         fun setAdaptiveOrientation(context: Context, setRequestedOrientation: (Int) -> Unit) {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
         }
-
-        fun getDeviceDefaultOrientation(context: Context): Int {
-            val display =
-                (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-            val rotation = display.rotation
-            val metrics = DisplayMetrics()
-            display.getMetrics(metrics)
-
-            val width = metrics.widthPixels
-            val height = metrics.heightPixels
-
-            return if ((rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) &&
-                height > width || (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) && width > height
-            ) {
-                Configuration.ORIENTATION_PORTRAIT
-            } else {
-                Configuration.ORIENTATION_LANDSCAPE
-            }
-        }
-
     }
 
 }
