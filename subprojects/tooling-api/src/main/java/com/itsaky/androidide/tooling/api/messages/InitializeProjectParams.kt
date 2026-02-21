@@ -35,7 +35,6 @@ class InitializeProjectParams
 		val gradleDistribution: GradleDistributionParams = GradleDistributionParams.WRAPPER,
 		val androidParams: AndroidInitializationParams = AndroidInitializationParams.DEFAULT,
 		val needsGradleSync: Boolean = true,
-		gradleArgs: List<String> = emptyList(),
-		jvmArgs: List<String> = emptyList(),
-	) : GradleBuildParams(gradleArgs, jvmArgs),
-		Serializable
+		val buildId: BuildId,
+		val buildParams: GradleBuildParams = GradleBuildParams(),
+	) : Serializable

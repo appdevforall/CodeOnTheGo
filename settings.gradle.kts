@@ -123,6 +123,7 @@ include(
 	":eventbus",
 	":eventbus-android",
 	":eventbus-events",
+    ":git-core",
 	":gradle-plugin",
 	":gradle-plugin-config",
 	":idetooltips",

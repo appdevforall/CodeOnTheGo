@@ -204,7 +204,7 @@ object RootModelBuilder :
 				return@action projectCacheFile
 			}
 
-		executor.configureFrom(initializeParams)
+		executor.configureFrom(param.clientConfig, initializeParams.buildParams)
 		applyAndroidModelBuilderProps(executor)
 
 		if (cancellationToken != null) {
