@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.ComponentName
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
@@ -40,6 +41,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -596,6 +599,7 @@ abstract class BaseEditorActivity :
 		}
 
 		setupToolbar()
+		syncProjectToolbarRowForOrientation(resources.configuration.orientation)
 		setupDrawers()
 		content.tabs.addOnTabSelectedListener(this)
 
@@ -629,6 +633,11 @@ abstract class BaseEditorActivity :
 		observeFileOperations()
 
 		setupGestureDetector()
+	}
+
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+		syncProjectToolbarRowForOrientation(newConfig.orientation)
 	}
 
 	private fun setupToolbar() {
@@ -679,6 +688,84 @@ abstract class BaseEditorActivity :
 					}
 				}
 			}
+		}
+	}
+
+	private fun syncProjectToolbarRowForOrientation(currentOrientation: Int) {
+		val appBar = content.editorAppBarLayout
+		val titleToolbar = content.titleToolbar
+		val actionsToolbar = content.projectActionsToolbar
+
+		val titleParent = titleToolbar.parent as? ViewGroup ?: return
+		val actionsParent = actionsToolbar.parent as? ViewGroup ?: return
+		if (titleParent != actionsParent) return
+
+		val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+
+		if (isLandscape && titleParent === appBar) {
+			val insertAt = appBar.indexOfChild(titleToolbar).coerceAtLeast(0)
+			val row =
+				LinearLayout(this).apply {
+					orientation = LinearLayout.HORIZONTAL
+					gravity = Gravity.CENTER_VERTICAL
+					layoutParams =
+						com.google.android.material.appbar.AppBarLayout.LayoutParams(
+							ViewGroup.LayoutParams.MATCH_PARENT,
+							ViewGroup.LayoutParams.WRAP_CONTENT,
+						)
+				}
+
+			appBar.removeView(titleToolbar)
+			appBar.removeView(actionsToolbar)
+
+			titleToolbar.layoutParams =
+				LinearLayout.LayoutParams(
+					0,
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+					1f,
+				)
+			actionsToolbar.layoutParams =
+				LinearLayout.LayoutParams(
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+				).apply { marginEnd = SizeUtils.dp2px(8f) }
+
+			content.root.findViewById<TextView>(R.id.title_text)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+				marginEnd = SizeUtils.dp2px(8f)
+			}
+
+			row.addView(titleToolbar)
+			row.addView(actionsToolbar)
+			appBar.addView(row, insertAt)
+			return
+		}
+
+		if (!isLandscape && titleParent is LinearLayout && titleParent.parent === appBar) {
+			val row = titleParent
+			val insertAt = appBar.indexOfChild(row).coerceAtLeast(0)
+			row.removeView(titleToolbar)
+			row.removeView(actionsToolbar)
+			appBar.removeView(row)
+
+			titleToolbar.layoutParams =
+				com.google.android.material.appbar.AppBarLayout.LayoutParams(
+					ViewGroup.LayoutParams.MATCH_PARENT,
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+				)
+			actionsToolbar.layoutParams =
+				com.google.android.material.appbar.AppBarLayout.LayoutParams(
+					ViewGroup.LayoutParams.MATCH_PARENT,
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+				).apply {
+					topMargin = SizeUtils.dp2px(4f)
+				}
+
+			content.root.findViewById<TextView>(R.id.title_text)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+				marginEnd = SizeUtils.dp2px(16f)
+			}
+
+			appBar.addView(titleToolbar, insertAt)
+			appBar.addView(actionsToolbar, insertAt + 1)
 		}
 	}
 
