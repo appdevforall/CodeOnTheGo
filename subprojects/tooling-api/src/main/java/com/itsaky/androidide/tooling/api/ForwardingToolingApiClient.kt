@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.tooling.api
 
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.api.messages.result.BuildResult
@@ -25,42 +26,38 @@ import com.itsaky.androidide.tooling.events.ProgressEvent
 import java.util.concurrent.CompletableFuture
 
 /**
- * A [IToolingApiClient] which forwards all of its calls to the given client.
+ * A [IToolingApiClient] which forwards all of its calls to the given
+ * client.
  *
  * @author Akash Yadav
  */
-class ForwardingToolingApiClient(var client: IToolingApiClient?) : IToolingApiClient {
+class ForwardingToolingApiClient(
+	var client: IToolingApiClient?,
+) : IToolingApiClient {
+	override fun logMessage(params: LogMessageParams) {
+		client?.logMessage(params)
+	}
 
-  override fun logMessage(params: LogMessageParams) {
-    client?.logMessage(params)
-  }
+	override fun logOutput(line: String) {
+		client?.logOutput(line)
+	}
 
-  override fun logOutput(line: String) {
-    client?.logOutput(line)
-  }
+	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
+		client?.prepareBuild(buildInfo) ?: CompletableFuture.completedFuture(ClientGradleBuildConfig())
 
-  override fun prepareBuild(buildInfo: BuildInfo) {
-    client?.prepareBuild(buildInfo)
-  }
+	override fun onBuildSuccessful(result: BuildResult) {
+		client?.onBuildSuccessful(result)
+	}
 
-  override fun onBuildSuccessful(result: BuildResult) {
-    client?.onBuildSuccessful(result)
-  }
+	override fun onBuildFailed(result: BuildResult) {
+		client?.onBuildFailed(result)
+	}
 
-  override fun onBuildFailed(result: BuildResult) {
-    client?.onBuildFailed(result)
-  }
+	override fun onProgressEvent(event: ProgressEvent) {
+		client?.onProgressEvent(event)
+	}
 
-  override fun onProgressEvent(event: ProgressEvent) {
-    client?.onProgressEvent(event)
-  }
-
-  override fun getBuildArguments(): CompletableFuture<List<String>> {
-    return client?.getBuildArguments() ?: CompletableFuture.completedFuture(emptyList())
-  }
-
-  override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> {
-    return client?.checkGradleWrapperAvailability()
-      ?: CompletableFuture.completedFuture(GradleWrapperCheckResult(false))
-  }
+	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
+		client?.checkGradleWrapperAvailability()
+			?: CompletableFuture.completedFuture(GradleWrapperCheckResult(false))
 }

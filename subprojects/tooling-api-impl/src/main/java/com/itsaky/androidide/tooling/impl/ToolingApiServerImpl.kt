@@ -19,6 +19,7 @@ package com.itsaky.androidide.tooling.impl
 
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionType
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
@@ -63,6 +64,7 @@ import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -85,20 +87,14 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		get() = cancellationTokenAccessLock.withLock { _buildCancellationToken }
 		set(value) = cancellationTokenAccessLock.withLock { _buildCancellationToken = value }
 
-	/**
-	 * Whether the project has been initialized or not.
-	 */
+	/** Whether the project has been initialized or not. */
 	var isInitialized: Boolean = false
 		private set
 
-	/**
-	 * Whether a build or project synchronization is in progress.
-	 */
+	/** Whether a build or project synchronization is in progress. */
 	private var isBuildInProgress: Boolean = false
 
-	/**
-	 * Whether the server has a live connection to Gradle.
-	 */
+	/** Whether the server has a live connection to Gradle. */
 	val isConnected: Boolean
 		get() = connector != null || connection != null
 
@@ -142,18 +138,28 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 	override fun initialize(params: InitializeProjectParams): CompletableFuture<InitializeResult> {
 		return runBuild {
+			val start = System.currentTimeMillis()
 			try {
-				return@runBuild doInitialize(params)
+				return@runBuild doInitialize(params, start)
 			} catch (err: Throwable) {
 				log.error("Failed to initialize project", err)
-				notifyBuildFailure(emptyList())
+				notifyBuildFailure(
+					BuildResult(
+						tasks = emptyList(),
+						buildId = params.buildId,
+						durationMs = System.currentTimeMillis() - start,
+					),
+				)
 				return@runBuild InitializeResult.Failure(getTaskFailureType(err))
 			}
 		}
 	}
 
 	@VisibleForTesting
-	internal fun doInitialize(params: InitializeProjectParams): InitializeResult {
+	internal fun doInitialize(
+		params: InitializeProjectParams,
+		start: Long,
+	): InitializeResult {
 		log.debug("Received project initialization request with params: {}", params)
 
 		if (params.gradleDistribution.type == GradleDistributionType.GRADLE_WRAPPER) {
@@ -199,23 +205,47 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		if (params.needsGradleSync || !ProjectSyncHelper.areSyncFilesReadable(projectDir)) {
 			val cancellationToken = GradleConnector.newCancellationTokenSource()
 			buildCancellationToken = cancellationToken
-			notifyBeforeBuild(BuildInfo(emptyList()))
+
+			val buildInfo = BuildInfo(params.buildId, emptyList())
+			val clientConfig = doPrepareBuild(buildInfo)
+
 			val modelBuilderParams =
 				RootProjectModelBuilderParams(
 					projectConnection = connection,
 					cancellationToken = cancellationToken.token(),
 					projectCacheFile = cacheFile,
 					projectSyncMetaFile = syncMetaFile,
-					gradleArgs = params.gradleArgs,
-					jvmArgs = params.jvmArgs,
+					clientConfig = clientConfig,
 				)
 
 			RootModelBuilder.build(params, modelBuilderParams)
-			notifyBuildSuccess(emptyList())
+			notifyBuildSuccess(
+				BuildResult(
+					tasks = emptyList(),
+					buildId = params.buildId,
+					durationMs = System.currentTimeMillis() - start,
+				),
+			)
 		}
 
 		stopWatch.log()
 		return InitializeResult.Success(cacheFile)
+	}
+
+	private fun doPrepareBuild(buildInfo: BuildInfo): ClientGradleBuildConfig? {
+		val clientConfig =
+			runCatching {
+				client?.prepareBuild(buildInfo)?.get(30, TimeUnit.SECONDS)
+			}.onFailure { err ->
+				log.error("An error occurred while preparing build", err)
+				if (err is InterruptedException) {
+					Thread.currentThread().interrupt()
+				}
+			}.getOrDefault(null)
+
+		log.debug("got client config: {} (client={})", clientConfig, client)
+
+		return clientConfig
 	}
 
 	@VisibleForTesting
@@ -231,6 +261,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		return runBuild {
+			val start = System.currentTimeMillis()
 			if (!isServerInitialized().get()) {
 				log.error("Cannot execute tasks: {}", PROJECT_NOT_INITIALIZED)
 				return@runBuild TaskExecutionResult(false, PROJECT_NOT_INITIALIZED)
@@ -257,6 +288,9 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 			val builder = connection.newBuild()
 
+			val buildInfo = BuildInfo(message.buildId, message.tasks)
+			val clientConfig = doPrepareBuild(buildInfo)
+
 			// System.in and System.out are used for communication between this server and the
 			// client.
 			val out = LoggingOutputStream()
@@ -264,20 +298,33 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			builder.setStandardError(out)
 			builder.setStandardOutput(out)
 			builder.forTasks(*message.tasks.filter { it.isNotBlank() }.toTypedArray())
-			builder.configureFrom(message)
+			builder.configureFrom(clientConfig, message.buildParams)
 
 			this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
 			builder.withCancellationToken(this.buildCancellationToken!!.token())
 
-			notifyBeforeBuild(BuildInfo(message.tasks))
-
 			try {
 				builder.run()
 				this.buildCancellationToken = null
-				notifyBuildSuccess(message.tasks)
+				notifyBuildSuccess(
+					result =
+						BuildResult(
+							tasks = message.tasks,
+							buildId = message.buildId,
+							durationMs = System.currentTimeMillis() - start,
+						),
+				)
 				return@runBuild TaskExecutionResult.SUCCESS
 			} catch (error: Throwable) {
-				notifyBuildFailure(message.tasks)
+				log.error("Failed to run tasks: {}", message.tasks, error)
+				notifyBuildFailure(
+					result =
+						BuildResult(
+							tasks = message.tasks,
+							buildId = message.buildId,
+							durationMs = System.currentTimeMillis() - start,
+						),
+				)
 				return@runBuild TaskExecutionResult(false, getTaskFailureType(error))
 			}
 		}
@@ -310,16 +357,12 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		}
 	}
 
-	private fun notifyBuildFailure(tasks: List<String>) {
-		client?.onBuildFailed(BuildResult((tasks)))
+	private fun notifyBuildFailure(result: BuildResult) {
+		client?.onBuildFailed(result)
 	}
 
-	private fun notifyBuildSuccess(tasks: List<String>) {
-		client?.onBuildSuccessful(BuildResult(tasks))
-	}
-
-	private fun notifyBeforeBuild(buildInfo: BuildInfo) {
-		client?.prepareBuild(buildInfo)
+	private fun notifyBuildSuccess(result: BuildResult) {
+		client?.onBuildSuccessful(result)
 	}
 
 	override fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult> {
