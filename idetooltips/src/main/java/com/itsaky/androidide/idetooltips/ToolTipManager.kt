@@ -279,7 +279,7 @@ object TooltipManager {
         val linkColorHex =
             getColor(
                 context,
-                if (isDarkMode) ResR.color.tooltip_link_color_dark
+                if (isDarkMode) ResR.color.brand_color
                 else ResR.color.tooltip_link_color_light,
             ).toCssHex()
 
