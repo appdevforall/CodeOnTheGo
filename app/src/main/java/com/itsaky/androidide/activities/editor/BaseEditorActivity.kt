@@ -703,7 +703,11 @@ abstract class BaseEditorActivity :
 		val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
 
 		if (isLandscape && titleParent === appBar) {
-			val insertAt = appBar.indexOfChild(titleToolbar).coerceAtLeast(0)
+			val insertAt =
+				minOf(
+					appBar.indexOfChild(titleToolbar),
+					appBar.indexOfChild(actionsToolbar),
+				).coerceAtLeast(0)
 			val row =
 				LinearLayout(this).apply {
 					orientation = LinearLayout.HORIZONTAL
