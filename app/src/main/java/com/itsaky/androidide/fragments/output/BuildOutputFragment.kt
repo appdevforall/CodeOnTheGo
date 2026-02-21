@@ -18,10 +18,13 @@ package com.itsaky.androidide.fragments.output
 
 import android.os.Bundle
 import android.view.View
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -30,6 +33,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 class BuildOutputFragment : NonEditableEditorFragment() {
+
+	private val buildOutputViewModel: BuildOutputViewModel by activityViewModels()
+
 	companion object {
 		private const val LAYOUT_TIMEOUT_MS = 2000L
 	}
@@ -43,14 +49,55 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		editor?.tag = TooltipTag.PROJECT_BUILD_OUTPUT
 		emptyStateViewModel.setEmptyMessage(getString(R.string.msg_emptyview_buildoutput))
 
-		viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
-			processLogs()
+		viewLifecycleOwner.lifecycleScope.launch {
+			restoreWindowFromViewModel()
+			launch(Dispatchers.Default) { processLogs() }
+			launch {
+				val content = buildOutputViewModel.getFullContent()
+				buildOutputViewModel.setCachedSnapshot(content)
+			}
+		}
+	}
+
+	private suspend fun restoreWindowFromViewModel() {
+		val content = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
+		if (content.isEmpty()) return
+		withContext(Dispatchers.Main) {
+			val editor = this@BuildOutputFragment.editor ?: return@withContext
+			val layoutCompleted = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+				editor.awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+			}
+			if (layoutCompleted != null) {
+				editor.appendBatch(content)
+				emptyStateViewModel.setEmpty(false)
+			} else {
+				// Timeout: defer append until layout is ready so content is not lost
+				val job =
+					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+						editor.run {
+							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+							appendBatch(content)
+							emptyStateViewModel.setEmpty(false)
+						}
+					}
+				job.join()
+			}
 		}
 	}
 
 	override fun onDestroyView() {
 		editor?.release()
 		super.onDestroyView()
+	}
+
+	override fun clearOutput() {
+		buildOutputViewModel.clear()
+		super.clearOutput()
+	}
+
+	override fun getShareableContent(): String {
+		val snapshot = buildOutputViewModel.getCachedContentSnapshot()
+		return if (snapshot.isEmpty()) "" else BuildInfoUtils.BASIC_INFO + System.lineSeparator() + snapshot
 	}
 
 	fun appendOutput(output: String?) {
@@ -106,20 +153,31 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	/**
 	 * Performs the safe UI update on the Main Thread.
 	 *
+	 * Appends to the session file on a background dispatcher before switching to Main.
 	 * Uses [IDEEditor.awaitLayout] to guarantee the editor has physical dimensions (width > 0)
 	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
 	 */
-	private suspend fun flushToEditor(text: String) = withContext(Dispatchers.Main) {
-		editor?.run {
-			withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-				awaitLayout(onForceVisible = {
+	private suspend fun flushToEditor(text: String) {
+		buildOutputViewModel.append(text)
+		withContext(Dispatchers.Main) {
+			editor?.run {
+				val layoutCompleted = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+					awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+				}
+				if (layoutCompleted != null) {
+					appendBatch(text)
 					emptyStateViewModel.setEmpty(false)
-				})
+				} else {
+					// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
+					viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+						editor?.run {
+							awaitLayout(onForceVisible = { emptyStateViewModel.setEmpty(false) })
+							appendBatch(text)
+							emptyStateViewModel.setEmpty(false)
+						}
+					}
+				}
 			}
-
-			appendBatch(text)
-
-			emptyStateViewModel.setEmpty(false)
 		}
 	}
 }

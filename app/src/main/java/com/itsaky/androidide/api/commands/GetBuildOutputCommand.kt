@@ -3,7 +3,6 @@ package com.itsaky.androidide.api.commands
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.BuildOutputProvider
 
-
 class GetBuildOutputCommand : Command<Unit> {
     override fun execute(): ToolResult {
         return try {

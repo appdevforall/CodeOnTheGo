@@ -17,12 +17,7 @@
 
 package com.itsaky.androidide.utils
 
-import android.content.Context
 import android.content.pm.ActivityInfo
-import android.content.res.Configuration
-import android.util.DisplayMetrics
-import android.view.Surface
-import android.view.WindowManager
 
 class OrientationUtilities {
 
@@ -33,46 +28,8 @@ class OrientationUtilities {
             function.invoke()
         }
 
-        fun setAdaptiveOrientation(context: Context, setRequestedOrientation: (Int) -> Unit) {
-            if (isLargeScreen(context)) {
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
-            } else {
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-            }
-        }
-
-        fun getDeviceDefaultOrientation(context: Context): Int {
-            val display =
-                (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-            val rotation = display.rotation
-            val metrics = DisplayMetrics()
-            display.getMetrics(metrics)
-
-            val width = metrics.widthPixels
-            val height = metrics.heightPixels
-
-            return if ((rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) &&
-                height > width || (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) && width > height
-            ) {
-                Configuration.ORIENTATION_PORTRAIT
-            } else {
-                Configuration.ORIENTATION_LANDSCAPE
-            }
-        }
-
-        private fun isTablet(context: Context): Boolean {
-            return ((context.resources.configuration.screenLayout
-                    and Configuration.SCREENLAYOUT_SIZE_MASK)
-                    >= Configuration.SCREENLAYOUT_SIZE_LARGE)
-        }
-
-        private fun isLargeScreen(context: Context): Boolean {
-            val config = context.resources.configuration
-            val sizeMask = config.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK
-            val hasSw =
-                config.smallestScreenWidthDp != Configuration.SMALLEST_SCREEN_WIDTH_DP_UNDEFINED
-            val isSwLarge = hasSw && config.smallestScreenWidthDp >= 600
-            return isSwLarge || sizeMask >= Configuration.SCREENLAYOUT_SIZE_LARGE
+        fun setAdaptiveOrientation(setRequestedOrientation: (Int) -> Unit) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
         }
     }
 

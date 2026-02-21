@@ -6,8 +6,7 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingHorizontal="16dp"
-    android:layout_marginTop="12dp">
+    android:paddingHorizontal="8dp">
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/search_project_input_layout"

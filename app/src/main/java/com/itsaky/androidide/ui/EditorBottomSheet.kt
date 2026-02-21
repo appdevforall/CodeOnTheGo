@@ -67,6 +67,7 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
+import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
@@ -118,6 +119,7 @@ constructor(
 
 	private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 	private val apkViewModel by (context as FragmentActivity).viewModels<ApkInstallationViewModel>()
+	private val buildOutputViewModel by (context as FragmentActivity).viewModels<BuildOutputViewModel>()
 	private lateinit var mediator: TabLayoutMediator
 	private var shareJob: Job? = null
 
@@ -212,8 +214,9 @@ constructor(
 
 			shareJob = context.lifecycleScope.launch {
 				try {
-					val filename = fragment.getShareableFilename()
-					val content = fragment.getShareableContent()
+					val (filename, content) = withContext(Dispatchers.IO) {
+						fragment.getShareableFilename() to fragment.getShareableContent()
+					}
 
 					if (!isAttachedToWindow) return@launch
 					shareText(text = content, type = filename)
