@@ -35,6 +35,7 @@ class WebServer(private val config: ServerConfig) {
     private          var databaseTimestamp: Long = -1
     private          val log = LoggerFactory.getLogger(WebServer::class.java)
     private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
+    private          var experimentsEnabled: Boolean = File(config.experimentsEnablePath).exists()
     private          val encodingHeader : String = "Accept-Encoding"
     private          var brotliSupported = false
     private          val brotliCompression : String = "br"
@@ -440,7 +441,7 @@ WHERE  path = ?
 
     private fun handleExEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
-        val flag = if (File(config.experimentsEnablePath).exists())  "{}" else "{display: none;}"
+        val flag = if (experimentsEnabled)  "{}" else "{display: none;}"
 
         if (debugEnabled) log.debug("Experiment flag='$flag'.")
 
@@ -457,13 +458,7 @@ WHERE  path = ?
                                                           null,
                                                           SQLiteDatabase.OPEN_READONLY)
 
-            if (projectDatabase == null) {
-                log.error("Error handling /pr/pr endpoint 2. Could not open ${config.projectDatabasePath}.")
-                sendError(writer, output, 500, "Internal Server Error 5", "Error accessing database 2")
-
-            } else {
-                realHandlePrEndpoint(writer, output, projectDatabase)
-            }
+            realHandlePrEndpoint(writer, output, projectDatabase)
 
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
