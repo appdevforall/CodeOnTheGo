@@ -148,7 +148,9 @@ FROM   LastChange
                             log.error("Error handling client: {}", e.message)
                             clientSocket?.let { socket ->
                                 try {
-                                    sendError(PrintWriter(socket.getOutputStream(), true), socket.getOutputStream(), 500, "Internal Server Error 1")
+                                    val output = socket.outputStream
+
+                                    sendError(PrintWriter(output, true), output, 500, "Internal Server Error 1")
 
                                 } catch (e2: Exception) {
                                     log.error("Error sending error response: {}", e2.message)
@@ -160,6 +162,7 @@ FROM   LastChange
                 } finally {
                     clientSocket?.close()
 
+                    // CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
                     if (debugEnabled) log.debug("Closed clientSocket {}.", clientSocket)
                 }
             }
@@ -609,6 +612,7 @@ Connection: close
         writer.println("""HTTP/1.1 200 OK
 Content-Type: text/css; charset=utf-8
 Content-Length: ${bodyBytes.size}
+Cache-Control: no-store
 Connection: close
 """)
 
