@@ -35,7 +35,7 @@ class WebServer(private val config: ServerConfig) {
     private          var databaseTimestamp: Long = -1
     private          val log = LoggerFactory.getLogger(WebServer::class.java)
     private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
-    private          var experimentsEnabled: Boolean = File(config.experimentsEnablePath).exists()
+    private          var experimentsEnabled: Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader : String = "Accept-Encoding"
     private          var brotliSupported = false
     private          val brotliCompression : String = "br"
@@ -99,8 +99,16 @@ FROM   LastChange
 
     fun start() {
         try {
-            log.info("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.",
-                     config.bindName, config.port, debugEnabled, config.debugEnablePath, config.debugDatabasePath)
+            log.info(
+                "Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}', experimentsEnabled={}, experimentsEnablePath='{}'.",
+                config.bindName,
+                config.port,
+                debugEnabled,
+                config.debugEnablePath,
+                config.debugDatabasePath,
+                experimentsEnabled,
+                config.experimentsEnablePath
+            )
 
             databaseTimestamp = getDatabaseTimestamp(config.databasePath)
 
@@ -262,8 +270,8 @@ WHERE  C.contentTypeID = CT.id
         val cursor = database.rawQuery(query, arrayOf(path))
         val rowCount = cursor.count
 
-        if (debugEnabled) log.debug("Database fetch for path='$path' returned $rowCount rows."
-        )
+        if (debugEnabled) log.debug("Database fetch for path='$path' returned $rowCount rows.")
+
         var dbContent   : ByteArray
         var dbMimeType  : String
         var compression : String
