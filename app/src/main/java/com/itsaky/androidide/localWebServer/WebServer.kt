@@ -35,7 +35,7 @@ class WebServer(private val config: ServerConfig) {
     private          var databaseTimestamp: Long = -1
     private          val log = LoggerFactory.getLogger(WebServer::class.java)
     private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
-    private          var experimentsEnabled: Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
+    private          val experimentsEnabled: Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader : String = "Accept-Encoding"
     private          var brotliSupported = false
     private          val brotliCompression : String = "br"
