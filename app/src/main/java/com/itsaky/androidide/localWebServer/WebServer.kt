@@ -126,7 +126,7 @@ FROM   LastChange
                         if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
 
                     } catch (e: java.net.SocketException) {
-                        if (debugEnabled) log.debug("Caught java.net.SocketException '" + e + "'.")
+                        if (debugEnabled) log.debug("Caught java.net.SocketException '{}'.", e)
 
                         if (e.message?.contains("Closed", ignoreCase = true) == true) {
                             if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
@@ -139,7 +139,7 @@ FROM   LastChange
                         clientSocket?.let { handleClient(it) }
 
                     } catch (e: Exception) {
-                        if (debugEnabled) log.debug("Caught exception '" + e + ".")
+                        if (debugEnabled) log.debug("Caught exception '{}'.", e)
 
                         if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
                             if (debugEnabled) log.debug("Client disconnected: {}", e.message)
@@ -587,14 +587,15 @@ Connection: close
         if (debugEnabled) log.debug("Entering sendError(), code=$code, message='$message', details='$details'.")
 
         val messageString = "$code $message" + if (details.isEmpty()) "" else "\n$details"
+        val bodyBytes = messageString.toByteArray(Charsets.UTF_8)
 
-        writer.print("""HTTP/1.1 $code $message
-Content-Type: text/plain
-Content-Length: ${messageString.length}
+        writer.println("""HTTP/1.1 $code $message
+Content-Type: text/plain; charset=utf-8
+Content-Length: ${bodyBytes.size}
 Connection: close
-
-$messageString""")
+""")
         writer.flush()
+        output.write(bodyBytes)
         output.flush()
 
         if (debugEnabled) log.debug("Leaving sendError().")
@@ -603,14 +604,16 @@ $messageString""")
     private fun sendCSS(writer: PrintWriter, output: java.io.OutputStream, message: String) {
         if (debugEnabled) log.debug("Entering sendCSS(), message='$message'.")
 
-        writer.print("""HTTP/1.1 200 OK
-Content-Type: text/css
-Content-Length: ${message.length}
-Connection: close
+        val bodyBytes = message.toByteArray(Charsets.UTF_8)
 
-$message""")
+        writer.println("""HTTP/1.1 200 OK
+Content-Type: text/css; charset=utf-8
+Content-Length: ${bodyBytes.size}
+Connection: close
+""")
 
         writer.flush()
+        output.write(bodyBytes)
         output.flush()
 
         if (debugEnabled) log.debug("Leaving sendCSS().")
