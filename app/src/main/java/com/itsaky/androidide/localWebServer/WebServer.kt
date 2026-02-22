@@ -98,7 +98,7 @@ FROM   LastChange
 
     fun start() {
         try {
-            log.debug("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.", 
+            log.info("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.",
                      config.bindName, config.port, debugEnabled, config.debugEnablePath, config.debugDatabasePath)
 
             databaseTimestamp = getDatabaseTimestamp(config.databasePath)
@@ -122,8 +122,12 @@ FROM   LastChange
                 try {
                     try {
                         clientSocket = serverSocket.accept()
-                        if (debugEnabled) log.debug("Returned from socket accept().")
+
+                        if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
+
                     } catch (e: java.net.SocketException) {
+                        if (debugEnabled) log.debug("Caught java.net.SocketException '" + e + "'.")
+
                         if (e.message?.contains("Closed", ignoreCase = true) == true) {
                             if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
                             break
@@ -133,14 +137,18 @@ FROM   LastChange
                     }
                     try {
                         clientSocket?.let { handleClient(it) }
+
                     } catch (e: Exception) {
+                        if (debugEnabled) log.debug("Caught exception '" + e + ".")
+
                         if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
                             if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+
                         } else {
                             log.error("Error handling client: {}", e.message)
                             clientSocket?.let { socket ->
                                 try {
-                                    sendError(PrintWriter(socket.getOutputStream(), true), 500, "Internal Server Error 1")
+                                    sendError(PrintWriter(socket.getOutputStream(), true), socket.getOutputStream(), 500, "Internal Server Error 1")
 
                                 } catch (e2: Exception) {
                                     log.error("Error sending error response: {}", e2.message)
@@ -151,6 +159,8 @@ FROM   LastChange
 
                 } finally {
                     clientSocket?.close()
+
+                    if (debugEnabled) log.debug("Closed clientSocket {}.", clientSocket)
                 }
             }
 
@@ -165,20 +175,32 @@ FROM   LastChange
     }
 
     private fun handleClient(clientSocket: Socket) {
+        if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
+
         val output = clientSocket.getOutputStream()
+        if (debugEnabled) log.debug("  output is {}.", output)
+
         val writer = PrintWriter(output, true)
+        if (debugEnabled) log.debug("  writer is {}.", writer)
+
         val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+        if (debugEnabled) log.debug("  reader is {}.", reader)
+
         brotliSupported = false //assume nothing
 
         // Read the request method line, it is always the first line of the request
-        var requestLine = reader.readLine() ?: return
+        var requestLine = reader.readLine()
+        if (requestLine == null) {
+            if (debugEnabled) log.debug("requestLine is null. Returning from handleClient() early.")
+            return
+        }
         if (debugEnabled) log.debug("Request is {}", requestLine)
 
         // Parse the request
         // Request line should look like "GET /a/b/c.html HTTP/1.1"
         val parts = requestLine.split(" ")
         if (parts.size != 3) {
-            return sendError(writer, 400, "Bad Request")
+            return sendError(writer, output, 400, "Bad Request")
         }
 
         //extract the request method (e.g. GET, POST, PUT)
@@ -188,7 +210,7 @@ FROM   LastChange
 
         // we only support teh GET method, return an error page for anything else
         if (method != "GET") {
-            return sendError(writer, 501, "Not Implemented")
+            return sendError(writer, output, 501, "Not Implemented")
         }
 
         //the HTTP headers follow the the method line, read until eof or 0 length
@@ -223,7 +245,7 @@ FROM   LastChange
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, 404, "Not Found")
+                else    -> sendError(writer, output, 404, "Not Found")
             }
         }
 
@@ -236,6 +258,8 @@ WHERE  C.contentTypeID = CT.id
         val cursor = database.rawQuery(query, arrayOf(path))
         val rowCount = cursor.count
 
+        if (debugEnabled) log.debug("Database fetch for path='$path' returned $rowCount rows."
+        )
         var dbContent   : ByteArray
         var dbMimeType  : String
         var compression : String
@@ -243,9 +267,10 @@ WHERE  C.contentTypeID = CT.id
         try {
             if (rowCount != 1) {
                 return when (rowCount) {
-                    0 -> sendError(writer, 404, "Not Found", "Path requested: $path")
+                    0 -> sendError(writer, output, 404, "Not Found", "Path requested: $path")
                     else -> sendError(
                         writer,
+                        output,
                         500,
                         "Internal Server Error 2",
                         "Corrupt database - multiple records found when unique record expected, Path requested: $path"
@@ -264,7 +289,7 @@ WHERE  C.contentTypeID = CT.id
             cursor.close()
         }
 
-        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
+        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests but only for uncompressed content.
             val query2 = """
 SELECT content
 FROM   Content
@@ -315,7 +340,7 @@ WHERE  path = ?
 
                 } catch (e: Exception) {
                     log.error("Error decompressing Brotli content: {}", e.message)
-                    return sendError(writer, 500, "Internal Server Error 3")
+                    return sendError(writer, output, 500, "Internal Server Error 3")
                 }
             }
         }
@@ -406,26 +431,17 @@ WHERE  path = ?
 
         } catch (e: Exception) {
             log.error("Error handling /pr/db endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error 4", "Error generating database table.")
+            sendError(writer, output, 500, "Internal Server Error 4", "Error generating database table.")
         }
     }
 
     private fun handleExEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
-        if (debugEnabled) log.debug("Entering handleExEndpoint().")
-
         // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
-        if (File(config.experimentsEnablePath).exists()) {
-            if (debugEnabled) log.debug("Experimental mode is on. Returning 200.")
+        val flag = if (File(config.experimentsEnablePath).exists())  "{}" else "{display: none;}"
 
-            writeNormalToClient(writer, output, """<html><head><title>Experiments</title></head><body>1</body></html>""")
+        if (debugEnabled) log.debug("Experiment flag='$flag'.")
 
-        } else {
-            if (debugEnabled) log.debug("Experimental mode is off. Returning 404.")
-
-            sendError(writer, 404, "Not Found", "Experiments disabled")
-        }
-
-        if (debugEnabled) log.debug("Leaving handleExEndpoint().")
+        sendCSS(writer, output, ".code_on_the_go_experiment $flag")
     }
 
     private fun handlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
@@ -440,7 +456,7 @@ WHERE  path = ?
 
             if (projectDatabase == null) {
                 log.error("Error handling /pr/pr endpoint 2. Could not open ${config.projectDatabasePath}.")
-                sendError(writer, 500, "Internal Server Error 5", "Error accessing database 2")
+                sendError(writer, output, 500, "Internal Server Error 5", "Error accessing database 2")
 
             } else {
                 realHandlePrEndpoint(writer, output, projectDatabase)
@@ -448,7 +464,7 @@ WHERE  path = ?
 
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
-            sendError(writer, 500, "Internal Server Error 6", "Error generating database table.")
+            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.")
             
         } finally {
             projectDatabase?.close()
@@ -567,17 +583,36 @@ Connection: close
             .replace("'", "&#x27;")
     }
 
-    private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
+    private fun sendError(writer: PrintWriter, output: java.io.OutputStream, code: Int, message: String, details: String = "") {
         if (debugEnabled) log.debug("Entering sendError(), code=$code, message='$message', details='$details'.")
 
         val messageString = "$code $message" + if (details.isEmpty()) "" else "\n$details"
-        val messageStringLength = messageString.length + 1
 
-        writer.println("""HTTP/1.1 $code $message
+        writer.print("""HTTP/1.1 $code $message
 Content-Type: text/plain
-Content-Length: $messageStringLength
+Content-Length: ${messageString.length}
 Connection: close
 
 $messageString""")
+        writer.flush()
+        output.flush()
+
+        if (debugEnabled) log.debug("Leaving sendError().")
+    }
+
+    private fun sendCSS(writer: PrintWriter, output: java.io.OutputStream, message: String) {
+        if (debugEnabled) log.debug("Entering sendCSS(), message='$message'.")
+
+        writer.print("""HTTP/1.1 200 OK
+Content-Type: text/css
+Content-Length: ${message.length}
+Connection: close
+
+$message""")
+
+        writer.flush()
+        output.flush()
+
+        if (debugEnabled) log.debug("Leaving sendCSS().")
     }
 }
