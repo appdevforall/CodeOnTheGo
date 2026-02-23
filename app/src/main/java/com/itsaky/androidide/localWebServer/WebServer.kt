@@ -30,15 +30,15 @@ data class ServerConfig(
 )
 
 class WebServer(private val config: ServerConfig) {
-    private lateinit var serverSocket: ServerSocket
-    private lateinit var database: SQLiteDatabase
-    private          var databaseTimestamp: Long = -1
-    private          val log = LoggerFactory.getLogger(WebServer::class.java)
-    private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
-    private          val experimentsEnabled: Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
-    private          val encodingHeader : String = "Accept-Encoding"
-    private          var brotliSupported = false
-    private          val brotliCompression : String = "br"
+    private lateinit var serverSocket       : ServerSocket
+    private lateinit var database           : SQLiteDatabase
+    private          var databaseTimestamp  : Long    = -1
+    private          val log                          = LoggerFactory.getLogger(WebServer::class.java)
+    private          val debugEnabled       : Boolean = File(config.debugEnablePath).exists()
+    private          val experimentsEnabled : Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
+    private          val encodingHeader     : String  = "Accept-Encoding"
+    private          var brotliSupported              = false
+    private          val brotliCompression  : String  = "br"
 
 
     //function to obtain the last modified date of a documentation.db database
