@@ -41,7 +41,11 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         }
 
         viewModelScope.launch {
-            updateState(isLoading = true, statusResId = R.string.cloning_repo)
+            updateState(
+                isLoading = true,
+                statusResId = R.string.cloning_repo,
+                isCloneButtonEnabled = false
+            )
             try {
                 val credentials = if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
                     UsernamePasswordCredentialsProvider(username, token)
@@ -110,7 +114,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                     isSuccess = false
                 )
             } finally {
-                updateState(isLoading = false)
+                updateState(isLoading = false, isCloneButtonEnabled = true)
             }
         }
     }
