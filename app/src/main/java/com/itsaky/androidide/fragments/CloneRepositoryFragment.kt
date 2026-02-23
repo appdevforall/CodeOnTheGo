@@ -80,7 +80,7 @@ class CloneRepositoryFragment : BaseFragment() {
                             state.statusResId?.let { getString(it) } ?: state.statusMessage
                         statusText.text = statusMessage
 
-                        authCheckbox.isChecked = state.isAuthRequired
+
                         cloneButton.isEnabled = state.isCloneButtonEnabled
 
                         progressBar.apply {

@@ -10,6 +10,7 @@ import com.itsaky.androidide.git.core.models.CloneRepoUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
@@ -104,9 +105,13 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 updateState(
                     statusResId = R.string.clone_successful,
                     isSuccess = true,
+                    isCloneButtonEnabled = true
                 )
             } catch (e: Exception) {
                 val errorMessage = e.message ?: application.getString(R.string.unknown_error)
+                _uiState.update {
+                    it.copy(statusResId = null)
+                }
                 updateState(
                     statusMessage = application.getString(
                         R.string.clone_failed, errorMessage
@@ -131,17 +136,19 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         isAuthRequired: Boolean? = null,
         isCloneButtonEnabled: Boolean? = null,
     ) {
-        _uiState.value = _uiState.value.copy(
-            url = url ?: uiState.value.url,
-            localPath = localPath ?: uiState.value.localPath,
-            statusMessage = statusMessage ?: uiState.value.statusMessage,
-            statusResId = statusResId ?: uiState.value.statusResId,
-            isLoading = isLoading ?: uiState.value.isLoading,
-            cloneProgress = cloneProgress ?: uiState.value.cloneProgress,
-            clonePercentage = clonePercentage ?: uiState.value.clonePercentage,
-            isSuccess = isSuccess ?: uiState.value.isSuccess,
-            isAuthRequired = isAuthRequired ?: uiState.value.isAuthRequired,
-            isCloneButtonEnabled = isCloneButtonEnabled ?: uiState.value.isCloneButtonEnabled,
-        )
+        _uiState.update {
+            it.copy(
+                url = url ?: uiState.value.url,
+                localPath = localPath ?: uiState.value.localPath,
+                statusMessage = statusMessage ?: uiState.value.statusMessage,
+                statusResId = statusResId ?: uiState.value.statusResId,
+                isLoading = isLoading ?: uiState.value.isLoading,
+                cloneProgress = cloneProgress ?: uiState.value.cloneProgress,
+                clonePercentage = clonePercentage ?: uiState.value.clonePercentage,
+                isSuccess = isSuccess ?: uiState.value.isSuccess,
+                isAuthRequired = isAuthRequired ?: uiState.value.isAuthRequired,
+                isCloneButtonEnabled = isCloneButtonEnabled ?: uiState.value.isCloneButtonEnabled,
+            )
+        }
     }
 }
