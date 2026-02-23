@@ -60,7 +60,7 @@ abstract class BaseIDEActivity : AppCompatActivity() {
     preSetContentLayout()
     setContentView(bindLayout())
     OrientationUtilities.setOrientation {
-        OrientationUtilities.setAdaptiveOrientation(this) { requestedOrientation = it }
+        OrientationUtilities.setAdaptiveOrientation { requestedOrientation = it }
     }
   }
 
