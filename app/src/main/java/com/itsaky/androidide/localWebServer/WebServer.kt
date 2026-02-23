@@ -123,18 +123,19 @@ FROM   LastChange
 
             serverSocket = ServerSocket().apply { reuseAddress = true }
             serverSocket.bind(InetSocketAddress(config.bindName, config.port))
-            log.info("WebServer started successfully.")
+            log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
             while (true) {
                 var clientSocket: Socket? = null
                 try {
                     try {
+                        if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", serverSocket)
                         clientSocket = serverSocket.accept()
 
                         if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
 
                     } catch (e: java.net.SocketException) {
-                        if (debugEnabled) log.debug("Caught java.net.SocketException '{}'.", e)
+                        if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.")
 
                         if (e.message?.contains("Closed", ignoreCase = true) == true) {
                             if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
@@ -147,7 +148,7 @@ FROM   LastChange
                         clientSocket?.let { handleClient(it) }
 
                     } catch (e: Exception) {
-                        if (debugEnabled) log.debug("Caught exception '{}'.", e)
+                        if (debugEnabled) log.debug("Caught exception '$e'.")
 
                         if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
                             if (debugEnabled) log.debug("Client disconnected: {}", e.message)
@@ -171,7 +172,7 @@ FROM   LastChange
                     clientSocket?.close()
 
                     // CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
-                    if (debugEnabled) log.debug("Closed clientSocket {}.", clientSocket)
+                    if (debugEnabled) log.debug("clientSocket was {}.", clientSocket)
                 }
             }
 
