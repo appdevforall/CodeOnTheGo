@@ -563,6 +563,7 @@ th { background-color: #f2f2f2; }
 
         val htmlBytes = html.toByteArray(Charsets.UTF_8)
 
+        // CodeRabbit complains about the use of println() instead of print() but I think it is correct here, in sendError(), and in sendCSS(). --DS, 22-Feb-2026
         writer.println("""HTTP/1.1 200 OK
 Content-Type: text/html; charset=utf-8
 Content-Length: ${htmlBytes.size}
