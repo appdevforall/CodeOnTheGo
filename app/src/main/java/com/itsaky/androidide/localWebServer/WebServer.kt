@@ -37,7 +37,6 @@ class WebServer(private val config: ServerConfig) {
     private          val debugEnabled       : Boolean = File(config.debugEnablePath).exists()
     private          val experimentsEnabled : Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader     : String  = "Accept-Encoding"
-    private          var brotliSupported              = false
     private          val brotliCompression  : String  = "br"
 
 
@@ -198,7 +197,7 @@ FROM   LastChange
         val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
         if (debugEnabled) log.debug("  reader is {}.", reader)
 
-        brotliSupported = false //assume nothing
+        var brotliSupported = false //assume nothing
 
         // Read the request method line, it is always the first line of the request
         var requestLine = reader.readLine()
@@ -251,7 +250,7 @@ FROM   LastChange
 
         // Handle the special "pr" endpoint with highest priority
         if (path.startsWith("pr/", false)) {
-            if (debugEnabled) log.debug("Found a pr/ path, '$path'.")
+            if (debugEnabled) log.debug("Found a pr/ path, '{}'.", path)
 
             return when (path) {
                 "pr/db" -> handleDbEndpoint(writer, output)
@@ -270,7 +269,7 @@ WHERE  C.contentTypeID = CT.id
         val cursor = database.rawQuery(query, arrayOf(path))
         val rowCount = cursor.count
 
-        if (debugEnabled) log.debug("Database fetch for path='$path' returned $rowCount rows.")
+        if (debugEnabled) log.debug("Database fetch for path='{}' returned {} rows.", path, rowCount)
 
         var dbContent   : ByteArray
         var dbMimeType  : String
@@ -279,13 +278,13 @@ WHERE  C.contentTypeID = CT.id
         try {
             if (rowCount != 1) {
                 return when (rowCount) {
-                    0 -> sendError(writer, output, 404, "Not Found", "Path requested: $path")
+                    0 -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'.")
                     else -> sendError(
                         writer,
                         output,
                         500,
                         "Internal Server Error 2",
-                        "Corrupt database - multiple records found when unique record expected, Path requested: $path"
+                        "Corrupt database - multiple records found when unique record expected, Path requested: '$path'."
                     )
                 }
             }
@@ -435,7 +434,7 @@ WHERE  path = ?
                 dataCursor.close()
             }
 
-            if (debugEnabled) log.debug("html is '$html'.")
+            if (debugEnabled) log.debug("html is '{}'.", html)
 
             writeNormalToClient(writer, output, html)
 
@@ -451,7 +450,7 @@ WHERE  path = ?
         // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
         val flag = if (experimentsEnabled)  "{}" else "{display: none;}"
 
-        if (debugEnabled) log.debug("Experiment flag='$flag'.")
+        if (debugEnabled) log.debug("Experiment flag='{}'.", flag)
 
         sendCSS(writer, output, ".code_on_the_go_experiment $flag")
     }
@@ -527,7 +526,7 @@ ORDER BY last_modified DESC"""
             cursor.close()
         }
 
-        if (debugEnabled) log.debug("html is '$html'.")
+        if (debugEnabled) log.debug("html is '{}'.", html)
 
         writeNormalToClient(writer, output, html)
 
@@ -538,7 +537,7 @@ ORDER BY last_modified DESC"""
      * Get HTML for table response page.
      */
     private fun getTableHtml(title: String, tableName: String): String {
-        if (debugEnabled) log.debug("Entering getTableHtml(), title='$title', tableName='$tableName'.")
+        if (debugEnabled) log.debug("Entering getTableHtml(), title='{}', tableName='{}'.", title, tableName)
 
         return """<!DOCTYPE html>
 <html>
@@ -559,7 +558,7 @@ th { background-color: #f2f2f2; }
      * Tail of writing table data back to client.
      */
     private fun writeNormalToClient(writer: PrintWriter, output: java.io.OutputStream, html: String) {
-        if (debugEnabled) log.debug("Entering writeNormalToClient(), html='$html'.")
+        if (debugEnabled) log.debug("Entering writeNormalToClient(), html='{}'.", html)
 
         val htmlBytes = html.toByteArray(Charsets.UTF_8)
 
@@ -579,7 +578,7 @@ Connection: close
      * Converts <, >, &, ", and ' to their HTML entity equivalents.
      */
     private fun escapeHtml(text: String): String {
-//        if (debugEnabled) log.debug("Entering escapeHtml(), html='$text'.")
+//        if (debugEnabled) log.debug("Entering escapeHtml(), html='{}'.", html)
 
         return text
             .replace("&", "&amp;")   // Must be first to avoid double-escaping
@@ -590,7 +589,7 @@ Connection: close
     }
 
     private fun sendError(writer: PrintWriter, output: java.io.OutputStream, code: Int, message: String, details: String = "") {
-        if (debugEnabled) log.debug("Entering sendError(), code=$code, message='$message', details='$details'.")
+        if (debugEnabled) log.debug("Entering sendError(), code={}, message='{}', details='{}'.", code, message, details)
 
         val messageString = "$code $message" + if (details.isEmpty()) "" else "\n$details"
         val bodyBytes = messageString.toByteArray(Charsets.UTF_8)
@@ -608,7 +607,7 @@ Connection: close
     }
 
     private fun sendCSS(writer: PrintWriter, output: java.io.OutputStream, message: String) {
-        if (debugEnabled) log.debug("Entering sendCSS(), message='$message'.")
+        if (debugEnabled) log.debug("Entering sendCSS(), message='{}'.", message)
 
         val bodyBytes = message.toByteArray(Charsets.UTF_8)
 
