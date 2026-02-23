@@ -35,6 +35,7 @@ class WebServer(private val config: ServerConfig) {
     private          var databaseTimestamp  : Long    = -1
     private          val log                          = LoggerFactory.getLogger(WebServer::class.java)
     private          val debugEnabled       : Boolean = File(config.debugEnablePath).exists()
+    // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
     private          val experimentsEnabled : Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader     : String  = "Accept-Encoding"
     private          val brotliCompression  : String  = "br"
@@ -448,7 +449,6 @@ WHERE  path = ?
     }
 
     private fun handleExEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
-        // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
         val flag = if (experimentsEnabled)  "{}" else "{display: none;}"
 
         if (debugEnabled) log.debug("Experiment flag='{}'.", flag)
@@ -580,7 +580,7 @@ Connection: close
      * Converts <, >, &, ", and ' to their HTML entity equivalents.
      */
     private fun escapeHtml(text: String): String {
-//        if (debugEnabled) log.debug("Entering escapeHtml(), html='{}'.", html)
+//        if (debugEnabled) log.debug("Entering escapeHtml(), text='{}'.", text)
 
         return text
             .replace("&", "&amp;")   // Must be first to avoid double-escaping
