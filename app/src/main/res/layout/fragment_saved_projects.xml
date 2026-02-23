@@ -67,6 +67,8 @@
             android:layout_below="@id/tv1"
             android:layout_centerHorizontal="true"
             android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
             android:padding="8dp"
             android:text="@string/msg_create_new_from_recent"
             android:textAlignment="center" />
