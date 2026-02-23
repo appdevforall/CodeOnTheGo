@@ -51,7 +51,19 @@ class CloneRepositoryFragment : BaseFragment() {
 
             localPathLayout.setEndIconOnClickListener {
                 pickDirectory { file ->
-                    localPath.setText(file.absolutePath)
+                    val url = repoUrl.text.toString().trim()
+                    var projectName = url.substringAfterLast("/", "")
+                    if (projectName.endsWith(".git")) {
+                        projectName = projectName.dropLast(4)
+                    }
+                    
+                    val destFile = if (projectName.isNotBlank()) {
+                        File(file, projectName)
+                    } else {
+                        file
+                    }
+                    
+                    localPath.setText(destFile.absolutePath)
                 }
             }
 
