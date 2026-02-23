@@ -9,9 +9,11 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.FragmentCloneRepositoryBinding
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import kotlinx.coroutines.launch
+import java.io.File
 
 class CloneRepositoryFragment : BaseFragment() {
 
@@ -97,7 +99,11 @@ class CloneRepositoryFragment : BaseFragment() {
                         password.isEnabled = !state.isLoading
 
                         if (state.isSuccess == true) {
-                            // TODO: Open project or navigate to saved projects
+                            val destDir = File(state.localPath)
+                            if (destDir.exists()) {
+                                (requireActivity() as? MainActivity)?.openProject(destDir)
+                                viewModel.onProjectOpened()
+                            }
                         }
                     }
                 }
