@@ -8,6 +8,8 @@ data class CloneRepoUiState(
     val statusMessage: String = "",
     @get:StringRes val statusResId: Int? = null,
     val isLoading: Boolean = false,
+    val cloneProgress: String = "",
+    val clonePercentage: Int = 0,
     val isSuccess: Boolean? = null,
     val isAuthRequired: Boolean = false,
     val isCloneButtonEnabled: Boolean = false

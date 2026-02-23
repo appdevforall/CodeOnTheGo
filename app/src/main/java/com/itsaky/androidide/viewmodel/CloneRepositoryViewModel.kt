@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 
@@ -48,8 +49,58 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                     null
                 }
 
-                GitRepositoryManager.cloneRepository(url, destDir, credentials)
-                updateState(statusResId = R.string.clone_successful, isSuccess = true)
+                val progressMonitor = object : ProgressMonitor {
+                    private var totalWork = 0
+                    private var completedWork = 0
+                    private var currentTaskTitle = ""
+
+                    override fun start(totalTasks: Int) {}
+
+                    override fun beginTask(title: String, totalWork: Int) {
+                        this.currentTaskTitle = title
+                        this.totalWork = totalWork
+                        this.completedWork = 0
+                        updateProgressUI()
+                    }
+
+                    override fun update(completed: Int) {
+                        this.completedWork += completed
+                        updateProgressUI()
+                    }
+
+                    override fun endTask() {}
+
+                    override fun isCancelled(): Boolean = false
+
+                    override fun showDuration(enabled: Boolean) {}
+
+                    private fun updateProgressUI() {
+                        val percentage = if (totalWork > 0) {
+                            ((completedWork.toFloat() / totalWork.toFloat()) * 100).toInt()
+                        } else {
+                            0
+                        }
+
+                        val progressMsg = if (totalWork > 0) {
+                            "$currentTaskTitle: $percentage% -- ($completedWork/$totalWork)"
+                        } else {
+                            currentTaskTitle
+                        }
+
+                        updateState(
+                            cloneProgress = progressMsg,
+                            clonePercentage = percentage,
+                            statusResId = null,
+                            statusMessage = "",
+                        )
+                    }
+                }
+
+                GitRepositoryManager.cloneRepository(url, destDir, credentials, progressMonitor)
+                updateState(
+                    statusResId = R.string.clone_successful,
+                    isSuccess = true,
+                )
             } catch (e: Exception) {
                 val errorMessage = e.message ?: application.getString(R.string.unknown_error)
                 updateState(
@@ -70,6 +121,8 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         statusMessage: String? = null,
         statusResId: Int? = null,
         isLoading: Boolean? = null,
+        cloneProgress: String? = null,
+        clonePercentage: Int? = null,
         isSuccess: Boolean? = null,
         isAuthRequired: Boolean? = null,
         isCloneButtonEnabled: Boolean? = null,
@@ -80,6 +133,8 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
             statusMessage = statusMessage ?: uiState.value.statusMessage,
             statusResId = statusResId ?: uiState.value.statusResId,
             isLoading = isLoading ?: uiState.value.isLoading,
+            cloneProgress = cloneProgress ?: uiState.value.cloneProgress,
+            clonePercentage = clonePercentage ?: uiState.value.clonePercentage,
             isSuccess = isSuccess ?: uiState.value.isSuccess,
             isAuthRequired = isAuthRequired ?: uiState.value.isAuthRequired,
             isCloneButtonEnabled = isCloneButtonEnabled ?: uiState.value.isCloneButtonEnabled,

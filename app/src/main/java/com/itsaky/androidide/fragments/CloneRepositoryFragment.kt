@@ -10,7 +10,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.databinding.FragmentCloneRepositoryBinding
-import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import kotlinx.coroutines.launch
 
@@ -76,13 +75,24 @@ class CloneRepositoryFragment : BaseFragment() {
                     binding?.apply {
                         repoUrl.isEnabled = !state.isLoading
                         localPath.isEnabled = !state.isLoading
-                        
-                        val statusMessage = state.statusResId?.let { getString(it) } ?: state.statusMessage
+
+                        val statusMessage =
+                            state.statusResId?.let { getString(it) } ?: state.statusMessage
                         statusText.text = statusMessage
 
                         authCheckbox.isChecked = state.isAuthRequired
                         cloneButton.isEnabled = state.isCloneButtonEnabled
-                        progressBar.visibility = if (state.isLoading) View.VISIBLE else View.GONE
+
+                        progressBar.apply {
+                            visibility = if (state.isLoading) View.VISIBLE else View.GONE
+                            progress = state.clonePercentage
+                        }
+
+                        progressText.apply {
+                            visibility =
+                                if (state.isLoading && state.cloneProgress.isNotEmpty()) View.VISIBLE else View.GONE
+                            text = state.cloneProgress
+                        }
                         username.isEnabled = !state.isLoading
                         password.isEnabled = !state.isLoading
 

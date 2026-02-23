@@ -8,6 +8,7 @@ import java.io.File
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.lib.ProgressMonitor
 
 /**
  * Utility class for detecting and opening Git repositories.
@@ -54,12 +55,17 @@ object GitRepositoryManager {
     suspend fun cloneRepository(
         url: String,
         destDir: File,
-        credentialsProvider: CredentialsProvider? = null
+        credentialsProvider: CredentialsProvider? = null,
+        progressMonitor: ProgressMonitor? = null
     ): GitRepository = withContext(Dispatchers.IO) {
         val cloneCommand = Git.cloneRepository()
             .setURI(url)
             .setDirectory(destDir)
             .setCloneAllBranches(true)
+
+        if (progressMonitor != null) {
+            cloneCommand.setProgressMonitor(progressMonitor)
+        }
 
         if (credentialsProvider != null) {
             cloneCommand.setCredentialsProvider(credentialsProvider)
