@@ -29,8 +29,8 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         )
     }
 
-    fun onProjectOpened() {
-        _uiState.update { it.copy(isSuccess = null) }
+    fun resetState() {
+        _uiState.value = CloneRepoUiState()
     }
 
     fun cloneRepository(
