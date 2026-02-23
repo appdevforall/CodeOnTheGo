@@ -38,7 +38,7 @@
     android:gravity="start"
     android:ellipsize="marquee"
     android:textSize="9sp"
-    android:textColor="?attr/colorSecondaryVariant"
+    android:textColor="?attr/colorOnSurfaceVariant"
     android:singleLine="true" />
 
 </RelativeLayout>
