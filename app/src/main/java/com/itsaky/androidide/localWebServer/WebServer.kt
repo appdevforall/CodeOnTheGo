@@ -282,7 +282,7 @@ clientSocket and the catch block logic are updated accordingly.
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'")
+                else    -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'.")
             }
         }
 
