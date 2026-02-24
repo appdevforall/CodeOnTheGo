@@ -1132,4 +1132,5 @@
 	<string name="msg_diagnostics_copied">Diagnostics copied to clipboard</string>
 	<string name="msg_no_diagnostics_to_copy">No diagnostics to copy</string>
 	<string name="msg_clipboard_copy_failed">Failed to copy to clipboard</string>
+    <string name="dismiss">Dismiss</string>
 </resources>
