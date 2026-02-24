@@ -22,11 +22,13 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
     val uiState: StateFlow<CloneRepoUiState> = _uiState.asStateFlow()
 
     fun onInputChanged(url: String, path: String) {
-        updateState(
-            url = url,
-            localPath = path,
-            isCloneButtonEnabled = url.isNotBlank() && path.isNotBlank() && !uiState.value.isLoading
-        )
+        _uiState.update {
+            it.copy(
+                url = url,
+                localPath = path,
+                isCloneButtonEnabled = url.isNotBlank() && path.isNotBlank() && !uiState.value.isLoading
+            )
+        }
     }
 
     fun resetState() {
@@ -41,16 +43,18 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
     ) {
         val destDir = File(localPath)
         if (destDir.exists() && destDir.listFiles()?.isNotEmpty() == true) {
-            updateState(statusResId = R.string.destination_directory_not_empty)
+            _uiState.update { it.copy(statusResId = R.string.destination_directory_not_empty) }
             return
         }
 
         viewModelScope.launch {
-            updateState(
-                isLoading = true,
-                statusResId = R.string.cloning_repo,
-                isCloneButtonEnabled = false
-            )
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    statusResId = R.string.cloning_repo,
+                    isCloneButtonEnabled = false
+                )
+            }
             try {
                 val credentials = if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
                     UsernamePasswordCredentialsProvider(username, token)
@@ -96,63 +100,40 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                             currentTaskTitle
                         }
 
-                        updateState(
-                            cloneProgress = progressMsg,
-                            clonePercentage = percentage,
-                            statusResId = null,
-                            statusMessage = "",
-                        )
+                        _uiState.update {
+                            it.copy(
+                                cloneProgress = progressMsg,
+                                clonePercentage = percentage,
+                            )
+                        }
                     }
                 }
 
                 GitRepositoryManager.cloneRepository(url, destDir, credentials, progressMonitor)
-                updateState(
-                    statusResId = R.string.clone_successful,
-                    isSuccess = true,
-                    isCloneButtonEnabled = true
-                )
+                _uiState.update {
+                    it.copy(
+                        statusResId = R.string.clone_successful,
+                        isSuccess = true,
+                        isCloneButtonEnabled = true
+                    )
+                }
             } catch (e: Exception) {
                 val errorMessage = e.message ?: application.getString(R.string.unknown_error)
                 _uiState.update {
-                    it.copy(statusResId = null)
+                    it.copy(
+                        statusResId = null,
+                        statusMessage = application.getString(
+                            R.string.clone_failed, errorMessage
+                        ),
+                        isSuccess = false
+                    )
                 }
-                updateState(
-                    statusMessage = application.getString(
-                        R.string.clone_failed, errorMessage
-                    ),
-                    isSuccess = false
-                )
             } finally {
-                updateState(isLoading = false, isCloneButtonEnabled = true)
+                _uiState.update {
+                    it.copy(isLoading = false, isCloneButtonEnabled = true)
+                }
             }
         }
     }
 
-    private fun updateState(
-        url: String? = null,
-        localPath: String? = null,
-        statusMessage: String? = null,
-        statusResId: Int? = null,
-        isLoading: Boolean? = null,
-        cloneProgress: String? = null,
-        clonePercentage: Int? = null,
-        isSuccess: Boolean? = null,
-        isAuthRequired: Boolean? = null,
-        isCloneButtonEnabled: Boolean? = null,
-    ) {
-        _uiState.update {
-            it.copy(
-                url = url ?: uiState.value.url,
-                localPath = localPath ?: uiState.value.localPath,
-                statusMessage = statusMessage ?: uiState.value.statusMessage,
-                statusResId = statusResId ?: uiState.value.statusResId,
-                isLoading = isLoading ?: uiState.value.isLoading,
-                cloneProgress = cloneProgress ?: uiState.value.cloneProgress,
-                clonePercentage = clonePercentage ?: uiState.value.clonePercentage,
-                isSuccess = isSuccess ?: uiState.value.isSuccess,
-                isAuthRequired = isAuthRequired ?: uiState.value.isAuthRequired,
-                isCloneButtonEnabled = isCloneButtonEnabled ?: uiState.value.isCloneButtonEnabled,
-            )
-        }
-    }
 }
