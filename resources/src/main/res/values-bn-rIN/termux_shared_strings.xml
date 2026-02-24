@@ -59,12 +59,12 @@
         \n\nWe do not provide support for any hacking related tools/scripts. Any questions asked about them over email,
         on GitHub or other official termux community forums **will likely be automatically closed/deleted** and may
         even result in **temporary or permanent** ban. Check %1$s/wiki/Hacking for details.</string>
-  <string name="msg_termux_app_required_by_app">Termux কমান্ড চালানোর জন্য %1$s অ্যাপের AndroidIDE প্রয়োজন.</string>
-  <string name="error_termux_app_package_context_not_accessible">AndroidIDE অ্যাপ (প্যাকেজ প্রসঙ্গ) অ্যাক্সেসযোগ্য নয়।.</string>
-  <string name="error_termux_prefix_dir_path_not_accessible">AndroidIDE অ্যাপ $PREFIX ডিরেক্টরিটি %1$s অ্যাপ দ্বারা অ্যাক্সেসযোগ্য নয়৷
-        আপনি AndroidIDE অ্যাপ ইনস্টল বা সেটআপ করেননি বলে এটি হতে পারে
-    AndroidIDE অ্যাপ্লিকেশান এবং %1$s অ্যাপ্লিকেশান উভয়েরই আলাদা APK স্বাক্ষর রয়েছে কারণ আপনি বিভিন্ন উত্স থেকে উভয় অ্যাপ ইনস্টল করতে পরিচালনা করেছেন৷
-        এটাও হতে পারে কারণ AndroidIDE $PREFIX ডিরেক্টরি \"/data/data/com.itsaky.androidide/files/usr\" নেই বা পড়া নেই,
+  <string name="msg_termux_app_required_by_app">Termux কমান্ড চালানোর জন্য %1$s অ্যাপের Code on the Go প্রয়োজন.</string>
+  <string name="error_termux_app_package_context_not_accessible">Code on the Go অ্যাপ (প্যাকেজ প্রসঙ্গ) অ্যাক্সেসযোগ্য নয়।.</string>
+  <string name="error_termux_prefix_dir_path_not_accessible">Code on the Go অ্যাপ $PREFIX ডিরেক্টরিটি %1$s অ্যাপ দ্বারা অ্যাক্সেসযোগ্য নয়৷
+        আপনি Code on the Go অ্যাপ ইনস্টল বা সেটআপ করেননি বলে এটি হতে পারে
+    Code on the Go অ্যাপ্লিকেশান এবং %1$s অ্যাপ্লিকেশান উভয়েরই আলাদা APK স্বাক্ষর রয়েছে কারণ আপনি বিভিন্ন উত্স থেকে উভয় অ্যাপ ইনস্টল করতে পরিচালনা করেছেন৷
+        এটাও হতে পারে কারণ Code on the Go $PREFIX ডিরেক্টরি \"/data/data/com.itsaky.androidide/files/usr\" নেই বা পড়া নেই,
         লিখুন এবং অনুমতি কার্যকর করুন।.</string>
   <!-- Miscellaneous -->
   <string name="action_share">শেয়ার করুন</string>
