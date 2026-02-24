@@ -11,13 +11,24 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/tv_download_project"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/download_git_project"
+            android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+            android:transitionName="title"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/repoUrlLayout"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:hint="@string/repository_url"
-            app:layout_constraintTop_toTopOf="parent">
+            app:layout_constraintTop_toBottomOf="@id/tv_download_project">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/repoUrl"
@@ -79,7 +90,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:hint="@string/password_token"
+            android:hint="@string/personal_access_token"
             app:endIconMode="password_toggle"
             app:layout_constraintTop_toBottomOf="@id/usernameLayout">
 
@@ -95,7 +106,6 @@
             android:id="@+id/authGroup"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:visibility="gone"
             app:constraint_referenced_ids="usernameLayout, passwordLayout" />
 
         <com.google.android.material.button.MaterialButton
