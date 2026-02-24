@@ -19,6 +19,7 @@ package com.itsaky.androidide.activities
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -50,7 +51,6 @@ import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -82,9 +82,7 @@ class OnboardingActivity : AppIntro2() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		IThemeManager.getInstance().applyTheme(this)
 		setOrientationFunction {
-			OrientationUtilities.setOrientation {
-                OrientationUtilities.setAdaptiveOrientation(this) { requestedOrientation = it }
-			}
+			requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 		}
 
 		super.onCreate(savedInstanceState)
