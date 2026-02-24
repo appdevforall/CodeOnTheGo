@@ -116,7 +116,7 @@
                 android:paddingBottom="8dp"
                 android:singleLine="true"
                 android:text="Common"
-                android:textColor="?attr/colorSecondaryVariant"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="12sp"
                 tools:ignore="HardcodedText,RtlSymmetry" />
 
