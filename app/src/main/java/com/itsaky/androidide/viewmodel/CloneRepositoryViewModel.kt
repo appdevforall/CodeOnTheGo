@@ -42,12 +42,14 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         token: String? = null
     ) {
         val destDir = File(localPath)
-        if (destDir.exists() && destDir.listFiles()?.isNotEmpty() == true) {
+        val isExistingDir = destDir.exists()
+        if (isExistingDir && destDir.listFiles()?.isNotEmpty() == true) {
             _uiState.update { it.copy(statusResId = R.string.destination_directory_not_empty) }
             return
         }
 
         viewModelScope.launch {
+            var hasCloned = false
             _uiState.update {
                 it.copy(
                     isLoading = true,
@@ -110,6 +112,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 }
 
                 GitRepositoryManager.cloneRepository(url, destDir, credentials, progressMonitor)
+                hasCloned = true
                 _uiState.update {
                     it.copy(
                         statusResId = R.string.clone_successful,
@@ -129,6 +132,14 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                     )
                 }
             } finally {
+                // Clean up partial clone directories
+                if (!hasCloned) {
+                    if (!isExistingDir) {
+                        destDir.deleteRecursively()
+                    } else {
+                        destDir.listFiles()?.forEach { it.deleteRecursively() }
+                    }
+                }
                 _uiState.update {
                     it.copy(isLoading = false, isCloneButtonEnabled = true)
                 }
