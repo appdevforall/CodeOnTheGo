@@ -160,6 +160,30 @@ FROM   LastChange
                                 try {
                                     val output = socket.outputStream
 
+/*
+The code below handles rare errors sufficiently correctly. To make it "more correct" will complicate the code,
+adding more chances for bugs. Therefore I'm ignoring the CodeRabbit message below. --DS, 23-Feb-2026
+
+Avoid sending a 500 after a partial response.
+
+If handleClient already wrote headers/body before throwing, this fallback sendError will append another response and garble the stream. Gate the error send on a response-started flag from handleClient (or just log/close when unsure).
+🤖 Prompt for AI Agents
+
+Verify each finding against the current code and only fix it if needed.
+
+In `@app/src/main/java/com/itsaky/androidide/localWebServer/WebServer.kt` around
+lines 151 - 163, The fallback in the catch block unconditionally calls sendError
+which can corrupt the stream if handleClient already started sending a response;
+modify handleClient and the surrounding logic to track whether a response has
+started (e.g., add a responseStarted boolean returned by or set by handleClient,
+or expose a getResponseStarted() on the request handler) and only call sendError
+when responseStarted is false; otherwise avoid writing another response and
+instead log the error and close clientSocket (use clientSocket?.close()) to
+cleanly terminate the connection. Ensure references to handleClient, sendError,
+clientSocket and the catch block logic are updated accordingly.
+
+
+ */
                                     sendError(PrintWriter(output, true), output, 500, "Internal Server Error 1")
 
                                 } catch (e2: Exception) {
@@ -258,7 +282,7 @@ FROM   LastChange
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, output, 404, "Not Found")
+                else    -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'")
             }
         }
 
@@ -450,7 +474,7 @@ WHERE  path = ?
                 writer,
                 output,
                 500,
-                "Internet Server Error 4.1",
+                "Internal Server Error 4.1",
                 "Error creating output."
             )
             return
@@ -486,6 +510,37 @@ WHERE  path = ?
                                                           null,
                                                           SQLiteDatabase.OPEN_READONLY)
 
+ /* I disagree with CodeRabbit's message, reproduced below. However, the
+    IDE's "Problems" window says that outputStarted is "always false."
+
+     While writeNormalToClient() can fail in the middle of execution,
+     making the error reporting code more complicated is likely to
+     introduce more bugs, rather than helping fix existing ones. --DS, 23-Feb-2026
+
+            482-494: ⚠️ Potential issue | 🟡 Minor
+
+outputStarted is set too late to protect error handling.
+
+If writeNormalToClient throws after headers are written, outputStarted remains false and the catch path will send a second response. Set/propagate this flag before the first write (e.g., via a mutable flag passed into realHandlePrEndpoint or by setting it just before writeNormalToClient and preserving it on exceptions).
+
+Also applies to: 502-557
+
+🤖 Prompt for AI Agents
+
+Verify each finding against the current code and only fix it if needed.
+
+In `@app/src/main/java/com/itsaky/androidide/localWebServer/WebServer.kt` around
+lines 482 - 494, The catch block can send a second response because
+outputStarted is only set after realHandlePrEndpoint returns; ensure the
+"response started" flag is set before any write occurs by changing
+realHandlePrEndpoint to accept and update a mutable flag (e.g., pass a
+BooleanWrapper/MutableBoolean or an AtomicBoolean named outputStarted into
+realHandlePrEndpoint) or by setting outputStarted immediately before the first
+call to writeNormalToClient inside realHandlePrEndpoint; then have
+realHandlePrEndpoint update that flag as soon as headers/body begin to be
+written so sendError(writer, ...) checks the accurate flag and avoids sending a
+second response.
+             */
             outputStarted = realHandlePrEndpoint(writer, output, projectDatabase)
 
         } catch (e: Exception) {
@@ -581,7 +636,7 @@ th { background-color: #f2f2f2; }
      * Tail of writing table data back to client.
      */
     private fun writeNormalToClient(writer: PrintWriter, output: java.io.OutputStream, html: String) {
-        if (debugEnabled) log.debug("Entering writeNormalToClient(), html='{}'.", html)
+        if (debugEnabled) log.debug("Entering writeNormalToClient(), html='{}'.", html.take(200))
 
         val htmlBytes = html.toByteArray(Charsets.UTF_8)
 
