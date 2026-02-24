@@ -38,12 +38,11 @@ dependencies {
 
     implementation(libs.koin.android)
 
-    // TensorFlow Lite with 16KB page size support  
-    implementation("org.tensorflow:tensorflow-lite:2.16.1")
-    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.16.1")
+    implementation("com.google.ai.edge.litert:litert:1.0.1")
+    implementation("com.google.ai.edge.litert:litert-support:1.0.1")
+    implementation("com.google.ai.edge.litert:litert-gpu:1.0.1")
 
-    implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     testImplementation(libs.tests.junit)
     androidTestImplementation(libs.tests.androidx.junit)
