@@ -136,7 +136,7 @@ FROM   LastChange
                         if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
 
                     } catch (e: java.net.SocketException) {
-                        if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.")
+                        if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.") // SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
 
                         if (e.message?.contains("Closed", ignoreCase = true) == true) {
                             if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
@@ -149,7 +149,7 @@ FROM   LastChange
                         clientSocket?.let { handleClient(it) }
 
                     } catch (e: Exception) {
-                        if (debugEnabled) log.debug("Caught exception '$e'.")
+                        if (debugEnabled) log.debug("Caught exception '$e'.")  // SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
 
                         if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
                             if (debugEnabled) log.debug("Client disconnected: {}", e.message)
@@ -377,26 +377,32 @@ WHERE  path = ?
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleDbEndpoint().")
 
+        var html : String
+
         try {
             // First, get the schema of the LastChange table to determine column count
             val schemaQuery = "PRAGMA table_info(LastChange)"
             val schemaCursor = database.rawQuery(schemaQuery, arrayOf())
 
-            var columnCount   : Int
-            var selectColumns : String
+            var columnCount: Int
+            var selectColumns: String
 
-            var html = getTableHtml("LastChange Table", "LastChange Table (20 Most Recent Rows)")
+            html = getTableHtml("LastChange Table", "LastChange Table (20 Most Recent Rows)")
 
             try {
                 columnCount = schemaCursor.count
                 val columnNames = mutableListOf<String>()
 
                 while (schemaCursor.moveToNext()) {
-                // Values come from schema introspection, therefore not subject to a SQL injection attack.
+                    // Values come from schema introspection, therefore not subject to a SQL injection attack.
                     columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
                 }
 
-                if (debugEnabled) log.debug("LastChange table has {} columns: {}", columnCount, columnNames)
+                if (debugEnabled) log.debug(
+                    "LastChange table has {} columns: {}",
+                    columnCount,
+                    columnNames
+                )
 
                 // Build the SELECT query for the 20 most recent rows
                 selectColumns = columnNames.joinToString(", ")
@@ -412,7 +418,8 @@ WHERE  path = ?
                 schemaCursor.close()
             }
 
-            val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
+            val dataQuery =
+                "SELECT $selectColumns FROM LastChange ORDER BY changeTime DESC LIMIT 20"
 
             val dataCursor = database.rawQuery(dataQuery, arrayOf())
 
@@ -437,14 +444,26 @@ WHERE  path = ?
             }
 
             if (debugEnabled) log.debug("html is '{}'.", html)
+        } catch (e: Exception) {
+            log.error("Error creating output for /pr/db endpoint: {}", e.message)
+            sendError(
+                writer,
+                output,
+                500,
+                "Internet Server Error 4.1",
+                "Error creating output."
+            )
+            return
+        }
 
+        try {
             writeNormalToClient(writer, output, html)
 
             if (debugEnabled) log.debug("Leaving handleDbEndpoint().")
 
         } catch (e: Exception) {
             log.error("Error handling /pr/db endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 4", "Error generating database table.")
+            sendError(writer, output, 500, "Internal Server Error 4", "Error generating database table.", true)
         }
     }
 
@@ -460,17 +479,18 @@ WHERE  path = ?
         if (debugEnabled) log.debug("Entering handlePrEndpoint().")
 
         var projectDatabase : SQLiteDatabase? = null
+        var outputStarted = false
 
         try {
             projectDatabase = SQLiteDatabase.openDatabase(config.projectDatabasePath,
                                                           null,
                                                           SQLiteDatabase.OPEN_READONLY)
 
-            realHandlePrEndpoint(writer, output, projectDatabase)
+            outputStarted = realHandlePrEndpoint(writer, output, projectDatabase)
 
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.")
+            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.", outputStarted)
             
         } finally {
             projectDatabase?.close()
@@ -479,7 +499,7 @@ WHERE  path = ?
         if (debugEnabled) log.debug("Leaving handlePrEndpoint().")
     }
 
-    private fun realHandlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) {
+    private fun realHandlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) : Boolean {
         if (debugEnabled) log.debug("Entering realHandlePrEndpoint().")
 
         val query = """
@@ -527,11 +547,13 @@ ORDER BY last_modified DESC"""
             cursor.close()
         }
 
-        if (debugEnabled) log.debug("html is '{}'.", html)
+        if (debugEnabled) log.debug("html is '{}'.", html) // May output a lot of stuff but better too much than too little. --DS, 23-Feb-2026
 
         writeNormalToClient(writer, output, html)
 
         if (debugEnabled) log.debug("Leaving realHandlePrEndpoint().")
+
+        return true
     }
 
     /**
@@ -563,13 +585,15 @@ th { background-color: #f2f2f2; }
 
         val htmlBytes = html.toByteArray(Charsets.UTF_8)
 
-        // CodeRabbit complains about the use of println() instead of print() but I think it is correct here, in sendError(), and in sendCSS(). --DS, 22-Feb-2026
+        /*
+        println() is intentional: the triple-quoted string ends with a single '\n' (after "Connection: close"),
+        and println() appends the second '\n' to form the required blank-line HTTP header terminator ("\n\n"). --DS, 22-Feb-2026
+        */
         writer.println("""HTTP/1.1 200 OK
 Content-Type: text/html; charset=utf-8
 Content-Length: ${htmlBytes.size}
 Connection: close
 """)
-        writer.flush()
 
         output.write(htmlBytes)
         output.flush()
@@ -590,21 +614,23 @@ Connection: close
             .replace("'", "&#x27;")
     }
 
-    private fun sendError(writer: PrintWriter, output: java.io.OutputStream, code: Int, message: String, details: String = "") {
-        if (debugEnabled) log.debug("Entering sendError(), code={}, message='{}', details='{}'.", code, message, details)
+    private fun sendError(writer: PrintWriter, output: java.io.OutputStream, code: Int, message: String, details: String = "", outputStarted: Boolean = false) {
+        if (debugEnabled) log.debug("Entering sendError(), code={}, message='{}', details='{}', outputStarted={}.", code, message, details, outputStarted)
 
         val messageString = "$code $message" + if (details.isEmpty()) "" else "\n$details"
         val bodyBytes = messageString.toByteArray(Charsets.UTF_8)
 
-        writer.println("""HTTP/1.1 $code $message
+        if (!outputStarted) {
+            writer.println(
+                """HTTP/1.1 $code $message
 Content-Type: text/plain; charset=utf-8
 Content-Length: ${bodyBytes.size}
 Connection: close
-""")
-        writer.flush()
-        output.write(bodyBytes)
-        output.flush()
-
+"""
+            )
+            output.write(bodyBytes)
+            output.flush()
+        }
         if (debugEnabled) log.debug("Leaving sendError().")
     }
 
@@ -620,7 +646,6 @@ Cache-Control: no-store
 Connection: close
 """)
 
-        writer.flush()
         output.write(bodyBytes)
         output.flush()
 
