@@ -118,6 +118,10 @@ class PermissionsFragment :
 			b.onboardingItems.adapter = createAdapter()
 
 			b.finishInstallationButton.setOnClickListener {
+				if (viewModel.state.value is InstallationState.InstallationPending) {
+					onPermissionsUpdated()
+					return@setOnClickListener
+				}
 				startIdeSetup()
 			}
 		}
@@ -132,6 +136,11 @@ class PermissionsFragment :
 		observeViewModelEvents()
 		val allGranted = PermissionsHelper.areAllPermissionsGranted(requireContext())
 		viewModel.onPermissionsUpdated(allGranted)
+	}
+
+	override fun onResume() {
+		super.onResume()
+		onPermissionsUpdated()
 	}
 
 	private fun observeViewModelState() {

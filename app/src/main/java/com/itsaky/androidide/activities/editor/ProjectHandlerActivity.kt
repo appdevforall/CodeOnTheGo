@@ -632,6 +632,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		service.setEventListener(mBuildEventListener)
 
 		if (service.isToolingServerStarted()) {
+			if (service.isBuildInProgress) {
+				log.info("Skipping project initialization while build is in progress")
+				return
+			}
 			initializeProject()
 			return
 		}
