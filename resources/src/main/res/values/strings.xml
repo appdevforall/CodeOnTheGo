@@ -1146,4 +1146,5 @@
     <string name="clone_successful">Clone successful!</string>
     <string name="clone_failed">Clone failed: %1$s</string>
     <string name="cloning_repo">Cloning repository…</string>
+    <string name="pick_folder">Pick folder</string>
 </resources>

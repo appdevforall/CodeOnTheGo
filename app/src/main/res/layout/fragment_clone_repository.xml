@@ -45,7 +45,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:hint="@string/local_path"
-            app:endIconContentDescription="Pick folder"
+            app:endIconContentDescription="@string/pick_folder"
             app:endIconDrawable="@drawable/ic_folder"
             app:endIconMode="custom"
             app:layout_constraintTop_toBottomOf="@id/repoUrlLayout">
@@ -106,6 +106,7 @@
             android:id="@+id/authGroup"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             app:constraint_referenced_ids="usernameLayout, passwordLayout" />
 
         <com.google.android.material.button.MaterialButton
