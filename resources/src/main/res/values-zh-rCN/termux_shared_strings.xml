@@ -44,11 +44,11 @@
   <!-- Shell -->
   <!-- TermuxUtils -->
   <string name="msg_report_issue">如果要报告此问题，请从选项菜单（右上角的 3 点）复制其文本，并在以下链接之一上发布问题。\n\n如果您要发布 Termux 应用崩溃报告，请提供有关导致崩溃的原因，以及如何重现的详细信息，如果可能的话。\n\n如果您要在 GitHub 上发布问题，请将其发布到报告所属的存储库中。使用**（部分）屏幕截图**而不是复制的文本或此报告的文件打开的问题或发送的电子邮件**可能会被自动关闭或删除**。您可以选择删除您认为私密或不想共享或与问题无关的任何设备特定信息。\n\n我们不提供任何与黑客相关的工具或脚本的支持。通过电子邮件、GitHub 或其他官方 Termux 社区论坛提出的这类问题，都可能会被自动关闭或删除，甚至可能导致**临时或永久**的封禁。查看 %1$s/wiki/Hacking 以了解详细信息。</string>
-  <string name="msg_termux_app_required_by_app">%1$s 应用需要 AndroidIDE 来运行 termux 命令。</string>
-  <string name="error_termux_app_package_context_not_accessible">AndroidIDE 应用程序（包上下文）无法访问。</string>
-  <string name="error_termux_prefix_dir_path_not_accessible">%1$s 应用无法访问 AndroidIDE 应用的 $PREFIX 目录。
-         这可能是因为您尚未安装或设置 AndroidIDE 应用，或者 AndroidIDE 应用和 %1$s 应用具有不同的 APK 签名，因为您已设法从不同来源安装这两个应用程序。
-         也可能是因为 AndroidIDE 的 $PREFIX 目录“/data/data/com.itsaky.androidide/files/usr”不存在或者没有读、写、执行权限。</string>
+  <string name="msg_termux_app_required_by_app">%1$s 应用需要 Code on the Go 来运行 termux 命令。</string>
+  <string name="error_termux_app_package_context_not_accessible">Code on the Go 应用程序（包上下文）无法访问。</string>
+  <string name="error_termux_prefix_dir_path_not_accessible">%1$s 应用无法访问 Code on the Go 应用的 $PREFIX 目录。
+         这可能是因为您尚未安装或设置 Code on the Go 应用，或者 Code on the Go 应用和 %1$s 应用具有不同的 APK 签名，因为您已设法从不同来源安装这两个应用程序。
+         也可能是因为 Code on the Go 的 $PREFIX 目录“/data/data/com.itsaky.androidide/files/usr”不存在或者没有读、写、执行权限。</string>
   <!-- Miscellaneous -->
   <string name="action_share">分享</string>
   <string name="action_save_to_file">保存到文件</string>
