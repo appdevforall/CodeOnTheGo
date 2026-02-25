@@ -781,7 +781,7 @@ class PluginManager private constructor(
             pluginId,
             "tooltip"
         ) {
-            IdeTooltipServiceImpl(context)
+            IdeTooltipServiceImpl(context, pluginId, activityProvider)
         }
 
         // Editor tab service for plugin editor tab integration
@@ -904,7 +904,7 @@ class PluginManager private constructor(
             pluginId,
             "tooltip"
         ) {
-            IdeTooltipServiceImpl(context)
+            IdeTooltipServiceImpl(context, pluginId, activityProvider)
         }
 
         // Editor tab service for plugin editor tab integration
