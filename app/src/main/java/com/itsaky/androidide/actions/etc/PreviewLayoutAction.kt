@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import com.android.aaptcompiler.AaptResourceType.LAYOUT
 import com.android.aaptcompiler.extractPathData
 import com.blankj.utilcode.util.KeyboardUtils
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.actions.markInvisible
@@ -32,8 +33,11 @@ import com.itsaky.androidide.compose.preview.ComposePreviewActivity
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.layouteditor.activities.EditorActivity
+import org.appdevforall.codeonthego.layouteditor.editor.convert.ConvertImportedXml
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import com.itsaky.androidide.projects.IProjectManager
+import org.appdevforall.codeonthego.layouteditor.tools.ValidationResult
+import org.appdevforall.codeonthego.layouteditor.tools.XmlLayoutParser
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -139,7 +143,25 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
       PreviewType.XML_LAYOUT -> {
         val editor = data.getEditor() ?: return
         val file = editor.file ?: return
-        activity.previewXmlLayout(file)
+        val sourceCode = editor.text.toString()
+
+        try {
+          val converted = ConvertImportedXml(sourceCode).getXmlConverted(activity)
+          if (converted == null) {
+            showXmlValidationError(activity, activity.getString(R.string.xml_validation_error_invalid_file))
+            return
+          }
+
+          val validator = XmlLayoutParser(activity)
+
+          val result = validator.validateXml(converted, activity)
+          when (result) {
+            is ValidationResult.Success -> activity.previewXmlLayout(file)
+            is ValidationResult.Error -> showXmlValidationError(activity, result.formattedMessage)
+          }
+        } catch (e: Exception) {
+          showXmlValidationError(activity, activity.getString(R.string.xml_error_generic, e.message ?: ""))
+        }
       }
       PreviewType.COMPOSE -> {
         val editor = data.getEditor() ?: return
@@ -159,6 +181,19 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
 
   private fun EditorHandlerActivity.showComposePreviewSheet(file: File, sourceCode: String) {
     ComposePreviewActivity.start(this, sourceCode, file.absolutePath)
+  }
+
+  private fun showXmlValidationError(activity: Context, message: String?) {
+    val safeMessage =
+      message?.takeIf { it.isNotBlank() }
+        ?: activity.getString(R.string.xml_validation_error_generic)
+    (activity as? EditorHandlerActivity)?.runOnUiThread {
+      MaterialAlertDialogBuilder(activity)
+        .setTitle(R.string.xml_validation_error_title)
+        .setMessage(safeMessage)
+        .setPositiveButton(android.R.string.ok, null)
+        .show()
+    }
   }
 
   private fun moduleUsesCompose(): Boolean {
