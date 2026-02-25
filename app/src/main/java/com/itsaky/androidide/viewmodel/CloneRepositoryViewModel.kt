@@ -7,11 +7,13 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.git.core.models.CloneRepoUiState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
@@ -134,10 +136,12 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
             } finally {
                 // Clean up partial clone directories
                 if (!hasCloned) {
-                    if (!isExistingDir) {
-                        destDir.deleteRecursively()
-                    } else {
-                        destDir.listFiles()?.forEach { it.deleteRecursively() }
+                    withContext(Dispatchers.IO) {
+                        if (!isExistingDir) {
+                            destDir.deleteRecursively()
+                        } else {
+                            destDir.listFiles()?.forEach { it.deleteRecursively() }
+                        }
                     }
                 }
                 _uiState.update {
