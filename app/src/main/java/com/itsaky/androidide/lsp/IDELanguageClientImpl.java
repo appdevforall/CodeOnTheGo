@@ -252,10 +252,12 @@ public class IDELanguageClientImpl implements ILanguageClient {
           } else {
             // Edit is in some other file which is not opened
             // open that file and perform the edit
-            openedFrag = activity.openFile(file);
-            if (openedFrag != null && openedFrag.getEditor() != null) {
-              editInEditor(openedFrag.getEditor(), edit);
-            }
+            activity.openFileAsync(file, null, openedEditor -> {
+              if (openedEditor != null && openedEditor.getEditor() != null) {
+                editInEditor(openedEditor.getEditor(), edit);
+              }
+              return kotlin.Unit.INSTANCE;
+            });
           }
         }
       }
