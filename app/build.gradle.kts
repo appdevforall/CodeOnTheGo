@@ -314,6 +314,7 @@ dependencies {
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
 	androidTestUtil(libs.tests.orchestrator)
+    testImplementation(libs.tests.kotlinx.coroutines)
 
 	// brotli4j
 	implementation(libs.brotli4j)
