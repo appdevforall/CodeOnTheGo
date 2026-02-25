@@ -2,6 +2,7 @@ package com.itsaky.androidide.ui
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.provider.Settings
 import com.itsaky.androidide.resources.R
@@ -20,7 +21,12 @@ fun Activity.showLowStorageDialog() {
             finishAndRemoveTask()
         }
         .setNegativeButton(R.string.action_free_up_space) { _, _ ->
-            startActivity(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS))
+            val intent = Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)
+            try {
+                startActivity(intent)
+            } catch (_: ActivityNotFoundException) {
+                startActivity(Intent(Settings.ACTION_SETTINGS))
+            }
             finishAffinity()
         }
         .show()

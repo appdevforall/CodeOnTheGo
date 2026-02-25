@@ -9,7 +9,7 @@ fun hasEnoughStorageAvailable(): Boolean {
 		val stat = StatFs(dataDir.path)
 		val availableBytes = stat.availableBlocksLong * stat.blockSizeLong
 		availableBytes > getMinimumStorageNeeded().gigabytesToBytes()
-	} catch (_: Exception) { true }
+	} catch (_: Exception) { false }
 }
 
 fun getMinimumStorageNeeded(): Long {
