@@ -11,6 +11,8 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.junit.After
 import org.junit.Assert
@@ -27,12 +29,13 @@ import java.io.File
 
 
 @RunWith(JUnit4::class)
+@OptIn(ExperimentalCoroutinesApi::class)
+
 class CloneRepositoryViewModelTest {
 
     @get:Rule
     val instantExecutorRule = InstantTaskExecutorRule()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
@@ -117,7 +120,7 @@ class CloneRepositoryViewModelTest {
     }
 
     @Test
-    fun `cloneRepository success updates UI state correctly`() {
+    fun `cloneRepository success updates UI state correctly`() = runTest {
         val folder = tempFolder.newFolder("NewProject")
         val url = "https://github.com/username/newproject.git"
 
@@ -126,6 +129,7 @@ class CloneRepositoryViewModelTest {
         } returns mockk()
 
         viewModel.cloneRepository(url, folder.absolutePath)
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(R.string.clone_successful, state.statusResId)
@@ -140,7 +144,7 @@ class CloneRepositoryViewModelTest {
     }
 
     @Test
-    fun `cloneRepository failure updates UI with error message`() {
+    fun `cloneRepository failure updates UI with error message`() = runTest {
         val folder = tempFolder.newFolder("NewProject")
         val errorMsg = "Network Timeout"
 
@@ -149,6 +153,7 @@ class CloneRepositoryViewModelTest {
         } throws Exception(errorMsg)
 
         viewModel.cloneRepository("https://github.com/username/newproject.git", folder.absolutePath)
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         Assert.assertNotNull(state.statusMessage)
@@ -157,7 +162,7 @@ class CloneRepositoryViewModelTest {
     }
 
     @Test
-    fun `test clone repository with auth is successful`() {
+    fun `test clone repository with auth is successful`() = runTest {
         val folder = tempFolder.newFolder("AuthProject")
         val url = "https://github.com/username/newproject.git"
 
@@ -171,6 +176,7 @@ class CloneRepositoryViewModelTest {
             username = "username",
             token = "token"
         )
+        advanceUntilIdle()
 
         coVerify(exactly = 1) {
             GitRepositoryManager.cloneRepository(

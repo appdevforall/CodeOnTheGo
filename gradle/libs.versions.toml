@@ -290,7 +290,7 @@ tests-barista = { module = "com.adevinta.android:barista", version = "4.3.0" }
 tests-kaspresso = { module = "com.kaspersky.android-components:kaspresso", version = "1.6.0" }
 tests-orchestrator = { module = "androidx.test:orchestrator", version = "1.5.1" }
 tests-junit-kts = { module = "androidx.test.ext:junit-ktx", version = "1.2.1" }
-tests-kotlinx-coroutines = {module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version = "kotlinxCoroutinesCore"}
+tests-kotlinx-coroutines = {module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesCore"}
 
 # Tooling
 tooling-builderModel = { module = "com.android.tools.build:builder-model", version.ref = "agp-tooling" }
