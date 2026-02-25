@@ -249,27 +249,29 @@ class DefaultActionsRegistry : ActionsRegistry() {
         val onMainThread = action.requiresUIThread
         val context = if (onMainThread) Dispatchers.Main.immediate else Dispatchers.Default
         return actionsCoroutineScope.launch(context) {
-            val result = withStopWatch("Action '${action.id}'") {
-                action.execAction(data)
-            }
-
-            val post = fun() = run {
-                action.postExec(data, result)
-                notifyActionExec(action, result)
-            }
-
-            if (onMainThread) {
-                post()
-            } else {
-                withContext(Dispatchers.Main.immediate) {
-                    post()
+            try {
+                val result = withStopWatch("Action '${action.id}'") {
+                    action.execAction(data)
                 }
+
+                val post = fun() = run {
+                    action.postExec(data, result)
+                    notifyActionExec(action, result)
+                }
+
+                if (onMainThread) {
+                    post()
+                } else {
+                    withContext(Dispatchers.Main.immediate) {
+                        post()
+                    }
+                }
+            } catch (e: IllegalArgumentException) {
+                log.error("An error occurred when performing action '{}'", action.id, e)
             }
         }.also { job ->
-            job.invokeOnCompletion { error ->
-                if (error != null) {
-                    log.error("An error occurred when performing action '{}'", action.id, error)
-                }
+            job.invokeOnCompletion {
+                log.debug("Action '{}' execution completed.", action.id)
             }
         }
     }
