@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionItem
@@ -109,8 +110,17 @@ class DebugOverlayManager private constructor(
             return
         }
 
-        windowManager.addView(binding.root, overlayLayoutParams)
-        isShown = true
+        if (!Settings.canDrawOverlays(binding.root.context)) {
+            logger.warn("Overlay permission denied. Skipping debugger overlay window.")
+            return
+        }
+
+        try {
+            windowManager.addView(binding.root, overlayLayoutParams)
+            isShown = true
+        } catch (err: Throwable) {
+            logger.error("Failed to show debugger overlay window", err)
+        }
     }
 
     fun hide() {
@@ -118,8 +128,13 @@ class DebugOverlayManager private constructor(
             return
         }
 
-        windowManager.removeView(binding.root)
-        isShown = false
+        try {
+            windowManager.removeView(binding.root)
+        } catch (err: Throwable) {
+            logger.error("Failed to hide debugger overlay window", err)
+        } finally {
+            isShown = false
+        }
     }
 
 	fun refreshActions() {

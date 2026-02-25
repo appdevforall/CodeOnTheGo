@@ -66,6 +66,7 @@ class PermissionsFragment :
 	private var recyclerView: RecyclerView? = null
 	private var finishButton: MaterialButton? = null
     private lateinit var pulseAnimation: Animation
+	private var awaitingOverlayGrantResult = false
 
 	private val storagePermissionRequestLauncher =
 		registerForActivityResult(
@@ -204,9 +205,22 @@ class PermissionsFragment :
 	private fun onPermissionsUpdated() {
 		permissions.forEach { it.isGranted = PermissionsHelper.isPermissionGranted(requireContext(), it.permission) }
 		recyclerView?.adapter = createAdapter()
+		handlePostOverlayPermissionState()
 
 		val allGranted = PermissionsHelper.areAllPermissionsGranted(requireContext())
 		viewModel.onPermissionsUpdated(allGranted)
+	}
+
+	private fun handlePostOverlayPermissionState() {
+		if (!awaitingOverlayGrantResult) {
+			return
+		}
+		awaitingOverlayGrantResult = false
+		if (PermissionsHelper.canDrawOverlays(requireContext())) {
+			return
+		}
+		flashError(getString(R.string.permission_overlay_restricted_settings_hint))
+		openAppInfoSettings()
 	}
 
 	private fun startIdeSetup() {
@@ -265,13 +279,22 @@ class PermissionsFragment :
 					Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
 				)
 
-			Manifest.permission.SYSTEM_ALERT_WINDOW -> requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+			Manifest.permission.SYSTEM_ALERT_WINDOW -> requestOverlayPermission()
 			Manifest.permission.POST_NOTIFICATIONS ->
 				requestSettingsTogglePermission(
 					Settings.ACTION_APP_NOTIFICATION_SETTINGS,
 					setData = false,
 				)
 		}
+	}
+
+	private fun requestOverlayPermission() {
+		awaitingOverlayGrantResult = true
+		requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+	}
+
+	private fun openAppInfoSettings() {
+		requestSettingsTogglePermission(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
 	}
 
 	private fun requestStoragePermission() {
