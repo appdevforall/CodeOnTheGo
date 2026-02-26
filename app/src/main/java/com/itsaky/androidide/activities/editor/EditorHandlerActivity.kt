@@ -107,11 +107,12 @@ open class EditorHandlerActivity :
 
 	private fun getTabPositionForFileIndex(fileIndex: Int): Int {
 		val safeContent = contentOrNull ?: return -1
+		val totalTabs = safeContent.tabs.tabCount
 
 		if (fileIndex < 0) return -1
 		var tabPos = 0
 		var fileCount = 0
-		while (tabPos < safeContent.tabs.tabCount) {
+		while (tabPos < totalTabs) {
 			if (!isPluginTab(tabPos)) {
 				if (fileCount == fileIndex) return tabPos
 				fileCount++
@@ -551,9 +552,10 @@ open class EditorHandlerActivity :
 
 	private fun getNextFileTabPosition(): Int {
 		val safeContent = contentOrNull ?: return 0
+		val totalTabs = safeContent.tabs.tabCount
 
 		var lastFileTabPos = -1
-		for (i in 0 until safeContent.tabs.tabCount) {
+		for (i in 0 until totalTabs) {
 			if (!isPluginTab(i)) {
 				lastFileTabPos = i
 			}
@@ -1168,8 +1170,9 @@ open class EditorHandlerActivity :
 
 	fun isPluginTab(position: Int): Boolean {
 		val safeContent = contentOrNull ?: return false
+		val totalTabs = safeContent.tabs.tabCount
 
-		if (position < 0 || position >= safeContent.tabs.tabCount) {
+		if (position !in 0..<totalTabs) {
 			return false
 		}
 		return tabIndexToPluginId.containsKey(position)
