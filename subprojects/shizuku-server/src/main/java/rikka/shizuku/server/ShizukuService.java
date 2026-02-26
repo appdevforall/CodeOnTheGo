@@ -27,7 +27,6 @@ import com.itsaky.androidide.buildinfo.BuildInfo;
 
 import java.util.List;
 
-import moe.shizuku.api.BinderContainer;
 import moe.shizuku.common.util.OsUtils;
 import moe.shizuku.common.util.UserUtils;
 import moe.shizuku.server.IShizukuApplication;
@@ -116,7 +115,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 			}
 
 			Bundle extra = new Bundle();
-			extra.putParcelable(BuildInfo.PACKAGE_NAME + ".shizuku.intent.extra.BINDER", new BinderContainer(binder));
+			extra.putBinder(BuildInfo.PACKAGE_NAME + ".shizuku.intent.extra.BINDER", binder);
 
 			Bundle reply = IContentProviderUtils.callCompat(provider, null, name, "sendBinder", null, extra);
 			if (reply != null) {
