@@ -539,6 +539,7 @@ internal class JavaDebugAdapter :
 	}
 
 	override fun close() {
+		logger.debug("close")
 		try {
 			_listenerState?.stopListening()
 			listenerThread?.interrupt()
@@ -584,14 +585,19 @@ internal class JDWPListenerThread(
 	}
 
 	override fun run() {
+		logger.debug("run::start")
 		if (!listenerState.isListening) {
+			logger.debug("startListening")
 			listenerState.startListening()
 		}
 
 		while (isAlive && !isInterrupted) {
 			try {
 				logger.debug("Waiting for VM connection")
-				onConnect(listenerState.accept())
+				val client = listenerState.accept()
+				logger.debug("client: {}", client)
+
+				onConnect(client)
 			} catch (_: TransportTimeoutException) {
 				logger.warn("Timeout waiting for VM connection")
 			} catch (e: SocketException) {
@@ -606,5 +612,7 @@ internal class JDWPListenerThread(
 				logger.error("An error occurred while listening for VM connections", err)
 			}
 		}
+
+		logger.debug("run::end")
 	}
 }

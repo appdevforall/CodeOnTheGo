@@ -51,11 +51,9 @@ class AdbPairingService : Service() {
 		const val PERMISSION_RECEIVE_WADB_PAIR_RESULT =
 			BuildInfo.PACKAGE_NAME + ".debug.RECEIVE_WADB_PAIR_RESULT"
 
-		fun startIntent(context: Context): Intent =
-			Intent(context, AdbPairingService::class.java).setAction(START_ACTION)
+		fun startIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(START_ACTION)
 
-		private fun stopIntent(context: Context): Intent =
-			Intent(context, AdbPairingService::class.java).setAction(STOP_ACTION)
+		private fun stopIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(STOP_ACTION)
 
 		private fun replyIntent(
 			context: Context,
@@ -192,13 +190,14 @@ class AdbPairingService : Service() {
 				}
 
 			AdbPairingClient(host, port, code, key).use { pairingClient ->
-				pairingClient.runCatching {
-					start()
-				}.onFailure {
-					handleResult(false, it)
-				}.onSuccess {
-					handleResult(it, null)
-				}
+				pairingClient
+					.runCatching {
+						start()
+					}.onFailure {
+						handleResult(false, it)
+					}.onSuccess {
+						handleResult(it, null)
+					}
 			}
 		}
 
