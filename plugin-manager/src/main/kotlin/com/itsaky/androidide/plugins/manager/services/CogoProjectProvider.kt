@@ -11,8 +11,8 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import java.io.File
 
 /**
- * Cogo-specific implementation of ProjectProvider that integrates with
- * the actual Cogo project management system.
+ * Code On the Go-specific implementation of ProjectProvider that integrates with
+ * the actual Code On the Go project management system.
  */
 class CogoProjectProvider : IdeProjectServiceImpl.ProjectProvider {
 
@@ -45,7 +45,7 @@ class CogoProjectProvider : IdeProjectServiceImpl.ProjectProvider {
     }
 
     override fun getAllProjects(): List<IProject> {
-        // COGO typically works with one project at a time
+        // Code On the Go typically works with one project at a time
         // Return the current project as a single-item list
         val currentProject = getCurrentProject()
         return if (currentProject != null) {
@@ -88,7 +88,7 @@ class CogoProjectProvider : IdeProjectServiceImpl.ProjectProvider {
 }
 
 /**
- * Implementation of IProject for COGO projects
+ * Implementation of IProject for Code On the Go projects
  */
 private class CogoProject(
     override val name: String,
@@ -140,7 +140,7 @@ private class CogoProject(
 }
 
 /**
- * Implementation of IModule for Cogo modules
+ * Implementation of IModule for Code On the Go modules
  */
 private class CogoModule(
     override val name: String,
