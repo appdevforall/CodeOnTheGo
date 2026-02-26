@@ -23,6 +23,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.markInvisible
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.services.log.lookupLogService
 
 /**
@@ -33,6 +34,7 @@ import com.itsaky.androidide.services.log.lookupLogService
 class DisconnectLogSendersAction(context: Context, override val order: Int) : EditorActivityAction() {
 
   override val id: String = "ide.editor.service.logreceiver.disconnectSenders"
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_LOG_SENDER
 
   init {
     label = context.getString(R.string.title_disconnect_log_senders)

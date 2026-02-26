@@ -485,6 +485,20 @@ constructor(
         }
     }
 
+     fun dismissPopupWindows() {
+        if (_diagnosticWindow?.isShowing == true) {
+            _diagnosticWindow?.dismiss()
+        }
+
+        if (_signatureHelpWindow?.isShowing == true) {
+            _signatureHelpWindow?.dismiss()
+        }
+
+        if (actionsMenu?.isShowing == true) {
+            actionsMenu?.dismiss()
+        }
+    }
+
     // not overridable!
     final override fun <T : EditorBuiltinComponent?> replaceComponent(
         clazz: Class<T>,

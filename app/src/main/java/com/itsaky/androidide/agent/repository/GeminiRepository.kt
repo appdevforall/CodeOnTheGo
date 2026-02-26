@@ -25,4 +25,11 @@ interface GeminiRepository {
     ): String
 
     fun stop()
+
+    /**
+     * Release any resources held by the repository.
+     */
+    fun destroy() {
+        // Default no-op to keep implementations lightweight.
+    }
 }

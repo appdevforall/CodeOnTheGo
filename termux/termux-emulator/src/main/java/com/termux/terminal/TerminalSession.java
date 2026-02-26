@@ -68,7 +68,7 @@ public final class TerminalSession extends TerminalOutput {
     /** Set by the application for user identification of session, not by terminal. */
     public String mSessionName;
 
-    final Handler mMainThreadHandler = new MainThreadHandler();
+    final Handler mMainThreadHandler = new MainThreadHandler(android.os.Looper.getMainLooper());
 
     private final String mShellPath;
     private final String mCwd;
@@ -335,6 +335,10 @@ public final class TerminalSession extends TerminalOutput {
 
     @SuppressLint("HandlerLeak")
     class MainThreadHandler extends Handler {
+
+        public MainThreadHandler(android.os.Looper looper) {
+            super(looper);
+        }
 
         final byte[] mReceiveBuffer = new byte[4 * 1024];
 

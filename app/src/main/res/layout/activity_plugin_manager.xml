@@ -47,6 +47,7 @@
                 android:layout_marginBottom="16dp"
                 android:alpha="0.6"
                 android:src="@drawable/ic_package"
+                android:importantForAccessibility="no"
                 app:tint="?attr/colorOnSurface" />
 
             <TextView
@@ -74,7 +75,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
-        android:contentDescription="Install Plugin"
+        android:contentDescription="@string/cd_add"
         app:srcCompat="@drawable/ic_add" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton

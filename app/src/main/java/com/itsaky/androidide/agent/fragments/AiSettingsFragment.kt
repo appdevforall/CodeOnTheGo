@@ -18,6 +18,7 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.itsaky.androidide.R
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
@@ -110,6 +111,8 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         val loadSavedButton = view.findViewById<Button>(R.id.loadSavedButton)
         val modelStatusTextView = view.findViewById<TextView>(R.id.model_status_text_view)
         val engineStatusTextView = view.findViewById<TextView>(R.id.engine_status_text) // <-- NEW: Get reference to the new TextView
+        val simplePromptSwitch = view.findViewById<MaterialSwitch>(R.id.switch_simple_local_prompt)
+        val shaInput = view.findViewById<TextInputEditText>(R.id.local_model_sha_input)
 
         browseButton.setOnClickListener {
             filePickerLauncher.launch(arrayOf("*/*"))
@@ -117,6 +120,21 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
         loadSavedButton.setOnClickListener { loadFromSaved() }
 
+        shaInput?.apply {
+            setText(viewModel.getLocalModelSha256().orEmpty())
+            setOnFocusChangeListener { _, hasFocus ->
+                if (!hasFocus) {
+                    viewModel.saveLocalModelSha256(text?.toString())
+                }
+            }
+        }
+
+        simplePromptSwitch?.apply {
+            isChecked = viewModel.isUseSimpleLocalPromptEnabled()
+            setOnCheckedChangeListener { _, isChecked ->
+                viewModel.setUseSimpleLocalPrompt(isChecked)
+            }
+        }
         viewModel.engineState.observe(viewLifecycleOwner) { state ->
             when (state) {
                 is EngineState.Initializing, EngineState.Uninitialized -> {

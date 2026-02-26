@@ -47,6 +47,7 @@ class CachedJarFileSystem(
     // This is called manually by the Java LSP
   }
 
+  @Throws(IOException::class)
   fun doClose() {
     try {
       super.close()

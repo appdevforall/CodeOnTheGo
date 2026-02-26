@@ -16,6 +16,9 @@
   -->
 
 <resources>
-  <string name="msg_bind_service_failed">Failed to bind to AndroidIDE</string>
+  <string name="msg_bind_service_failed">Failed to bind to Code On The Go</string>
   <string name="notification_action_exit">Exit</string>
+  <string name="notification_title">LogSender Service</string>
+  <string name="notification_text">Connected to Code On The Go</string>
+  <string name="notification_channel_name">LogSender Service</string>
 </resources>

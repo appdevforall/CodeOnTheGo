@@ -92,6 +92,7 @@ class DesignEditor : LinearLayout {
 	private var isModified = false
 	private lateinit var preferencesManager: PreferencesManager
 	private var parser: XmlLayoutParser? = null
+	private var currentBasePath: String? = null
 	private val attrTranslationX = "android:translationX"
 	private val attrTranslationY = "android:translationY"
 	private val widgetIdOverrides = mapOf(
@@ -450,16 +451,22 @@ class DesignEditor : LinearLayout {
 
 	private fun sanitizeIdName(base: String): String = widgetIdOverrides[base] ?: base
 
-	fun loadLayoutFromParser(xml: String) {
+	fun loadLayoutFromParser(xml: String, basePath: String? = null) {
 		clearAll()
 		if (xml.isEmpty()) return
 
-		val parser = XmlLayoutParser(context)
+		// Store basePath for undo/redo operations
+		if (basePath != null) {
+			currentBasePath = basePath
+		}
+
+		val parser = XmlLayoutParser(context, currentBasePath)
 		this.parser = parser
 
-		parser.parseFromXml(xml, context)
+		parser.processXml(xml, context)
 
-		addView(parser.root)
+		val root = parser.root ?: return
+		addView(root)
 		viewAttributeMap = parser.viewAttributeMap
 
 		for (view in (viewAttributeMap as HashMap<View, *>?)!!.keys) {
@@ -538,6 +545,9 @@ class DesignEditor : LinearLayout {
 	fun updateUndoRedoHistory() {
 		if (undoRedoManager == null) return
 		val result = XmlLayoutGenerator().generate(this, false)
+
+		// Don't add empty states to history
+		if (result.isEmpty()) return
 
 		undoRedoManager!!.addToHistory(result)
 		markAsModified()

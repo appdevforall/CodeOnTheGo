@@ -68,7 +68,7 @@ interface BuildService {
 	/**
 	 * @see executeTasks
 	 */
-	fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult> = executeTasks(TaskExecutionMessage(tasks))
+	fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult>
 
 	/**
 	 * Execute the given tasks.

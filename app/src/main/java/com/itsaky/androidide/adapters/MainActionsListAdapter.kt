@@ -18,11 +18,12 @@
 package com.itsaky.androidide.adapters
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import com.itsaky.androidide.databinding.LayoutMainActionItemBinding
 import com.itsaky.androidide.models.MainScreenAction
-import com.itsaky.androidide.utils.AndroidUtils
 
 /**
  * Adapter for the actions available on the main screen.
@@ -52,6 +53,7 @@ constructor(val actions: List<MainScreenAction> = emptyList()) :
             text = originalText
             setText(originalText)
             setIconResource(action.icon)
+            contentDescription = originalText
             setOnClickListener {
                 action.onClick?.invoke(action, it)
             }
@@ -60,6 +62,17 @@ constructor(val actions: List<MainScreenAction> = emptyList()) :
                 true
             }
             action.view = button
+        }
+        (binding.root as? MaterialButton)?.findViewById<View>(com.google.android.material.R.id.icon)
+            ?.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        if (binding.root is ViewGroup) {
+            for (i in 0 until (binding.root as ViewGroup).childCount) {
+                val child = (binding.root as ViewGroup).getChildAt(i)
+                if (child is android.widget.ImageView) {
+                    child.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    break
+                }
+            }
         }
     }
 }
