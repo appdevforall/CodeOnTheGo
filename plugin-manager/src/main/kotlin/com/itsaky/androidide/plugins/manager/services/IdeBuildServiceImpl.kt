@@ -74,7 +74,7 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
                 listener.onBuildFinished()
             } catch (e: Exception) {
                 // Log but don't propagate to prevent one bad listener from affecting others
-                Consider: Log.w(TAG, "Listener threw exception", e)
+                Log.w(TAG, "Listener threw exception", e)
             }
         }
     }
