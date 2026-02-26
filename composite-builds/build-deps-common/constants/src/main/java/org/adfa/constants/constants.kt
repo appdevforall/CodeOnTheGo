@@ -38,7 +38,7 @@ const val GRADLE_DISTRIBUTION_ARCHIVE_NAME = "$GRADLE_DISTRIBUTION_NAME-bin.zip"
 @Suppress("SdCardPath")
 const val ANDROIDIDE_HOME = "/data/data/com.itsaky.androidide/files/home/.androidide"
 
-// Cogo gradle plugin
+// Code On the Go gradle plugin
 const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
 const val COGO_GRADLE_PLUGIN_JAR_NAME = "$COGO_GRADLE_PLUGIN_NAME.jar"
 const val COGO_GRADLE_PLUGIN_PATH = "$ANDROIDIDE_HOME/plugin"

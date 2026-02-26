@@ -7,7 +7,7 @@ import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.services.IdeUIService
 
 /**
- * Implementation of IdeUIService that provides access to COGO's UI context
+ * Implementation of IdeUIService that provides access to Code On the Go's UI context
  * for plugins that need to show dialogs or perform UI operations.
  */
 class IdeUIServiceImpl(
