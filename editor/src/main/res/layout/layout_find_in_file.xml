@@ -46,7 +46,7 @@
       app:layout_constraintEnd_toStartOf="@id/more_options"
       app:layout_constraintStart_toStartOf="parent"
       app:layout_constraintTop_toBottomOf="@id/top_border"
-      tools:text="AndroidIDE" />
+      tools:text="Code on the Go" />
 
   <androidx.appcompat.widget.AppCompatImageButton
       android:id="@+id/more_options"

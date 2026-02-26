@@ -59,12 +59,12 @@
          \n\nKami tidak menyediakan dukungan untuk alat/skrip terkait peretasan apa pun.  Setiap pertanyaan yang diajukan tentang itu melalui email,
          di GitHub atau forum komunitas termux resmi lainnya **kemungkinan akan ditutup/dihapus otomatis** dan mungkin
          bahkan mengakibatkan larangan **sementara atau permanen**.  Periksa %1$s/wiki/Peretasan untuk detailnya.</string>
-  <string name="msg_termux_app_required_by_app">AndroidIDE diperlukan oleh aplikasi %1$s untuk menjalankan perintah termux.</string>
-  <string name="error_termux_app_package_context_not_accessible">Aplikasi AndroidIDE (konteks paket) tidak dapat diakses.</string>
-  <string name="error_termux_prefix_dir_path_not_accessible">Direktori $PREFIX aplikasi AndroidIDE tidak dapat diakses oleh aplikasi %1$s.
-         Ini mungkin karena Anda belum menginstal atau menyiapkan aplikasi AndroidIDE atau
-     Aplikasi AndroidIDE dan aplikasi %1$s keduanya memiliki tanda tangan APK yang berbeda karena Anda berhasil memasang kedua aplikasi tersebut dari sumber yang berbeda.
-         Mungkin juga karena direktori AndroidIDE $PREFIX \"/data/data/com.itsaky.androidide/files/usr\" tidak ada atau belum terbaca,
+  <string name="msg_termux_app_required_by_app">Code on the Go diperlukan oleh aplikasi %1$s untuk menjalankan perintah termux.</string>
+  <string name="error_termux_app_package_context_not_accessible">Aplikasi Code on the Go (konteks paket) tidak dapat diakses.</string>
+  <string name="error_termux_prefix_dir_path_not_accessible">Direktori $PREFIX aplikasi Code on the Go tidak dapat diakses oleh aplikasi %1$s.
+         Ini mungkin karena Anda belum menginstal atau menyiapkan aplikasi Code on the Go atau
+     Aplikasi Code on the Go dan aplikasi %1$s keduanya memiliki tanda tangan APK yang berbeda karena Anda berhasil memasang kedua aplikasi tersebut dari sumber yang berbeda.
+         Mungkin juga karena direktori Code on the Go $PREFIX \"/data/data/com.itsaky.androidide/files/usr\" tidak ada atau belum terbaca,
          menulis dan menjalankan izin.</string>
   <!-- Miscellaneous -->
   <string name="action_share">Bagikan</string>
