@@ -28,6 +28,7 @@ import com.itsaky.androidide.buildinfo.BuildInfo;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.adfa.constants.ConstantsKt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +40,7 @@ public final class Environment {
 	public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
 	private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
 	public static final String GRADLE_CACHE_DIR = DEFAULT_HOME + "/.gradle";
-	private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
+	private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-" + ConstantsKt.getCOMPILE_SDK_VERSION().getApi();
 	public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
 	public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/lib/jvm/java-21-openjdk";
 	private static final String ANDROIDIDE_PROJECT_CACHE_DIR = SharedEnvironment.PROJECT_CACHE_DIR_NAME;
