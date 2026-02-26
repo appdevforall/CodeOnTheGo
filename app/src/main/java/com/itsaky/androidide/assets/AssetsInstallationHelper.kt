@@ -81,10 +81,15 @@ object AssetsInstallationHelper {
 				if (e is CancellationException) {
 					throw e
 				}
-				val msg = e?.message ?: "Failed to install assets"
+				val isMissingAsset = generateSequence(e) { it.cause }.any { it is FileNotFoundException }
+				val msg = if (isMissingAsset) {
+					"Missing installation files. Code On the Go installation might be corrupt or incomplete."
+				} else {
+					e?.message ?: "Failed to install assets"
+				}
 				logger.error("Failed to install assets", e)
 				onProgress(Progress(msg))
-				return@withContext Result.Failure(e, errorMessage = msg)
+				return@withContext Result.Failure(e, errorMessage = msg, shouldReportToSentry = !isMissingAsset)
 			}
 
 			return@withContext Result.Success
