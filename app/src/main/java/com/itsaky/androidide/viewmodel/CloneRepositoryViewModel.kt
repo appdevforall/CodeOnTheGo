@@ -133,6 +133,11 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 }
 
                 GitRepositoryManager.cloneRepository(url, destDir, credentials, progressMonitor)
+                
+                if (!destDir.exists()) {
+                    throw Exception("Destination directory was not created.")
+                }
+                
                 hasCloned = true
                 _uiState.update {
                     CloneRepoUiState.Success(localPath = localPath)

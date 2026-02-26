@@ -192,4 +192,21 @@ class CloneRepositoryViewModelTest {
             )
         }
     }
+
+    @Test
+    fun `cloneRepository fails if destination directory does not exist after clone`() = runTest {
+        val folder = File(tempFolder.root, "MissingFolder")
+
+        coEvery {
+            GitRepositoryManager.cloneRepository(any(), any(), any(), any())
+        } returns mockk()
+
+        viewModel.cloneRepository("https://github.com/username/newproject.git", folder.absolutePath)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is CloneRepoUiState.Error)
+        Assert.assertNotNull((state as CloneRepoUiState.Error).errorMessage)
+        assertTrue(state.errorMessage!!.contains("Destination directory was not created"))
+    }
 }
