@@ -1,5 +1,5 @@
 /*
- *  This file is part of CodeOnTheGo.
+ *  This file is part of Code on the Go.
  *
  *  AndroidIDE is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by

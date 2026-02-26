@@ -216,7 +216,7 @@ class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, Docume
                 summary = "<b>Keystore Generator Plugin</b><br>Complete plugin integration showcase",
                 detail = """
                     <h3>Plugin Integration Showcase</h3>
-                    <p>This plugin demonstrates comprehensive integration with the CodeOnTheGo plugin system.</p>
+                    <p>This plugin demonstrates comprehensive integration with the Code on the Go plugin system.</p>
 
                     <h4>Integration Points:</h4>
                     <ul>
