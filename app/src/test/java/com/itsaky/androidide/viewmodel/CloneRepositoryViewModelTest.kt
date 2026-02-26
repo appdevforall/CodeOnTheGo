@@ -26,6 +26,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.File
+import com.itsaky.androidide.git.core.models.CloneRepoUiState
 
 
 @RunWith(JUnit4::class)
@@ -64,12 +65,11 @@ class CloneRepositoryViewModelTest {
 
     @Test
     fun `initial state should be empty and clone button disabled`() {
-        with(viewModel.uiState.value) {
-            assertEquals("", url)
-            assertEquals("", localPath)
-            assertFalse(isCloneButtonEnabled)
-            assertFalse(isLoading)
-        }
+        val state = viewModel.uiState.value
+        assertTrue(state is CloneRepoUiState.Idle)
+        assertEquals("", (state as CloneRepoUiState.Idle).url)
+        assertEquals("", state.localPath)
+        assertFalse(state.isCloneButtonEnabled)
     }
 
     @Test
@@ -80,12 +80,11 @@ class CloneRepositoryViewModelTest {
 
         viewModel.resetState()
 
-        with(viewModel.uiState.value) {
-            assertEquals("", url)
-            assertEquals("", localPath)
-            assertFalse(isCloneButtonEnabled)
-            assertFalse(isLoading)
-        }
+        val state = viewModel.uiState.value
+        assertTrue(state is CloneRepoUiState.Idle)
+        assertEquals("", (state as CloneRepoUiState.Idle).url)
+        assertEquals("", state.localPath)
+        assertFalse(state.isCloneButtonEnabled)
     }
 
     @Test
@@ -95,7 +94,8 @@ class CloneRepositoryViewModelTest {
         )
 
         val state = viewModel.uiState.value
-        assertTrue(state.isCloneButtonEnabled)
+        assertTrue(state is CloneRepoUiState.Idle)
+        assertTrue((state as CloneRepoUiState.Idle).isCloneButtonEnabled)
     }
 
 
@@ -106,7 +106,8 @@ class CloneRepositoryViewModelTest {
         )
 
         val state = viewModel.uiState.value
-        assertFalse(state.isCloneButtonEnabled)
+        assertTrue(state is CloneRepoUiState.Idle)
+        assertFalse((state as CloneRepoUiState.Idle).isCloneButtonEnabled)
     }
 
     @Test
@@ -116,7 +117,9 @@ class CloneRepositoryViewModelTest {
 
         viewModel.cloneRepository("https://github.com/username/newproject.git", folder.absolutePath)
 
-        assertEquals(R.string.destination_directory_not_empty, viewModel.uiState.value.statusResId)
+        val state = viewModel.uiState.value
+        assertTrue(state is CloneRepoUiState.Error)
+        assertEquals(R.string.destination_directory_not_empty, (state as CloneRepoUiState.Error).errorResId)
     }
 
     @Test
@@ -132,9 +135,8 @@ class CloneRepositoryViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals(R.string.clone_successful, state.statusResId)
-        assertTrue(state.isSuccess == true)
-        assertFalse(state.isLoading)
+        assertTrue(state is CloneRepoUiState.Success)
+        assertEquals(folder.absolutePath, (state as CloneRepoUiState.Success).localPath)
 
         coVerify(exactly = 1) {
             GitRepositoryManager.cloneRepository(
@@ -156,9 +158,9 @@ class CloneRepositoryViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        Assert.assertNotNull(state.statusMessage)
-        assertTrue(state.statusMessage.contains(errorMsg))
-        assertFalse(state.isSuccess == true)
+        assertTrue(state is CloneRepoUiState.Error)
+        Assert.assertNotNull((state as CloneRepoUiState.Error).errorMessage)
+        assertTrue(state.errorMessage!!.contains(errorMsg))
     }
 
     @Test
@@ -177,6 +179,9 @@ class CloneRepositoryViewModelTest {
             token = "token"
         )
         advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is CloneRepoUiState.Success)
 
         coVerify(exactly = 1) {
             GitRepositoryManager.cloneRepository(

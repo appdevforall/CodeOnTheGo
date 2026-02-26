@@ -2,15 +2,29 @@ package com.itsaky.androidide.git.core.models
 
 import androidx.annotation.StringRes
 
-data class CloneRepoUiState(
-    val url: String = "",
-    val localPath: String = "",
-    val statusMessage: String = "",
-    @get:StringRes val statusResId: Int? = null,
-    val isLoading: Boolean = false,
-    val cloneProgress: String = "",
-    val clonePercentage: Int = 0,
-    val isSuccess: Boolean? = null,
-    val isAuthRequired: Boolean = false,
-    val isCloneButtonEnabled: Boolean = false
-)
+sealed interface CloneRepoUiState {
+    
+    data class Idle(
+        val url: String = "",
+        val localPath: String = "",
+        val isCloneButtonEnabled: Boolean = false
+    ) : CloneRepoUiState
+    
+    data class Cloning(
+        val url: String,
+        val localPath: String,
+        val cloneProgress: String = "",
+        val clonePercentage: Int = 0
+    ) : CloneRepoUiState
+    
+    data class Success(
+        val localPath: String
+    ) : CloneRepoUiState
+    
+    data class Error(
+        val url: String,
+        val localPath: String,
+        val errorMessage: String? = null,
+        @StringRes val errorResId: Int? = null,
+    ) : CloneRepoUiState
+}

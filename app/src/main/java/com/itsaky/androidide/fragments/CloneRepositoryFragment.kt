@@ -14,6 +14,8 @@ import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.FragmentCloneRepositoryBinding
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.git.core.models.CloneRepoUiState
+import com.itsaky.androidide.R
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -90,42 +92,59 @@ class CloneRepositoryFragment : BaseFragment() {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
                     binding?.apply {
-                        repoUrl.isEnabled = !state.isLoading
-                        localPath.isEnabled = !state.isLoading
-
-                        val statusMessage =
-                            state.statusResId?.let { getString(it) } ?: state.statusMessage
-                        statusText.text = statusMessage
-
-
-                        cloneButton.isEnabled = state.isCloneButtonEnabled
-
+                        val isLoading = state is CloneRepoUiState.Cloning
+                        repoUrl.isEnabled = !isLoading
+                        localPath.isEnabled = !isLoading
+                        username.isEnabled = !isLoading
+                        password.isEnabled = !isLoading
+                        
                         progressBar.apply {
-                            visibility = if (state.isLoading) View.VISIBLE else View.GONE
-                            progress = state.clonePercentage
+                            visibility = if (isLoading) View.VISIBLE else View.GONE
+                            if (state is CloneRepoUiState.Cloning) {
+                                progress = state.clonePercentage
+                            }
                         }
 
                         progressText.apply {
-                            visibility =
-                                if (state.isLoading && state.cloneProgress.isNotEmpty()) View.VISIBLE else View.GONE
-                            text = state.cloneProgress
+                            if (state is CloneRepoUiState.Cloning && state.cloneProgress.isNotEmpty()) {
+                                visibility = View.VISIBLE
+                                text = state.cloneProgress
+                            } else {
+                                visibility = View.GONE
+                            }
                         }
-                        username.isEnabled = !state.isLoading
-                        password.isEnabled = !state.isLoading
 
-                        if (state.isSuccess == true) {
-                            val destDir = File(state.localPath)
-                            if (destDir.exists()) {
-                                mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
-                                (requireActivity() as? MainActivity)?.openProject(destDir)
+                        when (state) {
+                            is CloneRepoUiState.Idle -> {
+                                cloneButton.isEnabled = state.isCloneButtonEnabled
+                                statusText.text = ""
+                            }
+                            is CloneRepoUiState.Cloning -> {
+                                cloneButton.isEnabled = false
+                                statusText.text = getString(R.string.cloning_repo)
+                            }
+                            is CloneRepoUiState.Error -> {
+                                cloneButton.isEnabled = true
+                                val statusMessage = state.errorResId?.let { getString(it) } ?: state.errorMessage
+                                statusText.text = statusMessage
+                            }
+                            is CloneRepoUiState.Success -> {
+                                cloneButton.isEnabled = true
+                                statusText.text = getString(R.string.clone_successful)
+                                
+                                val destDir = File(state.localPath)
+                                if (destDir.exists()) {
+                                    mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
+                                    (requireActivity() as? MainActivity)?.openProject(destDir)
 
-                                // Reset state after opening project
-                                repoUrl.text?.clear()
-                                localPath.text?.clear()
-                                username.text?.clear()
-                                password.text?.clear()
-                                authCheckbox.isChecked = false
-                                viewModel.resetState()
+                                    // Reset state after opening project
+                                    repoUrl.text?.clear()
+                                    localPath.text?.clear()
+                                    username.text?.clear()
+                                    password.text?.clear()
+                                    authCheckbox.isChecked = false
+                                    viewModel.resetState()
+                                }
                             }
                         }
                     }

@@ -20,21 +20,32 @@ import java.io.File
 
 class CloneRepositoryViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _uiState = MutableStateFlow(CloneRepoUiState())
+    private val _uiState = MutableStateFlow<CloneRepoUiState>(CloneRepoUiState.Idle())
     val uiState: StateFlow<CloneRepoUiState> = _uiState.asStateFlow()
 
     fun onInputChanged(url: String, path: String) {
-        _uiState.update {
-            it.copy(
-                url = url,
-                localPath = path,
-                isCloneButtonEnabled = url.isNotBlank() && path.isNotBlank() && !uiState.value.isLoading
-            )
+        val currentState = _uiState.value
+        if (currentState is CloneRepoUiState.Idle) {
+            _uiState.update {
+                currentState.copy(
+                    url = url,
+                    localPath = path,
+                    isCloneButtonEnabled = url.isNotBlank() && path.isNotBlank()
+                )
+            }
+        } else if (currentState is CloneRepoUiState.Error) {
+            _uiState.update {
+                CloneRepoUiState.Idle(
+                    url = url,
+                    localPath = path,
+                    isCloneButtonEnabled = url.isNotBlank() && path.isNotBlank()
+                )
+            }
         }
     }
 
     fun resetState() {
-        _uiState.value = CloneRepoUiState()
+        _uiState.value = CloneRepoUiState.Idle()
     }
 
     fun cloneRepository(
@@ -46,17 +57,22 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         val destDir = File(localPath)
         val isExistingDir = destDir.exists()
         if (isExistingDir && destDir.listFiles()?.isNotEmpty() == true) {
-            _uiState.update { it.copy(statusResId = R.string.destination_directory_not_empty) }
+            _uiState.update {
+                CloneRepoUiState.Error(
+                    url = url,
+                    localPath = localPath,
+                    errorResId = R.string.destination_directory_not_empty
+                )
+            }
             return
         }
 
         viewModelScope.launch {
             var hasCloned = false
             _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    statusResId = R.string.cloning_repo,
-                    isCloneButtonEnabled = false
+                CloneRepoUiState.Cloning(
+                    url = url,
+                    localPath = localPath
                 )
             }
             try {
@@ -104,11 +120,14 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                             currentTaskTitle
                         }
 
-                        _uiState.update {
-                            it.copy(
-                                cloneProgress = progressMsg,
-                                clonePercentage = percentage,
-                            )
+                        val currentState = _uiState.value
+                        if (currentState is CloneRepoUiState.Cloning) {
+                            _uiState.update {
+                                currentState.copy(
+                                    cloneProgress = progressMsg,
+                                    clonePercentage = percentage,
+                                )
+                            }
                         }
                     }
                 }
@@ -116,21 +135,15 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 GitRepositoryManager.cloneRepository(url, destDir, credentials, progressMonitor)
                 hasCloned = true
                 _uiState.update {
-                    it.copy(
-                        statusResId = R.string.clone_successful,
-                        isSuccess = true,
-                        isCloneButtonEnabled = true
-                    )
+                    CloneRepoUiState.Success(localPath = localPath)
                 }
             } catch (e: Exception) {
                 val errorMessage = e.message ?: application.getString(R.string.unknown_error)
                 _uiState.update {
-                    it.copy(
-                        statusResId = null,
-                        statusMessage = application.getString(
-                            R.string.clone_failed, errorMessage
-                        ),
-                        isSuccess = false
+                    CloneRepoUiState.Error(
+                        url = url,
+                        localPath = localPath,
+                        errorMessage = application.getString(R.string.clone_failed, errorMessage)
                     )
                 }
             } finally {
@@ -143,9 +156,17 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                             destDir.listFiles()?.forEach { it.deleteRecursively() }
                         }
                     }
-                }
-                _uiState.update {
-                    it.copy(isLoading = false, isCloneButtonEnabled = true)
+
+                    val currentState = _uiState.value
+                    if (currentState is CloneRepoUiState.Cloning) {
+                        _uiState.update {
+                            CloneRepoUiState.Idle(
+                                url = url,
+                                localPath = localPath,
+                                isCloneButtonEnabled = true
+                            )
+                        }
+                    }
                 }
             }
         }
