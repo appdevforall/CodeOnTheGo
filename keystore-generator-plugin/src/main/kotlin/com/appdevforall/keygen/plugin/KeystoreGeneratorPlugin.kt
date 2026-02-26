@@ -28,7 +28,7 @@ import android.widget.EditText
 import java.io.File
 
 /**
- * COGO plugin for generating Android keystores for release builds
+ * Code On the Go plugin for generating Android keystores for release builds
  */
 class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExtension, BuildStatusListener {
 
