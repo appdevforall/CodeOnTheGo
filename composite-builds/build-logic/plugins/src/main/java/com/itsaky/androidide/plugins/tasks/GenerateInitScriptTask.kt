@@ -65,7 +65,7 @@ abstract class GenerateInitScriptTask : DefaultTask() {
           repositories {
               
               // Disabled references to external sources to prevent
-              // CoGo from going to the network
+              // Code On the Go from going to the network
               
               // // Always specify the snapshots repository first
               // maven {

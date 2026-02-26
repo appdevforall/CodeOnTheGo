@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `idetooltips` module is responsible for providing a flexible and reusable system for displaying contextual tooltips in CoGo. These tooltips can display short summaries, detailed help content, and external links, all within a floating popup anchored to UI components.
+The `idetooltips` module is responsible for providing a flexible and reusable system for displaying contextual tooltips in Code On the Go. These tooltips can display short summaries, detailed help content, and external links, all within a floating popup anchored to UI components.
 
 This module provides functionalities such as:
 *   Displaying tooltips with rich content (HTML).

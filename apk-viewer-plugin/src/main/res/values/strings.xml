@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Sample Plugin</string>
     <string name="plugin_title">Sample Plugin</string>
-    <string name="plugin_description">A comprehensive sample plugin demonstrating all CodeOnTheGo plugin capabilities</string>
+    <string name="plugin_description">A comprehensive sample plugin demonstrating all Code on the Go plugin capabilities</string>
 
     <!-- UI Strings -->
     <string name="show_toast">Show Toast</string>
