@@ -66,7 +66,7 @@
                 android:layout_marginTop="2dp"
                 android:textAppearance="?attr/textAppearanceCaption"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="by AndroidIDE Team" />
+                tools:text="by Code on the Go Team" />
 
             <TextView
                 android:id="@+id/plugin_description"
@@ -76,7 +76,7 @@
                 android:maxLines="2"
                 android:ellipsize="end"
                 android:textAppearance="?attr/textAppearanceBody2"
-                tools:text="A simple hello world plugin that demonstrates AndroidIDE plugin capabilities" />
+                tools:text="A simple hello world plugin that demonstrates Code on the Go plugin capabilities" />
 
             <TextView
                 android:id="@+id/plugin_status"

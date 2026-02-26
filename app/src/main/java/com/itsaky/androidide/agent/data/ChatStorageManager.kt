@@ -14,11 +14,39 @@ import java.io.File
  */
 class ChatStorageManager(private val storageDir: File) {
 
+    companion object {
+        private const val TAG = "ChatStorageManager"
+    }
+
     private val gson = Gson()
 
     init {
         // Ensure the target directory exists.
         storageDir.mkdirs()
+    }
+
+    private fun canPersist(sessions: List<ChatSession>): Boolean {
+        val projectDir = storageDir.parentFile ?: return false
+
+        if (!projectDir.exists() || !projectDir.isDirectory) {
+            Log.w(TAG, "Project directory no longer exists. Skipping persistence.")
+            return false
+        }
+
+        if (storageDir.exists() && storageDir.isDirectory) {
+            return true
+        }
+
+        if (sessions.isNotEmpty()) {
+            val recreated = storageDir.mkdirs()
+            if (!recreated) {
+                Log.w(TAG, "Failed to recreate agent directory.")
+            }
+            return recreated
+        }
+
+        Log.w(TAG, "No sessions in memory and agent dir missing. Skipping save.")
+        return false
     }
 
     /**
@@ -59,6 +87,8 @@ class ChatStorageManager(private val storageDir: File) {
      * It overwrites existing files for updated sessions and deletes files for removed sessions.
      */
     fun saveAllSessions(sessions: List<ChatSession>) {
+        if (!canPersist(sessions)) return
+
         val currentSessionIds = sessions.map { it.id }.toSet()
         val existingFileIds = storageDir.listFiles { _, name -> name.endsWith(".txt") }
             ?.map { it.nameWithoutExtension }
@@ -67,9 +97,7 @@ class ChatStorageManager(private val storageDir: File) {
         // Save each session to its corresponding file.
         sessions.forEach { session ->
             val sessionFile = File(storageDir, "${session.id}.txt")
-            val content = session.messages.joinToString("\n") { message ->
-                gson.toJson(message)
-            }
+            val content = session.messages.joinToString("\n") { gson.toJson(it) }
             sessionFile.writeText(content)
         }
 
@@ -85,16 +113,16 @@ class ChatStorageManager(private val storageDir: File) {
      * This is more efficient than saveAllSessions for updating a single active chat.
      */
     fun saveSession(session: ChatSession) {
+        if (!canPersist(listOf(session))) return
+
         try {
             val sessionFile = File(storageDir, "${session.id}.txt")
             // Serialize each message to a JSON string and join with newlines
-            val content = session.messages.joinToString("\n") { message ->
-                gson.toJson(message)
-            }
+            val content = session.messages.joinToString("\n") { gson.toJson(it) }
             sessionFile.writeText(content)
         } catch (e: Exception) {
             // It's good practice to handle potential I/O errors
-            Log.e("ChatStorageManager", "Error saving session ${session.id}", e)
+            Log.e(TAG, "Error saving session ${session.id}", e)
         }
     }
 }
