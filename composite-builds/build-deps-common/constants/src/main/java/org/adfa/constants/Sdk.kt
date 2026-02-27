@@ -26,32 +26,38 @@ package org.adfa.constants
  * * Moved from template-api in case of a roor repo merge we have to manuall move changes here.
  */
 
-enum class Sdk(val codename: String, val version: String, val api: Int) {
-    JellyBean("Jelly Bean", "4.1", 16),
-    JellyBeanMR1("Jelly Bean", "4.2", 17),
-    JellyBeanMR2("Jelly Bean", "4.3", 18),
-    KitKat("KitKat", "4.4", 19),
-    KitKatWatch("KitKat Watch", "4.4W", 20),
-    Lollipop("Lollipop", "5.0", 21),
-    LollipopMR1("Lollipop", "5.1", 22),
-    Marshmallow("Marshmallow", "6.0", 23),
-    Nougat("Nougat", "7.0", 24),
-    NougatMR1("Nougat", "7.1", 25),
-    Oreo("Oreo", "8.0", 26),
-    OreoMR1("Oreo", "8.1", 27),
-    Pie("Pie", "9.0", 28),
-    QuinceTart("Q", "10", 29),
-    RedVelvetCake("R", "11", 30),
-    SnowCone("Snow Cone", "12", 31),
-    SnowConeV2("Snow Cone", "12L", 32),
-    Tiramisu("Tiramisu", "13", 33),
-    UpsideDownCake("Upside Down Cake", "14", 34),
-    VanillaIceCream("Vanilla Ice Cream", "15", 35);
+enum class Sdk(
+	val codename: String,
+	val version: String,
+	val api: Int,
+) {
+	JellyBean("Jelly Bean", "4.1", 16),
+	JellyBeanMR1("Jelly Bean", "4.2", 17),
+	JellyBeanMR2("Jelly Bean", "4.3", 18),
+	KitKat("KitKat", "4.4", 19),
+	KitKatWatch("KitKat Watch", "4.4W", 20),
+	Lollipop("Lollipop", "5.0", 21),
+	LollipopMR1("Lollipop", "5.1", 22),
+	Marshmallow("Marshmallow", "6.0", 23),
+	Nougat("Nougat", "7.0", 24),
+	NougatMR1("Nougat", "7.1", 25),
+	Oreo("Oreo", "8.0", 26),
+	OreoMR1("Oreo", "8.1", 27),
+	Pie("Pie", "9.0", 28),
+	QuinceTart("Q", "10", 29),
+	RedVelvetCake("R", "11", 30),
+	SnowCone("Snow Cone", "12", 31),
+	SnowConeV2("Snow Cone", "12L", 32),
+	Tiramisu("Tiramisu", "13", 33),
+	UpsideDownCake("Upside Down Cake", "14", 34),
+	VanillaIceCream("Vanilla Ice Cream", "15", 35),
+	Baklava("Baklava", "16", 36),
+	;
 
-    /**
-     * Get the display name for this Sdk version.
-     *
-     * @return The display name.
-     */
-    fun displayName() : String = "API ${api}: Android $version (${codename})"
+	/**
+	 * Get the display name for this Sdk version.
+	 *
+	 * @return The display name.
+	 */
+	fun displayName(): String = "API $api: Android $version ($codename)"
 }
