@@ -7,6 +7,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -38,5 +39,9 @@ class AssetsInstallationHelperTest {
 
         assertTrue("Expected Result.Failure", result is Failure)
         assertFalse("Should skip Sentry report", (result as Failure).shouldReportToSentry)
+        assertEquals(
+            "Missing installation files. Code On the Go installation might be corrupt or incomplete.",
+            result.errorMessage
+        )
     }
 }
