@@ -90,21 +90,35 @@ class ChatStorageManager(private val storageDir: File) {
         if (!canPersist(sessions)) return
 
         val currentSessionIds = sessions.map { it.id }.toSet()
-        val existingFileIds = storageDir.listFiles { _, name -> name.endsWith(".txt") }
-            ?.map { it.nameWithoutExtension }
-            ?.toSet() ?: emptySet()
+        val existingFileIds = runCatching {
+            storageDir.listFiles { _, name -> name.endsWith(".txt") }
+                ?.map { it.nameWithoutExtension }
+                ?.toSet() ?: emptySet()
+        }.onFailure { e ->
+            Log.e(TAG, "Error listing existing sessions in storageDir", e)
+        }.getOrDefault(emptySet())
 
         // Save each session to its corresponding file.
         sessions.forEach { session ->
-            val sessionFile = File(storageDir, "${session.id}.txt")
-            val content = session.messages.joinToString("\n") { gson.toJson(it) }
-            sessionFile.writeText(content)
+            runCatching {
+                val sessionFile = File(storageDir, "${session.id}.txt")
+                sessionFile.parentFile?.mkdirs()
+                val content = session.messages.joinToString("\n") { gson.toJson(it) }
+                sessionFile.writeText(content)
+            }.onFailure { e ->
+                Log.e(TAG, "Failed to save session ${session.id}.", e)
+            }
         }
 
         // Delete files for sessions that no longer exist.
         val sessionsToDelete = existingFileIds - currentSessionIds
         sessionsToDelete.forEach { sessionId ->
-            File(storageDir, "$sessionId.txt").delete()
+            runCatching {
+                val fileToDelete = File(storageDir, "$sessionId.txt")
+                if (fileToDelete.exists()) fileToDelete.delete()
+            }.onFailure { e ->
+                Log.e(TAG, "Failed to delete session file $sessionId.txt", e)
+            }
         }
     }
 
