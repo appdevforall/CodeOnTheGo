@@ -516,6 +516,8 @@ open class EditorHandlerActivity :
 		file: File,
 		selection: Range?,
 	): Int {
+		val safeContent = contentOrNull ?: return -1
+		val totalTabs = safeContent.tabs.tabCount
 		val openedFileIndex = findIndexOfEditorByFile(file)
 		if (openedFileIndex != -1) {
 			return openedFileIndex
@@ -527,18 +529,19 @@ open class EditorHandlerActivity :
 
 		val fileIndex = editorViewModel.getOpenedFileCount()
 		val tabPosition = getNextFileTabPosition()
+		if (tabPosition < 0) return -1
 
 		log.info("Opening file at file index {} tab position {} file:{}", fileIndex, tabPosition, file)
 
 		val editor = CodeEditorView(this, file, selection!!)
 		editor.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
 
-		if (tabPosition >= content.tabs.tabCount) {
-			content.tabs.addTab(content.tabs.newTab())
-			content.editorContainer.addView(editor)
+		if (tabPosition >= totalTabs) {
+			safeContent.tabs.addTab(safeContent.tabs.newTab())
+			safeContent.editorContainer.addView(editor)
 		} else {
-			content.tabs.addTab(content.tabs.newTab(), tabPosition)
-			content.editorContainer.addView(editor, tabPosition)
+			safeContent.tabs.addTab(safeContent.tabs.newTab(), tabPosition)
+			safeContent.editorContainer.addView(editor, tabPosition)
 			shiftPluginIndices(tabPosition, 1)
 		}
 
@@ -551,7 +554,7 @@ open class EditorHandlerActivity :
 	}
 
 	private fun getNextFileTabPosition(): Int {
-		val safeContent = contentOrNull ?: return 0
+		val safeContent = contentOrNull ?: return -1
 		val totalTabs = safeContent.tabs.tabCount
 
 		var lastFileTabPos = -1
