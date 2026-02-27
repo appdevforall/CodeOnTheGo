@@ -75,7 +75,7 @@ private fun ProjectTemplateBuilder.executePluginRecipe(
 ): ProjectTemplateRecipeResult {
 	if (!Environment.PLUGIN_API_JAR.exists()) {
 		throw IllegalStateException(
-			"plugin-api.jar not found. Please ensure you have the latest version of CodeOnTheGo installed."
+			"plugin-api.jar not found. Please ensure you have the latest version of Code on the Go installed."
 		)
 	}
 

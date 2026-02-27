@@ -14,8 +14,8 @@ gradlePlugin {
         create("pluginBuilder") {
             id = "com.itsaky.androidide.plugins.build"
             implementationClass = "com.itsaky.androidide.plugins.build.PluginBuilder"
-            displayName = "CodeOnTheGo Plugin Builder"
-            description = "Gradle plugin for building CodeOnTheGo plugins"
+            displayName = "Code on the Go Plugin Builder"
+            description = "Gradle plugin for building Code on the Go plugins"
         }
     }
 }

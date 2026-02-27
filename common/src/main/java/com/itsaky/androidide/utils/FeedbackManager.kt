@@ -36,7 +36,7 @@ import java.util.Locale
 
 /**
  * A reusable feedback manager that provides consistent UI for sending feedback
- * from any screen in the CoGo application.
+ * from any screen in the Code On the Go application.
  */
 object FeedbackManager {
 	private const val EMAIL_SUPPORT = "feedback@appdevforall.org"

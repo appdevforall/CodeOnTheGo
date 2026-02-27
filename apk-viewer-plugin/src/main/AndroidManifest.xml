@@ -24,7 +24,7 @@
 
         <meta-data
             android:name="plugin.author"
-            android:value="CodeOnTheGo Team" />
+            android:value="Code on the Go Team" />
 
         <meta-data
             android:name="plugin.min_ide_version"
