@@ -24,6 +24,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
+import com.itsaky.androidide.lsp.java.debug.transport.COTGSocketListeningConnector
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
@@ -40,7 +41,7 @@ import com.sun.jdi.event.StepEvent
 import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.jdi.request.EventRequest
 import com.sun.jdi.request.StepRequest
-import com.sun.tools.jdi.SocketListeningConnector
+import com.sun.tools.jdi.VirtualMachineManagerImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -58,7 +59,17 @@ internal class JavaDebugAdapter :
 	IDebugAdapter,
 	EventConsumer,
 	AutoCloseable {
-	private val vmm = Bootstrap.virtualMachineManager()
+	private val vmm =
+		Bootstrap.virtualMachineManager().also { vmm ->
+			if (vmm.listeningConnectors().filterIsInstance<COTGSocketListeningConnector>().isEmpty()) {
+				logger.warn(
+					"{} was not located by ServiceLoader. Adding it manually...",
+					COTGSocketListeningConnector::class.simpleName,
+				)
+				(vmm as? VirtualMachineManagerImpl)?.addConnector(COTGSocketListeningConnector())
+			}
+		}
+
 	private val vms = CopyOnWriteArraySet<VmConnection>()
 	private val adapterScope = CoroutineScope(Dispatchers.Default)
 
@@ -117,18 +128,24 @@ internal class JavaDebugAdapter :
 	fun evalContext() = connVm().evalContext
 
 	override fun connectDebugClient(client: IDebugClient) {
-		val connector = vmm.listeningConnectors().firstOrNull() as? SocketListeningConnector?
+		val listeningConnectors = vmm.listeningConnectors()
+		listeningConnectors.forEach { conn ->
+			logger.info("Listening connector: {}", conn.javaClass.canonicalName)
+		}
+
+		val connector = vmm.listeningConnectors().filterIsInstance<COTGSocketListeningConnector>().firstOrNull()
 		if (connector == null) {
 			logger.error("No listening connectors found, or the connector is not a SocketListeningConnector")
 			return
 		}
 
 		val args = connector.defaultArguments()
+		args[JdwpOptions.CONNECTOR_LOCAL_ADDR]!!.setValue(JdwpOptions.DEFAULT_JDWP_HOST)
 		args[JdwpOptions.CONNECTOR_PORT]!!.setValue(JdwpOptions.DEFAULT_JDWP_PORT.toString())
 		args[JdwpOptions.CONNECTOR_TIMEOUT]!!.setValue(JdwpOptions.DEFAULT_JDWP_TIMEOUT.inWholeMilliseconds.toString())
 
 		logger.debug(
-			"Starting JDWP listener. Arguments={}",
+			"Starting JDWP listener. Arguments: {}",
 			args.map { (_, value) -> "$value" }.joinToString(),
 		)
 

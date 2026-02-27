@@ -15,6 +15,11 @@ object JdwpOptions {
 	const val JDWP_ENABLED = true
 
 	/**
+	 * The hostname of the JDWP listener socket.
+	 */
+	const val DEFAULT_JDWP_HOST = "127.0.0.1"
+
+	/**
 	 * The port on which the debugger will listen for connections.
 	 */
 	const val DEFAULT_JDWP_PORT = 42233
@@ -33,7 +38,7 @@ object JdwpOptions {
 			"suspend" to "n",
 			"server" to "n",
 			"transport" to "dt_socket",
-			"address" to "$DEFAULT_JDWP_PORT",
+			"address" to "$DEFAULT_JDWP_HOST:$DEFAULT_JDWP_PORT",
 			"quiet" to "n",
 			"logflags" to "0xfff",
 		)
@@ -43,6 +48,12 @@ object JdwpOptions {
 	 * agent.
 	 */
 	val JDWP_OPTIONS = JDWP_OPTIONS_MAP.map { (key, value) -> "$key=$value" }.joinToString(",")
+
+	/**
+	 * The argument provided to JDI [Connector][com.sun.jdi.connect.Connector] to provide the
+	 * hostname of the listener.
+	 */
+	const val CONNECTOR_LOCAL_ADDR = "localAddress"
 
 	/**
 	 * The argument provided to JDI [Connector][com.sun.jdi.connect.Connector] to provide the port to listen at.
