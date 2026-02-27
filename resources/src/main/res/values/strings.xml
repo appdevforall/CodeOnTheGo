@@ -1161,4 +1161,6 @@
     <string name="clone_failed">Clone failed: %1$s</string>
     <string name="cloning_repo">Cloning repository…</string>
     <string name="pick_folder">Pick folder</string>
+    <string name="git_title">Git</string>
+    <string name="no_uncommitted_changes">No uncommitted changes</string>
 </resources>
