@@ -4,17 +4,16 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
-import java.net.URLDecoder
 
 fun Uri.getFileName(context: Context): String {
-    val unknownFile = "Unknown File"
+    val unknownFileLabel = "Unknown File"
     if (scheme == "content") {
         try {
             context.contentResolver.query(this, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                     if (nameIndex >= 0) {
-                        return cursor.getString(nameIndex) ?: unknownFile
+                        return cursor.getString(nameIndex) ?: unknownFileLabel
                     }
                 }
             }
@@ -24,11 +23,10 @@ fun Uri.getFileName(context: Context): String {
             Log.w("UriExtensions", "Unexpected error while reading URI: ${scheme}://${authority}", e)
         }
 
-        return unknownFile
+        return unknownFileLabel
     }
 
-    val fallbackName = path?.substringAfterLast('/') ?: unknownFile
-    return try {
-        URLDecoder.decode(fallbackName, "UTF-8")
-    } catch (_: Exception) { fallbackName }
+    val fallbackName = path?.substringAfterLast('/') ?: unknownFileLabel
+    val decodedName = Uri.decode(fallbackName)
+    return decodedName.ifBlank { unknownFileLabel }
 }
