@@ -19,4 +19,7 @@ val coreModule =
 		viewModel {
 			ChatViewModel()
 		}
+		viewModel {
+			com.itsaky.androidide.viewmodel.GitBottomSheetViewModel()
+		}
 	}
