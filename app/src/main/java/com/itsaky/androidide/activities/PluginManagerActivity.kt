@@ -26,6 +26,8 @@ import com.itsaky.androidide.utils.errorIcon
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -66,6 +68,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
             setupRecyclerView()
             setupFab()
+            setupTooltipLongPress()
             setupFeedbackButton()
             observeViewModel()
         } catch (e: Exception) {
@@ -115,6 +118,16 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         binding.fabInstallPlugin.setOnClickListener {
             viewModel.onEvent(PluginManagerUiEvent.OpenFilePicker)
         }
+    }
+
+    private fun setupTooltipLongPress() {
+        val showTooltip: (View) -> Unit = { view ->
+            TooltipManager.showIdeCategoryTooltip(this, view, TooltipTag.PLUGIN_MANAGER)
+        }
+        binding.toolbar.setOnLongClickListener { showTooltip(it); true }
+        binding.fabInstallPlugin.setOnLongClickListener { showTooltip(it); true }
+        binding.emptyState.setOnLongClickListener { showTooltip(it); true }
+        binding.recyclerView.setOnLongClickListener { showTooltip(it); true }
     }
 
     private fun setupFeedbackButton(){

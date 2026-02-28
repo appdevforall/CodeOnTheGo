@@ -10,6 +10,8 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.ItemPluginBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
 
 class PluginListAdapter(
@@ -73,6 +75,12 @@ class PluginListAdapter(
                 // Setup item click for details
                 root.setOnClickListener {
                     onActionClick(plugin, Action.DETAILS)
+                }
+
+                // Long-press for Plugin Manager tooltip
+                root.setOnLongClickListener {
+                    TooltipManager.showIdeCategoryTooltip(it.context, it, TooltipTag.PLUGIN_MANAGER)
+                    true
                 }
             }
         }
