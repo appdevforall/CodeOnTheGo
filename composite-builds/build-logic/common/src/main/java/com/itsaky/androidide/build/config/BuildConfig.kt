@@ -37,7 +37,7 @@ object BuildConfig {
 	/** The minimum SDK version. */
 	const val MIN_SDK = 28
 
-	/** The minimum SDK version for apps built in CoGo. */
+	/** The minimum SDK version for apps built in Code On the Go. */
 	const val MIN_SDK_FOR_APPS_BUILT_WITH_COGO = 16
 
 	/** The target SDK version. */

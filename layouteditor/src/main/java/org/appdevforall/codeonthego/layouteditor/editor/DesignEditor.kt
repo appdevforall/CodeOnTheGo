@@ -463,9 +463,10 @@ class DesignEditor : LinearLayout {
 		val parser = XmlLayoutParser(context, currentBasePath)
 		this.parser = parser
 
-		parser.parseFromXml(xml, context)
+		parser.processXml(xml, context)
 
-		addView(parser.root)
+		val root = parser.root ?: return
+		addView(root)
 		viewAttributeMap = parser.viewAttributeMap
 
 		for (view in (viewAttributeMap as HashMap<View, *>?)!!.keys) {
