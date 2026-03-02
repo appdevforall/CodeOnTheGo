@@ -39,7 +39,7 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 	override fun apply(target: Gradle) {
 		removeDaemonLogs(target)
 
-		target.beforeSettings { settings ->
+		target.settingsEvaluated { settings ->
 			settings.pluginManager.apply(COTGSettingsPlugin::class.java)
 		}
 

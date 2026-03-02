@@ -17,15 +17,23 @@ class COTGSettingsPlugin : Plugin<Settings> {
 	private val logger = Logging.getLogger(COTGSettingsPlugin::class.java)
 
 	override fun apply(target: Settings) {
+		if (target.gradle.parent != null) {
+			// only apply the settings plugin to the root Gradle build
+			return
+		}
+
+		logger.info("Plugin instance: ${System.identityHashCode(this)}")
 		// Add our local maven repo, always.
-		target.addLocalRepos(mavenLocalRepos = listOf(MAVEN_LOCAL_REPOSITORY))
+		val allLocalRepos = mutableListOf(MAVEN_LOCAL_REPOSITORY)
 
 		// Then check if we need to add additional repos, based on whether
 		// we're in a test environment
 		val (isTestEnv, mavenLocalRepos) = getTestEnvProps(target.startParameter)
 		if (isTestEnv) {
-			target.addLocalRepos(mavenLocalRepos = mavenLocalRepos)
+			allLocalRepos += mavenLocalRepos
 		}
+
+		target.addLocalRepos(allLocalRepos)
 	}
 
 	private fun RepositoryHandler.addLocalRepos(repos: List<String>) {
@@ -36,13 +44,8 @@ class COTGSettingsPlugin : Plugin<Settings> {
 
 	@Suppress("UnstableApiUsage")
 	private fun Settings.addLocalRepos(mavenLocalRepos: List<String>) {
-		dependencyResolutionManagement.repositories { repositories ->
-			repositories.addLocalRepos(mavenLocalRepos)
-		}
-
-		pluginManagement.repositories { repositories ->
-			repositories.addLocalRepos(mavenLocalRepos)
-		}
+		dependencyResolutionManagement.repositories.addLocalRepos(mavenLocalRepos)
+		pluginManagement.repositories.addLocalRepos(mavenLocalRepos)
 	}
 
 	private fun getTestEnvProps(startParameter: StartParameter): Pair<Boolean, List<String>> =
@@ -75,6 +78,6 @@ private fun RepositoryHandler.addMavenRepoIfMissing(
 ) {
 	if (none { it is MavenArtifactRepository && it.url == uri }) {
 		logger.info("Adding maven repository: $uri")
-		maven { it.url = uri }
+		addLast(maven { it.url = uri })
 	}
 }
