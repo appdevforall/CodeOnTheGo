@@ -313,6 +313,14 @@
 	<string name="msg_yesno_def_message">Are you sure?</string>
 	<string name="msg_empty_ui_layout">No views have been added. Click to add a view.</string>
 	<string name="msg_generate_xml_failed">Failed to generate XML code</string>
+    <string name="xml_validation_error_title">Layout XML error</string>
+    <string name="xml_validation_error_invalid_file">Selected file is not a valid Android XML layout.</string>
+    <string name="xml_error_parse">We could not read this layout XML. %1$s</string>
+    <string name="xml_error_io">We could not open this layout XML. %1$s</string>
+    <string name="xml_error_generic">We could not open this layout. %1$s</string>
+    <string name="xml_error_single_child_container">%1$s can have only one direct child. Wrap your views in a container like LinearLayout or ConstraintLayout.</string>
+    <string name="xml_error_add_child_failed">We could not place %1$s inside %2$s. Check the view hierarchy.</string>
+    <string name="xml_validation_error_generic">We could not open this layout. Fix the XML and try again.</string>
 	<string name="title_generating_xml">Generating XML code</string>
 	<string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
 	<string name="preview_render_error_title">Preview Unavailable</string>
@@ -589,7 +597,7 @@
 	<string name="title_class_chooser">Which %1$s?</string>
 
 	<string name="permlab_bind_logger_service">bind to log service</string>
-	<string name="permdesc_bind_logger_service">Allows this app to bind to Code on the Go\'s logging service. This permission is required for Code on the Go to read this app\'s logs.</string>
+	<string name="permdesc_bind_logger_service">Allows this app to bind to Code on the Go\'s logging service. This permission is needed for Code on the Go to read this app\'s logs.</string>
 	<string name="wizard_module_name">Module name</string>
 	<string name="wizard_module_type">Module type</string>
 	<string name="msg_invalid_module_name">Invalid Gradle module name</string>
@@ -678,11 +686,11 @@
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow up to four permissions.</string>
-	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages. On Android 12 and earlier, notifications are enabled by default and won’t appear as a permission request.</string>
-	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
-	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
-	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
+	<string name="permissions_info_intro">Next page: permissions</string>
+	<string name="permissions_info_notifications">• <b>Notifications</b> (to receive status messages) On Android 12 and earlier, notifications are enabled already.</string>
+	<string name="permissions_info_storage">• <b>Storage</b> (to create project directories and files)</string>
+	<string name="permissions_info_install">• <b>Install packages</b> (to install the apps that you build)</string>
+	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> (to use the debugger) If you can\'t enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the upper right Options menu, tap <b>Enable restricted settings</b>. Return to the installer and assign the permission. (The steps may vary on different devices.)</string>
 	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>

@@ -1,4 +1,4 @@
-; Indents query for AndroidIDE
+; Indents query for Code on the Go
 
 (xml_decl
   "<?" @indent

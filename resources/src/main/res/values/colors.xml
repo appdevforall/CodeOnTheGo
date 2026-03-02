@@ -28,5 +28,5 @@
   <color name="tooltip_text_color_light">#000000</color>
   <color name="tooltip_link_color_light">#233490</color>
   <color name="tooltip_text_color_dark">#E4E2E6</color>
-  <color name="tooltip_link_color_dark">#00BE00</color>
+  <color name="brand_color">#00BE00</color>
 </resources>

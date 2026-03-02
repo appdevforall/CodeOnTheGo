@@ -21,9 +21,9 @@ const val ANDROID_GRADLE_PLUGIN_VERSION = "8.11.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.14.3"
 const val KOTLIN_VERSION = "1.9.22"
 
-val TARGET_SDK_VERSION = Sdk.Tiramisu
-val COMPILE_SDK_VERSION = Sdk.Tiramisu
-val COMPOSE_SDK_VERSION = Sdk.Tiramisu
+val TARGET_SDK_VERSION = Sdk.Baklava
+val COMPILE_SDK_VERSION = Sdk.Baklava
+val COMPOSE_SDK_VERSION = Sdk.Baklava
 
 const val JAVA_SOURCE_VERSION = "17"
 const val JAVA_TARGET_VERSION = "17"
@@ -38,7 +38,7 @@ const val GRADLE_DISTRIBUTION_ARCHIVE_NAME = "$GRADLE_DISTRIBUTION_NAME-bin.zip"
 @Suppress("SdCardPath")
 const val ANDROIDIDE_HOME = "/data/data/com.itsaky.androidide/files/home/.androidide"
 
-// Cogo gradle plugin
+// Code On the Go gradle plugin
 const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
 const val COGO_GRADLE_PLUGIN_JAR_NAME = "$COGO_GRADLE_PLUGIN_NAME.jar"
 const val COGO_GRADLE_PLUGIN_PATH = "$ANDROIDIDE_HOME/plugin"
