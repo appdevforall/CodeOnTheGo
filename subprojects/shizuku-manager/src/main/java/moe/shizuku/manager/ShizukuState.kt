@@ -95,7 +95,7 @@ object ShizukuState {
 				logger.error(
 					"Failed to check GRANT_RUNTIME_PERMISSIONS permission." +
 						" Is the cotg_server process running?" +
-						" Is the process running from an earlier installation of CoGo?" +
+						" Is the process running from an earlier installation of Code On the Go?" +
 						" uid=" + uid +
 						" apiVersion=" + apiVersion +
 						" patchVersion=" + patchVersion +

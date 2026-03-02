@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:clickable="true"
-    android:fitsSystemWindows="true"
+    android:fitsSystemWindows="false"
     android:focusable="true"
     app:cardBackgroundColor="?attr/colorPrimaryContainer"
     app:cardElevation="@dimen/fb_card_elevation"
@@ -66,7 +66,7 @@
 
                     <TextView
                         android:id="@+id/fbTitle"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="@dimen/fb_title_message_margin"
                         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
@@ -78,7 +78,7 @@
 
                     <TextView
                         android:id="@+id/fbMessage"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/fb_title_message_margin"
                         android:background="@android:color/transparent"
