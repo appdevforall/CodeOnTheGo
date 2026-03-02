@@ -51,4 +51,5 @@ dependencies {
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
+    api(libs.google.gson)
 }

@@ -1,9 +1,7 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import android.graphics.Rect
-import android.util.Log
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -65,7 +63,19 @@ object YoloToXmlConverter {
         targetDpHeight: Int,
         wrapInScroll: Boolean = true
     ): String {
-        var scaledBoxes = detections.map { scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight) }
+
+        val widgetTags = detections.filter { it.isYolo.not() }
+        val widgets = detections.filter { it.isYolo }.filter { it.label != "widget_tag" }
+
+        var scaledBoxes = widgets.map {
+            scaleDetection(
+                it,
+                sourceImageWidth,
+                sourceImageHeight,
+                targetDpWidth,
+                targetDpHeight
+            )
+        }
 
         val parents = scaledBoxes.filter { it.label != "text" && !isTag(it.text) }.toMutableList()
         val texts = scaledBoxes.filter { it.label == "text" && !isTag(it.text) }
@@ -86,7 +96,15 @@ object YoloToXmlConverter {
         scaledBoxes = scaledBoxes.filter { !consumedTexts.contains(it) }
 
         val uiElements = scaledBoxes.filter { !isTag(it.text) }
-        val canvasTags = scaledBoxes.filter { isTag(it.text) }
+        val canvasTags = widgetTags.map {
+            scaleDetection(
+                it,
+                sourceImageWidth,
+                sourceImageHeight,
+                targetDpWidth,
+                targetDpHeight
+            )
+        }
         val finalAnnotations = mutableMapOf<ScaledBox, String>()
 
         for (tagBox in canvasTags) {
@@ -101,8 +119,6 @@ object YoloToXmlConverter {
                 finalAnnotations[closestElement] = annotation
             }
         }
-        
-        Log.d(TAG, "Final Annotation Associations: ${finalAnnotations.entries.joinToString { "'${it.key.label}' -> '${it.value}'" }}")
 
         val sortedBoxes = uiElements.sortedWith(compareBy({ it.y }, { it.x }))
         return buildXml(sortedBoxes, finalAnnotations, targetDpWidth, targetDpHeight, wrapInScroll)
@@ -120,7 +136,17 @@ object YoloToXmlConverter {
         val y = max(0, ((normCy - normH / 2.0) * targetH).roundToInt())
         val w = max(MIN_W_ANY, (normW * targetW).roundToInt())
         val h = max(MIN_H_ANY, (normH * targetH).roundToInt())
-        return ScaledBox(detection.label, detection.text, x, y, w, h, x + w / 2, y + h / 2, Rect(x, y, x + w, y + h))
+        return ScaledBox(
+            detection.label,
+            detection.text,
+            x,
+            y,
+            w,
+            h,
+            x + w / 2,
+            y + h / 2,
+            Rect(x, y, x + w, y + h)
+        )
     }
 
     private fun viewTagFor(label: String): String = when (label) {
@@ -138,12 +164,17 @@ object YoloToXmlConverter {
     }
 
     private fun buildXml(
-        boxes: List<ScaledBox>, annotations: Map<ScaledBox, String>, targetDpWidth: Int, targetDpHeight: Int, wrapInScroll: Boolean
+        boxes: List<ScaledBox>,
+        annotations: Map<ScaledBox, String>,
+        targetDpWidth: Int,
+        targetDpHeight: Int,
+        wrapInScroll: Boolean
     ): String {
         val xml = StringBuilder()
         val maxBottom = boxes.maxOfOrNull { it.y + it.h } ?: 0
         val needScroll = wrapInScroll && maxBottom > targetDpHeight
-        val namespaces = """xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools""""
+        val namespaces =
+            """xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools""""
 
         xml.appendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
         if (needScroll) {
@@ -165,7 +196,11 @@ object YoloToXmlConverter {
     }
 
     private fun appendSimpleView(
-        xml: StringBuilder, box: ScaledBox, counters: MutableMap<String, Int>, indent: String, annotations: Map<ScaledBox, String>
+        xml: StringBuilder,
+        box: ScaledBox,
+        counters: MutableMap<String, Int>,
+        indent: String,
+        annotations: Map<ScaledBox, String>
     ) {
         val label = box.label
         val tag = viewTagFor(label)
@@ -191,11 +226,13 @@ object YoloToXmlConverter {
                 if (label.contains("_checked") || label.contains("_on")) xml.append("$indent    android:checked=\"true\"\n")
                 xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
             }
+
             "EditText" -> {
                 xml.append("$indent    android:hint=\"${box.text.ifEmpty { "Enter text..." }}\"\n")
                 xml.append("$indent    android:inputType=\"text\"\n")
                 xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
             }
+
             "ImageView" -> {
                 xml.append("$indent    android:contentDescription=\"$label\"\n")
                 xml.append("$indent    android:scaleType=\"centerCrop\"\n")
@@ -227,12 +264,14 @@ object YoloToXmlConverter {
             "layout_gravity", "layout-gravity", "gravity"
         )
         val keysRegex = Regex("(?i)\\b(${knownKeys.joinToString("|")})\\s*:")
+
         val matches = keysRegex.findAll(annotation).toList()
 
         matches.forEachIndexed { index, match ->
             val key = match.groupValues[1]
             val startIndex = match.range.last + 1
-            val endIndex = if (index + 1 < matches.size) matches[index + 1].range.first else annotation.length
+            val endIndex =
+                if (index + 1 < matches.size) matches[index + 1].range.first else annotation.length
             val value = annotation.substring(startIndex, endIndex).trim()
 
             if (value.isNotEmpty()) {
@@ -244,7 +283,7 @@ object YoloToXmlConverter {
 
     private fun formatAttribute(key: String, value: String, tag: String): Pair<String, String>? {
         val canonicalKey = key.lowercase().replace("-", "_").replace(" ", "_")
-        
+
         return when (canonicalKey) {
             "width", "layout_width" -> "android:layout_width" to formatDimension(value)
             "height", "layout_height" -> "android:layout_height" to formatDimension(value)
@@ -255,13 +294,16 @@ object YoloToXmlConverter {
                     "android:background" to (colorMap[value.lowercase()] ?: value)
                 }
             }
+
             "text" -> "android:text" to value
             "id" -> "android:id" to value.replace(" ", "_")
             "src", "scr" -> "android:src" to "@drawable/${value.substringBeforeLast('.')}"
             "entries" -> "tools:entries" to value
             "inputtype", "input_type" -> "android:inputType" to value
             "hint" -> "android:hint" to value
-            "textcolor", "text_color" -> "android:textColor" to (colorMap[value.lowercase()] ?: value)
+            "textcolor", "text_color" -> "android:textColor" to (colorMap[value.lowercase()]
+                ?: value)
+
             "textsize", "text_size" -> "android:textSize" to if (value.matches(Regex("\\d+"))) "${value}sp" else value
             "style" -> "style" to value
             "layout_weight" -> "android:layout_weight" to value

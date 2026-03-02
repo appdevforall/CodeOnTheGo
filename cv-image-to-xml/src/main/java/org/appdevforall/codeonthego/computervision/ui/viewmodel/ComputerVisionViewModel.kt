@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
 import org.appdevforall.codeonthego.computervision.domain.MarginAnnotationParser
 import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
@@ -62,11 +63,18 @@ class ComputerVisionViewModel(
             ComputerVisionEvent.OpenImagePicker -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.OpenImagePicker) }
             }
+
             ComputerVisionEvent.RequestCameraPermission -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
             }
+
             is ComputerVisionEvent.UpdateGuides -> {
-                _uiState.update { it.copy(leftGuidePct = event.leftPct, rightGuidePct = event.rightPct) }
+                _uiState.update {
+                    it.copy(
+                        leftGuidePct = event.leftPct,
+                        rightGuidePct = event.rightPct
+                    )
+                }
             }
         }
     }
@@ -92,9 +100,10 @@ class ComputerVisionViewModel(
         }
     }
 
-    fun onScreenStarted(){
+    fun onScreenStarted() {
         CvAnalyticsUtil.trackScreenOpened()
     }
+
     private fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
             try {
@@ -185,7 +194,11 @@ class ComputerVisionViewModel(
             val yoloResult = repository.runYoloInference(bitmap)
             if (yoloResult.isFailure) {
                 val endTime = System.currentTimeMillis()
-                CvAnalyticsUtil.trackDetectionCompleted(success = false, detectionCount = 0, durationMs = endTime - startTime)
+                CvAnalyticsUtil.trackDetectionCompleted(
+                    success = false,
+                    detectionCount = 0,
+                    durationMs = endTime - startTime
+                )
                 handleDetectionError(yoloResult.exceptionOrNull())
                 return@launch
             }
@@ -222,7 +235,6 @@ class ComputerVisionViewModel(
                             currentOperation = CvOperation.Idle
                         )
                     }
-                    Log.d(TAG, "Detection complete. ${canvasDetections.size} objects found in canvas.")
                 }
                 .onFailure { handleDetectionError(it) }
         }
