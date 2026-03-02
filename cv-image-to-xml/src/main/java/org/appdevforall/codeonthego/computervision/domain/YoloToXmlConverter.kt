@@ -33,7 +33,7 @@ object YoloToXmlConverter {
         val centerX: Int, val centerY: Int, val rect: Rect
     )
 
-    private fun isTag(text: String): Boolean = text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-)\\d+$"))
+    private fun isTag(text: String): Boolean = text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$"))
 
     private fun getTagType(tag: String): String? {
         return when {
@@ -41,10 +41,10 @@ object YoloToXmlConverter {
             tag.startsWith("P-") -> "image_placeholder"
             tag.startsWith("D-") -> "dropdown"
             tag.startsWith("T-") -> "text_entry_box"
-            tag.startsWith("C-") -> "checkbox_unchecked"
-            tag.startsWith("R-") -> "radio_unchecked"
-            tag.startsWith("S-") -> "slider"
+            tag.startsWith("C-") -> "checkbox"
+            tag.startsWith("R-") -> "radio"
             tag.startsWith("SW-") -> "switch"
+            tag.startsWith("S-") -> "slider"
             else -> null
         }
     }
@@ -131,6 +131,9 @@ object YoloToXmlConverter {
     private fun scaleDetection(
         detection: DetectionResult, sourceWidth: Int, sourceHeight: Int, targetW: Int, targetH: Int
     ): ScaledBox {
+        if (sourceWidth == 0 || sourceHeight == 0) {
+            return ScaledBox(detection.label, detection.text, 0, 0, MIN_W_ANY, MIN_H_ANY, MIN_W_ANY / 2, MIN_H_ANY / 2, Rect(0, 0, MIN_W_ANY, MIN_H_ANY))
+        }
         val rect = detection.boundingBox
         val normCx = rect.centerX() / sourceWidth
         val normCy = rect.centerY() / sourceHeight

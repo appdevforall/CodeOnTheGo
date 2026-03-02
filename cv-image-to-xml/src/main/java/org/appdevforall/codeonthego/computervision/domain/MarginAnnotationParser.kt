@@ -22,10 +22,10 @@ object MarginAnnotationParser {
     }
 
     /**
-     * A tag is any string that starts with B, P, D, T, C, R, or S, followed by a hyphen and one or more digits.
+     * A tag is any string that starts with B, P, D, T, C, R, S, or SW, followed by a hyphen and one or more digits.
      */
     private fun isTag(text: String): Boolean {
-        return text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-)\\d+$"))
+        return text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$"))
     }
 
     fun parse(
