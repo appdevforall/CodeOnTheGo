@@ -19,6 +19,7 @@ package com.itsaky.androidide.handlers
 
 import android.content.Context
 import androidx.core.view.GravityCompat
+import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionMenu
@@ -36,6 +37,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.SheetOption
 import com.itsaky.androidide.utils.flashError
 import com.unnamed.b.atv.model.TreeNode
+import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
@@ -87,7 +89,9 @@ class FileTreeActionHandler : BaseEventHandler() {
       return
     }
 
-    context.openFile(event.file)
+    context.lifecycleScope.launch {
+      context.openFile(event.file)
+    }
   }
 
   @Subscribe(threadMode = MAIN)
