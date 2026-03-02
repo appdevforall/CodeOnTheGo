@@ -270,7 +270,8 @@ class TsAnalyzeWorker(
 
     val tree = tree!!
     val scopedVariables = TsScopedVariables(tree, text, languageSpec)
-    val oldTree = (styles.spans as? LineSpansGenerator?)?.tree
+    val oldSpans = styles.spans as? LineSpansGenerator
+    val oldTree = oldSpans?.tree
     val copied = tree.copy()
 
     styles.spans = LineSpansGenerator(
@@ -280,7 +281,8 @@ class TsAnalyzeWorker(
       theme,
       languageSpec,
       scopedVariables,
-      spanFactory
+      spanFactory,
+      requestRedraw = { stylesReceiver?.setStyles(analyzer, styles) }
     )
 
     val oldBlocks = styles.blocks
@@ -288,6 +290,7 @@ class TsAnalyzeWorker(
     oldBlocks?.also { ObjectAllocator.recycleBlockLines(it) }
 
     stylesReceiver?.setStyles(analyzer, styles) {
+      oldSpans?.destroy()
       oldTree?.close()
     }
 
