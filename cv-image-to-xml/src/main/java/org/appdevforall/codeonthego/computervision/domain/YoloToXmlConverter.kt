@@ -44,6 +44,7 @@ object YoloToXmlConverter {
             tag.startsWith("C-") -> "checkbox_unchecked"
             tag.startsWith("R-") -> "radio_unchecked"
             tag.startsWith("S-") -> "slider"
+            tag.startsWith("SW-") -> "switch"
             else -> null
         }
     }

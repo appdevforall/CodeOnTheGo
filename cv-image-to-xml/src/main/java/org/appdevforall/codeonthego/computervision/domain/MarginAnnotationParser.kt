@@ -49,11 +49,6 @@ object MarginAnnotationParser {
             }
         }
 
-        val marginLogOutput = marginDetections.joinToString(", ") {
-            val box = it.boundingBox
-            "'${it.text}', [left:${box.left.roundToInt()}, top:${box.top.roundToInt()}, width:${box.width().roundToInt()}, height:${box.height().roundToInt()}]"
-        }
-        Log.d(TAG, "Parsed Margin Content: $marginLogOutput")
 
         val annotationMap = mutableMapOf<String, String>()
         val sortedMarginDetections = marginDetections.sortedBy { it.boundingBox.top }
