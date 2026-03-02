@@ -26,16 +26,16 @@ import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
+import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
@@ -62,7 +62,6 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
@@ -75,7 +74,6 @@ import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
@@ -348,6 +346,7 @@ open class EditorHandlerActivity :
 			if (existingFiles.isEmpty()) return@launch
 
 			withContext(Dispatchers.Main) {
+				if (contentOrNull == null) return@withContext
 				existingFiles.forEach { file ->
 					openFile(File(file.filePath), file.selection)
 				}
@@ -378,7 +377,7 @@ open class EditorHandlerActivity :
 
 			content.projectActionsToolbar.addMenuItem(
 				icon = action.icon,
-				hint = action.label,
+				hint = getToolbarContentDescription(action, data),
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
 					TooltipManager.showIdeCategoryTooltip(
@@ -405,6 +404,36 @@ open class EditorHandlerActivity :
 		return data
 	}
 
+	private fun getToolbarContentDescription(action: ActionItem, data: ActionData): String {
+		val buildInProgress =
+			with(com.itsaky.androidide.actions.build.AbstractCancellableRunAction) {
+				this@EditorHandlerActivity.isBuildInProgress()
+			}
+		if (action.id == QuickRunAction.ID && buildInProgress) {
+			return getString(string.cd_toolbar_cancel_build)
+		}
+		val resId =
+			when (action.id) {
+				QuickRunAction.ID -> string.cd_toolbar_quick_run
+				"ide.editor.syncProject" -> string.cd_toolbar_sync_project
+				"ide.editor.build.debug" -> string.cd_toolbar_start_debugger
+				"ide.editor.build.runTasks" -> string.cd_toolbar_run_gradle_tasks
+				"ide.editor.code.text.undo" -> string.cd_toolbar_undo
+				"ide.editor.code.text.redo" -> string.cd_toolbar_redo
+				"ide.editor.files.saveAll" -> string.cd_toolbar_save
+				"ide.editor.previewLayout" -> string.cd_toolbar_preview_layout
+				"ide.editor.find" -> string.cd_toolbar_find
+				"ide.editor.find.inFile" -> string.cd_toolbar_find_in_file
+				"ide.editor.find.inProject" -> string.cd_toolbar_find_in_project
+				"ide.editor.launchInstalledApp" -> string.cd_toolbar_launch_app
+				"ide.editor.service.logreceiver.disconnectSenders" ->
+					string.cd_toolbar_disconnect_log_senders
+				"ide.editor.generatexml" -> string.cd_toolbar_image_to_layout
+				else -> null
+			}
+		return if (resId != null) getString(resId) else action.label
+	}
+
 	override fun getCurrentEditor(): CodeEditorView? =
 		if (editorViewModel.getCurrentFileIndex() != -1) {
 			getEditorAtIndex(editorViewModel.getCurrentFileIndex())
@@ -423,37 +452,35 @@ open class EditorHandlerActivity :
 		file: File,
 		selection: Range?,
 	) {
-		openFile(file, selection)
+		lifecycleScope.launch {
+			val editorView = openFile(file, selection)
 
-		getEditorForFile(file)?.editor?.also { editor ->
-			editor.postInLifecycle {
-				if (selection == null) {
-					editor.setSelection(0, 0)
-					return@postInLifecycle
+			editorView?.editor?.also { editor ->
+				editor.postInLifecycle {
+					if (selection == null) {
+						editor.setSelection(0, 0)
+						return@postInLifecycle
+					}
+					editor.validateRange(selection)
+					editor.setSelection(selection)
 				}
-
-				editor.validateRange(selection)
-				editor.setSelection(selection)
 			}
 		}
 	}
 
-	override fun openFile(
+	override suspend fun openFile(
 		file: File,
 		selection: Range?,
-	): CodeEditorView? {
+	): CodeEditorView? = withContext(Dispatchers.Main) {
 		val range = selection ?: Range.NONE
-		val isImage = runBlocking {
-			withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
-		}
-
+		val isImage = withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
 		if (isImage) {
-			openImage(this, file)
-			return null
+			openImage(this@EditorHandlerActivity, file)
+			return@withContext null
 		}
 
 		val fileIndex = openFileAndGetIndex(file, range)
-		if (fileIndex < 0) return null
+		if (fileIndex < 0) return@withContext null
 
 		editorViewModel.startDrawerOpened = false
 		editorViewModel.displayedFileIndex = fileIndex
@@ -464,11 +491,21 @@ open class EditorHandlerActivity :
 			tab.select()
 		}
 
-		return try {
+		return@withContext try {
 			getEditorAtIndex(fileIndex)
 		} catch (th: Throwable) {
 			log.error("Unable to get editor at file index {}", fileIndex, th)
 			null
+		}
+	}
+
+	fun openFileAsync(
+		file: File,
+		selection: Range? = null,
+		onResult: (CodeEditorView?) -> Unit
+	) {
+		lifecycleScope.launch {
+			onResult(openFile(file, selection))
 		}
 	}
 
@@ -544,6 +581,7 @@ open class EditorHandlerActivity :
 	}
 
 	override fun getEditorForFile(file: File): CodeEditorView? {
+		val content = contentOrNull ?: return null
 		for (i in 0 until content.editorContainer.childCount) {
 			val child = content.editorContainer.getChildAt(i)
 			if (child is CodeEditorView && file == child.file) {
@@ -597,6 +635,7 @@ open class EditorHandlerActivity :
 		// don't bother to switch the context if we don't need to
 		if (notify || (result.gradleSaved && requestSync)) {
 			withContext(Dispatchers.Main) {
+				if (contentOrNull == null) return@withContext
 				if (notify) {
 					flashSuccess(string.all_saved)
 				}
@@ -668,12 +707,16 @@ open class EditorHandlerActivity :
 		val hasUnsaved = hasUnsavedFiles()
 
 		withContext(Dispatchers.Main) {
+			val content = contentOrNull ?: return@withContext
 			editorViewModel.areFilesModified = hasUnsaved
 
 			// set tab as unmodified
-			val tab = content.tabs.getTabAt(index) ?: return@withContext
-			if (tab.text!!.startsWith('*')) {
-				tab.text = tab.text!!.substring(startIndex = 1)
+			val tabPosition = getTabPositionForFileIndex(index)
+			if (tabPosition < 0) return@withContext
+			val tab = content.tabs.getTabAt(tabPosition) ?: return@withContext
+			val text = tab.text?.toString() ?: return@withContext
+			if (text.startsWith('*')) {
+				tab.text = text.substring(1)
 			}
 		}
 
@@ -897,6 +940,7 @@ open class EditorHandlerActivity :
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onFileRenamed(event: FileRenameEvent) {
+		val content = contentOrNull ?: return
 		val index = findIndexOfEditorByFile(event.file)
 		if (index < 0 || index >= content.tabs.tabCount) {
 			return
@@ -911,6 +955,7 @@ open class EditorHandlerActivity :
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onDocumentChange(event: DocumentChangeEvent) {
+		if (contentOrNull == null) return
 		editorViewModel.areFilesModified = true
 
 		val fileIndex = findIndexOfEditorByFile(event.file.toFile())
@@ -952,6 +997,7 @@ open class EditorHandlerActivity :
 			}
 
 			withContext(Dispatchers.Main) {
+				val content = contentOrNull ?: return@withContext
 				names.forEach { index, (name, iconId) ->
 					val tab = content.tabs.getTabAt(index) ?: return@forEach
 					tab.icon = ResourcesCompat.getDrawable(resources, iconId, theme)
@@ -1031,6 +1077,8 @@ open class EditorHandlerActivity :
 			Log.d("EditorHandlerActivity", "Creating UI tab for plugin: ${pluginTab.id} (${pluginTab.title})")
 
 			runOnUiThread {
+				val content = contentOrNull ?: return@runOnUiThread
+
 				val tab = content.tabs.newTab()
 				tab.text = pluginTab.title
 
@@ -1066,7 +1114,9 @@ open class EditorHandlerActivity :
 					Log.w("EditorHandlerActivity", "Failed to create fragment for plugin tab: ${pluginTab.id}")
 				}
 
-				tab.select()
+				if (!tab.isSelected) {
+					tab.select()
+				}
 				editorViewModel.displayedFileIndex = -1
 				updateTabVisibility()
 
@@ -1167,12 +1217,6 @@ open class EditorHandlerActivity :
 	fun showPluginTabPopup(tab: TabLayout.Tab) {
 		val anchorView = tab.view ?: return
 
-		// Don't show popup if this is the only tab open
-		val totalTabs = content.tabs.tabCount
-		if (totalTabs <= 1) {
-			return
-		}
-
 		// Check if this plugin tab can actually be closed
 		val position = tab.position
 		if (!canClosePluginTab(position)) {
@@ -1252,6 +1296,7 @@ open class EditorHandlerActivity :
 	}
 
 	private fun confirmProjectClose() {
+		val content = contentOrNull ?: return
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
 		builder.setMessage(string.msg_confirm_project_close)
@@ -1276,6 +1321,7 @@ open class EditorHandlerActivity :
 			saveAllAsync(notify = false) {
 
 				runOnUiThread {
+					if (contentOrNull == null) return@runOnUiThread
 					performCloseAllFiles(manualFinish = true)
 				}
 				recentProjectsViewModel.updateProjectModifiedDate(

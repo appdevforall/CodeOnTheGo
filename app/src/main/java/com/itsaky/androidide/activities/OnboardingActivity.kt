@@ -31,7 +31,9 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -49,7 +51,6 @@ import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -57,16 +58,11 @@ import com.itsaky.androidide.utils.resolveAttr
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import androidx.core.view.isVisible
-import androidx.lifecycle.lifecycleScope
 
 class OnboardingActivity : AppIntro2() {
 
@@ -86,9 +82,7 @@ class OnboardingActivity : AppIntro2() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		IThemeManager.getInstance().applyTheme(this)
 		setOrientationFunction {
-			OrientationUtilities.setOrientation {
-				requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-			}
+			requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 		}
 
 		super.onCreate(savedInstanceState)

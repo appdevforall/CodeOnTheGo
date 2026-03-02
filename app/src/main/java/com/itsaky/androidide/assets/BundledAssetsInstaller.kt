@@ -27,6 +27,8 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipInputStream
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
 
 data object BundledAssetsInstaller : BaseAssetsInstaller() {
 	private val logger = LoggerFactory.getLogger(BundledAssetsInstaller::class.java)
@@ -38,6 +40,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 		stagingDir: Path,
 	): Unit = Unit
 
+	@OptIn(ExperimentalPathApi::class)
 	@WorkerThread
 	override suspend fun doInstall(
 		context: Context,
@@ -52,10 +55,14 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 				ANDROID_SDK_ZIP,
 				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				-> {
+					val destDir = destinationDirForArchiveEntry(entryName).toPath()
+					if (Files.exists(destDir)) {
+						destDir.deleteRecursively()
+					}
+					Files.createDirectories(destDir)
 					val assetPath = ToolsManager.getCommonAsset("$entryName.br")
 					assets.open(assetPath).use { assetStream ->
 						BrotliInputStream(assetStream).use { srcStream ->
-							val destDir = destinationDirForArchiveEntry(entryName).toPath()
 							AssetsInstallationHelper.extractZipToDir(srcStream, destDir)
 						}
 					}
@@ -164,8 +171,11 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
                     logger.debug("Extracting plugin artifacts from '{}'", entryName)
                     val pluginDir = Environment.PLUGIN_API_JAR.parentFile
                         ?: throw IllegalStateException("Plugin API parent directory is null")
-                    pluginDir.mkdirs()
                     val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
+                    if (Files.exists(pluginDirPath)) {
+                        pluginDirPath.deleteRecursively()
+                    }
+                    Files.createDirectories(pluginDirPath)
 
                     val assetPath = ToolsManager.getCommonAsset("$entryName.br")
                     assets.open(assetPath).use { assetStream ->

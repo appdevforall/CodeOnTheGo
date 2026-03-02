@@ -159,3 +159,9 @@ testing/**/bin/
 # checksum files
 .checksum/
 
+# Compose preview downloaded JARs (generated during build)
+compose-preview/src/main/assets/compose/
+
+# Generated stdlib index (generated at build time by :lsp:kotlin-stdlib-generator)
+lsp/kotlin/src/main/resources/stdlib-index.json
+

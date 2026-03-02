@@ -13,6 +13,8 @@ import com.itsaky.androidide.agent.repository.LlmInferenceEngine
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
+import com.itsaky.androidide.agent.repository.PREF_KEY_USE_SIMPLE_LOCAL_PROMPT
 import com.itsaky.androidide.app.BaseApplication
 import kotlinx.coroutines.launch
 
@@ -34,6 +36,7 @@ sealed class EngineState {
 class AiSettingsViewModel(application: Application) : AndroidViewModel(application) {
     // Keep this as is, it correctly gets the singleton instance
     private val llmInferenceEngine: LlmInferenceEngine = LlmInferenceEngineProvider.instance
+    private var pendingModelUri: String? = null
 
     // --- State LiveData ---
     private val _savedModelPath = MutableLiveData<String?>(null)
@@ -66,6 +69,12 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
             val success = llmInferenceEngine.initialize(getApplication())
             if (success) {
                 _engineState.value = EngineState.Initialized
+
+                pendingModelUri?.let { queuedPath ->
+                    loadModelFromUri(queuedPath, getApplication())
+                    pendingModelUri = null
+                }
+
                 Log.d("AiSettingsViewModel", "LLM Inference Engine initialized successfully.")
             } else {
                 _engineState.value = EngineState.Error("Failed to load inference library. Please ensure it's installed.")
@@ -79,8 +88,16 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
      * This function now requires the engine to be initialized first.
      */
     fun loadModelFromUri(path: String, context: Context) {
+        val currentState = _engineState.value
+
+        if (currentState is EngineState.Uninitialized || currentState is EngineState.Initializing) {
+            pendingModelUri = path
+            _modelLoadingState.value = ModelLoadingState.Loading
+            return
+        }
+
         // Guard clause: Don't proceed if the engine isn't ready.
-        if (_engineState.value !is EngineState.Initialized) {
+        if (currentState !is EngineState.Initialized) {
             _modelLoadingState.value = ModelLoadingState.Error("Inference engine not ready.")
             Log.e("ModelLoad", "Attempted to load model, but engine is not initialized.")
             return
@@ -88,7 +105,8 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
 
         viewModelScope.launch {
             _modelLoadingState.value = ModelLoadingState.Loading
-            val success = llmInferenceEngine.initModelFromFile(context, path)
+            val expectedHash = getLocalModelSha256()
+            val success = llmInferenceEngine.initModelFromFile(context, path, expectedHash)
             if (success && llmInferenceEngine.loadedModelName != null) {
                 _modelLoadingState.value = ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
                 // Also save the path on successful load
@@ -137,6 +155,28 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         return prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
     }
 
+    fun saveLocalModelSha256(hash: String?) {
+        val prefs = BaseApplication.baseInstance.prefManager
+        val normalized = hash?.trim().orEmpty()
+        prefs.putString(PREF_KEY_LOCAL_MODEL_SHA256, normalized)
+    }
+
+    fun getLocalModelSha256(): String? {
+        val prefs = BaseApplication.baseInstance.prefManager
+        val value = prefs.getString(PREF_KEY_LOCAL_MODEL_SHA256, null)
+        return value?.trim().takeIf { !it.isNullOrBlank() }
+    }
+
+    fun setUseSimpleLocalPrompt(enabled: Boolean) {
+        val prefs = BaseApplication.baseInstance.prefManager
+        prefs.putBoolean(PREF_KEY_USE_SIMPLE_LOCAL_PROMPT, enabled)
+    }
+
+    fun isUseSimpleLocalPromptEnabled(): Boolean {
+        val prefs = BaseApplication.baseInstance.prefManager
+        return prefs.getBoolean(PREF_KEY_USE_SIMPLE_LOCAL_PROMPT, true)
+    }
+
     fun saveGeminiApiKey(apiKey: String) {
         EncryptedPrefs.saveGeminiApiKey(getApplication(), apiKey)
     }
@@ -144,7 +184,6 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     fun getGeminiApiKey(): String? {
         return EncryptedPrefs.getGeminiApiKey(getApplication())
     }
-
     fun getGeminiApiKeySaveTimestamp(): Long {
         return EncryptedPrefs.getGeminiApiKeySaveTimestamp(getApplication())
     }

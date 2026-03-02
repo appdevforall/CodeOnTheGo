@@ -33,6 +33,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
 import kotlin.math.pow
@@ -49,6 +50,7 @@ object AssetsInstallationHelper {
 		data class Failure(
 			val cause: Throwable?,
 			val errorMessage: String? = cause?.message,
+			val shouldReportToSentry: Boolean = true
 		) : Result
 	}
 
@@ -76,6 +78,9 @@ object AssetsInstallationHelper {
 
 			if (result.isFailure) {
 				val e = result.exceptionOrNull()
+				if (e is CancellationException) {
+					throw e
+				}
 				val msg = e?.message ?: "Failed to install assets"
 				logger.error("Failed to install assets", e)
 				onProgress(Progress(msg))
@@ -282,13 +287,21 @@ object AssetsInstallationHelper {
 		onProgress: AssetsInstallerProgressConsumer,
 	): Result.Failure? {
 		val rootDir = File(DEFAULT_ROOT)
+
+		if (!rootDir.exists()) {
+			runCatching {
+				rootDir.mkdirs()
+			}.onFailure { logger.warn("Failed to create root dir: ${it.message}") }
+		}
+
 		if (!rootDir.exists() || !rootDir.canWrite()) {
 			val errorMsg = context.getString(R.string.storage_not_accessible)
 			logger.error("Storage not accessible: {}", DEFAULT_ROOT)
 			onProgress(Progress(errorMsg))
 			return Result.Failure(
 				IllegalStateException(errorMsg),
-				errorMsg
+				errorMsg,
+				false
 			)
 		}
 		return null

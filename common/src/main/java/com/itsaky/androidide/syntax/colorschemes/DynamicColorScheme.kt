@@ -18,6 +18,7 @@
 package com.itsaky.androidide.syntax.colorschemes
 
 import android.content.Context
+import android.graphics.Color
 import androidx.core.graphics.toColorInt
 import com.itsaky.androidide.common.R.attr
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -61,6 +62,7 @@ open class DynamicColorScheme : SchemeAndroidIDE() {
 
     setColor(BREAKPOINT_LINE_INDICATOR, 0xfff44336)
     setColor(BREAKPOINT_LINE_BG, 0xfff44336)
+    setColor(SchemeAndroidIDE.SYNTAX_SPAN_NO_BACKGROUND, Color.TRANSPARENT)
 
     if (!isInDarkMode) {
       applyLightColors()

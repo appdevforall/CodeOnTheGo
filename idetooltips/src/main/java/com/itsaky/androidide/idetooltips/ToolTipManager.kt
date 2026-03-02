@@ -24,10 +24,12 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
-import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
+import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.utils.toCssHex
+import com.itsaky.androidide.resources.R as ResR
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -267,32 +269,33 @@ object TooltipManager {
         val seeMore = popupView.findViewById<TextView>(R.id.see_more)
         val webView = popupView.findViewById<WebView>(R.id.webview)
 
-        val textColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorOnSurface,
-            "Color attribute not found in theme"
-        )
-
-        // TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
-        fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
-        val hexColor = textColor.toHexColor()
+        val isDarkMode = context.isSystemInDarkMode()
+        val bodyColorHex =
+            getColor(
+                context,
+                if (isDarkMode) ResR.color.tooltip_text_color_dark
+                else ResR.color.tooltip_text_color_light,
+            ).toCssHex()
+        val linkColorHex =
+            getColor(
+                context,
+                if (isDarkMode) ResR.color.brand_color
+                else ResR.color.tooltip_link_color_light,
+            ).toCssHex()
 
         val tooltipHtmlContent = when (level) {
             0 -> {
-                val rawSummary = tooltipItem.summary
-                // Escape HTML characters so they're displayed correctly in the WebView
-                Html.escapeHtml(rawSummary)
+                tooltipItem.summary
             }
             1 -> {
-                val detailContent = if (tooltipItem.detail.isNotBlank()) {
-                    Html.escapeHtml(tooltipItem.detail)
-                } else ""
+                val detailContent = tooltipItem.detail.ifBlank { "" }
                 if (tooltipItem.buttons.isNotEmpty()) {
-                    val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
-                        context.getString(R.string.tooltip_links_html_template, url, label)
+                    val buttonsSeparator = context.getString(R.string.tooltip_buttons_separator)
+                    val linksHtml = tooltipItem.buttons.joinToString(buttonsSeparator) { (label, url) ->
+                        context.getString(R.string.tooltip_links_html_template, url, linkColorHex, label)
                     }
                     if (detailContent.isNotBlank()) {
-                        "$detailContent<br><br>$linksHtml"
+                        context.getString(R.string.tooltip_detail_links_template, detailContent, linksHtml)
                     } else {
                         linksHtml
                     }
@@ -307,7 +310,7 @@ object TooltipManager {
         Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
         val styledHtml =
-            context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
+            context.getString(R.string.tooltip_html_template, bodyColorHex, tooltipHtmlContent, linkColorHex)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -354,19 +357,39 @@ object TooltipManager {
 
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
-        popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        if (anchorView.isInOverlayWindow()) {
+            showOverlayTooltip(popupWindow, popupView, anchorView)
+        } else {
+            popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        }
+
+        val iconTintColor = if (anchorView.isInOverlayWindow()) {
+            Color.WHITE
+        } else {
+            getColor(
+                context,
+                if (isDarkMode) ResR.color.tooltip_text_color_dark
+                else ResR.color.tooltip_text_color_light
+            )
+        }
 
         val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
-        infoButton.setOnClickListener {
-            onInfoButtonClicked(context, popupWindow, tooltipItem)
+        infoButton.apply {
+            setColorFilter(iconTintColor)
+            setOnClickListener {
+                onInfoButtonClicked(context, popupWindow, tooltipItem)
+            }
         }
 
         val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
         val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
         feedbackButton.startAnimation(pulseAnimation)
 
-        feedbackButton.setOnClickListener {
-            onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+        feedbackButton.apply {
+            setOnClickListener {
+                onFeedbackButtonClicked(context, popupWindow, tooltipItem)
+            }
+            setColorFilter(iconTintColor)
         }
     }
 
@@ -380,19 +403,23 @@ object TooltipManager {
     ) {
         popupWindow.dismiss()
 
-        val metadata = """
-        <b>Version</b> <small>'${tooltip.lastChange}'</small><br/>
-        <b>Row:</b> ${tooltip.rowId}<br/>
-        <b>ID:</b> ${tooltip.id}<br/>
-        <b>Category:</b> '${tooltip.category}'<br/>
-        <b>Tag:</b> '${tooltip.tag}'<br/>
-        <b>Raw Summary:</b> '${Html.escapeHtml(tooltip.summary)}'<br/>
-        <b>Raw Detail:</b> '${Html.escapeHtml(tooltip.detail)}'<br/>
-        <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
-        """.trimIndent()
+        val buttonsFormatted = tooltip.buttons.joinToString {
+            context.getString(R.string.tooltip_debug_button_item_template, it.first, it.second)
+        }
+        val metadata = context.getString(
+            R.string.tooltip_debug_metadata_html,
+            tooltip.lastChange,
+            tooltip.rowId,
+            tooltip.id,
+            tooltip.category,
+            tooltip.tag,
+            Html.escapeHtml(tooltip.summary),
+            Html.escapeHtml(tooltip.detail),
+            buttonsFormatted
+        )
 
         val builder = AlertDialog.Builder(context)
-            .setTitle("Tooltip Debug Info")
+            .setTitle(context.getString(R.string.tooltip_debug_dialog_title))
             .setMessage(
                 Html.fromHtml(
                     metadata,
@@ -450,6 +477,35 @@ object TooltipManager {
 
             ---
         """.trimIndent()
+    }
+
+    private fun View.isInOverlayWindow(): Boolean {
+        val params = layoutParams
+        return params is WindowManager.LayoutParams &&
+                params.type == WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+    }
+
+    private fun showOverlayTooltip(
+        popupWindow: PopupWindow,
+        popupView: View,
+        parentView: View
+    ) {
+        popupView.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+
+        val popupWidth = popupView.measuredWidth
+        val popupHeight = popupView.measuredHeight
+
+        val displayMetrics = parentView.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        val x = (screenWidth - popupWidth) / 2
+        val y = (screenHeight - popupHeight) / 2
+
+        popupWindow.showAtLocation(parentView, Gravity.NO_GRAVITY, x, y)
     }
 
 }

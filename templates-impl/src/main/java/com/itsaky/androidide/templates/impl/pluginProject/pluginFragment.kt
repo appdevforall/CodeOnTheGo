@@ -12,6 +12,8 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import ${data.pluginId}.R
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
+import com.itsaky.androidide.plugins.services.IdeTooltipService
+import android.widget.Toast
 
 class ${data.className}Fragment : Fragment() {
 
@@ -21,6 +23,10 @@ class ${data.className}Fragment : Fragment() {
 
     private var statusText: TextView? = null
     private var actionButton: Button? = null
+    
+    // Tooltips 
+    private var tooltipService: IdeTooltipService? = null
+    
 
     override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
         val inflater = super.onGetLayoutInflater(savedInstanceState)
@@ -32,6 +38,7 @@ class ${data.className}Fragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
+        setupServices()
         return inflater.inflate(R.layout.fragment_main, container, false)
     }
 
@@ -43,6 +50,19 @@ class ${data.className}Fragment : Fragment() {
         actionButton?.setOnClickListener {
             onActionButtonClicked()
         }
+        
+        actionButton?.setOnLongClickListener { button ->
+            tooltipService?.showTooltip(
+                anchorView = button,
+                category = "${data.pluginId.replace(".", "_")}",
+                tag = "${data.pluginId.replace(".", "_")}.overview"
+            ) ?: run {
+                activity?.runOnUiThread {
+                    Toast.makeText(context, "Long press detected! Tooltip service not available.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            true
+        }
 
         updateStatus("${data.pluginName.replace("\"", "\\\"")} is ready!")
     }
@@ -53,6 +73,14 @@ class ${data.className}Fragment : Fragment() {
 
     private fun updateStatus(message: String) {
         statusText?.text = message
+    }
+    
+    fun setupServices(){
+        // Use this to set services from the plugin's service registry
+        runCatching {
+         val serviceRegistry = PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
+         tooltipService = serviceRegistry?.get(IdeTooltipService::class.java)
+        }
     }
 
     override fun onDestroyView() {

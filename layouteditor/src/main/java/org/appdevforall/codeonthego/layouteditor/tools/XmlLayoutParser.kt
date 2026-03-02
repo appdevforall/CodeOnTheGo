@@ -5,6 +5,8 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -13,27 +15,46 @@ import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
 import org.appdevforall.codeonthego.layouteditor.editor.positioning.restorePositionsAfterLoad
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addNewId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.clear
+import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.Constants.ATTR_INITIAL_POS
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
+import org.appdevforall.codeonthego.layouteditor.editor.convert.ConvertImportedXml
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.createView
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.invokeMethod
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.IOException
+import java.io.File
 import java.io.StringReader
+import androidx.core.view.isNotEmpty
+import androidx.core.widget.NestedScrollView
+
+
+sealed class ValidationResult {
+	object Success : ValidationResult()
+	data class Error(val errors: List<String>) : ValidationResult() {
+		val formattedMessage: String get() = errors.joinToString(separator = "\n\n• ", prefix = "• ")
+	}
+}
 
 class XmlLayoutParser(
 	context: Context,
+  private val basePath: String? = null,
+  private val isRoot: Boolean = true
 ) {
 	val viewAttributeMap: HashMap<View, AttributeMap> = HashMap()
+	private val validationErrors = mutableListOf<String>()
 
 	private val initializer: AttributeInitializer
 	private val listViews: MutableList<View> = ArrayList()
 
 	companion object {
     const val MARKER_IS_INCLUDE = "tools:is_xml_include"
+    const val MARKER_IS_FRAGMENT = "tools:is_xml_fragment"
+    const val MARKER_IS_MERGE = "tools:is_xml_merge"
+    const val TAG = "XmlLayoutParser"
 	}
 
 	enum class CustomAttrs(val key: String) {
@@ -59,32 +80,55 @@ class XmlLayoutParser(
 	val root: View?
 		get() = listViews.getOrNull(0)
 
-	fun parseFromXml(
+	fun validateXml(
 		xml: String,
 		context: Context,
-	) {
+	): ValidationResult {
 		listViews.clear()
 		viewAttributeMap.clear()
-		clear()
+		validationErrors.clear()
+		if (isRoot) clear()
 
-		try {
+		return try {
 			val factory = XmlPullParserFactory.newInstance()
 			val parser = factory.newPullParser()
 			parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
 			parser.setInput(StringReader(xml))
 			parseFromXml(parser, context)
-		} catch (e: XmlPullParserException) {
-			e.printStackTrace()
-		} catch (e: IOException) {
-			e.printStackTrace()
-		}
 
+			if (validationErrors.isEmpty()) {
+				ValidationResult.Success
+			} else {
+				ValidationResult.Error(validationErrors.toList())
+			}
+		} catch (e: XmlPullParserException) {
+			ValidationResult.Error(listOf(context.getString(R.string.xml_error_parse, e.message ?: "")))
+		} catch (e: IOException) {
+			ValidationResult.Error(listOf(context.getString(R.string.xml_error_io, e.message ?: "")))
+		} catch (e: Exception) {
+			ValidationResult.Error(listOf(context.getString(R.string.xml_error_generic, e.message ?: "")))
+		}
+	}
+
+	fun parseFromXml() {
 		for ((view, map) in viewAttributeMap) {
 			if (map.contains("android:id")) {
 				addNewId(view, map.getValue("android:id"))
 			}
 			applyAttributes(view, map)
 		}
+	}
+
+	fun processXml(xml: String, context: Context): ValidationResult {
+		val result = validateXml(xml, context)
+
+		if (result is ValidationResult.Success) {
+			parseFromXml()
+		} else if (result is ValidationResult.Error) {
+			Log.e(TAG, "Failed to parse layout. Errors:\n${result.formattedMessage}")
+		}
+
+		return result
 	}
 
 	private fun parseFromXml(
@@ -99,7 +143,7 @@ class XmlLayoutParser(
 					// Skip NavigationView to avoid invalid parent crash
 					if (tagName == "com.google.android.material.navigation.NavigationView") {
 						Log.w(
-							"XmlParser",
+							TAG,
 							"Skipping NavigationView tag to avoid drawer hierarchy crash",
 						)
 						parser.next()
@@ -110,41 +154,74 @@ class XmlLayoutParser(
 
 					when (tagName) {
 						"fragment" -> {
-							view =
-								FrameLayout(context).apply {
-									id = View.generateViewId()
-									layoutParams =
-										ViewGroup.LayoutParams(
-											ViewGroup.LayoutParams.MATCH_PARENT,
-											ViewGroup.LayoutParams.MATCH_PARENT,
-										)
-								}
-							listViews.add(view)
-						}
-
-						"include" -> {
-							val placeholder = View(context)
+							val placeholder = FrameLayout(context).apply {
+								id = View.generateViewId()
+								layoutParams = ViewGroup.LayoutParams(
+									ViewGroup.LayoutParams.MATCH_PARENT,
+									ViewGroup.LayoutParams.MATCH_PARENT,
+								)
+							}
 
 							val attrs = AttributeMap()
-
 							for (i in 0 until parser.attributeCount) {
-                attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
-              }
+								attrs.putValue(parser.getAttributeName(i), parser.getAttributeValue(i))
+							}
+							attrs.putValue(MARKER_IS_FRAGMENT, "true")
 
-              attrs.putValue(MARKER_IS_INCLUDE, "true")
+							viewAttributeMap[placeholder] = attrs
+							listViews.add(placeholder)
 
-              viewAttributeMap[placeholder] = attrs
-              listViews.add(placeholder)
-
-              parser.next()
-              continue
+							parser.next()
+							continue
 						}
 
-						"merge" -> {
-							Log.d("XmlParser", "Encountered <merge> tag, skipping itself")
-						}
+                        "include" -> {
+                            val layoutAttr =
+                                XmlParserUtils.getAttribute(parser, "layout")
 
-						else -> {
+                            val includedView = loadIncludedLayout(
+                                context,
+                                basePath,
+                                layoutAttr
+                            )
+
+                            val view =
+                                includedView ?: XmlParserUtils.createIncludePlaceholder(
+                                    context,
+                                    viewAttributeMap,
+                                    MARKER_IS_INCLUDE
+                                )
+
+                            listViews.add(view)
+
+                            XmlParserUtils.applyAttributes(
+                                parser = parser,
+                                target = view,
+                                attributeMap = viewAttributeMap,
+                                marker = MARKER_IS_INCLUDE,
+                                skip = if (includedView != null) null else "layout"
+                            )
+
+                            parser.next()
+                            continue
+                        }
+
+                        "merge" -> {
+
+                            val wrapper =
+                                XmlParserUtils.createMergeWrapper(context)
+
+                            applyMergeAttributes(
+                                parser = parser,
+                                target = wrapper,
+                                attributeMap = viewAttributeMap,
+                                marker = MARKER_IS_MERGE
+                            )
+
+                            listViews.add(wrapper)
+                        }
+
+                        else -> {
 							val result = createView(tagName, context)
 							if (result is Exception) {
 								throw result
@@ -155,7 +232,7 @@ class XmlLayoutParser(
 						}
 					}
 
-          if (view != null && tagName != "fragment") {
+          if (view != null) {
 						val map = AttributeMap()
 						for (i in 0 until parser.attributeCount) {
 							val fullName = parser.getAttributeName(i)
@@ -188,16 +265,15 @@ class XmlLayoutParser(
 				 * view will become empty.
 				 */
 
-				XmlPullParser.END_TAG -> {
+				XmlPullParser.END_TAG -> run {
 					val depth = parser.depth
-					if (depth >= 2 && listViews.size >= 2) {
-						val parent = listViews.getOrNull(depth - 2) ?: return
-						val child = listViews.getOrNull(depth - 1) ?: return
-						if (parent is ViewGroup) {
-							parent.addView(child)
-							listViews.removeAt(depth - 1)
-						}
-					}
+					if (depth < 2 || listViews.size < 2) return@run
+
+					val parent = listViews.getOrNull(depth - 2) as? ViewGroup ?: return@run
+					val child = listViews.getOrNull(depth - 1) ?: return@run
+
+					parent.tryAddChild(child)
+					listViews.removeAt(depth - 1)
 				}
 			}
 			parser.next()
@@ -206,6 +282,36 @@ class XmlLayoutParser(
 		root?.let {
 			restorePositionsAfterLoad(it, viewAttributeMap)
 		}
+	}
+
+	private fun ViewGroup.tryAddChild(child: View) {
+		if (isSingleChildContainer() && isNotEmpty()) {
+			val errorMsg = context.getString(
+				R.string.xml_error_single_child_container,
+				this::class.simpleName
+			)
+			Log.w(TAG, errorMsg)
+			validationErrors.add(errorMsg)
+			viewAttributeMap.remove(child)
+			return
+		}
+
+		runCatching {
+			addView(child)
+		}.onFailure { e ->
+			val errorMsg = context.getString(
+				R.string.xml_error_add_child_failed,
+				child::class.simpleName,
+				this::class.simpleName
+			)
+			Log.e(TAG, errorMsg, e)
+			validationErrors.add(errorMsg)
+			viewAttributeMap.remove(child)
+		}
+	}
+
+	private fun ViewGroup.isSingleChildContainer(): Boolean {
+		return this is ScrollView || this is HorizontalScrollView || this is NestedScrollView
 	}
 
 	private fun applyInitialPosition(target: View, attrs: AttributeMap) {
@@ -252,7 +358,7 @@ class XmlLayoutParser(
 			val attr = initializer.getAttributeFromKey(key, allAttrs)
 			if (attr == null) {
 				Log.w(
-					"XmlParser",
+					TAG,
 					"Could not find attribute $key for view ${target.javaClass.simpleName}",
 				)
 				continue
@@ -262,7 +368,7 @@ class XmlLayoutParser(
 			val className = attr[Constants.KEY_CLASS_NAME].toString()
 			val value = attributeMap.getValue(key)
 
-			Log.d("applyAttributes", "Applying attribute $key to view $target with value $value")
+			Log.d(TAG, "Applying attribute $key to view $target with value $value")
 			invokeMethod(methodName, className, target, value, target.context)
 		}
 	}
@@ -323,4 +429,67 @@ class XmlLayoutParser(
 			attributeMap.putValue("android:layout_marginTop", "${topDp}dp")
 		}
 	}
+
+    fun loadIncludedLayout(
+        context: Context,
+        basePath: String?,
+        layoutAttr: String?
+    ): View? {
+        if (layoutAttr == null || basePath == null) {
+            Log.w(
+                TAG,
+                "Skipping include. layoutAttr=$layoutAttr basePath=$basePath"
+            )
+            return null
+        }
+
+        val layoutName = layoutAttr.substringAfterLast("/")
+        val file = File(basePath, "$layoutName.xml")
+
+        if (!file.exists()) {
+            Log.e(
+                TAG,
+                "Included file not found: ${file.absolutePath}"
+            )
+            return null
+        }
+
+        return try {
+            val xml = file.readText()
+
+            val converted = ConvertImportedXml(xml).getXmlConverted(context) ?: xml
+
+            val parser = XmlLayoutParser(context, basePath, false)
+
+            val result = parser.processXml(converted, context)
+						if (result is ValidationResult.Error) {
+						    Log.e(TAG, "Included layout has errors: ${result.formattedMessage}")
+						    return null
+						}
+
+            parser.root
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "Failed to parse include: $layoutName",
+                e
+            )
+            null
+        }
+    }
+
+    fun applyMergeAttributes(
+        parser: XmlPullParser,
+        target: View,
+        attributeMap: MutableMap<View, AttributeMap>,
+        marker: String
+    ) {
+        val map = XmlParserUtils.extractAttributes(parser)
+
+        map.putValue(marker, "true")
+        map.putValue("android:layout_width", "match_parent")
+        map.putValue("android:layout_height", "wrap_content")
+
+        attributeMap[target] = map
+    }
 }

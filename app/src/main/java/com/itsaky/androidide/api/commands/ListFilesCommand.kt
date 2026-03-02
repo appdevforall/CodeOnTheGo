@@ -10,11 +10,20 @@ class ListFilesCommand(
 ) : Command<List<String>> {
     override fun execute(): ToolResult {
         return try {
-            val baseDir = IProjectManager.getInstance().projectDir
+            val baseDir = IProjectManager.getInstance().projectDir.canonicalFile
 
             val targetDir = when (val sanitizedPath = path.trim()) {
                 "", ".", "./" -> baseDir
-                else -> File(baseDir, sanitizedPath)
+                else -> File(baseDir, sanitizedPath).canonicalFile
+            }
+            val basePath = baseDir.path
+            val targetPath = targetDir.path
+            val isInside =
+                targetPath == basePath || targetPath.startsWith(basePath + File.separator)
+            if (!isInside) {
+                return ToolResult.failure(
+                    message = "Access denied: path outside project directory"
+                )
             }
 
             when {

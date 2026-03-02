@@ -212,3 +212,17 @@ val allAgentTools: List<Tool> = listOf(
     Tool.builder().functionDeclarations(triggerGradleSync).build(),
     Tool.builder().functionDeclarations(getBuildOutput).build()
 )
+
+val agentToolRequiredArgs: Map<String, List<String>> = mapOf(
+    "create_file" to listOf("path", "content"),
+    "read_file" to listOf("path"),
+    "update_file" to listOf("path", "content"),
+    "delete_file" to listOf("path"),
+    "list_files" to listOf("path"),
+    "read_multiple_files" to listOf("paths"),
+    "add_dependency" to listOf("dependency", "build_file_path"),
+    "add_string_resource" to listOf("name", "value"),
+    "run_app" to emptyList(),
+    "trigger_gradle_sync" to emptyList(),
+    "get_build_output" to emptyList()
+)

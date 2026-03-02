@@ -111,7 +111,12 @@ class Critic(private val client: GeminiClient) {
 
         // The Critic only needs to see the tool output, not the entire history that led to it.
         // We already framed it above.
-        val response = client.generateContent(criticHistory, tools = emptyList())
+        val response = try {
+            client.generateContent(criticHistory, tools = emptyList())
+        } catch (e: PlannerToolCallException) {
+            log.warn("Critic model attempted an invalid tool call: {}", e.message)
+            return "OK"
+        }
         val summaryText = response.text()?.trim()
 
         if (summaryText.isNullOrBlank()) {

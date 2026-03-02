@@ -17,6 +17,20 @@
 
 package com.itsaky.androidide.utils
 
+import android.graphics.Color
+
+/**
+ * Converts this Android ARGB color int to a CSS 8-digit hex string (#RRGGBBAA).
+ * CSS uses alpha last; Android uses alpha first.
+ */
+fun Int.toCssHex(): String =
+  "#%02X%02X%02X%02X".format(
+    Color.red(this),
+    Color.green(this),
+    Color.blue(this),
+    Color.alpha(this),
+  )
+
 /**
  * Parses the given [hex color string][hexColor] and returns the [Long] representing
  * the color.

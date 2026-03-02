@@ -162,9 +162,23 @@ class ChatAdapter(
             if (!expandedMessageIds.remove(message.id)) {
                 expandedMessageIds.add(message.id)
             }
-            // Notify the adapter with the specific payload for an efficient update
-            notifyItemChanged(holder.bindingAdapterPosition, ExpansionPayload)
+
+            val pos = holder.bindingAdapterPosition
+            if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
+
+            holder.itemView.post {
+                val latestPos = holder.bindingAdapterPosition
+                if (latestPos != RecyclerView.NO_POSITION) {
+                    // Notify the adapter with the specific payload for an efficient update
+                    notifyItemChanged(latestPos, ExpansionPayload)
+                }
+            }
         }
+    }
+
+    override fun onCurrentListChanged(previousList: MutableList<ChatMessage>, currentList: MutableList<ChatMessage>) {
+        super.onCurrentListChanged(previousList, currentList)
+        expandedMessageIds.clear()
     }
 
     /**

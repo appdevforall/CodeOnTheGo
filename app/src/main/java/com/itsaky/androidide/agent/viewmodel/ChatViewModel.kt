@@ -21,8 +21,10 @@ import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.getFileName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +98,7 @@ class ChatViewModel : ViewModel() {
 	private val chatStorageManager: ChatStorageManager
 	private var lastKnownBackendName: String? = null
 	private var lastKnownModelPath: String? = null
+	private var lastLoadedModelHash: String? = null
 
 	companion object {
 		private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
@@ -108,13 +111,19 @@ class ChatViewModel : ViewModel() {
 		chatStorageManager = ChatStorageManager(agentDir)
 	}
 
-	private fun getOrCreateRepository(context: Context): GeminiRepository? {
+    private suspend fun getOrCreateRepository(context: Context): GeminiRepository? {
 		val prefs = BaseApplication.baseInstance.prefManager
 		val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
 		val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
 
+		val storedHash = prefs.getString(PREF_KEY_LOCAL_MODEL_SHA256, null)
 		// If the repository exists and settings haven't changed, return the existing instance.
-		if (agentRepository != null && lastKnownBackendName == backendName && lastKnownModelPath == modelPath) {
+		if (
+			agentRepository != null &&
+			lastKnownBackendName == backendName &&
+			lastKnownModelPath == modelPath &&
+			lastLoadedModelHash == storedHash
+		) {
 			return agentRepository
 		}
 
@@ -136,15 +145,36 @@ class ChatViewModel : ViewModel() {
 					// Get the SINGLE, SHARED instance of the engine
 					val engine = LlmInferenceEngineProvider.instance
 
-					// The model should ALREADY be loaded by the settings page.
-					// We just check if it's ready.
-					if (!engine.isModelLoaded) {
-						log.error("Initialization failed: Local LLM model is not loaded.")
-						null // Return null to show an error message in the UI
+                    val expectedModelPath = modelPath?.trim().orEmpty()
+                    if (expectedModelPath.isBlank()) {
+                        log.error("Initialization failed: Local LLM model path is not set.")
+                        null
 					} else {
-						log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
-						LocalLlmRepositoryImpl(context, engine).apply {
-							onStateUpdate = { _agentState.value = it }
+                        run {
+                            val needsReload =
+                                !engine.isModelLoaded ||
+                                    engine.loadedModelSourceUri != expectedModelPath ||
+                                    storedHash != lastLoadedModelHash
+                            val expectedHash = storedHash
+                            if (needsReload) {
+                                val loaded = withContext(Dispatchers.IO) {
+                                    engine.initModelFromFile(
+                                        context,
+                                        expectedModelPath,
+                                        expectedHash
+                                    )
+                                }
+                                if (!loaded) {
+                                    log.error("Initialization failed: Local LLM model load failed.")
+                                    return@run null
+                                }
+                            }
+
+							lastLoadedModelHash = expectedHash
+                            log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
+                            LocalLlmRepositoryImpl(context, engine).apply {
+                                onStateUpdate = { _agentState.value = it }
+                            }
 						}
 					}
 				}
@@ -169,6 +199,7 @@ class ChatViewModel : ViewModel() {
 			currentBackendName != lastKnownBackendName || currentModelPath != lastKnownModelPath
 		if (configChanged) {
 			agentRepository?.stop()
+			agentRepository?.destroy()
 			agentRepository = null
 			observeRepositoryMessages(null)
 		}
@@ -190,13 +221,17 @@ class ChatViewModel : ViewModel() {
 				.replace("_", " ")
 				.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 
-		val message = StringBuilder("🤖 System: $backendDisplayName backend selected.")
+		val message = StringBuilder(
+			context.getString(R.string.agent_backend_selected, backendDisplayName)
+		)
 		if (backend == AiBackend.LOCAL_LLM) {
 			if (modelPath != null) {
 				val fileName = modelPath.toUri().getFileName(context)
-				message.append("\nCurrent model: $fileName")
+				message.append("\n")
+				message.append(context.getString(R.string.agent_current_model, fileName))
 			} else {
-				message.append("\n⚠️ Warning: No model file selected.")
+				message.append("\n")
+				message.append(context.getString(R.string.agent_no_model_selected_warning))
 			}
 		}
 		return message.toString()
@@ -255,10 +290,10 @@ class ChatViewModel : ViewModel() {
 						val backendName = lastKnownBackendName
 						if (backendName == AiBackend.LOCAL_LLM.name) {
 							postSystemError(
-								"Local model is not loaded. Open AI Settings, pick a model, and try again.",
+								context.getString(R.string.agent_local_model_not_loaded),
 							)
 						} else {
-							postSystemError("The AI backend is not ready. Please review your AI settings.")
+							postSystemError(context.getString(R.string.agent_backend_not_ready))
 						}
 						return@launch
 					}
@@ -358,10 +393,14 @@ class ChatViewModel : ViewModel() {
 
 	fun saveAllSessionsAndState(prefs: SharedPreferences) {
 		saveJob?.cancel()
-		_currentSession.value?.let { chatStorageManager.saveSession(it) }
-		_sessions.value?.let { chatStorageManager.saveAllSessions(it) }
-		_currentSession.value?.let {
-			prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
+		val currentSession = _currentSession.value
+		val sessions = _sessions.value
+		saveJob = viewModelScope.launch(Dispatchers.IO) {
+			currentSession?.let { chatStorageManager.saveSession(it) }
+			sessions?.let { chatStorageManager.saveAllSessions(it) }
+			currentSession?.let {
+				prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
+			}
 		}
 	}
 
@@ -377,7 +416,10 @@ class ChatViewModel : ViewModel() {
 
 	fun setCurrentSession(sessionId: String) {
 		saveJob?.cancel()
-		_currentSession.value?.let { chatStorageManager.saveSession(it) }
+        val previousSession = _currentSession.value
+        viewModelScope.launch(Dispatchers.IO) {
+            previousSession?.let { chatStorageManager.saveSession(it) }
+        }
 		val session = _sessions.value?.find { it.id == sessionId }
 		if (session != null) {
 			_currentSession.value = session
@@ -389,7 +431,7 @@ class ChatViewModel : ViewModel() {
 	private fun scheduleSaveCurrentSession() {
 		saveJob?.cancel()
 		saveJob =
-			viewModelScope.launch {
+            viewModelScope.launch(Dispatchers.IO) {
 				delay(SAVE_DEBOUNCE_MS)
 				_currentSession.value?.let {
 					chatStorageManager.saveSession(it)

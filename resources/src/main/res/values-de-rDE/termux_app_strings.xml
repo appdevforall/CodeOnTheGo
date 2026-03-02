@@ -19,11 +19,11 @@
   <!-- Termux Bootstrap Packages Installation -->
   <string name="bootstrap_installer_body">Installation der Bootstrap-Pakete…</string>
   <string name="bootstrap_error_title">Bootstrap konnte nicht installiert werden</string>
-  <string name="bootstrap_error_body">AndroidIDE was unable to install the bootstrap packages.</string>
+  <string name="bootstrap_error_body">Code on the Go was unable to install the bootstrap packages.</string>
   <string name="bootstrap_error_abort">Abbrechen</string>
   <string name="bootstrap_error_try_again">Erneut versuchen</string>
-  <string name="bootstrap_error_not_primary_user_message">AndroidIDE can only be run as the primary user.\nBootstrap binaries compiled for AndroidIDE have hardcoded $PREFIX path and cannot be installed under any path other than:\n%1$s.</string>
-  <string name="bootstrap_error_installed_on_portable_sd">AndroidIDE cannot be installed on portable/external/removable sd card on your device.\nBootstrap binaries compiled for AndroidIDE have hardcoded $PREFIX path and cannot be installed under any path other than:\n%1$s.</string>
+  <string name="bootstrap_error_not_primary_user_message">Code on the Go can only be run as the primary user.\nBootstrap binaries compiled for Code on the Go have hardcoded $PREFIX path and cannot be installed under any path other than:\n%1$s.</string>
+  <string name="bootstrap_error_installed_on_portable_sd">Code on the Go cannot be installed on portable/external/removable sd card on your device.\nBootstrap binaries compiled for Code on the Go have hardcoded $PREFIX path and cannot be installed under any path other than:\n%1$s.</string>
   <!-- Terminal Sidebar and Shortcuts -->
   <string name="action_new_session">Neue Sitzung</string>
   <string name="action_new_session_failsafe">Failsafe</string>
@@ -62,7 +62,7 @@
   <string name="notification_action_wake_lock">Acquire wakelock</string>
   <string name="notification_action_wake_unlock">Release wakelock</string>
   <!-- TermuxService -->
-  <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">AndroidIDE requires \"Display over other apps\" permission to start terminal sessions from background on Android &gt;= 10. Grants it from Settings -&gt; Apps -&gt; AndroidIDE -&gt; Advanced</string>
+  <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Code on the Go requires \"Display over other apps\" permission to start terminal sessions from background on Android &gt;= 10. Grants it from Settings -&gt; Apps -&gt; Code on the Go -&gt; Advanced</string>
   <!-- Termux File Receiver -->
   <string name="title_file_received">Datei in ~/downloads/ speichern</string>
   <string name="action_file_received_edit">Bearbeiten</string>

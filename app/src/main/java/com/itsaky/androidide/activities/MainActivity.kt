@@ -18,8 +18,8 @@
 package com.itsaky.androidide.activities
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
-import android.text.TextUtils
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -46,7 +46,10 @@ import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.fragments.MainFragment
+import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
@@ -56,6 +59,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_L
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.localwebserver.ServerConfig
 import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
@@ -71,6 +75,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private var _binding: ActivityMainBinding? = null
 	private val analyticsManager: IAnalyticsManager by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var webServer: WebServer? = null
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -104,7 +109,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// Start WebServer after installation is complete
 		startWebServer()
 
-		openLastProject()
+		if (savedInstanceState == null) { openLastProject() }
 
 		if (FeatureFlags.isExperimentsEnabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
@@ -166,22 +171,53 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+		recreateVisibleFragmentView()
+	}
+
 	override fun onResume() {
 		super.onResume()
 		feedbackButtonManager?.loadFabPosition()
 	}
 
+	/**
+	 * With configChanges="orientation|screenSize", the activity is not recreated on rotation,
+	 * so fragment views stay inflated with the initial layout. Replace the visible fragment
+	 * with a new instance so it re-inflates and picks up layout-land when in landscape.
+	 */
+	private fun recreateVisibleFragmentView() {
+		when (viewModel.currentScreen.value) {
+			SCREEN_MAIN ->
+				supportFragmentManager.beginTransaction()
+					.setReorderingAllowed(true)
+					.replace(R.id.main, MainFragment())
+					.commitNow()
+			SCREEN_SAVED_PROJECTS ->
+				supportFragmentManager.beginTransaction()
+					.setReorderingAllowed(true)
+					.replace(R.id.saved_projects_view, RecentProjectsFragment())
+					.commitNow()
+			else -> { }
+		}
+	}
+
 	override fun onApplySystemBarInsets(insets: Insets) {
 		// onApplySystemBarInsets can be called before bindLayout() sets _binding
+		// Use 0 for bottom so fragment content stretches to the screen bottom (no white bar).
 		_binding?.fragmentContainersParent?.setPadding(
 			insets.left,
 			0,
 			insets.right,
-			insets.bottom,
+			0,
 		)
 	}
 
 	private fun onScreenChanged(screen: Int?) {
+		// When navigating to main (e.g. Exit from saved projects), replace the fragment so it
+		// inflates with the current configuration (landscape -> 3 columns, portrait -> 1 column).
+		if (screen == SCREEN_MAIN) recreateVisibleFragmentView()
+
 		val previous = viewModel.previousScreen
 		if (previous != -1) {
 			closeKeyboard()
@@ -259,32 +295,37 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	}
 
 	private fun tryOpenLastProject() {
-		if (!GeneralPreferences.autoOpenProjects) {
-			return
-		}
+		if (!GeneralPreferences.autoOpenProjects) return
 
-		val openedProject = GeneralPreferences.lastOpenedProject
-		if (GeneralPreferences.NO_OPENED_PROJECT == openedProject) {
-			return
-		}
+		lifecycleScope.launch(Dispatchers.IO) {
+			val validProjects = findValidProjects(Environment.PROJECTS_DIR)
+			val lastOpenedPath = GeneralPreferences.lastOpenedProject
 
-		if (TextUtils.isEmpty(openedProject)) {
-			flashInfo(string.msg_opened_project_does_not_exist)
-			return
-		}
+			val projectToOpen = validProjects.find { it.absolutePath == lastOpenedPath }
+				?: validProjects.maxByOrNull { it.lastModified() }
 
-		val project = File(openedProject)
-		if (!project.exists()) {
-			flashInfo(string.msg_opened_project_does_not_exist)
-			return
-		}
+			withContext(Dispatchers.Main) {
+				when {
+        	projectToOpen != null -> handleOpenProject(projectToOpen)
 
+        	lastOpenedPath.isNotBlank() && lastOpenedPath != GeneralPreferences.NO_OPENED_PROJECT -> {
+        		if (!File(lastOpenedPath).exists()) {
+        			flashInfo(string.msg_opened_project_does_not_exist)
+        		}
+        	}
+
+        	else -> Unit
+				}
+			}
+		}
+	}
+
+	private fun handleOpenProject(root: File) {
 		if (GeneralPreferences.confirmProjectOpen) {
-			askProjectOpenPermission(project)
+			askProjectOpenPermission(root)
 			return
 		}
-
-		openProject(project)
+		openProject(root)
 	}
 
 	private fun askProjectOpenPermission(root: File) {
@@ -322,15 +363,19 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			try {
 				val dbFile = Environment.DOC_DB
 				log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
-				val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
-				webServer.start()
+				val server = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
+				webServer = server
+				server.start()
 			} catch (e: Exception) {
 				log.error("Failed to start WebServer", e)
+			} finally {
+				webServer = null
 			}
 		}
 	}
 
 	override fun onDestroy() {
+		webServer?.stop()
 		ITemplateProvider.getInstance().release()
 		super.onDestroy()
 		_binding = null

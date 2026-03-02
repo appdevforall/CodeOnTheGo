@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="PluginTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/plugin_primary</item>
+        <item name="colorOnPrimary">@color/plugin_on_primary</item>
+        <item name="colorPrimaryContainer">@color/plugin_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/plugin_on_primary_container</item>
+        <item name="android:colorPrimary">@color/plugin_primary</item>
+        <item name="android:colorAccent">@color/plugin_primary</item>
+    </style>
+</resources>

@@ -1,6 +1,6 @@
-# Sample Plugin for CodeOnTheGo
+# Sample Plugin for Code on the Go
 
-A comprehensive sample plugin demonstrating all the capabilities available in the CodeOnTheGo plugin system.
+A comprehensive sample plugin demonstrating all the capabilities available in the Code on the Go plugin system.
 
 ## Features Demonstrated
 
@@ -111,7 +111,7 @@ The plugin demonstrates usage of all available IDE services:
 - Debug: `build/plugin/sample-plugin-debug.cgp`
 
 ### Installation
-1. Copy the `.cgp` file to CodeOnTheGo's plugins directory
+1. Copy the `.cgp` file to Code on the Go's plugins directory
 2. Restart the IDE or use the plugin manager to reload
 3. The plugin will be automatically loaded and activated
 
@@ -170,7 +170,7 @@ tooltipService?.showTooltip(anchorView, category, tag)
 ## Dependencies
 
 ### Required Dependencies
-- `plugin-api` - CodeOnTheGo Plugin API (compileOnly)
+- `plugin-api` - Code on the Go Plugin API (compileOnly)
 - `androidx.fragment` - Fragment support
 - `androidx.appcompat` - AppCompat library
 - `material` - Material Design components
@@ -183,4 +183,4 @@ tooltipService?.showTooltip(anchorView, category, tag)
 
 ## License
 
-This sample plugin is provided as-is for educational and development purposes. Use it as a foundation for creating your own CodeOnTheGo plugins.
+This sample plugin is provided as-is for educational and development purposes. Use it as a foundation for creating your own Code on the Go plugins.

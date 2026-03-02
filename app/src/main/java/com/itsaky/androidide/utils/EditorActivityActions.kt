@@ -96,7 +96,9 @@ class EditorActivityActions {
             registry.registerAction(FindInProjectAction(context, order++))
             registry.registerAction(LaunchAppAction(context, order++))
             registry.registerAction(DisconnectLogSendersAction(context, order++))
-            registry.registerAction(action= GenerateXMLAction(context, order=order++))
+            if (FeatureFlags.isExperimentsEnabled) {
+                registry.registerAction(action = GenerateXMLAction(context, order = order++))
+            }
 
             // Plugin contributions
             order = registerPluginActions(context, registry, order)
