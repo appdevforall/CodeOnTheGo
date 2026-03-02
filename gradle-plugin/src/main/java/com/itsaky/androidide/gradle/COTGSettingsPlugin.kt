@@ -56,7 +56,7 @@ class COTGSettingsPlugin : Plugin<Settings> {
 			val mavenLocalRepos =
 				projectProperties.getOrDefault(_PROPERTY_MAVEN_LOCAL_REPOSITORY, "")
 
-			isTestEnv to mavenLocalRepos.split(':').toList().filter { it.isNotBlank() }
+			isTestEnv to mavenLocalRepos.split(File.pathSeparatorChar).toList().filter { it.isNotBlank() }
 		}
 }
 
@@ -78,6 +78,6 @@ private fun RepositoryHandler.addMavenRepoIfMissing(
 ) {
 	if (none { it is MavenArtifactRepository && it.url == uri }) {
 		logger.info("Adding maven repository: $uri")
-		addLast(maven { it.url = uri })
+		maven { it.url = uri }
 	}
 }
