@@ -84,10 +84,13 @@ object YoloToXmlConverter {
 
         for (parent in parents) {
             texts.firstOrNull { text ->
-                !consumedTexts.contains(text) && Rect(parent.rect).intersect(text.rect) &&
-                        (Rect(parent.rect).width() * Rect(parent.rect).height()).let { intersectionArea ->
-                            val textArea = text.w * text.h
-                            textArea > 0 && (intersectionArea.toFloat() / textArea.toFloat()) > OVERLAP_THRESHOLD
+                !consumedTexts.contains(text) &&
+                        Rect(parent.rect).let { intersection ->
+                            intersection.intersect(text.rect) &&
+                                    (intersection.width() * intersection.height()).let { intersectionArea ->
+                                        val textArea = text.w * text.h
+                                        textArea > 0 && (intersectionArea.toFloat() / textArea.toFloat()) > OVERLAP_THRESHOLD
+                                    }
                         }
             }?.let {
                 parent.text = it.text
@@ -149,6 +152,13 @@ object YoloToXmlConverter {
             Rect(x, y, x + w, y + h)
         )
     }
+
+    private fun escapeXmlAttr(value: String): String =
+        value.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&apos;")
 
     private fun viewTagFor(label: String): String = when (label) {
         "text" -> "TextView"
@@ -214,36 +224,55 @@ object YoloToXmlConverter {
         val height = parsedAttrs["android:layout_height"] ?: "wrap_content"
         val id = parsedAttrs["android:id"]?.substringAfterLast('/') ?: defaultId
 
+        val writtenAttrs = mutableSetOf(
+            "android:id", "android:layout_width", "android:layout_height"
+        )
+
         xml.append("$indent<$tag\n")
-        xml.append("$indent    android:id=\"@+id/$id\"\n")
-        xml.append("$indent    android:layout_width=\"$width\"\n")
-        xml.append("$indent    android:layout_height=\"$height\"\n")
+        xml.append("$indent    android:id=\"@+id/${escapeXmlAttr(id)}\"\n")
+        xml.append("$indent    android:layout_width=\"${escapeXmlAttr(width)}\"\n")
+        xml.append("$indent    android:layout_height=\"${escapeXmlAttr(height)}\"\n")
 
         when (tag) {
             "TextView", "Button", "CheckBox", "RadioButton", "Switch" -> {
                 val viewText = box.text.takeIf { it.isNotEmpty() && it != box.label } ?: box.label
-                xml.append("$indent    android:text=\"$viewText\"\n")
-                if (tag == "TextView") xml.append("$indent    android:textSize=\"16sp\"\n")
-                if (label.contains("_checked") || label.contains("_on")) xml.append("$indent    android:checked=\"true\"\n")
+                xml.append("$indent    android:text=\"${escapeXmlAttr(viewText)}\"\n")
+                writtenAttrs.add("android:text")
+                if (tag == "TextView") {
+                    xml.append("$indent    android:textSize=\"16sp\"\n")
+                    writtenAttrs.add("android:textSize")
+                }
+                if (label.contains("_checked") || label.contains("_on")) {
+                    xml.append("$indent    android:checked=\"true\"\n")
+                    writtenAttrs.add("android:checked")
+                }
                 xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
+                writtenAttrs.add("tools:ignore")
             }
 
             "EditText" -> {
-                xml.append("$indent    android:hint=\"${box.text.ifEmpty { "Enter text..." }}\"\n")
+                xml.append("$indent    android:hint=\"${escapeXmlAttr(box.text.ifEmpty { "Enter text..." })}\"\n")
+                writtenAttrs.add("android:hint")
                 xml.append("$indent    android:inputType=\"text\"\n")
+                writtenAttrs.add("android:inputType")
                 xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
+                writtenAttrs.add("tools:ignore")
             }
 
             "ImageView" -> {
-                xml.append("$indent    android:contentDescription=\"$label\"\n")
+                xml.append("$indent    android:contentDescription=\"${escapeXmlAttr(label)}\"\n")
+                writtenAttrs.add("android:contentDescription")
                 xml.append("$indent    android:scaleType=\"centerCrop\"\n")
+                writtenAttrs.add("android:scaleType")
                 xml.append("$indent    android:background=\"#E0E0E0\"\n")
+                writtenAttrs.add("android:background")
             }
         }
 
         parsedAttrs.forEach { (key, value) ->
-            if (key !in listOf("android:layout_width", "android:layout_height", "android:id")) {
-                xml.append("$indent    $key=\"$value\"\n")
+            if (key !in writtenAttrs) {
+                xml.append("$indent    $key=\"${escapeXmlAttr(value)}\"\n")
+                writtenAttrs.add(key)
             }
         }
         xml.append("$indent/>")
