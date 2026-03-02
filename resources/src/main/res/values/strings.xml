@@ -27,6 +27,10 @@
 	<string name="app_logs">App Logs</string>
 	<string name="ide_logs">IDE Logs</string>
 	<string name="default_tooltip">General information about this feature.</string>
+	<string name="err_insufficient_storage_title">Insufficient Storage</string>
+    <string name="err_insufficient_storage_msg">%1$s requires at least %2$dGB of free space to run and extract the necessary tools.\n\nPlease free up space on your device and try again.</string>
+    <string name="action_close_app">Close %1$s</string>
+    <string name="action_free_up_space">Free Up Space</string>
 
 	<!-- Agent -->
 	<string name="agent_backend_selected">🤖 System: %1$s backend selected.</string>
