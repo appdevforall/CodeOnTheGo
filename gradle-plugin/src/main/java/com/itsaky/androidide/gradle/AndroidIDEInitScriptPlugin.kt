@@ -100,7 +100,7 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
     val logsDir = File(gradleUserHomeDir, "daemon/$currentGradleVersion")
 
     if (logsDir.exists() && logsDir.isDirectory) {
-      logger.lifecycle("CoGo clean logs of gradle ($currentGradleVersion) task running....")
+      logger.lifecycle("Code On the Go clean logs of gradle ($currentGradleVersion) task running....")
 
       // Filter and iterate over log files, sorted by last modified date
       logsDir.listFiles()?.filter { it.isFile && it.name.endsWith(".log") }
