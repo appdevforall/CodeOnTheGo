@@ -37,7 +37,6 @@ import java.io.FileNotFoundException
  */
 
 class LogSenderPlugin : Plugin<Project> {
-
 	companion object {
 		private val logger = Logging.getLogger(LogSenderPlugin::class.java)
 	}
@@ -76,7 +75,7 @@ class LogSenderPlugin : Plugin<Project> {
 						logger.lifecycle(
 							"Adding LogSender dependency to variant '{}' of project '{}'",
 							variant.name,
-							project.path
+							project.path,
 						)
 
 						logger.debug("Adding logsender dependency: {}", logsenderAar.absolutePath)
@@ -87,9 +86,7 @@ class LogSenderPlugin : Plugin<Project> {
 		}
 	}
 
-	private fun ApplicationVariant.withRuntimeConfiguration(
-		action: Configuration.() -> Unit
-	) {
+	private fun ApplicationVariant.withRuntimeConfiguration(action: Configuration.() -> Unit) {
 		if (this is ApplicationVariantImpl) {
 			variantDependencies.runtimeClasspath.action()
 		} else if (this is AnalyticsEnabledApplicationVariant) {

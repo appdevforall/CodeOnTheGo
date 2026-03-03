@@ -214,8 +214,7 @@ internal class JavaDebugAdapter :
 		this._listenerState!!.client.onAttach(client)
 	}
 
-	override suspend fun connectedRemoteClients(): Set<RemoteClient> =
-		vms.map(VmConnection::client).toSet()
+	override suspend fun connectedRemoteClients(): Set<RemoteClient> = vms.map(VmConnection::client).toSet()
 
 	override suspend fun suspendClient(client: RemoteClient) =
 		doSuspensionIfEnabled(client) { vm ->
@@ -360,15 +359,17 @@ internal class JavaDebugAdapter :
 					val resolveSuccess = result.getOrDefault(false)
 
 					when {
-						resolveSuccess && spec.isResolved -> BreakpointResult.Success(
-							breakpoint,
-							false
-						)
+						resolveSuccess && spec.isResolved ->
+							BreakpointResult.Success(
+								breakpoint,
+								false,
+							)
 
-						resolveSuccess && !spec.isResolved -> BreakpointResult.Success(
-							breakpoint,
-							true
-						)
+						resolveSuccess && !spec.isResolved ->
+							BreakpointResult.Success(
+								breakpoint,
+								true,
+							)
 
 						else -> BreakpointResult.Failure(breakpoint, failure)
 					}

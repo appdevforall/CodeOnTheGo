@@ -16,34 +16,35 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
 class JdwpPlugin : Plugin<Project> {
-	override fun apply(target: Project) = target.run {
-		if (!target.plugins.hasPlugin(APP_PLUGIN)) {
-			return
-		}
+	override fun apply(target: Project) =
+		target
+			.run {
+				if (!target.plugins.hasPlugin(APP_PLUGIN)) {
+					return
+				}
 
-		logger.info("Applying {} to project '${target.path}'", JdwpPlugin::class.simpleName)
+				logger.info("Applying {} to project '${target.path}'", JdwpPlugin::class.simpleName)
 
-		extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
-			onDebuggableVariants { variant ->
-				val jdwpManifestTransformer = tasks.register(
-					variant.generateTaskName("transform", "JdwpManifest"),
-					JdwpManifestTransformerTask::class.java
-				)
+				extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
+					onDebuggableVariants { variant ->
+						val jdwpManifestTransformer =
+							tasks.register(
+								variant.generateTaskName("transform", "JdwpManifest"),
+								JdwpManifestTransformerTask::class.java,
+							)
 
-				variant.artifacts
-					.use(jdwpManifestTransformer)
-					.wiredWithFiles(
-						taskInput = JdwpManifestTransformerTask::mergedManifest,
-						taskOutput = JdwpManifestTransformerTask::updatedManifest
-					)
-					.toTransform(SingleArtifact.MERGED_MANIFEST)
-			}
-		}
-	}.let { }
+						variant.artifacts
+							.use(jdwpManifestTransformer)
+							.wiredWithFiles(
+								taskInput = JdwpManifestTransformerTask::mergedManifest,
+								taskOutput = JdwpManifestTransformerTask::updatedManifest,
+							).toTransform(SingleArtifact.MERGED_MANIFEST)
+					}
+				}
+			}.let { }
 }
 
 abstract class JdwpManifestTransformerTask : DefaultTask() {
-
 	@get:InputFile
 	abstract val mergedManifest: RegularFileProperty
 
@@ -80,7 +81,7 @@ abstract class JdwpManifestTransformerTask : DefaultTask() {
 			permissionNode.setAttributeNS(
 				androidNs,
 				"android:name",
-				"android.permission.INTERNET"
+				"android.permission.INTERNET",
 			)
 			manifest.appendChild(permissionNode)
 		}
@@ -89,7 +90,7 @@ abstract class JdwpManifestTransformerTask : DefaultTask() {
 		transformer.setOutputProperty(OutputKeys.INDENT, "yes")
 		transformer.transform(
 			DOMSource(document),
-			StreamResult(outputFile)
+			StreamResult(outputFile),
 		)
 	}
 }

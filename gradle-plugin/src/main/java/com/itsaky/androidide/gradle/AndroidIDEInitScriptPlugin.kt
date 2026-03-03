@@ -41,186 +41,192 @@ const val MAX_LOGFILE_COUNT = 2
  */
 class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 
-  companion object {
+	companion object {
 
-    private val logger = Logging.getLogger(AndroidIDEInitScriptPlugin::class.java)
-  }
+		private val logger = Logging.getLogger(AndroidIDEInitScriptPlugin::class.java)
+	}
 
-  /**
-   * Keywords: [gradle, agp, androidGradlePlugin, classpath, build ]
-   * It seeme like this method adds custom android-gradle-plugin to the classpath.
-   * Without explicitly adding it to any gradle files.
-   * This script is a prat of androidIde. So even if child process fails to build,
-   * it only means that androidIDE toolchain was not satisfied.
-   * So far I can't find
-   * @see VERSION_NAME_DOWNLOAD
-   * gradle .jar and it seems to be required.
-   * This script has no direct usage by AS search, but is invoked from string and in gradle tasks.
-   */
-  override fun apply(target: Gradle) {
-    removeDaemonLogs(target)
+	/**
+	 * Keywords: [gradle, agp, androidGradlePlugin, classpath, build ]
+	 * It seeme like this method adds custom android-gradle-plugin to the classpath.
+	 * Without explicitly adding it to any gradle files.
+	 * This script is a prat of androidIde. So even if child process fails to build,
+	 * it only means that androidIDE toolchain was not satisfied.
+	 * So far I can't find
+	 * @see VERSION_NAME_DOWNLOAD
+	 * gradle .jar and it seems to be required.
+	 * This script has no direct usage by AS search, but is invoked from string and in gradle tasks.
+	 */
+	override fun apply(target: Gradle) {
+		removeDaemonLogs(target)
 
-    target.settingsEvaluated { settings ->
-      settings.addDependencyRepositories()
-    }
+		target.settingsEvaluated { settings ->
+			settings.addDependencyRepositories()
+		}
 
-    target.rootProject { rootProject ->
-      rootProject.buildscript.apply {
-        dependencies.apply {
-          add("classpath", rootProject.files("$ANDROIDIDE_HOME/plugin/cogo-plugin.jar"))
-        }
-      }
-    }
+		target.rootProject { rootProject ->
+			rootProject.buildscript.apply {
+				dependencies.apply {
+					add(
+						"classpath",
+						rootProject.files("$ANDROIDIDE_HOME/plugin/cogo-plugin.jar")
+					)
+				}
+			}
+		}
 
-    target.projectsLoaded { gradle ->
-      gradle.rootProject.subprojects { sub ->
-        if (!sub.buildFile.exists()) {
-          // For subproject ':nested:module',
-          // ':nested' represented as a 'Project', but it may or may not have a buildscript file
-          // if the project doesn't have a buildscript, then the plugins should not be applied
-          return@subprojects
-        }
+		target.projectsLoaded { gradle ->
+			gradle.rootProject.subprojects { sub ->
+				if (!sub.buildFile.exists()) {
+					// For subproject ':nested:module',
+					// ':nested' represented as a 'Project', but it may or may not have a buildscript file
+					// if the project doesn't have a buildscript, then the plugins should not be applied
+					return@subprojects
+				}
 
-        sub.afterEvaluate {
-          logger.info("Trying to apply plugin '${BuildInfo.PACKAGE_NAME}' to project '${sub.path}'")
-          sub.pluginManager.apply(BuildInfo.PACKAGE_NAME)
-        }
-      }
-    }
-  }
+				sub.afterEvaluate {
+					logger.info("Trying to apply plugin '${BuildInfo.PACKAGE_NAME}' to project '${sub.path}'")
+					sub.pluginManager.apply(BuildInfo.PACKAGE_NAME)
+				}
+			}
+		}
+	}
 
-  private fun removeDaemonLogs(gradle: Gradle) {
-    // logger.lifecycle("#@^*( Applyingg Clean Plugin")
-    // Get the Gradle user home directory
-    val gradleUserHomeDir = gradle.gradleUserHomeDir
+	private fun removeDaemonLogs(gradle: Gradle) {
+		// logger.lifecycle("#@^*( Applyingg Clean Plugin")
+		// Get the Gradle user home directory
+		val gradleUserHomeDir = gradle.gradleUserHomeDir
 
-    // Get the current Gradle version
-    val currentGradleVersion = gradle.gradleVersion
-    val logsDir = File(gradleUserHomeDir, "daemon/$currentGradleVersion")
+		// Get the current Gradle version
+		val currentGradleVersion = gradle.gradleVersion
+		val logsDir = File(gradleUserHomeDir, "daemon/$currentGradleVersion")
 
-    if (logsDir.exists() && logsDir.isDirectory) {
-      logger.lifecycle("Code On the Go clean logs of gradle ($currentGradleVersion) task running....")
+		if (logsDir.exists() && logsDir.isDirectory) {
+			logger.lifecycle("Code On the Go clean logs of gradle ($currentGradleVersion) task running....")
 
-      // Filter and iterate over log files, sorted by last modified date
-      logsDir.listFiles()?.filter { it.isFile && it.name.endsWith(".log") }
-        ?.sortedByDescending { it.lastModified() }
-        ?.drop(MAX_LOGFILE_COUNT)
-        ?.forEach { logFile ->
-          logger.lifecycle("deleting log: ${logFile.name}")
-          logFile.delete()
-        }
-    }
-    else {
-      logger.lifecycle("No deletions made, number of log files does not exceed ($MAX_LOGFILE_COUNT) for gradle ($currentGradleVersion). ")
-    }
-  }
+			// Filter and iterate over log files, sorted by last modified date
+			logsDir.listFiles()?.filter { it.isFile && it.name.endsWith(".log") }
+				?.sortedByDescending { it.lastModified() }
+				?.drop(MAX_LOGFILE_COUNT)
+				?.forEach { logFile ->
+					logger.lifecycle("deleting log: ${logFile.name}")
+					logFile.delete()
+				}
+		} else {
+			logger.lifecycle(
+				"No deletions made, number of log files" +
+						" does not exceed ($MAX_LOGFILE_COUNT) for gradle ($currentGradleVersion). "
+			)
+		}
+	}
 
-  private fun Settings.addDependencyRepositories() {
-    val (isTestEnv, mavenLocalRepos) = getTestEnvProps(startParameter)
-    if (isTestEnv) {
-      addDependencyRepositories(isTestEnv, mavenLocalRepos)
-    } else {
-      addDependencyRepositories(MAVEN_LOCAL_REPOSITORY)
-    }
-  }
+	private fun Settings.addDependencyRepositories() {
+		val (isTestEnv, mavenLocalRepos) = getTestEnvProps(startParameter)
+		if (isTestEnv) {
+			addDependencyRepositories(isTestEnv, mavenLocalRepos)
+		} else {
+			addDependencyRepositories(MAVEN_LOCAL_REPOSITORY)
+		}
+	}
 
-  @Suppress("UnstableApiUsage")
-  private fun Settings.addDependencyRepositories(
-    mavenLocalRepo: String
-  ) {
-    dependencyResolutionManagement.run {
-      repositories.configureRepositories(mavenLocalRepo)
-    }
+	@Suppress("UnstableApiUsage")
+	private fun Settings.addDependencyRepositories(
+		mavenLocalRepo: String
+	) {
+		dependencyResolutionManagement.run {
+			repositories.configureRepositories(mavenLocalRepo)
+		}
 
-    pluginManagement.apply {
-      repositories.configureRepositories(mavenLocalRepo)
-    }
-  }
+		pluginManagement.apply {
+			repositories.configureRepositories(mavenLocalRepo)
+		}
+	}
 
-  private fun RepositoryHandler.configureRepositories(
-    mavenLocalRepo: String
-  ) {
+	private fun RepositoryHandler.configureRepositories(
+		mavenLocalRepo: String
+	) {
 
-    val repo = File(mavenLocalRepo)
-    if (!repo.exists() || !repo.isDirectory) {
-      throw FileNotFoundException("Maven local repository '$mavenLocalRepo' not found")
-    }
+		val repo = File(mavenLocalRepo)
+		if (!repo.exists() || !repo.isDirectory) {
+			throw FileNotFoundException("Maven local repository '$mavenLocalRepo' not found")
+		}
 
-    maven { repository ->
-      repository.url = repo.toURI()
-    }
+		maven { repository ->
+			repository.url = repo.toURI()
+		}
 
-  }
+	}
 
-  @Suppress("UnstableApiUsage")
-  private fun Settings.addDependencyRepositories(
-    isMavenLocalEnabled: Boolean,
-    mavenLocalRepo: String
-  ) {
-    dependencyResolutionManagement.run {
-      repositories.configureRepositories(isMavenLocalEnabled, mavenLocalRepo)
-    }
+	@Suppress("UnstableApiUsage")
+	private fun Settings.addDependencyRepositories(
+		isMavenLocalEnabled: Boolean,
+		mavenLocalRepo: String
+	) {
+		dependencyResolutionManagement.run {
+			repositories.configureRepositories(isMavenLocalEnabled, mavenLocalRepo)
+		}
 
-    pluginManagement.apply {
-      repositories.configureRepositories(isMavenLocalEnabled, mavenLocalRepo)
-    }
-  }
+		pluginManagement.apply {
+			repositories.configureRepositories(isMavenLocalEnabled, mavenLocalRepo)
+		}
+	}
 
-  private fun RepositoryHandler.addDependencyRepositories(startParams: StartParameter) {
-    val (isTestEnv, mavenLocalRepos) = getTestEnvProps(startParams)
-    configureRepositories(isTestEnv, mavenLocalRepos)
-  }
+	private fun RepositoryHandler.addDependencyRepositories(startParams: StartParameter) {
+		val (isTestEnv, mavenLocalRepos) = getTestEnvProps(startParams)
+		configureRepositories(isTestEnv, mavenLocalRepos)
+	}
 
-  private fun getTestEnvProps(startParameter: StartParameter): Pair<Boolean, String> {
-    return startParameter.run {
-      val isTestEnv = projectProperties.containsKey(_PROPERTY_IS_TEST_ENV)
-          && projectProperties[_PROPERTY_IS_TEST_ENV].toString().toBoolean()
-      val mavenLocalRepos = projectProperties.getOrDefault(_PROPERTY_MAVEN_LOCAL_REPOSITORY, "")
+	private fun getTestEnvProps(startParameter: StartParameter): Pair<Boolean, String> {
+		return startParameter.run {
+			val isTestEnv = projectProperties.containsKey(_PROPERTY_IS_TEST_ENV)
+					&& projectProperties[_PROPERTY_IS_TEST_ENV].toString().toBoolean()
+			val mavenLocalRepos =
+				projectProperties.getOrDefault(_PROPERTY_MAVEN_LOCAL_REPOSITORY, "")
 
-      isTestEnv to mavenLocalRepos
-    }
-  }
+			isTestEnv to mavenLocalRepos
+		}
+	}
 
-  private fun RepositoryHandler.configureRepositories(
-    isMavenLocalEnabled: Boolean,
-    mavenLocalRepos: String
-  ) {
+	private fun RepositoryHandler.configureRepositories(
+		isMavenLocalEnabled: Boolean,
+		mavenLocalRepos: String
+	) {
 
-    if (!isMavenLocalEnabled) {
+		if (!isMavenLocalEnabled) {
 
-      // For AndroidIDE CI builds
-      maven { repository ->
-        repository.url = URI.create(BuildInfo.SNAPSHOTS_REPOSITORY)
-      }
-    } else {
-      logger.info("Using local maven repository for classpath resolution...")
+			// For AndroidIDE CI builds
+			maven { repository ->
+				repository.url = URI.create(BuildInfo.SNAPSHOTS_REPOSITORY)
+			}
+		} else {
+			logger.info("Using local maven repository for classpath resolution...")
 
-      for (mavenLocalRepo in mavenLocalRepos.split(':')) {
-        if (mavenLocalRepo.isBlank()) {
-          mavenLocal()
-        } else {
-          logger.info("Local repository path: $mavenLocalRepo")
+			for (mavenLocalRepo in mavenLocalRepos.split(':')) {
+				if (mavenLocalRepo.isBlank()) {
+					mavenLocal()
+				} else {
+					logger.info("Local repository path: $mavenLocalRepo")
 
-          val repo = File(mavenLocalRepo)
-          if (!repo.exists() || !repo.isDirectory) {
-            throw FileNotFoundException("Maven local repository '$mavenLocalRepo' not found")
-          }
+					val repo = File(mavenLocalRepo)
+					if (!repo.exists() || !repo.isDirectory) {
+						throw FileNotFoundException("Maven local repository '$mavenLocalRepo' not found")
+					}
 
-          maven { repository ->
-            repository.url = repo.toURI()
-          }
-        }
-      }
-    }
+					maven { repository ->
+						repository.url = repo.toURI()
+					}
+				}
+			}
+		}
 
-    // for AGP API dependency
-    google()
+		// for AGP API dependency
+		google()
 
-    maven { repository ->
-      repository.setUrl(BuildInfo.PUBLIC_REPOSITORY)
-    }
+		maven { repository ->
+			repository.setUrl(BuildInfo.PUBLIC_REPOSITORY)
+		}
 
-    mavenCentral()
-    gradlePluginPortal()
-  }
+		mavenCentral()
+		gradlePluginPortal()
+	}
 }
