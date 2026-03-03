@@ -106,10 +106,13 @@ open class EditorHandlerActivity :
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
 
 	private fun getTabPositionForFileIndex(fileIndex: Int): Int {
+		val safeContent = contentOrNull ?: return -1
+		val totalTabs = safeContent.tabs.tabCount
+
 		if (fileIndex < 0) return -1
 		var tabPos = 0
 		var fileCount = 0
-		while (tabPos < content.tabs.tabCount) {
+		while (tabPos < totalTabs) {
 			if (!isPluginTab(tabPos)) {
 				if (fileCount == fileIndex) return tabPos
 				fileCount++
@@ -513,6 +516,8 @@ open class EditorHandlerActivity :
 		file: File,
 		selection: Range?,
 	): Int {
+		val safeContent = contentOrNull ?: return -1
+		val totalTabs = safeContent.tabs.tabCount
 		val openedFileIndex = findIndexOfEditorByFile(file)
 		if (openedFileIndex != -1) {
 			return openedFileIndex
@@ -524,18 +529,19 @@ open class EditorHandlerActivity :
 
 		val fileIndex = editorViewModel.getOpenedFileCount()
 		val tabPosition = getNextFileTabPosition()
+		if (tabPosition < 0) return -1
 
 		log.info("Opening file at file index {} tab position {} file:{}", fileIndex, tabPosition, file)
 
 		val editor = CodeEditorView(this, file, selection!!)
 		editor.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
 
-		if (tabPosition >= content.tabs.tabCount) {
-			content.tabs.addTab(content.tabs.newTab())
-			content.editorContainer.addView(editor)
+		if (tabPosition >= totalTabs) {
+			safeContent.tabs.addTab(safeContent.tabs.newTab())
+			safeContent.editorContainer.addView(editor)
 		} else {
-			content.tabs.addTab(content.tabs.newTab(), tabPosition)
-			content.editorContainer.addView(editor, tabPosition)
+			safeContent.tabs.addTab(safeContent.tabs.newTab(), tabPosition)
+			safeContent.editorContainer.addView(editor, tabPosition)
 			shiftPluginIndices(tabPosition, 1)
 		}
 
@@ -548,8 +554,11 @@ open class EditorHandlerActivity :
 	}
 
 	private fun getNextFileTabPosition(): Int {
+		val safeContent = contentOrNull ?: return -1
+		val totalTabs = safeContent.tabs.tabCount
+
 		var lastFileTabPos = -1
-		for (i in 0 until content.tabs.tabCount) {
+		for (i in 0 until totalTabs) {
 			if (!isPluginTab(i)) {
 				lastFileTabPos = i
 			}
@@ -1163,11 +1172,13 @@ open class EditorHandlerActivity :
 	}
 
 	fun isPluginTab(position: Int): Boolean {
-		if (position < 0 || position >= content.tabs.tabCount) {
+		val safeContent = contentOrNull ?: return false
+		val totalTabs = safeContent.tabs.tabCount
+
+		if (position !in 0..<totalTabs) {
 			return false
 		}
-		val result = tabIndexToPluginId.containsKey(position)
-		return result
+		return tabIndexToPluginId.containsKey(position)
 	}
 
 	fun getPluginTabId(position: Int): String? = tabIndexToPluginId[position]
@@ -1179,10 +1190,11 @@ open class EditorHandlerActivity :
 	}
 
 	fun updateTabVisibility() {
+		val safeContent = contentOrNull ?: return
 		val hasFiles = editorViewModel.getOpenedFileCount() > 0
 		val hasPluginTabs = pluginTabIndices.isNotEmpty()
 
-		content.apply {
+		safeContent.apply {
 			if (!hasFiles && !hasPluginTabs) {
 				tabs.visibility = View.GONE
 				viewContainer.displayedChild = 1
