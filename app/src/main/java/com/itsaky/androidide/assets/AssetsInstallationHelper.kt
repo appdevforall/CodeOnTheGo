@@ -77,14 +77,19 @@ object AssetsInstallationHelper {
 				}
 
 			if (result.isFailure) {
-				val e = result.exceptionOrNull()
-				if (e is CancellationException) {
-					throw e
+				val e = result.exceptionOrNull() ?: RuntimeException(context.getString(R.string.error_installation_failed))
+				if (e is CancellationException) throw e
+
+				val isMissingAsset = generateSequence(e) { it.cause }.any { it is FileNotFoundException }
+				val cause = if (isMissingAsset) MissingAssetsEntryException(e) else e
+				val msg = if (isMissingAsset) {
+					context.getString(R.string.err_missing_or_corrupt_assets, context.getString(R.string.app_name))
+				} else {
+					e.message ?: context.getString(R.string.error_installation_failed)
 				}
-				val msg = e?.message ?: "Failed to install assets"
 				logger.error("Failed to install assets", e)
 				onProgress(Progress(msg))
-				return@withContext Result.Failure(e, errorMessage = msg)
+				return@withContext Result.Failure(cause, errorMessage = msg, shouldReportToSentry = !isMissingAsset)
 			}
 
 			return@withContext Result.Success
