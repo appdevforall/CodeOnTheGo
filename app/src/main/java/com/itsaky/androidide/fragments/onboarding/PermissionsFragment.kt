@@ -289,8 +289,7 @@ class PermissionsFragment :
 	}
 
 	private fun requestOverlayPermission() {
-		awaitingOverlayGrantResult = true
-		requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+		awaitingOverlayGrantResult = requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
 	}
 
 	private fun openAppInfoSettings() {
@@ -314,17 +313,19 @@ class PermissionsFragment :
 	private fun requestSettingsTogglePermission(
 		action: String,
 		setData: Boolean = true,
-	) {
+	): Boolean {
 		val intent = Intent(action)
 		intent.putExtra(Settings.EXTRA_APP_PACKAGE, BuildInfo.PACKAGE_NAME)
 		if (setData) {
 			intent.setData(Uri.fromParts("package", BuildInfo.PACKAGE_NAME, null))
 		}
-		try {
+		return try {
 			settingsTogglePermissionRequestLauncher.launch(intent)
+			true
 		} catch (err: Throwable) {
 			logger.error("Failed to launch settings with intent {}", intent, err)
 			flashError(getString(R.string.err_no_activity_to_handle_action, action))
+			false
 		}
 	}
 
