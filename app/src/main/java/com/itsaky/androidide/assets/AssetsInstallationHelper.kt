@@ -211,7 +211,8 @@ object AssetsInstallationHelper {
 			progressUpdater.cancel()
 		} finally {
 			// Always run postInstall so zip/FS resources are closed (e.g. SplitAssetsInstaller.zipFile)
-			ASSETS_INSTALLER.postInstall(context, stagingDir)
+			runCatching { ASSETS_INSTALLER.postInstall(context, stagingDir) }
+				.onFailure { e -> logger.warn("postInstall failed", e) }
 			if (Files.exists(stagingDir)) {
 				stagingDir.deleteRecursively()
 			}
