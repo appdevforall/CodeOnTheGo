@@ -19,15 +19,6 @@ object YoloToXmlConverter {
     private const val RADIO_GROUP_GAP_THRESHOLD = 24
     private const val OVERLAP_THRESHOLD = 0.6
 
-    private val colorMap = mapOf(
-        "red" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
-        "black" to "#000000", "white" to "#FFFFFF", "gray" to "#808080",
-        "grey" to "#808080", "dark_gray" to "#A9A9A9", "yellow" to "#FFFF00",
-        "cyan" to "#00FFFF", "magenta" to "#FF00FF", "purple" to "#800080",
-        "orange" to "#FFA500", "brown" to "#A52A2A", "pink" to "#FFC0CB",
-        "transparent" to "@android:color/transparent"
-    )
-
     private data class ScaledBox(
         val label: String, var text: String, val x: Int, val y: Int, val w: Int, val h: Int,
         val centerX: Int, val centerY: Int, val rect: Rect
@@ -282,71 +273,6 @@ object YoloToXmlConverter {
     }
 
     private fun parseMarginAnnotations(annotation: String?, tag: String): Map<String, String> {
-        if (annotation.isNullOrBlank()) return emptyMap()
-
-        val parsed = mutableMapOf<String, String>()
-        val knownKeys = listOf(
-            "layout_width", "layout-width", "width",
-            "layout_height", "layout-height", "height", "layout height",
-            "id", "text", "background",
-            "src", "scr",
-            "entries", "inputtype", "input_type",
-            "hint", "textcolor", "text_color",
-            "textsize", "text_size",
-            "style", "layout_weight", "layout-weight",
-            "layout_gravity", "layout-gravity", "gravity"
-        )
-        val keysRegex = Regex("(?i)\\b(${knownKeys.joinToString("|")})\\s*:")
-
-        val matches = keysRegex.findAll(annotation).toList()
-
-        matches.forEachIndexed { index, match ->
-            val key = match.groupValues[1]
-            val startIndex = match.range.last + 1
-            val endIndex =
-                if (index + 1 < matches.size) matches[index + 1].range.first else annotation.length
-            val value = annotation.substring(startIndex, endIndex).trim()
-
-            if (value.isNotEmpty()) {
-                formatAttribute(key, value, tag)?.let { (attr, fValue) -> parsed[attr] = fValue }
-            }
-        }
-        return parsed
-    }
-
-    private fun formatAttribute(key: String, value: String, tag: String): Pair<String, String>? {
-        val canonicalKey = key.lowercase().replace("-", "_").replace(" ", "_")
-
-        return when (canonicalKey) {
-            "width", "layout_width" -> "android:layout_width" to formatDimension(value)
-            "height", "layout_height" -> "android:layout_height" to formatDimension(value)
-            "background" -> {
-                if (tag == "Button") {
-                    "app:backgroundTint" to (colorMap[value.lowercase()] ?: value)
-                } else {
-                    "android:background" to (colorMap[value.lowercase()] ?: value)
-                }
-            }
-
-            "text" -> "android:text" to value
-            "id" -> "android:id" to value.replace(" ", "_")
-            "src", "scr" -> "android:src" to "@drawable/${value.substringBeforeLast('.')}"
-            "entries" -> "tools:entries" to value
-            "inputtype", "input_type" -> "android:inputType" to value
-            "hint" -> "android:hint" to value
-            "textcolor", "text_color" -> "android:textColor" to (colorMap[value.lowercase()]
-                ?: value)
-
-            "textsize", "text_size" -> "android:textSize" to if (value.matches(Regex("\\d+"))) "${value}sp" else value
-            "style" -> "style" to value
-            "layout_weight" -> "android:layout_weight" to value
-            "gravity", "layout_gravity" -> "android:layout_gravity" to value
-            else -> null
-        }
-    }
-
-    private fun formatDimension(value: String): String {
-        val trimmed = value.replace("dp", "").trim()
-        return if (trimmed.matches(Regex("-?\\d+"))) "${trimmed}dp" else value
+        return FuzzyAttributeParser.parse(annotation, tag)
     }
 }
