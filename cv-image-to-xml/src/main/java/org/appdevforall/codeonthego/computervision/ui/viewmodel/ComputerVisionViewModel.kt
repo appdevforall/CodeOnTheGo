@@ -270,14 +270,7 @@ class ComputerVisionViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
-            repository.generateXml(
-                detections = state.detections,
-                annotations = state.parsedAnnotations,
-                sourceImageWidth = state.currentBitmap.width,
-                sourceImageHeight = state.currentBitmap.height,
-                targetDpWidth = 360,
-                targetDpHeight = 640
-            )
+            generateXml(state)
                 .onSuccess { xml ->
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = false)
@@ -292,7 +285,6 @@ class ComputerVisionViewModel(
         }
     }
 
-
     private fun saveXmlToDownloads() {
         val state = _uiState.value
         if (!state.hasDetections || state.currentBitmap == null) {
@@ -305,14 +297,7 @@ class ComputerVisionViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
-            repository.generateXml(
-                detections = state.detections,
-                annotations = state.parsedAnnotations,
-                sourceImageWidth = state.currentBitmap.width,
-                sourceImageHeight = state.currentBitmap.height,
-                targetDpWidth = 360,
-                targetDpHeight = 640
-            )
+            generateXml(state)
                 .onSuccess { xml ->
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = true)
@@ -325,6 +310,18 @@ class ComputerVisionViewModel(
                     _uiEffect.send(ComputerVisionEffect.ShowError("XML generation failed: ${exception.message}"))
                 }
         }
+    }
+
+    private suspend fun generateXml(state: ComputerVisionUiState): Result<String> {
+        val bitmap = state.currentBitmap ?: return Result.failure(IllegalStateException("No bitmap available"))
+        return repository.generateXml(
+            detections = state.detections,
+            annotations = state.parsedAnnotations,
+            sourceImageWidth = bitmap.width,
+            sourceImageHeight = bitmap.height,
+            targetDpWidth = TARGET_DP_WIDTH,
+            targetDpHeight = TARGET_DP_HEIGHT
+        )
     }
 
 
@@ -351,5 +348,9 @@ class ComputerVisionViewModel(
 
     companion object {
         private const val TAG = "ComputerVisionViewModel"
+
+        /** Standard Android phone viewport in dp used as the XML layout target size. */
+        private const val TARGET_DP_WIDTH = 360
+        private const val TARGET_DP_HEIGHT = 640
     }
 }

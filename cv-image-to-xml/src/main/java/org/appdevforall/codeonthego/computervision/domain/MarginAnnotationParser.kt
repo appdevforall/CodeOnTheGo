@@ -8,6 +8,8 @@ object MarginAnnotationParser {
 
     private const val TAG = "MarginAnnotationParser"
 
+    private val TAG_REGEX = Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$")
+
     private val ocrCorrectionRules = listOf(
         Regex("(?<=-)!") to "1",
         Regex("(?<=-)l") to "1"
@@ -25,7 +27,7 @@ object MarginAnnotationParser {
      * A tag is any string that starts with B, P, D, T, C, R, S, or SW, followed by a hyphen and one or more digits.
      */
     private fun isTag(text: String): Boolean {
-        return text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$"))
+        return text.matches(TAG_REGEX)
     }
 
     fun parse(
@@ -58,8 +60,8 @@ object MarginAnnotationParser {
         for (detection in sortedMarginDetections) {
             val correctedText = correctOcrErrors(detection.text.trim())
             if (isTag(correctedText)) {
-                if (currentTag != null && currentAnnotation.isNotBlank()) {
-                    annotationMap[currentTag!!] = currentAnnotation.toString().trim()
+                currentTag?.takeIf { currentAnnotation.isNotBlank() }?.let { tag ->
+                    annotationMap[tag] = currentAnnotation.toString().trim()
                 }
                 currentTag = correctedText
                 currentAnnotation.clear()
@@ -67,8 +69,8 @@ object MarginAnnotationParser {
                 currentAnnotation.append(" ").append(correctedText)
             }
         }
-        if (currentTag != null && currentAnnotation.isNotBlank()) {
-            annotationMap[currentTag!!] = currentAnnotation.toString().trim()
+        currentTag?.takeIf { currentAnnotation.isNotBlank() }?.let { tag ->
+            annotationMap[tag] = currentAnnotation.toString().trim()
         }
 
         val correctedCanvasDetections = canvasDetections.map {

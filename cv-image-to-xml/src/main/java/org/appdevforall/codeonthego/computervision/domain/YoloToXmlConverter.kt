@@ -19,6 +19,22 @@ object YoloToXmlConverter {
     private const val RADIO_GROUP_GAP_THRESHOLD = 24
     private const val OVERLAP_THRESHOLD = 0.6
 
+    private val TAG_REGEX = Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$")
+
+    private val KNOWN_ANNOTATION_KEYS = listOf(
+        "layout_width", "layout-width", "width",
+        "layout_height", "layout-height", "height", "layout height",
+        "id", "text", "background",
+        "src", "scr",
+        "entries", "inputtype", "input_type",
+        "hint", "textcolor", "text_color",
+        "textsize", "text_size",
+        "style", "layout_weight", "layout-weight",
+        "layout_gravity", "layout-gravity", "gravity"
+    )
+
+    private val ANNOTATION_KEYS_REGEX = Regex("(?i)\\b(${KNOWN_ANNOTATION_KEYS.joinToString("|")})\\s*:")
+
     private val colorMap = mapOf(
         "red" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
         "black" to "#000000", "white" to "#FFFFFF", "gray" to "#808080",
@@ -33,7 +49,7 @@ object YoloToXmlConverter {
         val centerX: Int, val centerY: Int, val rect: Rect
     )
 
-    private fun isTag(text: String): Boolean = text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$"))
+    private fun isTag(text: String): Boolean = text.matches(TAG_REGEX)
 
     private fun getTagType(tag: String): String? {
         return when {
@@ -285,20 +301,7 @@ object YoloToXmlConverter {
         if (annotation.isNullOrBlank()) return emptyMap()
 
         val parsed = mutableMapOf<String, String>()
-        val knownKeys = listOf(
-            "layout_width", "layout-width", "width",
-            "layout_height", "layout-height", "height", "layout height",
-            "id", "text", "background",
-            "src", "scr",
-            "entries", "inputtype", "input_type",
-            "hint", "textcolor", "text_color",
-            "textsize", "text_size",
-            "style", "layout_weight", "layout-weight",
-            "layout_gravity", "layout-gravity", "gravity"
-        )
-        val keysRegex = Regex("(?i)\\b(${knownKeys.joinToString("|")})\\s*:")
-
-        val matches = keysRegex.findAll(annotation).toList()
+        val matches = ANNOTATION_KEYS_REGEX.findAll(annotation).toList()
 
         matches.forEachIndexed { index, match ->
             val key = match.groupValues[1]
