@@ -1,14 +1,14 @@
 package com.itsaky.androidide.lsp.java.debug
 
 import com.itsaky.androidide.lsp.debug.IDebugClient
-import com.itsaky.androidide.lsp.java.debug.transport.COTGSocketListeningConnector
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
+import com.sun.tools.jdi.SocketListeningConnector
 import com.sun.tools.jdi.isListening
 
 internal data class ListenerState(
 	val client: IDebugClient,
-	val connector: COTGSocketListeningConnector,
+	val connector: SocketListeningConnector,
 	val args: Map<String, Connector.Argument>,
 ) {
 	val isListening: Boolean

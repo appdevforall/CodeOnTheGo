@@ -24,7 +24,6 @@ import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
-import com.itsaky.androidide.lsp.java.debug.transport.COTGSocketListeningConnector
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
@@ -41,7 +40,7 @@ import com.sun.jdi.event.StepEvent
 import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.jdi.request.EventRequest
 import com.sun.jdi.request.StepRequest
-import com.sun.tools.jdi.VirtualMachineManagerImpl
+import com.sun.tools.jdi.SocketListeningConnector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -59,16 +58,7 @@ internal class JavaDebugAdapter :
 	IDebugAdapter,
 	EventConsumer,
 	AutoCloseable {
-	private val vmm =
-		Bootstrap.virtualMachineManager().also { vmm ->
-			if (vmm.listeningConnectors().filterIsInstance<COTGSocketListeningConnector>().isEmpty()) {
-				logger.warn(
-					"{} was not located by ServiceLoader. Adding it manually...",
-					COTGSocketListeningConnector::class.simpleName,
-				)
-				(vmm as? VirtualMachineManagerImpl)?.addConnector(COTGSocketListeningConnector())
-			}
-		}
+	private val vmm = Bootstrap.virtualMachineManager()
 
 	private val vms = CopyOnWriteArraySet<VmConnection>()
 	private val adapterScope = CoroutineScope(Dispatchers.Default)
@@ -133,7 +123,8 @@ internal class JavaDebugAdapter :
 			logger.info("Listening connector: {}", conn.javaClass.canonicalName)
 		}
 
-		val connector = vmm.listeningConnectors().filterIsInstance<COTGSocketListeningConnector>().firstOrNull()
+		val connector =
+			vmm.listeningConnectors().filterIsInstance<SocketListeningConnector>().firstOrNull()
 		if (connector == null) {
 			logger.error("No listening connectors found, or the connector is not a SocketListeningConnector")
 			return
@@ -223,7 +214,8 @@ internal class JavaDebugAdapter :
 		this._listenerState!!.client.onAttach(client)
 	}
 
-	override suspend fun connectedRemoteClients(): Set<RemoteClient> = vms.map(VmConnection::client).toSet()
+	override suspend fun connectedRemoteClients(): Set<RemoteClient> =
+		vms.map(VmConnection::client).toSet()
 
 	override suspend fun suspendClient(client: RemoteClient) =
 		doSuspensionIfEnabled(client) { vm ->
@@ -368,8 +360,16 @@ internal class JavaDebugAdapter :
 					val resolveSuccess = result.getOrDefault(false)
 
 					when {
-						resolveSuccess && spec.isResolved -> BreakpointResult.Success(breakpoint, false)
-						resolveSuccess && !spec.isResolved -> BreakpointResult.Success(breakpoint, true)
+						resolveSuccess && spec.isResolved -> BreakpointResult.Success(
+							breakpoint,
+							false
+						)
+
+						resolveSuccess && !spec.isResolved -> BreakpointResult.Success(
+							breakpoint,
+							true
+						)
+
 						else -> BreakpointResult.Failure(breakpoint, failure)
 					}
 				},
