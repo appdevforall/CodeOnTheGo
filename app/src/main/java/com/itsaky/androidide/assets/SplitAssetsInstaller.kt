@@ -176,7 +176,13 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 		stagingDir: Path,
 	) {
 		withContext(Dispatchers.IO) {
-			zipFile.close()
+			if (::zipFile.isInitialized) {
+				try {
+					zipFile.close()
+				} catch (e: Exception) {
+					logger.warn("Failed to close assets zip file", e)
+				}
+			}
 		}
 		super.postInstall(context, stagingDir)
 	}
