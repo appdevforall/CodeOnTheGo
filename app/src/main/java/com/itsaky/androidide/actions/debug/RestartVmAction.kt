@@ -5,6 +5,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.utils.IntentUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -29,19 +30,23 @@ class RestartVmAction(
 	override suspend fun execAction(data: ActionData) {
 		val context = data.requireContext()
 
+		val client = IDEDebugClientImpl.getInstance() ?: return
+
 		// kill the current VM
-		debugClient.killVm()
+		client.killVm()
 
 		// wait for some time
 		delay(RESTART_DELAY)
 
 		// then launch the debugee again
-		withContext(Dispatchers.Main.immediate) {
-			IntentUtils.launchApp(
-				context = context,
-				packageName = debugClient.debugeePackage,
-				debug = true,
-			)
+		IDEDebugClientImpl.getInstance()?.let { safeClient ->
+			withContext(Dispatchers.Main.immediate) {
+				IntentUtils.launchApp(
+					context = context,
+					packageName = safeClient.debugeePackage,
+					debug = true,
+				)
+			}
 		}
 	}
 }
