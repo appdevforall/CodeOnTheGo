@@ -22,6 +22,7 @@ import android.app.Activity
 import android.content.Context
 import android.os.Bundle
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import androidx.appcompat.widget.LinearLayoutCompat
@@ -201,7 +202,7 @@ class CodeEditorView(
 			}
 
 			// Only handle Ctrl + mouse wheel here; let the editor handle all other scroll events.
-			if (!event.isCtrlPressed) {
+			if ((event.metaState and KeyEvent.META_CTRL_ON) == 0) {
 				return@setOnGenericMotionListener false
 			}
 
