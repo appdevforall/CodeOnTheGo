@@ -55,8 +55,10 @@ import io.github.rosemoe.sora.lang.styling.TextStyle
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -84,8 +86,10 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
   private val calculatingLines = ConcurrentHashMap.newKeySet<Int>()
   private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-  fun destroy() {
+  fun destroy(): Job? {
+    val job = scope.coroutineContext[Job]
     scope.cancel()
+    return job
   }
 
   fun edit(edit: TSInputEdit) {
@@ -249,19 +253,19 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
 
     override fun getSpansOnLine(line: Int): MutableList<Span> {
       try {
+        val lineCount = content.lineCount
+        if (line !in 0 until lineCount) return mutableListOf(emptySpan(0))
+
         val cached = queryCache(line)
-        if (cached != null) {
-          return ArrayList(cached)
-        }
+        if (cached != null) return ArrayList(cached)
 
         // Atomically prevent duplicate concurrent calculations for the same line
         if (calculatingLines.add(line)) {
-          val start = content.indexer.getCharPosition(line, 0).index
-          val end = start + content.getColumnCount(line)
-
           // Move heavy processing to a background thread to prevent ANRs
           scope.launch {
             try {
+              val start = content.indexer.getCharPosition(line, 0).index
+              val end = start + content.getColumnCount(line)
               // Execute the TreeSitter query without blocking the UI
               val newSpans = captureRegion(start, end)
               withContext(Dispatchers.Main) {
@@ -269,6 +273,8 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
                 // Notify Sora Editor that the cache is ready and trigger a redraw
                 requestRedraw()
               }
+            } catch (e: CancellationException) {
+              throw e
             } catch (e: Exception) {
               e.printStackTrace()
             } finally {
