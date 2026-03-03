@@ -18,7 +18,7 @@
 package com.itsaky.androidide.gradle
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOGSENDER_ENABLED
 import org.junit.jupiter.api.Test
 
 /**
