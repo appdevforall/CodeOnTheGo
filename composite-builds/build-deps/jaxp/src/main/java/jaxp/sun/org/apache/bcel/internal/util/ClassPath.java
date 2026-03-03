@@ -142,8 +142,20 @@ public class ClassPath implements Serializable {
    */
   public void close() throws IOException {
     if (paths != null) {
+      IOException firstEx = null;
       for (PathEntry path : paths) {
-        path.close();
+        try {
+          path.close();
+        } catch (IOException e) {
+          if (firstEx == null) {
+            firstEx = e;
+          } else {
+            firstEx.addSuppressed(e);
+          }
+        }
+      }
+      if (firstEx != null) {
+        throw firstEx;
       }
     }
   }

@@ -209,12 +209,12 @@ object AssetsInstallationHelper {
 
 			// then cancel progress updater
 			progressUpdater.cancel()
-
-			// clean up
-			stagingDir.deleteRecursively()
 		} finally {
 			// Always run postInstall so zip/FS resources are closed (e.g. SplitAssetsInstaller.zipFile)
 			ASSETS_INSTALLER.postInstall(context, stagingDir)
+			if (Files.exists(stagingDir)) {
+				stagingDir.deleteRecursively()
+			}
 		}
 	}
 

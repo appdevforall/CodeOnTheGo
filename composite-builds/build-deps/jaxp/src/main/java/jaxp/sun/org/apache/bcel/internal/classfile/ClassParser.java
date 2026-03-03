@@ -165,12 +165,37 @@ public class ClassParser implements AutoCloseable {
   /**
    * Closes the ZipFile if this parser was constructed from a zip archive.
    * Call this or use try-with-resources when using the zip constructor.
+   * ClassParser closes both the {@link #file} and {@link #zip} fields (if
+   * non-null), mirroring the cleanup done in {@link #parse()}. Each close
+   * is in its own try/catch so one failure does not prevent closing the other;
+   * the first exception is added as suppressed to the second if both throw.
    */
   @Override
   public void close() throws IOException {
+    IOException suppressed = null;
+    if (file != null) {
+      try {
+        file.close();
+      } catch (IOException e) {
+        suppressed = e;
+      } finally {
+        file = null;
+      }
+    }
     if (zip != null) {
-      zip.close();
-      zip = null;
+      try {
+        zip.close();
+      } catch (IOException e) {
+        if (suppressed != null) {
+          e.addSuppressed(suppressed);
+        }
+        throw e;
+      } finally {
+        zip = null;
+      }
+    }
+    if (suppressed != null) {
+      throw suppressed;
     }
   }
 
