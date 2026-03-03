@@ -29,4 +29,12 @@
   <color name="tooltip_link_color_light">#233490</color>
   <color name="tooltip_text_color_dark">#E4E2E6</color>
   <color name="brand_color">#00BE00</color>
+
+    <!-- Git Diff Colors -->
+    <color name="git_diff_add_text">#1B5E20</color>
+    <color name="git_diff_add_bg">#E8F5E9</color>
+    <color name="git_diff_del_text">#B71C1C</color>
+    <color name="git_diff_del_bg">#FFEBEE</color>
+    <color name="git_diff_header_text">#0277BD</color>
+
 </resources>

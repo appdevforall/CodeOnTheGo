@@ -22,7 +22,8 @@ class GitBottomSheetViewModel : ViewModel() {
     private val _gitStatus = MutableStateFlow(GitStatus.EMPTY)
     val gitStatus: StateFlow<GitStatus> = _gitStatus.asStateFlow()
 
-    private var currentRepository: GitRepository? = null
+    var currentRepository: GitRepository? = null
+        private set
 
     init {
         EventBus.getDefault().register(this)

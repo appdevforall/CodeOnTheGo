@@ -11,6 +11,16 @@ import java.io.File
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.api.errors.NoHeadException
+import org.eclipse.jgit.diff.DiffFormatter
+import org.eclipse.jgit.dircache.DirCacheIterator
+import org.eclipse.jgit.revwalk.RevWalk
+import org.eclipse.jgit.treewalk.AbstractTreeIterator
+import org.eclipse.jgit.treewalk.CanonicalTreeParser
+import org.eclipse.jgit.treewalk.EmptyTreeIterator
+import org.eclipse.jgit.treewalk.FileTreeIterator
+import org.eclipse.jgit.treewalk.filter.PathFilter
+import java.io.ByteArrayOutputStream
 
 /**
  * JGit-based implementation of the [GitRepository] interface.
@@ -23,6 +33,17 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         .build()
 
     private val git: Git = Git(repository)
+
+    private fun getHeadTree(repository: Repository): AbstractTreeIterator {
+        val head = repository.resolve(Constants.HEAD) ?: return EmptyTreeIterator()
+        val revWalk = RevWalk(repository)
+        val commit = revWalk.parseCommit(head)
+        val treeParser = CanonicalTreeParser()
+        repository.newObjectReader().use { reader ->
+            treeParser.reset(reader, commit.tree.id)
+        }
+        return treeParser
+    }
 
     override suspend fun getStatus(): GitStatus = withContext(Dispatchers.IO) {
         val jgitStatus = git.status().call()
@@ -42,6 +63,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         jgitStatus.untracked.forEach { untracked.add(FileChange(it, ChangeType.UNTRACKED)) }
         
         jgitStatus.conflicting.forEach { conflicted.add(FileChange(it, ChangeType.CONFLICTED)) }
+
+
 
         GitStatus(
             isClean = jgitStatus.isClean,
@@ -81,13 +104,28 @@ class JGitRepository(override val rootDir: File) : GitRepository {
             git.log().setMaxCount(limit).call().map { revCommit ->
                 revCommit.toGitCommit()
             }
-        } catch (_: org.eclipse.jgit.api.errors.NoHeadException) {
+        } catch (_: NoHeadException) {
             emptyList()
         }
     }
 
     override suspend fun getDiff(file: File): String = withContext(Dispatchers.IO) {
-        ""
+        val relativePath = file.toRelativeString(rootDir).replace('\\', '/')
+        val outputStream = ByteArrayOutputStream()
+        DiffFormatter(outputStream).use { formatter ->
+            formatter.setRepository(repository)
+            val indexTree = DirCacheIterator(repository.readDirCache())
+            val workingTree = FileTreeIterator(repository)
+            formatter.pathFilter = PathFilter.create(relativePath)
+            formatter.format(indexTree, workingTree)
+            
+            // If empty, check staged diff
+            if (outputStream.size() == 0) {
+                val headTree = getHeadTree(repository)
+                formatter.format(headTree, indexTree)
+            }
+        }
+        outputStream.toString()
     }
 
     private fun RevCommit.toGitCommit(): GitCommit {
