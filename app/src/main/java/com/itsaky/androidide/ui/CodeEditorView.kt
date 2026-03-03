@@ -21,7 +21,9 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
+import android.view.InputDevice
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.isVisible
 import com.blankj.utilcode.util.SizeUtils
@@ -187,6 +189,34 @@ class CodeEditorView(
 					resetBreakpointsInFile(file)
 				}
 			}
+		}
+
+		binding.editor.setOnGenericMotionListener { _, event ->
+			if (event.action != MotionEvent.ACTION_SCROLL) {
+				return@setOnGenericMotionListener false
+			}
+
+			if (event.source and InputDevice.SOURCE_CLASS_POINTER == 0) {
+				return@setOnGenericMotionListener false
+			}
+
+			// Only handle Ctrl + mouse wheel here; let the editor handle all other scroll events.
+			if (!event.isCtrlPressed) {
+				return@setOnGenericMotionListener false
+			}
+
+			val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+			if (vScroll == 0f) {
+				return@setOnGenericMotionListener false
+			}
+
+			if (vScroll > 0f) {
+				changeFontSizeBy(1f)
+			} else if (vScroll < 0f) {
+				changeFontSizeBy(-1f)
+			}
+
+			true
 		}
 
 		_searchLayout = EditorSearchLayout(context, binding.editor)
@@ -490,6 +520,7 @@ class CodeEditorView(
 		var textSize = EditorPreferences.fontSize
 		if (textSize < 6 || textSize > 32) {
 			textSize = 14f
+			EditorPreferences.fontSize = textSize
 		}
 		binding.editor.setTextSize(textSize)
 	}
@@ -600,4 +631,25 @@ class CodeEditorView(
 
 		readWriteContext.use { }
 	}
+
+	private fun changeFontSizeBy(delta: Float) {
+		val current = EditorPreferences.fontSize
+		val newSize = computeNewEditorFontSize(current, delta)
+		if (newSize != current) {
+			EditorPreferences.fontSize = newSize
+		}
+		binding.editor.setTextSize(newSize)
+	}
+}
+
+internal fun computeNewEditorFontSize(current: Float, delta: Float): Float {
+	val base =
+		if (current < 6f || current > 32f) {
+			14f
+		} else {
+			current
+		}
+
+	val candidate = base + delta
+	return candidate.coerceIn(6f, 32f)
 }
