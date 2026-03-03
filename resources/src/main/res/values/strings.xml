@@ -27,6 +27,10 @@
 	<string name="app_logs">App Logs</string>
 	<string name="ide_logs">IDE Logs</string>
 	<string name="default_tooltip">General information about this feature.</string>
+	<string name="err_insufficient_storage_title">Insufficient Storage</string>
+    <string name="err_insufficient_storage_msg">%1$s requires at least %2$dGB of free space to run and extract the necessary tools.\n\nPlease free up space on your device and try again.</string>
+    <string name="action_close_app">Close %1$s</string>
+    <string name="action_free_up_space">Free Up Space</string>
 
 	<!-- Agent -->
 	<string name="agent_backend_selected">🤖 System: %1$s backend selected.</string>
@@ -92,7 +96,9 @@
 	<string name="msg_no_references">No references found</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
+	<string name="error_installation_failed">Failed to install assets</string>
 	<string name="err_asset_entry_not_found">Entry \'%1$s\' not found in assets zip file</string>
+	<string name="err_missing_or_corrupt_assets">Missing installation files. %1$s installation might be corrupt or incomplete.</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
