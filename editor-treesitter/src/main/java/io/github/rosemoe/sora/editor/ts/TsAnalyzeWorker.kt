@@ -35,6 +35,7 @@ import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
@@ -289,8 +290,10 @@ class TsAnalyzeWorker(
     updateCodeBlocks()
     oldBlocks?.also { ObjectAllocator.recycleBlockLines(it) }
 
-    stylesReceiver?.setStyles(analyzer, styles) {
-      oldSpans?.destroy()
+    stylesReceiver?.setStyles(analyzer, styles)
+
+    analyzerScope.launch(Dispatchers.Default) {
+      oldSpans?.destroy()?.join()
       oldTree?.close()
     }
 
