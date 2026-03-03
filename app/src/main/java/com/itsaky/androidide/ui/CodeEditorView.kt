@@ -21,7 +21,10 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
+import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.isVisible
 import com.blankj.utilcode.util.SizeUtils
@@ -74,6 +77,10 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File
+
+private const val MIN_FONT_SIZE = 6f
+private const val DEFAULT_FONT_SIZE = 14f
+private const val MAX_FONT_SIZE = 32f
 
 /**
  * A view that handles opened code editor.
@@ -187,6 +194,34 @@ class CodeEditorView(
 					resetBreakpointsInFile(file)
 				}
 			}
+		}
+
+		binding.editor.setOnGenericMotionListener { _, event ->
+			if (event.action != MotionEvent.ACTION_SCROLL) {
+				return@setOnGenericMotionListener false
+			}
+
+			if (event.source and InputDevice.SOURCE_CLASS_POINTER == 0) {
+				return@setOnGenericMotionListener false
+			}
+
+			// Only handle Ctrl + mouse wheel here; let the editor handle all other scroll events.
+			if ((event.metaState and KeyEvent.META_CTRL_ON) == 0) {
+				return@setOnGenericMotionListener false
+			}
+
+			val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+			if (vScroll == 0f) {
+				return@setOnGenericMotionListener false
+			}
+
+			if (vScroll > 0f) {
+				changeFontSizeBy(1f)
+			} else if (vScroll < 0f) {
+				changeFontSizeBy(-1f)
+			}
+
+			true
 		}
 
 		_searchLayout = EditorSearchLayout(context, binding.editor)
@@ -488,8 +523,9 @@ class CodeEditorView(
 
 	private fun onFontSizePrefChanged() {
 		var textSize = EditorPreferences.fontSize
-		if (textSize < 6 || textSize > 32) {
-			textSize = 14f
+		if (textSize < MIN_FONT_SIZE || textSize > MAX_FONT_SIZE) {
+			textSize = DEFAULT_FONT_SIZE
+			EditorPreferences.fontSize = textSize
 		}
 		binding.editor.setTextSize(textSize)
 	}
@@ -600,4 +636,26 @@ class CodeEditorView(
 
 		readWriteContext.use { }
 	}
+
+	private fun changeFontSizeBy(delta: Float) {
+		val current = EditorPreferences.fontSize
+		val newSize = computeNewEditorFontSize(current, delta)
+		// HJE 2026-03-03 This works, but it seems weird that we set binding.editor.setTextSize(newSize) every time OUTSIDE the if ()
+		if (newSize != current) {
+			EditorPreferences.fontSize = newSize
+		}
+		binding.editor.setTextSize(newSize)
+	}
+}
+
+internal fun computeNewEditorFontSize(current: Float, delta: Float): Float {
+	val base =
+		if (current < MIN_FONT_SIZE || current > MAX_FONT_SIZE) {
+			DEFAULT_FONT_SIZE
+		} else {
+			current
+		}
+
+	val candidate = base + delta
+	return candidate.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
 }
