@@ -140,80 +140,82 @@ object AssetsInstallationHelper {
 			return@coroutineScope Result.Failure(IOException("preInstall failed"))
 		}
 
-        val entrySizes: Map<String, Long> = expectedEntries.associateWith { entry ->
-            ASSETS_INSTALLER.expectedSize(entry)
-        }
-
-        val totalSize = entrySizes.values.sum()
-
-        val entryStatusMap = ConcurrentHashMap<String, String>()
-
-		val installerJobs =
-			expectedEntries.map { entry ->
-				async {
-					entryStatusMap[entry] = STATUS_INSTALLING
-
-					ASSETS_INSTALLER.doInstall(
-						context = context,
-						stagingDir = stagingDir,
-						cpuArch = cpuArch,
-						entryName = entry,
-					)
-
-					entryStatusMap[entry] = STATUS_FINISHED
-				}
+		try {
+			val entrySizes: Map<String, Long> = expectedEntries.associateWith { entry ->
+				ASSETS_INSTALLER.expectedSize(entry)
 			}
 
-		val progressUpdater =
-            launch {
-                var previousSnapshot = ""
-                while (isActive) {
-                    val installedSize = entryStatusMap
-                        .filterValues { it == STATUS_FINISHED }
-                        .keys
-                        .sumOf { entrySizes[it] ?: 0 }
+			val totalSize = entrySizes.values.sum()
 
-                    val percent = if (totalSize > 0) {
-                        (installedSize * 100.0 / totalSize)
-                    } else 0.0
+			val entryStatusMap = ConcurrentHashMap<String, String>()
 
-                    val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
+			val installerJobs =
+				expectedEntries.map { entry ->
+					async {
+						entryStatusMap[entry] = STATUS_INSTALLING
 
-                    val snapshot =
-                        if (percent >= 99.0) {
-                            "Post install processing in progress...."
-                        } else {
-                            buildString {
-                                entryStatusMap.forEach { (entry, status) ->
-                                    appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
-                                }
-                                appendLine("--------------------")
-                                appendLine("Progress: ${formatPercent(percent)}")
-                                appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
-                                appendLine("Remaining storage: ${formatBytes(freeStorage)}")
-                            }
-                        }
+						ASSETS_INSTALLER.doInstall(
+							context = context,
+							stagingDir = stagingDir,
+							cpuArch = cpuArch,
+							entryName = entry,
+						)
 
-                    if (snapshot != previousSnapshot) {
-                        onProgress(Progress(snapshot))
-                        previousSnapshot = snapshot
-                    }
+						entryStatusMap[entry] = STATUS_FINISHED
+					}
+				}
 
-                    delay(500)
-                }
-            }
+			val progressUpdater =
+				launch {
+					var previousSnapshot = ""
+					while (isActive) {
+						val installedSize = entryStatusMap
+							.filterValues { it == STATUS_FINISHED }
+							.keys
+							.sumOf { entrySizes[it] ?: 0 }
 
-        // wait for all jobs to complete
-		installerJobs.joinAll()
+						val percent = if (totalSize > 0) {
+							(installedSize * 100.0 / totalSize)
+						} else 0.0
 
-		// notify post-install
-		ASSETS_INSTALLER.postInstall(context, stagingDir)
+						val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
-		// then cancel progress updater
-		progressUpdater.cancel()
+						val snapshot =
+							if (percent >= 99.0) {
+								"Post install processing in progress...."
+							} else {
+								buildString {
+									entryStatusMap.forEach { (entry, status) ->
+										appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+									}
+									appendLine("--------------------")
+									appendLine("Progress: ${formatPercent(percent)}")
+									appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
+									appendLine("Remaining storage: ${formatBytes(freeStorage)}")
+								}
+							}
 
-		// clean up
-		stagingDir.deleteRecursively()
+						if (snapshot != previousSnapshot) {
+							onProgress(Progress(snapshot))
+							previousSnapshot = snapshot
+						}
+
+						delay(500)
+					}
+				}
+
+			// wait for all jobs to complete
+			installerJobs.joinAll()
+
+			// then cancel progress updater
+			progressUpdater.cancel()
+
+			// clean up
+			stagingDir.deleteRecursively()
+		} finally {
+			// Always run postInstall so zip/FS resources are closed (e.g. SplitAssetsInstaller.zipFile)
+			ASSETS_INSTALLER.postInstall(context, stagingDir)
+		}
 	}
 
 	@WorkerThread

@@ -92,9 +92,12 @@ import  java.util.zip.*;
  * JVM specification 1.0</a>. See this paper for
  * further details about the structure of a bytecode file.
  *
+ * <p>When constructed with {@link #ClassParser(String, String) zip file and entry},
+ * callers must call {@link #close()} or use try-with-resources to close the ZipFile.
+ *
  * @author <A HREF="mailto:markus.dahm@berlin.de">M. Dahm</A>
  */
-public class ClassParser {
+public class ClassParser implements AutoCloseable {
   protected DataInputStream file;
   protected ZipFile         zip;
   protected String          file_name;
@@ -143,7 +146,8 @@ public class ClassParser {
 
   /** Parse class from given .class file in a ZIP-archive
    *
-   * @param file_name file name
+   * @param zip_file path to the zip/jar file
+   * @param file_name entry name inside the archive
    * @throws IOException
    */
   public ClassParser(String zip_file, String file_name) throws IOException
@@ -156,6 +160,18 @@ public class ClassParser {
 
     file = new DataInputStream(new BufferedInputStream(zip.getInputStream(entry),
                                                        BUFSIZE));
+  }
+
+  /**
+   * Closes the ZipFile if this parser was constructed from a zip archive.
+   * Call this or use try-with-resources when using the zip constructor.
+   */
+  @Override
+  public void close() throws IOException {
+    if (zip != null) {
+      zip.close();
+      zip = null;
+    }
   }
 
   /**
