@@ -640,6 +640,7 @@ class CodeEditorView(
 	private fun changeFontSizeBy(delta: Float) {
 		val current = EditorPreferences.fontSize
 		val newSize = computeNewEditorFontSize(current, delta)
+		// HJE 2026-03-03 This works, but it seems weird that we set binding.editor.setTextSize(newSize) every time OUTSIDE the if ()
 		if (newSize != current) {
 			EditorPreferences.fontSize = newSize
 		}
