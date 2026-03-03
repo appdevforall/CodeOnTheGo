@@ -78,6 +78,10 @@ import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File
 
+private const val MIN_FONT_SIZE = 6f
+private const val DEFAULT_FONT_SIZE = 14f
+private const val MAX_FONT_SIZE = 32f
+
 /**
  * A view that handles opened code editor.
  *
@@ -519,8 +523,8 @@ class CodeEditorView(
 
 	private fun onFontSizePrefChanged() {
 		var textSize = EditorPreferences.fontSize
-		if (textSize < 6 || textSize > 32) {
-			textSize = 14f
+		if (textSize < MIN_FONT_SIZE || textSize > MAX_FONT_SIZE) {
+			textSize = DEFAULT_FONT_SIZE
 			EditorPreferences.fontSize = textSize
 		}
 		binding.editor.setTextSize(textSize)
@@ -645,12 +649,12 @@ class CodeEditorView(
 
 internal fun computeNewEditorFontSize(current: Float, delta: Float): Float {
 	val base =
-		if (current < 6f || current > 32f) {
-			14f
+		if (current < MIN_FONT_SIZE || current > MAX_FONT_SIZE) {
+			DEFAULT_FONT_SIZE
 		} else {
 			current
 		}
 
 	val candidate = base + delta
-	return candidate.coerceIn(6f, 32f)
+	return candidate.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
 }
