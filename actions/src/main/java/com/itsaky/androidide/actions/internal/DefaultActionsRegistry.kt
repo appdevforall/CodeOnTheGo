@@ -27,6 +27,7 @@ import com.itsaky.androidide.actions.FillMenuParams
 import com.itsaky.androidide.actions.OnActionClickListener
 import com.itsaky.androidide.actions.locations.CodeActionsMenu
 import com.itsaky.androidide.utils.withStopWatch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -249,8 +250,11 @@ class DefaultActionsRegistry : ActionsRegistry() {
         val onMainThread = action.requiresUIThread
         val context = if (onMainThread) Dispatchers.Main.immediate else Dispatchers.Default
         return actionsCoroutineScope.launch(context) {
-            val result = withStopWatch("Action '${action.id}'") {
-                action.execAction(data)
+            val result = try {
+                withStopWatch("Action '${action.id}'") { action.execAction(data) }
+            } catch (e: IllegalArgumentException) {
+                log.error("An error occurred when performing action '{}'", action.id, e)
+                return@launch
             }
 
             val post = fun() = run {
@@ -261,14 +265,14 @@ class DefaultActionsRegistry : ActionsRegistry() {
             if (onMainThread) {
                 post()
             } else {
-                withContext(Dispatchers.Main.immediate) {
-                    post()
-                }
+                withContext(Dispatchers.Main.immediate) { post() }
             }
         }.also { job ->
-            job.invokeOnCompletion { error ->
-                if (error != null) {
-                    log.error("An error occurred when performing action '{}'", action.id, error)
+            job.invokeOnCompletion { cause ->
+                when (cause) {
+                    null -> log.debug("Action '{}' execution completed.", action.id)
+                    is CancellationException -> log.debug("Action '{}' execution was cancelled.", action.id)
+                    else -> log.debug("Action '{}' execution failed.", action.id, cause)
                 }
             }
         }
