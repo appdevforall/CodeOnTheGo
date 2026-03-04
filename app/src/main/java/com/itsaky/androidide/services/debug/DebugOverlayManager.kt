@@ -16,6 +16,7 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.flashError
 import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
@@ -112,6 +113,7 @@ class DebugOverlayManager private constructor(
 
         if (!Settings.canDrawOverlays(binding.root.context)) {
             logger.warn("Overlay permission denied. Skipping debugger overlay window.")
+            flashError(binding.root.context.getString(R.string.permission_overlay_restricted_settings_hint))
             return
         }
 
