@@ -189,15 +189,18 @@ public class Class2HTML implements Constants
       if(files == 0)
         System.err.println("Class2HTML: No input files specified.");
       else { // Loop through files ...
-        for(int i=0; i < files; i++) {
+        for (int i = 0; i < files; i++) {
           System.out.print("Processing " + file_name[i] + "...");
-          if(zip_file == null)
+          if (zip_file == null) {
             parser = new ClassParser(file_name[i]); // Create parser object from file
-          else
-            parser = new ClassParser(zip_file, file_name[i]); // Create parser object from zip file
-
-          java_class = parser.parse();
-          new Class2HTML(java_class, dir);
+            java_class = parser.parse();
+            new Class2HTML(java_class, dir);
+          } else {
+            try (ClassParser zipParser = new ClassParser(zip_file, file_name[i])) {
+              java_class = zipParser.parse();
+              new Class2HTML(java_class, dir);
+            }
+          }
           System.out.println("Done.");
         }
       }
