@@ -19,12 +19,14 @@ object YoloToXmlConverter {
     private const val RADIO_GROUP_GAP_THRESHOLD = 24
     private const val OVERLAP_THRESHOLD = 0.6
 
+    private val TAG_REGEX = Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$")
+
     private data class ScaledBox(
         val label: String, var text: String, val x: Int, val y: Int, val w: Int, val h: Int,
         val centerX: Int, val centerY: Int, val rect: Rect
     )
 
-    private fun isTag(text: String): Boolean = text.matches(Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$"))
+    private fun isTag(text: String): Boolean = text.matches(TAG_REGEX)
 
     private fun getTagType(tag: String): String? {
         return when {
