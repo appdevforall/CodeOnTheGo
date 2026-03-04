@@ -17,9 +17,15 @@
 
 package com.itsaky.androidide.tooling.api.messages.result
 
+import com.itsaky.androidide.tooling.api.messages.BuildId
+
 /**
  * Result obtained on a build success or failure.
  *
  * @author Akash Yadav
  */
-data class BuildResult(val tasks: List<String>)
+data class BuildResult(
+	val buildId: BuildId,
+	val tasks: List<String>,
+	val durationMs: Long,
+)

@@ -16,11 +16,11 @@
 
         <meta-data
             android:name="plugin.version"
-            android:value="1.0.1" />
+            android:value="1.0.3" />
 
         <meta-data
             android:name="plugin.description"
-            android:value="Generate Android keystores for release builds directly from COGO" />
+            android:value="Generate Android keystores for release builds directly from Code On the Go" />
 
         <meta-data
             android:name="plugin.author"

@@ -6,7 +6,7 @@ import com.itsaky.androidide.plugins.extensions.IProject
 import java.io.File
 
 /**
- * Service interface that provides access to COGO project information.
+ * Service interface that provides access to Code On the Go project information.
  * This service should be registered by AndroidIDE and made available to plugins
  * that have the FILESYSTEM_READ permission.
  */
@@ -32,8 +32,8 @@ interface IdeProjectService {
 }
 
 /**
- * Service interface that provides access to COGO editor state and open files.
- * This service should be registered by COGO and made available to plugins
+ * Service interface that provides access to Code On the Go editor state and open files.
+ * This service should be registered by Code On the Go and made available to plugins
  * that have the FILESYSTEM_READ permission.
  */
 interface IdeEditorService {
@@ -64,8 +64,8 @@ interface IdeEditorService {
 }
 
 /**
- * Service interface that provides access to COGO's UI context for dialogs and UI operations.
- * This service should be registered by COGO and made available to plugins
+ * Service interface that provides access to Code On the Go's UI context for dialogs and UI operations.
+ * This service should be registered by Code On the Go and made available to plugins
  * that need to show dialogs or perform UI operations.
  */
 interface IdeUIService {
@@ -83,8 +83,8 @@ interface IdeUIService {
 }
 
 /**
- * Service interface that provides access to COGO's build system status and operations.
- * This service should be registered by COGO and made available to plugins
+ * Service interface that provides access to Code On the Go's build system status and operations.
+ * This service should be registered by Code On the Go and made available to plugins
  * that need to monitor build status or trigger builds.
  */
 interface IdeBuildService {
@@ -115,7 +115,7 @@ interface IdeBuildService {
 
 /**
  * Service interface that provides file editing capabilities for plugins.
- * This service should be registered by COGO and made available to plugins
+ * This service should be registered by Code On the Go and made available to plugins
  * that have the FILESYSTEM_WRITE permission.
  */
 interface IdeFileService {

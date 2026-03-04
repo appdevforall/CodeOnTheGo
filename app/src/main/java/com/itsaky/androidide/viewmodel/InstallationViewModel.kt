@@ -12,6 +12,7 @@ import com.itsaky.androidide.models.StorageInfo
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.bytesToGigabytes
+import com.itsaky.androidide.utils.getMinimumStorageNeeded
 import com.itsaky.androidide.utils.gigabytesToBytes
 import com.itsaky.androidide.utils.withStopWatch
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationComplete
@@ -33,9 +34,6 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 class InstallationViewModel : ViewModel() {
-	companion object {
-		const val LEAST_STORAGE_NEEDED_FOR_INSTALLATION = 2L
-	}
 
 	private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
 
@@ -139,7 +137,7 @@ class InstallationViewModel : ViewModel() {
         val stat = StatFs(internalStoragePath)
 
         val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
-        val requiredStorageInBytes = LEAST_STORAGE_NEEDED_FOR_INSTALLATION.gigabytesToBytes()
+        val requiredStorageInBytes = getMinimumStorageNeeded().gigabytesToBytes()
 
         val isLowStorage = availableStorageInBytes < requiredStorageInBytes
 
