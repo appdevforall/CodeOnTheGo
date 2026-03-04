@@ -1,5 +1,6 @@
 package com.itsaky.androidide.services.debug
 
+import android.app.Activity
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
@@ -11,12 +12,16 @@ import com.itsaky.androidide.actions.debug.StepIntoAction
 import com.itsaky.androidide.actions.debug.StepOutAction
 import com.itsaky.androidide.actions.debug.StepOverAction
 import com.itsaky.androidide.actions.debug.SuspendResumeVmAction
+import com.itsaky.androidide.activities.editor.BaseEditorActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.zip
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -46,32 +51,44 @@ class DebuggerService : Service() {
 		super.onCreate()
 
 		val context = this
-		actionsList =
-			mutableListOf<ActionItem>().apply {
-				add(SuspendResumeVmAction(context))
-				add(StepOverAction(context))
-				add(StepIntoAction(context))
-				add(StepOutAction(context))
-				add(KillVmAction(context))
-				add(RestartVmAction(context))
-			}
+		actionsList = mutableListOf<ActionItem>().apply {
+			add(SuspendResumeVmAction(context))
+			add(StepOverAction(context))
+			add(StepIntoAction(context))
+			add(StepOutAction(context))
+			add(KillVmAction(context))
+			add(RestartVmAction(context))
+		}
 
 		this.actionsList.forEach(actionsRegistry::registerAction)
 		this.overlayManager = DebugOverlayManager.create(this)
 
 		serviceScope.launch {
-			ForegroundAppReceiver.foregroundAppState.collectLatest { state ->
-				withContext(Dispatchers.Main) {
-					onForegroundAppChanged(state)
+			ForegroundAppReceiver.foregroundAppState.combine(
+				IDEApplication.instance.foregroundActivityState
+			) { foregroundAppState, ourForegroundActivity -> foregroundAppState to ourForegroundActivity }
+				.collectLatest { (foregroundAppState, ourForegroundActivity) ->
+					withContext(Dispatchers.Main) {
+						onForegroundAppChanged(foregroundAppState, ourForegroundActivity)
+					}
 				}
-			}
 		}
 	}
 
-	private fun onForegroundAppChanged(state: ForegroundAppState) {
-		logger.debug("onForegroundAppChanged(event={})", state)
-		val packageNames = state.packageNames
-		if (BuildInfo.PACKAGE_NAME in packageNames || (targetPackage != null && targetPackage in packageNames)) {
+	private fun onForegroundAppChanged(
+		foregroundAppState: ForegroundAppState,
+		ourForegroundActivity: Activity? = IDEApplication.instance.foregroundActivity
+	) {
+		logger.debug("onForegroundAppChanged(event={})", foregroundAppState)
+		val packageNames = foregroundAppState.packageNames
+
+		val isCotg = BuildInfo.PACKAGE_NAME in packageNames
+		val isEditorActivityInForeground = ourForegroundActivity is BaseEditorActivity
+		logger.debug(
+			"isCotg={}, isEditorActivityInForeground={}", isCotg, isEditorActivityInForeground
+		)
+
+		if ((isCotg && isEditorActivityInForeground) || (targetPackage != null && targetPackage in packageNames)) {
 			showOverlay()
 		} else {
 			hideOverlay()
@@ -121,7 +138,13 @@ class DebuggerService : Service() {
 		flags: Int,
 		startId: Int,
 	): Int {
-		logger.debug("onStartCommand(intent={}, flags={}, startId={}): extras={}", intent, flags, startId, intent?.extras)
+		logger.debug(
+			"onStartCommand(intent={}, flags={}, startId={}): extras={}",
+			intent,
+			flags,
+			startId,
+			intent?.extras
+		)
 		// if the service is killed by the system, there is no point in restarting it
 		return START_NOT_STICKY
 	}

@@ -20,6 +20,7 @@ package com.itsaky.androidide.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -39,6 +40,10 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import org.appdevforall.codeonthego.computervision.di.computerVisionModule
@@ -51,11 +56,23 @@ import java.lang.Thread.UncaughtExceptionHandler
 
 const val EXIT_CODE_CRASH = 1
 
-class IDEApplication : BaseApplication() {
+class IDEApplication : BaseApplication(),
+	Application.ActivityLifecycleCallbacks by ActivityLifecycleCallbacksDelegate() {
 	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
-	private var currentActivity: Activity? = null
+	private var _foregroundActivity = MutableStateFlow<Activity?>(null)
+
+	/**
+	 * A [StateFlow] to publish updates about foreground activities in the IDE.
+	 */
+	val foregroundActivityState = _foregroundActivity.asStateFlow()
+
+	/**
+	 * The currently visible (foreground) activity.
+ 	 */
+	val foregroundActivity: Activity?
+		get() = foregroundActivityState.value
 
 	private val deviceUnlockReceiver =
 		object : BroadcastReceiver() {
@@ -114,19 +131,18 @@ class IDEApplication : BaseApplication() {
 		fun getPluginManager(): PluginManager? = CredentialProtectedApplicationLoader.pluginManager
 	}
 
-	/**
-	 * Gets the current active activity from AndroidIDE.
-	 * This method should return the currently visible activity.
-	 */
-	fun getCurrentActiveActivity(): Activity? = currentActivity
+	override fun onActivityPostPaused(activity: Activity) {
+		super.onActivityPostPaused(activity)
+		if (foregroundActivity == activity && activity.isFinishing) {
+			logger.debug("foregroundActivity = null")
+			_foregroundActivity.update { null }
+		}
+	}
 
-	/**
-	 * Called by activities when they become active/visible.
-	 * This is used for plugin UI service integration.
-	 */
-	fun setCurrentActivity(activity: Activity?) {
-		this.currentActivity = activity
-		logger.debug("Current activity set to: ${activity?.javaClass?.simpleName}")
+	override fun onActivityPreResumed(activity: Activity) {
+		super.onActivityPreResumed(activity)
+		logger.debug("foregroundActivity = {}", activity.javaClass)
+		_foregroundActivity.update { activity }
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)
@@ -136,6 +152,7 @@ class IDEApplication : BaseApplication() {
 		Thread.setDefaultUncaughtExceptionHandler(::handleUncaughtException)
 
 		super.onCreate()
+		registerActivityLifecycleCallbacks(this)
 
 		// @devs: looking to initialize a component at application startup?
 		// first, decide whether the component you want to initialize can be
@@ -201,7 +218,7 @@ class IDEApplication : BaseApplication() {
 		if (exception !is java.io.UncheckedIOException) return false
 		return exception.stackTrace.any {
 			it.className.contains("CleanableResource") ||
-				it.className.contains("PhantomCleanable")
+					it.className.contains("PhantomCleanable")
 		}
 	}
 }

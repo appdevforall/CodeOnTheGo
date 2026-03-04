@@ -436,8 +436,6 @@ abstract class BaseEditorActivity :
 		}
 		mLifecycleObserver = null
 
-		IDEApplication.instance.setCurrentActivity(null)
-
 		diagnosticInfoBinding = null
 		filesTreeFragment = null
 		editorBottomSheet = null
@@ -875,11 +873,6 @@ abstract class BaseEditorActivity :
 
 		this.isDestroying = isFinishing
 		getFileTreeFragment()?.saveTreeState()
-
-		// Clear current activity from plugin services when activity is finishing
-		if (isFinishing) {
-			IDEApplication.instance.setCurrentActivity(null)
-		}
 	}
 
 	override fun onResume() {
@@ -898,8 +891,6 @@ abstract class BaseEditorActivity :
 			flashError(string.msg_failed_list_files)
 		}
 
-		// Set this activity as current for plugin services
-		IDEApplication.instance.setCurrentActivity(this)
 		feedbackButtonManager?.loadFabPosition()
 	}
 
