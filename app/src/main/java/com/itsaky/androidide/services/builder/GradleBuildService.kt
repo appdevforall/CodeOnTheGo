@@ -354,10 +354,13 @@ class GradleBuildService :
 
 			val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
 			val buildType = getBuildType(buildInfo.tasks)
+			val isDebugBuild = buildType == "debug"
 
 			val currentTuningConfig = tuningConfig
 			var newTuningConfig: GradleTuningConfig? = null
-			val extraArgs = getGradleExtraArgs()
+
+			@Suppress("SimplifyBooleanWithConstants")
+			val extraArgs = getGradleExtraArgs(enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild)
 
 			var buildParams =
 				if (FeatureFlags.isExperimentsEnabled) {
@@ -365,7 +368,7 @@ class GradleBuildService :
 						newTuningConfig =
 							GradleBuildTuner.autoTune(
 								device = DeviceInfo.buildDeviceProfile(applicationContext),
-								build = BuildProfile(isDebugBuild = buildType == "debug"),
+								build = BuildProfile(isDebugBuild),
 								previousConfig = currentTuningConfig,
 								analyticsManager = analyticsManager,
 								buildId = buildInfo.buildId,
@@ -442,7 +445,10 @@ class GradleBuildService :
 		eventListener?.onProgressEvent(event)
 	}
 
-	private fun getGradleExtraArgs(): List<String> {
+	private fun getGradleExtraArgs(
+		enableJdwp: Boolean = JdwpOptions.JDWP_ENABLED,
+		enableLogSender: Boolean = DevOpsPreferences.logsenderEnabled,
+	): List<String> {
 		val extraArgs = ArrayList<String>()
 		extraArgs.add("--init-script")
 		extraArgs.add(Environment.INIT_SCRIPT.absolutePath)
@@ -450,8 +456,8 @@ class GradleBuildService :
 		// Override AAPT2 binary
 		// The one downloaded from Maven is not built for Android
 		extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
-		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=${JdwpOptions.JDWP_ENABLED}")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
+		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=${enableJdwp}")
+		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${enableLogSender}")
 		extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
 		if (BuildPreferences.isStacktraceEnabled) {
