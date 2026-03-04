@@ -68,8 +68,9 @@ class GenerateSettersAndGettersAction : FieldBasedAction() {
         private val log = LoggerFactory.getLogger(GenerateSettersAndGettersAction::class.java)
     }
 
-    private fun showErrorMessage(error: Throwable, context: Context) {
+    private fun showErrorMessage(error: Throwable, context: Context?) {
         log.error("Unable to generate setters and getters", error)
+        context ?: return
         ThreadUtils.runOnUiThread {
             flashError(context.getString(R.string.msg_cannot_generate_setters_getters))
         }
@@ -83,8 +84,7 @@ class GenerateSettersAndGettersAction : FieldBasedAction() {
                         _, error,
                     ->
                     if (error != null) {
-                        val context = data[Context::class.java]
-                        if (context != null) showErrorMessage(error, context)
+                        showErrorMessage(error, data[Context::class.java])
                         return@whenComplete
                     }
                 }
@@ -138,9 +138,8 @@ class GenerateSettersAndGettersAction : FieldBasedAction() {
             try {
                 editor.text.insert(insert.line, insert.column, sb)
                 editor.formatCodeAsync()
-            } catch (e: Exception) {
-                val context = data[Context::class.java]
-                if (context != null) showErrorMessage(e, context)
+            } catch (e: StringIndexOutOfBoundsException) {
+                showErrorMessage(e, data[Context::class.java])
             }
         }
     }

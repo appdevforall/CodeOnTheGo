@@ -176,15 +176,16 @@ public class EditHelper {
 
     long end = pos.getEndPosition(root, leaf);
 
-    if (end < 0) return new Position(0, 0);
+    if (end < 0) throw new IllegalStateException("Cannot determine class end position");
 
     int line = (int) lines.getLineNumber(end);
     int column = (int) lines.getColumnNumber(end);
 
-    int safeLine = Math.max(0, line - 1);
-    int safeColumn = Math.max(0, column - 2);
+    if (line <= 0 || column <= 0) {
+      throw new IllegalStateException("Invalid class end position: line=" + line + ", column=" + column);
+    }
 
-    return new Position(safeLine, safeColumn);
+    return new Position(line - 1, Math.max(0, column - 2));
   }
 
   private static String printParameters(final ExecutableType method, final MethodTree source) {
