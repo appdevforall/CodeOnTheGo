@@ -67,7 +67,7 @@ internal class ToolingServerRunner(
 		/**
 		 * Whether to enable logging of the error stream of the tooling server.
 		 */
-		const val TOOLING_ERR_STREAM_LOGGING_ENABLED = true
+		const val TOOLING_ERR_STREAM_LOGGING_ENABLED = false
 
 		/**
 		 * Whether to enable force killing the Gradle daemon.
