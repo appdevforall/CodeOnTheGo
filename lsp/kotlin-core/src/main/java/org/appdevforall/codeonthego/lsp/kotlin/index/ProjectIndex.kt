@@ -384,6 +384,21 @@ class ProjectIndex : SymbolIndex {
         }
     }
 
+    fun findMembersInProjectFiles(classFqName: String): List<IndexedSymbol> {
+        val results = mutableListOf<IndexedSymbol>()
+        for (fileIndex in fileIndexes.values) {
+            results.addAll(fileIndex.findMembers(classFqName))
+        }
+        return results
+    }
+
+    fun findByFqNameInProjectFiles(fqName: String): IndexedSymbol? {
+        for (fileIndex in fileIndexes.values) {
+            fileIndex.findByFqName(fqName)?.let { return it }
+        }
+        return null
+    }
+
     fun findSymbolReferences(fqName: String): List<SymbolReference> {
         val references = mutableListOf<SymbolReference>()
 

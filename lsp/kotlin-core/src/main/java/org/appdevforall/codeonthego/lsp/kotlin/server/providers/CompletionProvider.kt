@@ -916,14 +916,44 @@ class CompletionProvider(
         val classpathIndex = projectIndex.getClasspathIndex()
         val stdlibIndex = projectIndex.getStdlibIndex()
 
+        val getterName = "get${memberName.replaceFirstChar { c -> c.uppercase() }}"
+
         while (queue.isNotEmpty()) {
             val current = queue.removeFirst()
             if (!visited.add(current)) continue
 
+            if (symbolTable != null) {
+                val classSymbol = symbolTable.classes.firstOrNull { it.qualifiedName == current }
+                if (classSymbol != null) {
+                    val localMembers = classSymbol.findMember(memberName) + classSymbol.findMember(getterName)
+                    for (member in localMembers) {
+                        val returnType = when (member) {
+                            is FunctionSymbol -> member.returnType
+                            is PropertySymbol -> member.type
+                            else -> null
+                        }
+                        if (returnType != null) return returnType
+                    }
+                    classSymbol.superTypes.forEach { st ->
+                        val stName = st.render()
+                        if (stName !in visited) queue.add(stName)
+                    }
+                }
+            }
+
+            val projectMembers = projectIndex.findMembersInProjectFiles(current)
+            val projectMatch = projectMembers.firstOrNull { it.name == memberName }
+                ?: projectMembers.firstOrNull { it.name == getterName }
+            if (projectMatch?.returnType != null) return TypeReference(projectMatch.returnType)
+
+            projectIndex.findByFqNameInProjectFiles(current)?.superTypes?.forEach { st ->
+                if (st !in visited) queue.add(st)
+            }
+
             if (classpathIndex != null) {
                 val members = classpathIndex.findMembers(current)
                 val match = members.firstOrNull { it.name == memberName }
-                    ?: members.firstOrNull { it.name == "get${memberName.replaceFirstChar { c -> c.uppercase() }}" }
+                    ?: members.firstOrNull { it.name == getterName }
                 if (match?.returnType != null) return TypeReference(match.returnType)
 
                 classpathIndex.findByFqName(current)?.superTypes?.forEach { st ->
@@ -934,7 +964,7 @@ class CompletionProvider(
             if (stdlibIndex != null) {
                 val stdMembers = stdlibIndex.findMembers(current)
                 val stdMatch = stdMembers.firstOrNull { it.name == memberName }
-                    ?: stdMembers.firstOrNull { it.name == "get${memberName.replaceFirstChar { c -> c.uppercase() }}" }
+                    ?: stdMembers.firstOrNull { it.name == getterName }
                 if (stdMatch?.returnType != null) return TypeReference(stdMatch.returnType)
 
                 stdlibIndex.findByFqName(current)?.superTypes?.forEach { st ->
