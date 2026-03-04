@@ -74,6 +74,13 @@
             android:name="com.itsaky.androidide.fragments.DeleteProjectFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/clone_repository_view"
+            android:name="com.itsaky.androidide.fragments.CloneRepositoryFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" 
+            android:visibility="gone" />
     </FrameLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
