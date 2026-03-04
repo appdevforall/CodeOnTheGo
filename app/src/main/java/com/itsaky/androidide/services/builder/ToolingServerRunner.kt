@@ -27,6 +27,7 @@ import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher
 import com.itsaky.androidide.tooling.api.util.ToolingProps
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.reflection.ReflectionUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
@@ -67,7 +68,7 @@ internal class ToolingServerRunner(
 		/**
 		 * Whether to enable logging of the error stream of the tooling server.
 		 */
-		const val TOOLING_ERR_STREAM_LOGGING_ENABLED = false
+		val TOOLING_ERR_STREAM_LOGGING_ENABLED = FeatureFlags.isDebugLoggingEnabled
 
 		/**
 		 * Whether to enable force killing the Gradle daemon.
