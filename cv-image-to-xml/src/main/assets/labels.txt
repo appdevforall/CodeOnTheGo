@@ -9,3 +9,5 @@ checkbox_unchecked
 slider
 switch_off
 switch_on
+widget_tag
+margin_metadata
