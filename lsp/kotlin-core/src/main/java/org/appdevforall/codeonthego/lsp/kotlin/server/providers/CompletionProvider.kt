@@ -225,21 +225,38 @@ class CompletionProvider(
         val addedMemberNames = mutableSetOf<String>()
 
         val typeRef = resolveReceiverType(receiver, symbolTable, analysisContext, line, character)
-        val typeName = typeRef?.name ?: receiver
+        val cleanReceiver = receiver.trimEnd('?')
+        val typeName = typeRef?.name ?: cleanReceiver
 
         if (symbolTable != null) {
             val position = Position(line, character)
-            val symbols = symbolTable.resolve(receiver, position)
+            val symbols = symbolTable.resolve(cleanReceiver, position)
             val symbol = symbols.firstOrNull()
 
             when (symbol) {
                 is ClassSymbol -> {
-                    val companion = symbol.companionObject
-                        ?: symbol.members.filterIsInstance<ClassSymbol>()
-                            .find { it.kind == ClassKind.COMPANION_OBJECT }
-                    companion?.members?.forEach { member ->
-                        addedMemberNames.add(member.name)
-                        items.add(createCompletionItem(member, CompletionItemPriority.MEMBER, analysisContext))
+                    when {
+                        symbol.kind == ClassKind.OBJECT || symbol.kind == ClassKind.COMPANION_OBJECT -> {
+                            symbol.members.forEach { member ->
+                                addedMemberNames.add(member.name)
+                                items.add(createCompletionItem(member, CompletionItemPriority.MEMBER, analysisContext))
+                            }
+                        }
+                        symbol.kind == ClassKind.ENUM_CLASS -> {
+                            symbol.members.forEach { member ->
+                                addedMemberNames.add(member.name)
+                                items.add(createCompletionItem(member, CompletionItemPriority.MEMBER, analysisContext))
+                            }
+                        }
+                        else -> {
+                            val companion = symbol.companionObject
+                                ?: symbol.members.filterIsInstance<ClassSymbol>()
+                                    .find { it.kind == ClassKind.COMPANION_OBJECT }
+                            companion?.members?.forEach { member ->
+                                addedMemberNames.add(member.name)
+                                items.add(createCompletionItem(member, CompletionItemPriority.MEMBER, analysisContext))
+                            }
+                        }
                     }
                 }
                 is PropertySymbol, is ParameterSymbol -> {
@@ -251,6 +268,11 @@ class CompletionProvider(
                                 addedMemberNames.add(member.name)
                                 items.add(createCompletionItem(member, CompletionItemPriority.MEMBER, analysisContext))
                             }
+
+                            addInheritedMembers(
+                                classSymbol, symbolTable, analysisContext, position,
+                                items, addedMemberNames
+                            )
                         }
                     }
                 }
@@ -644,7 +666,7 @@ class CompletionProvider(
                 if (!isContinuation) {
                     val dotPos = lines[cursorLine].lastIndexOf('.')
                     val beforeDot = lines[cursorLine].substring(0, dotPos).trimEnd()
-                    if (beforeDot.isNotEmpty() && (beforeDot.last().isLetterOrDigit() || beforeDot.last() == '_' || beforeDot.last() == ')' || beforeDot.last() == ']')) {
+                    if (beforeDot.isNotEmpty() && (beforeDot.last().isLetterOrDigit() || beforeDot.last() == '_' || beforeDot.last() == ')' || beforeDot.last() == ']' || beforeDot.last() == '?')) {
                         lines[cursorLine] = lines[cursorLine].substring(0, dotPos + 1) + "toString()"
                         patched = true
                     }
@@ -768,8 +790,39 @@ class CompletionProvider(
     ): TypeReference? {
         if (symbolTable == null) return null
 
+        val cleanReceiver = receiver.trimEnd('?')
+        if (cleanReceiver.isEmpty()) return null
+
         val position = Position(line, character)
-        val symbols = symbolTable.resolve(receiver, position)
+
+        if (cleanReceiver == "super") {
+            val enclosingClass = findEnclosingClassSymbol(symbolTable, position)
+            if (enclosingClass != null && enclosingClass.superTypes.isNotEmpty()) {
+                return enclosingClass.superTypes.first()
+            }
+            return null
+        }
+
+        if (cleanReceiver.endsWith(")")) {
+            val result = resolveCallExpressionType(cleanReceiver, symbolTable, analysisContext, line, character)
+            if (result != null) return result
+        }
+
+        if (cleanReceiver.contains('.')) {
+            val parts = cleanReceiver.split('.')
+            var currentType: TypeReference? = null
+            for ((index, part) in parts.withIndex()) {
+                if (index == 0) {
+                    currentType = resolveReceiverType(part, symbolTable, analysisContext, line, character)
+                } else {
+                    if (currentType == null) return null
+                    currentType = resolveMemberReturnType(currentType.name, part, symbolTable)
+                }
+            }
+            return currentType
+        }
+
+        val symbols = symbolTable.resolve(cleanReceiver, position)
         val symbol = symbols.firstOrNull() ?: return null
 
         val smartCastType = analysisContext?.getSmartCastTypeAtPosition(symbol, line, character)
@@ -794,10 +847,170 @@ class CompletionProvider(
         return null
     }
 
+    private fun findEnclosingClassSymbol(symbolTable: SymbolTable, position: Position): ClassSymbol? {
+        var scope = symbolTable.scopeAt(position)
+        while (scope != null) {
+            val owner = scope.owner
+            if (owner is ClassSymbol) return owner
+            scope = scope.parent
+        }
+        return null
+    }
+
+    private fun resolveCallExpressionType(
+        expression: String,
+        symbolTable: SymbolTable?,
+        analysisContext: AnalysisContext?,
+        line: Int,
+        character: Int
+    ): TypeReference? {
+        val openParen = findMatchingOpenParen(expression)
+        if (openParen <= 0) return null
+
+        val funcPart = expression.substring(0, openParen)
+        val lastDot = funcPart.lastIndexOf('.')
+        if (lastDot >= 0) {
+            val objReceiver = funcPart.substring(0, lastDot)
+            val methodName = funcPart.substring(lastDot + 1)
+            val objType = resolveReceiverType(objReceiver, symbolTable, analysisContext, line, character)
+            if (objType != null) {
+                return resolveMemberReturnType(objType.name, methodName, symbolTable)
+            }
+        } else {
+            val position = Position(line, character)
+            val symbols = symbolTable?.resolve(funcPart, position) ?: emptyList()
+            val func = symbols.firstOrNull()
+            if (func is FunctionSymbol && func.returnType != null) return func.returnType
+            if (func is ClassSymbol) return TypeReference(func.name)
+            val fqName = resolveToFqName(funcPart, symbolTable)
+            val cpClass = projectIndex.getClasspathIndex()?.findByFqName(fqName)
+            if (cpClass != null && cpClass.kind.isClass) return TypeReference(cpClass.fqName)
+        }
+        return null
+    }
+
+    private fun findMatchingOpenParen(expression: String): Int {
+        var depth = 0
+        for (i in expression.length - 1 downTo 0) {
+            when (expression[i]) {
+                ')' -> depth++
+                '(' -> {
+                    depth--
+                    if (depth == 0) return i
+                }
+            }
+        }
+        return -1
+    }
+
+    private fun resolveMemberReturnType(
+        typeName: String,
+        memberName: String,
+        symbolTable: SymbolTable?
+    ): TypeReference? {
+        val fqName = resolveToFqName(typeName, symbolTable)
+        val visited = mutableSetOf<String>()
+        val queue = ArrayDeque<String>()
+        queue.add(fqName)
+
+        val classpathIndex = projectIndex.getClasspathIndex()
+        val stdlibIndex = projectIndex.getStdlibIndex()
+
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            if (!visited.add(current)) continue
+
+            if (classpathIndex != null) {
+                val members = classpathIndex.findMembers(current)
+                val match = members.firstOrNull { it.name == memberName }
+                    ?: members.firstOrNull { it.name == "get${memberName.replaceFirstChar { c -> c.uppercase() }}" }
+                if (match?.returnType != null) return TypeReference(match.returnType)
+
+                classpathIndex.findByFqName(current)?.superTypes?.forEach { st ->
+                    if (st !in visited) queue.add(st)
+                }
+            }
+
+            if (stdlibIndex != null) {
+                val stdMembers = stdlibIndex.findMembers(current)
+                val stdMatch = stdMembers.firstOrNull { it.name == memberName }
+                    ?: stdMembers.firstOrNull { it.name == "get${memberName.replaceFirstChar { c -> c.uppercase() }}" }
+                if (stdMatch?.returnType != null) return TypeReference(stdMatch.returnType)
+
+                stdlibIndex.findByFqName(current)?.superTypes?.forEach { st ->
+                    if (st !in visited) queue.add(st)
+                }
+            }
+        }
+
+        if (stdlibIndex != null) {
+            val simpleName = fqName.substringAfterLast('.')
+            val candidates = stdlibIndex.findBySimpleName(simpleName).filter { it.kind.isClass }
+            for (cls in candidates) {
+                val members = stdlibIndex.findMembers(cls.fqName)
+                val match = members.firstOrNull { it.name == memberName }
+                    ?: members.firstOrNull { it.name == "get${memberName.replaceFirstChar { c -> c.uppercase() }}" }
+                if (match?.returnType != null) return TypeReference(match.returnType)
+            }
+        }
+
+        return null
+    }
+
     private fun isFilteredMember(name: String): Boolean {
         if (name == "<init>" || name == "<clinit>") return true
         if (name.startsWith("access$") || name.startsWith("$")) return true
         return false
+    }
+
+    private fun addInheritedMembers(
+        classSymbol: ClassSymbol,
+        symbolTable: SymbolTable,
+        analysisContext: AnalysisContext?,
+        position: Position,
+        items: MutableList<CompletionItem>,
+        addedMemberNames: MutableSet<String>
+    ) {
+        if (classSymbol.superTypes.isEmpty()) return
+
+        val cpIndex = projectIndex.getClasspathIndex()
+        val stIndex = projectIndex.getStdlibIndex()
+        val superTypeQueue = ArrayDeque(classSymbol.superTypes.map { it.name })
+        val visitedSupers = mutableSetOf<String>()
+
+        while (superTypeQueue.isNotEmpty()) {
+            val superName = superTypeQueue.removeFirst()
+            if (!visitedSupers.add(superName)) continue
+
+            val superSymbol = symbolTable.resolve(superName, position).firstOrNull()
+            if (superSymbol is ClassSymbol) {
+                superSymbol.members.forEach { member ->
+                    if (member.name !in addedMemberNames) {
+                        addedMemberNames.add(member.name)
+                        items.add(createCompletionItem(member, CompletionItemPriority.MEMBER, analysisContext))
+                    }
+                }
+                superSymbol.superTypes.forEach { superTypeQueue.add(it.name) }
+            }
+
+            val superFqName = resolveToFqName(superName, symbolTable)
+            if (cpIndex != null) {
+                findClasspathMembersWithInheritance(superFqName, cpIndex).forEach { member ->
+                    if (member.name !in addedMemberNames && !isFilteredMember(member.name)) {
+                        addedMemberNames.add(member.name)
+                        items.add(createCompletionItemFromIndexed(member, CompletionItemPriority.MEMBER))
+                    }
+                }
+            }
+            if (stIndex != null) {
+                findStdlibMembersWithInheritance(superFqName.substringAfterLast('.'), stIndex).forEach { member ->
+                    if (member.name !in addedMemberNames) {
+                        addedMemberNames.add(member.name)
+                        items.add(createCompletionItemFromIndexed(member, CompletionItemPriority.MEMBER))
+                    }
+                }
+            }
+        }
     }
 
     private fun createCompletionItem(
