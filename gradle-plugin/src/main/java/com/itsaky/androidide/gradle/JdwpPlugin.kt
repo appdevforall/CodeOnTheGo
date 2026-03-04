@@ -9,6 +9,7 @@ import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
+import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.transform.OutputKeys
 import javax.xml.transform.TransformerFactory
@@ -56,7 +57,16 @@ abstract class JdwpManifestTransformerTask : DefaultTask() {
 		val inputFile = mergedManifest.get().asFile
 		val outputFile = updatedManifest.get().asFile
 
-		val documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+		val factory = DocumentBuilderFactory.newInstance().apply {
+			isNamespaceAware = true
+			setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+			setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+			setFeature("http://xml.org/sax/features/external-general-entities", false)
+			setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+			setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+		}
+
+		val documentBuilder = factory.newDocumentBuilder()
 		val document = documentBuilder.parse(inputFile)
 
 		val manifest = document.documentElement
