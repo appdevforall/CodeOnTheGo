@@ -173,10 +173,18 @@ public class EditHelper {
   ) {
     SourcePositions pos = Trees.instance(task).getSourcePositions();
     LineMap lines = root.getLineMap();
+
     long end = pos.getEndPosition(root, leaf);
+
+    if (end < 0) return new Position(0, 0);
+
     int line = (int) lines.getLineNumber(end);
     int column = (int) lines.getColumnNumber(end);
-    return new Position(line - 1, column - 2);
+
+    int safeLine = Math.max(0, line - 1);
+    int safeColumn = Math.max(0, column - 2);
+
+    return new Position(safeLine, safeColumn);
   }
 
   private static String printParameters(final ExecutableType method, final MethodTree source) {
