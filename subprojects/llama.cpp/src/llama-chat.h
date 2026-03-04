@@ -36,12 +36,15 @@ enum llm_chat_template {
     LLM_CHAT_TEMPLATE_MINICPM,
     LLM_CHAT_TEMPLATE_EXAONE_3,
     LLM_CHAT_TEMPLATE_EXAONE_4,
+    LLM_CHAT_TEMPLATE_EXAONE_MOE,
     LLM_CHAT_TEMPLATE_RWKV_WORLD,
     LLM_CHAT_TEMPLATE_GRANITE,
     LLM_CHAT_TEMPLATE_GIGACHAT,
     LLM_CHAT_TEMPLATE_MEGREZ,
     LLM_CHAT_TEMPLATE_YANDEX,
     LLM_CHAT_TEMPLATE_BAILING,
+    LLM_CHAT_TEMPLATE_BAILING_THINK,
+    LLM_CHAT_TEMPLATE_BAILING2,
     LLM_CHAT_TEMPLATE_LLAMA4,
     LLM_CHAT_TEMPLATE_SMOLVLM,
     LLM_CHAT_TEMPLATE_DOTS1,
@@ -51,16 +54,18 @@ enum llm_chat_template {
     LLM_CHAT_TEMPLATE_KIMI_K2,
     LLM_CHAT_TEMPLATE_SEED_OSS,
     LLM_CHAT_TEMPLATE_GROK_2,
+    LLM_CHAT_TEMPLATE_PANGU_EMBED,
+    LLM_CHAT_TEMPLATE_SOLAR_OPEN,
     LLM_CHAT_TEMPLATE_UNKNOWN,
 };
 
 struct llama_chat_message;
 
-llm_chat_template llm_chat_template_from_str(const std::string &name);
+llm_chat_template llm_chat_template_from_str(const std::string & name);
 
-llm_chat_template llm_chat_detect_template(const std::string &tmpl);
+llm_chat_template llm_chat_detect_template(const std::string & tmpl);
 
 int32_t llm_chat_apply_template(
-        llm_chat_template tmpl,
-        const std::vector<const llama_chat_message *> &chat,
-        std::string &dest, bool add_ass);
+    llm_chat_template tmpl,
+    const std::vector<const llama_chat_message *> & chat,
+    std::string & dest, bool add_ass);
