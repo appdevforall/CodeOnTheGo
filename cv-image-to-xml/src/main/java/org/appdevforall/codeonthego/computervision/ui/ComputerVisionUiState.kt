@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.net.Uri
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 
-
 data class ComputerVisionUiState(
     val currentBitmap: Bitmap? = null,
     val imageUri: Uri? = null,
@@ -15,7 +14,8 @@ data class ComputerVisionUiState(
     val isModelInitialized: Boolean = false,
     val currentOperation: CvOperation = CvOperation.Idle,
     val leftGuidePct: Float = 0.2f,
-    val rightGuidePct: Float = 0.8f
+    val rightGuidePct: Float = 0.8f,
+    val parsedAnnotations: Map<String, String> = emptyMap() // Replaced old marginAnnotations
 ) {
     val hasImage: Boolean
         get() = currentBitmap != null
