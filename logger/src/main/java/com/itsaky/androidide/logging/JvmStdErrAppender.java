@@ -24,20 +24,15 @@ import com.itsaky.androidide.logging.utils.LogUtils;
  */
 public class JvmStdErrAppender extends StdErrAppender {
 
-  public static final String PROP_JVM_STDERR_APPENDER_ENABLED = "ide.logging.jvmStdErrAppenderEnabled";
+	public static final String PROP_JVM_STDERR_APPENDER_ENABLED = "ide.logging.jvmStdErrAppenderEnabled";
 
-  private boolean isJvm = false; // JvmStdErrAppender is disabled by default
+	@Override
+	public void start() {
+		boolean jvmStdErrAppenderEnabled = Boolean.parseBoolean(
+				System.getProperty(PROP_JVM_STDERR_APPENDER_ENABLED, "true"));
 
-  @Override
-  public void start() {
-    this.isJvm = LogUtils.isJvm();
-    super.start();
-  }
-
-  @Override
-  public boolean isStarted() {
-    return super.isStarted()
-        && isJvm
-        && Boolean.parseBoolean(System.getProperty(PROP_JVM_STDERR_APPENDER_ENABLED, "true"));
-  }
+		if (LogUtils.isJvm() && jvmStdErrAppenderEnabled) {
+			super.start();
+		}
+	}
 }
