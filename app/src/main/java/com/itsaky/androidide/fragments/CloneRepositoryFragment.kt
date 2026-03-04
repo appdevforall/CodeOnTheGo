@@ -84,6 +84,10 @@ class CloneRepositoryFragment : BaseFragment() {
 
                 viewModel.cloneRepository(url, path, username, password)
             }
+            
+            exitButton.setOnClickListener {
+                mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
+            }
         }
     }
 

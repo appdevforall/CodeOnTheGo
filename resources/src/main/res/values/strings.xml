@@ -1149,7 +1149,7 @@
     <string name="use_authentication">Use Authentication</string>
     <string name="username">Username</string>
     <string name="personal_access_token">Personal access token</string>
-    <string name="clone">Clone</string>
+    <string name="clone">Clone project</string>
     <string name="destination_directory_not_empty">Destination directory is not empty</string>
     <string name="clone_successful">Clone successful!</string>
     <string name="clone_failed">Clone failed: %1$s</string>
