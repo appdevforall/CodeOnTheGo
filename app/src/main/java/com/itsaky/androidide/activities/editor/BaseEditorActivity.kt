@@ -18,9 +18,9 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.ComponentName
-import android.content.res.Configuration
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -83,7 +83,6 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
-import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
@@ -727,10 +726,11 @@ abstract class BaseEditorActivity :
 					1f,
 				)
 			actionsToolbar.layoutParams =
-				LinearLayout.LayoutParams(
-					ViewGroup.LayoutParams.WRAP_CONTENT,
-					ViewGroup.LayoutParams.WRAP_CONTENT,
-				).apply { marginEnd = SizeUtils.dp2px(8f) }
+				LinearLayout
+					.LayoutParams(
+						ViewGroup.LayoutParams.WRAP_CONTENT,
+						ViewGroup.LayoutParams.WRAP_CONTENT,
+					).apply { marginEnd = SizeUtils.dp2px(8f) }
 
 			content.root.findViewById<TextView>(R.id.title_text)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				marginEnd = SizeUtils.dp2px(8f)
@@ -755,12 +755,13 @@ abstract class BaseEditorActivity :
 					ViewGroup.LayoutParams.WRAP_CONTENT,
 				)
 			actionsToolbar.layoutParams =
-				com.google.android.material.appbar.AppBarLayout.LayoutParams(
-					ViewGroup.LayoutParams.MATCH_PARENT,
-					ViewGroup.LayoutParams.WRAP_CONTENT,
-				).apply {
-					topMargin = SizeUtils.dp2px(4f)
-				}
+				com.google.android.material.appbar.AppBarLayout
+					.LayoutParams(
+						ViewGroup.LayoutParams.MATCH_PARENT,
+						ViewGroup.LayoutParams.WRAP_CONTENT,
+					).apply {
+						topMargin = SizeUtils.dp2px(4f)
+					}
 
 			content.root.findViewById<TextView>(R.id.title_text)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				marginEnd = SizeUtils.dp2px(16f)

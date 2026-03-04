@@ -21,7 +21,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.zip
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -51,22 +50,24 @@ class DebuggerService : Service() {
 		super.onCreate()
 
 		val context = this
-		actionsList = mutableListOf<ActionItem>().apply {
-			add(SuspendResumeVmAction(context))
-			add(StepOverAction(context))
-			add(StepIntoAction(context))
-			add(StepOutAction(context))
-			add(KillVmAction(context))
-			add(RestartVmAction(context))
-		}
+		actionsList =
+			mutableListOf<ActionItem>().apply {
+				add(SuspendResumeVmAction(context))
+				add(StepOverAction(context))
+				add(StepIntoAction(context))
+				add(StepOutAction(context))
+				add(KillVmAction(context))
+				add(RestartVmAction(context))
+			}
 
 		this.actionsList.forEach(actionsRegistry::registerAction)
 		this.overlayManager = DebugOverlayManager.create(this)
 
 		serviceScope.launch {
-			ForegroundAppReceiver.foregroundAppState.combine(
-				IDEApplication.instance.foregroundActivityState
-			) { foregroundAppState, ourForegroundActivity -> foregroundAppState to ourForegroundActivity }
+			ForegroundAppReceiver.foregroundAppState
+				.combine(
+					IDEApplication.instance.foregroundActivityState,
+				) { foregroundAppState, ourForegroundActivity -> foregroundAppState to ourForegroundActivity }
 				.collectLatest { (foregroundAppState, ourForegroundActivity) ->
 					withContext(Dispatchers.Main) {
 						onForegroundAppChanged(foregroundAppState, ourForegroundActivity)
@@ -77,7 +78,7 @@ class DebuggerService : Service() {
 
 	private fun onForegroundAppChanged(
 		foregroundAppState: ForegroundAppState,
-		ourForegroundActivity: Activity? = IDEApplication.instance.foregroundActivity
+		ourForegroundActivity: Activity? = IDEApplication.instance.foregroundActivity,
 	) {
 		logger.debug("onForegroundAppChanged(event={})", foregroundAppState)
 		val packageNames = foregroundAppState.packageNames
@@ -85,7 +86,9 @@ class DebuggerService : Service() {
 		val isCotg = BuildInfo.PACKAGE_NAME in packageNames
 		val isEditorActivityInForeground = ourForegroundActivity is BaseEditorActivity
 		logger.debug(
-			"isCotg={}, isEditorActivityInForeground={}", isCotg, isEditorActivityInForeground
+			"isCotg={}, isEditorActivityInForeground={}",
+			isCotg,
+			isEditorActivityInForeground,
 		)
 
 		if ((isCotg && isEditorActivityInForeground) || (targetPackage != null && targetPackage in packageNames)) {
@@ -143,7 +146,7 @@ class DebuggerService : Service() {
 			intent,
 			flags,
 			startId,
-			intent?.extras
+			intent?.extras,
 		)
 		// if the service is killed by the system, there is no point in restarting it
 		return START_NOT_STICKY

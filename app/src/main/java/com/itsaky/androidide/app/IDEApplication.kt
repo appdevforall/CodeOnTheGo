@@ -56,7 +56,8 @@ import java.lang.Thread.UncaughtExceptionHandler
 
 const val EXIT_CODE_CRASH = 1
 
-class IDEApplication : BaseApplication(),
+class IDEApplication :
+	BaseApplication(),
 	Application.ActivityLifecycleCallbacks by ActivityLifecycleCallbacksDelegate() {
 	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
@@ -70,7 +71,7 @@ class IDEApplication : BaseApplication(),
 
 	/**
 	 * The currently visible (foreground) activity.
- 	 */
+	 */
 	val foregroundActivity: Activity?
 		get() = foregroundActivityState.value
 
@@ -218,7 +219,7 @@ class IDEApplication : BaseApplication(),
 		if (exception !is java.io.UncheckedIOException) return false
 		return exception.stackTrace.any {
 			it.className.contains("CleanableResource") ||
-					it.className.contains("PhantomCleanable")
+				it.className.contains("PhantomCleanable")
 		}
 	}
 }
