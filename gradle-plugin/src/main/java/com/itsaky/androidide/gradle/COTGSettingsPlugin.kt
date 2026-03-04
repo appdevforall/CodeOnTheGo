@@ -52,12 +52,15 @@ class COTGSettingsPlugin : Plugin<Settings> {
 		startParameter.run {
 			val isTestEnv =
 				projectProperties.containsKey(_PROPERTY_IS_TEST_ENV) &&
-						projectProperties[_PROPERTY_IS_TEST_ENV].toString().toBoolean()
+					projectProperties[_PROPERTY_IS_TEST_ENV].toString().toBoolean()
 			val mavenLocalRepos =
 				projectProperties.getOrDefault(_PROPERTY_MAVEN_LOCAL_REPOSITORY, "")
 
-			isTestEnv to mavenLocalRepos.split(File.pathSeparatorChar).toList()
-				.filter { it.isNotBlank() }
+			isTestEnv to
+				mavenLocalRepos
+					.split(File.pathSeparatorChar)
+					.toList()
+					.filter { it.isNotBlank() }
 		}
 }
 

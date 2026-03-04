@@ -57,14 +57,15 @@ abstract class JdwpManifestTransformerTask : DefaultTask() {
 		val inputFile = mergedManifest.get().asFile
 		val outputFile = updatedManifest.get().asFile
 
-		val factory = DocumentBuilderFactory.newInstance().apply {
-			isNamespaceAware = true
-			setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
-			setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-			setFeature("http://xml.org/sax/features/external-general-entities", false)
-			setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-			setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-		}
+		val factory =
+			DocumentBuilderFactory.newInstance().apply {
+				isNamespaceAware = true
+				setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+				setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+				setFeature("http://xml.org/sax/features/external-general-entities", false)
+				setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+				setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+			}
 
 		val documentBuilder = factory.newDocumentBuilder()
 		val document = documentBuilder.parse(inputFile)

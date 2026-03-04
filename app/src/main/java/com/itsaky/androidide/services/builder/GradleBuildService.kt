@@ -456,8 +456,8 @@ class GradleBuildService :
 		// Override AAPT2 binary
 		// The one downloaded from Maven is not built for Android
 		extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
-		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=${enableJdwp}")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${enableLogSender}")
+		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
+		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=$enableLogSender")
 		extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
 		if (BuildPreferences.isStacktraceEnabled) {
