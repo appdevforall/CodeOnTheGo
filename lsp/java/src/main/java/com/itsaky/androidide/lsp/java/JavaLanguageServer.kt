@@ -139,7 +139,7 @@ class JavaLanguageServer : ILanguageServer {
 			log.info("Connecting to debug client: {}", client)
 			this.debugAdapter.connectDebugClient(client)
 		} else {
-			log.info("Not connection to debug client. JDWP disabled.")
+			log.info("Not connecting to debug client. JDWP disabled.")
 		}
 	}
 
