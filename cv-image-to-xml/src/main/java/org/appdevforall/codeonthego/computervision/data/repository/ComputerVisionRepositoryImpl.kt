@@ -8,7 +8,6 @@ import org.appdevforall.codeonthego.computervision.data.source.OcrSource
 import org.appdevforall.codeonthego.computervision.data.source.YoloModelSource
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.appdevforall.codeonthego.computervision.utils.BitmapUtils
-import org.appdevforall.codeonthego.computervision.utils.TextCleaner
 import com.google.mlkit.vision.text.Text
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,20 +42,13 @@ class ComputerVisionRepositoryImpl(
     ): Result<List<DetectionResult>> = withContext(Dispatchers.Default) {
         runCatching {
             val merger = DetectionMerger(yoloDetections, textBlocks)
-            val merged = merger.merge()
-
-            merged.forEach { detection ->
-                if (detection.text.isNotEmpty()) {
-                    detection.text = TextCleaner.cleanText(detection.text)
-                }
-            }
-
-            merged
+            merger.merge()
         }
     }
 
     override suspend fun generateXml(
         detections: List<DetectionResult>,
+        annotations: Map<String, String>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,
@@ -65,6 +57,7 @@ class ComputerVisionRepositoryImpl(
         runCatching {
             YoloToXmlConverter.generateXmlLayout(
                 detections = detections,
+                annotations = annotations,
                 sourceImageWidth = sourceImageWidth,
                 sourceImageHeight = sourceImageHeight,
                 targetDpWidth = targetDpWidth,
