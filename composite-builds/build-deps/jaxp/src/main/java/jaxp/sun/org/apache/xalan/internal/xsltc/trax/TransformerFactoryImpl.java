@@ -1463,59 +1463,52 @@ public class TransformerFactoryImpl
                 return null;
         }
 
-        // Create a ZipFile object for the jar file
-        ZipFile jarFile;
-        try {
-            jarFile = new ZipFile(file);
-        }
-        catch (IOException e) {
-            return null;
-        }
+        // Create a ZipFile object for the jar file (closed deterministically)
+        try (ZipFile jarFile = new ZipFile(file)) {
+            String transletPath = fullClassName.replace('.', '/');
+            String transletAuxPrefix = transletPath + "$";
+            String transletFullName = transletPath + ".class";
 
-        String transletPath = fullClassName.replace('.', '/');
-        String transletAuxPrefix = transletPath + "$";
-        String transletFullName = transletPath + ".class";
+            Vector bytecodes = new Vector();
 
-        Vector bytecodes = new Vector();
-
-        // Iterate through all entries in the jar file to find the
-        // translet and auxiliary classes.
-        Enumeration entries = jarFile.entries();
-        while (entries.hasMoreElements())
-        {
-            ZipEntry entry = (ZipEntry)entries.nextElement();
-            String entryName = entry.getName();
-            if (entry.getSize() > 0 &&
-                  (entryName.equals(transletFullName) ||
-                  (entryName.endsWith(".class") &&
-                      entryName.startsWith(transletAuxPrefix))))
-            {
-                try {
-                    InputStream input = jarFile.getInputStream(entry);
-                    int size = (int)entry.getSize();
-                    byte[] bytes = new byte[size];
-                    readFromInputStream(bytes, input, size);
-                    input.close();
-                    bytecodes.addElement(bytes);
-                }
-                catch (IOException e) {
-                    return null;
+            // Iterate through all entries in the jar file to find the
+            // translet and auxiliary classes.
+            Enumeration entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = (ZipEntry) entries.nextElement();
+                String entryName = entry.getName();
+                if (entry.getSize() > 0
+                        && (entryName.equals(transletFullName)
+                                || (entryName.endsWith(".class")
+                                        && entryName.startsWith(transletAuxPrefix)))) {
+                    try {
+                        InputStream input = jarFile.getInputStream(entry);
+                        int size = (int) entry.getSize();
+                        byte[] bytes = new byte[size];
+                        readFromInputStream(bytes, input, size);
+                        input.close();
+                        bytecodes.addElement(bytes);
+                    } catch (IOException e) {
+                        return null;
+                    }
                 }
             }
-        }
 
-        // Convert the Vector of byte[] to byte[][].
-        final int count = bytecodes.size();
-        if (count > 0) {
-            final byte[][] result = new byte[count][1];
-            for (int i = 0; i < count; i++) {
-                result[i] = (byte[])bytecodes.elementAt(i);
+            // Convert the Vector of byte[] to byte[][].
+            final int count = bytecodes.size();
+            if (count > 0) {
+                final byte[][] result = new byte[count][1];
+                for (int i = 0; i < count; i++) {
+                    result[i] = (byte[]) bytecodes.elementAt(i);
+                }
+
+                return result;
+            } else {
+                return null;
             }
-
-            return result;
-        }
-        else
+        } catch (IOException e) {
             return null;
+        }
     }
 
     /**
