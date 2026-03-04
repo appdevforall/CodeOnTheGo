@@ -812,6 +812,11 @@ afterEvaluate {
 				}
 			}
 		}
+
+		dependsOn(bundleLlamaV8Assets)
+    if (!isCiCd) {
+      dependsOn("assetsDownloadDebug")
+    }
 	}
 
 	tasks.named("assembleV7Debug").configure {
@@ -828,6 +833,11 @@ afterEvaluate {
 				}
 			}
 		}
+
+		dependsOn(bundleLlamaV7Assets)
+    if (!isCiCd) {
+      dependsOn("assetsDownloadDebug")
+    }
 	}
 }
 

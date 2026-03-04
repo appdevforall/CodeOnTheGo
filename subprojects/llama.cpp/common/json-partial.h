@@ -1,5 +1,6 @@
 #pragma once
 
+// TODO: use json_fwd.hpp when possible
 #include <nlohmann/json.hpp>
 
 // Healing marker (empty if the JSON was fully parsed / wasn't healed).
@@ -26,13 +27,13 @@ struct common_json {
 //
 // For instance, parsing `{` with a healing marker `foo` will produce a healed JSON `{"foo":1}`, w/ json_dump_marker = `"foo"` (which can be used to break the JSON again).
 bool common_json_parse(
-        const std::string &input,
-        const std::string &healing_marker,
-        common_json &out);
+    const std::string & input,
+    const std::string & healing_marker,
+    common_json & out);
 
 // Parse the JSON string (see overload above), but advancing an iterator to the end of the input when the (potentially partial) parsing succeeds.
 bool common_json_parse(
-        std::string::const_iterator &it,
-        const std::string::const_iterator &end,
-        const std::string &healing_marker,
-        common_json &out);
+    std::string::const_iterator & it,
+    const std::string::const_iterator & end,
+    const std::string & healing_marker,
+    common_json & out);

@@ -3,15 +3,19 @@ package com.itsaky.androidide.utils
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import dalvik.system.DexClassLoader
 import java.io.File
 import java.util.zip.ZipInputStream
 
 object DynamicLibraryLoader {
 
-    private const val LLAMA_LIB_VERSION = 2 // Increment this if you update the AAR
+    private const val LLAMA_LIB_VERSION = 5 // Increment this if you update the AAR
+    private const val PREFS_NAME = "dynamic_libs"
+    private const val PREFS_KEY = "llama_lib_version"
 
     fun getLlamaClassLoader(context: Context): ClassLoader? {
+        ensureLatestLlamaAar(context)
         val extractedAarFile =
             File(context.getDir("dynamic_libs", Context.MODE_PRIVATE), "llama.aar")
         if (!extractedAarFile.exists()) {
@@ -88,5 +92,65 @@ object DynamicLibraryLoader {
             nativeLibDir.absolutePath,
             context.classLoader
         )
+    }
+
+    private fun ensureLatestLlamaAar(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val storedVersion = prefs.getInt(PREFS_KEY, -1)
+        if (storedVersion == LLAMA_LIB_VERSION) {
+            return
+        }
+
+        val abi = Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
+        val assetName = when {
+            abi.contains("arm64") || abi.contains("aarch64") -> "llama-v8.aar"
+            abi.contains("arm") -> "llama-v7.aar"
+            else -> null
+        }
+        if (assetName == null) {
+            Log.e("DynamicLoad", "Unsupported ABI for llama assets: $abi")
+            return
+        }
+
+        val candidates = listOf(
+            "dynamic_libs/${assetName}.br",
+            "dynamic_libs/${assetName}",
+        )
+
+        val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
+        destDir.mkdirs()
+        val destFile = File(destDir, "llama.aar")
+
+        val opened = candidates.firstNotNullOfOrNull { path ->
+            try {
+                path to context.assets.open(path)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        if (opened == null) {
+            Log.e("DynamicLoad", "Llama AAR asset not found. Tried $candidates")
+            return
+        }
+
+        val (assetPath, stream) = opened
+        Log.i("DynamicLoad", "Refreshing llama AAR from $assetPath")
+
+        val inputStream = if (assetPath.endsWith(".br")) BrotliInputStream(stream) else stream
+
+        inputStream.use { input ->
+            destFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        // Force re-unzip and re-optimize on next load
+        val baseUnzipDir = context.getDir("llama_unzipped", Context.MODE_PRIVATE)
+        val optimizedDir = File(context.codeCacheDir, "llama_opt")
+        baseUnzipDir.deleteRecursively()
+        optimizedDir.deleteRecursively()
+
+        prefs.edit().putInt(PREFS_KEY, LLAMA_LIB_VERSION).apply()
     }
 }
