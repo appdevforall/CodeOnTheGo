@@ -76,6 +76,8 @@ sonarqube = "7.0.0.6105"
 compose-bom = "2024.02.00"
 compose-compiler = "2.1.21"
 
+leakcanary = "2.14"
+
 [libraries]
 
 # Dependencies in composite build
@@ -177,6 +179,7 @@ common-jsonrpc = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc", versi
 common-lsp4j = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j", version = "0.22.0" }
 common-retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 common-retrofit-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }
+common-leakcanary = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanary" }
 common-markwon-core = { module = "io.noties.markwon:core", version.ref = "markwon" }
 common-markwon-extStrikethrough = { module = "io.noties.markwon:ext-strikethrough", version.ref = "markwon" }
 common-markwon-linkify = { module = "io.noties.markwon:linkify", version.ref = "markwon" }
@@ -287,6 +290,7 @@ tests-barista = { module = "com.adevinta.android:barista", version = "4.3.0" }
 tests-kaspresso = { module = "com.kaspersky.android-components:kaspresso", version = "1.6.0" }
 tests-orchestrator = { module = "androidx.test:orchestrator", version = "1.5.1" }
 tests-junit-kts = { module = "androidx.test.ext:junit-ktx", version = "1.2.1" }
+tests-kotlinx-coroutines = {module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesCore"}
 
 # Tooling
 tooling-builderModel = { module = "com.android.tools.build:builder-model", version.ref = "agp-tooling" }
@@ -302,7 +306,6 @@ maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version
 androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }
 monitor = { group = "androidx.test", name = "monitor", version.ref = "monitorVersion" }
 org-json = { module = "org.json:json", version = "20210307"}
-androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragmentKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

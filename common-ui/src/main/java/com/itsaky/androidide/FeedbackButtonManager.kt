@@ -10,11 +10,15 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.SizeUtils
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.FeedbackManager
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlin.math.sqrt
 
 class FeedbackButtonManager(
@@ -199,31 +203,23 @@ class FeedbackButtonManager(
 
     // Called in onResume for returning activities to reload FAB position
     fun loadFabPosition() {
-        if (feedbackFab != null) {
-            val prefs =
-                activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)
-
-            val x = prefs.getFloat(KEY_FAB_X, -1f)
-            val y = prefs.getFloat(KEY_FAB_Y, -1f)
-
-            if (x != -1f && y != -1f) {
-                feedbackFab.post {
-                    val parentView = feedbackFab.parent as? ViewGroup
-                    if (parentView != null) {
-                        // Validate and correct the loaded position to ensure it's in a safe area
-                        val (validX, validY) = validateAndCorrectPosition(x, y, parentView, feedbackFab)
-                        feedbackFab.x = validX
-                        feedbackFab.y = validY
-
-                        // If position was corrected, save the new valid position
-                        if (validX != x || validY != y) {
-                            saveFabPosition(validX, validY)
-                        }
-                    } else {
-                        // Fallback: apply position without validation if parent not available
-                        feedbackFab.x = x
-                        feedbackFab.y = y
-                    }
+        val fab = feedbackFab ?: return
+        activity.lifecycleScope.launch {
+            val (x, y) = withContext(Dispatchers.IO) {
+                val prefs = activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)
+                prefs.getFloat(KEY_FAB_X, -1f) to prefs.getFloat(KEY_FAB_Y, -1f)
+            }
+            if (x == -1f || y == -1f) return@launch
+            fab.post {
+                val parentView = fab.parent as? ViewGroup
+                if (parentView != null) {
+                    val (validX, validY) = validateAndCorrectPosition(x, y, parentView, fab)
+                    fab.x = validX
+                    fab.y = validY
+                    if (validX != x || validY != y) saveFabPosition(validX, validY)
+                } else {
+                    fab.x = x
+                    fab.y = y
                 }
             }
         }

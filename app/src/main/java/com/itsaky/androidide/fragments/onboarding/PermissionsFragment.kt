@@ -43,7 +43,6 @@ import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashErrorForLong
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -119,6 +118,10 @@ class PermissionsFragment :
 			b.onboardingItems.adapter = createAdapter()
 
 			b.finishInstallationButton.setOnClickListener {
+				if (viewModel.state.value is InstallationState.InstallationPending) {
+					onPermissionsUpdated()
+					return@setOnClickListener
+				}
 				startIdeSetup()
 			}
 		}
@@ -133,6 +136,11 @@ class PermissionsFragment :
 		observeViewModelEvents()
 		val allGranted = PermissionsHelper.areAllPermissionsGranted(requireContext())
 		viewModel.onPermissionsUpdated(allGranted)
+	}
+
+	override fun onResume() {
+		super.onResume()
+		onPermissionsUpdated()
 	}
 
 	private fun observeViewModelState() {
@@ -150,7 +158,7 @@ class PermissionsFragment :
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				viewModel.events.collect { event ->
 					when (event) {
-						is InstallationEvent.ShowError -> activity?.flashErrorForLong(event.message)
+						is InstallationEvent.ShowError -> activity?.flashError(event.message)
 						is InstallationEvent.InstallationResultEvent -> {}
 					}
 				}

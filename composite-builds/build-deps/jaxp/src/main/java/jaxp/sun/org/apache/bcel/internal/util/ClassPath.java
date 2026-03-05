@@ -135,6 +135,31 @@ public class ClassPath implements Serializable {
     this("");
   }
 
+  /**
+   * Closes any ZipFile resources held by this class path. Call when the
+   * ClassPath is no longer needed and was constructed with paths that
+   * included zip/jar files.
+   */
+  public void close() throws IOException {
+    if (paths != null) {
+      IOException firstEx = null;
+      for (PathEntry path : paths) {
+        try {
+          path.close();
+        } catch (IOException e) {
+          if (firstEx == null) {
+            firstEx = e;
+          } else {
+            firstEx.addSuppressed(e);
+          }
+        }
+      }
+      if (firstEx != null) {
+        throw firstEx;
+      }
+    }
+  }
+
   /** @return used class path string
    */
   public String toString() {
@@ -325,6 +350,10 @@ public class ClassPath implements Serializable {
 
   private static abstract class PathEntry implements Serializable {
     abstract ClassFile getClassFile(String name, String suffix) throws IOException;
+
+    void close() throws IOException {
+      // default: no-op (Dir has no closeable resources)
+    }
   }
 
   /** Contains information about file/ZIP entry of the Java class.
@@ -383,6 +412,14 @@ public class ClassPath implements Serializable {
     private ZipFile zip;
 
     Zip(ZipFile z) { zip = z; }
+
+    @Override
+    void close() throws IOException {
+      if (zip != null) {
+        zip.close();
+        zip = null;
+      }
+    }
 
     ClassFile getClassFile(String name, String suffix) throws IOException {
       final ZipEntry entry = zip.getEntry(name.replace('.', '/') + suffix);

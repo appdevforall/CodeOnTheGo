@@ -62,7 +62,6 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
@@ -75,7 +74,6 @@ import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
@@ -108,10 +106,13 @@ open class EditorHandlerActivity :
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
 
 	private fun getTabPositionForFileIndex(fileIndex: Int): Int {
+		val safeContent = contentOrNull ?: return -1
+		val totalTabs = safeContent.tabs.tabCount
+
 		if (fileIndex < 0) return -1
 		var tabPos = 0
 		var fileCount = 0
-		while (tabPos < content.tabs.tabCount) {
+		while (tabPos < totalTabs) {
 			if (!isPluginTab(tabPos)) {
 				if (fileCount == fileIndex) return tabPos
 				fileCount++
@@ -454,37 +455,35 @@ open class EditorHandlerActivity :
 		file: File,
 		selection: Range?,
 	) {
-		openFile(file, selection)
+		lifecycleScope.launch {
+			val editorView = openFile(file, selection)
 
-		getEditorForFile(file)?.editor?.also { editor ->
-			editor.postInLifecycle {
-				if (selection == null) {
-					editor.setSelection(0, 0)
-					return@postInLifecycle
+			editorView?.editor?.also { editor ->
+				editor.postInLifecycle {
+					if (selection == null) {
+						editor.setSelection(0, 0)
+						return@postInLifecycle
+					}
+					editor.validateRange(selection)
+					editor.setSelection(selection)
 				}
-
-				editor.validateRange(selection)
-				editor.setSelection(selection)
 			}
 		}
 	}
 
-	override fun openFile(
+	override suspend fun openFile(
 		file: File,
 		selection: Range?,
-	): CodeEditorView? {
+	): CodeEditorView? = withContext(Dispatchers.Main) {
 		val range = selection ?: Range.NONE
-		val isImage = runBlocking {
-			withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
-		}
-
+		val isImage = withContext(Dispatchers.IO) { ImageUtils.isImage(file) }
 		if (isImage) {
-			openImage(this, file)
-			return null
+			openImage(this@EditorHandlerActivity, file)
+			return@withContext null
 		}
 
 		val fileIndex = openFileAndGetIndex(file, range)
-		if (fileIndex < 0) return null
+		if (fileIndex < 0) return@withContext null
 
 		editorViewModel.startDrawerOpened = false
 		editorViewModel.displayedFileIndex = fileIndex
@@ -495,7 +494,7 @@ open class EditorHandlerActivity :
 			tab.select()
 		}
 
-		return try {
+		return@withContext try {
 			getEditorAtIndex(fileIndex)
 		} catch (th: Throwable) {
 			log.error("Unable to get editor at file index {}", fileIndex, th)
@@ -503,10 +502,22 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	fun openFileAsync(
+		file: File,
+		selection: Range? = null,
+		onResult: (CodeEditorView?) -> Unit
+	) {
+		lifecycleScope.launch {
+			onResult(openFile(file, selection))
+		}
+	}
+
 	override fun openFileAndGetIndex(
 		file: File,
 		selection: Range?,
 	): Int {
+		val safeContent = contentOrNull ?: return -1
+		val totalTabs = safeContent.tabs.tabCount
 		val openedFileIndex = findIndexOfEditorByFile(file)
 		if (openedFileIndex != -1) {
 			return openedFileIndex
@@ -518,18 +529,19 @@ open class EditorHandlerActivity :
 
 		val fileIndex = editorViewModel.getOpenedFileCount()
 		val tabPosition = getNextFileTabPosition()
+		if (tabPosition < 0) return -1
 
 		log.info("Opening file at file index {} tab position {} file:{}", fileIndex, tabPosition, file)
 
 		val editor = CodeEditorView(this, file, selection!!)
 		editor.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
 
-		if (tabPosition >= content.tabs.tabCount) {
-			content.tabs.addTab(content.tabs.newTab())
-			content.editorContainer.addView(editor)
+		if (tabPosition >= totalTabs) {
+			safeContent.tabs.addTab(safeContent.tabs.newTab())
+			safeContent.editorContainer.addView(editor)
 		} else {
-			content.tabs.addTab(content.tabs.newTab(), tabPosition)
-			content.editorContainer.addView(editor, tabPosition)
+			safeContent.tabs.addTab(safeContent.tabs.newTab(), tabPosition)
+			safeContent.editorContainer.addView(editor, tabPosition)
 			shiftPluginIndices(tabPosition, 1)
 		}
 
@@ -542,8 +554,11 @@ open class EditorHandlerActivity :
 	}
 
 	private fun getNextFileTabPosition(): Int {
+		val safeContent = contentOrNull ?: return -1
+		val totalTabs = safeContent.tabs.tabCount
+
 		var lastFileTabPos = -1
-		for (i in 0 until content.tabs.tabCount) {
+		for (i in 0 until totalTabs) {
 			if (!isPluginTab(i)) {
 				lastFileTabPos = i
 			}
@@ -1157,11 +1172,13 @@ open class EditorHandlerActivity :
 	}
 
 	fun isPluginTab(position: Int): Boolean {
-		if (position < 0 || position >= content.tabs.tabCount) {
+		val safeContent = contentOrNull ?: return false
+		val totalTabs = safeContent.tabs.tabCount
+
+		if (position !in 0..<totalTabs) {
 			return false
 		}
-		val result = tabIndexToPluginId.containsKey(position)
-		return result
+		return tabIndexToPluginId.containsKey(position)
 	}
 
 	fun getPluginTabId(position: Int): String? = tabIndexToPluginId[position]
@@ -1173,10 +1190,11 @@ open class EditorHandlerActivity :
 	}
 
 	fun updateTabVisibility() {
+		val safeContent = contentOrNull ?: return
 		val hasFiles = editorViewModel.getOpenedFileCount() > 0
 		val hasPluginTabs = pluginTabIndices.isNotEmpty()
 
-		content.apply {
+		safeContent.apply {
 			if (!hasFiles && !hasPluginTabs) {
 				tabs.visibility = View.GONE
 				viewContainer.displayedChild = 1

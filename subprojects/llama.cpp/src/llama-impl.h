@@ -20,9 +20,8 @@
 //
 
 LLAMA_ATTRIBUTE_FORMAT(2, 3)
-void llama_log_internal(ggml_log_level level, const char *format, ...);
-
-void llama_log_callback_default(ggml_log_level level, const char *text, void *user_data);
+void llama_log_internal        (ggml_log_level level, const char * format, ...);
+void llama_log_callback_default(ggml_log_level level, const char * text, void * user_data);
 
 #define LLAMA_LOG(...)       llama_log_internal(GGML_LOG_LEVEL_NONE , __VA_ARGS__)
 #define LLAMA_LOG_INFO(...)  llama_log_internal(GGML_LOG_LEVEL_INFO , __VA_ARGS__)
@@ -35,33 +34,30 @@ void llama_log_callback_default(ggml_log_level level, const char *text, void *us
 // helpers
 //
 
-template<typename T>
+template <typename T>
 struct no_init {
     T value;
-
-    no_init() { /* do nothing */ }
+    no_init() = default;
 };
 
 struct time_meas {
-    time_meas(int64_t &t_acc, bool disable = false);
-
+    time_meas(int64_t & t_acc, bool disable = false);
     ~time_meas();
 
     const int64_t t_start_us;
 
-    int64_t &t_acc;
+    int64_t & t_acc;
 };
 
-void replace_all(std::string &s, const std::string &search, const std::string &replace);
+void replace_all(std::string & s, const std::string & search, const std::string & replace);
 
 // TODO: rename to llama_format ?
 LLAMA_ATTRIBUTE_FORMAT(1, 2)
-std::string format(const char *fmt, ...);
+std::string format(const char * fmt, ...);
 
-std::string llama_format_tensor_shape(const std::vector<int64_t> &ne);
+std::string llama_format_tensor_shape(const std::vector<int64_t> & ne);
+std::string llama_format_tensor_shape(const struct ggml_tensor * t);
 
-std::string llama_format_tensor_shape(const struct ggml_tensor *t);
-
-std::string gguf_kv_to_str(const struct gguf_context *ctx_gguf, int i);
+std::string gguf_kv_to_str(const struct gguf_context * ctx_gguf, int i);
 
 #define LLAMA_TENSOR_NAME_FATTN "__fattn__"

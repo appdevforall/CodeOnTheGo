@@ -36,6 +36,7 @@ sealed class EngineState {
 class AiSettingsViewModel(application: Application) : AndroidViewModel(application) {
     // Keep this as is, it correctly gets the singleton instance
     private val llmInferenceEngine: LlmInferenceEngine = LlmInferenceEngineProvider.instance
+    private var pendingModelUri: String? = null
 
     // --- State LiveData ---
     private val _savedModelPath = MutableLiveData<String?>(null)
@@ -68,6 +69,12 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
             val success = llmInferenceEngine.initialize(getApplication())
             if (success) {
                 _engineState.value = EngineState.Initialized
+
+                pendingModelUri?.let { queuedPath ->
+                    loadModelFromUri(queuedPath, getApplication())
+                    pendingModelUri = null
+                }
+
                 Log.d("AiSettingsViewModel", "LLM Inference Engine initialized successfully.")
             } else {
                 _engineState.value = EngineState.Error("Failed to load inference library. Please ensure it's installed.")
@@ -81,8 +88,16 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
      * This function now requires the engine to be initialized first.
      */
     fun loadModelFromUri(path: String, context: Context) {
+        val currentState = _engineState.value
+
+        if (currentState is EngineState.Uninitialized || currentState is EngineState.Initializing) {
+            pendingModelUri = path
+            _modelLoadingState.value = ModelLoadingState.Loading
+            return
+        }
+
         // Guard clause: Don't proceed if the engine isn't ready.
-        if (_engineState.value !is EngineState.Initialized) {
+        if (currentState !is EngineState.Initialized) {
             _modelLoadingState.value = ModelLoadingState.Error("Inference engine not ready.")
             Log.e("ModelLoad", "Attempted to load model, but engine is not initialized.")
             return

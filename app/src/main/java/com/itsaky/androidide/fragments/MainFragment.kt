@@ -21,6 +21,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_TERMINAL
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN
 import com.itsaky.androidide.models.MainScreenAction
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_CLONE_REPO
 import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_CREATE_PROJECT
 import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_DELETE_PROJECT
 import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_DOCS
@@ -61,6 +62,7 @@ class MainFragment : BaseFragment() {
 						when (action.id) {
 						ACTION_CREATE_PROJECT -> showCreateProject()
 						ACTION_OPEN_PROJECT -> showViewSavedProjects()
+						ACTION_CLONE_REPO -> showCloneRepository()
 						ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
 						ACTION_OPEN_TERMINAL ->
 							startActivity(
@@ -94,10 +96,19 @@ class MainFragment : BaseFragment() {
 				}
 			}
 
-		binding!!.actions.adapter = MainActionsListAdapter(actions)
+		// Portrait: single list. Landscape: first 3 (Create, Open, Delete) in middle, last 3 (Terminal, Preferences, Docs) on right.
+		val leftActions = if (binding!!.actionsRight != null) actions.take(3) else actions
+		binding!!.actions.adapter = MainActionsListAdapter(leftActions)
+		binding!!.actionsRight?.adapter = MainActionsListAdapter(actions.drop(3))
 
 		binding!!.headerContainer?.setOnClickListener { ifAttached { openQuickstartPageAction() } }
 		binding!!.headerContainer?.setOnLongClickListener {
+			ifAttached { TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED) }
+			true
+		}
+		// Landscape layout uses "greeting" instead of "headerContainer"
+		binding!!.greeting?.setOnClickListener { ifAttached { openQuickstartPageAction() } }
+		binding!!.greeting?.setOnLongClickListener {
 			ifAttached { TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED) }
 			true
 		}
@@ -154,6 +165,10 @@ class MainFragment : BaseFragment() {
 
 	private fun showViewSavedProjects() {
 		viewModel.setScreen(MainViewModel.SCREEN_SAVED_PROJECTS)
+	}
+
+	private fun showCloneRepository() {
+		viewModel.setScreen(MainViewModel.SCREEN_CLONE_REPO)
 	}
 
 	private fun gotoPreferences() {

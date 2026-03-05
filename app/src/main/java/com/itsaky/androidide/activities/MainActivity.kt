@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
 import androidx.activity.OnBackPressedCallback
@@ -47,7 +48,10 @@ import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.fragments.MainFragment
+import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_CLONE_REPO
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJECTS
@@ -168,22 +172,53 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+		recreateVisibleFragmentView()
+	}
+
 	override fun onResume() {
 		super.onResume()
 		feedbackButtonManager?.loadFabPosition()
 	}
 
+	/**
+	 * With configChanges="orientation|screenSize", the activity is not recreated on rotation,
+	 * so fragment views stay inflated with the initial layout. Replace the visible fragment
+	 * with a new instance so it re-inflates and picks up layout-land when in landscape.
+	 */
+	private fun recreateVisibleFragmentView() {
+		when (viewModel.currentScreen.value) {
+			SCREEN_MAIN ->
+				supportFragmentManager.beginTransaction()
+					.setReorderingAllowed(true)
+					.replace(R.id.main, MainFragment())
+					.commitNow()
+			SCREEN_SAVED_PROJECTS ->
+				supportFragmentManager.beginTransaction()
+					.setReorderingAllowed(true)
+					.replace(R.id.saved_projects_view, RecentProjectsFragment())
+					.commitNow()
+			else -> { }
+		}
+	}
+
 	override fun onApplySystemBarInsets(insets: Insets) {
 		// onApplySystemBarInsets can be called before bindLayout() sets _binding
+		// Use 0 for bottom so fragment content stretches to the screen bottom (no white bar).
 		_binding?.fragmentContainersParent?.setPadding(
 			insets.left,
 			0,
 			insets.right,
-			insets.bottom,
+			0,
 		)
 	}
 
 	private fun onScreenChanged(screen: Int?) {
+		// When navigating to main (e.g. Exit from saved projects), replace the fragment so it
+		// inflates with the current configuration (landscape -> 3 columns, portrait -> 1 column).
+		if (screen == SCREEN_MAIN) recreateVisibleFragmentView()
+
 		val previous = viewModel.previousScreen
 		if (previous != -1) {
 			closeKeyboard()
@@ -222,6 +257,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				TOOLTIPS_WEB_VIEW -> binding.tooltipWebView
 				SCREEN_SAVED_PROJECTS -> binding.savedProjectsView
 				SCREEN_DELETE_PROJECTS -> binding.deleteProjectsView
+        SCREEN_CLONE_REPO -> binding.cloneRepositoryView
 				else -> throw IllegalArgumentException("Invalid screen id: '$screen'")
 			}
 
@@ -232,6 +268,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			binding.tooltipWebView,
 			binding.savedProjectsView,
 			binding.deleteProjectsView,
+            binding.cloneRepositoryView,
 		)) {
 			fragment.isVisible = fragment == currentFragment
 		}

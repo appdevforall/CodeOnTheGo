@@ -27,6 +27,10 @@
 	<string name="app_logs">App Logs</string>
 	<string name="ide_logs">IDE Logs</string>
 	<string name="default_tooltip">General information about this feature.</string>
+	<string name="err_insufficient_storage_title">Insufficient Storage</string>
+    <string name="err_insufficient_storage_msg">%1$s requires at least %2$dGB of free space to run and extract the necessary tools.\n\nPlease free up space on your device and try again.</string>
+    <string name="action_close_app">Close %1$s</string>
+    <string name="action_free_up_space">Free Up Space</string>
 
 	<!-- Agent -->
 	<string name="agent_backend_selected">🤖 System: %1$s backend selected.</string>
@@ -92,7 +96,9 @@
 	<string name="msg_no_references">No references found</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
+	<string name="error_installation_failed">Failed to install assets</string>
 	<string name="err_asset_entry_not_found">Entry \'%1$s\' not found in assets zip file</string>
+	<string name="err_missing_or_corrupt_assets">Missing installation files. %1$s installation might be corrupt or incomplete.</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
@@ -131,6 +137,7 @@
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>
+	<string name="download_git_project">Download a Git project</string>
 	<string name="msg_delete_existing_project_failed">Failed to delete existing project.</string>
 	<string name="title_confirm_project_close">Close project</string>
 	<string name="cancel_project_text">Cancel</string>
@@ -313,6 +320,14 @@
 	<string name="msg_yesno_def_message">Are you sure?</string>
 	<string name="msg_empty_ui_layout">No views have been added. Click to add a view.</string>
 	<string name="msg_generate_xml_failed">Failed to generate XML code</string>
+    <string name="xml_validation_error_title">Layout XML error</string>
+    <string name="xml_validation_error_invalid_file">Selected file is not a valid Android XML layout.</string>
+    <string name="xml_error_parse">We could not read this layout XML. %1$s</string>
+    <string name="xml_error_io">We could not open this layout XML. %1$s</string>
+    <string name="xml_error_generic">We could not open this layout. %1$s</string>
+    <string name="xml_error_single_child_container">%1$s can have only one direct child. Wrap your views in a container like LinearLayout or ConstraintLayout.</string>
+    <string name="xml_error_add_child_failed">We could not place %1$s inside %2$s. Check the view hierarchy.</string>
+    <string name="xml_validation_error_generic">We could not open this layout. Fix the XML and try again.</string>
 	<string name="title_generating_xml">Generating XML code</string>
 	<string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
 	<string name="preview_render_error_title">Preview Unavailable</string>
@@ -452,8 +467,8 @@
 	<string name="msg_linking">Linking %1$s to %2$s</string>
 	<string name="msg_extracting_hooks">Extracting hook libraries…</string>
 	<string name="msg_empty_package">Package name is empty</string>
-	<string name="msg_package_is_not_valid">Package name is not a valid</string>
-	<string name="msg_package_is_to_long">Package name is to long</string>
+	<string name="msg_package_is_not_valid">Package name is not valid</string>
+	<string name="msg_package_is_to_long">Package name is too long</string>
 	<string name="msg_package_not_valid_char_1">The character \'_\' cannot be the first character in a package segment</string>
 	<string name="msg_package_not_use_digit_first">A digit cannot be the first character in a package segment</string>
 	<string name="msg_package_not_valid_char_2">The character "%1$s" is not allowed in Android application package names.</string>
@@ -491,7 +506,7 @@
 	<string name="msg_toString_overridden">toString() is already overridden</string>
 	<string name="action_generate_missing_constructor">Generate missing constructor</string>
 	<string name="msg_cannot_generate_constructor">Unable to generate constructor</string>
-	<string name="msg_constructor_available">A constructor with same parameter types is already available</string>
+	<string name="msg_constructor_available">A constructor with the same parameter types is already available</string>
 
 	<string name="replace">Replace</string>
 	<string name="replaceAll">Replace all</string>
@@ -589,7 +604,7 @@
 	<string name="title_class_chooser">Which %1$s?</string>
 
 	<string name="permlab_bind_logger_service">bind to log service</string>
-	<string name="permdesc_bind_logger_service">Allows this app to bind to Code on the Go\'s logging service. This permission is required for Code on the Go to read this app\'s logs.</string>
+	<string name="permdesc_bind_logger_service">Allows this app to bind to Code on the Go\'s logging service. This permission is needed for Code on the Go to read this app\'s logs.</string>
 	<string name="wizard_module_name">Module name</string>
 	<string name="wizard_module_type">Module type</string>
 	<string name="msg_invalid_module_name">Invalid Gradle module name</string>
@@ -678,11 +693,11 @@
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
-	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow up to four permissions.</string>
-	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages. On Android 12 and earlier, notifications are enabled by default and won’t appear as a permission request.</string>
-	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
-	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
-	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
+	<string name="permissions_info_intro">Next page: permissions</string>
+	<string name="permissions_info_notifications">• <b>Notifications</b> (to receive status messages) On Android 12 and earlier, notifications are enabled already.</string>
+	<string name="permissions_info_storage">• <b>Storage</b> (to create project directories and files)</string>
+	<string name="permissions_info_install">• <b>Install packages</b> (to install the apps that you build)</string>
+	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> (to use the debugger) If you can\'t enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the upper right Options menu, tap <b>Enable restricted settings</b>. Return to the installer and assign the permission. (The steps may vary on different devices.)</string>
 	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
@@ -1132,4 +1147,18 @@
 	<string name="msg_diagnostics_copied">Diagnostics copied to clipboard</string>
 	<string name="msg_no_diagnostics_to_copy">No diagnostics to copy</string>
 	<string name="msg_clipboard_copy_failed">Failed to copy to clipboard</string>
+    <string name="dismiss">Dismiss</string>
+
+    <!-- Git -->
+    <string name="repository_url">Repository URL</string>
+    <string name="local_path">Local Path</string>
+    <string name="use_authentication">Use Authentication</string>
+    <string name="username">Username</string>
+    <string name="personal_access_token">Personal access token</string>
+    <string name="clone">Clone project</string>
+    <string name="destination_directory_not_empty">Destination directory is not empty</string>
+    <string name="clone_successful">Clone successful!</string>
+    <string name="clone_failed">Clone failed: %1$s</string>
+    <string name="cloning_repo">Cloning repository…</string>
+    <string name="pick_folder">Pick folder</string>
 </resources>

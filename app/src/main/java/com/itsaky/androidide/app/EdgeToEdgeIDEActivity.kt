@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.Build
+import android.os.Build.VERSION_CODES
 import android.os.Bundle
 import android.os.PersistableBundle
 import android.view.View
@@ -146,6 +147,12 @@ abstract class EdgeToEdgeIDEActivity : IDEActivity() {
             addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
             @Suppress("DEPRECATION")
             clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+            if (Build.VERSION.SDK_INT >= VERSION_CODES.P) {
+                attributes = attributes.apply {
+                    layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            }
         }
 
         EdgeToEdgeUtils.applyEdgeToEdge(this, this.statusBarStyle, this.navigationBarStyle)

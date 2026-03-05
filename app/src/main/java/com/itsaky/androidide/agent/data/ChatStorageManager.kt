@@ -14,11 +14,39 @@ import java.io.File
  */
 class ChatStorageManager(private val storageDir: File) {
 
+    companion object {
+        private const val TAG = "ChatStorageManager"
+    }
+
     private val gson = Gson()
 
     init {
         // Ensure the target directory exists.
         storageDir.mkdirs()
+    }
+
+    private fun canPersist(sessions: List<ChatSession>): Boolean {
+        val projectDir = storageDir.parentFile ?: return false
+
+        if (!projectDir.exists() || !projectDir.isDirectory) {
+            Log.w(TAG, "Project directory no longer exists. Skipping persistence.")
+            return false
+        }
+
+        if (storageDir.exists() && storageDir.isDirectory) {
+            return true
+        }
+
+        if (sessions.isNotEmpty()) {
+            val recreated = storageDir.mkdirs()
+            if (!recreated) {
+                Log.w(TAG, "Failed to recreate agent directory.")
+            }
+            return recreated
+        }
+
+        Log.w(TAG, "No sessions in memory and agent dir missing. Skipping save.")
+        return false
     }
 
     /**
@@ -59,24 +87,38 @@ class ChatStorageManager(private val storageDir: File) {
      * It overwrites existing files for updated sessions and deletes files for removed sessions.
      */
     fun saveAllSessions(sessions: List<ChatSession>) {
+        if (!canPersist(sessions)) return
+
         val currentSessionIds = sessions.map { it.id }.toSet()
-        val existingFileIds = storageDir.listFiles { _, name -> name.endsWith(".txt") }
-            ?.map { it.nameWithoutExtension }
-            ?.toSet() ?: emptySet()
+        val existingFileIds = runCatching {
+            storageDir.listFiles { _, name -> name.endsWith(".txt") }
+                ?.map { it.nameWithoutExtension }
+                ?.toSet() ?: emptySet()
+        }.onFailure { e ->
+            Log.e(TAG, "Error listing existing sessions in storageDir", e)
+        }.getOrDefault(emptySet())
 
         // Save each session to its corresponding file.
         sessions.forEach { session ->
-            val sessionFile = File(storageDir, "${session.id}.txt")
-            val content = session.messages.joinToString("\n") { message ->
-                gson.toJson(message)
+            runCatching {
+                val sessionFile = File(storageDir, "${session.id}.txt")
+                sessionFile.parentFile?.mkdirs()
+                val content = session.messages.joinToString("\n") { gson.toJson(it) }
+                sessionFile.writeText(content)
+            }.onFailure { e ->
+                Log.e(TAG, "Failed to save session ${session.id}.", e)
             }
-            sessionFile.writeText(content)
         }
 
         // Delete files for sessions that no longer exist.
         val sessionsToDelete = existingFileIds - currentSessionIds
         sessionsToDelete.forEach { sessionId ->
-            File(storageDir, "$sessionId.txt").delete()
+            runCatching {
+                val fileToDelete = File(storageDir, "$sessionId.txt")
+                if (fileToDelete.exists()) fileToDelete.delete()
+            }.onFailure { e ->
+                Log.e(TAG, "Failed to delete session file $sessionId.txt", e)
+            }
         }
     }
 
@@ -85,16 +127,16 @@ class ChatStorageManager(private val storageDir: File) {
      * This is more efficient than saveAllSessions for updating a single active chat.
      */
     fun saveSession(session: ChatSession) {
+        if (!canPersist(listOf(session))) return
+
         try {
             val sessionFile = File(storageDir, "${session.id}.txt")
             // Serialize each message to a JSON string and join with newlines
-            val content = session.messages.joinToString("\n") { message ->
-                gson.toJson(message)
-            }
+            val content = session.messages.joinToString("\n") { gson.toJson(it) }
             sessionFile.writeText(content)
         } catch (e: Exception) {
             // It's good practice to handle potential I/O errors
-            Log.e("ChatStorageManager", "Error saving session ${session.id}", e)
+            Log.e(TAG, "Error saving session ${session.id}", e)
         }
     }
 }
