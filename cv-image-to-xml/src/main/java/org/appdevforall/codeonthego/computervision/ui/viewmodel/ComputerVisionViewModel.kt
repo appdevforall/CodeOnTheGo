@@ -3,11 +3,15 @@ package org.appdevforall.codeonthego.computervision.ui.viewmodel
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.util.Log
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
+import org.appdevforall.codeonthego.computervision.domain.MarginAnnotationParser
 import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
 import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEvent
 import org.appdevforall.codeonthego.computervision.ui.ComputerVisionUiState
@@ -20,7 +24,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.computervision.R
-import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil
 
 class ComputerVisionViewModel(
@@ -60,11 +63,18 @@ class ComputerVisionViewModel(
             ComputerVisionEvent.OpenImagePicker -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.OpenImagePicker) }
             }
+
             ComputerVisionEvent.RequestCameraPermission -> {
                 viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
             }
+
             is ComputerVisionEvent.UpdateGuides -> {
-                _uiState.update { it.copy(leftGuidePct = event.leftPct, rightGuidePct = event.rightPct) }
+                _uiState.update {
+                    it.copy(
+                        leftGuidePct = event.leftPct,
+                        rightGuidePct = event.rightPct
+                    )
+                }
             }
         }
     }
@@ -90,22 +100,25 @@ class ComputerVisionViewModel(
         }
     }
 
-    fun onScreenStarted(){
+    fun onScreenStarted() {
         CvAnalyticsUtil.trackScreenOpened()
     }
+
     private fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
             try {
                 val bitmap = uriToBitmap(uri)
                 if (bitmap != null) {
+                    val rotatedBitmap = handleImageRotation(uri, bitmap)
                     _uiState.update {
                         it.copy(
-                            currentBitmap = bitmap,
+                            currentBitmap = rotatedBitmap,
                             imageUri = uri,
                             detections = emptyList(),
                             visualizedBitmap = null,
                             leftGuidePct = 0.2f, // Reset to default
-                            rightGuidePct = 0.8f  // Reset to default
+                            rightGuidePct = 0.8f,  // Reset to default
+                            parsedAnnotations = emptyMap() // Reset on new image
                         )
                     }
                 } else {
@@ -129,6 +142,40 @@ class ComputerVisionViewModel(
         }
     }
 
+    private fun handleImageRotation(uri: Uri, bitmap: Bitmap): Bitmap {
+        val orientation = try {
+            contentResolver.openInputStream(uri)?.use { stream ->
+                ExifInterface(stream).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            } ?: ExifInterface.ORIENTATION_NORMAL
+        } catch (e: Exception) {
+            ExifInterface.ORIENTATION_NORMAL
+        }
+
+        val matrix = Matrix().apply {
+            when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> postRotate(90f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> postRotate(180f)
+                ExifInterface.ORIENTATION_ROTATE_270 -> postRotate(270f)
+                else -> return bitmap
+            }
+        }
+
+        return try {
+            val rotatedBitmap = Bitmap.createBitmap(
+                bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
+            )
+            if (rotatedBitmap != bitmap) {
+                bitmap.recycle()
+            }
+            rotatedBitmap
+        } catch (e: OutOfMemoryError) {
+            bitmap
+        }
+    }
+
     private fun runDetection() {
         val state = _uiState.value
         val bitmap = state.currentBitmap
@@ -147,7 +194,11 @@ class ComputerVisionViewModel(
             val yoloResult = repository.runYoloInference(bitmap)
             if (yoloResult.isFailure) {
                 val endTime = System.currentTimeMillis()
-                CvAnalyticsUtil.trackDetectionCompleted(success = false, detectionCount = 0, durationMs = endTime - startTime)
+                CvAnalyticsUtil.trackDetectionCompleted(
+                    success = false,
+                    detectionCount = 0,
+                    durationMs = endTime - startTime
+                )
                 handleDetectionError(yoloResult.exceptionOrNull())
                 return@launch
             }
@@ -165,32 +216,27 @@ class ComputerVisionViewModel(
 
             mergeResult
                 .onSuccess { mergedDetections ->
-                    val filteredDetections = filterDetectionsByRoi(mergedDetections, bitmap.width)
+                    val (canvasDetections, annotationMap) = MarginAnnotationParser.parse(
+                        detections = mergedDetections,
+                        imageWidth = bitmap.width,
+                        leftGuidePct = state.leftGuidePct,
+                        rightGuidePct = state.rightGuidePct
+                    )
+
                     CvAnalyticsUtil.trackDetectionCompleted(
                         success = true,
-                        detectionCount = filteredDetections.size,
+                        detectionCount = canvasDetections.size,
                         durationMs = System.currentTimeMillis() - startTime
                     )
                     _uiState.update {
                         it.copy(
-                            detections = filteredDetections,
+                            detections = canvasDetections,
+                            parsedAnnotations = annotationMap,
                             currentOperation = CvOperation.Idle
                         )
                     }
-                    Log.d(TAG, "Detection complete. ${filteredDetections.size} objects detected after filtering.")
                 }
                 .onFailure { handleDetectionError(it) }
-        }
-    }
-
-    private fun filterDetectionsByRoi(detections: List<DetectionResult>, imageWidth: Int): List<DetectionResult> {
-        val state = _uiState.value
-        val leftMarginPx = imageWidth * state.leftGuidePct
-        val rightMarginPx = imageWidth * state.rightGuidePct
-
-        return detections.filter { detection ->
-            val centerX = detection.boundingBox.centerX()
-            centerX > leftMarginPx && centerX < rightMarginPx
         }
     }
 
@@ -224,11 +270,7 @@ class ComputerVisionViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
-            repository.generateXml(
-                detections = state.detections,
-                sourceImageWidth = state.currentBitmap.width,
-                sourceImageHeight = state.currentBitmap.height
-            )
+            generateXml(state)
                 .onSuccess { xml ->
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = false)
@@ -255,11 +297,7 @@ class ComputerVisionViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
-            repository.generateXml(
-                detections = state.detections,
-                sourceImageWidth = state.currentBitmap.width,
-                sourceImageHeight = state.currentBitmap.height
-            )
+            generateXml(state)
                 .onSuccess { xml ->
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = true)
@@ -273,6 +311,19 @@ class ComputerVisionViewModel(
                 }
         }
     }
+
+    private suspend fun generateXml(state: ComputerVisionUiState): Result<String> {
+        val bitmap = state.currentBitmap ?: return Result.failure(IllegalStateException("No bitmap available"))
+        return repository.generateXml(
+            detections = state.detections,
+            annotations = state.parsedAnnotations,
+            sourceImageWidth = bitmap.width,
+            sourceImageHeight = bitmap.height,
+            targetDpWidth = TARGET_DP_WIDTH,
+            targetDpHeight = TARGET_DP_HEIGHT
+        )
+    }
+
 
     private suspend fun saveXmlFile(xmlString: String) {
         _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
@@ -297,5 +348,9 @@ class ComputerVisionViewModel(
 
     companion object {
         private const val TAG = "ComputerVisionViewModel"
+
+        /** Standard Android phone viewport in dp used as the XML layout target size. */
+        private const val TARGET_DP_WIDTH = 360
+        private const val TARGET_DP_HEIGHT = 640
     }
 }
