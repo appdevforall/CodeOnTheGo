@@ -11,34 +11,29 @@
 #include <algorithm>
 
 #ifdef __has_include
-#if __has_include(<unistd.h>)
-
-#include <unistd.h>
-
-#if defined(_POSIX_MAPPED_FILES)
-
-#include <sys/mman.h>
-#include <fcntl.h>
-
-#endif
-#if defined(_POSIX_MEMLOCK_RANGE)
-
-#include <sys/resource.h>
-
-#endif
-#endif
+    #if __has_include(<unistd.h>)
+        #include <unistd.h>
+        #include <fcntl.h>
+        #include <sys/stat.h>
+        #if defined(_POSIX_MAPPED_FILES)
+            #include <sys/mman.h>
+        #endif
+        #if defined(_POSIX_MEMLOCK_RANGE)
+            #include <sys/resource.h>
+        #endif
+    #endif
 #endif
 
 #if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#ifndef PATH_MAX
-#define PATH_MAX MAX_PATH
-#endif
-#include <io.h>
+    #define WIN32_LEAN_AND_MEAN
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #include <windows.h>
+    #ifndef PATH_MAX
+        #define PATH_MAX MAX_PATH
+    #endif
+    #include <io.h>
 #endif
 
 #if defined(__APPLE__)
@@ -80,7 +75,7 @@ struct llama_file::impl {
         return ret;
     }
 
-    impl(const char * fname, const char * mode) {
+    impl(const char * fname, const char * mode, [[maybe_unused]] const bool use_direct_io = false) {
         fp = ggml_fopen(fname, mode);
         if (fp == NULL) {
             throw std::runtime_error(format("failed to open %s: %s", fname, strerror(errno)));
@@ -115,7 +110,7 @@ struct llama_file::impl {
         }
     }
 
-    void read_raw(void * ptr, size_t len) const {
+    void read_raw(void * ptr, size_t len) {
         size_t bytes_read = 0;
         while (bytes_read < len) {
             size_t chunk_size = std::min<size_t>(len - bytes_read, 64*1024*1024);
@@ -132,7 +127,7 @@ struct llama_file::impl {
         }
     }
 
-    uint32_t read_u32() const {
+    uint32_t read_u32() {
         uint32_t val;
         read_raw(&val, sizeof(val));
         return val;
@@ -159,17 +154,55 @@ struct llama_file::impl {
         write_raw(&val, sizeof(val));
     }
 
+    bool has_direct_io() const {
+        return true;
+    }
+
     ~impl() {
         if (fp) {
             std::fclose(fp);
         }
     }
 #else
+    impl(const char * fname, const char * mode, [[maybe_unused]] const bool use_direct_io = false) : fname(fname) {
+#ifdef __linux__
+        // Try unbuffered I/O for read only
+        if (use_direct_io && std::strcmp(mode, "rb") == 0) {
+            if (init_fd()) {
+                return;
+            }
+            LLAMA_LOG_WARN("Failed to open file '%s' with error: %s. Falling back to buffered I/O",
+                           fname, strerror(errno));
+        }
+#endif
+        init_fp(mode);
+    }
 
-    impl(const char *fname, const char *mode) {
-        fp = ggml_fopen(fname, mode);
+#ifdef __linux__
+    bool init_fd() {
+        fd = open(fname.c_str(), O_RDONLY | O_DIRECT);
+
+        if (fd != -1) {
+            struct stat file_stats{};
+            fstat(fd, &file_stats);
+
+            size = file_stats.st_size;
+            alignment = file_stats.st_blksize;
+
+            off_t ret = lseek(fd, 0, SEEK_SET);
+            if (ret == -1) {
+                throw std::runtime_error(format("seek error: %s", strerror(errno)));
+            }
+            return true;
+        }
+        return false;
+    }
+#endif
+
+    void init_fp(const char * mode) {
+        fp = ggml_fopen(fname.c_str(), mode);
         if (fp == NULL) {
-            throw std::runtime_error(format("failed to open %s: %s", fname, strerror(errno)));
+            throw std::runtime_error(format("failed to open %s: %s", fname.c_str(), strerror(errno)));
         }
         seek(0, SEEK_END);
         size = tell();
@@ -177,52 +210,128 @@ struct llama_file::impl {
     }
 
     size_t tell() const {
-// TODO: this ifdef is never true?
-#ifdef _WIN32
-        __int64 ret = _ftelli64(fp);
-#else
-        long ret = std::ftell(fp);
-#endif
-        if (ret == -1) {
-            throw std::runtime_error(format("ftell error: %s", strerror(errno)));
+        if (fd == -1) {
+            long ret = std::ftell(fp);
+            if (ret == -1) {
+                throw std::runtime_error(format("ftell error: %s", strerror(errno)));
+            }
+
+            return (size_t) ret;
         }
 
-        return (size_t) ret;
+        off_t pos = lseek(fd, 0, SEEK_CUR);
+        if (pos == -1) {
+            throw std::runtime_error(format("lseek error: %s", strerror(errno)));
+        }
+        return (size_t) pos;
     }
 
     void seek(size_t offset, int whence) const {
-// TODO: this ifdef is never true?
-#ifdef _WIN32
-        int ret = _fseeki64(fp, (__int64) offset, whence);
-#else
-        int ret = std::fseek(fp, (long) offset, whence);
-#endif
-        if (ret != 0) {
+        off_t ret = 0;
+        if (fd == -1) {
+            ret = std::fseek(fp, (long) offset, whence);
+        } else {
+            ret = lseek(fd, offset, whence);
+        }
+        if (ret == -1) {
             throw std::runtime_error(format("seek error: %s", strerror(errno)));
         }
     }
 
-    void read_raw(void *ptr, size_t len) const {
+    void read_raw_unsafe(void * ptr, size_t len) {
         if (len == 0) {
             return;
         }
         errno = 0;
-        std::size_t ret = std::fread(ptr, len, 1, fp);
-        if (ferror(fp)) {
-            throw std::runtime_error(format("read error: %s", strerror(errno)));
-        }
-        if (ret != 1) {
-            throw std::runtime_error("unexpectedly reached end of file");
+        if (fd == -1) {
+            const size_t curr_off = tell();
+            const size_t to_read = std::min(len, size - curr_off);
+
+            std::size_t ret = std::fread(ptr, to_read, 1, fp);
+            if (ferror(fp)) {
+                throw std::runtime_error(format("read error: %s", strerror(errno)));
+            }
+            if (to_read > 0 && ret != 1) {
+                throw std::runtime_error("unexpectedly reached end of file");
+            }
+        } else {
+            size_t bytes_read = 0;
+            while (bytes_read < len) {
+                const size_t to_read = len - bytes_read;
+                ssize_t ret = ::read(fd, reinterpret_cast<char *>(ptr) + bytes_read, to_read);
+
+                if (ret == -1) {
+                    if (errno == EINTR) {
+                        continue;  // Interrupted by signal, retry
+                    }
+                    // Fallback to std::fread in case the DMA controller cannot access the buffer
+                    if (errno == EFAULT || errno == EINVAL) {
+                        LLAMA_LOG_WARN("%s: Falling back to buffered IO due to %s\n", __func__, strerror(errno));
+                        auto curr_off = tell();
+                        close(fd);
+                        fd = -1;
+                        alignment = 1;
+                        init_fp("rb");
+                        seek(curr_off, SEEK_SET);
+                        read_raw_unsafe(ptr, len);
+                        return;
+                    }
+                    throw std::runtime_error(format("read error: %s", strerror(errno)));
+                }
+                if (ret == 0) {
+                    // EOF: allow if this read was only pulling alignment padding past file end
+                    off_t pos = lseek(fd, 0, SEEK_CUR);
+                    if (pos != -1 && (size_t) pos == size) {
+                        std::memset(reinterpret_cast<char *>(ptr) + bytes_read, 0, len - bytes_read);
+                        return;
+                    }
+                    throw std::runtime_error("unexpectedly reached end of file");
+                }
+
+                bytes_read += (size_t) ret;
+            }
         }
     }
 
-    uint32_t read_u32() const {
+    void read_aligned_chunk(void * dest, size_t size) {
+        size_t offset = tell();
+        off_t aligned_offset = offset & ~(alignment - 1);
+        off_t offset_from_alignment = offset - aligned_offset;
+        size_t bytes_to_read = (offset_from_alignment + size + alignment - 1) & ~(alignment - 1);
+
+        void * raw_buffer = nullptr;
+        int ret = posix_memalign(&raw_buffer, alignment, bytes_to_read);
+        if (ret != 0) {
+            throw std::runtime_error(format("posix_memalign failed with error %d", ret));
+        }
+
+        struct aligned_buffer_deleter {
+            void operator()(void * p) const { free(p); }
+        };
+        std::unique_ptr<void, aligned_buffer_deleter> buffer(raw_buffer);
+
+        seek(aligned_offset, SEEK_SET);
+        read_raw_unsafe(buffer.get(), bytes_to_read);
+
+        uintptr_t actual_data = reinterpret_cast<uintptr_t>(buffer.get()) + offset_from_alignment;
+        memcpy(dest, reinterpret_cast<void *>(actual_data), size);
+    }
+
+    void read_raw(void * ptr, size_t len) {
+        if (has_direct_io()) {
+            read_aligned_chunk(ptr, len);
+        } else {
+            read_raw_unsafe(ptr, len);
+        }
+    }
+
+    uint32_t read_u32() {
         uint32_t ret;
         read_raw(&ret, sizeof(ret));
         return ret;
     }
 
-    void write_raw(const void *ptr, size_t len) const {
+    void write_raw(const void * ptr, size_t len) const {
         if (len == 0) {
             return;
         }
@@ -237,31 +346,48 @@ struct llama_file::impl {
         write_raw(&val, sizeof(val));
     }
 
+    bool has_direct_io() const {
+        return fd != -1 && alignment > 1;
+    }
+
     ~impl() {
-        if (fp) {
+        if (fd != -1) {
+            close(fd);
+        } else {
             std::fclose(fp);
         }
     }
-
+    int fd = -1;
+    std::string fname;
 #endif
 
-    FILE *fp;
-    size_t size;
+    size_t read_alignment() const {
+        return alignment;
+    }
+
+    size_t alignment = 1;
+
+    FILE * fp{};
+    size_t size{};
 };
 
-llama_file::llama_file(const char *fname, const char *mode) : pimpl(
-        std::make_unique<impl>(fname, mode)) {}
-
+llama_file::llama_file(const char * fname, const char * mode, const bool use_direct_io) :
+    pimpl(std::make_unique<impl>(fname, mode, use_direct_io)) {}
 llama_file::~llama_file() = default;
 
 size_t llama_file::tell() const { return pimpl->tell(); }
-
 size_t llama_file::size() const { return pimpl->size; }
+
+size_t llama_file::read_alignment() const { return pimpl->read_alignment(); }
+bool llama_file::has_direct_io() const { return pimpl->has_direct_io(); }
 
 int llama_file::file_id() const {
 #ifdef _WIN32
     return _fileno(pimpl->fp);
 #else
+    if (pimpl->fd != -1) {
+        return pimpl->fd;
+    }
 #if defined(fileno)
     return fileno(pimpl->fp);
 #else
@@ -271,13 +397,16 @@ int llama_file::file_id() const {
 }
 
 void llama_file::seek(size_t offset, int whence) const { pimpl->seek(offset, whence); }
+void llama_file::read_raw(void * ptr, size_t len) { pimpl->read_raw(ptr, len); }
+#ifdef _WIN32
+void llama_file::read_raw_unsafe(void * ptr, size_t len) { pimpl->read_raw(ptr, len); }
+#else
+void llama_file::read_raw_unsafe(void * ptr, size_t len) { pimpl->read_raw_unsafe(ptr, len); }
+#endif
 
-void llama_file::read_raw(void *ptr, size_t len) const { pimpl->read_raw(ptr, len); }
+uint32_t llama_file::read_u32() { return pimpl->read_u32(); }
 
-uint32_t llama_file::read_u32() const { return pimpl->read_u32(); }
-
-void llama_file::write_raw(const void *ptr, size_t len) const { pimpl->write_raw(ptr, len); }
-
+void llama_file::write_raw(const void * ptr, size_t len) const { pimpl->write_raw(ptr, len); }
 void llama_file::write_u32(uint32_t val) const { pimpl->write_u32(val); }
 
 // llama_mmap
@@ -286,7 +415,7 @@ struct llama_mmap::impl {
 #ifdef _POSIX_MAPPED_FILES
     std::vector<std::pair<size_t, size_t>> mapped_fragments;
 
-    impl(struct llama_file *file, size_t prefetch, bool numa) {
+    impl(struct llama_file * file, size_t prefetch, bool numa) {
         size = file->size();
         int fd = file->file_id();
         int flags = MAP_SHARED;
@@ -294,7 +423,7 @@ struct llama_mmap::impl {
 #ifdef __linux__
         if (posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
             LLAMA_LOG_WARN("warning: posix_fadvise(.., POSIX_FADV_SEQUENTIAL) failed: %s\n",
-                           strerror(errno));
+                    strerror(errno));
         }
         if (prefetch) { flags |= MAP_POPULATE; }
 #endif
@@ -304,22 +433,22 @@ struct llama_mmap::impl {
         }
 
         if (prefetch > 0) {
-//            if (posix_madvise(addr, std::min(file->size(), prefetch), POSIX_MADV_WILLNEED)) {
-//                LLAMA_LOG_WARN("warning: posix_madvise(.., POSIX_MADV_WILLNEED) failed: %s\n",
-//                        strerror(errno));
-//            }
+            if (posix_madvise(addr, std::min(file->size(), prefetch), POSIX_MADV_WILLNEED)) {
+                LLAMA_LOG_WARN("warning: posix_madvise(.., POSIX_MADV_WILLNEED) failed: %s\n",
+                        strerror(errno));
+            }
         }
         if (numa) {
-//            if (posix_madvise(addr, file->size(), POSIX_MADV_RANDOM)) {
-//                LLAMA_LOG_WARN("warning: posix_madvise(.., POSIX_MADV_RANDOM) failed: %s\n",
-//                        strerror(errno));
-//            }
+            if (posix_madvise(addr, file->size(), POSIX_MADV_RANDOM)) {
+                LLAMA_LOG_WARN("warning: posix_madvise(.., POSIX_MADV_RANDOM) failed: %s\n",
+                        strerror(errno));
+            }
         }
 
         mapped_fragments.emplace_back(0, file->size());
     }
 
-    static void align_range(size_t *first, size_t *last, size_t page_size) {
+    static void align_range(size_t * first, size_t * last, size_t page_size) {
         size_t offset_in_page = *first & (page_size - 1);
         size_t offset_to_page = offset_in_page == 0 ? 0 : page_size - offset_in_page;
         *first += offset_to_page;
@@ -344,14 +473,14 @@ struct llama_mmap::impl {
         GGML_ASSERT(last % page_size == 0);
         GGML_ASSERT(last > first);
 
-        void *next_page_start = (uint8_t *) addr + first;
+        void * next_page_start = (uint8_t *) addr + first;
 
         if (munmap(next_page_start, len)) {
             LLAMA_LOG_WARN("warning: munmap failed: %s\n", strerror(errno));
         }
 
         std::vector<std::pair<size_t, size_t>> new_mapped_fragments;
-        for (const auto &frag: mapped_fragments) {
+        for (const auto & frag : mapped_fragments) {
             if (frag.first < first && frag.second > last) {
                 new_mapped_fragments.emplace_back(frag.first, first);
                 new_mapped_fragments.emplace_back(last, frag.second);
@@ -368,13 +497,12 @@ struct llama_mmap::impl {
     }
 
     ~impl() {
-        for (const auto &frag: mapped_fragments) {
+        for (const auto & frag : mapped_fragments) {
             if (munmap((char *) addr + frag.first, frag.second - frag.first)) {
                 LLAMA_LOG_WARN("warning: munmap failed: %s\n", strerror(errno));
             }
         }
     }
-
 #elif defined(_WIN32)
     impl(struct llama_file * file, size_t prefetch, bool numa) {
         GGML_UNUSED(numa);
@@ -448,23 +576,20 @@ struct llama_mmap::impl {
     }
 #endif
 
-    void *addr;
+    void * addr;
     size_t size;
 };
 
-llama_mmap::llama_mmap(struct llama_file *file, size_t prefetch, bool numa) : pimpl(
-        std::make_unique<impl>(file, prefetch, numa)) {}
-
+llama_mmap::llama_mmap(struct llama_file * file, size_t prefetch, bool numa) : pimpl(std::make_unique<impl>(file, prefetch, numa)) {}
 llama_mmap::~llama_mmap() = default;
 
 size_t llama_mmap::size() const { return pimpl->size; }
-
-void *llama_mmap::addr() const { return pimpl->addr; }
+void * llama_mmap::addr() const { return pimpl->addr; }
 
 void llama_mmap::unmap_fragment(size_t first, size_t last) { pimpl->unmap_fragment(first, last); }
 
 #if defined(_POSIX_MEMLOCK_RANGE) || defined(_WIN32)
-const bool llama_mmap::SUPPORTED = true;
+const bool llama_mmap::SUPPORTED  = true;
 #else
 const bool llama_mmap::SUPPORTED  = false;
 #endif
@@ -473,12 +598,11 @@ const bool llama_mmap::SUPPORTED  = false;
 
 struct llama_mlock::impl {
 #ifdef _POSIX_MEMLOCK_RANGE
-
     static size_t lock_granularity() {
         return (size_t) sysconf(_SC_PAGESIZE);
     }
 
-    bool raw_lock(const void *addr, size_t size) const {
+    bool raw_lock(const void * addr, size_t size) const {
         if (!mlock(addr, size)) {
             return true;
         }
@@ -492,34 +616,32 @@ struct llama_mlock::impl {
         "Try increasing RLIMIT_MEMLOCK ('ulimit -l' as root).\n"
 #endif
 
-        char *errmsg = std::strerror(errno);
+        char* errmsg = std::strerror(errno);
         bool suggest = (errno == ENOMEM);
-#if defined(TARGET_OS_VISION) || defined(TARGET_OS_TV) || defined(_AIX)
-        // visionOS/tvOS dont't support RLIMIT_MEMLOCK
-        // Skip resource limit checks on visionOS/tvOS
+#if defined(TARGET_OS_VISION) || defined(TARGET_OS_TV) || defined(_AIX) || defined(__HAIKU__)
+        // visionOS/tvOS/Haiku don't support RLIMIT_MEMLOCK
+        // Skip resource limit checks on these platforms
         suggest = false;
 #else
         struct rlimit lock_limit;
         if (suggest && getrlimit(RLIMIT_MEMLOCK, &lock_limit)) {
             suggest = false;
         }
-        if (suggest && (lock_limit.rlim_max > lock_limit.rlim_cur + size)) {
+        if (suggest && ((uint64_t)lock_limit.rlim_max > (uint64_t)lock_limit.rlim_cur + size)) {
             suggest = false;
         }
 #endif
 
-        LLAMA_LOG_WARN(
-                "warning: failed to mlock %zu-byte buffer (after previously locking %zu bytes): %s\n%s",
+        LLAMA_LOG_WARN("warning: failed to mlock %zu-byte buffer (after previously locking %zu bytes): %s\n%s",
                 size, this->size, errmsg, suggest ? MLOCK_SUGGESTION : "");
         return false;
     }
 
-    static void raw_unlock(void *addr, size_t size) {
+    static void raw_unlock(void * addr, size_t size) {
         if (munlock(addr, size)) {
             LLAMA_LOG_WARN("warning: failed to munlock buffer: %s\n", std::strerror(errno));
         }
     }
-
 #elif defined(_WIN32)
     static size_t lock_granularity() {
         SYSTEM_INFO si;
@@ -576,7 +698,7 @@ struct llama_mlock::impl {
 
     impl() : addr(NULL), size(0), failed_already(false) {}
 
-    void init(void *ptr) {
+    void init(void * ptr) {
         GGML_ASSERT(addr == NULL && size == 0);
         addr = ptr;
     }
@@ -597,18 +719,16 @@ struct llama_mlock::impl {
         }
     }
 
-    void *addr;
+    void * addr;
     size_t size;
 
     bool failed_already;
 };
 
 llama_mlock::llama_mlock() : pimpl(std::make_unique<impl>()) {}
-
 llama_mlock::~llama_mlock() = default;
 
-void llama_mlock::init(void *ptr) { pimpl->init(ptr); }
-
+void llama_mlock::init(void * ptr) { pimpl->init(ptr); }
 void llama_mlock::grow_to(size_t target_size) { pimpl->grow_to(target_size); }
 
 #if defined(_POSIX_MEMLOCK_RANGE) || defined(_WIN32)

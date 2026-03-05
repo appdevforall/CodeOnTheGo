@@ -21,6 +21,7 @@ import android.view.View
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.FeatureFlags
 
 /**
  * An action button shown on the main screen.
@@ -100,10 +101,18 @@ data class MainScreenAction
 					R.drawable.ic_action_help_outlined,
 				)
 
+			val cloneRepo =
+				MainScreenAction(
+					ACTION_CLONE_REPO,
+					R.string.download_git_project,
+					R.drawable.ic_clone_repo,
+				)
+
 			private val allActions: List<MainScreenAction> =
 				listOf(
 					createProject,
 					openProject,
+					cloneRepo,
 					deleteProject,
 					openTerminal,
 					preferences,
@@ -117,6 +126,12 @@ data class MainScreenAction
 			fun all(): List<MainScreenAction> = allActions
 
 			@JvmStatic
-			fun mainScreen(): List<MainScreenAction> = mainActions
+			fun mainScreen(): List<MainScreenAction> {
+			    return if (FeatureFlags.isExperimentsEnabled) {
+                    mainActions
+                } else {
+                    mainActions.minus(cloneRepo)
+                }
+            }
 		}
 	}
