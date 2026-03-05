@@ -1023,12 +1023,18 @@ class SymbolResolver(
         if ('.' !in fqName) return false
 
         val classpathIndex = projectIndex?.getClasspathIndex()
-        if (classpathIndex?.findByFqName(fqName) != null) {
-            return true
+        if (classpathIndex != null) {
+            val classSymbol = classpathIndex.findByFqName(fqName)
+            if (classSymbol != null) {
+                return classpathIndex.findMembers(fqName).isEmpty()
+            }
         }
 
-        if (stdlibIndex?.findByFqName(fqName) != null) {
-            return true
+        if (stdlibIndex != null) {
+            val stdlibSymbol = stdlibIndex.findByFqName(fqName)
+            if (stdlibSymbol != null) {
+                return stdlibIndex.findMembers(fqName).isEmpty()
+            }
         }
 
         return false

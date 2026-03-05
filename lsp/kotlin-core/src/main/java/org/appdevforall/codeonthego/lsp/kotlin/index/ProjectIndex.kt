@@ -68,6 +68,14 @@ class ProjectIndex : SymbolIndex {
         return results.distinctBy { it.fqName }
     }
 
+    fun findInProjectFiles(name: String): List<IndexedSymbol> {
+        val results = mutableListOf<IndexedSymbol>()
+        for (fileIndex in fileIndexes.values) {
+            results.addAll(fileIndex.findBySimpleName(name))
+        }
+        return results
+    }
+
     override fun findByPackage(packageName: String): List<IndexedSymbol> {
         val results = mutableListOf<IndexedSymbol>()
 
@@ -223,6 +231,11 @@ class ProjectIndex : SymbolIndex {
         results.addAll(extensionIndex.findFor(receiverType, supertypes, includeAnyExtensions))
         stdlibIndex?.findExtensions(receiverType, supertypes, includeAnyExtensions)?.let { results.addAll(it) }
 
+        classpathIndex?.let { cpIndex ->
+            results.addAll(cpIndex.findExtensionsFor(receiverType))
+            supertypes.forEach { st -> results.addAll(cpIndex.findExtensionsFor(st)) }
+        }
+
         return results.distinctBy { it.fqName }
     }
 
@@ -369,6 +382,21 @@ class ProjectIndex : SymbolIndex {
         for (extension in fileIndex.getExtensions()) {
             extensionIndex.remove(extension)
         }
+    }
+
+    fun findMembersInProjectFiles(classFqName: String): List<IndexedSymbol> {
+        val results = mutableListOf<IndexedSymbol>()
+        for (fileIndex in fileIndexes.values) {
+            results.addAll(fileIndex.findMembers(classFqName))
+        }
+        return results
+    }
+
+    fun findByFqNameInProjectFiles(fqName: String): IndexedSymbol? {
+        for (fileIndex in fileIndexes.values) {
+            fileIndex.findByFqName(fqName)?.let { return it }
+        }
+        return null
     }
 
     fun findSymbolReferences(fqName: String): List<SymbolReference> {

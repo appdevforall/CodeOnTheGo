@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.lsp.kotlin.symbol
 
+import android.util.Log
 import org.appdevforall.codeonthego.lsp.kotlin.parser.SyntaxKind
 import org.appdevforall.codeonthego.lsp.kotlin.parser.SyntaxNode
 import org.appdevforall.codeonthego.lsp.kotlin.parser.SyntaxTree
@@ -47,14 +48,10 @@ class SymbolBuilder private constructor(
      */
     private fun build(): SymbolTable {
         val root = tree.root
-        android.util.Log.d("SymbolBuilder", "build(): rootKind=${root.kind}, hasError=${root.hasError}, childCount=${root.childCount}, namedChildCount=${root.namedChildCount}")
-        if (root.hasError) {
-            android.util.Log.d("SymbolBuilder", "Tree has errors, S-expr (first 500 chars): ${root.toSexp().take(500)}")
-        }
+
         when (root.kind) {
             SyntaxKind.SOURCE_FILE -> processSourceFile(root)
             else -> {
-                android.util.Log.d("SymbolBuilder", "  root is not SOURCE_FILE, processing children directly")
                 for (child in root.namedChildren) {
                     when (child.kind) {
                         SyntaxKind.PACKAGE_HEADER -> processPackageHeader(child)
@@ -74,9 +71,7 @@ class SymbolBuilder private constructor(
     }
 
     private fun processSourceFile(node: SyntaxNode) {
-        android.util.Log.d("SymbolBuilder", "processSourceFile: namedChildCount=${node.namedChildren.size}")
         for (child in node.namedChildren) {
-            android.util.Log.d("SymbolBuilder", "  SOURCE_FILE child: kind=${child.kind}, type=${child.type}, text='${child.text.take(40)}', hasError=${child.hasError}")
             when (child.kind) {
                 SyntaxKind.PACKAGE_HEADER -> processPackageHeader(child)
                 SyntaxKind.IMPORT_LIST -> processImportList(child)
@@ -87,11 +82,10 @@ class SymbolBuilder private constructor(
                 SyntaxKind.PROPERTY_DECLARATION -> processPropertyDeclaration(child)
                 SyntaxKind.TYPE_ALIAS -> processTypeAlias(child)
                 SyntaxKind.ERROR -> {
-                    android.util.Log.d("SymbolBuilder", "    ERROR node, attempting to process children")
                     processErrorNodeChildren(child)
                 }
                 else -> {
-                    android.util.Log.d("SymbolBuilder", "    unhandled kind: ${child.kind}")
+                   Log.w("SymbolBuilder", "    unhandled kind: ${child.kind}")
                 }
             }
         }
@@ -103,7 +97,6 @@ class SymbolBuilder private constructor(
         }
 
         for (child in node.namedChildren) {
-            android.util.Log.d("SymbolBuilder", "    ERROR child: kind=${child.kind}, text='${child.text.take(40)}'")
             when (child.kind) {
                 SyntaxKind.CLASS_DECLARATION -> processClassDeclaration(child)
                 SyntaxKind.OBJECT_DECLARATION -> processObjectDeclaration(child)
@@ -123,21 +116,16 @@ class SymbolBuilder private constructor(
 
     private fun tryRecoverClassFromErrorNode(node: SyntaxNode): Boolean {
         val text = node.text
-        android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: text.length=${text.length}, first100='${text.take(100)}'")
-
         val classMatch = CLASS_PATTERN.find(text)
         val interfaceMatch = INTERFACE_PATTERN.find(text)
         val objectMatch = OBJECT_PATTERN.find(text)
 
-        android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: classMatch=${classMatch != null}, interfaceMatch=${interfaceMatch != null}, objectMatch=${objectMatch != null}")
 
         when {
             classMatch != null -> {
                 val className = classMatch.groupValues[1]
-                android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: found class '$className' in regex")
                 val existingSymbol = currentScope.resolveFirst(className)
                 if (existingSymbol is ClassSymbol) {
-                    android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: class '$className' already exists, processing children in its scope")
                     val classScope = existingSymbol.memberScope
                     if (classScope != null) {
                         withScope(classScope, existingSymbol) {
@@ -147,13 +135,10 @@ class SymbolBuilder private constructor(
                     }
                     return false
                 }
-                android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: recovering class '$className'")
                 var superTypes = extractSuperTypesFromErrorNode(node)
                 if (superTypes.isEmpty()) {
-                    android.util.Log.d("SymbolBuilder", "  no supertypes from children, trying text extraction")
                     superTypes = extractSuperTypesFromText(text, classMatch.range.last + 1)
                 }
-                android.util.Log.d("SymbolBuilder", "  superTypes: ${superTypes.map { it.render() }}")
                 createRecoveredClassSymbol(node, className, ClassKind.CLASS, superTypes)
                 return true
             }
@@ -161,7 +146,6 @@ class SymbolBuilder private constructor(
                 val interfaceName = interfaceMatch.groupValues[1]
                 val existingSymbol = currentScope.resolveFirst(interfaceName)
                 if (existingSymbol is ClassSymbol) {
-                    android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: interface '$interfaceName' already exists, processing children in its scope")
                     val interfaceScope = existingSymbol.memberScope
                     if (interfaceScope != null) {
                         withScope(interfaceScope, existingSymbol) {
@@ -171,7 +155,6 @@ class SymbolBuilder private constructor(
                     }
                     return false
                 }
-                android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: recovering interface '$interfaceName'")
                 var superTypes = extractSuperTypesFromErrorNode(node)
                 if (superTypes.isEmpty()) {
                     superTypes = extractSuperTypesFromText(text, interfaceMatch.range.last + 1)
@@ -183,7 +166,6 @@ class SymbolBuilder private constructor(
                 val objectName = objectMatch.groupValues[1]
                 val existingSymbol = currentScope.resolveFirst(objectName)
                 if (existingSymbol is ClassSymbol) {
-                    android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: object '$objectName' already exists, processing children in its scope")
                     val objectScope = existingSymbol.memberScope
                     if (objectScope != null) {
                         withScope(objectScope, existingSymbol) {
@@ -193,12 +175,10 @@ class SymbolBuilder private constructor(
                     }
                     return false
                 }
-                android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: recovering object '$objectName'")
                 createRecoveredClassSymbol(node, objectName, ClassKind.OBJECT, emptyList())
                 return true
             }
         }
-        android.util.Log.d("SymbolBuilder", "tryRecoverClassFromErrorNode: no match found, returning false")
         return false
     }
 
@@ -212,20 +192,17 @@ class SymbolBuilder private constructor(
                 SyntaxKind.CONSTRUCTOR_INVOCATION -> {
                     val type = extractTypeFromDelegationSpecifier(child)
                     if (type != null) {
-                        android.util.Log.d("SymbolBuilder", "extractSuperTypesFromErrorNode: found supertype '${type.render()}' from ${child.kind}")
                         superTypes.add(type)
                     }
                 }
                 SyntaxKind.USER_TYPE, SyntaxKind.SIMPLE_USER_TYPE -> {
                     val type = extractType(child)
                     if (type != null) {
-                        android.util.Log.d("SymbolBuilder", "extractSuperTypesFromErrorNode: found supertype '${type.render()}' from USER_TYPE")
                         superTypes.add(type)
                     }
                 }
                 SyntaxKind.DELEGATION_SPECIFIERS -> {
                     val nestedTypes = extractSuperTypes(child)
-                    android.util.Log.d("SymbolBuilder", "extractSuperTypesFromErrorNode: found ${nestedTypes.size} supertypes from DELEGATION_SPECIFIERS")
                     superTypes.addAll(nestedTypes)
                 }
                 else -> {}
@@ -253,7 +230,6 @@ class SymbolBuilder private constructor(
     }
 
     private fun createRecoveredClassSymbol(node: SyntaxNode, name: String, kind: ClassKind, superTypes: List<TypeReference>) {
-        android.util.Log.d("SymbolBuilder", "createRecoveredClassSymbol: name='$name', kind=$kind")
         val classScope = currentScope.createChild(
             kind = ScopeKind.CLASS,
             range = node.range
@@ -275,32 +251,19 @@ class SymbolBuilder private constructor(
         withScope(classScope, classSymbol) {
             tryRecoverClassBodyFromErrorNode(node)
         }
-
-        android.util.Log.d("SymbolBuilder", "createRecoveredClassSymbol: finished, classScope has ${classScope.allSymbols.size} symbols: ${classScope.allSymbols.map { it.name }}")
     }
-
     private fun tryRecoverClassBodyFromErrorNode(node: SyntaxNode) {
-        android.util.Log.d("SymbolBuilder", "tryRecoverClassBodyFromErrorNode: processing ${node.namedChildren.size} children, currentScope=${currentScope.kind}")
         for (child in node.namedChildren) {
-            android.util.Log.d("SymbolBuilder", "  recovery child: kind=${child.kind}, text='${child.text.take(40)}'")
             when (child.kind) {
                 SyntaxKind.CLASS_BODY -> {
-                    android.util.Log.d("SymbolBuilder", "    -> processing CLASS_BODY")
                     processClassBody(child)
                 }
                 SyntaxKind.FUNCTION_DECLARATION -> {
-                    android.util.Log.d("SymbolBuilder", "    -> processing FUNCTION_DECLARATION in recovery mode")
-                    val func = processFunctionDeclaration(child)
-                    if (func != null) {
-                        android.util.Log.d("SymbolBuilder", "    -> created function '${func.name}' with body scope, symbols: ${func.bodyScope?.allSymbols?.map { it.name }}")
-                    }
+                     processFunctionDeclaration(child)
                 }
                 SyntaxKind.PROPERTY_DECLARATION -> {
-                    android.util.Log.d("SymbolBuilder", "    -> processing PROPERTY_DECLARATION in recovery mode")
-                    val prop = processPropertyDeclaration(child)
-                    if (prop != null) {
-                        android.util.Log.d("SymbolBuilder", "    -> created property '${prop.name}' in class scope")
-                    }
+                     processPropertyDeclaration(child)
+
                 }
                 SyntaxKind.COMPANION_OBJECT -> processObjectDeclaration(child)
                 else -> {
@@ -355,8 +318,6 @@ class SymbolBuilder private constructor(
         val aliasNode = node.findChild(SyntaxKind.IMPORT_ALIAS)
         val alias = aliasNode?.findChild(SyntaxKind.SIMPLE_IDENTIFIER)?.text
 
-        android.util.Log.d("SymbolBuilder", "[IMPORT-DEBUG] import fqName='$fqName', nodeRange=${node.range}, nodeText='${node.text.take(80)}'")
-
         return ImportInfo(
             fqName = fqName,
             alias = alias,
@@ -366,25 +327,19 @@ class SymbolBuilder private constructor(
     }
 
     private fun processClassDeclaration(node: SyntaxNode): ClassSymbol? {
-        android.util.Log.d("SymbolBuilder", "processClassDeclaration: text='${node.text.take(60)}', hasError=${node.hasError}")
         val nameNode = node.childByFieldName("name")
             ?: node.findChild(SyntaxKind.SIMPLE_IDENTIFIER)
             ?: node.findChild(SyntaxKind.TYPE_IDENTIFIER)
 
         if (nameNode == null) {
-            android.util.Log.d("SymbolBuilder", "  no name found, children: ${node.namedChildren.map { "${it.kind}='${it.text.take(20)}'" }}")
             return null
         }
 
         val name = nameNode.text
-        android.util.Log.d("SymbolBuilder", "  found class name: $name")
-        android.util.Log.d("SymbolBuilder", "  all children: ${node.children.map { "${it.kind}(${it.type})" }}")
         val modifiers = extractModifiers(node)
         val kind = determineClassKind(node, modifiers)
         val typeParameters = extractTypeParameters(node)
-        android.util.Log.d("SymbolBuilder", "  about to call extractSuperTypes")
         val superTypes = extractSuperTypes(node)
-        android.util.Log.d("SymbolBuilder", "  superTypes extracted: ${superTypes.map { it.render() }}")
 
         val classScope = currentScope.createChild(
             kind = ScopeKind.CLASS,
@@ -521,10 +476,7 @@ class SymbolBuilder private constructor(
 
     private fun processClassBody(node: SyntaxNode?) {
         node ?: return
-
-        android.util.Log.d("SymbolBuilder", "processClassBody: currentScope=${currentScope.kind}, range=${currentScope.range}")
         for (child in node.namedChildren) {
-            android.util.Log.d("SymbolBuilder", "  classBody child: kind=${child.kind}, text='${child.text.take(30)}', range=${child.range}")
             when (child.kind) {
                 SyntaxKind.FUNCTION_DECLARATION -> processFunctionDeclaration(child)
                 SyntaxKind.PROPERTY_DECLARATION -> processPropertyDeclaration(child)
@@ -575,7 +527,6 @@ class SymbolBuilder private constructor(
             ?: return null
 
         val name = nameNode.text
-        android.util.Log.d("SymbolBuilder", "processFunctionDeclaration: name=$name, range=${node.range}")
         val modifiers = extractModifiers(node)
         val typeParameters = extractTypeParameters(node)
         val receiverType = extractReceiverType(node)
@@ -585,7 +536,6 @@ class SymbolBuilder private constructor(
             kind = ScopeKind.FUNCTION,
             range = node.range
         )
-        android.util.Log.d("SymbolBuilder", "  created functionScope: range=${functionScope.range}")
 
         val parameters = mutableListOf<ParameterSymbol>()
 
@@ -609,16 +559,12 @@ class SymbolBuilder private constructor(
 
         currentScope.define(functionSymbol)
         symbolTable.registerSymbol(functionSymbol)
-
-        android.util.Log.d("SymbolBuilder", "  processing body with functionScope, kind=${functionScope.kind}")
         withScope(functionScope, functionSymbol) {
             val body = node.childByFieldName("body")
                 ?: node.findChild(SyntaxKind.FUNCTION_BODY)
                 ?: node.findChild(SyntaxKind.CONTROL_STRUCTURE_BODY)
-            android.util.Log.d("SymbolBuilder", "  body node: kind=${body?.kind}, text='${body?.text?.take(50)}'")
             processBody(body)
         }
-        android.util.Log.d("SymbolBuilder", "  after processBody, functionScope symbols: ${functionScope.allSymbols.map { it.name }}")
 
         return functionSymbol
     }
@@ -666,9 +612,6 @@ class SymbolBuilder private constructor(
     }
 
     private fun processPropertyDeclaration(node: SyntaxNode): PropertySymbol? {
-        android.util.Log.d("SymbolBuilder", "processPropertyDeclaration: text='${node.text.take(50)}', range=${node.range}")
-        android.util.Log.d("SymbolBuilder", "  currentScope=${currentScope.kind}, scopeRange=${currentScope.range}")
-
         val multiVarDecl = node.findChild(SyntaxKind.MULTI_VARIABLE_DECLARATION)
         if (multiVarDecl != null) {
             processDestructuringDeclaration(node, multiVarDecl)
@@ -676,25 +619,20 @@ class SymbolBuilder private constructor(
         }
 
         var nameNode = node.childByFieldName("name")
-        android.util.Log.d("SymbolBuilder", "  childByFieldName('name')=${nameNode?.text}")
 
         if (nameNode == null) {
             nameNode = node.findChild(SyntaxKind.SIMPLE_IDENTIFIER)
-            android.util.Log.d("SymbolBuilder", "  findChild(SIMPLE_IDENTIFIER)=${nameNode?.text}")
         }
 
         if (nameNode == null) {
             nameNode = extractPropertyName(node)
-            android.util.Log.d("SymbolBuilder", "  extractPropertyName()=${nameNode?.text}")
         }
 
         if (nameNode == null) {
             val children = node.children
-            android.util.Log.d("SymbolBuilder", "  children: ${children.map { "${it.kind}='${it.text.take(10)}'" }}")
             val valVarIndex = children.indexOfFirst { it.kind == SyntaxKind.VAL || it.kind == SyntaxKind.VAR }
             if (valVarIndex >= 0 && valVarIndex + 1 < children.size) {
                 val candidate = children[valVarIndex + 1]
-                android.util.Log.d("SymbolBuilder", "  fallback candidate: kind=${candidate.kind}, text='${candidate.text}'")
                 val isValidIdentifier = candidate.text.matches(Regex("[a-zA-Z_][a-zA-Z0-9_]*"))
                 if (isValidIdentifier && (candidate.kind == SyntaxKind.UNKNOWN || candidate.kind == SyntaxKind.SIMPLE_IDENTIFIER)) {
                     nameNode = candidate
@@ -710,13 +648,11 @@ class SymbolBuilder private constructor(
             }
 
             val allIdentifiers = node.traverse().filter { it.kind == SyntaxKind.SIMPLE_IDENTIFIER }.toList()
-            android.util.Log.d("SymbolBuilder", "  deep search identifiers: ${allIdentifiers.map { it.text }}")
             if (allIdentifiers.isNotEmpty()) {
                 nameNode = allIdentifiers.first()
             }
         }
 
-        android.util.Log.d("SymbolBuilder", "  final nameNode: text='${nameNode?.text}', kind=${nameNode?.kind}")
         if (nameNode == null) return null
 
         val name = nameNode.text
@@ -728,12 +664,9 @@ class SymbolBuilder private constructor(
         if (typeNode == null) {
             val varDecl = node.findChild(SyntaxKind.VARIABLE_DECLARATION)
             if (varDecl != null) {
-                android.util.Log.d("SymbolBuilder", "  looking in VARIABLE_DECLARATION: ${varDecl.text}")
-                android.util.Log.d("SymbolBuilder", "    varDecl children: ${varDecl.children.map { "${it.kind}='${it.text.take(20)}'" }}")
                 typeNode = varDecl.findChild(SyntaxKind.NULLABLE_TYPE)
                     ?: varDecl.findChild(SyntaxKind.USER_TYPE)
                     ?: varDecl.findChild(SyntaxKind.FUNCTION_TYPE)
-                android.util.Log.d("SymbolBuilder", "    typeNode from varDecl: ${typeNode?.kind}='${typeNode?.text}'")
             }
         }
 
@@ -746,15 +679,12 @@ class SymbolBuilder private constructor(
 
         if (type == null && hasInitializer) {
             val initializerExpr = findInitializerExpression(node)
-            android.util.Log.d("SymbolBuilder", "  no explicit type, inferring from initializer: ${initializerExpr?.kind}")
             type = inferTypeFromExpression(initializerExpr)
-            android.util.Log.d("SymbolBuilder", "  inferred type: ${type?.render()}")
         }
 
         val getter = node.findChild(SyntaxKind.GETTER)?.let { processAccessor(it, "get", receiverType) }
         val setter = node.findChild(SyntaxKind.SETTER)?.let { processAccessor(it, "set", receiverType) }
 
-        android.util.Log.d("SymbolBuilder", "[VAL-CHECK] Creating PropertySymbol: name='$name', isVar=$isVar, scope=${currentScope.kind}")
         val propertySymbol = PropertySymbol(
             name = name,
             location = createLocation(node, nameNode),
@@ -771,7 +701,6 @@ class SymbolBuilder private constructor(
 
         currentScope.define(propertySymbol)
         symbolTable.registerSymbol(propertySymbol)
-        android.util.Log.d("SymbolBuilder", "[VAL-CHECK] PropertySymbol defined in scope: ${currentScope.allSymbols.map { "${it.name}(${(it as? PropertySymbol)?.isVar ?: "not-prop"})" }}")
 
         return propertySymbol
     }
@@ -887,7 +816,13 @@ class SymbolBuilder private constructor(
             "emptyList" -> TypeReference.generic("List", TypeReference.ANY)
             "emptySet" -> TypeReference.generic("Set", TypeReference.ANY)
             "emptyMap" -> TypeReference.generic("Map", TypeReference.ANY, TypeReference.ANY)
-            else -> null
+            else -> {
+                if (calleeName != null && calleeName.first().isUpperCase()) {
+                    TypeReference(calleeName)
+                } else {
+                    null
+                }
+            }
         }
     }
 
@@ -913,7 +848,6 @@ class SymbolBuilder private constructor(
     }
 
     private fun processDestructuringDeclaration(propertyNode: SyntaxNode, multiVarDecl: SyntaxNode) {
-        android.util.Log.d("SymbolBuilder", "processDestructuringDeclaration: ${multiVarDecl.text}")
 
         val isVar = propertyNode.children.any { it.kind == SyntaxKind.VAR }
         val modifiers = extractModifiers(propertyNode)
@@ -948,13 +882,10 @@ class SymbolBuilder private constructor(
 
             currentScope.define(propertySymbol)
             symbolTable.registerSymbol(propertySymbol)
-            android.util.Log.d("SymbolBuilder", "  created destructured var: $name")
         }
     }
 
     private fun processDestructuringFromParenthesized(propertyNode: SyntaxNode, parenNode: SyntaxNode) {
-        android.util.Log.d("SymbolBuilder", "processDestructuringFromParenthesized: ${parenNode.text}")
-
         val isVar = propertyNode.children.any { it.kind == SyntaxKind.VAR }
         val modifiers = extractModifiers(propertyNode)
 
@@ -978,7 +909,6 @@ class SymbolBuilder private constructor(
 
             currentScope.define(propertySymbol)
             symbolTable.registerSymbol(propertySymbol)
-            android.util.Log.d("SymbolBuilder", "  created destructured var: $name")
         }
     }
 
@@ -1079,27 +1009,20 @@ class SymbolBuilder private constructor(
             ?: return null
 
         val name = nameNode.text
-        android.util.Log.d("SymbolBuilder", "processParameter: name=$name")
-        android.util.Log.d("SymbolBuilder", "  node children: ${node.children.map { "${it.kind}='${it.text.take(30)}'" }}")
         val modifiers = extractModifiers(node)
 
         val typeNode = node.childByFieldName("type")
-        android.util.Log.d("SymbolBuilder", "  typeNode from childByFieldName: ${typeNode?.kind}='${typeNode?.text}'")
         var type = extractType(typeNode)
-        android.util.Log.d("SymbolBuilder", "  extracted type: ${type?.render()}")
 
         if (type == null) {
             val funcType = typeNode?.findChild(SyntaxKind.FUNCTION_TYPE)
                 ?: node.findChild(SyntaxKind.FUNCTION_TYPE)
             if (funcType != null) {
-                android.util.Log.d("SymbolBuilder", "  found FUNCTION_TYPE directly: ${funcType.text}")
                 type = extractType(funcType)
-                android.util.Log.d("SymbolBuilder", "  extracted function type: ${type?.render()}")
             }
         }
 
         if (type == null && typeNode != null) {
-            android.util.Log.d("SymbolBuilder", "  type null, checking typeNode children: ${typeNode.namedChildren.map { "${it.kind}='${it.text.take(30)}'" }}")
             val userType = typeNode.findChild(SyntaxKind.USER_TYPE)
                 ?: typeNode.findChild(SyntaxKind.SIMPLE_USER_TYPE)
             if (userType != null) {
@@ -1189,38 +1112,30 @@ class SymbolBuilder private constructor(
     private fun processBody(node: SyntaxNode?) {
         node ?: return
 
-        android.util.Log.d("SymbolBuilder", "processBody: node.kind=${node.kind}, currentScope=${currentScope.kind}, range=${currentScope.range}")
         val children = when (node.kind) {
             SyntaxKind.FUNCTION_BODY -> {
                 val statements = node.findChild(SyntaxKind.STATEMENTS)
-                android.util.Log.d("SymbolBuilder", "  FUNCTION_BODY: statements=${statements?.kind}, childCount=${statements?.namedChildren?.size ?: node.namedChildren.size}")
                 statements?.namedChildren ?: node.namedChildren
             }
             SyntaxKind.CONTROL_STRUCTURE_BODY -> {
                 val statements = node.findChild(SyntaxKind.STATEMENTS)
-                android.util.Log.d("SymbolBuilder", "  CONTROL_STRUCTURE_BODY: statements=${statements?.kind}, childCount=${statements?.namedChildren?.size ?: node.namedChildren.size}")
                 statements?.namedChildren ?: node.namedChildren
             }
             else -> node.namedChildren
         }
 
         for (child in children) {
-            android.util.Log.d("SymbolBuilder", "  body child: kind=${child.kind}, text='${child.text.take(40)}', range=${child.range}")
             when (child.kind) {
                 SyntaxKind.PROPERTY_DECLARATION -> {
-                    android.util.Log.d("SymbolBuilder", "    -> processing PROPERTY_DECLARATION in scope ${currentScope.kind}")
-                    val prop = processPropertyDeclaration(child)
-                    android.util.Log.d("SymbolBuilder", "    -> prop result: name=${prop?.name}, currentScope symbols after=${currentScope.allSymbols.map { it.name }}")
+                   processPropertyDeclaration(child)
                 }
                 SyntaxKind.FOR_STATEMENT -> processForStatement(child)
                 SyntaxKind.IF_EXPRESSION -> processIfExpression(child)
                 SyntaxKind.WHEN_EXPRESSION -> processWhenExpression(child)
                 SyntaxKind.TRY_EXPRESSION -> processTryExpression(child)
                 SyntaxKind.LAMBDA_LITERAL -> processLambda(child)
-                else -> {
-                    android.util.Log.d("SymbolBuilder", "    -> else branch, recursing into ${child.kind}")
-                    processBody(child)
-                }
+                SyntaxKind.ERROR -> processBody(child)
+                else -> processBody(child)
             }
         }
     }
@@ -1518,13 +1433,11 @@ class SymbolBuilder private constructor(
     }
 
     private fun extractSuperTypes(node: SyntaxNode): List<TypeReference> {
-        android.util.Log.d("SymbolBuilder", "extractSuperTypes: node.kind=${node.kind}")
 
         val results = mutableListOf<TypeReference>()
 
         val delegationSpecifiers = node.findChild(SyntaxKind.DELEGATION_SPECIFIERS)
         if (delegationSpecifiers != null) {
-            android.util.Log.d("SymbolBuilder", "  found DELEGATION_SPECIFIERS wrapper")
             delegationSpecifiers.namedChildren
                 .filter { it.kind == SyntaxKind.DELEGATION_SPECIFIER ||
                         it.kind == SyntaxKind.ANNOTATED_DELEGATION_SPECIFIER ||
@@ -1541,12 +1454,10 @@ class SymbolBuilder private constructor(
         }
 
         if (directSpecifiers.isNotEmpty()) {
-            android.util.Log.d("SymbolBuilder", "  found ${directSpecifiers.size} direct delegation specifiers")
             directSpecifiers.mapNotNull { spec -> extractTypeFromDelegationSpecifier(spec) }
                 .let { results.addAll(it) }
         }
 
-        android.util.Log.d("SymbolBuilder", "  extracted superTypes: ${results.map { it.render() }}")
         return results
     }
 
@@ -1575,66 +1486,42 @@ class SymbolBuilder private constructor(
     }
 
     private fun extractReceiverType(node: SyntaxNode): TypeReference? {
-        android.util.Log.d("SymbolBuilder", "extractReceiverType: node.kind=${node.kind}, text='${node.text.take(60)}'")
-        android.util.Log.d("SymbolBuilder", "  namedChildren: ${node.namedChildren.map { "${it.kind}='${it.text.take(20)}'" }}")
-        android.util.Log.d("SymbolBuilder", "  children: ${node.children.map { "${it.kind}='${it.text.take(20)}'" }}")
+        val receiverNode = node.findChild(SyntaxKind.RECEIVER_TYPE)
 
-        var receiverNode = node.findChild(SyntaxKind.RECEIVER_TYPE)
-        android.util.Log.d("SymbolBuilder", "  findChild(RECEIVER_TYPE)=$receiverNode")
-
-        if (receiverNode == null) {
-            for (child in node.namedChildren) {
-                android.util.Log.d("SymbolBuilder", "    checking child: ${child.kind}, text='${child.text.take(30)}'")
-                if (child.kind == SyntaxKind.USER_TYPE || child.kind == SyntaxKind.SIMPLE_USER_TYPE) {
-                    val nextSibling = node.namedChildren.getOrNull(node.namedChildren.indexOf(child) + 1)
-                    if (nextSibling?.kind == SyntaxKind.SIMPLE_IDENTIFIER || nextSibling?.text == ".") {
-                        android.util.Log.d("SymbolBuilder", "    found potential receiver: ${child.text}")
-                        val type = extractType(child)
-                        if (type != null) {
-                            android.util.Log.d("SymbolBuilder", "    returning receiver type: ${type.render()}")
-                            return type
-                        }
-                    }
-                }
-            }
-
-            val children = node.children
-            for (i in children.indices) {
-                val child = children[i]
-                if (child.text == ".") {
-                    if (i > 0) {
-                        val prevChild = children[i - 1]
-                        android.util.Log.d("SymbolBuilder", "    found dot, prevChild: ${prevChild.kind}='${prevChild.text.take(30)}'")
-                        if (prevChild.kind == SyntaxKind.USER_TYPE ||
-                            prevChild.kind == SyntaxKind.SIMPLE_USER_TYPE ||
-                            prevChild.kind == SyntaxKind.NULLABLE_TYPE) {
-                            val type = extractType(prevChild)
-                            if (type != null) {
-                                android.util.Log.d("SymbolBuilder", "    returning receiver from dot: ${type.render()}")
-                                return type
-                            }
-                        }
-                        if (prevChild.kind == SyntaxKind.SIMPLE_IDENTIFIER || prevChild.kind == SyntaxKind.TYPE_IDENTIFIER) {
-                            val type = TypeReference(prevChild.text, range = prevChild.range)
-                            android.util.Log.d("SymbolBuilder", "    returning receiver from identifier: ${type.render()}")
-                            return type
-                        }
-                    }
-                }
-            }
-
-            android.util.Log.d("SymbolBuilder", "  no receiver found")
-            return null
+        if (receiverNode != null) {
+            return extractType(
+                receiverNode.findChild(SyntaxKind.USER_TYPE)
+                    ?: receiverNode.findChild(SyntaxKind.NULLABLE_TYPE)
+                    ?: receiverNode.findChild(SyntaxKind.PARENTHESIZED_TYPE)
+                    ?: receiverNode.namedChildren.firstOrNull()
+            )
         }
 
-        android.util.Log.d("SymbolBuilder", "  receiverNode children: ${receiverNode.namedChildren.map { "${it.kind}='${it.text.take(20)}'" }}")
+        for (child in node.namedChildren) {
+            if (child.kind != SyntaxKind.USER_TYPE && child.kind != SyntaxKind.SIMPLE_USER_TYPE) continue
+            val nextSibling = node.namedChildren.getOrNull(node.namedChildren.indexOf(child) + 1)
+            if (nextSibling?.kind != SyntaxKind.SIMPLE_IDENTIFIER && nextSibling?.text != ".") continue
+            val type = extractType(child)
+            if (type != null) return type
+        }
 
-        val type = extractType(receiverNode.findChild(SyntaxKind.USER_TYPE)
-            ?: receiverNode.findChild(SyntaxKind.NULLABLE_TYPE)
-            ?: receiverNode.findChild(SyntaxKind.PARENTHESIZED_TYPE)
-            ?: receiverNode.namedChildren.firstOrNull())
-        android.util.Log.d("SymbolBuilder", "  extracted type: ${type?.render()}")
-        return type
+        val children = node.children
+        for (i in children.indices) {
+            if (children[i].text != "." || i == 0) continue
+            val prevChild = children[i - 1]
+            if (prevChild.kind == SyntaxKind.USER_TYPE ||
+                prevChild.kind == SyntaxKind.SIMPLE_USER_TYPE ||
+                prevChild.kind == SyntaxKind.NULLABLE_TYPE
+            ) {
+                val type = extractType(prevChild)
+                if (type != null) return type
+            }
+            if (prevChild.kind == SyntaxKind.SIMPLE_IDENTIFIER || prevChild.kind == SyntaxKind.TYPE_IDENTIFIER) {
+                return TypeReference(prevChild.text, range = prevChild.range)
+            }
+        }
+
+        return null
     }
 
     private fun extractReturnType(node: SyntaxNode): TypeReference? {
@@ -1651,13 +1538,11 @@ class SymbolBuilder private constructor(
     private fun extractType(node: SyntaxNode?): TypeReference? {
         node ?: return null
 
-        android.util.Log.d("SymbolBuilder", "extractType: node.kind=${node.kind}, text='${node.text.take(50)}'")
         return try {
             when (node.kind) {
                 SyntaxKind.USER_TYPE,
                 SyntaxKind.SIMPLE_USER_TYPE -> {
                     val name = extractTypeName(node)
-                    android.util.Log.d("SymbolBuilder", "  USER_TYPE: name=$name")
                     if (name.isEmpty()) return null
                     val typeArgs = extractTypeArguments(node)
                     TypeReference(name, typeArgs, range = node.range)
@@ -1665,13 +1550,11 @@ class SymbolBuilder private constructor(
 
                 SyntaxKind.NULLABLE_TYPE -> {
                     val inner = node.namedChildren.firstOrNull()
-                    android.util.Log.d("SymbolBuilder", "  NULLABLE_TYPE: inner=${inner?.kind}")
                     val innerType = extractType(inner)
                     innerType?.nullable()
                 }
 
                 SyntaxKind.FUNCTION_TYPE -> {
-                    android.util.Log.d("SymbolBuilder", "  FUNCTION_TYPE: extracting...")
                     extractFunctionType(node)
                 }
 
@@ -1729,24 +1612,18 @@ class SymbolBuilder private constructor(
     }
 
     private fun extractFunctionType(node: SyntaxNode): TypeReference {
-        android.util.Log.d("SymbolBuilder", "extractFunctionType: node=${node.text}")
-        android.util.Log.d("SymbolBuilder", "  namedChildren: ${node.namedChildren.map { "${it.kind}='${it.text.take(20)}'" }}")
 
         val receiverType = node.findChild(SyntaxKind.RECEIVER_TYPE)?.let {
-            android.util.Log.d("SymbolBuilder", "  found RECEIVER_TYPE: ${it.text}")
             extractType(it.namedChildren.firstOrNull())
         }
-        android.util.Log.d("SymbolBuilder", "  receiverType: ${receiverType?.render()}")
 
         val paramTypes = node.findChild(SyntaxKind.FUNCTION_TYPE_PARAMETERS)
             ?.namedChildren
             ?.mapNotNull { extractType(it) }
             ?: emptyList()
-        android.util.Log.d("SymbolBuilder", "  paramTypes: ${paramTypes.map { it.render() }}")
 
         val returnType = node.namedChildren.lastOrNull()?.let { extractType(it) }
             ?: TypeReference.UNIT
-        android.util.Log.d("SymbolBuilder", "  returnType: ${returnType.render()}")
 
         val result = TypeReference.functionType(
             receiverType = receiverType,
@@ -1754,7 +1631,6 @@ class SymbolBuilder private constructor(
             returnType = returnType,
             range = node.range
         )
-        android.util.Log.d("SymbolBuilder", "  result: ${result.render()}")
         return result
     }
 

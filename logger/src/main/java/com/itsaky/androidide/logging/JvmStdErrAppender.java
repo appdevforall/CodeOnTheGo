@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.logging;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import com.itsaky.androidide.logging.utils.LogUtils;
 
 /**
@@ -24,20 +25,22 @@ import com.itsaky.androidide.logging.utils.LogUtils;
  */
 public class JvmStdErrAppender extends StdErrAppender {
 
-  public static final String PROP_JVM_STDERR_APPENDER_ENABLED = "ide.logging.jvmStdErrAppenderEnabled";
+	public static final String PROP_JVM_STDERR_APPENDER_ENABLED = "ide.logging.jvmStdErrAppenderEnabled";
 
-  private boolean isJvm = false; // JvmStdErrAppender is disabled by default
+	private boolean jvmStdErrAppenderEnabled = true;
 
-  @Override
-  public void start() {
-    this.isJvm = LogUtils.isJvm();
-    super.start();
-  }
+	@Override
+	public void start() {
+		jvmStdErrAppenderEnabled = Boolean.parseBoolean(
+				System.getProperty(PROP_JVM_STDERR_APPENDER_ENABLED, "true"));
+		jvmStdErrAppenderEnabled &= LogUtils.isJvm();
+		super.start();
+	}
 
-  @Override
-  public boolean isStarted() {
-    return super.isStarted()
-        && isJvm
-        && Boolean.parseBoolean(System.getProperty(PROP_JVM_STDERR_APPENDER_ENABLED, "true"));
-  }
+	@Override
+	protected void append(ILoggingEvent eventObject) {
+		if (!jvmStdErrAppenderEnabled)
+			return;
+		super.append(eventObject);
+	}
 }
