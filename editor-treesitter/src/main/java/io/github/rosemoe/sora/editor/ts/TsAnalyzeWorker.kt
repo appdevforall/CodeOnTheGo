@@ -17,6 +17,8 @@
 
 package io.github.rosemoe.sora.editor.ts
 
+import android.os.Handler
+import android.os.Looper
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCursor
@@ -35,7 +37,6 @@ import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
@@ -271,12 +272,15 @@ class TsAnalyzeWorker(
 
     val tree = tree!!
     val scopedVariables = TsScopedVariables(tree, text, languageSpec)
-    val oldSpans = styles.spans as? LineSpansGenerator
-    val oldTree = oldSpans?.tree
-    val copied = tree.copy()
+    val oldSpans = (styles.spans as? LineSpansGenerator?)
+    val oldBrackets = analyzer.currentBracketPairs
 
+    oldSpans?.destroy()
+
+    // Use separate tree copies for the background worker and the UI thread
+    // to prevent concurrent access crashes.
     styles.spans = LineSpansGenerator(
-      copied,
+      tree.copy(),
       reference.lineCount,
       reference.reference,
       theme,
@@ -286,18 +290,17 @@ class TsAnalyzeWorker(
       requestRedraw = { stylesReceiver?.setStyles(analyzer, styles) }
     )
 
+    val newBrackets = TsBracketPairs(tree.copy(), languageSpec)
+    analyzer.currentBracketPairs = newBrackets
+
     val oldBlocks = styles.blocks
     updateCodeBlocks()
     oldBlocks?.also { ObjectAllocator.recycleBlockLines(it) }
 
     stylesReceiver?.setStyles(analyzer, styles)
+    stylesReceiver?.updateBracketProvider(analyzer, newBrackets)
 
-    analyzerScope.launch(Dispatchers.Default) {
-      oldSpans?.destroy()?.join()
-      oldTree?.close()
-    }
-
-    stylesReceiver?.updateBracketProvider(analyzer, TsBracketPairs(copied, languageSpec))
+    oldBrackets?.let { Handler(Looper.getMainLooper()).post { it.close() } }
   }
 
   private fun updateCodeBlocks() {

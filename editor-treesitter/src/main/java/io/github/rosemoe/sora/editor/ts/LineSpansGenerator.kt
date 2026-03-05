@@ -41,6 +41,10 @@
 
 package io.github.rosemoe.sora.editor.ts
 
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.util.LruCache
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCapture
 import com.itsaky.androidide.treesitter.TSQueryCursor
@@ -55,15 +59,15 @@ import io.github.rosemoe.sora.lang.styling.TextStyle
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Spans generator for tree-sitter. Results are cached.
@@ -80,45 +84,61 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
   companion object {
 
     const val CACHE_THRESHOLD = 60
+    const val TAG = "LineSpansGenerator"
+    /**
+     * Delay in milliseconds to batch UI redraws, preventing frame drops
+     * when rapidly calculating multiple lines.
+     */
+    const val REDRAW_DEBOUNCE_DELAY_MS = 150L
   }
 
-  private val caches = mutableListOf<SpanCache>()
+  /**
+   * Thread-safe cache for calculated line spans.
+   * Automatically evicts the least recently used lines.
+   */
+  private val caches = LruCache<Int, MutableList<Span>>(CACHE_THRESHOLD)
   private val calculatingLines = ConcurrentHashMap.newKeySet<Int>()
-  private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-  fun destroy(): Job? {
-    val job = scope.coroutineContext[Job]
-    scope.cancel()
-    return job
+  private val tsExecutor = Executors.newSingleThreadExecutor { r ->
+    Thread(r, "TreeSitterWorker")
   }
+  private val tsDispatcher = tsExecutor.asCoroutineDispatcher()
+  private val scope = CoroutineScope(SupervisorJob() + tsDispatcher)
+
+  /**
+   * Tracks content changes so the worker can instantly abort
+   * outdated calculations when the user types.
+   */
+  private val contentVersion = AtomicInteger(0)
+  private val mainHandler = Handler(Looper.getMainLooper())
+  private var isRefreshScheduled = AtomicBoolean(false)
 
   fun edit(edit: TSInputEdit) {
-    tree.edit(edit)
+    contentVersion.incrementAndGet()
+    scope.launch {
+      tree.edit(edit)
+      caches.evictAll()
+      calculatingLines.clear()
+    }
   }
 
-  fun queryCache(line: Int): MutableList<Span>? {
-    for (i in 0 until caches.size) {
-      val cache = caches[i]
-      if (cache.line == line) {
-        caches.removeAt(i)
-        caches.add(0, cache)
-        return cache.spans
-      }
-    }
-    return null
-  }
+  /**
+   * Queues the native tree destruction in the background
+   * so it doesn't close while a query is running.
+   */
+  fun destroy() {
+    scope.cancel()
+    caches.evictAll()
+    calculatingLines.clear()
 
-  fun pushCache(line: Int, spans: MutableList<Span>) {
-    while (caches.size >= CACHE_THRESHOLD) {
-      caches.removeAt(caches.size - 1)
-    }
-    caches.add(0, SpanCache(spans, line))
+    tsExecutor.execute { runCatching { tree.close() } }
+    tsExecutor.shutdown()
   }
 
   fun captureRegion(startIndex: Int, endIndex: Int): MutableList<Span> {
     val list = mutableListOf<Span>()
 
-    if (!tree.canAccess()) {
+    if (!tree.canAccess() || tree.rootNode.hasChanges()) {
       list.add(emptySpan(0))
       return list
     }
@@ -228,68 +248,59 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
     private var spans = mutableListOf<Span>()
 
     override fun moveToLine(line: Int) {
-      try {
-        if (line !in 0..<lineCount) {
-          spans = mutableListOf()
-          return
-        }
-        val cached = queryCache(line)
-        if (cached != null) {
-          spans = cached
-          return
-        }
-        val start = content.indexer.getCharPosition(line, 0).index
-        val end = start + content.getColumnCount(line)
-        spans = captureRegion(start, end)
-        pushCache(line, spans)
-      } catch (err: Throwable) {
-        err.printStackTrace()
-      }
+      spans = getSpansForLine(line)
     }
 
     override fun getSpanCount() = spans.size
 
     override fun getSpanAt(index: Int) = spans[index]
+    override fun getSpansOnLine(line: Int): MutableList<Span> = getSpansForLine(line)
 
-    override fun getSpansOnLine(line: Int): MutableList<Span> {
-      try {
-        val lineCount = content.lineCount
-        if (line !in 0 until lineCount) return mutableListOf(emptySpan(0))
+    private fun getSpansForLine(line: Int): MutableList<Span> {
+      if (line !in 0..<lineCount) return mutableListOf()
 
-        val cached = queryCache(line)
-        if (cached != null) return ArrayList(cached)
+      caches.get(line)?.let { return it }
 
-        // Atomically prevent duplicate concurrent calculations for the same line
-        if (calculatingLines.add(line)) {
-          // Move heavy processing to a background thread to prevent ANRs
-          scope.launch {
-            try {
-              val start = content.indexer.getCharPosition(line, 0).index
-              val end = start + content.getColumnCount(line)
-              // Execute the TreeSitter query without blocking the UI
-              val newSpans = captureRegion(start, end)
-              withContext(Dispatchers.Main) {
-                pushCache(line, newSpans)
-                // Notify Sora Editor that the cache is ready and trigger a redraw
-                requestRedraw()
-              }
-            } catch (e: CancellationException) {
-              throw e
-            } catch (e: Exception) {
-              e.printStackTrace()
-            } finally {
-              calculatingLines.remove(line)
-            }
+      if (!calculatingLines.add(line)) return mutableListOf(emptySpan(0))
+
+      val requestedVersion = contentVersion.get()
+
+      scope.launch {
+        try {
+          if (requestedVersion != contentVersion.get()) return@launch
+
+          val start = content.indexer.getCharPosition(line, 0).index
+          val end = start + content.getColumnCount(line)
+
+          val resultSpans = captureRegion(start, end)
+
+          if (requestedVersion == contentVersion.get()) {
+            caches.put(line, resultSpans)
+            scheduleRefresh()
           }
+        } catch (e: Exception) {
+          Log.e(TAG, "Error processing spans for line $line", e)
+          e.printStackTrace()
+        } finally {
+          calculatingLines.remove(line)
         }
-
-        return mutableListOf(emptySpan(0))
-      } catch (err: Throwable) {
-        err.printStackTrace()
-        throw err
-      }
+			}
+			return mutableListOf(emptySpan(0))
     }
 
+  }
+
+  /**
+   * Groups redraw requests together to avoid overloading the UI thread.
+   */
+  private fun scheduleRefresh() {
+    if (!isRefreshScheduled.compareAndSet(false, true)) return
+
+    mainHandler.postDelayed({
+      isRefreshScheduled.set(false)
+      requestRedraw()
+      Log.d(TAG, "Refreshing UI with newly processed lines")
+    }, REDRAW_DEBOUNCE_DELAY_MS)
   }
 
   override fun supportsModify() = false
@@ -300,5 +311,3 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
 
   override fun getLineCount() = lineCount
 }
-
-data class SpanCache(val spans: MutableList<Span>, val line: Int)
