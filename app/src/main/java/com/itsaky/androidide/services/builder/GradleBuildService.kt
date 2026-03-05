@@ -745,7 +745,7 @@ class GradleBuildService :
 				val reader = input.bufferedReader()
 				try {
 					reader.forEachLine { line ->
-						SERVER_System_err.error(line)
+						SERVER_System_err.debug(line)
 						if (!isActive) throw CancellationException()
 					}
 				} catch (e: Throwable) {
