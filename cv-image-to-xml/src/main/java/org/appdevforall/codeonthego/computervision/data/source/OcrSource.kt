@@ -21,7 +21,6 @@ class OcrSource {
 
             textRecognizer.process(inputImage)
                 .addOnSuccessListener { visionText ->
-                    Log.d("OcrSource", "recognizeText: ${visionText.textBlocks} TEXT: ${visionText.text}")
                     continuation.resume(Result.success(visionText.textBlocks))
                 }
                 .addOnFailureListener { exception ->
