@@ -314,9 +314,15 @@ object YoloToXmlConverter {
 
         parsedAttrs.forEach { (key, value) ->
             if (key !in writtenAttrs) {
-                xml.append("$indent    $key=\"${escapeXmlAttr(value)}\"\n")
+                // Add this logic to handle specific attribute value casing
+                val finalValue = when (key) {
+                    "android:layout_gravity" -> value.lowercase()
+                    else -> value
+                }
+                xml.append("$indent    $key=\"${escapeXmlAttr(finalValue)}\"\n")
                 writtenAttrs.add(key)
             }
+
         }
         xml.append("$indent/>")
 
