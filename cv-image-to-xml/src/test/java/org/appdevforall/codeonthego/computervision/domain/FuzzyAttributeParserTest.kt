@@ -58,6 +58,22 @@ class FuzzyAttributeParserTest {
     }
 
     @Test
+    fun `OCR garbled drawable name wm to m`() {
+        val annotation = "src: iwmages | width: 100dp"
+        val result = FuzzyAttributeParser.parse(annotation, "ImageView")
+
+        assertEquals("@drawable/images", result["android:src"])
+    }
+
+    @Test
+    fun `OCR garbled drawable name rn to m`() {
+        val annotation = "src: irnagebg | width: 100dp"
+        val result = FuzzyAttributeParser.parse(annotation, "ImageView")
+
+        assertEquals("@drawable/imagebg", result["android:src"])
+    }
+
+    @Test
     fun `delimited parses textSize with sp suffix`() {
         val annotation = "text_size: 14 | width: 100dp"
         val result = FuzzyAttributeParser.parse(annotation, "TextView")
@@ -430,5 +446,92 @@ class FuzzyAttributeParserTest {
         assertEquals("80dp", result["android:layout_height"])
         assertEquals("radius_slider", result["android:id"])
         assertEquals("#0000FF", result["android:background"])
+    }
+
+    @Test
+    fun `colonless trailing attribute after last colon-scanned key`() {
+        val annotation = "width: 100dp background red"
+        val result = FuzzyAttributeParser.parse(annotation, "Button")
+
+        assertEquals("100dp", result["android:layout_width"])
+        assertEquals("#FF0000", result["app:backgroundTint"])
+    }
+
+    @Test
+    fun `colonless trailing color for non-button`() {
+        val annotation = "text: Next backgrounli red"
+        val result = FuzzyAttributeParser.parse(annotation, "TextView")
+
+        assertEquals("Next", result["android:text"])
+        assertEquals("#FF0000", result["android:background"])
+    }
+
+    @Test
+    fun `multiple colonless trailing attributes`() {
+        val annotation = "width: 100dp background red gravity center"
+        val result = FuzzyAttributeParser.parse(annotation, "TextView")
+
+        assertEquals("100dp", result["android:layout_width"])
+        assertEquals("#FF0000", result["android:background"])
+        assertEquals("center", result["android:gravity"])
+    }
+
+    @Test
+    fun `standalone trailing color without key is inferred as background`() {
+        val annotation = "text: Next red"
+        val result = FuzzyAttributeParser.parse(annotation, "Button")
+
+        assertEquals("Next", result["android:text"])
+        assertEquals("#FF0000", result["app:backgroundTint"])
+    }
+
+    @Test
+    fun `standalone trailing color for non-button`() {
+        val annotation = "text: Submit blue"
+        val result = FuzzyAttributeParser.parse(annotation, "TextView")
+
+        assertEquals("Submit", result["android:text"])
+        assertEquals("#0000FF", result["android:background"])
+    }
+
+    @Test
+    fun `standalone trailing fuzzy color is matched`() {
+        val annotation = "width: 200dp height: 200dp text: Next pruple"
+        val result = FuzzyAttributeParser.parse(annotation, "Button")
+
+        assertEquals("200dp", result["android:layout_width"])
+        assertEquals("200dp", result["android:layout_height"])
+        assertEquals("Next", result["android:text"])
+        assertEquals("#800080", result["app:backgroundTint"])
+    }
+
+    @Test
+    fun `semicolons treated as colons`() {
+        val annotation = "width; 100dp height; 80dp id; my_btn"
+        val result = FuzzyAttributeParser.parse(annotation, "Button")
+
+        assertEquals("100dp", result["android:layout_width"])
+        assertEquals("80dp", result["android:layout_height"])
+        assertEquals("my_btn", result["android:id"])
+    }
+
+    @Test
+    fun `colonless key-value in middle of annotation`() {
+        val annotation = "id: btn_end text Start background: red"
+        val result = FuzzyAttributeParser.parse(annotation, "Button")
+
+        assertEquals("btn_end", result["android:id"])
+        assertEquals("Start", result["android:text"])
+        assertEquals("#FF0000", result["app:backgroundTint"])
+    }
+
+    @Test
+    fun `real OCR garbled annotation with semicolons and noise`() {
+        val annotation = "Ld; btn_start text; Start backgraund: gray"
+        val result = FuzzyAttributeParser.parse(annotation, "Button")
+
+        assertEquals("btn_start", result["android:id"])
+        assertEquals("Start", result["android:text"])
+        assertEquals("#808080", result["app:backgroundTint"])
     }
 }

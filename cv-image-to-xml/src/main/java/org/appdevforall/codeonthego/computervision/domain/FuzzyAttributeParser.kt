@@ -4,8 +4,13 @@ import com.itsaky.androidide.fuzzysearch.FuzzySearch
 
 object FuzzyAttributeParser {
 
-    private const val FUZZY_KEY_THRESHOLD = 65
     private const val FUZZY_VALUE_THRESHOLD = 60
+
+    private fun fuzzyKeyThreshold(keyLength: Int): Int = when {
+        keyLength <= 3 -> 50
+        keyLength == 4 -> 55
+        else -> 65
+    }
     private const val PIPE_DELIMITER = "|"
 
     enum class AttributeKey(
@@ -135,25 +140,14 @@ object FuzzyAttributeParser {
         "transparent" to "@android:color/transparent"
     )
 
-    private val ocrKeyCorrections = listOf(
-        Regex("(?i)\\bLayout\\b") to "layout",
-        Regex("(?i)\\bLayut\\b") to "layout",
-        Regex("(?i)\\bLayouL\\b") to "layout",
-        Regex("\\bld\\b") to "id",
-        Regex("\\blD\\b") to "id",
-        Regex("\\bID\\b") to "id",
-        Regex("\\btextSze\\b") to "textSize",
-        Regex("(?i)\\bwldth\\b") to "width",
-        Regex("(?i)\\bwidht\\b") to "width",
-        Regex("(?i)\\bheigth\\b") to "height",
-        Regex("(?i)\\bhejght\\b") to "height",
-        Regex("(?i)\\bheght\\b") to "height",
-        Regex("(?i)\\bbackgorund\\b") to "background",
-        Regex("(?i)\\bbackgound\\b") to "background",
-        Regex("(?i)\\bvsibility\\b") to "visibility",
-        Regex("(?i)\\bvisiblity\\b") to "visibility",
-        Regex("(?i)\\borientatlon\\b") to "orientation",
-    )
+    private fun normalizeOcrKey(raw: String): String =
+        raw.lowercase()
+            .replace("-", "_")
+            .replace(".", "_")
+            .replace(" ", "_")
+            .replace(Regex("_+"), "_")
+            .replace(Regex("lay[ao0]ut"), "layout")
+            .replace(Regex("(?<=^|_)[lt]d(?=$|_)"), "id")
 
     fun parse(annotation: String?, tag: String): Map<String, String> {
         if (annotation.isNullOrBlank()) return emptyMap()
@@ -181,17 +175,16 @@ object FuzzyAttributeParser {
     }
 
     private fun parseChunk(chunk: String, tag: String): Pair<String, String>? {
-        val corrected = applyOcrKeyCorrections(chunk)
-        val colonIndex = corrected.indexOf(':')
+        val colonIndex = chunk.indexOf(':')
 
         val rawKey: String
         val rawValue: String
 
         if (colonIndex != -1) {
-            rawKey = corrected.substring(0, colonIndex).trim()
-            rawValue = corrected.substring(colonIndex + 1).trim()
+            rawKey = chunk.substring(0, colonIndex).trim()
+            rawValue = chunk.substring(colonIndex + 1).trim()
         } else {
-            val splitResult = inferKeyValueBoundary(corrected) ?: return null
+            val splitResult = inferKeyValueBoundary(chunk) ?: return null
             rawKey = splitResult.first
             rawValue = splitResult.second
         }
@@ -207,11 +200,9 @@ object FuzzyAttributeParser {
     }
 
     private fun parseByColonScanning(annotation: String, tag: String): Map<String, String> {
-        val corrected = applyOcrKeyCorrections(annotation)
-
         val colonPositions = mutableListOf<Int>()
-        for (i in corrected.indices) {
-            if (corrected[i] == ':') colonPositions.add(i)
+        for (i in annotation.indices) {
+            if (annotation[i] == ':' || annotation[i] == ';') colonPositions.add(i)
         }
 
         if (colonPositions.isEmpty()) return emptyMap()
@@ -221,16 +212,16 @@ object FuzzyAttributeParser {
         val matchedKeys = mutableListOf<MatchedKey>()
 
         for (colonPos in colonPositions) {
-            val textBefore = corrected.substring(0, colonPos)
+            val textBefore = annotation.substring(0, colonPos)
             val words = textBefore.trimEnd().split(Regex("\\s+"))
 
             var bestMatch: Pair<AttributeKey, Int>? = null
             var bestScore = 0
 
-            for (wordCount in 1..minOf(3, words.size)) {
+            for (wordCount in minOf(3, words.size) downTo 1) {
                 val candidateWords = words.subList(words.size - wordCount, words.size)
                 val candidateKey = candidateWords.joinToString("_")
-                val normalized = candidateKey.lowercase().replace("-", "_").replace(" ", "_")
+                val normalized = normalizeOcrKey(candidateKey)
 
                 val exactMatch = AttributeKey.findByAlias(normalized)
                 if (exactMatch != null) {
@@ -240,9 +231,9 @@ object FuzzyAttributeParser {
                     break
                 }
 
-                if (normalized.length > 2) {
+                if (bestScore < 100 && normalized.length >= 2) {
                     val result = FuzzySearch.extractOne(normalized, AttributeKey.allAliases)
-                    if (result.score >= FUZZY_KEY_THRESHOLD && result.score > bestScore) {
+                    if (result.score >= fuzzyKeyThreshold(normalized.length) && result.score > bestScore) {
                         val foundKey = AttributeKey.findByAlias(result.string)
                         if (foundKey != null) {
                             val keyStart = textBefore.length - candidateWords.joinToString(" ").length
@@ -274,10 +265,17 @@ object FuzzyAttributeParser {
             val valueEnd = if (i + 1 < matchedKeys.size) {
                 matchedKeys[i + 1].keyStart
             } else {
-                corrected.length
+                annotation.length
             }
 
-            val rawValue = corrected.substring(current.valueStart, valueEnd).trim()
+            var rawValue = annotation.substring(current.valueStart, valueEnd).trim()
+
+            if (rawValue.isNotEmpty()) {
+                val (truncated, trailingAttrs) = extractTrailingAttributes(rawValue, tag)
+                rawValue = truncated
+                result.putAll(trailingAttrs)
+            }
+
             if (rawValue.isNotEmpty()) {
                 val cleanedValue = cleanValue(rawValue, current.key)
                 if (cleanedValue.isNotEmpty()) {
@@ -290,12 +288,53 @@ object FuzzyAttributeParser {
         return result
     }
 
-    private fun applyOcrKeyCorrections(text: String): String {
-        var corrected = text
-        for ((pattern, replacement) in ocrKeyCorrections) {
-            corrected = corrected.replace(pattern, replacement)
+    private fun extractTrailingAttributes(value: String, tag: String): Pair<String, Map<String, String>> {
+        val attrs = mutableMapOf<String, String>()
+        var remaining = value
+
+        while (true) {
+            val words = remaining.split(Regex("\\s+"))
+            if (words.size < 2) break
+
+            var found = false
+            for (keyStart in words.size - 2 downTo 1) {
+                for (keyLen in minOf(3, words.size - keyStart - 1) downTo 1) {
+                    val candidateKey = words.subList(keyStart, keyStart + keyLen).joinToString("_")
+                    val matched = fuzzyMatchKey(candidateKey) ?: continue
+
+                    val trailingValue = words.subList(keyStart + keyLen, words.size).joinToString(" ")
+                    val cleanedValue = cleanValue(trailingValue, matched)
+                    if (cleanedValue.isEmpty()) continue
+
+                    val (attr, finalValue) = resolveXmlAttribute(matched, cleanedValue, tag)
+                    attrs[attr] = finalValue
+                    remaining = words.subList(0, keyStart).joinToString(" ")
+                    found = true
+                    break
+                }
+                if (found) break
+            }
+
+            if (!found) break
         }
-        return corrected
+
+        val finalWords = remaining.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (finalWords.size >= 2 && isLikelyColor(finalWords.last())) {
+            val colorValue = cleanColor(finalWords.last())
+            val (attr, finalValue) = resolveXmlAttribute(AttributeKey.BACKGROUND, colorValue, tag)
+            attrs[attr] = finalValue
+            remaining = finalWords.dropLast(1).joinToString(" ")
+        }
+
+        return remaining to attrs
+    }
+
+    private fun isLikelyColor(word: String): Boolean {
+        val normalized = word.lowercase()
+        if (normalized.startsWith("#") && normalized.length in 4..9) return true
+        if (colorMap.containsKey(normalized)) return true
+        val result = FuzzySearch.extractOne(normalized, colorMap.keys.toList())
+        return result.score >= FUZZY_VALUE_THRESHOLD
     }
 
     private fun inferKeyValueBoundary(chunk: String): Pair<String, String>? {
@@ -304,16 +343,16 @@ object FuzzyAttributeParser {
 
         for (splitPoint in 1..minOf(3, words.size - 1)) {
             val candidateKey = words.subList(0, splitPoint).joinToString("_")
-            val normalized = candidateKey.lowercase().replace("-", "_")
+            val normalized = normalizeOcrKey(candidateKey)
 
             if (AttributeKey.findByAlias(normalized) != null) {
                 val value = words.subList(splitPoint, words.size).joinToString(" ")
                 return candidateKey to value
             }
 
-            if (normalized.length > 2) {
+            if (normalized.length >= 2) {
                 val result = FuzzySearch.extractOne(normalized, AttributeKey.allAliases)
-                if (result.score >= FUZZY_KEY_THRESHOLD) {
+                if (result.score >= fuzzyKeyThreshold(normalized.length)) {
                     val value = words.subList(splitPoint, words.size).joinToString(" ")
                     return candidateKey to value
                 }
@@ -323,15 +362,15 @@ object FuzzyAttributeParser {
     }
 
     private fun fuzzyMatchKey(rawKey: String): AttributeKey? {
-        val normalizedKey = rawKey.lowercase().replace("-", "_").replace(" ", "_")
+        val normalizedKey = normalizeOcrKey(rawKey)
 
         val exactMatch = AttributeKey.findByAlias(normalizedKey)
         if (exactMatch != null) return exactMatch
 
-        if (normalizedKey.length <= 2) return null
+        if (normalizedKey.length < 2) return null
 
         val result = FuzzySearch.extractOne(normalizedKey, AttributeKey.allAliases)
-        if (result.score < FUZZY_KEY_THRESHOLD) return null
+        if (result.score < fuzzyKeyThreshold(normalizedKey.length)) return null
 
         return AttributeKey.findByAlias(result.string)
     }
@@ -360,14 +399,14 @@ object FuzzyAttributeParser {
         val wrapContent = FuzzySearch.ratio(normalized, "wrap_content")
         if (wrapContent >= FUZZY_VALUE_THRESHOLD) return "wrap_content"
 
-        val numericPart = Regex("-?\\d+").find(value)?.value
+        val numericPart = extractOcrNumber(value.replace(" ", ""))
         if (numericPart != null) return "${numericPart}dp"
 
         return value
     }
 
     private fun cleanSpDimension(value: String): String {
-        val numericPart = Regex("\\d+").find(value)?.value
+        val numericPart = extractOcrNumber(value)
         if (numericPart != null) return "${numericPart}sp"
         return value
     }
@@ -390,21 +429,39 @@ object FuzzyAttributeParser {
     }
 
     private fun cleanId(value: String): String {
-        return value.replace(Regex("[^a-zA-Z0-9_]"), "_").trimEnd('_').trimStart('_')
+        return value.lowercase()
+            .replace(Regex("[^a-z0-9_]"), "_")
+            .replace(Regex("_+"), "_")
+            .trimEnd('_')
+            .trimStart('_')
+            .replace(Regex("_[a-z]$"), "")
     }
 
+    private fun denoiseOcrIdentifier(value: String): String =
+        value.replace("rn", "m")
+            .replace("wm", "m")
+
     private fun cleanDrawable(value: String): String {
-        val cleaned = value.replace(Regex("[^a-zA-Z0-9_./]"), "")
-        return if (cleaned.startsWith("@drawable/")) cleaned
-        else "@drawable/${cleaned.substringBeforeLast('.')}"
+        if (value.startsWith("@drawable/")) return value
+        val cleaned = value.replace(Regex("[^a-zA-Z0-9_.]"), "")
+            .substringBeforeLast('.')
+            .lowercase()
+        return "@drawable/${denoiseOcrIdentifier(cleaned)}"
     }
 
     private fun cleanInteger(value: String): String {
-        return Regex("-?\\d+").find(value)?.value ?: value
+        return extractOcrNumber(value) ?: value
     }
 
     private fun cleanFloat(value: String): String {
         return Regex("-?\\d+\\.?\\d*").find(value)?.value ?: value
+    }
+
+    private fun extractOcrNumber(value: String): String? {
+        val match = Regex("-?\\d[\\doOlIaA]*").find(value) ?: return null
+        return match.value
+            .replace(Regex("[oOaA]"), "0")
+            .replace(Regex("[lI]"), "1")
     }
 
     private fun resolveXmlAttribute(
