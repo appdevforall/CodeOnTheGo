@@ -1044,15 +1044,10 @@ open class EditorHandlerActivity :
 	}
 
 	fun selectPluginTabById(tabId: String): Boolean {
-		Log.d("EditorHandlerActivity", "selectPluginTabById called with tabId: $tabId")
-		Log.d("EditorHandlerActivity", "Available plugin tab indices: $pluginTabIndices")
-		Log.d("EditorHandlerActivity", "Available plugin tab keys: ${pluginTabIndices.keys.toList()}")
-		Log.d("EditorHandlerActivity", "Total plugin tabs loaded: ${pluginTabIndices.size}")
 
 		// Check if the tab already exists
 		val existingTabIndex = pluginTabIndices[tabId]
 		if (existingTabIndex != null) {
-			Log.d("EditorHandlerActivity", "Plugin tab $tabId already exists at index $existingTabIndex")
 			val tab = content.tabs.getTabAt(existingTabIndex)
 			if (tab != null && !tab.isSelected) {
 				tab.select()
@@ -1060,8 +1055,6 @@ open class EditorHandlerActivity :
 			return true
 		}
 
-		// If tab doesn't exist, create it now
-		Log.d("EditorHandlerActivity", "Plugin tab $tabId not found, creating it now...")
 		return createPluginTab(tabId)
 	}
 
@@ -1079,11 +1072,9 @@ open class EditorHandlerActivity :
 			val pluginTabs = tabManager.getAllPluginTabs()
 			val pluginTab =
 				pluginTabs.find { it.id == tabId } ?: run {
-					Log.w("EditorHandlerActivity", "Plugin tab $tabId not found in available tabs")
 					return false
 				}
 
-			Log.d("EditorHandlerActivity", "Creating UI tab for plugin: ${pluginTab.id} (${pluginTab.title})")
 
 			runOnUiThread {
 				val content = contentOrNull ?: return@runOnUiThread
@@ -1109,7 +1100,6 @@ open class EditorHandlerActivity :
 				pluginTabIndices[pluginTab.id] = tabIndex
 				tabIndexToPluginId[tabIndex] = pluginTab.id
 
-				Log.d("EditorHandlerActivity", "Plugin tab ${pluginTab.id} created at index $tabIndex")
 
 				// Load the plugin fragment into the container
 				val fragment = tabManager.getOrCreateTabFragment(pluginTab.id)
@@ -1129,7 +1119,17 @@ open class EditorHandlerActivity :
 				editorViewModel.displayedFileIndex = -1
 				updateTabVisibility()
 
-				Log.d("EditorHandlerActivity", "Successfully created and selected plugin tab: ${pluginTab.id}")
+                pluginTabIndices.forEach {
+                    val tab = content.tabs.getTabAt(it.value) ?: return@forEach
+                    tab.view.setOnLongClickListener {
+                        TooltipManager.showIdeCategoryTooltip(
+                            context = this@EditorHandlerActivity,
+                            anchorView = tab.view,
+                            tag = TooltipTag.PROJECT_PLUGIN_TAB,
+                        )
+                        true
+                    }
+                }
 			}
 
 			return true
