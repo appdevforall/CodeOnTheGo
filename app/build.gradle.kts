@@ -156,6 +156,10 @@ android {
 			excludes.add("META-INF/DEPENDENCIES")
 			excludes.add("META-INF/gradle/incremental.annotation.processors")
 		}
+
+		jniLibs {
+			useLegacyPackaging = false
+		}
 	}
 	compileOptions {
 		sourceCompatibility = JavaVersion.VERSION_17
@@ -298,6 +302,7 @@ dependencies {
 	implementation(projects.idetooltips)
 	implementation(projects.cvImageToXml)
 	implementation(projects.composePreview)
+  implementation(projects.gitCore)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -313,6 +318,7 @@ dependencies {
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
 	androidTestUtil(libs.tests.orchestrator)
+    testImplementation(libs.tests.kotlinx.coroutines)
 
 	// brotli4j
 	implementation(libs.brotli4j)
@@ -806,6 +812,11 @@ afterEvaluate {
 				}
 			}
 		}
+
+		dependsOn(bundleLlamaV8Assets)
+    if (!isCiCd) {
+      dependsOn("assetsDownloadDebug")
+    }
 	}
 
 	tasks.named("assembleV7Debug").configure {
@@ -822,6 +833,11 @@ afterEvaluate {
 				}
 			}
 		}
+
+		dependsOn(bundleLlamaV7Assets)
+    if (!isCiCd) {
+      dependsOn("assetsDownloadDebug")
+    }
 	}
 }
 

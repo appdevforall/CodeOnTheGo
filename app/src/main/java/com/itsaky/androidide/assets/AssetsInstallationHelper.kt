@@ -77,14 +77,19 @@ object AssetsInstallationHelper {
 				}
 
 			if (result.isFailure) {
-				val e = result.exceptionOrNull()
-				if (e is CancellationException) {
-					throw e
+				val e = result.exceptionOrNull() ?: RuntimeException(context.getString(R.string.error_installation_failed))
+				if (e is CancellationException) throw e
+
+				val isMissingAsset = generateSequence(e) { it.cause }.any { it is FileNotFoundException }
+				val cause = if (isMissingAsset) MissingAssetsEntryException(e) else e
+				val msg = if (isMissingAsset) {
+					context.getString(R.string.err_missing_or_corrupt_assets, context.getString(R.string.app_name))
+				} else {
+					e.message ?: context.getString(R.string.error_installation_failed)
 				}
-				val msg = e?.message ?: "Failed to install assets"
 				logger.error("Failed to install assets", e)
 				onProgress(Progress(msg))
-				return@withContext Result.Failure(e, errorMessage = msg)
+				return@withContext Result.Failure(cause, errorMessage = msg, shouldReportToSentry = !isMissingAsset)
 			}
 
 			return@withContext Result.Success
@@ -140,80 +145,83 @@ object AssetsInstallationHelper {
 			return@coroutineScope Result.Failure(IOException("preInstall failed"))
 		}
 
-        val entrySizes: Map<String, Long> = expectedEntries.associateWith { entry ->
-            ASSETS_INSTALLER.expectedSize(entry)
-        }
-
-        val totalSize = entrySizes.values.sum()
-
-        val entryStatusMap = ConcurrentHashMap<String, String>()
-
-		val installerJobs =
-			expectedEntries.map { entry ->
-				async {
-					entryStatusMap[entry] = STATUS_INSTALLING
-
-					ASSETS_INSTALLER.doInstall(
-						context = context,
-						stagingDir = stagingDir,
-						cpuArch = cpuArch,
-						entryName = entry,
-					)
-
-					entryStatusMap[entry] = STATUS_FINISHED
-				}
+		try {
+			val entrySizes: Map<String, Long> = expectedEntries.associateWith { entry ->
+				ASSETS_INSTALLER.expectedSize(entry)
 			}
 
-		val progressUpdater =
-            launch {
-                var previousSnapshot = ""
-                while (isActive) {
-                    val installedSize = entryStatusMap
-                        .filterValues { it == STATUS_FINISHED }
-                        .keys
-                        .sumOf { entrySizes[it] ?: 0 }
+			val totalSize = entrySizes.values.sum()
 
-                    val percent = if (totalSize > 0) {
-                        (installedSize * 100.0 / totalSize)
-                    } else 0.0
+			val entryStatusMap = ConcurrentHashMap<String, String>()
 
-                    val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
+			val installerJobs =
+				expectedEntries.map { entry ->
+					async {
+						entryStatusMap[entry] = STATUS_INSTALLING
 
-                    val snapshot =
-                        if (percent >= 99.0) {
-                            "Post install processing in progress...."
-                        } else {
-                            buildString {
-                                entryStatusMap.forEach { (entry, status) ->
-                                    appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
-                                }
-                                appendLine("--------------------")
-                                appendLine("Progress: ${formatPercent(percent)}")
-                                appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
-                                appendLine("Remaining storage: ${formatBytes(freeStorage)}")
-                            }
-                        }
+						ASSETS_INSTALLER.doInstall(
+							context = context,
+							stagingDir = stagingDir,
+							cpuArch = cpuArch,
+							entryName = entry,
+						)
 
-                    if (snapshot != previousSnapshot) {
-                        onProgress(Progress(snapshot))
-                        previousSnapshot = snapshot
-                    }
+						entryStatusMap[entry] = STATUS_FINISHED
+					}
+				}
 
-                    delay(500)
-                }
-            }
+			val progressUpdater =
+				launch {
+					var previousSnapshot = ""
+					while (isActive) {
+						val installedSize = entryStatusMap
+							.filterValues { it == STATUS_FINISHED }
+							.keys
+							.sumOf { entrySizes[it] ?: 0 }
 
-        // wait for all jobs to complete
-		installerJobs.joinAll()
+						val percent = if (totalSize > 0) {
+							(installedSize * 100.0 / totalSize)
+						} else 0.0
 
-		// notify post-install
-		ASSETS_INSTALLER.postInstall(context, stagingDir)
+						val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
 
-		// then cancel progress updater
-		progressUpdater.cancel()
+						val snapshot =
+							if (percent >= 99.0) {
+								"Post install processing in progress...."
+							} else {
+								buildString {
+									entryStatusMap.forEach { (entry, status) ->
+										appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+									}
+									appendLine("--------------------")
+									appendLine("Progress: ${formatPercent(percent)}")
+									appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
+									appendLine("Remaining storage: ${formatBytes(freeStorage)}")
+								}
+							}
 
-		// clean up
-		stagingDir.deleteRecursively()
+						if (snapshot != previousSnapshot) {
+							onProgress(Progress(snapshot))
+							previousSnapshot = snapshot
+						}
+
+						delay(500)
+					}
+				}
+
+			// wait for all jobs to complete
+			installerJobs.joinAll()
+
+			// then cancel progress updater
+			progressUpdater.cancel()
+		} finally {
+			// Always run postInstall so zip/FS resources are closed (e.g. SplitAssetsInstaller.zipFile)
+			runCatching { ASSETS_INSTALLER.postInstall(context, stagingDir) }
+				.onFailure { e -> logger.warn("postInstall failed", e) }
+			if (Files.exists(stagingDir)) {
+				stagingDir.deleteRecursively()
+			}
+		}
 	}
 
 	@WorkerThread

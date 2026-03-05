@@ -23,7 +23,9 @@ import android.os.Build
 import android.os.Bundle
 import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
+import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.hasEnoughStorageAvailable
 import kotlin.system.exitProcess
 
 /**
@@ -32,6 +34,11 @@ import kotlin.system.exitProcess
 class SplashActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		if (!hasEnoughStorageAvailable()) {
+			showLowStorageDialog()
+			return
+		}
 
 		val isX86 = Build.SUPPORTED_ABIS.firstOrNull() in listOf(CpuArch.X86_64.abi, CpuArch.X86.abi)
 
