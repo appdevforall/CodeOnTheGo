@@ -2,10 +2,13 @@ package com.itsaky.androidide.git.core
 
 import android.util.Log
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
+import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.transport.CredentialsProvider
 import java.io.File
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.lib.ProgressMonitor
 
 /**
  * Utility class for detecting and opening Git repositories.
@@ -38,6 +41,41 @@ object GitRepositoryManager {
             JGitRepository(dir)
         } else {
             null
+        }
+    }
+
+    /**
+     * Clones a Git repository from the given URL to the specified directory.
+     *
+     * @param url The URL of the repository to clone.
+     * @param destDir The destination directory.
+     * @param credentialsProvider Optional credentials provider for authentication.
+     * @return The cloned [GitRepository].
+     */
+    suspend fun cloneRepository(
+        url: String,
+        destDir: File,
+        credentialsProvider: CredentialsProvider? = null,
+        progressMonitor: ProgressMonitor? = null
+    ): GitRepository = withContext(Dispatchers.IO) {
+        val cloneCommand = Git.cloneRepository()
+            .setURI(url)
+            .setDirectory(destDir)
+            .setCloneAllBranches(true)
+
+        if (progressMonitor != null) {
+            cloneCommand.setProgressMonitor(progressMonitor)
+        }
+
+        if (credentialsProvider != null) {
+            cloneCommand.setCredentialsProvider(credentialsProvider)
+        }
+
+        try {
+            cloneCommand.call().close()
+            JGitRepository(destDir)
+        } catch (e: Exception) {
+            throw e
         }
     }
 }
