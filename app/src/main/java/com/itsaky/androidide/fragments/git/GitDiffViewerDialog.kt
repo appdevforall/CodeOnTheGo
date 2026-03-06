@@ -3,21 +3,23 @@ package com.itsaky.androidide.fragments.git
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.os.Bundle
-import android.text.Spannable
 import android.text.SpannableStringBuilder
+import android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
 import android.text.style.ForegroundColorSpan
 import android.text.style.LineBackgroundSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.getColor
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitDiffBinding
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class GitDiffViewerDialog : DialogFragment() {
@@ -25,9 +27,6 @@ class GitDiffViewerDialog : DialogFragment() {
     private val viewModel: GitBottomSheetViewModel by activityViewModels()
 
     private var filePath: String = ""
-
-    private var _binding: DialogGitDiffBinding? = null
-    private val binding get() = _binding!!
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,17 +39,18 @@ class GitDiffViewerDialog : DialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = DialogGitDiffBinding.inflate(inflater, container, false)
-        return binding.root
+        return inflater.inflate(R.layout.dialog_git_diff, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        val binding = DialogGitDiffBinding.bind(view)
+        
         binding.diffTitle.text = filePath
         binding.diffText.text = getString(R.string.diff_loading)
 
-        viewLifecycleOwner.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val repo = viewModel.currentRepository
             val diff = if (repo != null && repo.rootDir.exists()) {
                 val file = File(repo.rootDir, filePath)
@@ -59,21 +59,14 @@ class GitDiffViewerDialog : DialogFragment() {
                 null
             } ?: getString(R.string.unable_to_load_diff)
 
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                if (_binding != null) {
-                    binding.diffText.text = applyDiffFormatting(diff)
-                }
+            withContext(Dispatchers.Main) {
+                binding.diffText.text = applyDiffFormatting(diff)
             }
         }
         
         binding.btnClose.setOnClickListener {
             dismiss()
         }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 
     private fun applyDiffFormatting(diff: String): SpannableStringBuilder {
@@ -85,11 +78,11 @@ class GitDiffViewerDialog : DialogFragment() {
         val startIndex = if (firstChunkIndex != -1) firstChunkIndex else 0
         
         val context = requireContext()
-        val colorAdd = ContextCompat.getColor(context, R.color.git_diff_add_text)
-        val bgAdd = ContextCompat.getColor(context, R.color.git_diff_add_bg)
-        val colorDel = ContextCompat.getColor(context, R.color.git_diff_del_text)
-        val bgDel = ContextCompat.getColor(context, R.color.git_diff_del_bg)
-        val colorHeader = ContextCompat.getColor(context, R.color.git_diff_header_text)
+        val colorAdd = getColor(context, R.color.git_diff_add_text)
+        val bgAdd = getColor(context, R.color.git_diff_add_bg)
+        val colorDel = getColor(context, R.color.git_diff_del_text)
+        val bgDel = getColor(context, R.color.git_diff_del_bg)
+        val colorHeader = getColor(context, R.color.git_diff_header_text)
 
         for (i in startIndex until lines.size) {
             val line = lines[i]
@@ -100,22 +93,32 @@ class GitDiffViewerDialog : DialogFragment() {
                     builder.append(formattedLine).append("\n")
                     val endIdx = builder.length
                     
-                    builder.setSpan(ForegroundColorSpan(colorAdd), startIdx, endIdx, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    builder.setSpan(FullWidthBackgroundColorSpan(bgAdd), startIdx, endIdx, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    builder.setSpan(ForegroundColorSpan(colorAdd), startIdx, endIdx,
+                        SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    builder.setSpan(FullWidthBackgroundColorSpan(bgAdd), startIdx, endIdx,
+                        SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
                 }
                 line.startsWith("-") && !line.startsWith("---") -> {
                     val formattedLine = line.replaceFirst("-", "-    ")
                     builder.append(formattedLine).append("\n")
                     val endIdx = builder.length
                     
-                    builder.setSpan(ForegroundColorSpan(colorDel), startIdx, endIdx, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    builder.setSpan(FullWidthBackgroundColorSpan(bgDel), startIdx, endIdx, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    builder.setSpan(ForegroundColorSpan(colorDel), startIdx, endIdx,
+                        SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    builder.setSpan(FullWidthBackgroundColorSpan(bgDel), startIdx, endIdx,
+                        SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
                 }
                 line.startsWith("@@") -> {
                     builder.append(line).append("\n")
                     val endIdx = builder.length
                     
-                    builder.setSpan(ForegroundColorSpan(colorHeader), startIdx, endIdx, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    builder.setSpan(ForegroundColorSpan(colorHeader), startIdx, endIdx,
+                        SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
                 }
                 else -> {
                     val formattedLine = if (line.startsWith(" ")) "    $line" else line
