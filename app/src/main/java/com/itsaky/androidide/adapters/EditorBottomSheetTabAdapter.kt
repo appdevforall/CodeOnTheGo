@@ -384,7 +384,7 @@ class EditorBottomSheetTabAdapter(
 						title = data.tabItem.title,
 						fragmentClass = Fragment::class.java, // Placeholder, actual fragment from factory
 						itemId = startIndex + index + 1000L, // Offset to avoid conflicts
-						tooltipTag = null,
+						tooltipTag = TooltipTag.PROJECT_PLUGIN_TAB,
 					)
 
 				// Store the fragment factory and the extension for later use
