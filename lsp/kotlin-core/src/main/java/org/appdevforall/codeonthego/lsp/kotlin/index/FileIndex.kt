@@ -98,6 +98,10 @@ class FileIndex(
         return symbolsByFqName.values.filter { it.isTopLevel }
     }
 
+    fun findMembers(classFqName: String): List<IndexedSymbol> {
+        return symbolsByFqName.values.filter { it.containingClass == classFqName }
+    }
+
     /**
      * Gets all extension symbols.
      */
