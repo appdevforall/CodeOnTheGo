@@ -3,20 +3,24 @@ package org.appdevforall.localwebserver
 import android.database.sqlite.SQLiteDatabase
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import org.slf4j.LoggerFactory
-import java.io.BufferedReader
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.InputStreamReader
+import java.io.InputStream
 import java.io.PrintWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.URLDecoder
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 data class ServerConfig(
     val port: Int = 6174,
     val databasePath: String,
+    val fileDirPath: String,
     val bindName: String = "localhost",
     val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/documentation.db",
@@ -27,6 +31,14 @@ data class ServerConfig(
 
 // Yes, this is hack code.
     val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
+)
+
+data class JavaExecutionResult(
+    val compileOutput: String,
+    val runOutput: String,
+    val timedOut: Boolean,
+    val compileTimeMs: Long,
+    val timeoutLimit: Long
 )
 
 class WebServer(private val config: ServerConfig) {
@@ -211,8 +223,28 @@ clientSocket and the catch block logic are updated accordingly.
         }
     }
 
+    /**
+     * Reads a single line from the stream (bytes until newline). Same stream is used for headers
+     * and body so POST body bytes are not lost to a separate buffered reader. HTTP header lines are ASCII.
+     */
+    private fun readLineFromStream(input: InputStream): String? {
+        val baos = ByteArrayOutputStream()
+        while (true) {
+            val b = input.read()
+            if (b == -1) return if (baos.size() == 0) null else baos.toString(Charsets.ISO_8859_1).trimEnd('\r')
+            if (b == '\n'.code) break
+            baos.write(b)
+        }
+        val bytes = baos.toByteArray()
+        val len = if (bytes.isNotEmpty() && bytes[bytes.size - 1] == '\r'.code.toByte()) bytes.size - 1 else bytes.size
+        return String(bytes, 0, len, Charsets.ISO_8859_1)
+    }
+
     private fun handleClient(clientSocket: Socket) {
         if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
+
+        val input = clientSocket.getInputStream()
+        if (debugEnabled) log.debug("  input is {}.", input)
 
         val output = clientSocket.getOutputStream()
         if (debugEnabled) log.debug("  output is {}.", output)
@@ -220,13 +252,10 @@ clientSocket and the catch block logic are updated accordingly.
         val writer = PrintWriter(output, true)
         if (debugEnabled) log.debug("  writer is {}.", writer)
 
-        val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
-        if (debugEnabled) log.debug("  reader is {}.", reader)
-
         var brotliSupported = false //assume nothing
 
         // Read the request method line, it is always the first line of the request
-        var requestLine = reader.readLine()
+        var requestLine = readLineFromStream(input)
         if (requestLine == null) {
             if (debugEnabled) log.debug("requestLine is null. Returning from handleClient() early.")
             return
@@ -245,24 +274,27 @@ clientSocket and the catch block logic are updated accordingly.
         var path   = parts[1].split("?")[0] // Discard any HTTP query parameters.
         path = path.substring(1)
 
+        // Read all headers until blank line (needed for Content-Length on POST and Accept-Encoding on GET)
+        val headers = mutableMapOf<String, String>()
+        while (true) {
+            requestLine = readLineFromStream(input) ?: break
+            if (requestLine.isEmpty()) break
+            if (debugEnabled) log.debug("Header: {}", requestLine)
+            val colon = requestLine.indexOf(':')
+            if (colon > 0) {
+                headers[requestLine.substring(0, colon).trim().lowercase()] = requestLine.substring(colon + 1).trim()
+            }
+        }
+        brotliSupported = headers["accept-encoding"]?.contains(brotliCompression) == true
+
+        // Playground endpoint: POST only, handled before GET-only check
+        if (path == "playground/execute") {
+            return handlePlaygroundExecute(input, writer, output, method, headers)
+        }
+
         // we only support teh GET method, return an error page for anything else
         if (method != "GET") {
             return sendError(writer, output, 501, "Not Implemented")
-        }
-
-        //the HTTP headers follow the the method line, read until eof or 0 length
-        //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
-        while(requestLine.isNotEmpty()) {
-            requestLine = reader.readLine() ?: break
-
-           if (debugEnabled) log.debug("Header: {}", requestLine)
-
-            if (requestLine.startsWith(encodingHeader)) {
-                val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-
-                brotliSupported = parts.contains(brotliCompression)
-                break
-            }
         }
 
         //check to see if there is a newer version of the documentation.db database on the sdcard
@@ -705,5 +737,168 @@ Connection: close
         output.flush()
 
         if (debugEnabled) log.debug("Leaving sendCSS().")
+    }
+
+    private fun handlePlaygroundExecute(
+        input: java.io.InputStream,
+        writer: PrintWriter,
+        output: java.io.OutputStream,
+        method: String,
+        headers: Map<String, String>
+    ) {
+        if (method != "POST") {
+            return sendError(writer, output, 405, "Method Not Allowed")
+        }
+        val contentLengthStr = headers["content-length"] ?: run {
+            return sendError(writer, output, 400, "Bad Request", "Missing Content-Length")
+        }
+        val contentLength = contentLengthStr.toIntOrNull() ?: run {
+            return sendError(writer, output, 400, "Bad Request", "Invalid Content-Length")
+        }
+        if (contentLength <= 0) {
+            return sendError(writer, output, 400, "Bad Request", "Content-Length must be positive")
+        }
+        if (contentLength > 10_000) {
+            return sendError(writer, output, 413, "Payload Too Large")
+        }
+        val body = ByteArray(contentLength)
+        var offset = 0
+        while (offset < contentLength) {
+            val read = input.read(body, offset, contentLength - offset)
+            if (read <= 0) {
+                return sendError(writer, output, 400, "Bad Request", "Input stream interrupted prematurely")
+            }
+            offset += read
+        }
+        val data = parseFormDataField(body, "data") ?: run {
+            return sendError(writer, output, 400, "Bad Request", "Missing or empty form field 'data'")
+        }
+        if (data.size > 10_000) {
+            return sendError(writer, output, 413, "Payload Too Large")
+        }
+        val workDir =
+            File(config.fileDirPath, "playground_${System.nanoTime()}_${java.util.UUID.randomUUID()}")
+                .apply { mkdirs() }
+        try {
+            val sourceFile = createFileFromPost(data, workDir)
+            val result = compileAndRunJava(sourceFile)
+            val sourceString = data.toString(Charsets.UTF_8)
+            val responseBody = sourceString + result
+            val responseBytes = responseBody.toByteArray(Charsets.UTF_8)
+            writer.println("HTTP/1.1 200 OK")
+            writer.println("Content-Type: text/plain; charset=utf-8")
+            writer.println("Content-Length: ${responseBytes.size}")
+            writer.println()
+            writer.flush()
+            output.write(responseBytes)
+            output.flush()
+        } finally {
+            workDir.deleteRecursively()
+        }
+    }
+
+    private fun parseFormDataField(body: ByteArray, fieldName: String): ByteArray? {
+        val bodyStr = body.toString(Charsets.UTF_8)
+        val pairs = bodyStr.split("&")
+        for (pair in pairs) {
+            val eq = pair.indexOf('=')
+            if (eq < 0) continue
+            val key = URLDecoder.decode(pair.substring(0, eq), "UTF-8")
+            if (key != fieldName) continue
+            val value = pair.substring(eq + 1)
+            val decoded = URLDecoder.decode(value, "UTF-8")
+            if (decoded.isEmpty()) return null
+            return decoded.toByteArray(Charsets.UTF_8)
+        }
+        return null
+    }
+
+    private fun createFileFromPost(data: ByteArray, workDir: File): File {
+        require(data.size <= 10_000) { "data exceeds 10000 bytes" }
+        val file = File(workDir, "Playground.java")
+        file.writeBytes(data)
+        return file
+    }
+
+    private fun compileAndRunJava(sourceFile: File): String {
+        val dir = sourceFile.parentFile
+        val fileName = sourceFile.nameWithoutExtension
+        val classFile = File(dir, "$fileName.class")
+        classFile.delete()
+        val directoryPath = config.fileDirPath
+        val javacPath = "$directoryPath/usr/bin/javac"
+        val javaPath = "$directoryPath/usr/bin/java"
+        val filePath = sourceFile.absolutePath
+
+        val compileTimeoutSec = 60L
+        val runTimeoutSec = 120L
+        val destroyWaitSec = 5L
+
+        try {
+            val javac = ProcessBuilder(javacPath, filePath)
+                .directory(dir)
+                .redirectErrorStream(true)
+                .start()
+            javac.outputStream.close()
+            val compileOutputRef = AtomicReference<String>("")
+            val compileReader =
+                Thread {
+                    compileOutputRef.set(
+                        javac.inputStream.bufferedReader().readText()
+                    )
+                }
+            compileReader.start()
+            val compileDone =
+                javac.waitFor(compileTimeoutSec, TimeUnit.SECONDS)
+            if (!compileDone) {
+                javac.destroyForcibly()
+                javac.waitFor(destroyWaitSec, TimeUnit.SECONDS)
+                compileReader.join(1000)
+                return "Compilation timed out after ${compileTimeoutSec}s:\n${compileOutputRef.get()}"
+            }
+            compileReader.join(2000)
+            val compileOutput = compileOutputRef.get()
+            if (javac.exitValue() != 0) {
+                return "Compilation failed:\n$compileOutput"
+            }
+
+            val java =
+                ProcessBuilder(
+                    javaPath,
+                    "-cp",
+                    dir?.absolutePath ?: "",
+                    fileName
+                )
+                    .directory(dir)
+                    .redirectErrorStream(true)
+                    .start()
+            java.outputStream.close()
+            val runOutputRef = AtomicReference<String>("")
+            val runReader =
+                Thread {
+                    runOutputRef.set(
+                        java.inputStream.bufferedReader().readText()
+                    )
+                }
+            runReader.start()
+            val runDone = java.waitFor(runTimeoutSec, TimeUnit.SECONDS)
+            if (!runDone) {
+                java.destroyForcibly()
+                java.waitFor(destroyWaitSec, TimeUnit.SECONDS)
+                runReader.join(1000)
+                return "Execution timed out after ${runTimeoutSec}s:\n${runOutputRef.get()}"
+            }
+            runReader.join(2000)
+            val runOutput = runOutputRef.get()
+
+            return if (compileOutput.isNotBlank()) {
+                "Compile output\n $compileOutput\n Program output\n$runOutput"
+            } else {
+                "Program output\n $runOutput"
+            }
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            return "Compilation or execution interrupted."
+        }
     }
 }
