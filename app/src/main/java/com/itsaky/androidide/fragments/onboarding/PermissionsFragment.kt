@@ -66,6 +66,7 @@ class PermissionsFragment :
 	private var recyclerView: RecyclerView? = null
 	private var finishButton: MaterialButton? = null
     private lateinit var pulseAnimation: Animation
+	private var awaitingOverlayGrantResult = false
 
 	private val storagePermissionRequestLauncher =
 		registerForActivityResult(
@@ -204,9 +205,22 @@ class PermissionsFragment :
 	private fun onPermissionsUpdated() {
 		permissions.forEach { it.isGranted = PermissionsHelper.isPermissionGranted(requireContext(), it.permission) }
 		recyclerView?.adapter = createAdapter()
+		handlePostOverlayPermissionState()
 
 		val allGranted = PermissionsHelper.areAllPermissionsGranted(requireContext())
 		viewModel.onPermissionsUpdated(allGranted)
+	}
+
+	private fun handlePostOverlayPermissionState() {
+		if (!awaitingOverlayGrantResult) {
+			return
+		}
+		awaitingOverlayGrantResult = false
+		if (PermissionsHelper.canDrawOverlays(requireContext())) {
+			return
+		}
+		flashError(getString(R.string.permission_overlay_restricted_settings_hint))
+		openAppInfoSettings()
 	}
 
 	private fun startIdeSetup() {
@@ -265,13 +279,21 @@ class PermissionsFragment :
 					Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
 				)
 
-			Manifest.permission.SYSTEM_ALERT_WINDOW -> requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+			Manifest.permission.SYSTEM_ALERT_WINDOW -> requestOverlayPermission()
 			Manifest.permission.POST_NOTIFICATIONS ->
 				requestSettingsTogglePermission(
 					Settings.ACTION_APP_NOTIFICATION_SETTINGS,
 					setData = false,
 				)
 		}
+	}
+
+	private fun requestOverlayPermission() {
+		awaitingOverlayGrantResult = requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+	}
+
+	private fun openAppInfoSettings() {
+		requestSettingsTogglePermission(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
 	}
 
 	private fun requestStoragePermission() {
@@ -291,17 +313,19 @@ class PermissionsFragment :
 	private fun requestSettingsTogglePermission(
 		action: String,
 		setData: Boolean = true,
-	) {
+	): Boolean {
 		val intent = Intent(action)
 		intent.putExtra(Settings.EXTRA_APP_PACKAGE, BuildInfo.PACKAGE_NAME)
 		if (setData) {
 			intent.setData(Uri.fromParts("package", BuildInfo.PACKAGE_NAME, null))
 		}
-		try {
+		return try {
 			settingsTogglePermissionRequestLauncher.launch(intent)
+			true
 		} catch (err: Throwable) {
 			logger.error("Failed to launch settings with intent {}", intent, err)
 			flashError(getString(R.string.err_no_activity_to_handle_action, action))
+			false
 		}
 	}
 
