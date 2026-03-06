@@ -36,11 +36,12 @@ class JGitRepository(override val rootDir: File) : GitRepository {
 
     private fun getHeadTree(repository: Repository): AbstractTreeIterator {
         val head = repository.resolve(Constants.HEAD) ?: return EmptyTreeIterator()
-        val revWalk = RevWalk(repository)
-        val commit = revWalk.parseCommit(head)
         val treeParser = CanonicalTreeParser()
-        repository.newObjectReader().use { reader ->
-            treeParser.reset(reader, commit.tree.id)
+        RevWalk(repository).use { revWalk ->
+            val commit = revWalk.parseCommit(head)
+            repository.newObjectReader().use { reader ->
+                treeParser.reset(reader, commit.tree.id)
+            }
         }
         return treeParser
     }
@@ -122,7 +123,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
             // If empty, check staged diff
             if (outputStream.size() == 0) {
                 val headTree = getHeadTree(repository)
-                formatter.format(headTree, indexTree)
+                val freshIndexTree = DirCacheIterator(repository.readDirCache())
+                formatter.format(headTree, freshIndexTree)
             }
         }
         outputStream.toString()
