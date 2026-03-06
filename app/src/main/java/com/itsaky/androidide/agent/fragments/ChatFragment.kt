@@ -8,9 +8,11 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -232,6 +234,31 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 			LinearLayoutManager(requireContext()).apply {
 				stackFromEnd = true
 			}
+		// Prevent nested scroll from propagating to CoordinatorLayout so the app bar (project
+		// name, actions toolbar) does not scroll when the user scrolls the agent chat list.
+		ViewCompat.setNestedScrollingEnabled(binding.chatRecyclerView, false)
+		// Let the list scroll instead of the bottom sheet when the user drags over the chat.
+		binding.chatRecyclerView.addOnItemTouchListener(
+			object : RecyclerView.OnItemTouchListener {
+				override fun onInterceptTouchEvent(
+					rv: RecyclerView,
+					e: MotionEvent,
+				): Boolean {
+					if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+						var p = rv.parent
+						while (p is ViewGroup) {
+							p.requestDisallowInterceptTouchEvent(true)
+							p = p.parent
+						}
+					}
+					return false
+				}
+
+				override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+
+				override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+			},
+		)
 	}
 
 	private fun setupListeners() {
