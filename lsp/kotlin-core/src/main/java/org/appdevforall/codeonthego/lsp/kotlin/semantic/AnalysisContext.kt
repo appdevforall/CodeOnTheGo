@@ -169,10 +169,13 @@ class AnalysisContext(
 
         var current: SyntaxNode? = node
         while (current != null) {
-            if (isStatementBoundary(current.kind)) {
+            if (current.isError || current.kind == SyntaxKind.ERROR) {
+                return true
+            }
+            if (isStatementLevelNode(current.kind)) {
                 return current.hasError
             }
-            if (isClassBoundary(current.kind)) {
+            if (isBlockBoundary(current.kind)) {
                 return false
             }
             current = current.parent
@@ -180,15 +183,28 @@ class AnalysisContext(
         return false
     }
 
-    private fun isStatementBoundary(kind: SyntaxKind): Boolean {
+    private fun isStatementLevelNode(kind: SyntaxKind): Boolean {
         return kind in setOf(
-            SyntaxKind.FUNCTION_DECLARATION,
-            SyntaxKind.PROPERTY_DECLARATION
+            SyntaxKind.CALL_EXPRESSION,
+            SyntaxKind.PROPERTY_DECLARATION,
+            SyntaxKind.ASSIGNMENT,
+            SyntaxKind.AUGMENTED_ASSIGNMENT,
+            SyntaxKind.RETURN,
+            SyntaxKind.IF_EXPRESSION,
+            SyntaxKind.WHEN_EXPRESSION,
+            SyntaxKind.FOR_STATEMENT,
+            SyntaxKind.WHILE_STATEMENT,
+            SyntaxKind.DO_WHILE_STATEMENT,
+            SyntaxKind.TRY_EXPRESSION,
+            SyntaxKind.NAVIGATION_EXPRESSION
         )
     }
 
-    private fun isClassBoundary(kind: SyntaxKind): Boolean {
+    private fun isBlockBoundary(kind: SyntaxKind): Boolean {
         return kind in setOf(
+            SyntaxKind.FUNCTION_BODY,
+            SyntaxKind.CLASS_BODY,
+            SyntaxKind.FUNCTION_DECLARATION,
             SyntaxKind.CLASS_DECLARATION,
             SyntaxKind.OBJECT_DECLARATION,
             SyntaxKind.SOURCE_FILE

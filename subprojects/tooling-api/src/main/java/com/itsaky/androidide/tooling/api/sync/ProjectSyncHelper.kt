@@ -92,8 +92,7 @@ object ProjectSyncHelper {
 	 * @param projectDir The project directory.
 	 * @return The sync metadata file.
 	 */
-	fun syncMetaFileForProject(projectDir: File) =
-		projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_META_FILE)
+	fun syncMetaFileForProject(projectDir: File) = projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_META_FILE)
 
 	/**
 	 * Try to acquire the sync lock.
@@ -197,7 +196,6 @@ object ProjectSyncHelper {
 		// /data/data and /sdcard are different devices (partitions)
 		// atomic moves are not possible for cross-device moves
 		val tempCacheFile = Paths.get(targetFile.path + ".tmp")
-		logger.debug("Write project model to file: {}", tempCacheFile)
 		runCatching {
 			tempCacheFile
 				.outputStream(StandardOpenOption.CREATE, StandardOpenOption.WRITE)
@@ -206,9 +204,7 @@ object ProjectSyncHelper {
 					gradleBuild.writeTo(tempOut)
 					tempOut.flush()
 				}
-			logger.debug("Wrote file {}", tempCacheFile)
 		}.map {
-			logger.debug("Moving {} to {}", tempCacheFile, targetFile)
 			// update atomically
 			Files.move(
 				tempCacheFile,
@@ -226,10 +222,11 @@ object ProjectSyncHelper {
 	 * @param projectDir The project directory.
 	 * @return `true` if the files exist and are readable, `false` otherwise.
 	 */
-	fun areSyncFilesReadable(projectDir: File) = areSyncFilesReadable(
-		syncMetaFile = syncMetaFileForProject(projectDir),
-		projectCacheFile = cacheFileForProject(projectDir)
-	)
+	fun areSyncFilesReadable(projectDir: File) =
+		areSyncFilesReadable(
+			syncMetaFile = syncMetaFileForProject(projectDir),
+			projectCacheFile = cacheFileForProject(projectDir),
+		)
 
 	/**
 	 * Check whether the project sync files for the given project directory
@@ -242,10 +239,11 @@ object ProjectSyncHelper {
 	fun areSyncFilesReadable(
 		syncMetaFile: File,
 		projectCacheFile: File,
-	): Boolean {
-		return syncMetaFile.exists() && syncMetaFile.canRead() &&
-				projectCacheFile.exists() && projectCacheFile.canRead()
-	}
+	): Boolean =
+		syncMetaFile.exists() &&
+			syncMetaFile.canRead() &&
+			projectCacheFile.exists() &&
+			projectCacheFile.canRead()
 
 	/**
 	 * Check if a sync is needed for the given project directory.
@@ -263,10 +261,10 @@ object ProjectSyncHelper {
 			// one of the required files are missing, require sync
 			logger.debug(
 				"NEED_SYNC: sync files missing or are unreadable:" +
-						" sync-meta={}," +
-						" project-cache={}",
+					" sync-meta={}," +
+					" project-cache={}",
 				syncMetaFile,
-				projectCacheFile
+				projectCacheFile,
 			)
 			return true
 		}
