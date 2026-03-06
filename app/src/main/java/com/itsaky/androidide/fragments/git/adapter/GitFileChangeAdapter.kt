@@ -57,15 +57,18 @@ class GitFileChangeAdapter(
 
             binding.checkbox.isChecked = selectedFiles.contains(change.path)
 
-            val imageRes = when (change.type) {
-                ChangeType.ADDED -> R.drawable.ic_file_added
-                ChangeType.MODIFIED -> R.drawable.ic_file_modified
-                ChangeType.DELETED -> R.drawable.ic_file_deleted
-                ChangeType.UNTRACKED -> R.drawable.ic_file_added
-                ChangeType.RENAMED -> R.drawable.ic_file_renamed
-                ChangeType.CONFLICTED -> R.drawable.ic_file_conflicted
+            val (imageRes, descRes) = when (change.type) {
+                ChangeType.ADDED -> R.drawable.ic_file_added to R.string.desc_file_added
+                ChangeType.MODIFIED -> R.drawable.ic_file_modified to R.string.desc_file_modified
+                ChangeType.DELETED -> R.drawable.ic_file_deleted to R.string.desc_file_deleted
+                ChangeType.UNTRACKED -> R.drawable.ic_file_added to R.string.desc_file_untracked
+                ChangeType.RENAMED -> R.drawable.ic_file_renamed to R.string.desc_file_renamed
+                ChangeType.CONFLICTED -> R.drawable.ic_file_conflicted to R.string.desc_file_conflicted
             }
-            binding.statusIcon.setImageResource(imageRes)
+            binding.statusIcon.apply {
+                setImageResource(imageRes)
+                contentDescription = binding.root.context.getString(descRes)
+            }
         }
     }
 
