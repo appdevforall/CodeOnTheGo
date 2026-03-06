@@ -689,6 +689,7 @@
 	<string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
 	<string name="permission_title_overlay_window">Overlay window</string>
 	<string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
+	<string name="permission_overlay_restricted_settings_hint">Overlay access is still denied. On Pixel, open App info, use the top-right menu to enable restricted settings, then allow Display over other apps.</string>
 	<string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
