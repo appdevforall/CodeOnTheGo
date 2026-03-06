@@ -15,6 +15,8 @@ import java.net.URLDecoder
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 data class ServerConfig(
     val port: Int = 6174,
     val databasePath: String,
@@ -828,33 +830,75 @@ Connection: close
         val javaPath = "$directoryPath/usr/bin/java"
         val filePath = sourceFile.absolutePath
 
-        val javac = ProcessBuilder(javacPath, filePath)
-            .directory(dir)
-            .redirectErrorStream(true)
-            .start()
-        val compileOutput = javac.inputStream.bufferedReader().readText()
-        val exitCode = javac.waitFor()
+        val compileTimeoutSec = 60L
+        val runTimeoutSec = 120L
+        val destroyWaitSec = 5L
 
-        if (exitCode != 0) {
-            return "Compilation failed:\n$compileOutput"
-        }
+        try {
+            val javac = ProcessBuilder(javacPath, filePath)
+                .directory(dir)
+                .redirectErrorStream(true)
+                .start()
+            javac.outputStream.close()
+            val compileOutputRef = AtomicReference<String>("")
+            val compileReader =
+                Thread {
+                    compileOutputRef.set(
+                        javac.inputStream.bufferedReader().readText()
+                    )
+                }
+            compileReader.start()
+            val compileDone =
+                javac.waitFor(compileTimeoutSec, TimeUnit.SECONDS)
+            if (!compileDone) {
+                javac.destroyForcibly()
+                javac.waitFor(destroyWaitSec, TimeUnit.SECONDS)
+                compileReader.join(1000)
+                return "Compilation timed out after ${compileTimeoutSec}s:\n${compileOutputRef.get()}"
+            }
+            compileReader.join(2000)
+            val compileOutput = compileOutputRef.get()
+            if (javac.exitValue() != 0) {
+                return "Compilation failed:\n$compileOutput"
+            }
 
-        val java = ProcessBuilder(
-            javaPath,
-            "-cp",
-            dir?.absolutePath ?: "",
-            fileName
-        )
-            .directory(dir)
-            .redirectErrorStream(true)
-            .start()
-        val runOutput = java.inputStream.bufferedReader().readText()
-        java.waitFor()
+            val java =
+                ProcessBuilder(
+                    javaPath,
+                    "-cp",
+                    dir?.absolutePath ?: "",
+                    fileName
+                )
+                    .directory(dir)
+                    .redirectErrorStream(true)
+                    .start()
+            java.outputStream.close()
+            val runOutputRef = AtomicReference<String>("")
+            val runReader =
+                Thread {
+                    runOutputRef.set(
+                        java.inputStream.bufferedReader().readText()
+                    )
+                }
+            runReader.start()
+            val runDone = java.waitFor(runTimeoutSec, TimeUnit.SECONDS)
+            if (!runDone) {
+                java.destroyForcibly()
+                java.waitFor(destroyWaitSec, TimeUnit.SECONDS)
+                runReader.join(1000)
+                return "Execution timed out after ${runTimeoutSec}s:\n${runOutputRef.get()}"
+            }
+            runReader.join(2000)
+            val runOutput = runOutputRef.get()
 
-        return if (compileOutput.isNotBlank()) {
-            "Compile output\n $compileOutput\n Program output\n$runOutput"
-        } else {
-            "Program output\n $runOutput"
+            return if (compileOutput.isNotBlank()) {
+                "Compile output\n $compileOutput\n Program output\n$runOutput"
+            } else {
+                "Program output\n $runOutput"
+            }
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            return "Compilation or execution interrupted."
         }
     }
 }
