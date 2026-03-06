@@ -1165,4 +1165,5 @@
     <string name="no_uncommitted_changes">No uncommitted changes</string>
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>
+    <string name="diff_loading">Loading Git Diff…</string>
 </resources>

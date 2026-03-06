@@ -1,30 +1,29 @@
 package com.itsaky.androidide.fragments.git
 
-import android.app.Dialog
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.os.Bundle
 import android.text.Spannable
-import android.text.SpannableString
 import android.text.SpannableStringBuilder
-import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
 import android.text.style.LineBackgroundSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.DialogFragment
-import com.google.android.material.button.MaterialButton
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
-
 import com.itsaky.androidide.databinding.DialogGitDiffBinding
+import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
+import kotlinx.coroutines.launch
+import java.io.File
 
 class GitDiffViewerDialog : DialogFragment() {
 
-    private var diffText: String = ""
+    private val viewModel: GitBottomSheetViewModel by activityViewModels()
+
     private var filePath: String = ""
 
     private var _binding: DialogGitDiffBinding? = null
@@ -33,7 +32,6 @@ class GitDiffViewerDialog : DialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setStyle(STYLE_NORMAL, R.style.Theme_AndroidIDE)
-        diffText = arguments?.getString(ARG_DIFF_TEXT) ?: ""
         filePath = arguments?.getString(ARG_FILE_PATH) ?: getString(R.string.diff_viewer)
     }
 
@@ -50,7 +48,23 @@ class GitDiffViewerDialog : DialogFragment() {
         super.onViewCreated(view, savedInstanceState)
         
         binding.diffTitle.text = filePath
-        binding.diffText.text = applyDiffFormatting(diffText)
+        binding.diffText.text = getString(R.string.diff_loading)
+
+        viewLifecycleOwner.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val repo = viewModel.currentRepository
+            val diff = if (repo != null && repo.rootDir.exists()) {
+                val file = File(repo.rootDir, filePath)
+                repo.getDiff(file)
+            } else {
+                null
+            } ?: getString(R.string.unable_to_load_diff)
+
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                if (_binding != null) {
+                    binding.diffText.text = applyDiffFormatting(diff)
+                }
+            }
+        }
         
         binding.btnClose.setOnClickListener {
             dismiss()
@@ -135,14 +149,12 @@ class GitDiffViewerDialog : DialogFragment() {
     }
 
     companion object {
-        private const val ARG_DIFF_TEXT = "arg_diff_text"
         private const val ARG_FILE_PATH = "arg_file_path"
 
-        fun newInstance(filePath: String, diffText: String): GitDiffViewerDialog {
+        fun newInstance(filePath: String): GitDiffViewerDialog {
             return GitDiffViewerDialog().apply {
                 arguments = Bundle().apply {
                     putString(ARG_FILE_PATH, filePath)
-                    putString(ARG_DIFF_TEXT, diffText)
                 }
             }
         }

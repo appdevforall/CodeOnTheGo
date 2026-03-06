@@ -11,12 +11,11 @@ import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import org.koin.androidx.viewmodel.ext.android.viewModel
-import java.io.File
+import androidx.fragment.app.activityViewModels
 
 class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
-    private val viewModel: GitBottomSheetViewModel by viewModel()
+    private val viewModel: GitBottomSheetViewModel by activityViewModels()
     private lateinit var adapter: GitFileChangeAdapter
 
     private var _binding: FragmentGitBottomSheetBinding? = null
@@ -27,14 +26,9 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         _binding = FragmentGitBottomSheetBinding.bind(view)
 
         adapter = GitFileChangeAdapter(onFileClicked = { change ->
-            val file = File(viewModel.currentRepository?.rootDir, change.path)
-            viewLifecycleOwner.lifecycleScope.launch {
-                val diffText = viewModel.currentRepository?.getDiff(file)
-                    ?: getString(R.string.unable_to_load_diff)
-                val dialog = GitDiffViewerDialog.newInstance(change.path, diffText)
-                // Show diff in a dialog when changed file is clicked
-                dialog.show(childFragmentManager, "GitDiffViewerDialog")
-            }
+            // Show diff in a dialog when changed file is clicked
+            val dialog = GitDiffViewerDialog.newInstance(change.path)
+            dialog.show(childFragmentManager, "GitDiffViewerDialog")
         })
 
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
