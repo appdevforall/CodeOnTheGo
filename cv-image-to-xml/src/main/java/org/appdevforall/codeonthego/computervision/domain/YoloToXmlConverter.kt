@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import android.graphics.Rect
+import android.util.Log
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import kotlin.math.max
 import kotlin.math.pow
@@ -19,37 +20,27 @@ object YoloToXmlConverter {
     private const val RADIO_GROUP_GAP_THRESHOLD = 24
     private const val OVERLAP_THRESHOLD = 0.6
 
-    private val TAG_REGEX = Regex("^(B-|P-|D-|T-|C-|R-|S-|SW-)\\d+$")
+    private val TAG_REGEX = Regex("^(B|P|D|T|C|R|SW|S)-\\d+$")
+    private val TAG_EXTRACT_REGEX = Regex("^([BPDTCRS8]W?)[^a-zA-Z0-9]*([\\dlIoO!]+)$")
 
-    private val KNOWN_ANNOTATION_KEYS = listOf(
-        "layout_width", "layout-width", "width",
-        "layout_height", "layout-height", "height", "layout height",
-        "id", "text", "background",
-        "src", "scr",
-        "entries", "inputtype", "input_type",
-        "hint", "textcolor", "text_color",
-        "textsize", "text_size",
-        "style", "layout_weight", "layout-weight",
-        "layout_gravity", "layout-gravity", "gravity"
-    )
-
-    private val ANNOTATION_KEYS_REGEX = Regex("(?i)\\b(${KNOWN_ANNOTATION_KEYS.joinToString("|")})\\s*:")
-
-    private val colorMap = mapOf(
-        "red" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
-        "black" to "#000000", "white" to "#FFFFFF", "gray" to "#808080",
-        "grey" to "#808080", "dark_gray" to "#A9A9A9", "yellow" to "#FFFF00",
-        "cyan" to "#00FFFF", "magenta" to "#FF00FF", "purple" to "#800080",
-        "orange" to "#FFA500", "brown" to "#A52A2A", "pink" to "#FFC0CB",
-        "transparent" to "@android:color/transparent"
-    )
+    private fun normalizeOcrDigits(raw: String): String =
+        raw.replace('l', '1').replace('I', '1').replace('!', '1')
+            .replace('o', '0').replace('O', '0')
 
     private data class ScaledBox(
         val label: String, var text: String, val x: Int, val y: Int, val w: Int, val h: Int,
         val centerX: Int, val centerY: Int, val rect: Rect
     )
 
-    private fun isTag(text: String): Boolean = text.matches(TAG_REGEX)
+    private fun normalizeTagText(text: String): String {
+        val trimmed = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
+        val match = TAG_EXTRACT_REGEX.find(trimmed) ?: return trimmed
+        var prefix = match.groupValues[1]
+        if (prefix == "8") prefix = "B"
+        return "$prefix-${normalizeOcrDigits(match.groupValues[2])}"
+    }
+
+    private fun isTag(text: String): Boolean = normalizeTagText(text).matches(TAG_REGEX)
 
     private fun getTagType(tag: String): String? {
         return when {
@@ -81,7 +72,9 @@ object YoloToXmlConverter {
         wrapInScroll: Boolean = true
     ): String {
 
-        val widgetTags = detections.filter { it.isYolo.not() }
+        val widgetTags = detections.filter {
+            it.label == "widget_tag" || (!it.isYolo && isTag(it.text))
+        }
         val widgets = detections.filter { it.isYolo }.filter { it.label != "widget_tag" }
 
         var scaledBoxes = widgets.map {
@@ -126,17 +119,40 @@ object YoloToXmlConverter {
             )
         }
         val finalAnnotations = mutableMapOf<ScaledBox, String>()
+        val claimedWidgets = mutableSetOf<ScaledBox>()
+        val appliedAnnotationKeys = mutableSetOf<String>()
 
-        for (tagBox in canvasTags) {
-            val tagType = getTagType(tagBox.text) ?: continue
-            val annotation = annotations[tagBox.text] ?: continue
+        val deduplicatedTags = canvasTags
+            .groupBy { normalizeTagText(it.text) }
+            .map { (_, group) -> group.first() }
+
+        for (tagBox in deduplicatedTags) {
+            val normalizedText = normalizeTagText(tagBox.text)
+            val tagType = getTagType(normalizedText) ?: continue
+            val annotation = annotations[normalizedText] ?: continue
 
             val closestElement = uiElements
-                .filter { it.label.startsWith(tagType) }
+                .filter { it.label.startsWith(tagType) && it !in claimedWidgets }
                 .minByOrNull { distance(tagBox, it) }
 
             if (closestElement != null) {
                 finalAnnotations[closestElement] = annotation
+                claimedWidgets.add(closestElement)
+                appliedAnnotationKeys.add(normalizedText)
+            }
+        }
+
+        for ((tagText, annotation) in annotations) {
+            val normalizedTagText = normalizeTagText(tagText)
+            if (normalizedTagText in appliedAnnotationKeys) continue
+            val tagType = getTagType(normalizedTagText) ?: continue
+            val unclaimed = uiElements
+                .filter { it.label.startsWith(tagType) && it !in claimedWidgets }
+                .sortedWith(compareBy({ it.y }, { it.x }))
+                .firstOrNull()
+            if (unclaimed != null) {
+                finalAnnotations[unclaimed] = annotation
+                claimedWidgets.add(unclaimed)
             }
         }
 
@@ -254,15 +270,19 @@ object YoloToXmlConverter {
 
         when (tag) {
             "TextView", "Button", "CheckBox", "RadioButton", "Switch" -> {
-                val viewText = box.text.takeIf { it.isNotEmpty() && it != box.label } ?: box.label
+                val viewText = parsedAttrs["android:text"]
+                    ?: box.text.takeIf { it.isNotEmpty() && it != box.label }
+                    ?: box.label
                 xml.append("$indent    android:text=\"${escapeXmlAttr(viewText)}\"\n")
                 writtenAttrs.add("android:text")
                 if (tag == "TextView") {
-                    xml.append("$indent    android:textSize=\"16sp\"\n")
+                    val textSize = parsedAttrs["android:textSize"] ?: "16sp"
+                    xml.append("$indent    android:textSize=\"${escapeXmlAttr(textSize)}\"\n")
                     writtenAttrs.add("android:textSize")
                 }
                 if (label.contains("_checked") || label.contains("_on")) {
-                    xml.append("$indent    android:checked=\"true\"\n")
+                    val checked = parsedAttrs["android:checked"] ?: "true"
+                    xml.append("$indent    android:checked=\"${escapeXmlAttr(checked)}\"\n")
                     writtenAttrs.add("android:checked")
                 }
                 xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
@@ -270,9 +290,12 @@ object YoloToXmlConverter {
             }
 
             "EditText" -> {
-                xml.append("$indent    android:hint=\"${escapeXmlAttr(box.text.ifEmpty { "Enter text..." })}\"\n")
+                val hint = parsedAttrs["android:hint"]
+                    ?: box.text.ifEmpty { "Enter text..." }
+                xml.append("$indent    android:hint=\"${escapeXmlAttr(hint)}\"\n")
                 writtenAttrs.add("android:hint")
-                xml.append("$indent    android:inputType=\"text\"\n")
+                val inputType = parsedAttrs["android:inputType"] ?: "text"
+                xml.append("$indent    android:inputType=\"${escapeXmlAttr(inputType)}\"\n")
                 writtenAttrs.add("android:inputType")
                 xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
                 writtenAttrs.add("tools:ignore")
@@ -281,75 +304,33 @@ object YoloToXmlConverter {
             "ImageView" -> {
                 xml.append("$indent    android:contentDescription=\"${escapeXmlAttr(label)}\"\n")
                 writtenAttrs.add("android:contentDescription")
-                xml.append("$indent    android:scaleType=\"centerCrop\"\n")
+                val scaleType = parsedAttrs["android:scaleType"] ?: "centerCrop"
+                xml.append("$indent    android:scaleType=\"${escapeXmlAttr(scaleType)}\"\n")
                 writtenAttrs.add("android:scaleType")
-                xml.append("$indent    android:background=\"#E0E0E0\"\n")
+                val bg = parsedAttrs["android:background"] ?: "#E0E0E0"
+                xml.append("$indent    android:background=\"${escapeXmlAttr(bg)}\"\n")
                 writtenAttrs.add("android:background")
             }
         }
 
         parsedAttrs.forEach { (key, value) ->
             if (key !in writtenAttrs) {
-                xml.append("$indent    $key=\"${escapeXmlAttr(value)}\"\n")
+                // Add this logic to handle specific attribute value casing
+                val finalValue = when (key) {
+                    "android:layout_gravity" -> value.lowercase()
+                    else -> value
+                }
+                xml.append("$indent    $key=\"${escapeXmlAttr(finalValue)}\"\n")
                 writtenAttrs.add(key)
             }
+
         }
         xml.append("$indent/>")
+
+        Log.d(TAG, "appendSimpleView: $xml")
     }
 
     private fun parseMarginAnnotations(annotation: String?, tag: String): Map<String, String> {
-        if (annotation.isNullOrBlank()) return emptyMap()
-
-        val parsed = mutableMapOf<String, String>()
-        val matches = ANNOTATION_KEYS_REGEX.findAll(annotation).toList()
-
-        matches.forEachIndexed { index, match ->
-            val key = match.groupValues[1]
-            val startIndex = match.range.last + 1
-            val endIndex =
-                if (index + 1 < matches.size) matches[index + 1].range.first else annotation.length
-            val value = annotation.substring(startIndex, endIndex).trim()
-
-            if (value.isNotEmpty()) {
-                formatAttribute(key, value, tag)?.let { (attr, fValue) -> parsed[attr] = fValue }
-            }
-        }
-        return parsed
-    }
-
-    private fun formatAttribute(key: String, value: String, tag: String): Pair<String, String>? {
-        val canonicalKey = key.lowercase().replace("-", "_").replace(" ", "_")
-
-        return when (canonicalKey) {
-            "width", "layout_width" -> "android:layout_width" to formatDimension(value)
-            "height", "layout_height" -> "android:layout_height" to formatDimension(value)
-            "background" -> {
-                if (tag == "Button") {
-                    "app:backgroundTint" to (colorMap[value.lowercase()] ?: value)
-                } else {
-                    "android:background" to (colorMap[value.lowercase()] ?: value)
-                }
-            }
-
-            "text" -> "android:text" to value
-            "id" -> "android:id" to value.replace(" ", "_")
-            "src", "scr" -> "android:src" to "@drawable/${value.substringBeforeLast('.')}"
-            "entries" -> "tools:entries" to value
-            "inputtype", "input_type" -> "android:inputType" to value
-            "hint" -> "android:hint" to value
-            "textcolor", "text_color" -> "android:textColor" to (colorMap[value.lowercase()]
-                ?: value)
-
-            "textsize", "text_size" -> "android:textSize" to if (value.matches(Regex("\\d+"))) "${value}sp" else value
-            "style" -> "style" to value
-            "layout_weight" -> "android:layout_weight" to value
-            "gravity", "layout_gravity" -> "android:layout_gravity" to value
-            else -> null
-        }
-    }
-
-    private fun formatDimension(value: String): String {
-        val trimmed = value.replace("dp", "").trim()
-        return if (trimmed.matches(Regex("-?\\d+"))) "${trimmed}dp" else value
+        return FuzzyAttributeParser.parse(annotation, tag)
     }
 }
