@@ -183,10 +183,10 @@
 	<string name="template_ndk">NDK Activity</string>
 
 	<!-- Plugin Template Wizard -->
-	<string name="wizard_plugin_name">Plugin Name</string>
-	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
+	<string name="wizard_plugin_name">Plugin name</string>
+	<string name="wizard_plugin_id">Plugin ID (package name)</string>
 	<string name="wizard_plugin_description">Plugin description</string>
-	<string name="wizard_plugin_author">Author Name</string>
+	<string name="wizard_plugin_author">Author name</string>
 	<string name="wizard_include_sample_code">Include sample code</string>
 	<string name="wizard_plugin_permissions">Permissions</string>
 	<string name="wizard_plugin_extensions">Extensions</string>
@@ -244,7 +244,7 @@
 	<string name="new_folder">New folder</string>
 	<string name="title_confirm_delete">Confirm delete</string>
 	<string name="msg_confirm_delete">Are you sure you want to delete: \n%s?</string>
-	<string name="copied">Copied successfully!</string>
+	<string name="copied">Copied successfully</string>
 	<string name="msg_rename_file">Enter a new name for the file/folder.</string>
 	<string name="renamed">Renamed successfully</string>
 	<string name="rename_failed">Unable to rename file</string>
@@ -392,7 +392,7 @@
 
 	<string name="build_status_idle">No builds in progress</string>
 	<string name="build_status_in_progress">Build in progress…</string>
-	<string name="build_status_failed">Build failed. See the build output panel for more details.</string>
+	<string name="build_status_failed">Build failed. See the Build Output panel for more details.</string>
 	<string name="build_status_sucess">Build successful</string>
 	<string name="msg_output_text_extraction_failed">Failed to get text from editor</string>
 	<string name="err_invalid_data_by_intent">Intent returned invalid data</string>
@@ -627,7 +627,7 @@
 	<string name="title_device">Device</string>
 	<string name="title_app_version">App version</string>
 	<string name="title_country">Country</string>
-	<string name="title_cpu_arch">CPU Arch</string>
+	<string name="title_cpu_arch">CPU arch</string>
 	<string name="title_preview_data">Preview data</string>
 	<string name="title_android_version">Android version</string>
 	<string name="btn_opt_in">Opt-in</string>
@@ -684,14 +684,14 @@
 	<string name="greeting_subtitle">No computer? No Internet? No problem.</string>
 	<string name="title_grant">Allow</string>
 	<string name="permission_title_storage">Storage</string>
-	<string name="permission_desc_storage">Allow Code on the Go to access files.</string>
+	<string name="permission_desc_storage">Allow Code on the Go to open and save files on this device.</string>
 	<string name="permission_title_install_packages">Install packages</string>
-	<string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
-	<string name="permission_title_overlay_window">Overlay window</string>
-	<string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
-	<string name="permission_overlay_restricted_settings_hint">Overlay access is still denied. On Pixel, open App info, use the top-right menu to enable restricted settings, then allow Display over other apps.</string>
+	<string name="permission_desc_install_packages">Allow Code on the Go to install the apps that you build on this device.</string>
+	<string name="permission_title_overlay_window">Floating debugger</string>
+	<string name="permission_desc_overlay_window">Allow Code on the Go to display floating debugger controls to inspect your code while it runs.</string>
+	<string name="permission_overlay_restricted_settings_hint">If you can\'t enable this permission, display App info for Code on the Go, tap the three-dot menu, and enable restricted settings.</string>
 	<string name="permission_title_notifications">Notifications</string>
-	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
+	<string name="permission_desc_notifications">Allow Code on the Go to display notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
 	<string name="permissions_info_intro">Next page: permissions</string>
@@ -948,7 +948,7 @@
 	<string name="cd_drawer_close">Close project menu</string>
 
 	<string name="unknown_error">"An unknown error occurred."</string>
-	<string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
+	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>
 	<string name="error_build_service_not_found">Build service not found.</string>
 	<string name="error_task_execution_failed">Task execution failed.</string>
 	<string name="error_no_output_listing_file">No output listing file found in project model.</string>
@@ -963,9 +963,9 @@
 	<string name="btn_install">Install</string>
 	<string name="btn_later">Later</string>
 	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
-	<string name="title_restart_required">Restart Required</string>
+	<string name="title_restart_required">Restart required</string>
 	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
-	<string name="btn_restart_now">Restart Now</string>
+	<string name="btn_restart_now">Restart now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
@@ -992,7 +992,7 @@
 	<string name="notification_adb_pairing_succeed_title">Pairing successful</string>
 
 	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-	<string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+	<string name="notification_adb_pairing_succeed_text">Tap the Back button to return to Code on the Go.</string>
 
 	<!-- Title for the notification when wireless debugging pairing has failed. -->
 	<string name="notification_adb_pairing_failed_title">Pairing failed</string>
