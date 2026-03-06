@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionItem
@@ -15,6 +16,7 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.flashError
 import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
@@ -109,8 +111,18 @@ class DebugOverlayManager private constructor(
             return
         }
 
-        windowManager.addView(binding.root, overlayLayoutParams)
-        isShown = true
+        if (!Settings.canDrawOverlays(binding.root.context)) {
+            logger.warn("Overlay permission denied. Skipping debugger overlay window.")
+            flashError(binding.root.context.getString(R.string.permission_overlay_restricted_settings_hint))
+            return
+        }
+
+        try {
+            windowManager.addView(binding.root, overlayLayoutParams)
+            isShown = true
+        } catch (err: Throwable) {
+            logger.error("Failed to show debugger overlay window", err)
+        }
     }
 
     fun hide() {
@@ -118,8 +130,13 @@ class DebugOverlayManager private constructor(
             return
         }
 
-        windowManager.removeView(binding.root)
-        isShown = false
+        try {
+            windowManager.removeView(binding.root)
+        } catch (err: Throwable) {
+            logger.error("Failed to hide debugger overlay window", err)
+        } finally {
+            isShown = false
+        }
     }
 
 	fun refreshActions() {
