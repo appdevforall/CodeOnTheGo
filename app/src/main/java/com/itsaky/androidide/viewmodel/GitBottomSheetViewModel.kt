@@ -15,6 +15,9 @@ import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
+import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
+import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import java.io.File
 
 class GitBottomSheetViewModel : ViewModel() {
@@ -63,6 +66,21 @@ class GitBottomSheetViewModel : ViewModel() {
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onProjectFilesChanged(event: ListProjectFilesRequestEvent) {
+        refreshStatus()
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onFileCreated(event: FileCreationEvent) {
+        refreshStatus()
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onFileDeleted(event: FileDeletionEvent) {
+        refreshStatus()
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onFileRenamed(event: FileRenameEvent) {
         refreshStatus()
     }
 }
