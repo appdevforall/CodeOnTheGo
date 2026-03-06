@@ -3,10 +3,10 @@ package org.appdevforall.localwebserver
 import android.database.sqlite.SQLiteDatabase
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import org.slf4j.LoggerFactory
-import java.io.BufferedReader
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.InputStreamReader
+import java.io.InputStream
 import java.io.PrintWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -221,6 +221,23 @@ clientSocket and the catch block logic are updated accordingly.
         }
     }
 
+    /**
+     * Reads a single line from the stream (bytes until newline). Same stream is used for headers
+     * and body so POST body bytes are not lost to a separate buffered reader. HTTP header lines are ASCII.
+     */
+    private fun readLineFromStream(input: InputStream): String? {
+        val baos = ByteArrayOutputStream()
+        while (true) {
+            val b = input.read()
+            if (b == -1) return if (baos.size() == 0) null else baos.toString(Charsets.ISO_8859_1).trimEnd('\r')
+            if (b == '\n'.code) break
+            baos.write(b)
+        }
+        val bytes = baos.toByteArray()
+        val len = if (bytes.isNotEmpty() && bytes[bytes.size - 1] == '\r'.code.toByte()) bytes.size - 1 else bytes.size
+        return String(bytes, 0, len, Charsets.ISO_8859_1)
+    }
+
     private fun handleClient(clientSocket: Socket) {
         if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
@@ -233,13 +250,10 @@ clientSocket and the catch block logic are updated accordingly.
         val writer = PrintWriter(output, true)
         if (debugEnabled) log.debug("  writer is {}.", writer)
 
-        val reader = BufferedReader(InputStreamReader(input))
-        if (debugEnabled) log.debug("  reader is {}.", reader)
-
         var brotliSupported = false //assume nothing
 
         // Read the request method line, it is always the first line of the request
-        var requestLine = reader.readLine()
+        var requestLine = readLineFromStream(input)
         if (requestLine == null) {
             if (debugEnabled) log.debug("requestLine is null. Returning from handleClient() early.")
             return
@@ -261,7 +275,7 @@ clientSocket and the catch block logic are updated accordingly.
         // Read all headers until blank line (needed for Content-Length on POST and Accept-Encoding on GET)
         val headers = mutableMapOf<String, String>()
         while (true) {
-            requestLine = reader.readLine() ?: break
+            requestLine = readLineFromStream(input) ?: break
             if (requestLine.isEmpty()) break
             if (debugEnabled) log.debug("Header: {}", requestLine)
             val colon = requestLine.indexOf(':')
@@ -760,18 +774,25 @@ Connection: close
         if (data.size > 10_000) {
             return sendError(writer, output, 413, "Payload Too Large")
         }
-        val sourceFile = createFileFromPost(data)
-        val result = compileAndRunJava(sourceFile)
-        val sourceString = data.toString(Charsets.UTF_8)
-        val responseBody = sourceString + result
-        val responseBytes = responseBody.toByteArray(Charsets.UTF_8)
-        writer.println("HTTP/1.1 200 OK")
-        writer.println("Content-Type: text/plain; charset=utf-8")
-        writer.println("Content-Length: ${responseBytes.size}")
-        writer.println()
-        writer.flush()
-        output.write(responseBytes)
-        output.flush()
+        val workDir =
+            File(config.fileDirPath, "playground_${System.nanoTime()}_${java.util.UUID.randomUUID()}")
+                .apply { mkdirs() }
+        try {
+            val sourceFile = createFileFromPost(data, workDir)
+            val result = compileAndRunJava(sourceFile)
+            val sourceString = data.toString(Charsets.UTF_8)
+            val responseBody = sourceString + result
+            val responseBytes = responseBody.toByteArray(Charsets.UTF_8)
+            writer.println("HTTP/1.1 200 OK")
+            writer.println("Content-Type: text/plain; charset=utf-8")
+            writer.println("Content-Length: ${responseBytes.size}")
+            writer.println()
+            writer.flush()
+            output.write(responseBytes)
+            output.flush()
+        } finally {
+            workDir.deleteRecursively()
+        }
     }
 
     private fun parseFormDataField(body: ByteArray, fieldName: String): ByteArray? {
@@ -790,10 +811,9 @@ Connection: close
         return null
     }
 
-    private fun createFileFromPost(data: ByteArray): File {
+    private fun createFileFromPost(data: ByteArray, workDir: File): File {
         require(data.size <= 10_000) { "data exceeds 10000 bytes" }
-        val file = File(config.fileDirPath, "Playground.java")
-        file.parentFile?.mkdirs()
+        val file = File(workDir, "Playground.java")
         file.writeBytes(data)
         return file
     }
@@ -802,6 +822,7 @@ Connection: close
         val dir = sourceFile.parentFile
         val fileName = sourceFile.nameWithoutExtension
         val classFile = File(dir, "$fileName.class")
+        classFile.delete()
         val directoryPath = config.fileDirPath
         val javacPath = "$directoryPath/usr/bin/javac"
         val javaPath = "$directoryPath/usr/bin/java"
@@ -812,9 +833,9 @@ Connection: close
             .redirectErrorStream(true)
             .start()
         val compileOutput = javac.inputStream.bufferedReader().readText()
-        javac.waitFor()
+        val exitCode = javac.waitFor()
 
-        if (!classFile.exists()) {
+        if (exitCode != 0) {
             return "Compilation failed:\n$compileOutput"
         }
 
