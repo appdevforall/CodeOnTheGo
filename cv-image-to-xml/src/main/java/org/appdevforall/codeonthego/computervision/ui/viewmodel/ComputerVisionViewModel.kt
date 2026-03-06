@@ -206,18 +206,34 @@ class ComputerVisionViewModel(
 
             _uiState.update { it.copy(currentOperation = CvOperation.RunningOcr) }
 
-            val ocrBitmap = repository.preprocessBitmapForOcr(bitmap)
-            val ocrResult = repository.runOcrRecognition(ocrBitmap)
+            val regionOcrResult = repository.runRegionOcr(
+                bitmap, yoloDetections, state.leftGuidePct, state.rightGuidePct
+            )
+            if (regionOcrResult.isFailure) {
+                handleDetectionError(regionOcrResult.exceptionOrNull())
+                return@launch
+            }
+            val ocrResult = regionOcrResult.getOrThrow()
 
             _uiState.update { it.copy(currentOperation = CvOperation.MergingDetections) }
 
-            val textBlocks = ocrResult.getOrElse { emptyList() }
-            val mergeResult = repository.mergeDetections(yoloDetections, textBlocks)
+            val mergeResult = repository.mergeDetections(
+                enrichedComponents = ocrResult.enrichedDetections,
+                remainingDetections = ocrResult.remainingDetections,
+                fullImageTextBlocks = ocrResult.fullImageTextBlocks
+            )
 
             mergeResult
                 .onSuccess { mergedDetections ->
+                    val leftBound = bitmap.width * state.leftGuidePct
+                    val rightBound = bitmap.width * state.rightGuidePct
+                    val canvasOnlyMerged = mergedDetections.filter { detection ->
+                        detection.isYolo || detection.boundingBox.centerX() in leftBound..rightBound
+                    }
+                    val allDetections = canvasOnlyMerged + ocrResult.marginDetections
+
                     val (canvasDetections, annotationMap) = MarginAnnotationParser.parse(
-                        detections = mergedDetections,
+                        detections = allDetections,
                         imageWidth = bitmap.width,
                         leftGuidePct = state.leftGuidePct,
                         rightGuidePct = state.rightGuidePct
