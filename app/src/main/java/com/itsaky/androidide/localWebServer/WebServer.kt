@@ -11,12 +11,14 @@ import java.io.PrintWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.URLDecoder
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
 data class ServerConfig(
     val port: Int = 6174,
     val databasePath: String,
+    val fileDirPath: String,
     val bindName: String = "localhost",
     val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/documentation.db",
@@ -27,6 +29,14 @@ data class ServerConfig(
 
 // Yes, this is hack code.
     val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
+)
+
+data class JavaExecutionResult(
+    val compileOutput: String,
+    val runOutput: String,
+    val timedOut: Boolean,
+    val compileTimeMs: Long,
+    val timeoutLimit: Long
 )
 
 class WebServer(private val config: ServerConfig) {
@@ -214,13 +224,16 @@ clientSocket and the catch block logic are updated accordingly.
     private fun handleClient(clientSocket: Socket) {
         if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
+        val input = clientSocket.getInputStream()
+        if (debugEnabled) log.debug("  input is {}.", input)
+
         val output = clientSocket.getOutputStream()
         if (debugEnabled) log.debug("  output is {}.", output)
 
         val writer = PrintWriter(output, true)
         if (debugEnabled) log.debug("  writer is {}.", writer)
 
-        val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+        val reader = BufferedReader(InputStreamReader(input))
         if (debugEnabled) log.debug("  reader is {}.", reader)
 
         var brotliSupported = false //assume nothing
@@ -245,24 +258,27 @@ clientSocket and the catch block logic are updated accordingly.
         var path   = parts[1].split("?")[0] // Discard any HTTP query parameters.
         path = path.substring(1)
 
+        // Read all headers until blank line (needed for Content-Length on POST and Accept-Encoding on GET)
+        val headers = mutableMapOf<String, String>()
+        while (true) {
+            requestLine = reader.readLine() ?: break
+            if (requestLine.isEmpty()) break
+            if (debugEnabled) log.debug("Header: {}", requestLine)
+            val colon = requestLine.indexOf(':')
+            if (colon > 0) {
+                headers[requestLine.substring(0, colon).trim().lowercase()] = requestLine.substring(colon + 1).trim()
+            }
+        }
+        brotliSupported = headers["accept-encoding"]?.contains(brotliCompression) == true
+
+        // Playground endpoint: POST only, handled before GET-only check
+        if (path == "playground/execute") {
+            return handlePlaygroundExecute(input, writer, output, method, headers)
+        }
+
         // we only support teh GET method, return an error page for anything else
         if (method != "GET") {
             return sendError(writer, output, 501, "Not Implemented")
-        }
-
-        //the HTTP headers follow the the method line, read until eof or 0 length
-        //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
-        while(requestLine.isNotEmpty()) {
-            requestLine = reader.readLine() ?: break
-
-           if (debugEnabled) log.debug("Header: {}", requestLine)
-
-            if (requestLine.startsWith(encodingHeader)) {
-                val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-
-                brotliSupported = parts.contains(brotliCompression)
-                break
-            }
         }
 
         //check to see if there is a newer version of the documentation.db database on the sdcard
@@ -705,5 +721,119 @@ Connection: close
         output.flush()
 
         if (debugEnabled) log.debug("Leaving sendCSS().")
+    }
+
+    private fun handlePlaygroundExecute(
+        input: java.io.InputStream,
+        writer: PrintWriter,
+        output: java.io.OutputStream,
+        method: String,
+        headers: Map<String, String>
+    ) {
+        if (method != "POST") {
+            return sendError(writer, output, 405, "Method Not Allowed")
+        }
+        val contentLengthStr = headers["content-length"] ?: run {
+            return sendError(writer, output, 400, "Bad Request", "Missing Content-Length")
+        }
+        val contentLength = contentLengthStr.toIntOrNull() ?: run {
+            return sendError(writer, output, 400, "Bad Request", "Invalid Content-Length")
+        }
+        if (contentLength <= 0) {
+            return sendError(writer, output, 400, "Bad Request", "Content-Length must be positive")
+        }
+        if (contentLength > 10_000) {
+            return sendError(writer, output, 413, "Payload Too Large")
+        }
+        val body = ByteArray(contentLength)
+        var offset = 0
+        while (offset < contentLength) {
+            val read = input.read(body, offset, contentLength - offset)
+            if (read <= 0) {
+                return sendError(writer, output, 400, "Bad Request", "Input stream interrupted prematurely")
+            }
+            offset += read
+        }
+        val data = parseFormDataField(body, "data") ?: run {
+            return sendError(writer, output, 400, "Bad Request", "Missing or empty form field 'data'")
+        }
+        if (data.size > 10_000) {
+            return sendError(writer, output, 413, "Payload Too Large")
+        }
+        val sourceFile = createFileFromPost(data)
+        val result = compileAndRunJava(sourceFile)
+        val sourceString = data.toString(Charsets.UTF_8)
+        val responseBody = sourceString + result
+        val responseBytes = responseBody.toByteArray(Charsets.UTF_8)
+        writer.println("HTTP/1.1 200 OK")
+        writer.println("Content-Type: text/plain; charset=utf-8")
+        writer.println("Content-Length: ${responseBytes.size}")
+        writer.println()
+        writer.flush()
+        output.write(responseBytes)
+        output.flush()
+    }
+
+    private fun parseFormDataField(body: ByteArray, fieldName: String): ByteArray? {
+        val bodyStr = body.toString(Charsets.UTF_8)
+        val pairs = bodyStr.split("&")
+        for (pair in pairs) {
+            val eq = pair.indexOf('=')
+            if (eq < 0) continue
+            val key = URLDecoder.decode(pair.substring(0, eq), "UTF-8")
+            if (key != fieldName) continue
+            val value = pair.substring(eq + 1)
+            val decoded = URLDecoder.decode(value, "UTF-8")
+            if (decoded.isEmpty()) return null
+            return decoded.toByteArray(Charsets.UTF_8)
+        }
+        return null
+    }
+
+    private fun createFileFromPost(data: ByteArray): File {
+        require(data.size <= 10_000) { "data exceeds 10000 bytes" }
+        val file = File(config.fileDirPath, "Playground.java")
+        file.parentFile?.mkdirs()
+        file.writeBytes(data)
+        return file
+    }
+
+    private fun compileAndRunJava(sourceFile: File): String {
+        val dir = sourceFile.parentFile
+        val fileName = sourceFile.nameWithoutExtension
+        val classFile = File(dir, "$fileName.class")
+        val directoryPath = config.fileDirPath
+        val javacPath = "$directoryPath/usr/bin/javac"
+        val javaPath = "$directoryPath/usr/bin/java"
+        val filePath = sourceFile.absolutePath
+
+        val javac = ProcessBuilder(javacPath, filePath)
+            .directory(dir)
+            .redirectErrorStream(true)
+            .start()
+        val compileOutput = javac.inputStream.bufferedReader().readText()
+        javac.waitFor()
+
+        if (!classFile.exists()) {
+            return "Compilation failed:\n$compileOutput"
+        }
+
+        val java = ProcessBuilder(
+            javaPath,
+            "-cp",
+            dir?.absolutePath ?: "",
+            fileName
+        )
+            .directory(dir)
+            .redirectErrorStream(true)
+            .start()
+        val runOutput = java.inputStream.bufferedReader().readText()
+        java.waitFor()
+
+        return if (compileOutput.isNotBlank()) {
+            "Compile output\n $compileOutput\n Program output\n$runOutput"
+        } else {
+            "Program output\n $runOutput"
+        }
     }
 }
