@@ -64,17 +64,22 @@ class RegionOcrProcessor(
     ): List<DetectionResult> = coroutineScope {
         components.map { component ->
             async {
-                val crop = BitmapUtils.cropRegion(bitmap, component.boundingBox, componentPadding)
-                val preprocessed = BitmapUtils.preprocessForOcr(crop)
-                val text = ocrSource.recognizeText(preprocessed)
-                    .getOrNull()
-                    ?.joinToString(" ") { it.text }
-                    ?.replace("\n", " ")
-                    ?.trim()
-                    ?: ""
-                if (crop !== bitmap) crop.recycle()
-                preprocessed.recycle()
-                component.copy(text = text)
+                var crop: Bitmap? = null
+                var preprocessed: Bitmap? = null
+                try {
+                    crop = BitmapUtils.cropRegion(bitmap, component.boundingBox, componentPadding)
+                    preprocessed = BitmapUtils.preprocessForOcr(crop)
+                    val text = ocrSource.recognizeText(preprocessed)
+                        .getOrNull()
+                        ?.joinToString(" ") { it.text }
+                        ?.replace("\n", " ")
+                        ?.trim()
+                        ?: ""
+                    component.copy(text = text)
+                } finally {
+                    preprocessed?.recycle()
+                    if (crop != null && crop !== bitmap) crop.recycle()
+                }
             }
         }.awaitAll()
     }
@@ -105,26 +110,28 @@ class RegionOcrProcessor(
     ): List<DetectionResult> {
         val crop = BitmapUtils.cropRegion(bitmap, rect)
         if (crop === bitmap) return emptyList()
-        val textBlocks = ocrSource.recognizeText(crop).getOrNull() ?: emptyList()
-        crop.recycle()
-
-        return textBlocks.flatMap { block ->
-            block.lines.mapNotNull { line ->
-                line.boundingBox?.let { box ->
-                    DetectionResult(
-                        boundingBox = RectF(
-                            box.left + offsetX,
-                            box.top + rect.top,
-                            box.right + offsetX,
-                            box.bottom + rect.top
-                        ),
-                        label = "text",
-                        score = 0.99f,
-                        text = line.text.trim(),
-                        isYolo = false
-                    )
+        return try {
+            val textBlocks = ocrSource.recognizeText(crop).getOrNull() ?: emptyList()
+            textBlocks.flatMap { block ->
+                block.lines.mapNotNull { line ->
+                    line.boundingBox?.let { box ->
+                        DetectionResult(
+                            boundingBox = RectF(
+                                box.left + offsetX,
+                                box.top + rect.top,
+                                box.right + offsetX,
+                                box.bottom + rect.top
+                            ),
+                            label = "text",
+                            score = 0.99f,
+                            text = line.text.trim(),
+                            isYolo = false
+                        )
+                    }
                 }
             }
+        } finally {
+            crop.recycle()
         }
     }
 

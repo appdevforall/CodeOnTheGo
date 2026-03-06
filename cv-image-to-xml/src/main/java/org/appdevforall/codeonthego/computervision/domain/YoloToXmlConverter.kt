@@ -143,8 +143,9 @@ object YoloToXmlConverter {
         }
 
         for ((tagText, annotation) in annotations) {
-            if (tagText in appliedAnnotationKeys) continue
-            val tagType = getTagType(tagText) ?: continue
+            val normalizedTagText = normalizeTagText(tagText)
+            if (normalizedTagText in appliedAnnotationKeys) continue
+            val tagType = getTagType(normalizedTagText) ?: continue
             val unclaimed = uiElements
                 .filter { it.label.startsWith(tagType) && it !in claimedWidgets }
                 .sortedWith(compareBy({ it.y }, { it.x }))
