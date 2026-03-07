@@ -18,4 +18,5 @@
 <resources>
   <color name="splash_bg">@color/primaryColor</color>
   <color name="splash_icon_tint">@color/primaryIconColor</color>
+  <color name="tooltip_link_color">@color/brand_color</color>
 </resources>
