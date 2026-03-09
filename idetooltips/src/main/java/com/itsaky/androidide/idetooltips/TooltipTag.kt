@@ -38,6 +38,7 @@ object TooltipTag {
     const val PREFS_TERMUX = "prefs.termux"
     const val PREFS_EDITOR_XML = "prefs.editor.xml"
     const val PREFS_DEVELOPER = "prefs.developer"
+    const val PLUGIN_MANAGER = "plugin.manager"
     const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
     const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
     const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
@@ -155,4 +156,6 @@ object TooltipTag {
     const val DEBUGGER_ACTION_STEP_OUT = "debug.toolbar.stepout"
     const val DEBUGGER_ACTION_KILL = "debug.toolbar.kill"
     const val DEBUGGER_ACTION_RESTART = "debug.toolbar.restart"
+
+    const val PROJECT_PLUGIN_TAB = "project.plugin.tab"
 }

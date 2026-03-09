@@ -1,8 +1,10 @@
 package org.appdevforall.codeonthego.computervision.di
+
 import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
 import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepositoryImpl
 import org.appdevforall.codeonthego.computervision.data.source.OcrSource
 import org.appdevforall.codeonthego.computervision.data.source.YoloModelSource
+import org.appdevforall.codeonthego.computervision.domain.RegionOcrProcessor
 import org.appdevforall.codeonthego.computervision.ui.viewmodel.ComputerVisionViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
@@ -14,11 +16,13 @@ val computerVisionModule = module {
 
     single { OcrSource() }
 
+    single { RegionOcrProcessor(ocrSource = get()) }
+
     single<ComputerVisionRepository> {
         ComputerVisionRepositoryImpl(
             assetManager = androidContext().assets,
             yoloModelSource = get(),
-            ocrSource = get()
+            regionOcrProcessor = get()
         )
     }
 

@@ -1,3 +1,4 @@
+#include "common.h"
 #include "log.h"
 
 #include <chrono>
@@ -17,9 +18,7 @@
 #    define isatty _isatty
 #    define fileno _fileno
 #else
-
 #    include <unistd.h>
-
 #endif // defined(_WIN32)
 
 int common_log_verbosity_thold = LOG_DEFAULT_LLAMA;
@@ -28,33 +27,8 @@ void common_log_set_verbosity_thold(int verbosity) {
     common_log_verbosity_thold = verbosity;
 }
 
-// Auto-detect if colors should be enabled based on terminal and environment
-static bool common_log_should_use_colors_auto() {
-    // Check NO_COLOR environment variable (https://no-color.org/)
-    if (const char *no_color = std::getenv("NO_COLOR")) {
-        if (no_color[0] != '\0') {
-            return false;
-        }
-    }
-
-    // Check TERM environment variable
-    if (const char *term = std::getenv("TERM")) {
-        if (std::strcmp(term, "dumb") == 0) {
-            return false;
-        }
-    }
-
-    // Check if stdout and stderr are connected to a terminal
-    // We check both because log messages can go to either
-    bool stdout_is_tty = isatty(fileno(stdout));
-    bool stderr_is_tty = isatty(fileno(stderr));
-
-    return stdout_is_tty || stderr_is_tty;
-}
-
 static int64_t t_us() {
-    return std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
 // colors
@@ -72,15 +46,15 @@ enum common_log_col : int {
 
 // disable colors by default
 static std::vector<const char *> g_col = {
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 };
 
 struct common_log_entry {
@@ -95,8 +69,8 @@ struct common_log_entry {
     // signals the worker thread to stop
     bool is_end;
 
-    void print(FILE *file = nullptr) const {
-        FILE *fcur = file;
+    void print(FILE * file = nullptr) const {
+        FILE * fcur = file;
         if (!fcur) {
             // stderr displays DBG messages only when their verbosity level is not higher than the threshold
             // these messages will still be logged to a file
@@ -124,19 +98,10 @@ struct common_log_entry {
             }
 
             switch (level) {
-                case GGML_LOG_LEVEL_INFO:
-                    fprintf(fcur, "%sI %s", g_col[COMMON_LOG_COL_GREEN],
-                            g_col[COMMON_LOG_COL_DEFAULT]);
-                    break;
-                case GGML_LOG_LEVEL_WARN:
-                    fprintf(fcur, "%sW %s", g_col[COMMON_LOG_COL_MAGENTA], "");
-                    break;
-                case GGML_LOG_LEVEL_ERROR:
-                    fprintf(fcur, "%sE %s", g_col[COMMON_LOG_COL_RED], "");
-                    break;
-                case GGML_LOG_LEVEL_DEBUG:
-                    fprintf(fcur, "%sD %s", g_col[COMMON_LOG_COL_YELLOW], "");
-                    break;
+                case GGML_LOG_LEVEL_INFO:  fprintf(fcur, "%sI %s", g_col[COMMON_LOG_COL_GREEN],   g_col[COMMON_LOG_COL_DEFAULT]); break;
+                case GGML_LOG_LEVEL_WARN:  fprintf(fcur, "%sW %s", g_col[COMMON_LOG_COL_MAGENTA], ""                        ); break;
+                case GGML_LOG_LEVEL_ERROR: fprintf(fcur, "%sE %s", g_col[COMMON_LOG_COL_RED],     ""                        ); break;
+                case GGML_LOG_LEVEL_DEBUG: fprintf(fcur, "%sD %s", g_col[COMMON_LOG_COL_YELLOW],  ""                        ); break;
                 default:
                     break;
             }
@@ -144,8 +109,7 @@ struct common_log_entry {
 
         fprintf(fcur, "%s", msg.data());
 
-        if (level == GGML_LOG_LEVEL_WARN || level == GGML_LOG_LEVEL_ERROR ||
-            level == GGML_LOG_LEVEL_DEBUG) {
+        if (level == GGML_LOG_LEVEL_WARN || level == GGML_LOG_LEVEL_ERROR || level == GGML_LOG_LEVEL_DEBUG) {
             fprintf(fcur, "%s", g_col[COMMON_LOG_COL_DEFAULT]);
         }
 
@@ -166,7 +130,7 @@ struct common_log {
 
         // initial message size - will be expanded if longer messages arrive
         entries.resize(capacity);
-        for (auto &entry: entries) {
+        for (auto & entry : entries) {
             entry.msg.resize(256);
         }
 
@@ -188,7 +152,7 @@ private:
     std::thread thrd;
     std::condition_variable cv;
 
-    FILE *file;
+    FILE * file;
 
     bool prefix;
     bool timestamps;
@@ -205,7 +169,7 @@ private:
     common_log_entry cur;
 
 public:
-    void add(enum ggml_log_level level, const char *fmt, va_list args) {
+    void add(enum ggml_log_level level, const char * fmt, va_list args) {
         std::lock_guard<std::mutex> lock(mtx);
 
         if (!running) {
@@ -213,7 +177,7 @@ public:
             return;
         }
 
-        auto &entry = entries[tail];
+        auto & entry = entries[tail];
 
         {
             // cannot use args twice, so make a copy in case we need to expand the buffer
@@ -227,23 +191,23 @@ public:
                 vsnprintf(entry.msg.data(), entry.msg.size(), fmt, args_copy);
             }
 #else
-                // hack for bolding arguments
+            // hack for bolding arguments
 
-                std::stringstream ss;
-                for (int i = 0; fmt[i] != 0; i++) {
-                    if (fmt[i] == '%') {
-                        ss << LOG_COL_BOLD;
-                        while (fmt[i] != ' ' && fmt[i] != ')' && fmt[i] != ']' && fmt[i] != 0) ss << fmt[i++];
-                        ss << LOG_COL_DEFAULT;
-                        if (fmt[i] == 0) break;
-                    }
-                    ss << fmt[i];
+            std::stringstream ss;
+            for (int i = 0; fmt[i] != 0; i++) {
+                if (fmt[i] == '%') {
+                    ss << LOG_COL_BOLD;
+                    while (fmt[i] != ' ' && fmt[i] != ')' && fmt[i] != ']' && fmt[i] != 0) ss << fmt[i++];
+                    ss << LOG_COL_DEFAULT;
+                    if (fmt[i] == 0) break;
                 }
-                const size_t n = vsnprintf(entry.msg.data(), entry.msg.size(), ss.str().c_str(), args);
-                if (n >= entry.msg.size()) {
-                    entry.msg.resize(n + 1);
-                    vsnprintf(entry.msg.data(), entry.msg.size(), ss.str().c_str(), args_copy);
-                }
+                ss << fmt[i];
+            }
+            const size_t n = vsnprintf(entry.msg.data(), entry.msg.size(), ss.str().c_str(), args);
+            if (n >= entry.msg.size()) {
+                entry.msg.resize(n + 1);
+                vsnprintf(entry.msg.data(), entry.msg.size(), ss.str().c_str(), args_copy);
+            }
 #endif
             va_end(args_copy);
         }
@@ -259,14 +223,14 @@ public:
         tail = (tail + 1) % entries.size();
         if (tail == head) {
             // expand the buffer
-            std::vector<common_log_entry> new_entries(2 * entries.size());
+            std::vector<common_log_entry> new_entries(2*entries.size());
 
             size_t new_tail = 0;
 
             do {
                 new_entries[new_tail] = std::move(entries[head]);
 
-                head = (head + 1) % entries.size();
+                head     = (head     + 1) % entries.size();
                 new_tail = (new_tail + 1);
             } while (head != tail);
 
@@ -328,7 +292,7 @@ public:
 
             // push an entry to signal the worker thread to stop
             {
-                auto &entry = entries[tail];
+                auto & entry = entries[tail];
                 entry.is_end = true;
 
                 tail = (tail + 1) % entries.size();
@@ -340,7 +304,7 @@ public:
         thrd.join();
     }
 
-    void set_file(const char *path) {
+    void set_file(const char * path) {
         pause();
 
         if (file) {
@@ -361,14 +325,14 @@ public:
 
         if (colors) {
             g_col[COMMON_LOG_COL_DEFAULT] = LOG_COL_DEFAULT;
-            g_col[COMMON_LOG_COL_BOLD] = LOG_COL_BOLD;
-            g_col[COMMON_LOG_COL_RED] = LOG_COL_RED;
-            g_col[COMMON_LOG_COL_GREEN] = LOG_COL_GREEN;
-            g_col[COMMON_LOG_COL_YELLOW] = LOG_COL_YELLOW;
-            g_col[COMMON_LOG_COL_BLUE] = LOG_COL_BLUE;
+            g_col[COMMON_LOG_COL_BOLD]    = LOG_COL_BOLD;
+            g_col[COMMON_LOG_COL_RED]     = LOG_COL_RED;
+            g_col[COMMON_LOG_COL_GREEN]   = LOG_COL_GREEN;
+            g_col[COMMON_LOG_COL_YELLOW]  = LOG_COL_YELLOW;
+            g_col[COMMON_LOG_COL_BLUE]    = LOG_COL_BLUE;
             g_col[COMMON_LOG_COL_MAGENTA] = LOG_COL_MAGENTA;
-            g_col[COMMON_LOG_COL_CYAN] = LOG_COL_CYAN;
-            g_col[COMMON_LOG_COL_WHITE] = LOG_COL_WHITE;
+            g_col[COMMON_LOG_COL_CYAN]    = LOG_COL_CYAN;
+            g_col[COMMON_LOG_COL_WHITE]   = LOG_COL_WHITE;
         } else {
             for (size_t i = 0; i < g_col.size(); i++) {
                 g_col[i] = "";
@@ -395,47 +359,47 @@ public:
 // public API
 //
 
-struct common_log *common_log_init() {
+struct common_log * common_log_init() {
     return new common_log;
 }
 
-struct common_log *common_log_main() {
+struct common_log * common_log_main() {
     static struct common_log log;
-    static std::once_flag init_flag;
+    static std::once_flag    init_flag;
     std::call_once(init_flag, [&]() {
         // Set default to auto-detect colors
-        log.set_colors(common_log_should_use_colors_auto());
+        log.set_colors(tty_can_use_colors());
     });
 
     return &log;
 }
 
-void common_log_pause(struct common_log *log) {
+void common_log_pause(struct common_log * log) {
     log->pause();
 }
 
-void common_log_resume(struct common_log *log) {
+void common_log_resume(struct common_log * log) {
     log->resume();
 }
 
-void common_log_free(struct common_log *log) {
+void common_log_free(struct common_log * log) {
     delete log;
 }
 
-void common_log_add(struct common_log *log, enum ggml_log_level level, const char *fmt, ...) {
+void common_log_add(struct common_log * log, enum ggml_log_level level, const char * fmt, ...) {
     va_list args;
     va_start(args, fmt);
     log->add(level, fmt, args);
     va_end(args);
 }
 
-void common_log_set_file(struct common_log *log, const char *file) {
+void common_log_set_file(struct common_log * log, const char * file) {
     log->set_file(file);
 }
 
-void common_log_set_colors(struct common_log *log, log_colors colors) {
+void common_log_set_colors(struct common_log * log, log_colors colors) {
     if (colors == LOG_COLORS_AUTO) {
-        log->set_colors(common_log_should_use_colors_auto());
+        log->set_colors(tty_can_use_colors());
         return;
     }
 
@@ -448,10 +412,35 @@ void common_log_set_colors(struct common_log *log, log_colors colors) {
     log->set_colors(true);
 }
 
-void common_log_set_prefix(struct common_log *log, bool prefix) {
+void common_log_set_prefix(struct common_log * log, bool prefix) {
     log->set_prefix(prefix);
 }
 
-void common_log_set_timestamps(struct common_log *log, bool timestamps) {
+void common_log_set_timestamps(struct common_log * log, bool timestamps) {
     log->set_timestamps(timestamps);
+}
+
+void common_log_flush(struct common_log * log) {
+    log->pause();
+    log->resume();
+}
+
+static int common_get_verbosity(enum ggml_log_level level) {
+    switch (level) {
+        case GGML_LOG_LEVEL_DEBUG: return LOG_LEVEL_DEBUG;
+        case GGML_LOG_LEVEL_INFO:  return LOG_LEVEL_INFO;
+        case GGML_LOG_LEVEL_WARN:  return LOG_LEVEL_WARN;
+        case GGML_LOG_LEVEL_ERROR: return LOG_LEVEL_ERROR;
+        case GGML_LOG_LEVEL_CONT:  return LOG_LEVEL_INFO; // same as INFO
+        case GGML_LOG_LEVEL_NONE:
+        default:
+            return LOG_LEVEL_OUTPUT;
+    }
+}
+
+void common_log_default_callback(enum ggml_log_level level, const char * text, void * /*user_data*/) {
+    auto verbosity = common_get_verbosity(level);
+    if (verbosity <= common_log_verbosity_thold) {
+        common_log_add(common_log_main(), level, "%s", text);
+    }
 }
