@@ -80,6 +80,7 @@ object TooltipTag {
     const val FEEDBACK = "feedback"
     const val MAIN_PREFERENCES = "main.prefs"
     const val MAIN_TERMINAL = "main.terminal"
+    const val MAIN_GIT = "main.git"
 
     // Editor toolbar
     const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"
