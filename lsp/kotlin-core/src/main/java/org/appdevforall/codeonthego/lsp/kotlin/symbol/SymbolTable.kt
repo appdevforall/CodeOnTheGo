@@ -157,15 +157,8 @@ class SymbolTable(
      * This includes symbols from the current scope and all parent scopes.
      */
     fun allVisibleSymbols(position: Position): List<Symbol> {
-        android.util.Log.d("SymbolTable", "allVisibleSymbols: position=$position")
-        android.util.Log.d("SymbolTable", "fileScope.range=${fileScope.range}, children=${fileScope.children.size}")
-        for (child in fileScope.children) {
-            android.util.Log.d("SymbolTable", "  child scope: kind=${child.kind}, range=${child.range}, symbols=${child.allSymbols.map { it.name }}")
-        }
         val scope = scopeAt(position) ?: fileScope
-        android.util.Log.d("SymbolTable", "found scope: kind=${scope.kind}, range=${scope.range}")
         val symbols = scope.collectAll { true }
-        android.util.Log.d("SymbolTable", "collectAll returned ${symbols.size} symbols: ${symbols.map { it.name }}")
         return symbols
     }
 
