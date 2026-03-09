@@ -39,7 +39,7 @@ fun TaskContainer.registerD8Task(
 	val d8Executable =
 		File(
 			"$androidSdkDir/build-tools/$buildToolsVersion/" +
-					if (isWindows) "d8.bat" else "d8",
+				if (isWindows) "d8.bat" else "d8",
 		)
 
 	if (!d8Executable.exists()) {
@@ -478,7 +478,7 @@ fun createAssetsZip(arch: String) {
 			val d8Executable =
 				File(
 					"$androidSdkDir/build-tools/$buildToolsVersion/" +
-							if (isWindows) "d8.bat" else "d8",
+						if (isWindows) "d8.bat" else "d8",
 				)
 
 			// 1. Start building the command arguments list
@@ -508,9 +508,11 @@ fun createAssetsZip(arch: String) {
 			// on systems which don't already have `java` in PATH
 			environment(
 				"PATH",
-				(System.getenv("PATH")?.let { it + File.pathSeparator } ?: "") + System.getProperty(
-					"java.home"
-				) + File.separator + "bin")
+				(System.getenv("PATH")?.let { it + File.pathSeparator } ?: "") +
+					System.getProperty(
+						"java.home",
+					) + File.separator + "bin",
+			)
 		}.assertNormalExitValue()
 
 	if (!dexOutputFile.exists()) {
