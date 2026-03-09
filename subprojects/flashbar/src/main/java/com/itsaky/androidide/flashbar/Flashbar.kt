@@ -31,6 +31,9 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.annotation.StyleRes
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import com.itsaky.androidide.flashbar.Flashbar.Gravity.BOTTOM
 import com.itsaky.androidide.flashbar.Flashbar.Gravity.TOP
 import com.itsaky.androidide.flashbar.Flashbar.ProgressPosition.LEFT
@@ -75,7 +78,18 @@ class Flashbar private constructor(private var builder: Builder) {
     flashbarContainerView = FlashbarContainerView(builder.activity)
     flashbarContainerView.adjustOrientation(builder.activity)
     flashbarContainerView.addParent(this)
-    flashbarContainerView.fitsSystemWindows = true
+
+    val gravity = builder.gravity
+    ViewCompat.setOnApplyWindowInsetsListener(flashbarContainerView) { view, insets ->
+      val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+      view.updatePadding(
+        top = if (gravity == TOP) systemBars.top else 0,
+        left = 0,
+        right = 0,
+        bottom = if (gravity == BOTTOM) systemBars.bottom else 0
+      )
+      insets
+    }
 
     flashbarView = FlashbarView(builder.activity)
     flashbarView.init(builder.gravity)

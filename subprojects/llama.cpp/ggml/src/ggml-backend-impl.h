@@ -144,7 +144,7 @@ extern "C" {
         // device description: short informative description of the device, could be the model name
         const char * (*get_description)(ggml_backend_dev_t dev);
 
-        // device memory in bytes
+        // device memory in bytes: 0 bytes to indicate no memory to report
         void         (*get_memory)(ggml_backend_dev_t dev, size_t * free, size_t * total);
 
         // device type
@@ -208,9 +208,6 @@ extern "C" {
         struct ggml_backend_reg_i iface;
         void * context;
     };
-
-    // Internal backend registry API
-    GGML_API void ggml_backend_register(ggml_backend_reg_t reg);
 
     // Add backend dynamic loading support to the backend
 
