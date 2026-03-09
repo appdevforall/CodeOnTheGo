@@ -508,10 +508,12 @@ fun createAssetsZip(arch: String) {
 			// on systems which don't already have `java` in PATH
 			environment(
 				"PATH",
-				(System.getenv("PATH")?.let { it + File.pathSeparator } ?: "") +
-					System.getProperty(
-						"java.home",
-					) + File.separator + "bin",
+				System.getProperty(
+					"java.home",
+				) + File.separator + "bin" + (
+					System.getenv("PATH")?.let { File.pathSeparator + it }
+						?: ""
+				),
 			)
 		}.assertNormalExitValue()
 
