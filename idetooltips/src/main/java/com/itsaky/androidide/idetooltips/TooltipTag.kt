@@ -159,4 +159,7 @@ object TooltipTag {
     const val DEBUGGER_ACTION_RESTART = "debug.toolbar.restart"
 
     const val PROJECT_PLUGIN_TAB = "project.plugin.tab"
+
+    // Git
+    const val GIT_DOWNLOAD_SCREEN = "git.download"
 }
