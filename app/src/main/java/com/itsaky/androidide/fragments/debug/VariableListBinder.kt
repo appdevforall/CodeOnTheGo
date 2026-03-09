@@ -161,7 +161,7 @@ class VariableListBinder(
         currentValue: String
     ) {
         val context = itemBinding.root.context
-        itemBinding.root.setOnClickListener {
+        itemBinding.edit.setOnClickListener {
             if (!descriptor.isMutable) {
                 // variable is immutable
                 flashError(context.getString(R.string.debugger_error_immutable_variable, descriptor.name))

@@ -55,7 +55,7 @@ class VariableListFragment : Fragment() {
 
 
         treeView?.apply {
-            supportHorizontalScroll = true
+            supportHorizontalScroll = false
             supportDragging = false
             tree = viewModel.variablesTree.value
             binder = VariableListBinder(viewLifecycleOwner.lifecycleScope, viewModel)
