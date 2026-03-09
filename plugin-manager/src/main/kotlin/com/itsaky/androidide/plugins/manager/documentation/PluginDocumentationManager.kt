@@ -10,6 +10,7 @@ import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Manages plugin documentation by writing into the main documentation.db.
@@ -35,6 +36,7 @@ class PluginDocumentationManager(private val context: Context) {
             }
             SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Failed to open documentation.db for plugin writes", e)
             null
         }
@@ -104,6 +106,7 @@ class PluginDocumentationManager(private val context: Context) {
             Log.d(TAG, "Successfully installed documentation for plugin $pluginId")
             true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Failed to install documentation for plugin $pluginId", e)
             false
         } finally {
@@ -135,6 +138,7 @@ class PluginDocumentationManager(private val context: Context) {
             Log.d(TAG, "Successfully removed documentation for plugin $pluginId")
             true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Failed to remove documentation for plugin $pluginId", e)
             false
         } finally {
@@ -269,6 +273,7 @@ class PluginDocumentationManager(private val context: Context) {
             cursor.close()
             installed
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Failed to check plugin documentation for $pluginId", e)
             false
         } finally {
@@ -321,6 +326,7 @@ class PluginDocumentationManager(private val context: Context) {
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to verify/recreate documentation for $pluginId", e)
             }
         }
