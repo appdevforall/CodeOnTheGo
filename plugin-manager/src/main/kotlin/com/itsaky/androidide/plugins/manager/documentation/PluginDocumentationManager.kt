@@ -49,8 +49,11 @@ class PluginDocumentationManager(private val context: Context) {
     suspend fun initialize() = withContext(Dispatchers.IO) {
         val legacyDb = context.getDatabasePath("plugin_documentation.db")
         if (legacyDb.exists()) {
-            legacyDb.delete()
-            Log.d(TAG, "Removed legacy plugin_documentation.db")
+            if (legacyDb.delete()) {
+                Log.d(TAG, "Removed legacy plugin_documentation.db")
+            } else {
+                Log.w(TAG, "Failed to remove legacy plugin_documentation.db")
+            }
         }
         Log.d(TAG, "Plugin documentation system initialized")
     }
