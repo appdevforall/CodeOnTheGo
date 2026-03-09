@@ -20,7 +20,6 @@ package com.itsaky.androidide.adapters
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ConvertUtils
 import com.google.android.material.shape.CornerFamily
@@ -81,39 +80,11 @@ class TemplateListAdapter(
 			}
 
 			root.setOnLongClickListener {
-				template.tooltipTag?.let { tag ->
+				template.tooltipTag?.let { _ ->
 					onLongClick?.invoke(template, it)
 				}
 				true // Consume the event
 			}
 		}
-	}
-
-	internal fun fillDiff(extras: Int) {
-		val count = itemCount
-		for (i in 1..extras) {
-			templates.add(Template.EMPTY)
-		}
-
-		val diff =
-			DiffUtil.calculateDiff(
-				object : DiffUtil.Callback() {
-					override fun getOldListSize(): Int = count
-
-					override fun getNewListSize(): Int = count + extras
-
-					override fun areItemsTheSame(
-						oldItemPosition: Int,
-						newItemPosition: Int,
-					): Boolean = newItemPosition < count && oldItemPosition == newItemPosition
-
-					override fun areContentsTheSame(
-						oldItemPosition: Int,
-						newItemPosition: Int,
-					): Boolean = areItemsTheSame(oldItemPosition, newItemPosition)
-				},
-			)
-
-		diff.dispatchUpdatesTo(this)
 	}
 }
