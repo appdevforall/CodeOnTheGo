@@ -25,6 +25,7 @@ import com.itsaky.androidide.app.IDEApplication.Companion.getPluginManager
 import com.itsaky.androidide.fragments.DiagnosticsListFragment
 import com.itsaky.androidide.fragments.SearchResultFragment
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
+import com.itsaky.androidide.fragments.git.GitBottomSheetFragment
 import com.itsaky.androidide.fragments.output.AppLogFragment
 import com.itsaky.androidide.fragments.output.BuildOutputFragment
 import com.itsaky.androidide.fragments.output.IDELogFragment
@@ -53,6 +54,7 @@ class EditorBottomSheetTabAdapter(
 		const val TAB_SEARCH_RESULTS = 4
 		const val TAB_DEBUGGER = 5
 		const val TAB_AGENT = 6
+        const val TAB_GIT = 7
 	}
 
 	private val allTabs =
@@ -120,6 +122,14 @@ class EditorBottomSheetTabAdapter(
 						tooltipTag = TooltipTag.PROJECT_AGENT,
 					),
 				)
+
+                add(
+                    Tab(
+                        title = fragmentActivity.getString(R.string.git_title),
+                        fragmentClass = GitBottomSheetFragment::class.java,
+                        itemId = TAB_GIT,
+                    ),
+                )
 			}
 		}
 
