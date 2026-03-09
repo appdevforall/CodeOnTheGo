@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.computervision.data.repository
 
 import android.graphics.Bitmap
 import com.google.mlkit.vision.text.Text
+import org.appdevforall.codeonthego.computervision.domain.RegionOcrProcessor
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 
 interface ComputerVisionRepository {
@@ -10,11 +11,17 @@ interface ComputerVisionRepository {
 
     suspend fun runYoloInference(bitmap: Bitmap): Result<List<DetectionResult>>
 
-    suspend fun runOcrRecognition(bitmap: Bitmap): Result<List<Text.TextBlock>>
+    suspend fun runRegionOcr(
+        bitmap: Bitmap,
+        yoloDetections: List<DetectionResult>,
+        leftGuidePct: Float,
+        rightGuidePct: Float
+    ): Result<RegionOcrProcessor.RegionOcrResult>
 
     suspend fun mergeDetections(
-        yoloDetections: List<DetectionResult>,
-        textBlocks: List<Text.TextBlock>
+        enrichedComponents: List<DetectionResult>,
+        remainingDetections: List<DetectionResult>,
+        fullImageTextBlocks: List<Text.TextBlock>
     ): Result<List<DetectionResult>>
 
     suspend fun generateXml(
@@ -25,8 +32,6 @@ interface ComputerVisionRepository {
         targetDpWidth: Int,
         targetDpHeight: Int
     ): Result<String>
-
-    fun preprocessBitmapForOcr(bitmap: Bitmap): Bitmap
 
     fun isModelInitialized(): Boolean
 
