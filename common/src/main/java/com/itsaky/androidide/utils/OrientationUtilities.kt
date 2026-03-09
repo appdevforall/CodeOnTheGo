@@ -29,7 +29,7 @@ class OrientationUtilities {
         }
 
         fun setAdaptiveOrientation(setRequestedOrientation: (Int) -> Unit) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER)
         }
     }
 
