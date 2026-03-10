@@ -27,11 +27,15 @@ import java.io.Reader
 /**
  * @author Akash Yadav
  */
-data class OpenedFilesCache(@SerializedName(KEY_SELECTED_FILE) val selectedFile: String,
-  @SerializedName(KEY_ALL_FILES) val allFiles: List<OpenedFile>) {
+data class OpenedFilesCache(
+  @SerializedName(KEY_PROJECT_PATH) val projectPath: String = "",
+  @SerializedName(KEY_SELECTED_FILE) val selectedFile: String,
+  @SerializedName(KEY_ALL_FILES) val allFiles: List<OpenedFile>,
+) {
 
   companion object {
 
+    private const val KEY_PROJECT_PATH = "projectPath"
     private const val KEY_SELECTED_FILE = "selectedFile"
     private const val KEY_ALL_FILES = "allFiles"
     private val log = LoggerFactory.getLogger(OpenedFilesCache::class.java)
@@ -45,20 +49,20 @@ data class OpenedFilesCache(@SerializedName(KEY_SELECTED_FILE) val selectedFile:
           }
 
           reader.beginObject()
+          var projectPath = ""
           var selectedFile = ""
           var allFiles = emptyList<OpenedFile>()
           while (reader.hasNext()) {
-            val name = reader.nextName()
-
-            if (name == KEY_SELECTED_FILE) {
-              selectedFile = reader.nextString()
-            } else if (name == KEY_ALL_FILES) {
-              allFiles = Gson().fromJson(reader, object : TypeToken<List<OpenedFile>>() {})
+            when (reader.nextName()) {
+              KEY_PROJECT_PATH -> projectPath = reader.nextString()
+              KEY_SELECTED_FILE -> selectedFile = reader.nextString()
+              KEY_ALL_FILES -> allFiles = Gson().fromJson(reader, object : TypeToken<List<OpenedFile>>() {})
+              else -> reader.skipValue()
             }
           }
           reader.endObject()
 
-          return@use OpenedFilesCache(selectedFile, allFiles)
+          return@use OpenedFilesCache(projectPath, selectedFile, allFiles)
         }
       } catch (err: Exception) {
         log.error("Failed to parse opened files cache", err)
