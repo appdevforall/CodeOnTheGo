@@ -4,18 +4,23 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.FragmentCloneRepositoryBinding
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.git.core.models.CloneRepoUiState
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.forEachViewRecursively
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -87,6 +92,20 @@ class CloneRepositoryFragment : BaseFragment() {
             
             exitButton.setOnClickListener {
                 mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
+            }
+
+            root.forEachViewRecursively { child ->
+                if (child is EditText || child is TextInputLayout) {
+                    return@forEachViewRecursively
+                }
+                child.setOnLongClickListener { v ->
+                    TooltipManager.showIdeCategoryTooltip(
+                        context = requireContext(),
+                        anchorView = v,
+                        tag = TooltipTag.GIT_DOWNLOAD_SCREEN
+                    )
+                    true
+                }
             }
         }
     }
