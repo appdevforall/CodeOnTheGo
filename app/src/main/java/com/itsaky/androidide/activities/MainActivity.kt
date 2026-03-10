@@ -115,6 +115,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             v.updatePadding(bottom = insets.bottom)
             windowInsets
         }
+        ViewCompat.requestApplyInsets(binding.root)
 
 		// Start WebServer after installation is complete
 		startWebServer()

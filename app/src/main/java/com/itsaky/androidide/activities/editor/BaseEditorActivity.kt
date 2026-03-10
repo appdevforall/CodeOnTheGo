@@ -578,6 +578,7 @@ abstract class BaseEditorActivity :
             v.updatePadding(bottom = insets.bottom)
             windowInsets
         }
+        ViewCompat.requestApplyInsets(binding.root)
 
 		editorViewModel.isBuildInProgress = false
 		editorViewModel.isInitializing = false
