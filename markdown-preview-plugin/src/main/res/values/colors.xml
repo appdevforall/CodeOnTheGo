@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors -->
+    <color name="primary">#1976D2</color>
+    <color name="primary_dark">#1565C0</color>
+    <color name="accent">#64B5F6</color>
+
+    <!-- Status Colors -->
+    <color name="status_background">#E3F2FD</color>
+    <color name="status_text">#1565C0</color>
+
+    <color name="status_success_background">#E8F5E9</color>
+    <color name="status_success_text">#2E7D32</color>
+
+    <color name="status_error_background">#FFEBEE</color>
+    <color name="status_error_text">#C62828</color>
+
+    <color name="status_warning_background">#FFF3E0</color>
+    <color name="status_warning_text">#EF6C00</color>
+
+    <!-- Preview Colors -->
+    <color name="preview_background">#FFFFFF</color>
+    <color name="preview_text">#333333</color>
+    <color name="preview_code_background">#F5F5F5</color>
+    <color name="preview_link">#1976D2</color>
+</resources>
