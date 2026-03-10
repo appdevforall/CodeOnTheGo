@@ -2,71 +2,51 @@ package com.itsaky.androidide.plugins.manager.services
 
 import android.content.Context
 import android.view.View
-import com.itsaky.androidide.plugins.manager.tooltip.PluginTooltipManager
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 
 /**
  * Implementation of the tooltip service for plugins.
- * Provides a clean API for plugins to show tooltips.
+ * Delegates to the main TooltipManager, using "plugin_<pluginId>" as the category
+ * so plugin entries are stored alongside built-in documentation in documentation.db
+ * without conflicting with them.
  */
 class IdeTooltipServiceImpl(
-    private val context: Context
+    private val context: Context,
+    private val pluginId: String,
+    private val activityProvider: PluginManager.ActivityProvider?
 ) : IdeTooltipService {
 
-    private val themedContext: Context by lazy {
-        // Wrap the context with a proper Material theme to ensure tooltip inflation works
-        try {
-            androidx.appcompat.view.ContextThemeWrapper(
-                context,
-                com.google.android.material.R.style.Theme_Material3_DynamicColors_DayNight
-            )
-        } catch (e: Exception) {
-            // Fallback to regular Material theme if dynamic colors not available
-            try {
-                androidx.appcompat.view.ContextThemeWrapper(
-                    context,
-                    com.google.android.material.R.style.Theme_Material3_DayNight
-                )
-            } catch (e: Exception) {
-                context
-            }
-        }
-    }
+    private val pluginCategory = "plugin_$pluginId"
 
-    companion object {
-        private const val LOG_TAG = "IdeTooltipService"
-        // Default category for plugin tooltips if not specified
-        private const val DEFAULT_PLUGIN_CATEGORY = "plugin"
+    /**
+     * Returns a context suitable for inflating the tooltip layout.
+     * Prefers the live Activity (correct Material3 theme + dark mode configuration).
+     * Falls back to the app context.
+     */
+    private fun resolvedContext(): Context {
+        activityProvider?.getCurrentActivity()?.let { activity ->
+            if (!activity.isFinishing && !activity.isDestroyed) return activity
+        }
+        return context
     }
 
     override fun showTooltip(anchorView: View, category: String, tag: String) {
         try {
-            // Use the PluginTooltipManager for isolated plugin documentation
-            PluginTooltipManager.showTooltip(
-                context = themedContext,
-                anchorView = anchorView,
-                category = category,
-                tag = tag
-            )
+            TooltipManager.showTooltip(resolvedContext(), anchorView, pluginCategory, tag)
         } catch (e: android.view.InflateException) {
-            android.util.Log.e(LOG_TAG, "Failed to inflate tooltip layout: $category.$tag", e)
+            android.util.Log.e("IdeTooltipService", "Failed to inflate tooltip layout: $pluginCategory.$tag", e)
         } catch (e: Exception) {
-            android.util.Log.e(LOG_TAG, "Failed to show tooltip: $category.$tag", e)
+            android.util.Log.e("IdeTooltipService", "Failed to show tooltip: $pluginCategory.$tag", e)
         }
     }
 
     override fun showTooltip(anchorView: View, tag: String) {
         try {
-            // Use the PluginTooltipManager with default plugin category
-            PluginTooltipManager.showTooltip(
-                context = themedContext,
-                anchorView = anchorView,
-                category = DEFAULT_PLUGIN_CATEGORY,
-                tag = tag
-            )
+            TooltipManager.showTooltip(resolvedContext(), anchorView, pluginCategory, tag)
         } catch (e: Exception) {
-            android.util.Log.e(LOG_TAG, "Failed to show tooltip: $tag", e)
+            android.util.Log.e("IdeTooltipService", "Failed to show tooltip: $pluginCategory.$tag", e)
         }
     }
-
 }
