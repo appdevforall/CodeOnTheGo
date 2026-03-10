@@ -134,6 +134,9 @@ class MarkdownPreviewerPlugin : IPlugin, UIExtension, EditorTabExtension {
 
     override fun onEditorTabSelected(tabId: String, fragment: Fragment) {
         context.logger.info("Editor tab selected: $tabId")
+        if (fragment is MarkdownPreviewFragment) {
+            fragment.checkPendingFile()
+        }
     }
 
     override fun onEditorTabClosed(tabId: String) {

@@ -120,8 +120,10 @@ class MarkdownPreviewFragment : Fragment() {
         initializeViews(view)
         setupWebView()
         setupClickListeners()
+        checkPendingFile()
+    }
 
-        // Check for pending file from context menu
+    fun checkPendingFile() {
         PreviewState.consumePendingFile()?.let { path ->
             loadFile(File(path))
         }
