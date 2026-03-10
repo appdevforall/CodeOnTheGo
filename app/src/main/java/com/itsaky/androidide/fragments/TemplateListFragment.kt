@@ -65,11 +65,7 @@ class TemplateListFragment :
 			windowInsets
 		}
 
-		val screenWidthDp = resources.configuration.screenWidthDp
-		val minItemWidthDp = 160
-		val initialSpans = (screenWidthDp / minItemWidthDp).coerceIn(1, 4)
-
-		val gridLayoutManager = GridLayoutManager(requireContext(), initialSpans)
+		val gridLayoutManager = GridLayoutManager(requireContext(), 1)
 		binding.list.layoutManager = gridLayoutManager
 
 		binding.exitButton.setOnClickListener {
@@ -97,10 +93,21 @@ class TemplateListFragment :
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
 
-		val minItemWidthDp = 160
-		val optimalSpans = (newConfig.screenWidthDp / minItemWidthDp).coerceIn(1, 4)
+		updateSpanCount()
+	}
 
-		(binding.list.layoutManager as? GridLayoutManager)?.spanCount = optimalSpans
+	private fun updateSpanCount() {
+		val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+		val maxSpans = if (isLandscape) 6 else 4
+
+		val itemCount = binding.list.adapter?.itemCount ?: 0
+
+		val optimalSpans = maxOf(1, minOf(maxSpans, itemCount))
+
+		val layoutManager = binding.list.layoutManager as? GridLayoutManager
+		if (layoutManager != null && layoutManager.spanCount != optimalSpans) {
+			layoutManager.spanCount = optimalSpans
+		}
 	}
 
 	override fun onDestroyView() {
@@ -139,5 +146,6 @@ class TemplateListFragment :
 				},
 			)
 		binding.list.adapter = adapter
+		updateSpanCount()
 	}
 }
