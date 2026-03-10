@@ -232,10 +232,11 @@ abstract class BaseEditorActivity :
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
+			var dataChanged = false
 			memoryUsage.forEachValue { proc ->
 				_binding?.memUsageView?.chart?.apply {
 					val dataset =
-						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
+						(data.getDataSetByIndex(pidToDatasetIdxMap.getOrDefault(proc.pid, -1)) as LineDataSet?)
 							?: run {
 								log.error(
 									"No dataset found for process: {}: {}",
@@ -252,6 +253,12 @@ abstract class BaseEditorActivity :
 
 					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
 					dataset.notifyDataSetChanged()
+					dataChanged = true
+				}
+			}
+
+			if (dataChanged) {
+				_binding?.memUsageView?.chart?.apply {
 					data.notifyDataChanged()
 					notifyDataSetChanged()
 					invalidate()

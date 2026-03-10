@@ -14,6 +14,7 @@ import com.itsaky.androidide.adapters.MainActionsListAdapter
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
+import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GIT
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_HELP
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_PREFERENCES
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_PROJECT_DELETE
@@ -138,6 +139,7 @@ class MainFragment : BaseFragment() {
 			ACTION_DOCS -> MAIN_HELP
             ACTION_OPEN_TERMINAL -> MAIN_TERMINAL
             ACTION_PREFERENCES -> MAIN_PREFERENCES
+            ACTION_CLONE_REPO -> MAIN_GIT
 			else -> ""
 		}
 
