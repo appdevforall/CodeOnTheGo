@@ -55,11 +55,11 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -475,6 +475,8 @@ abstract class BaseEditorActivity :
 
 		_binding?.content?.editorAppBarLayout?.updatePadding(top = systemBars.top)
 		applySidebarInsets(systemBars)
+		
+		_binding?.root?.applyBottomWindowInsetsPadding(insets)
 
 		val isImeVisible = imeInsets.bottom > 0
 		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
@@ -572,13 +574,6 @@ abstract class BaseEditorActivity :
 	override fun onCreate(savedInstanceState: Bundle?) {
 		savedInstanceState?.getString(KEY_PROJECT_PATH)?.let(ProjectManagerImpl.getInstance()::projectPath::set)
 		super.onCreate(savedInstanceState)
-
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.updatePadding(bottom = insets.bottom)
-            windowInsets
-        }
-        ViewCompat.requestApplyInsets(binding.root)
 
 		editorViewModel.isBuildInProgress = false
 		editorViewModel.isInitializing = false
