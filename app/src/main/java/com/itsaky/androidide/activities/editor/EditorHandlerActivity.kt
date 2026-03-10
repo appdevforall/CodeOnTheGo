@@ -175,7 +175,11 @@ open class EditorHandlerActivity :
 						return@observeFiles
 					}
 			getOpenedFiles().also {
-				val cache = OpenedFilesCache(currentFile, it)
+				val cache = OpenedFilesCache(
+					projectPath = ProjectManagerImpl.getInstance().projectDirPath,
+					selectedFile = currentFile,
+					allFiles = it,
+				)
 				editorViewModel.writeOpenedFiles(cache)
 				editorViewModel.openedFilesCache = cache
 			}
@@ -285,7 +289,11 @@ open class EditorHandlerActivity :
 		}
 
 		val cache =
-			OpenedFilesCache(selectedFile = selectedFile.absolutePath, allFiles = openedFiles)
+			OpenedFilesCache(
+				projectPath = ProjectManagerImpl.getInstance().projectDirPath,
+				selectedFile = selectedFile.absolutePath,
+				allFiles = openedFiles,
+			)
 
 		val jsonCache = Gson().toJson(cache)
 		prefs.putString(PREF_KEY_OPEN_FILES_CACHE, jsonCache)
@@ -341,6 +349,12 @@ open class EditorHandlerActivity :
 
 	private fun onReadOpenedFilesCache(cache: OpenedFilesCache?) {
 		cache ?: return
+
+		val currentProjectPath = ProjectManagerImpl.getInstance().projectDirPath
+		if (cache.projectPath.isNotEmpty() && cache.projectPath != currentProjectPath) {
+			log.debug("[onStart] Discarding stale tab cache from project: {}", cache.projectPath)
+			return
+		}
 
 		lifecycleScope.launch(Dispatchers.IO) {
 			val existingFiles = cache.allFiles.filter { File(it.filePath).exists() }
