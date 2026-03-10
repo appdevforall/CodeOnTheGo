@@ -229,7 +229,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	 */
 	private fun setupPluginServices() {
 		pluginManager?.let { manager ->
-			manager.setActivityProvider { application.getCurrentActiveActivity() }
+			manager.setActivityProvider { application.foregroundActivity }
 			logger.info("Plugin services configured successfully")
 		}
 	}
