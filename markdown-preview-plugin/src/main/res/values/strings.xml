@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Markdown Previewer</string>
+    <string name="plugin_title">File Preview</string>
+    <string name="plugin_description">Preview Markdown and HTML files with live rendering</string>
+
+    <!-- Buttons -->
+    <string name="select_from_project">Project</string>
+    <string name="select_from_storage">Storage</string>
+    <string name="refresh">Refresh</string>
+    <string name="view_source">Source</string>
+    <string name="view_preview">Preview</string>
+
+    <!-- Empty State -->
+    <string name="empty_state_title">No File Selected</string>
+    <string name="empty_state_subtitle">Select a file from your project or device storage to preview</string>
+    <string name="supported_formats">Supported: .md, .markdown, .html, .htm</string>
+
+    <!-- Status Messages -->
+    <string name="loading">Loading…</string>
+    <string name="no_project">No project available</string>
+    <string name="no_files_found">No supported files found</string>
+    <string name="file_not_found">File not found</string>
+    <string name="cannot_read_file">Cannot read file</string>
+
+    <!-- Menu Items -->
+    <string name="preview_file">Preview File</string>
+    <string name="preview_markdown">Preview Markdown</string>
+    <string name="preview_html">Preview HTML</string>
+</resources>
