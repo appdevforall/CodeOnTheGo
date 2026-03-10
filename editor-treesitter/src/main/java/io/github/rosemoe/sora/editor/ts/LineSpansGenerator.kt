@@ -89,7 +89,7 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
      * Delay in milliseconds to batch UI redraws, preventing frame drops
      * when rapidly calculating multiple lines.
      */
-    const val REDRAW_DEBOUNCE_DELAY_MS = 150L
+    const val REDRAW_DEBOUNCE_DELAY_MS = 32L
   }
 
   /**
@@ -117,7 +117,6 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
     contentVersion.incrementAndGet()
     scope.launch {
       tree.edit(edit)
-      caches.evictAll()
       calculatingLines.clear()
     }
   }
@@ -130,6 +129,8 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
     scope.cancel()
     caches.evictAll()
     calculatingLines.clear()
+
+    mainHandler.removeCallbacksAndMessages(null)
 
     tsExecutor.execute { runCatching { tree.close() } }
     tsExecutor.shutdown()
@@ -236,11 +237,71 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
   }
 
   override fun adjustOnInsert(start: CharPosition, end: CharPosition) {
+    val lineDiff = end.line - start.line
 
+    if (lineDiff == 0) {
+      val colDiff = end.column - start.column
+      shiftSpansOnLine(start.line, start.column, colDiff)
+      return
+    }
+
+    rebuildCache { line, spans, cache ->
+      when {
+        line < start.line -> cache.put(line, spans)
+        line == start.line -> {
+          cache.put(line, spans)
+          cache.put(line + lineDiff, spans)
+        }
+        else -> cache.put(line + lineDiff, spans)
+      }
+    }
   }
 
   override fun adjustOnDelete(start: CharPosition, end: CharPosition) {
+    val lineDiff = end.line - start.line
 
+    if (lineDiff == 0) {
+      val colDiff = start.column - end.column
+      shiftSpansOnLine(start.line, end.column, colDiff)
+      return
+    }
+
+    rebuildCache { line, spans, cache ->
+      when {
+        line < start.line -> cache.put(line, spans)
+        line == start.line -> cache.put(line, spans)
+        line > end.line -> cache.put(line - lineDiff, spans)
+      }
+    }
+  }
+
+  /**
+   * Shifts span columns horizontally to prevent visual flickering during inline edits.
+   *
+   * @param line Line index of the modification.
+   * @param startColumn Column index where the shift begins.
+   * @param colDiff Number of columns to shift.
+   */
+  private fun shiftSpansOnLine(line: Int, startColumn: Int, colDiff: Int) {
+    caches.get(line)?.forEach { span ->
+      if (span.column >= startColumn) {
+        span.column += colDiff
+      }
+    }
+  }
+
+  /**
+   * Rebuilds the line cache for vertical text shifts (line additions or deletions).
+   *
+   * @param action Logic to determine how each cached line is re-inserted.
+   */
+  private inline fun rebuildCache(action: (line: Int, spans: MutableList<Span>, cache: LruCache<Int, MutableList<Span>>) -> Unit) {
+    val snapshot = caches.snapshot()
+    caches.evictAll()
+
+    for ((line, spans) in snapshot) {
+      action(line, spans, caches)
+    }
   }
 
   override fun read() = object : Spans.Reader {
