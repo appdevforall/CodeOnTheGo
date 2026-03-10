@@ -31,6 +31,7 @@ class BottomSheetViewModel : ViewModel() {
 		const val TAB_SEARCH_RESULT = EditorBottomSheetTabAdapter.TAB_SEARCH_RESULTS
 		const val TAB_DEBUGGER = EditorBottomSheetTabAdapter.TAB_DEBUGGER
         const val TAB_AGENT = EditorBottomSheetTabAdapter.TAB_AGENT
+		const val TAB_GIT = EditorBottomSheetTabAdapter.TAB_GIT
 	}
 
 	@Keep
@@ -42,6 +43,7 @@ class BottomSheetViewModel : ViewModel() {
 		TAB_SEARCH_RESULT,
 		TAB_DEBUGGER,
         TAB_AGENT,
+		TAB_GIT,
 	)
 	@Retention(AnnotationRetention.SOURCE)
 	annotation class TabDef

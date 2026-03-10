@@ -54,7 +54,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/tooltip_see_more_text"
-        android:textColor="#233490"
+        android:textColor="@color/tooltip_link_color"
         android:textStyle="bold"
         android:visibility="gone"
         android:layout_marginTop="12dp"
