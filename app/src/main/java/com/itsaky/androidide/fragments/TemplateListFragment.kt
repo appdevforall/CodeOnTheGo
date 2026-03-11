@@ -19,14 +19,12 @@ package com.itsaky.androidide.fragments
 
 import android.os.Bundle
 import android.view.View
-import android.view.ViewTreeObserver.OnGlobalLayoutListener
+import android.content.res.Configuration
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
-import com.google.android.flexbox.FlexDirection
-import com.google.android.flexbox.FlexboxLayoutManager
-import com.google.android.flexbox.JustifyContent
+import androidx.recyclerview.widget.GridLayoutManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.TemplateListAdapter
 import com.itsaky.androidide.databinding.FragmentTemplateListBinding
@@ -34,7 +32,6 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.ProjectTemplate
-import com.itsaky.androidide.utils.FlexboxUtils
 import com.itsaky.androidide.viewmodel.MainViewModel
 import org.slf4j.LoggerFactory
 
@@ -49,9 +46,6 @@ class TemplateListFragment :
 		FragmentTemplateListBinding::bind,
 	) {
 	private var adapter: TemplateListAdapter? = null
-	private var layoutManager: FlexboxLayoutManager? = null
-
-	private lateinit var globalLayoutListener: OnGlobalLayoutListener
 
 	private val viewModel by viewModels<MainViewModel>(ownerProducer = { requireActivity() })
 
@@ -65,41 +59,27 @@ class TemplateListFragment :
 	) {
 		super.onViewCreated(view, savedInstanceState)
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.updatePadding(bottom = insets.bottom)
-            windowInsets
-        }
+		ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
+			val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+			v.updatePadding(bottom = insets.bottom)
+			windowInsets
+		}
 
-		layoutManager = FlexboxLayoutManager(requireContext(), FlexDirection.ROW)
-		layoutManager!!.justifyContent = JustifyContent.SPACE_EVENLY
-
-		binding.list.layoutManager = layoutManager
-
-		// This makes sure that the items are evenly distributed in the list
-		// and the last row is always aligned to the start
-		globalLayoutListener =
-			FlexboxUtils.createGlobalLayoutListenerToDistributeFlexboxItemsEvenly(
-				{ adapter },
-				{ layoutManager },
-			) { adapter, diff ->
-				adapter.fillDiff(diff)
-			}
-
-		binding.list.viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
+		val gridLayoutManager = GridLayoutManager(requireContext(), 1)
+		binding.list.layoutManager = gridLayoutManager
 
 		binding.exitButton.setOnClickListener {
 			viewModel.setScreen(MainViewModel.SCREEN_MAIN)
 		}
 
-        binding.exitButton.setOnLongClickListener {
-            TooltipManager.showIdeCategoryTooltip(
-                context = requireContext(),
-                anchorView = binding.root,
-                tag = EXIT_TO_MAIN,
-            )
-            true
-        }
+		binding.exitButton.setOnLongClickListener {
+			TooltipManager.showIdeCategoryTooltip(
+				context = requireContext(),
+				anchorView = binding.root,
+				tag = EXIT_TO_MAIN,
+			)
+			true
+		}
 
 		viewModel.currentScreen.observe(viewLifecycleOwner) { current ->
 			if (current == MainViewModel.SCREEN_TEMPLATE_DETAILS) {
@@ -110,8 +90,32 @@ class TemplateListFragment :
 		}
 	}
 
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+
+		updateSpanCount()
+	}
+
+	override fun onResume() {
+		super.onResume()
+		updateSpanCount()
+	}
+
+	private fun updateSpanCount() {
+		val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+		val maxSpans = if (isLandscape) 6 else 4
+
+		val itemCount = binding.list.adapter?.itemCount ?: 0
+
+		val optimalSpans = maxOf(1, minOf(maxSpans, itemCount))
+
+		val layoutManager = binding.list.layoutManager as? GridLayoutManager
+		if (layoutManager != null && layoutManager.spanCount != optimalSpans) {
+			layoutManager.spanCount = optimalSpans
+		}
+	}
+
 	override fun onDestroyView() {
-		binding.list.viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
 		super.onDestroyView()
 	}
 
@@ -138,16 +142,15 @@ class TemplateListFragment :
 				},
 				onLongClick = { template, itemView ->
 					template.tooltipTag?.let { tag ->
-                        TooltipManager.showIdeCategoryTooltip(
-                            context = requireContext(),
-                            anchorView = itemView,
-                            tag = tag
-                        )
-                    }
-                },
+						TooltipManager.showIdeCategoryTooltip(
+							context = requireContext(),
+							anchorView = itemView,
+							tag = tag
+						)
+					}
+				},
 			)
-
 		binding.list.adapter = adapter
+		updateSpanCount()
 	}
-
 }
