@@ -32,16 +32,18 @@
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior">
 
         <!-- Landscape: project name and project actions toolbar in one row; long name truncates so toolbar stays visible -->
-        <LinearLayout
+        <com.google.android.flexbox.FlexboxLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            app:flexWrap="wrap"
+            app:alignItems="center">
 
             <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/title_toolbar"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                app:layout_flexGrow="1"
+                app:layout_flexShrink="0"
                 android:layout_weight="1"
                 android:minHeight="0dp"
                 android:padding="0dp"
@@ -69,11 +71,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
+                app:layout_flexShrink="0"
                 android:minHeight="0dp"
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp" />
 
-        </LinearLayout>
+        </com.google.android.flexbox.FlexboxLayout>
 
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/progress_indicator"

@@ -41,6 +41,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -642,7 +643,7 @@ abstract class BaseEditorActivity :
 
 	private fun setupToolbar() {
 		// Set the project name in the title TextView
-		content.root.findViewById<android.widget.TextView>(R.id.title_text)?.apply {
+		content.root.findViewById<TextView>(R.id.title_text)?.apply {
 			text = editorViewModel.getProjectName()
 		}
 
