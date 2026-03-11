@@ -5,7 +5,6 @@ plugins {
 
 android {
     namespace = "android.llama.cpp"
-    compileSdk = 35
 
     defaultConfig {
         minSdk = 33
@@ -42,14 +41,6 @@ android {
             path("src/main/cpp/CMakeLists.txt")
             version = "3.22.1"
         }
-    }
-    compileOptions {
-        // It's fine for the library to be compiled with modern features
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "1.8"
     }
 
     packaging {

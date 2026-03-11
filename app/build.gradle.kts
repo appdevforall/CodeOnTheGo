@@ -1,11 +1,21 @@
 @file:Suppress("UnstableApiUsage")
 
 import ch.qos.logback.core.util.EnvUtil
+import com.android.build.api.instrumentation.AsmClassVisitorFactory
+import com.android.build.api.instrumentation.ClassContext
+import com.android.build.api.instrumentation.ClassData
+import com.android.build.api.instrumentation.FramesComputationMode
+import com.android.build.api.instrumentation.InstrumentationParameters
+import com.android.build.api.instrumentation.InstrumentationScope
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
 import org.json.JSONObject
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+import org.objectweb.asm.Type
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
@@ -155,6 +165,15 @@ android {
 		resources {
 			excludes.add("META-INF/DEPENDENCIES")
 			excludes.add("META-INF/gradle/incremental.annotation.processors")
+
+			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
+			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
+			pickFirsts += "kotlin/kotlin.kotlin_builtins"
+			pickFirsts += "kotlin/coroutines/coroutines.kotlin_builtins"
+			pickFirsts += "kotlin/ranges/ranges.kotlin_builtins"
+			pickFirsts += "kotlin/concurrent/atomics/atomics.kotlin_builtins"
+			pickFirsts += "kotlin/collections/collections.kotlin_builtins"
+			pickFirsts += "kotlin/annotation/annotation.kotlin_builtins"
 		}
 
 		jniLibs {
@@ -193,12 +212,17 @@ configurations.matching { it.name.contains("AndroidTest") }.configureEach {
 	exclude(group = "com.google.protobuf", module = "protobuf-lite")
 }
 
+configurations.configureEach {
+	exclude(group = "org.jetbrains.kotlin", module = "kotlin-android-extensions-runtime")
+}
+
 dependencies {
 	debugImplementation(libs.common.leakcanary)
 
 	// Annotation processors
 	kapt(libs.common.glide.ap)
 	kapt(libs.google.auto.service)
+	kapt(libs.google.auto.value.ap)
 	kapt(projects.annotationProcessors)
 	kapt(libs.room.compiler)
 
@@ -206,7 +230,6 @@ dependencies {
 
 	implementation(platform(libs.sora.bom))
 	implementation(libs.common.editor)
-	implementation(libs.common.utilcode)
 	implementation(libs.common.glide)
 	implementation(libs.common.jsoup)
 	implementation(libs.common.kotlin.coroutines.android)
@@ -347,6 +370,7 @@ dependencies {
 	implementation(libs.google.genai)
 	implementation(project(":llama-api"))
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
+	implementation(files("/var/mnt/data/dev/work/adfa/cogo/kt/kotlin/prepare/compiler-embeddable/build/libs/kotlin-compiler-embeddable-2.3.255-SNAPSHOT.jar"))
 }
 
 tasks.register("downloadDocDb") {
@@ -503,6 +527,18 @@ fun createAssetsZip(arch: String) {
 
 			// 4. Set the full command line
 			commandLine(d8Command)
+
+			// Prepend JAVA_HOME/bin to PATH, so that `java` can be resolved
+			// on systems which don't already have `java` in PATH
+			environment(
+				"PATH",
+				System.getProperty(
+					"java.home",
+				) + File.separator + "bin" + (
+						System.getenv("PATH")?.let { File.pathSeparator + it }
+							?: ""
+						),
+			)
 		}.assertNormalExitValue()
 
 	if (!dexOutputFile.exists()) {
@@ -1262,4 +1298,99 @@ tasks.register("assetsDownloadRelease") {
 		assetsBatch(rootProject.projectDir, project, "release")
 		assetsDownload(releaseAssets, rootProject.projectDir)
 	}
+}
+
+androidComponents {
+	onVariants { variant ->
+		variant.instrumentation.transformClassesWith(
+			DelegateClassVisitorFactory::class.java,
+			InstrumentationScope.ALL
+		) {}
+		variant.instrumentation.setAsmFramesComputationMode(
+			FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_CLASSES
+		)
+	}
+}
+
+abstract class DelegateClassVisitorFactory
+	: AsmClassVisitorFactory<InstrumentationParameters.None> {
+
+	override fun isInstrumentable(classData: ClassData) =
+		classData.className == "org.jetbrains.kotlin.com.intellij.util.containers.Unsafe"
+
+	override fun createClassVisitor(
+		classContext: ClassContext,
+		nextClassVisitor: ClassVisitor
+	): ClassVisitor = DelegateClassVisitor(nextClassVisitor)
+}
+
+class DelegateClassVisitor(next: ClassVisitor) : ClassVisitor(Opcodes.ASM9, next) {
+
+	companion object {
+		const val DELEGATE = "org/jetbrains/kotlin/com/intellij/util/containers/UnsafeImpl"
+	}
+
+	override fun visitMethod(
+		access: Int, name: String, descriptor: String,
+		signature: String?, exceptions: Array<String>?
+	): MethodVisitor? {
+		return when (name) {
+			"<clinit>" -> {
+				// Don't return null — emit an empty body so downstream visitors are happy
+				val mv = super.visitMethod(access, name, descriptor, signature, exceptions)
+				mv.visitCode()
+				mv.visitInsn(Opcodes.RETURN)
+				mv.visitMaxs(0, 0)
+				mv.visitEnd()
+
+				// Return a no-op visitor so any further chained calls are swallowed
+				object : MethodVisitor(Opcodes.ASM9) {}
+			}
+			"<init>" -> super.visitMethod(access, name, descriptor, signature, exceptions)
+			else -> {
+				val mv = super.visitMethod(access, name, descriptor, signature, exceptions)
+				DelegatingMethodVisitor(mv, access, name, descriptor, DELEGATE)
+			}
+		}
+	}
+}
+
+class DelegatingMethodVisitor(
+	private val target: MethodVisitor,
+	private val access: Int,
+	private val name: String,
+	private val descriptor: String,
+	private val delegateClass: String
+) : MethodVisitor(Opcodes.ASM9, null) { // null = swallow all original bytecode
+
+	override fun visitCode() {
+		target.visitCode()
+
+		val methodType = Type.getMethodType(descriptor)
+		val isStatic = (access and Opcodes.ACC_STATIC) != 0
+
+		// Push all arguments onto the stack
+		var slot = if (isStatic) 0 else 1
+		for (argType in methodType.argumentTypes) {
+			target.visitVarInsn(argType.getOpcode(Opcodes.ILOAD), slot)
+			slot += argType.size
+		}
+
+		// Call the delegate (always a static call into UnsafeImpl)
+		target.visitMethodInsn(
+			Opcodes.INVOKESTATIC,
+			delegateClass,
+			name,
+			descriptor,
+			false
+		)
+
+		target.visitInsn(methodType.returnType.getOpcode(Opcodes.IRETURN))
+	}
+
+	override fun visitMaxs(maxStack: Int, maxLocals: Int) =
+		target.visitMaxs(maxStack, maxLocals)
+
+	override fun visitEnd() =
+		target.visitEnd()
 }

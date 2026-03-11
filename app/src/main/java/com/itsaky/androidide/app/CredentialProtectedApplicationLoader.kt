@@ -1,6 +1,7 @@
 package com.itsaky.androidide.app
 
 import android.content.Intent
+import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.blankj.utilcode.util.ThrowableUtils
@@ -9,6 +10,7 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.javac.config.JavacConfigProvider
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.manager.core.PluginManager
@@ -30,9 +32,53 @@ import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.cli.jvm.compiler.CliVirtualFileFinderFactory
+import org.jetbrains.kotlin.cli.jvm.compiler.JvmPackagePartProvider
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCliJavaFileManagerImpl
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironment
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreProjectEnvironment
+import org.jetbrains.kotlin.cli.jvm.compiler.VfsBasedProjectEnvironment
+import org.jetbrains.kotlin.cli.jvm.config.addJvmClasspathRoots
+import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
+import org.jetbrains.kotlin.cli.jvm.index.JvmDependenciesIndexImpl
+import org.jetbrains.kotlin.cli.jvm.modules.CliJavaModuleFinder
+import org.jetbrains.kotlin.cli.jvm.modules.CliJavaModuleResolver
+import org.jetbrains.kotlin.cli.jvm.modules.JavaModuleGraph
+import org.jetbrains.kotlin.com.intellij.core.CoreApplicationEnvironment
+import org.jetbrains.kotlin.com.intellij.core.CoreApplicationEnvironment.registerApplicationExtensionPoint
+import org.jetbrains.kotlin.com.intellij.core.CoreFileTypeRegistry
+import org.jetbrains.kotlin.com.intellij.lang.ParserDefinition
+import org.jetbrains.kotlin.com.intellij.openapi.fileTypes.FileTypeRegistry
+import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
+import org.jetbrains.kotlin.com.intellij.psi.PsiManager
+import org.jetbrains.kotlin.config.CommonConfigurationKeys
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
+import org.jetbrains.kotlin.config.languageVersionSettings
+import org.jetbrains.kotlin.diagnostics.impl.SimpleDiagnosticsCollector
+import org.jetbrains.kotlin.fir.FirSourceModuleData
+import org.jetbrains.kotlin.fir.declarations.FirFile
+import org.jetbrains.kotlin.fir.deserialization.SingleModuleDataProvider
+import org.jetbrains.kotlin.fir.pipeline.buildResolveAndCheckFirFromKtFiles
+import org.jetbrains.kotlin.fir.session.FirJvmSessionFactory
+import org.jetbrains.kotlin.idea.KotlinFileType
+import org.jetbrains.kotlin.load.kotlin.VirtualFileFinderFactory
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.parsing.KotlinParserDefinition
+import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
+import org.jetbrains.kotlin.psi.KtPsiFactory
+import org.jetbrains.kotlin.resolve.jvm.KotlinJavaPsiFacade
+import org.jetbrains.kotlin.resolve.jvm.modules.JavaModuleResolver
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.jvm.java
 import kotlin.system.exitProcess
 
 /**
@@ -72,6 +118,48 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 		Environment.init(app)
 
+		app.coroutineScope.launch {
+
+			System.getProperties().forEach { (key, value) ->
+				logger.info("prop: {}={}", key, value)
+			}
+
+			val targetName = "test"
+			val source = """
+                package com.itsaky.ktcompiler
+                
+                class Main {
+                    fun main(args: Array<String>) {
+                        println("Hello World!")
+                    }
+                }
+            """.trimIndent()
+
+			val filesDir = app.filesDir
+			val sourceFile = filesDir.resolve(targetName)
+			sourceFile.writeText(source)
+
+			val ideaSystem = filesDir.resolve("idea-system")
+			ideaSystem.mkdirs()
+
+			val ideaConfigDir = ideaSystem.resolve("config")
+			val ideaSystemDir = ideaSystem.resolve("system")
+
+			ideaConfigDir.mkdirs()
+			ideaSystemDir.mkdirs()
+
+			System.setProperty("idea.config.path", ideaConfigDir.absolutePath)
+			System.setProperty("idea.system.path", ideaSystemDir.absolutePath)
+
+			System.setProperty(
+				JavacConfigProvider.PROP_ANDROIDIDE_JAVA_HOME,
+				Environment.JAVA_HOME.absolutePath
+			)
+
+			val firs = compileToFir(source, emptyList())
+			logger.info("result: firs: {}", firs)
+		}
+
 		FeatureFlags.initialize()
 
 		EventBus.getDefault().register(this)
@@ -103,6 +191,190 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			ToolsManager.init(app, null)
 		}
 	}
+
+	fun compileToFir(
+		source: String,
+		classpathJars: List<File>,  // stdlib, etc.
+	): List<FirFile> {
+		val disposable = Disposer.newDisposable()
+
+		val messageCollector = object : MessageCollector {
+			override fun clear() = Unit
+			override fun hasErrors() = false
+
+			override fun report(
+				severity: CompilerMessageSeverity,
+				message: String,
+				location: CompilerMessageSourceLocation?,
+			) {
+				Log.i("MessageCollector", "[${severity}] $message [$location]")
+			}
+		}
+
+		val configuration = CompilerConfiguration().apply {
+			put(CommonConfigurationKeys.MODULE_NAME, "my-module")
+			put(CommonConfigurationKeys.USE_FIR, true)
+			put(CommonConfigurationKeys.LANGUAGE_VERSION_SETTINGS, LanguageVersionSettingsImpl.DEFAULT)
+			addJvmClasspathRoots(classpathJars)
+		}
+
+		// 1. Core environment (handles PSI/IntelliJ plumbing)
+		val appEnv = KotlinCoreApplicationEnvironment.create(disposable, unitTestMode = false)
+
+		// Register .kt file type so PSI knows to produce KtFile, not PsiPlainTextFileImpl
+		appEnv.registerFileType(KotlinFileType.INSTANCE, "kt")
+		appEnv.registerFileType(KotlinFileType.INSTANCE, "kts")  // if you need scripts too
+		appEnv.registerParserDefinition(KotlinParserDefinition())
+
+		val coreProjectEnv = KotlinCoreProjectEnvironment(disposable, appEnv)
+
+		// Add classpath JARs so the project knows about stdlib symbols
+		classpathJars.forEach { coreProjectEnv.addJarToClassPath(it) }
+
+		val project = coreProjectEnv.project
+
+		project.registerService(
+			JavaModuleResolver::class.java,
+			CliJavaModuleResolver(
+				moduleGraph = JavaModuleGraph(
+					finder = CliJavaModuleFinder(
+						jdkHome = Environment.JAVA_HOME,
+						messageCollector = messageCollector,
+						javaFileManager = KotlinCliJavaFileManagerImpl(
+							myPsiManager = PsiManager.getInstance(project)
+						),
+						project = project,
+						jdkRelease = 21,
+					)
+				),
+				userModules = emptyList(),
+				systemModules = emptyList(),
+				project = project,
+			)
+		)
+
+		project.registerService(
+			VirtualFileFinderFactory::class.java,
+			CliVirtualFileFinderFactory(
+				index = JvmDependenciesIndexImpl(
+					_roots = emptyList(),
+					shouldOnlyFindFirstClass = true,
+				),
+				enableSearchInCtSym = true,
+				perfManager = null,
+			)
+		)
+
+		project.registerService(
+			KotlinJavaPsiFacade::class.java,
+			KotlinJavaPsiFacade(project)
+		)
+
+		val localFileSystem = VirtualFileManager.getInstance()
+			.getFileSystem(StandardFileSystems.FILE_PROTOCOL)
+
+		// 2. Wrap in VfsBasedProjectEnvironment — this IS an AbstractProjectEnvironment
+		val projectEnvironment = VfsBasedProjectEnvironment(
+			project = project,
+			localFileSystem = localFileSystem,
+			getPackagePartProviderFn = { scope ->
+				// JvmPackagePartProvider reads package metadata from JAR manifests
+				JvmPackagePartProvider(configuration.languageVersionSettings, scope).apply {
+					addRoots(
+						classpathJars.mapNotNull {
+							localFileSystem.findFileByPath(it.absolutePath)
+						}.map { file ->
+							JavaRoot(
+								file = file,
+								type = JavaRoot.RootType.SOURCE,
+								prefixFqName = null,
+							)
+						},
+						messageCollector,
+					)
+				}
+			}
+		)
+
+		val languageVersionSettings = configuration.languageVersionSettings
+		val moduleName = Name.identifier("my-module")
+		val platform = JvmPlatforms.defaultJvmPlatform
+
+		// 3. Scopes
+		val classpathScope =
+			projectEnvironment.getSearchScopeByIoFiles(classpathJars, allowOutOfProjectRoots = true)
+		val packagePartProvider = projectEnvironment.getPackagePartProvider(classpathScope)
+
+		// 4. Shared library session
+		val sharedLibrarySession = FirJvmSessionFactory.createSharedLibrarySession(
+			mainModuleName = moduleName,
+			projectEnvironment = projectEnvironment,
+			extensionRegistrars = emptyList(),
+			packagePartProvider = packagePartProvider,
+			languageVersionSettings = languageVersionSettings,
+			predefinedJavaComponents = null,
+		)
+
+		// 5. Library module + session
+		val libraryModuleData = FirSourceModuleData(
+			Name.identifier("my-module-libraries"),
+			dependencies = emptyList(),
+			dependsOnDependencies = emptyList(),
+			friendDependencies = emptyList(),
+			platform = platform,
+		)
+
+		val librarySession = FirJvmSessionFactory.createLibrarySession(
+			sharedLibrarySession = sharedLibrarySession,
+			moduleDataProvider = SingleModuleDataProvider(libraryModuleData),
+			projectEnvironment = projectEnvironment,
+			extensionRegistrars = emptyList(),
+			scope = classpathScope,
+			packagePartProvider = packagePartProvider,
+			languageVersionSettings = languageVersionSettings,
+			predefinedJavaComponents = null,
+		)
+
+		// 6. Source module — depends on the library module
+		val sourceModuleData = FirSourceModuleData(
+			moduleName,
+			dependencies = listOf(libraryModuleData),
+			dependsOnDependencies = emptyList(),
+			friendDependencies = emptyList(),
+			platform = platform,
+		)
+
+		// 7. Parse source into PSI
+		val ktFile = KtPsiFactory(project, markGenerated = false)
+			.createFile("inline.kt", source)
+		val sourceScope = projectEnvironment.getSearchScopeByPsiFiles(listOf(ktFile))
+
+		// 8. Source session
+		val sourceSession = FirJvmSessionFactory.createSourceSession(
+			moduleData = sourceModuleData,
+			javaSourcesScope = sourceScope,
+			projectEnvironment = projectEnvironment,
+			createIncrementalCompilationSymbolProviders = { null },
+			extensionRegistrars = emptyList(),
+			configuration = configuration,
+			predefinedJavaComponents = null,
+			needRegisterJavaElementFinder = true,
+			isForLeafHmppModule = true,
+			init = {},
+		)
+
+		// 9. Resolve PSI → FIR
+		val diagnostics = SimpleDiagnosticsCollector() { message, severity ->
+			logger.info("compileToFir: [$severity] $message")
+		}
+
+		return buildResolveAndCheckFirFromKtFiles(
+			session = sourceSession,
+			ktFiles = listOf(ktFile),
+			diagnosticsReporter = diagnostics
+		).fir
+	}
+
 
 	fun handleUncaughtException(
 		thread: Thread,

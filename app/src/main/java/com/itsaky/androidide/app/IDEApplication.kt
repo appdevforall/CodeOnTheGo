@@ -219,7 +219,7 @@ class IDEApplication :
 		if (exception !is java.io.UncheckedIOException) return false
 		return exception.stackTrace.any {
 			it.className.contains("CleanableResource") ||
-				it.className.contains("PhantomCleanable")
+					it.className.contains("PhantomCleanable")
 		}
 	}
 }
