@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
@@ -26,6 +27,7 @@ import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.doOnNextLayout
 import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
@@ -697,6 +699,16 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+
+		getCurrentEditor()?.editor?.apply {
+			doOnNextLayout {
+				cursor?.let { c -> ensurePositionVisible(c.leftLine, c.leftColumn, true) }
+			}
+		}
+	}
+
 	private suspend fun saveResultInternal(
 		index: Int,
 		result: SaveResult,
@@ -714,6 +726,10 @@ open class EditorHandlerActivity :
 			val modified = frag.isModified
 			if (!frag.save()) {
 				return false
+			}
+
+			frag.file?.let { savedFile ->
+				fileTimestamps[savedFile.absolutePath] = savedFile.lastModified()
 			}
 
 			val isGradle = fileName.endsWith(".gradle") || fileName.endsWith(".gradle.kts")
