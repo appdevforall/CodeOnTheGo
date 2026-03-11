@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.R
 import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.git.core.models.CloneRepoUiState
 import kotlinx.coroutines.Dispatchers
@@ -18,8 +17,10 @@ import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.eclipse.jgit.api.errors.TransportException
 import java.net.UnknownHostException
+import java.io.EOFException
 import java.io.File
 import com.blankj.utilcode.util.NetworkUtils
+import com.itsaky.androidide.resources.R
 
 class CloneRepositoryViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -159,8 +160,19 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
             } catch (e: Exception) {
                 // Error handling
                 val isNetworkError = e is TransportException && e.cause is UnknownHostException
-                val errorResId = if (isNetworkError) R.string.no_internet_connection else null
-                val errorMessage = if (isNetworkError) null else (e.message ?: application.getString(R.string.unknown_error))
+                val isConnectionDrop = e.cause is EOFException || 
+                    e.message?.contains("Unexpected end of stream") == true ||
+                    e.message?.contains("Software caused connection abort") == true
+                
+                val errorResId = when {
+                    isNetworkError -> R.string.no_internet_connection
+                    isConnectionDrop -> R.string.connection_lost
+                    else -> null
+                }
+                
+                val errorMessage = if (errorResId == null) {
+                    e.message ?: application.getString(R.string.unknown_error)
+                } else null
                 
                 _uiState.update {
                     CloneRepoUiState.Error(

@@ -1168,6 +1168,7 @@
     <string name="diff_viewer">Diff Viewer</string>
     <string name="diff_loading">Loading Git Diff…</string>
     <string name="no_internet_connection">No internet connection. Please check your network and try again.</string>
+    <string name="connection_lost">Connection lost during download. Please check your internet connection and try again.</string>
     <string name="desc_file_added">File added</string>
     <string name="desc_file_modified">File modified</string>
     <string name="desc_file_deleted">File deleted</string>
