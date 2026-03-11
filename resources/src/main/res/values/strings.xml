@@ -97,6 +97,8 @@
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="error_installation_failed">Failed to install assets</string>
+	<string name="verifying_installation">Verifying installation…</string>
+	<string name="asset_verification_failed">Asset verification failed: %1$s — %2$s. Not enough space or corrupted files. Try again.</string>
 	<string name="err_asset_entry_not_found">Entry \'%1$s\' not found in assets zip file</string>
 	<string name="err_missing_or_corrupt_assets">Missing installation files. %1$s installation might be corrupt or incomplete.</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
