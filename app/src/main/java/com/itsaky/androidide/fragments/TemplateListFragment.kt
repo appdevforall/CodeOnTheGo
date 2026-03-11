@@ -96,6 +96,11 @@ class TemplateListFragment :
 		updateSpanCount()
 	}
 
+	override fun onResume() {
+		super.onResume()
+		updateSpanCount()
+	}
+
 	private fun updateSpanCount() {
 		val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 		val maxSpans = if (isLandscape) 6 else 4
