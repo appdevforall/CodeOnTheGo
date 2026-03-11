@@ -1167,4 +1167,11 @@
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>
     <string name="diff_loading">Loading Git Diff…</string>
+    <string name="no_internet_connection">No internet connection. Please check your network and try again.</string>
+    <string name="desc_file_added">File added</string>
+    <string name="desc_file_modified">File modified</string>
+    <string name="desc_file_deleted">File deleted</string>
+    <string name="desc_file_untracked">File untracked</string>
+    <string name="desc_file_renamed">File renamed</string>
+    <string name="desc_file_conflicted">Conflicted File</string>
 </resources>

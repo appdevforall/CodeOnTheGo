@@ -16,7 +16,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.eclipse.jgit.api.errors.TransportException
+import java.net.UnknownHostException
 import java.io.File
+import com.blankj.utilcode.util.NetworkUtils
 
 class CloneRepositoryViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -62,6 +65,17 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                     url = url,
                     localPath = localPath,
                     errorResId = R.string.destination_directory_not_empty
+                )
+            }
+            return
+        }
+
+        if (!NetworkUtils.isConnected()) {
+            _uiState.update {
+                CloneRepoUiState.Error(
+                    url = url,
+                    localPath = localPath,
+                    errorResId = R.string.no_internet_connection
                 )
             }
             return
@@ -143,12 +157,17 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                     CloneRepoUiState.Success(localPath = localPath)
                 }
             } catch (e: Exception) {
-                val errorMessage = e.message ?: application.getString(R.string.unknown_error)
+                // Error handling
+                val isNetworkError = e is TransportException && e.cause is UnknownHostException
+                val errorResId = if (isNetworkError) R.string.no_internet_connection else null
+                val errorMessage = if (isNetworkError) null else (e.message ?: application.getString(R.string.unknown_error))
+                
                 _uiState.update {
                     CloneRepoUiState.Error(
                         url = url,
                         localPath = localPath,
-                        errorMessage = application.getString(R.string.clone_failed, errorMessage)
+                        errorResId = errorResId,
+                        errorMessage = errorMessage?.let { application.getString(R.string.clone_failed, it) }
                     )
                 }
             } finally {

@@ -82,12 +82,11 @@ class CloneRepositoryFragment : BaseFragment() {
             }
 
             cloneButton.setOnClickListener {
-                val url = repoUrl.text.toString()
-                val path = localPath.text.toString()
-                val username = if (authCheckbox.isChecked) username.text.toString() else null
-                val password = if (authCheckbox.isChecked) password.text.toString() else null
-
-                viewModel.cloneRepository(url, path, username, password)
+                cloneRepo()
+            }
+            
+            retryButton.setOnClickListener {
+                cloneRepo()
             }
             
             exitButton.setOnClickListener {
@@ -108,6 +107,15 @@ class CloneRepositoryFragment : BaseFragment() {
                 }
             }
         }
+    }
+
+    private fun FragmentCloneRepositoryBinding.cloneRepo() {
+        val url = repoUrl.text.toString()
+        val path = localPath.text.toString()
+        val mUsername = if (authCheckbox.isChecked) username.text.toString() else null
+        val mPassword = if (authCheckbox.isChecked) password.text.toString() else null
+
+        viewModel.cloneRepository(url, path, mUsername, mPassword)
     }
 
     private fun observeViewModel() {
@@ -140,14 +148,17 @@ class CloneRepositoryFragment : BaseFragment() {
                         when (state) {
                             is CloneRepoUiState.Idle -> {
                                 cloneButton.isEnabled = state.isCloneButtonEnabled
+                                retryButton.visibility = View.GONE
                                 statusText.text = ""
                             }
                             is CloneRepoUiState.Cloning -> {
                                 cloneButton.isEnabled = false
+                                retryButton.visibility = View.GONE
                                 statusText.text = getString(R.string.cloning_repo)
                             }
                             is CloneRepoUiState.Error -> {
                                 cloneButton.isEnabled = true
+                                retryButton.visibility = View.VISIBLE
                                 val statusMessage = state.errorResId?.let { getString(it) } ?: state.errorMessage
                                 statusText.text = statusMessage
                             }
