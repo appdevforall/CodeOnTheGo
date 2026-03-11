@@ -174,6 +174,11 @@ android {
 			pickFirsts += "kotlin/concurrent/atomics/atomics.kotlin_builtins"
 			pickFirsts += "kotlin/collections/collections.kotlin_builtins"
 			pickFirsts += "kotlin/annotation/annotation.kotlin_builtins"
+
+			pickFirsts += "META-INF/FastDoubleParser-LICENSE"
+			pickFirsts += "META-INF/thirdparty-LICENSE"
+			pickFirsts += "META-INF/FastDoubleParser-NOTICE"
+			pickFirsts += "META-INF/thirdparty-NOTICE"
 		}
 
 		jniLibs {
@@ -325,7 +330,7 @@ dependencies {
 	implementation(projects.idetooltips)
 	implementation(projects.cvImageToXml)
 	implementation(projects.composePreview)
-  implementation(projects.gitCore)
+	implementation(projects.gitCore)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -341,7 +346,7 @@ dependencies {
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
 	androidTestUtil(libs.tests.orchestrator)
-    testImplementation(libs.tests.kotlinx.coroutines)
+	testImplementation(libs.tests.kotlinx.coroutines)
 
 	// brotli4j
 	implementation(libs.brotli4j)
@@ -370,7 +375,13 @@ dependencies {
 	implementation(libs.google.genai)
 	implementation(project(":llama-api"))
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
-	implementation(files("/var/mnt/data/dev/work/adfa/cogo/kt/kotlin/prepare/compiler-embeddable/build/libs/kotlin-compiler-embeddable-2.3.255-SNAPSHOT.jar"))
+
+	implementation(files("/var/home/user/Downloads/jmx-1.2.1.jar"))
+	implementation(
+		files(
+			"/var/mnt/data/dev/work/adfa/cogo/kt/kotlin/prepare/ide-plugin-dependencies/analysis-api-standalone-embeddable-for-ide/build/libs/analysis-api-standalone-embeddable-for-ide-2.3.255-SNAPSHOT.jar",
+		),
+	)
 }
 
 tasks.register("downloadDocDb") {
@@ -535,9 +546,9 @@ fun createAssetsZip(arch: String) {
 				System.getProperty(
 					"java.home",
 				) + File.separator + "bin" + (
-						System.getenv("PATH")?.let { File.pathSeparator + it }
-							?: ""
-						),
+					System.getenv("PATH")?.let { File.pathSeparator + it }
+						?: ""
+				),
 			)
 		}.assertNormalExitValue()
 
@@ -850,9 +861,9 @@ afterEvaluate {
 		}
 
 		dependsOn(bundleLlamaV8Assets)
-    if (!isCiCd) {
-      dependsOn("assetsDownloadDebug")
-    }
+		if (!isCiCd) {
+			dependsOn("assetsDownloadDebug")
+		}
 	}
 
 	tasks.named("assembleV7Debug").configure {
@@ -871,9 +882,9 @@ afterEvaluate {
 		}
 
 		dependsOn(bundleLlamaV7Assets)
-    if (!isCiCd) {
-      dependsOn("assetsDownloadDebug")
-    }
+		if (!isCiCd) {
+			dependsOn("assetsDownloadDebug")
+		}
 	}
 }
 
@@ -1304,37 +1315,38 @@ androidComponents {
 	onVariants { variant ->
 		variant.instrumentation.transformClassesWith(
 			DelegateClassVisitorFactory::class.java,
-			InstrumentationScope.ALL
+			InstrumentationScope.ALL,
 		) {}
 		variant.instrumentation.setAsmFramesComputationMode(
-			FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_CLASSES
+			FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_CLASSES,
 		)
 	}
 }
 
-abstract class DelegateClassVisitorFactory
-	: AsmClassVisitorFactory<InstrumentationParameters.None> {
-
-	override fun isInstrumentable(classData: ClassData) =
-		classData.className == "org.jetbrains.kotlin.com.intellij.util.containers.Unsafe"
+abstract class DelegateClassVisitorFactory : AsmClassVisitorFactory<InstrumentationParameters.None> {
+	override fun isInstrumentable(classData: ClassData) = classData.className == "org.jetbrains.kotlin.com.intellij.util.containers.Unsafe"
 
 	override fun createClassVisitor(
 		classContext: ClassContext,
-		nextClassVisitor: ClassVisitor
+		nextClassVisitor: ClassVisitor,
 	): ClassVisitor = DelegateClassVisitor(nextClassVisitor)
 }
 
-class DelegateClassVisitor(next: ClassVisitor) : ClassVisitor(Opcodes.ASM9, next) {
-
+class DelegateClassVisitor(
+	next: ClassVisitor,
+) : ClassVisitor(Opcodes.ASM9, next) {
 	companion object {
 		const val DELEGATE = "org/jetbrains/kotlin/com/intellij/util/containers/UnsafeImpl"
 	}
 
 	override fun visitMethod(
-		access: Int, name: String, descriptor: String,
-		signature: String?, exceptions: Array<String>?
-	): MethodVisitor? {
-		return when (name) {
+		access: Int,
+		name: String,
+		descriptor: String,
+		signature: String?,
+		exceptions: Array<String>?,
+	): MethodVisitor? =
+		when (name) {
 			"<clinit>" -> {
 				// Don't return null — emit an empty body so downstream visitors are happy
 				val mv = super.visitMethod(access, name, descriptor, signature, exceptions)
@@ -1352,7 +1364,6 @@ class DelegateClassVisitor(next: ClassVisitor) : ClassVisitor(Opcodes.ASM9, next
 				DelegatingMethodVisitor(mv, access, name, descriptor, DELEGATE)
 			}
 		}
-	}
 }
 
 class DelegatingMethodVisitor(
@@ -1360,7 +1371,7 @@ class DelegatingMethodVisitor(
 	private val access: Int,
 	private val name: String,
 	private val descriptor: String,
-	private val delegateClass: String
+	private val delegateClass: String,
 ) : MethodVisitor(Opcodes.ASM9, null) { // null = swallow all original bytecode
 
 	override fun visitCode() {
@@ -1382,15 +1393,16 @@ class DelegatingMethodVisitor(
 			delegateClass,
 			name,
 			descriptor,
-			false
+			false,
 		)
 
 		target.visitInsn(methodType.returnType.getOpcode(Opcodes.IRETURN))
 	}
 
-	override fun visitMaxs(maxStack: Int, maxLocals: Int) =
-		target.visitMaxs(maxStack, maxLocals)
+	override fun visitMaxs(
+		maxStack: Int,
+		maxLocals: Int,
+	) = target.visitMaxs(maxStack, maxLocals)
 
-	override fun visitEnd() =
-		target.visitEnd()
+	override fun visitEnd() = target.visitEnd()
 }
