@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors -->
+    <color name="primary">#64B5F6</color>
+    <color name="primary_dark">#42A5F5</color>
+    <color name="accent">#90CAF9</color>
+
+    <!-- Status Colors -->
+    <color name="status_background">#0D1117</color>
+    <color name="status_text">#90CAF9</color>
+
+    <color name="status_success_background">#0D1F12</color>
+    <color name="status_success_text">#81C784</color>
+
+    <color name="status_error_background">#1F0D0D</color>
+    <color name="status_error_text">#EF9A9A</color>
+
+    <color name="status_warning_background">#1F170D</color>
+    <color name="status_warning_text">#FFCC80</color>
+
+    <!-- Preview Colors - True black to match IDE -->
+    <color name="preview_background">#000000</color>
+    <color name="preview_text">#E0E0E0</color>
+    <color name="preview_code_background">#121212</color>
+    <color name="preview_link">#64B5F6</color>
+</resources>
