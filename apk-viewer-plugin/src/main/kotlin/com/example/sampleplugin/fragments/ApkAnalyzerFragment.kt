@@ -33,6 +33,7 @@ class ApkAnalyzerFragment : Fragment() {
     private var contextText: TextView? = null
     private var btnStart: Button? = null
     private var progressBar: ProgressBar? = null
+    private var deferredFile: java.io.File? = null
 
     private val pickApkLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -78,6 +79,11 @@ class ApkAnalyzerFragment : Fragment() {
 
         updateContent()
         setupClickListeners()
+
+        deferredFile?.let { file ->
+            deferredFile = null
+            analyzeFile(file)
+        }
     }
 
     private fun updateContent() {
@@ -98,16 +104,26 @@ class ApkAnalyzerFragment : Fragment() {
         pickApkLauncher.launch(intent)
     }
 
+    fun analyzeFile(file: java.io.File) {
+        if (!isAdded || view == null) {
+            deferredFile = file
+            return
+        }
+        runAnalysis { analyzeApkFromFile(file) }
+    }
+
     private fun analyzeApkInBackground(uri: Uri) {
+        runAnalysis { analyzeApkFromUri(uri) }
+    }
+
+    private fun runAnalysis(block: suspend () -> String) {
         progressBar?.visibility = View.VISIBLE
         btnStart?.isEnabled = false
         contextText?.text = "Analyzing APK..."
 
         viewLifecycleOwner.lifecycleScope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    analyzeApkStructure(uri)
-                }
+                withContext(Dispatchers.IO) { block() }
             }.getOrElse { e ->
                 "Failed to analyze APK: ${e.message}"
             }
@@ -118,25 +134,28 @@ class ApkAnalyzerFragment : Fragment() {
         }
     }
 
-    private fun analyzeApkStructure(uri: Uri): String {
+    private fun analyzeApkFromUri(uri: Uri): String {
+        val tempFile = java.io.File.createTempFile("apk_", ".apk", requireContext().cacheDir)
+        return try {
+            requireContext().contentResolver.openInputStream(uri)?.use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            analyzeApkFromFile(tempFile)
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    private fun analyzeApkFromFile(file: java.io.File): String {
         val result = StringBuilder()
 
-        // Create a temporary file to copy the APK content
-        val tempFile = java.io.File.createTempFile("apk_", ".apk", requireContext().cacheDir)
-
         return runCatching {
-            // Copy the content from the URI to the temp file
-            requireContext().contentResolver.openInputStream(uri)?.use { input ->
-                tempFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-
-            val zipFile = ZipFile(tempFile)
+            val zipFile = ZipFile(file)
 
             result.append(" APK STRUCTURE:\n")
 
             val entries = zipFile.entries().toList().sortedBy { it.name }
+            val entryMap = entries.associateBy { it.name }
             val explicitDirectories = mutableSetOf<String>()
             val implicitDirectories = mutableSetOf<String>()
             val files = mutableListOf<String>()
@@ -145,7 +164,7 @@ class ApkAnalyzerFragment : Fragment() {
             var totalUncompressedSize = 0L
             var totalCompressedSize = 0L
             var totalEntries = 0
-            val apkFileSize = tempFile.length()
+            val apkFileSize = file.length()
 
             entries.forEach { entry ->
                 totalEntries++
@@ -196,12 +215,11 @@ class ApkAnalyzerFragment : Fragment() {
             )
 
             keyFiles.forEach { keyFile ->
-                val exists = files.any { it == keyFile }
-                if (exists) {
-                    val entry = entries.find { it.name == keyFile }
-                    val uncompressedSize = entry?.size?.let { formatFileSize(it) } ?: "?"
-                    val compressedSize = entry?.compressedSize?.let { formatFileSize(it) } ?: "?"
-                    val compressionRatio = if (entry != null && entry.size > 0) {
+                val entry = entryMap[keyFile]
+                if (entry != null) {
+                    val uncompressedSize = formatFileSize(entry.size)
+                    val compressedSize = formatFileSize(entry.compressedSize)
+                    val compressionRatio = if (entry.size > 0) {
                         String.format("%.1f%%", (entry.compressedSize.toDouble() / entry.size.toDouble()) * 100)
                     } else "N/A"
                     result.append("• $keyFile: ✓ Raw: $uncompressedSize, Compressed: $compressedSize ($compressionRatio)\n")
@@ -222,7 +240,7 @@ class ApkAnalyzerFragment : Fragment() {
                     if (parts.size >= 3) {
                         val arch = parts[1]
                         val libName = parts.last()
-                        val entry = entries.find { it.name == lib }
+                        val entry = entryMap[lib]
                         val sizes = Pair(entry?.size ?: 0L, entry?.compressedSize ?: 0L)
                         archMap.getOrPut(arch) { mutableListOf() }.add(Pair(libName, sizes))
                     }
@@ -255,8 +273,8 @@ class ApkAnalyzerFragment : Fragment() {
                 resourceDirs.forEach { dir ->
                     // Calculate total size for files in this directory
                     val dirFiles = files.filter { it.startsWith(dir) && it.count { c -> c == '/' } == dir.count { c -> c == '/' } }
-                    val dirUncompressedSize = dirFiles.sumOf { fileName -> entries.find { it.name == fileName }?.size ?: 0L }
-                    val dirCompressedSize = dirFiles.sumOf { fileName -> entries.find { it.name == fileName }?.compressedSize ?: 0L }
+                    val dirUncompressedSize = dirFiles.sumOf { fileName -> entryMap[fileName]?.size ?: 0L }
+                    val dirCompressedSize = dirFiles.sumOf { fileName -> entryMap[fileName]?.compressedSize ?: 0L }
 
                     if (dirUncompressedSize > 0) {
                         result.append("• $dir (${dirFiles.size} files) - Raw: ${formatFileSize(dirUncompressedSize)}, Compressed: ${formatFileSize(dirCompressedSize)}\n")
@@ -269,7 +287,7 @@ class ApkAnalyzerFragment : Fragment() {
 
             // Large files analysis (files > 100KB)
             val largeFiles = files.mapNotNull { fileName ->
-                entries.find { it.name == fileName }?.let { entry ->
+                entryMap[fileName]?.let { entry ->
                     if (entry.size > 100 * 1024) {
                         Triple(fileName, entry.size, entry.compressedSize)
                     } else null
@@ -315,16 +333,9 @@ class ApkAnalyzerFragment : Fragment() {
             zipFile.close()
 
             result.toString()
-        }.fold(
-            onSuccess = {
-                tempFile.delete()
-                it
-            },
-            onFailure = { e ->
-                tempFile.delete()
-                "Failed to analyze APK: ${e.message}"
-            }
-        )
+        }.getOrElse { e ->
+            "Failed to analyze APK: ${e.message}"
+        }
     }
 
     private fun formatFileSize(bytes: Long): String {

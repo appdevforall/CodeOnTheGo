@@ -81,6 +81,7 @@ import java.io.File
 private const val MIN_FONT_SIZE = 6f
 private const val DEFAULT_FONT_SIZE = 14f
 private const val MAX_FONT_SIZE = 32f
+private val ARCHIVE_EXTENSIONS = setOf("apk", "cgp", "zip")
 
 /**
  * A view that handles opened code editor.
@@ -330,6 +331,8 @@ class CodeEditorView(
 	suspend fun save(): Boolean {
 		val file = this.file ?: return false
 
+		if (file.extension.lowercase() in ARCHIVE_EXTENSIONS) return false
+
 		if (!isModified && file.exists()) {
 			log.info("File was not modified. Skipping save operation for file {}", file.name)
 			return false
@@ -393,15 +396,23 @@ class CodeEditorView(
 		codeEditorScope.launch(Dispatchers.Main.immediate) {
 			updateReadWriteProgress(0)
 
-			withEditingDisabled {
-				val content =
-					withContext(readWriteContext) {
-						selection.validate()
-						file.readContent(this@CodeEditorView::updateReadWriteProgress)
-					}
-
-				initializeContent(content, file, selection)
+			if (file.extension.lowercase() in ARCHIVE_EXTENSIONS) {
+				val listing = withContext(readWriteContext) {
+					generateArchiveListing(file)
+				}
+				initializeArchiveContent(listing, file)
 				_binding?.rwProgress?.isVisible = false
+			} else {
+				withEditingDisabled {
+					val content =
+						withContext(readWriteContext) {
+							selection.validate()
+							file.readContent(this@CodeEditorView::updateReadWriteProgress)
+						}
+
+					initializeContent(content, file, selection)
+					_binding?.rwProgress?.isVisible = false
+				}
 			}
 		}
 	}
@@ -432,6 +443,75 @@ class CodeEditorView(
 
 			configureEditorIfNeeded()
 		}
+	}
+
+	private fun initializeArchiveContent(listing: String, file: File) {
+		val ideEditor = binding.editor
+		ideEditor.postInLifecycle {
+			val args = Bundle().apply {
+				putString(IEditor.KEY_FILE, file.absolutePath)
+			}
+			ideEditor.setText(Content(listing), args)
+			markUnmodified()
+			ideEditor.isEditable = false
+			ideEditor.file = file
+			configureEditorIfNeeded()
+		}
+	}
+
+	private fun generateArchiveListing(file: File): String {
+		val builder = StringBuilder()
+		val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+		val zone = java.time.ZoneId.systemDefault()
+		try {
+			java.util.zip.ZipFile(file).use { zip ->
+				val entries = zip.entries().toList()
+				builder.appendLine("Archive:  ${file.name}")
+				builder.appendLine("Length:   ${file.length()} bytes")
+				builder.appendLine("Entries:  ${entries.size}")
+				builder.appendLine()
+				builder.appendLine(
+					String.format("%-10s %-10s %-6s %-8s %-20s %s",
+						"Length", "Compressed", "Method", "CRC-32", "Date & Time", "Name")
+				)
+				builder.appendLine("-".repeat(90))
+
+				var totalSize = 0L
+				var totalCompressed = 0L
+
+				for (entry in entries) {
+					totalSize += entry.size
+					totalCompressed += entry.compressedSize
+					val method = if (entry.method == java.util.zip.ZipEntry.DEFLATED) "defl" else "stored"
+					val crc = String.format("%08x", entry.crc)
+					val time = if (entry.time > 0) {
+						val instant = java.time.Instant.ofEpochMilli(entry.time)
+						val dt = java.time.LocalDateTime.ofInstant(instant, zone)
+						dt.format(dateFormatter)
+					} else {
+						"----"
+					}
+					builder.appendLine(
+						String.format("%-10d %-10d %-6s %-8s %-20s %s",
+							entry.size, entry.compressedSize, method, crc, time, entry.name)
+					)
+				}
+
+				builder.appendLine("-".repeat(90))
+				val ratio = if (totalSize > 0) {
+					"%.1f%%".format((1.0 - totalCompressed.toDouble() / totalSize) * 100)
+				} else "0.0%"
+				builder.appendLine(
+					String.format("%-10d %-10d %-6s %s",
+						totalSize, totalCompressed, ratio, "${entries.size} files")
+				)
+			}
+		} catch (e: Exception) {
+			builder.clear()
+			builder.appendLine("Failed to read archive: ${file.name}")
+			builder.appendLine(e.message ?: "Unknown error")
+		}
+		return builder.toString()
 	}
 
 	private fun postRead(file: File) {
