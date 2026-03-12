@@ -1167,4 +1167,7 @@
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>
     <string name="diff_loading">Loading Git Diff…</string>
+    <string name="commit_summary">Summary (required)</string>
+    <string name="commit_description_optional">Description</string>
+    <string name="commit">Commit</string>
 </resources>

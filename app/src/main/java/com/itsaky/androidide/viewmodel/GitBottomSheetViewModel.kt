@@ -74,6 +74,32 @@ class GitBottomSheetViewModel : ViewModel() {
         }
     }
 
+    fun commitChanges(
+        summary: String,
+        description: String? = null,
+        selectedPaths: List<String>
+    ) {
+        viewModelScope.launch {
+            try {
+                if (selectedPaths.isEmpty()) return@launch
+
+                val projectDir = File(IProjectManager.getInstance().projectDirPath)
+                val filesToStage = selectedPaths.map { File(projectDir, it) }
+
+                currentRepository?.stageFiles(filesToStage)
+
+                val message =
+                    if (!description.isNullOrBlank()) "$summary\n\n$description" else summary
+                currentRepository?.commit(message)
+
+                refreshStatus()
+            } catch (e: Exception) {
+                log.error("Failed to commit changes", e)
+            }
+
+        }
+    }
+
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onDocumentSaved(event: DocumentSaveEvent) {
         refreshStatus()

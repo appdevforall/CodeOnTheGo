@@ -130,6 +130,35 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         outputStream.toString()
     }
 
+    override suspend fun stageFiles(files: List<File>) = withContext(Dispatchers.IO) {
+        val addCommand = git.add()
+        val rmCommand = git.rm()
+        var hasAdds = false
+        var hasRms = false
+
+        files.forEach { file ->
+            val relativePath = file.toRelativeString(rootDir).replace('\\', '/')
+            if (file.exists()) {
+                addCommand.addFilepattern(relativePath)
+                hasAdds = true
+            } else {
+                rmCommand.addFilepattern(relativePath)
+                hasRms = true
+            }
+        }
+        if (hasAdds) addCommand.call()
+        if (hasRms) rmCommand.call()
+        Unit
+    }
+
+    override suspend fun commit(message: String): GitCommit? = withContext(Dispatchers.IO) {
+        val revCommit = git.commit()
+            .setMessage(message)
+            .call()
+            
+        revCommit?.toGitCommit()
+    }
+
     private fun RevCommit.toGitCommit(): GitCommit {
         val author = authorIdent
         return GitCommit(
