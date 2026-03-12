@@ -81,6 +81,7 @@ import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
@@ -102,7 +103,7 @@ open class EditorHandlerActivity :
 
 	protected val isOpenedFilesSaved = AtomicBoolean(false)
 
-	private val fileTimestamps = mutableMapOf<String, Long>()
+	private val fileTimestamps = ConcurrentHashMap<String, Long>()
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
