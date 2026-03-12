@@ -456,6 +456,7 @@ class CodeEditorView(
 			ideEditor.isEditable = false
 			ideEditor.file = file
 			configureEditorIfNeeded()
+			(context as? Activity?)?.invalidateOptionsMenu()
 		}
 	}
 
@@ -480,10 +481,14 @@ class CodeEditorView(
 				var totalCompressed = 0L
 
 				for (entry in entries) {
-					totalSize += entry.size
-					totalCompressed += entry.compressedSize
+					val sizeKnown = entry.size >= 0
+					val compressedKnown = entry.compressedSize >= 0
+					if (sizeKnown) totalSize += entry.size
+					if (compressedKnown) totalCompressed += entry.compressedSize
 					val method = if (entry.method == java.util.zip.ZipEntry.DEFLATED) "defl" else "stored"
-					val crc = String.format("%08x", entry.crc)
+					val crc = if (entry.crc >= 0) String.format("%08x", entry.crc) else "-"
+					val sizeStr = if (sizeKnown) entry.size.toString() else "-"
+					val compressedStr = if (compressedKnown) entry.compressedSize.toString() else "-"
 					val time = if (entry.time > 0) {
 						val instant = java.time.Instant.ofEpochMilli(entry.time)
 						val dt = java.time.LocalDateTime.ofInstant(instant, zone)
@@ -492,8 +497,8 @@ class CodeEditorView(
 						"----"
 					}
 					builder.appendLine(
-						String.format("%-10d %-10d %-6s %-8s %-20s %s",
-							entry.size, entry.compressedSize, method, crc, time, entry.name)
+						String.format("%-10s %-10s %-6s %-8s %-20s %s",
+							sizeStr, compressedStr, method, crc, time, entry.name)
 					)
 				}
 

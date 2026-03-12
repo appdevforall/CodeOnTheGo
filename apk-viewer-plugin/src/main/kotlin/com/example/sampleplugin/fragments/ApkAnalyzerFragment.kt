@@ -150,7 +150,7 @@ class ApkAnalyzerFragment : Fragment() {
         val result = StringBuilder()
 
         return runCatching {
-            val zipFile = ZipFile(file)
+            ZipFile(file).use { zipFile ->
 
             result.append(" APK STRUCTURE:\n")
 
@@ -330,9 +330,8 @@ class ApkAnalyzerFragment : Fragment() {
             val hasProguard = files.any { it == "proguard/mappings.txt" } || files.any { it.contains("mapping.txt") }
             result.append("• Code Obfuscation: ${if (hasProguard) "Detected" else "None detected"}\n")
 
-            zipFile.close()
-
             result.toString()
+            }
         }.getOrElse { e ->
             "Failed to analyze APK: ${e.message}"
         }
