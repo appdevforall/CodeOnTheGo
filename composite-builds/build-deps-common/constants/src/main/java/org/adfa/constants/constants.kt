@@ -76,3 +76,7 @@ const val LOGSENDER_AAR_NAME = "logsender.aar"
 const val GRADLE_API_NAME_JAR = "gradle-api-$GRADLE_DISTRIBUTION_VERSION.jar"
 const val GRADLE_API_NAME_JAR_ZIP = "${GRADLE_API_NAME_JAR}.zip"
 const val GRADLE_API_NAME_JAR_BR = "${GRADLE_API_NAME_JAR}.br"
+
+// Templates archive
+const val TEMPLATE_ARCHIVE_EXTENSION = "cgt"
+const val TEMPLATE_CORE_ARCHIVE = "core$TEMPLATE_ARCHIVE_EXTENSION"

@@ -21,16 +21,15 @@ import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.Template
-import com.itsaky.androidide.templates.impl.basicActivity.basicActivityProject
-import com.itsaky.androidide.templates.impl.bottomNavActivity.bottomNavActivityProject
-import com.itsaky.androidide.templates.impl.composeActivity.composeActivityProject
-import com.itsaky.androidide.templates.impl.emptyActivity.emptyActivityProject
-import com.itsaky.androidide.templates.impl.navDrawerActivity.navDrawerActivityProject
-import com.itsaky.androidide.templates.impl.noActivity.noActivityProjectTemplate
-import com.itsaky.androidide.templates.impl.noAndroidXActivity.noAndroidXActivityProject
-import com.itsaky.androidide.templates.impl.pluginProject.pluginProjectTemplate
-import com.itsaky.androidide.templates.impl.tabbedActivity.tabbedActivityProject
-import com.itsaky.androidide.templates.impl.ndkActivity.ndkActivityProject
+import com.itsaky.androidide.templates.impl.zip.ZipRecipeExecutor
+import com.itsaky.androidide.templates.impl.zip.ZipTemplateReader
+
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
+import com.itsaky.androidide.utils.Environment.TEMPLATES_DIR
+
+import org.slf4j.LoggerFactory
+import java.io.File
+import java.util.zip.ZipFile
 
 /**
  * Default implementation of the [ITemplateProvider].
@@ -41,33 +40,44 @@ import com.itsaky.androidide.templates.impl.ndkActivity.ndkActivityProject
 @AutoService(ITemplateProvider::class)
 class TemplateProviderImpl : ITemplateProvider {
 
+  companion object {
+    private val log = LoggerFactory.getLogger(TemplateProviderImpl::class.java)
+  }
+
   private val templates = mutableMapOf<String, Template<*>>()
 
   init {
-    initializeTemplates()
+    reload()
   }
-
-  private fun templates() =
-    //@formatter:off
-    listOfNotNull(
-      noActivityProjectTemplate(),
-      emptyActivityProject(),
-      basicActivityProject(),
-      navDrawerActivityProject(),
-      bottomNavActivityProject(),
-      tabbedActivityProject(),
-      noAndroidXActivityProject(),
-      composeActivityProject(),
-      pluginProjectTemplate(),
-      ndkActivityProject()
-    )
 
   private fun initializeTemplates() {
-    templates().forEach { template ->
-      templates[template.templateId] = template
+    // val folder = File("/sdcard/Download/templates")
+    val folder = TEMPLATES_DIR
+    log.debug("Template listing archives in: ${folder.toString()} with extension: ${TEMPLATE_ARCHIVE_EXTENSION}")
+    val list = folder.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION } ?: return
+
+    for (zipFile in list) {
+      log.debug("Template archive: $zipFile")
+      try {
+        val zipTemplates = ZipTemplateReader.read(zipFile) { json, path, /* params */ data, defModule ->
+          ZipRecipeExecutor({ ZipFile(zipFile) }, json, path, /* params */ data, defModule)
+        }
+
+        if (zipTemplates != null) {
+          for (t in zipTemplates) {
+            log.debug("template: $t")
+            if (t != null) {
+              templates[t.templateId] = t
+            }
+          }
+        }
+
+        log.debug("templates: $templates")
+      } catch (e: Throwable) {
+        e.printStackTrace()
+      }
     }
   }
-  //@formatter:on
 
   override fun getTemplates(): List<Template<*>> {
     return ImmutableList.copyOf(templates.values)
@@ -79,7 +89,9 @@ class TemplateProviderImpl : ITemplateProvider {
 
   override fun reload() {
     release()
-    initializeTemplates()
+  //  CoroutineScope(Dispatchers.IO).launch {
+      initializeTemplates()
+  //  }
   }
 
   override fun release() {

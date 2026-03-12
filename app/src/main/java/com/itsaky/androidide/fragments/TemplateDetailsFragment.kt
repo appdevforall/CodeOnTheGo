@@ -136,8 +136,10 @@ class TemplateDetailsFragment :
                         name = result.data.name,
                         createdAt = now,
                         lastModified = now,
-                        templateName = getString(template.templateName),
-                        language = result.data.language.name
+//                        templateName = getString(template.templateName),
+                        templateName = template.templateNameStr,
+//                        language = result.data.language.name
+                        language = result.data.language?.name ?: "unknown"
                     )
                 )
 
@@ -163,6 +165,7 @@ class TemplateDetailsFragment :
         template ?: return
 
         binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
-        binding.title.setText(template.templateName)
+        //binding.title.setText(template.templateName)
+        binding.title.text = template.templateNameStr
     }
 }
