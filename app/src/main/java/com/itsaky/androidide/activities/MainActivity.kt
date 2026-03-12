@@ -24,6 +24,7 @@ import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.core.graphics.Insets
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
@@ -48,6 +49,7 @@ import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -201,6 +203,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 					.commitNow()
 			else -> { }
 		}
+	}
+
+	override fun onApplyWindowInsets(insets: WindowInsetsCompat) {
+		super.onApplyWindowInsets(insets)
+		_binding?.root?.applyBottomWindowInsetsPadding(insets)
 	}
 
 	override fun onApplySystemBarInsets(insets: Insets) {
