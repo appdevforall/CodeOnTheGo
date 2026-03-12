@@ -59,12 +59,6 @@ class TemplateListFragment :
 	) {
 		super.onViewCreated(view, savedInstanceState)
 
-		ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
-			val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-			v.updatePadding(bottom = insets.bottom)
-			windowInsets
-		}
-
 		val gridLayoutManager = GridLayoutManager(requireContext(), 1)
 		binding.list.layoutManager = gridLayoutManager
 

@@ -58,6 +58,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -480,6 +481,8 @@ abstract class BaseEditorActivity :
 
 		_binding?.content?.editorAppBarLayout?.updatePadding(top = systemBars.top)
 		applySidebarInsets(systemBars)
+		
+		_binding?.root?.applyBottomWindowInsetsPadding(insets)
 
 		val isImeVisible = imeInsets.bottom > 0
 		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
