@@ -37,6 +37,7 @@ open class TsAnalyzeManager(val languageSpec: TsLanguageSpec, var theme: TsTheme
   var spanFactory: TsSpanFactory = DefaultSpanFactory()
 
   open var styles = Styles()
+  internal var currentBracketPairs: TsBracketPairs? = null
 
   private var _analyzeWorker: TsAnalyzeWorker? = null
   val analyzeWorker: TsAnalyzeWorker?
@@ -131,7 +132,7 @@ open class TsAnalyzeManager(val languageSpec: TsLanguageSpec, var theme: TsTheme
     _analyzeWorker?.stop()
     _analyzeWorker = null
 
-    (styles.spans as LineSpansGenerator?)?.tree?.close()
+    (styles.spans as LineSpansGenerator?)?.destroy()
     styles.spans = null
     styles = Styles()
 
@@ -149,9 +150,11 @@ open class TsAnalyzeManager(val languageSpec: TsLanguageSpec, var theme: TsTheme
     _analyzeWorker?.stop()
     _analyzeWorker = null
 
-    (styles.spans as LineSpansGenerator?)?.tree?.close()
+    (styles.spans as LineSpansGenerator?)?.destroy()
     styles.spans = null
 
+    currentBracketPairs?.close()
+    currentBracketPairs = null
     spanFactory.close()
   }
 }
