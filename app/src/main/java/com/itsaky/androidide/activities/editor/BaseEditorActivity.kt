@@ -101,6 +101,7 @@ import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
@@ -898,9 +899,23 @@ abstract class BaseEditorActivity :
 			(this as EditorHandlerActivity).showPluginTabPopup(tab)
 			return
 		}
+
+		val pluginMenuItems = if (this is EditorHandlerActivity) {
+			val fileIndex = getFileIndexForTabPosition(position)
+			if (fileIndex >= 0) {
+				val file = editorViewModel.getOpenedFile(fileIndex)
+				IDEApplication.getPluginManager()?.getFileTabMenuItems(file) ?: emptyList()
+			} else {
+				emptyList()
+			}
+		} else {
+			emptyList()
+		}
+
 		showPopupWindow(
 			context = this,
 			anchorView = tab.view,
+			pluginMenuItems = pluginMenuItems,
 		)
 	}
 

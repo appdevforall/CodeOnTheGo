@@ -22,6 +22,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.View.OnLongClickListener
 import android.widget.FrameLayout.LayoutParams
+import android.widget.LinearLayout
 import android.widget.PopupWindow
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
@@ -31,15 +32,15 @@ import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
 import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 
-/**
- * Utility class to show a popup menu with [com.itsaky.androidide.actions.ActionsRegistry].
- *
- * @author Akash Yadav
- */
 object ActionMenuUtils {
 
-    fun showPopupWindow(context: Context, anchorView: View) {
+    fun showPopupWindow(
+        context: Context,
+        anchorView: View,
+        pluginMenuItems: List<FileTabMenuItem> = emptyList()
+    ) {
         val registry = ActionsRegistry.getInstance()
         val actionData = ActionData.create(context)
 
@@ -69,6 +70,9 @@ object ActionMenuUtils {
 
         val actions = registry.getActions(ActionItem.Location.EDITOR_FILE_TABS)
         actions.forEach { action ->
+            action.value.prepare(actionData)
+            if (!action.value.visible || !action.value.enabled) return@forEach
+
             val itemView =
                 FileActionPopupWindowItemBinding.inflate(
                     LayoutInflater.from(context),
@@ -96,7 +100,46 @@ object ActionMenuUtils {
             }
             binding.root.addView(itemView)
         }
-        popupWindow.showAsDropDown(anchorView, 0, 0)
 
+        val visiblePluginItems = pluginMenuItems.filter { it.isEnabled && it.isVisible }
+        if (visiblePluginItems.isNotEmpty()) {
+            val divider = View(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 1
+                ).apply {
+                    topMargin = 8
+                    bottomMargin = 8
+                }
+                val typedValue = android.util.TypedValue()
+                context.theme.resolveAttribute(
+                    com.google.android.material.R.attr.colorOutline, typedValue, true
+                )
+                setBackgroundColor(typedValue.data)
+            }
+            binding.root.addView(divider)
+
+            visiblePluginItems.forEach { item ->
+                val itemView =
+                    FileActionPopupWindowItemBinding.inflate(
+                        LayoutInflater.from(context),
+                        null,
+                        false
+                    ).root
+                itemView.apply {
+                    text = item.title
+                    setOnClickListener {
+                        try {
+                            item.action()
+                        } catch (e: Exception) {
+                            android.util.Log.e("ActionMenuUtils", "Plugin menu action failed", e)
+                        }
+                        popupWindow.dismiss()
+                    }
+                }
+                binding.root.addView(itemView)
+            }
+        }
+
+        popupWindow.showAsDropDown(anchorView, 0, 0)
     }
 }

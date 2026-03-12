@@ -34,7 +34,9 @@ import com.itsaky.androidide.events.FileContextMenuItemClickEvent
 import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent
 import com.itsaky.androidide.fragments.sheets.OptionsListFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.models.SheetOption
+import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.utils.flashError
 import com.unnamed.b.atv.model.TreeNode
 import kotlinx.coroutines.launch
@@ -72,17 +74,9 @@ class FileTreeActionHandler : BaseEventHandler() {
 
     val context = event[Context::class.java]!! as EditorHandlerActivity
     context.binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
-//    context.binding.root.closeDrawer(GravityCompat.START)
-    if (event.file.name.endsWith(".apk")) {
-      context.apkInstallationViewModel.installApk(
-		  context = context,
-		  apk = event.file,
-		  launchInDebugMode = false
-	  )
-      return
-    }
 
-    if (MB_10 < event.file.length()) {
+    val isArchive = event.file.extension.lowercase() in setOf("apk", "cgp", "zip")
+    if (!isArchive && MB_10 < event.file.length()) {
       flashError("File is too big!")
       log.warn(
         "Cannot open {} as it is too big. File size: {} bytes", event.file, event.file.length())
@@ -134,12 +128,23 @@ class FileTreeActionHandler : BaseEventHandler() {
       )
     }
 
+    IDEApplication.getPluginManager()
+      ?.getFileTabMenuItems(file)
+      ?.filter { it.isEnabled && it.isVisible }
+      ?.forEach { item ->
+        fragment.addOption(SheetOption("plugin.file.${item.id}", null, item.title, item))
+      }
+
     return fragment
   }
 
   @Subscribe(threadMode = MAIN)
   internal fun onFileOptionClicked(event: FileContextMenuItemClickEvent) {
     val option = event.option
+    if (option.extra is FileTabMenuItem) {
+      try { (option.extra as FileTabMenuItem).action() } catch (e: Exception) { log.error("Plugin file menu action failed", e) }
+      return
+    }
     if (option.extra !is ActionData) {
       return
     }
