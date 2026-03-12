@@ -30,13 +30,11 @@ const HTML_SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval'",
+    "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
-    "worker-src 'self' blob:",
-    "connect-src 'self'",
   ].join('; '),
 };
+const STATIC_ROOT_REAL_PROMISE = fs.realpath(STATIC_ROOT);
 
 function escapeHtml(value) {
   return value
@@ -45,6 +43,18 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function createForbiddenError(message = 'Forbidden') {
+  const err = new Error(message);
+  err.code = 'EACCES';
+  return err;
+}
+
+function ensureWithinParent(parent, child) {
+  if (child !== parent && !child.startsWith(parent + path.sep)) {
+    throw createForbiddenError();
+  }
 }
 
 function resolveRequestPath(reqUrl) {
@@ -62,11 +72,7 @@ function resolveRequestPath(reqUrl) {
   const relativePath = normalized.replace(/^\/+/, '');
   const resolvedPath = path.resolve(STATIC_ROOT, relativePath);
 
-  if (resolvedPath !== STATIC_ROOT && !resolvedPath.startsWith(STATIC_ROOT + path.sep)) {
-    const err = new Error('Forbidden');
-    err.code = 'EACCES';
-    throw err;
-  }
+  ensureWithinParent(STATIC_ROOT, resolvedPath);
 
   return {
     resolvedPath,
@@ -77,21 +83,25 @@ function resolveRequestPath(reqUrl) {
 function resolveChildPath(parentPath, childName) {
   const resolvedChild = path.resolve(parentPath, childName);
 
-  if (resolvedChild !== parentPath && !resolvedChild.startsWith(parentPath + path.sep)) {
-    const err = new Error('Forbidden');
-    err.code = 'EACCES';
-    throw err;
-  }
+  ensureWithinParent(parentPath, resolvedChild);
 
   return resolvedChild;
 }
 
-function assertWithinRoot(resolvedPath) {
-  if (resolvedPath !== STATIC_ROOT && !resolvedPath.startsWith(STATIC_ROOT + path.sep)) {
-    const err = new Error('Forbidden');
-    err.code = 'EACCES';
-    throw err;
+async function assertWithinRoot(resolvedPath) {
+  const [staticRootReal, resolvedPathReal] = await Promise.all([
+    STATIC_ROOT_REAL_PROMISE,
+    fs.realpath(resolvedPath),
+  ]);
+
+  if (
+    resolvedPathReal !== staticRootReal &&
+    !resolvedPathReal.startsWith(staticRootReal + path.sep)
+  ) {
+    throw createForbiddenError();
   }
+
+  return resolvedPathReal;
 }
 
 async function generateDirListing(dirPath, reqUrl) {
@@ -144,22 +154,26 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Expires', '0');
 
     const { resolvedPath: filePath, displayPath } = resolveRequestPath(req.url);
+    await assertWithinRoot(filePath);
     const stats = await fs.stat(filePath);
 
     if (stats.isDirectory()) {
       const indexPath = resolveChildPath(filePath, 'index.html');
       try {
+        await assertWithinRoot(indexPath);
         const indexData = await fs.readFile(indexPath);
         res.writeHeader(200, HTML_SECURITY_HEADERS);
         res.end(indexData);
-      } catch {
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          throw err;
+        }
         // No index.html, generate directory listing
         const dirListing = await generateDirListing(filePath, displayPath);
         res.writeHeader(200, HTML_SECURITY_HEADERS);
         res.end(dirListing);
       }
     } else {
-      assertWithinRoot(filePath);
       const ext = path.extname(filePath).toLowerCase();
       const contentType = mimeTypes[ext] || 'application/octet-stream';
       const data = await fs.readFile(filePath);
