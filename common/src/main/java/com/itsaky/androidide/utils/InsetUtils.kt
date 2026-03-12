@@ -22,6 +22,7 @@ import android.view.View
 import android.view.WindowInsets
 import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 /**
  * Acquires screen insets.
@@ -56,4 +57,14 @@ fun getSystemBarInsets(insets: WindowInsetsCompat): Insets {
 
   // noinspection WrongConstant
   return insets.getInsetsIgnoringVisibility(typeMask)
+}
+
+/**
+ * Applies the bottom system bar inset as bottom padding to the view.
+ * 
+ * @param insets The window insets to retrieve the system bars from.
+ */
+fun View.applyBottomWindowInsetsPadding(insets: WindowInsetsCompat) {
+    val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+    updatePadding(bottom = systemBars.bottom)
 }
