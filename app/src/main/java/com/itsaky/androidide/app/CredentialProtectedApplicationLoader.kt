@@ -33,6 +33,7 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.standalone.buildStandaloneAnalysisAPISession
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaFunctionSymbol
@@ -109,6 +110,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				class Main {
 					fun main(args: Array<String>) {
 						println("Hello World!")
+						
+						var s = "Hello"
+						s!!.toString()
 					}
 				}
 				""".trimIndent()
@@ -261,6 +265,12 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 					declarationSymbol.name?.asString() ?: declarationSymbol.toString()
 				},
 			)
+
+			val diagnostics = ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+			diagnostics.forEach { diagnostic ->
+				logger.info("diagnostic: severity={} message={} range={}",
+					diagnostic.severity, diagnostic.defaultMessage, diagnostic.textRanges)
+			}
 		}
 	}
 
