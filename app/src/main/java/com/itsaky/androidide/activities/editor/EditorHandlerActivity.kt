@@ -499,6 +499,11 @@ open class EditorHandlerActivity :
 			return@withContext null
 		}
 
+		val pluginHandled = IDEApplication.getPluginManager()?.delegateFileOpen(file) ?: false
+		if (pluginHandled) {
+			return@withContext null
+		}
+
 		val fileIndex = openFileAndGetIndex(file, range)
 		if (fileIndex < 0) return@withContext null
 
@@ -566,6 +571,8 @@ open class EditorHandlerActivity :
 		editorViewModel.setCurrentFile(fileIndex, file)
 
 		updateTabs()
+
+		IDEApplication.getPluginManager()?.notifyFileOpened(file)
 
 		return fileIndex
 	}
@@ -807,6 +814,8 @@ open class EditorHandlerActivity :
 			}
 			return
 		}
+
+		IDEApplication.getPluginManager()?.notifyFileClosed(opened)
 
 		editor?.close() ?: run {
 			log.error("Cannot save file before close. Editor instance is null")
@@ -1312,9 +1321,10 @@ open class EditorHandlerActivity :
 	}
 
 	private fun performCloseAllFiles(manualFinish: Boolean) {
-		// Close all open file editors
+		val pluginManager = IDEApplication.getPluginManager()
 		val fileCount = editorViewModel.getOpenedFileCount()
 		for (i in 0 until fileCount) {
+			pluginManager?.notifyFileClosed(editorViewModel.getOpenedFile(i))
 			getEditorAtIndex(i)?.close()
 		}
 
