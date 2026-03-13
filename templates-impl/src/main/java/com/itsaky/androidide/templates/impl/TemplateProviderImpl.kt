@@ -28,7 +28,6 @@ import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import com.itsaky.androidide.utils.Environment.TEMPLATES_DIR
 
 import org.slf4j.LoggerFactory
-import java.io.File
 import java.util.zip.ZipFile
 
 /**

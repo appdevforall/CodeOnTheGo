@@ -1,14 +1,12 @@
 package com.itsaky.androidide.templates.impl.zip
 
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.templates.ModuleTemplateData
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.R
 import com.itsaky.androidide.templates.TemplateRecipe
-import com.itsaky.androidide.templates.Widget
 import com.itsaky.androidide.templates.base.baseZipProject
 import org.slf4j.LoggerFactory
 import java.io.File
