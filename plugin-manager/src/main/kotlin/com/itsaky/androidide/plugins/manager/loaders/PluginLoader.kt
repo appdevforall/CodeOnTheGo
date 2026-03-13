@@ -188,7 +188,7 @@ class PluginLoader(
             // Extract plugin metadata from AndroidManifest meta-data tags
             val pluginId = metaData.getString("plugin.id") ?: packageInfo.packageName
             val pluginName = metaData.getString("plugin.name") ?: packageInfo.applicationInfo?.name ?: "Unknown Plugin"
-            val pluginVersion = packageInfo.versionName ?: "1.0.0"
+            val pluginVersion = metaData.getString("plugin.version") ?: "1.0.0"
             val pluginDescription = metaData.getString("plugin.description") ?: ""
             val pluginAuthor = metaData.getString("plugin.author") ?: ""
             val pluginMainClass = metaData.getString("plugin.main_class") ?: return null
