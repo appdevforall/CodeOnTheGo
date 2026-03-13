@@ -506,15 +506,18 @@ fun createAssetsZip(arch: String) {
 
 			// Prepend JAVA_HOME/bin to PATH, so that `java` can be resolved
 			// on systems which don't already have `java` in PATH
-			environment(
-				"PATH",
-				System.getProperty(
-					"java.home",
-				) + File.separator + "bin" + (
-					System.getenv("PATH")?.let { File.pathSeparator + it }
-						?: ""
-				),
-			)
+			val javaHome = System.getProperty("java.home")
+			if (javaHome.isNotBlank()) {
+				val javaHomeBin = javaHome + File.separator + "bin"
+				val currentPath = System.getenv("PATH") ?: ""
+				var finalPath = javaHomeBin
+				if (currentPath.isNotBlank()) {
+					finalPath += File.pathSeparator
+					finalPath += currentPath
+				}
+
+				environment("PATH", finalPath)
+			}
 		}.assertNormalExitValue()
 
 	if (!dexOutputFile.exists()) {
