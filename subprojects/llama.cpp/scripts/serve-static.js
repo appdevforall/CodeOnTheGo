@@ -24,6 +24,86 @@ const mimeTypes = {
   '.woff2': 'font/woff2',
 };
 
+const STATIC_ROOT = path.resolve(STATIC_DIR);
+const HTML_SECURITY_HEADERS = {
+  'Content-Type': 'text/html',
+  'X-Content-Type-Options': 'nosniff',
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+  ].join('; '),
+};
+const STATIC_ROOT_REAL_PROMISE = fs.realpath(STATIC_ROOT);
+
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function createForbiddenError(message = 'Forbidden') {
+  const err = new Error(message);
+  err.code = 'EACCES';
+  return err;
+}
+
+function ensureWithinParent(parent, child) {
+  if (child !== parent && !child.startsWith(parent + path.sep)) {
+    throw createForbiddenError();
+  }
+}
+
+function resolveRequestPath(reqUrl) {
+  const url = new URL(reqUrl, 'http://localhost');
+  let pathname = decodeURIComponent(url.pathname);
+
+  if (pathname.includes('\0')) {
+    const err = new Error('Invalid path');
+    err.code = 'EINVAL';
+    throw err;
+  }
+
+  pathname = pathname.replace(/\\/g, '/');
+  const normalized = path.posix.normalize(pathname);
+  const relativePath = normalized.replace(/^\/+/, '');
+  const resolvedPath = path.resolve(STATIC_ROOT, relativePath);
+
+  ensureWithinParent(STATIC_ROOT, resolvedPath);
+
+  return {
+    resolvedPath,
+    displayPath: '/' + relativePath,
+  };
+}
+
+function resolveChildPath(parentPath, childName) {
+  const resolvedChild = path.resolve(parentPath, childName);
+
+  ensureWithinParent(parentPath, resolvedChild);
+
+  return resolvedChild;
+}
+
+async function assertWithinRoot(resolvedPath) {
+  const [staticRootReal, resolvedPathReal] = await Promise.all([
+    STATIC_ROOT_REAL_PROMISE,
+    fs.realpath(resolvedPath),
+  ]);
+
+  if (
+    resolvedPathReal !== staticRootReal &&
+    !resolvedPathReal.startsWith(staticRootReal + path.sep)
+  ) {
+    throw createForbiddenError();
+  }
+
+  return resolvedPathReal;
+}
+
 async function generateDirListing(dirPath, reqUrl) {
   const files = await fs.readdir(dirPath);
   let html = `
@@ -40,7 +120,7 @@ async function generateDirListing(dirPath, reqUrl) {
       </style>
     </head>
     <body>
-      <h1>Directory: ${reqUrl}</h1>
+      <h1>Directory: ${escapeHtml(reqUrl)}</h1>
       <ul>
   `;
 
@@ -52,7 +132,8 @@ async function generateDirListing(dirPath, reqUrl) {
     const filePath = path.join(dirPath, file);
     const stats = await fs.stat(filePath);
     const link = encodeURIComponent(file) + (stats.isDirectory() ? '/' : '');
-    html += `<li><a href="${link}">${file}${stats.isDirectory() ? '/' : ''}</a></li>`;
+    const label = `${file}${stats.isDirectory() ? '/' : ''}`;
+    html += `<li><a href="${link}">${escapeHtml(label)}</a></li>`;
   }
 
   html += `
@@ -72,30 +153,42 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    const filePath = path.join(STATIC_DIR, decodeURIComponent(req.url));
+    const { resolvedPath: filePath, displayPath } = resolveRequestPath(req.url);
+    await assertWithinRoot(filePath);
     const stats = await fs.stat(filePath);
 
     if (stats.isDirectory()) {
-      const indexPath = path.join(filePath, 'index.html');
+      const indexPath = resolveChildPath(filePath, 'index.html');
       try {
+        await assertWithinRoot(indexPath);
         const indexData = await fs.readFile(indexPath);
-        res.writeHeader(200, { 'Content-Type': 'text/html' });
+        res.writeHeader(200, HTML_SECURITY_HEADERS);
         res.end(indexData);
-      } catch {
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          throw err;
+        }
         // No index.html, generate directory listing
-        const dirListing = await generateDirListing(filePath, req.url);
-        res.writeHeader(200, { 'Content-Type': 'text/html' });
+        const dirListing = await generateDirListing(filePath, displayPath);
+        res.writeHeader(200, HTML_SECURITY_HEADERS);
         res.end(dirListing);
       }
     } else {
       const ext = path.extname(filePath).toLowerCase();
       const contentType = mimeTypes[ext] || 'application/octet-stream';
       const data = await fs.readFile(filePath);
-      res.writeHeader(200, { 'Content-Type': contentType });
+      if (contentType === 'text/html') {
+        res.writeHeader(200, HTML_SECURITY_HEADERS);
+      } else {
+        res.writeHeader(200, { 'Content-Type': contentType, 'X-Content-Type-Options': 'nosniff' });
+      }
       res.end(data);
     }
   } catch (err) {
-    if (err.code === 'ENOENT') {
+    if (err.code === 'EACCES') {
+      res.writeHeader(403, { 'Content-Type': 'text/plain' });
+      res.end('403 Forbidden');
+    } else if (err.code === 'ENOENT') {
       res.writeHeader(404, { 'Content-Type': 'text/plain' });
       res.end('404 Not Found');
     } else {
