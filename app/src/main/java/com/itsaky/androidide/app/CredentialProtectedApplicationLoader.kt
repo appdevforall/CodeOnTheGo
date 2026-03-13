@@ -1,7 +1,6 @@
 package com.itsaky.androidide.app
 
 import android.content.Intent
-import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.blankj.utilcode.util.ThrowableUtils
@@ -38,12 +37,11 @@ import org.jetbrains.kotlin.analysis.api.standalone.buildStandaloneAnalysisAPISe
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaFunctionSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.name
+import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryModule
 import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModule
 import org.jetbrains.kotlin.cli.common.intellijPluginRoot
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
-import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
+import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.com.intellij.testFramework.LightVirtualFile
 import org.jetbrains.kotlin.com.intellij.util.LocalTimeCounter
 import org.jetbrains.kotlin.config.CompilerConfiguration
@@ -53,10 +51,12 @@ import org.jetbrains.kotlin.config.moduleName
 import org.jetbrains.kotlin.config.useFir
 import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
+import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
 
@@ -141,7 +141,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			val pluginRoot = app.applicationInfo.sourceDir
 			val pluginRootPublic = app.applicationInfo.sourceDir
 			logger.info("pluginRoot={}, pluginRootPublic={}", pluginRoot, pluginRootPublic)
-			val firs = compileToFir("Main.kt", source, pluginRoot, emptyList())
+			val firs = compileToFir("Main.kt", source, pluginRoot)
 			logger.info("result: firs: {}", firs)
 		}
 
@@ -181,25 +181,8 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		fileName: String,
 		content: String,
 		pluginRoot: String,
-		classpathJars: List<File>, // stdlib, etc.
 	) {
 		val disposable = Disposer.newDisposable()
-
-		val messageCollector =
-			object : MessageCollector {
-				override fun clear() = Unit
-
-				override fun hasErrors() = false
-
-				override fun report(
-					severity: CompilerMessageSeverity,
-					message: String,
-					location: CompilerMessageSourceLocation?,
-				) {
-					Log.i("MessageCollector", "[$severity] $message [$location]")
-				}
-			}
-
 		val configuration =
 			CompilerConfiguration().apply {
 				moduleName = "my-module"
@@ -225,21 +208,37 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			) {
 				buildKtModuleProvider {
 					platform = JvmPlatforms.jvm11
+
+					val androidJarModule = addModule(buildKtLibraryModule {
+						platform = JvmPlatforms.jvm11
+						libraryName = "android-sdk"
+						addBinaryRoot(Paths.get(Environment.ANDROID_JAR.absolutePath))
+					})
+
+					val stdlibModule = addModule(buildKtLibraryModule {
+						platform = JvmPlatforms.jvm11
+						libraryName = "kotlin-stdlib"
+						addBinaryRoot(Paths.get("/sdcard/kotlin-stdlib-2.3.255-SNAPSHOT.jar"))
+					})
+
 					addModule(
 						buildKtSourceModule {
 							platform = JvmPlatforms.jvm11
 							moduleName = "core"
 							addSourceVirtualFile(virtualFile)
+							addRegularDependency(stdlibModule)
+							addRegularDependency(androidJarModule)
 						},
 					)
 				}
 			}
 
-		val ktFile =
-			KtPsiFactory(project = session.project, false)
-				.createFile(content)
+		val manager = PsiManager.getInstance(session.project)
+		val ktFile = manager.findFile(virtualFile)
+		logger.info("ktFile={} ({})", ktFile, ktFile?.javaClass)
 
-		analyze(ktFile) {
+		logger.info("analyzing: {}", content)
+		analyze(ktFile as KtFile) {
 			logger.info("fileSymbol: {}", ktFile.symbol)
 
 			val fileSymbol = ktFile.symbol
@@ -254,10 +253,15 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 						logger.info("classSymbol.memberScope={}", declarationSymbol.memberScope)
 
 						declarationSymbol.memberScope.declarations.forEach { memberSymbol ->
-							logger.info("Main.member={}", memberSymbol.name?.asString() ?: memberSymbol.name.toString())
+							logger.info(
+								"Main.member={}",
+								memberSymbol.name?.asString() ?: memberSymbol.name.toString()
+							)
 
 							if (memberSymbol is KaFunctionSymbol) {
-								logger.info("Main.main.args={}", memberSymbol.valueParameters.map { it.name.asString() })
+								logger.info(
+									"Main.main.args={}",
+									memberSymbol.valueParameters.map { it.name.asString() })
 								logger.info("Main.main.returns={}", memberSymbol.returnType)
 							}
 						}
@@ -266,10 +270,13 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				},
 			)
 
-			val diagnostics = ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+			val diagnostics =
+				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 			diagnostics.forEach { diagnostic ->
-				logger.info("diagnostic: severity={} message={} range={}",
-					diagnostic.severity, diagnostic.defaultMessage, diagnostic.textRanges)
+				logger.info(
+					"diagnostic: severity={} message={} range={}",
+					diagnostic.severity, diagnostic.defaultMessage, diagnostic.textRanges
+				)
 			}
 		}
 	}

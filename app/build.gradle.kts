@@ -376,6 +376,7 @@ dependencies {
 	implementation(project(":llama-api"))
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 
+	implementation("one.util:streamex:0.8.4")
 	implementation(files("/var/home/user/Downloads/jmx-1.2.1.jar"))
 	implementation(
 		files(
