@@ -104,6 +104,8 @@ In a separate terminal, start the backend server:
 ./llama-server --model-store /path/to/models
 ```
 
+If you start the server with `--api-key`, enter the key in the WebUI settings so requests include it.
+
 ### 3. Start Development Servers
 
 ```bash
