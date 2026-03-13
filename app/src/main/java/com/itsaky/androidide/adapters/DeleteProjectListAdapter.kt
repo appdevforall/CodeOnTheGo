@@ -4,9 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DeleteProjectsItemBinding
-import com.itsaky.androidide.utils.formatDate
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 
 class DeleteProjectListAdapter(
@@ -51,10 +49,9 @@ class DeleteProjectListAdapter(
             binding.checkbox.visibility = View.VISIBLE
             binding.checkbox.isChecked = selectedProjects.contains(project)
 
-            binding.checkbox.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked) selectedProjects.add(project) else selectedProjects.remove(
-                    project
-                )
+            binding.checkbox.setOnClickListener {
+                if (binding.checkbox.isChecked) selectedProjects.add(project)
+                else selectedProjects.remove(project)
                 onSelectionChange(selectedProjects.isNotEmpty())
             }
 
