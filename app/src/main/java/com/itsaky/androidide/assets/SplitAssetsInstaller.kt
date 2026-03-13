@@ -15,6 +15,7 @@ import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
@@ -72,7 +73,14 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 								logger.debug("Completed extracting '{}' to dir: {}", entry.name, destDir)
 							}
 
-                            AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+              TEMPLATE_CORE_ARCHIVE -> {
+                val coreCgt = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
+                coreCgt.outputStream().use { output ->
+                  zipInput.copyTo(output)
+                }
+              }
+
+              AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
 								logger.debug("Extracting 'bootstrap.zip' to dir: {}", stagingDir)
 
 								val result = retryOnceOnNoSuchFile(
@@ -194,6 +202,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 215389106L
         AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 456462823L
         GRADLE_API_NAME_JAR_ZIP           -> 46758608L
+        TEMPLATE_CORE_ARCHIVE               -> 702001L
         else -> 0L
     }
 
@@ -203,6 +212,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 			ANDROID_SDK_ZIP -> Environment.ANDROID_HOME
 			LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> Environment.LOCAL_MAVEN_DIR
 			GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
+      TEMPLATE_CORE_ARCHIVE -> Environment.TEMPLATES_DIR
 			else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
 		}
 

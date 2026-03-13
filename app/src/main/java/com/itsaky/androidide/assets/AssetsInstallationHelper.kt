@@ -20,6 +20,7 @@ import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
 import com.itsaky.androidide.resources.R
 import java.io.File
@@ -113,7 +114,8 @@ object AssetsInstallationHelper {
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
                 LLAMA_AAR,
-                PLUGIN_ARTIFACTS_ZIP
+                PLUGIN_ARTIFACTS_ZIP,
+        TEMPLATE_CORE_ARCHIVE,
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
