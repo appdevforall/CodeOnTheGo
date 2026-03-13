@@ -53,6 +53,12 @@ llama-cli -hf ggml-org/gemma-3-1b-it-GGUF
 llama-server -hf ggml-org/gemma-3-1b-it-GGUF
 ```
 
+## Security note (local wasm test server)
+
+`scripts/serve-static.js` now constrains request paths to the wasm output directory and adds safer HTML response headers.
+- This prevents path traversal and reduces XSS risk in directory listings and served HTML.
+- How? Normalize/resolve paths under `build-wasm/bin`, return `403` on escapes, escape listing labels, and apply CSP + `nosniff` to HTML.
+
 ## Description
 
 The main goal of `llama.cpp` is to enable LLM inference with minimal setup and state-of-the-art performance on a wide
