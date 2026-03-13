@@ -72,11 +72,19 @@
         android:layout_height="wrap_content"
         android:enabled="false"
         android:text="@string/commit"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintBottom_toTopOf="@id/commitHistoryButton" />
 
     <androidx.constraintlayout.widget.Group
         android:id="@+id/commit_section"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:constraint_referenced_ids="commitSummaryLayout, commitDescriptionLayout, commitButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/commitHistoryButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/view_commit_history"
+        app:layout_constraintBottom_toBottomOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

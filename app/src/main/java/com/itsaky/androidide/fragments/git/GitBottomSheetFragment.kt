@@ -60,6 +60,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         }
 
         setupCommitUI()
+
+        binding.commitHistoryButton.setOnClickListener {
+            val dialog = GitCommitHistoryDialog()
+            dialog.show(childFragmentManager, "CommitHistoryDialog")
+        }
+
     }
 
     private fun setupCommitUI() {

@@ -9,6 +9,7 @@ import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.git.core.GitRepository
 import com.itsaky.androidide.git.core.GitRepositoryManager
+import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +28,8 @@ class GitBottomSheetViewModel : ViewModel() {
 
     private val _gitStatus = MutableStateFlow(GitStatus.EMPTY)
     val gitStatus: StateFlow<GitStatus> = _gitStatus.asStateFlow()
+    private val _commitHistory = MutableStateFlow(emptyList<GitCommit>())
+    val commitHistory: StateFlow<List<GitCommit>> = _commitHistory.asStateFlow()
 
     var currentRepository: GitRepository? = null
         private set
@@ -97,6 +100,13 @@ class GitBottomSheetViewModel : ViewModel() {
                 log.error("Failed to commit changes", e)
             }
 
+        }
+    }
+
+    fun getCommitHistoryList() {
+        viewModelScope.launch {
+            val history = currentRepository?.getHistory()
+            _commitHistory.value = history ?: emptyList()
         }
     }
 

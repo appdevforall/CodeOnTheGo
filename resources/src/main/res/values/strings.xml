@@ -1170,4 +1170,7 @@
     <string name="commit_summary">Summary (required)</string>
     <string name="commit_description_optional">Description</string>
     <string name="commit">Commit</string>
+    <string name="view_commit_history">View Commit History</string>
+    <string name="git_commit_history">Git Commit History</string>
+    <string name="no_commit_history">No commit history</string>
 </resources>

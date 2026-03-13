@@ -166,7 +166,7 @@ class JGitRepository(override val rootDir: File) : GitRepository {
             shortHash = name.take(7),
             authorName = author.name,
             authorEmail = author.emailAddress,
-            message = fullMessage,
+            message = fullMessage.trim(),
             timestamp = author.`when`.time,
             parentHashes = parents.map { it.name }
         )
