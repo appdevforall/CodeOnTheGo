@@ -4,7 +4,7 @@
 
 <h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
- Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access.</p>
+ Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access. Code on the Go is a project of App Dev for All, a nonprofit organization committed to making computer science education and professional programming resources universally available.</p>
 <p><br>
 
 <p align="center">
@@ -103,4 +103,5 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 

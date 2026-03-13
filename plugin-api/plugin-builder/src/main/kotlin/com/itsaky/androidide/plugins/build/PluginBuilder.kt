@@ -24,25 +24,26 @@ class PluginBuilder : Plugin<Project> {
         task.description = "Assembles the debug plugin and creates .cgp file"
         task.dependsOn("assembleDebug")
 
+        val pluginName = extension.pluginName.getOrElse(project.name)
+        val apkDir = File(project.buildDir, "outputs/apk/debug")
+        val outputDir = File(project.buildDir, "plugin")
+
         task.doLast(object : org.gradle.api.Action<org.gradle.api.Task> {
             override fun execute(t: org.gradle.api.Task) {
-                val pluginName = extension.pluginName.getOrElse(project.name)
-                val apkDir = File(project.buildDir, "outputs/apk/debug")
-                val outputDir = File(project.buildDir, "plugin")
                 outputDir.mkdirs()
 
-                project.logger.lifecycle("Looking for APK in: ${apkDir.absolutePath}")
+                t.logger.lifecycle("Looking for APK in: ${apkDir.absolutePath}")
 
                 val apkFile = apkDir.listFiles()?.firstOrNull { it.extension == "apk" }
                 if (apkFile == null) {
-                    project.logger.warn("No APK found in ${apkDir.absolutePath}")
+                    t.logger.warn("No APK found in ${apkDir.absolutePath}")
                     return
                 }
 
                 val outputFile = File(outputDir, "$pluginName-debug.cgp")
                 apkFile.copyTo(outputFile, overwrite = true)
                 apkFile.delete()
-                project.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")
+                t.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")
             }
         })
     }
@@ -53,25 +54,26 @@ class PluginBuilder : Plugin<Project> {
         task.description = "Assembles the release plugin and creates .cgp file"
         task.dependsOn("assembleRelease")
 
+        val pluginName = extension.pluginName.getOrElse(project.name)
+        val apkDir = File(project.buildDir, "outputs/apk/release")
+        val outputDir = File(project.buildDir, "plugin")
+
         task.doLast(object : org.gradle.api.Action<org.gradle.api.Task> {
             override fun execute(t: org.gradle.api.Task) {
-                val pluginName = extension.pluginName.getOrElse(project.name)
-                val apkDir = File(project.buildDir, "outputs/apk/release")
-                val outputDir = File(project.buildDir, "plugin")
                 outputDir.mkdirs()
 
-                project.logger.lifecycle("Looking for APK in: ${apkDir.absolutePath}")
+                t.logger.lifecycle("Looking for APK in: ${apkDir.absolutePath}")
 
                 val apkFile = apkDir.listFiles()?.firstOrNull { it.extension == "apk" }
                 if (apkFile == null) {
-                    project.logger.warn("No APK found in ${apkDir.absolutePath}")
+                    t.logger.warn("No APK found in ${apkDir.absolutePath}")
                     return
                 }
 
                 val outputFile = File(outputDir, "$pluginName.cgp")
                 apkFile.copyTo(outputFile, overwrite = true)
                 apkFile.delete()
-                project.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")
+                t.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")
             }
         })
     }
