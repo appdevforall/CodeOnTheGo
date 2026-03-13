@@ -254,6 +254,7 @@
 	<string name="rename_file">Rename</string>
 	<string name="delete_file">Delete</string>
 	<string name="action_closeAll">Close all</string>
+	<string name="action_install">Install</string>
 	<string name="action_closeOthers">Close others</string>
 	<string name="action_closeThis">Close this</string>
 	<string name="all_saved">All files saved</string>

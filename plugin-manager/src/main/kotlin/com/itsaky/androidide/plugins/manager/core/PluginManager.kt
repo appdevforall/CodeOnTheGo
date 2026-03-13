@@ -17,6 +17,8 @@ import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
+import com.itsaky.androidide.plugins.extensions.FileOpenExtension
+import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
@@ -566,6 +568,48 @@ class PluginManager private constructor(
             .filter { it.isEnabled }
             .map { it.plugin }
             .filterIsInstance<com.itsaky.androidide.plugins.extensions.UIExtension>()
+    }
+
+    fun getEnabledFileOpenExtensions(): List<FileOpenExtension> {
+        return loadedPlugins.values
+            .filter { it.isEnabled }
+            .map { it.plugin }
+            .filterIsInstance<FileOpenExtension>()
+    }
+
+    fun notifyFileOpened(file: File) {
+        getEnabledFileOpenExtensions().forEach { extension ->
+            executeWithErrorHandling("notify file opened") {
+                extension.onFileOpened(file)
+            }
+        }
+    }
+
+    fun notifyFileClosed(file: File) {
+        getEnabledFileOpenExtensions().forEach { extension ->
+            executeWithErrorHandling("notify file closed") {
+                extension.onFileClosed(file)
+            }
+        }
+    }
+
+    fun getFileTabMenuItems(file: File): List<FileTabMenuItem> {
+        return getEnabledFileOpenExtensions().flatMap { extension ->
+            executeWithErrorHandling("get file tab menu items") {
+                extension.getFileTabMenuItems(file)
+            }.getOrDefault(emptyList())
+        }.sortedBy { it.order }
+    }
+
+    fun delegateFileOpen(file: File): Boolean {
+        val handler = getEnabledFileOpenExtensions().firstOrNull { extension ->
+            executeWithErrorHandling("check canHandleFileOpen") {
+                extension.canHandleFileOpen(file)
+            }.getOrDefault(false)
+        } ?: return false
+        return executeWithErrorHandling("handle file open") {
+            handler.handleFileOpen(file)
+        }.getOrDefault(false)
     }
 
     fun getPluginIdForInstance(plugin: IPlugin): String? {
