@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
@@ -26,6 +27,7 @@ import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.doOnNextLayout
 import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
@@ -79,6 +81,7 @@ import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
@@ -100,7 +103,7 @@ open class EditorHandlerActivity :
 
 	protected val isOpenedFilesSaved = AtomicBoolean(false)
 
-	private val fileTimestamps = mutableMapOf<String, Long>()
+	private val fileTimestamps = ConcurrentHashMap<String, Long>()
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
@@ -496,6 +499,11 @@ open class EditorHandlerActivity :
 			return@withContext null
 		}
 
+		val pluginHandled = IDEApplication.getPluginManager()?.delegateFileOpen(file) ?: false
+		if (pluginHandled) {
+			return@withContext null
+		}
+
 		val fileIndex = openFileAndGetIndex(file, range)
 		if (fileIndex < 0) return@withContext null
 
@@ -563,6 +571,8 @@ open class EditorHandlerActivity :
 		editorViewModel.setCurrentFile(fileIndex, file)
 
 		updateTabs()
+
+		IDEApplication.getPluginManager()?.notifyFileOpened(file)
 
 		return fileIndex
 	}
@@ -697,6 +707,16 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	override fun onConfigurationChanged(newConfig: Configuration) {
+		super.onConfigurationChanged(newConfig)
+
+		getCurrentEditor()?.editor?.apply {
+			doOnNextLayout {
+				cursor?.let { c -> ensurePositionVisible(c.leftLine, c.leftColumn, true) }
+			}
+		}
+	}
+
 	private suspend fun saveResultInternal(
 		index: Int,
 		result: SaveResult,
@@ -714,6 +734,10 @@ open class EditorHandlerActivity :
 			val modified = frag.isModified
 			if (!frag.save()) {
 				return false
+			}
+
+			frag.file?.let { savedFile ->
+				fileTimestamps[savedFile.absolutePath] = savedFile.lastModified()
 			}
 
 			val isGradle = fileName.endsWith(".gradle") || fileName.endsWith(".gradle.kts")
@@ -790,6 +814,8 @@ open class EditorHandlerActivity :
 			}
 			return
 		}
+
+		IDEApplication.getPluginManager()?.notifyFileClosed(opened)
 
 		editor?.close() ?: run {
 			log.error("Cannot save file before close. Editor instance is null")
@@ -1295,9 +1321,10 @@ open class EditorHandlerActivity :
 	}
 
 	private fun performCloseAllFiles(manualFinish: Boolean) {
-		// Close all open file editors
+		val pluginManager = IDEApplication.getPluginManager()
 		val fileCount = editorViewModel.getOpenedFileCount()
 		for (i in 0 until fileCount) {
+			pluginManager?.notifyFileClosed(editorViewModel.getOpenedFile(i))
 			getEditorAtIndex(i)?.close()
 		}
 
