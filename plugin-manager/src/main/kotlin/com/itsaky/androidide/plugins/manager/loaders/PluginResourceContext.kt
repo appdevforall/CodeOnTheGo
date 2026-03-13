@@ -16,13 +16,27 @@ import androidx.appcompat.app.AppCompatDelegate
 class PluginResourceContext(
     baseContext: Context,
     pluginResources: Resources,
-    private val pluginPackageInfo: PackageInfo? = null
+    private val pluginPackageInfo: PackageInfo? = null,
+    private val pluginClassLoader: ClassLoader? = null
 ) : ContextThemeWrapper(baseContext, 0) {
 
     private var pluginResources: Resources = pluginResources
     private var inflater: LayoutInflater? = null
     private var lastNightMode: Int = -1
     private var pluginTheme: Theme? = null
+    private val hostSourceDir: String? = baseContext.applicationInfo?.sourceDir
+
+    init {
+        val pluginSourceDir = pluginPackageInfo?.applicationInfo?.sourceDir
+        if (pluginSourceDir != null && hostSourceDir != null) {
+            @Suppress("DEPRECATION")
+            this.pluginResources = Resources(
+                createMergedAssetManager(pluginSourceDir),
+                baseContext.resources.displayMetrics,
+                baseContext.resources.configuration
+            )
+        }
+    }
 
     override fun getResources(): Resources {
         return pluginResources
@@ -32,14 +46,19 @@ class PluginResourceContext(
         return pluginResources.assets
     }
 
-    private fun recreatePluginResources(newConfig: Configuration) {
-        val sourceDir = pluginPackageInfo?.applicationInfo?.sourceDir ?: return
+    private fun createMergedAssetManager(pluginSourceDir: String): AssetManager {
         @Suppress("DEPRECATION")
         val assetManager = AssetManager::class.java.getDeclaredConstructor().newInstance()
         val addAssetPath = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
-        addAssetPath.invoke(assetManager, sourceDir)
+        addAssetPath.invoke(assetManager, pluginSourceDir)
+        hostSourceDir?.let { addAssetPath.invoke(assetManager, it) }
+        return assetManager
+    }
+
+    private fun recreatePluginResources(newConfig: Configuration) {
+        val sourceDir = pluginPackageInfo?.applicationInfo?.sourceDir ?: return
         @Suppress("DEPRECATION")
-        pluginResources = Resources(assetManager, baseContext.resources.displayMetrics, newConfig)
+        pluginResources = Resources(createMergedAssetManager(sourceDir), baseContext.resources.displayMetrics, newConfig)
     }
 
     private fun resolveCurrentNightMode(): Int {
@@ -83,9 +102,7 @@ class PluginResourceContext(
     }
 
     override fun getClassLoader(): ClassLoader {
-        // Use the base context's class loader to ensure Android framework classes can be loaded
-        // This is critical for LayoutInflater to find system widget classes
-        return baseContext.classLoader
+        return pluginClassLoader ?: baseContext.classLoader
     }
 
     override fun getPackageName(): String {
