@@ -302,7 +302,7 @@ dependencies {
 	implementation(projects.idetooltips)
 	implementation(projects.cvImageToXml)
 	implementation(projects.composePreview)
-  implementation(projects.gitCore)
+	implementation(projects.gitCore)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -318,7 +318,7 @@ dependencies {
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
 	androidTestUtil(libs.tests.orchestrator)
-    testImplementation(libs.tests.kotlinx.coroutines)
+	testImplementation(libs.tests.kotlinx.coroutines)
 
 	// brotli4j
 	implementation(libs.brotli4j)
@@ -503,6 +503,21 @@ fun createAssetsZip(arch: String) {
 
 			// 4. Set the full command line
 			commandLine(d8Command)
+
+			// Prepend JAVA_HOME/bin to PATH, so that `java` can be resolved
+			// on systems which don't already have `java` in PATH
+			val javaHome = System.getProperty("java.home")
+			if (javaHome.isNotBlank()) {
+				val javaHomeBin = javaHome + File.separator + "bin"
+				val currentPath = System.getenv("PATH") ?: ""
+				var finalPath = javaHomeBin
+				if (currentPath.isNotBlank()) {
+					finalPath += File.pathSeparator
+					finalPath += currentPath
+				}
+
+				environment("PATH", finalPath)
+			}
 		}.assertNormalExitValue()
 
 	if (!dexOutputFile.exists()) {
@@ -814,9 +829,9 @@ afterEvaluate {
 		}
 
 		dependsOn(bundleLlamaV8Assets)
-    if (!isCiCd) {
-      dependsOn("assetsDownloadDebug")
-    }
+		if (!isCiCd) {
+			dependsOn("assetsDownloadDebug")
+		}
 	}
 
 	tasks.named("assembleV7Debug").configure {
@@ -835,9 +850,9 @@ afterEvaluate {
 		}
 
 		dependsOn(bundleLlamaV7Assets)
-    if (!isCiCd) {
-      dependsOn("assetsDownloadDebug")
-    }
+		if (!isCiCd) {
+			dependsOn("assetsDownloadDebug")
+		}
 	}
 }
 
