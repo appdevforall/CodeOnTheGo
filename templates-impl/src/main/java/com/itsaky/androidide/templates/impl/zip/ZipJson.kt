@@ -1,20 +1,8 @@
 package com.itsaky.androidide.templates.impl.zip
 
-import com.itsaky.androidide.templates.BooleanParameterBuilder
-import com.itsaky.androidide.templates.CheckBoxWidget
-import com.itsaky.androidide.templates.StringParameterBuilder
-import com.itsaky.androidide.templates.TextFieldWidget
-import com.itsaky.androidide.templates.Widget
 
 data class TemplatesIndex(val templates: List<TemplateRef>)
 data class TemplateRef(val path: String, val experimental: Boolean = false,)
-
-//  data class TemplateJson(
-//    val name: String,
-//    val description: String?,
-//    val widgets: List<WidgetJson> = emptyList(),
-//    val language: Boolean? = true
-//  )
 
 data class TemplateJson(
   val name: String,
@@ -73,36 +61,3 @@ data class CheckboxParameterJson(
   val default: Boolean? = null
 )
 
-data class WidgetJson(
-  val type: String,
-  val name: String,
-  val id: String,
-  val default: Any?,
-  val options: List<String>?,
-  val constraints: List<String>?
-) {
-  fun toWidget(): Widget<*>? {
-    return when(type) {
-      "string" -> {
-        val param = StringParameterBuilder().apply {
-          //this.name = this@WidgetJson.name
-          //this.description = null
-          //this.default = this@WidgetJson.default?.toString() ?: ""
-          //this.key = this@WidgetJson.id
-        }.build()
-        TextFieldWidget(param)
-      }
-      "boolean" -> {
-        val param = BooleanParameterBuilder().apply {
-          //this.name = this@WidgetJson.name
-          this.description = null
-          this.default = this@WidgetJson.default?.toString()?.toBoolean() ?: false
-          //this.key = this@WidgetJson.id
-        }.build()
-        CheckBoxWidget(param)
-      }
-      // Add more mappings as needed
-      else -> null
-    }
-  }
-}

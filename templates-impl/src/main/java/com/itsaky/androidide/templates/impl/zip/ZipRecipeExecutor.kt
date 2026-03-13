@@ -41,63 +41,69 @@ class ZipRecipeExecutor(
   ): ProjectTemplateRecipeResult {
 
     log.debug("executor called!!")
-    val zip = zipProvider()
-    val projectDir = data.projectDir
-    if (projectDir.exists()) {
-      return ProjectTemplateRecipeResultImpl(data)
-    }
+    zipProvider().use { zip ->
 
-    val customSyntax = Syntax.Builder()
-      .setPrintOpenDelimiter(DELIM_PRINT_OPEN)
-      .setPrintCloseDelimiter(DELIM_PRINT_CLOSE)
-      .setExecuteOpenDelimiter(DELIM_EXECUTE_OPEN)
-      .setExecuteCloseDelimiter(DELIM_EXECUTE_CLOSE)
-      .setCommentOpenDelimiter(DELIM_COMMENT_OPEN)
-      .setCommentCloseDelimiter(DELIM_COMMENT_CLOSE)
-      .build()
+      val projectDir = data.projectDir
+      if (projectDir.exists()) {
+        return ProjectTemplateRecipeResultImpl(data)
+      }
 
-    val pebbleEngine = PebbleEngine.Builder()
-      .loader(StringLoader())
-      .syntax(customSyntax)
-      .build()
+      val customSyntax = Syntax.Builder()
+        .setPrintOpenDelimiter(DELIM_PRINT_OPEN)
+        .setPrintCloseDelimiter(DELIM_PRINT_CLOSE)
+        .setExecuteOpenDelimiter(DELIM_EXECUTE_OPEN)
+        .setExecuteCloseDelimiter(DELIM_EXECUTE_CLOSE)
+        .setCommentOpenDelimiter(DELIM_COMMENT_OPEN)
+        .setCommentCloseDelimiter(DELIM_COMMENT_CLOSE)
+        .build()
 
-    val (params, warnings) = metaJson.pebbleParams(data, defModule)
-    log.debug("params warnings: $warnings")
+      val pebbleEngine = PebbleEngine.Builder()
+        .loader(StringLoader())
+        .syntax(customSyntax)
+        .build()
 
-    log.debug("defModule: $defModule")
+      val (params, warnings) = metaJson.pebbleParams(data, defModule)
+      log.debug("params warnings: $warnings")
 
-    val packageName = resolveString(metaJson.parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
+      log.debug("defModule: $defModule")
 
-    for (entry in zip.entries()) {
-      if (!entry.name.startsWith("$basePath/")) continue
-      if (entry.name.startsWith("$basePath/$META_FOLDER/")) continue
+      val packageName =
+        resolveString(metaJson.parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
 
-      if ((metaJson.parameters?.optional?.language != null) &&
-        (data.language != null) &&
-        shouldSkipFile(entry.name.removeSuffix(TEMPLATE_EXTENSION), safeLanguageName(data.language))
-      ) continue
+      for (entry in zip.entries()) {
+        if (!entry.name.startsWith("$basePath/")) continue
+        if (entry.name.startsWith("$basePath/$META_FOLDER/")) continue
 
-      val relativePath = entry.name.removePrefix("$basePath/")
-        .replace(packageName.value, defModule.packageName.replace(".", "/"))
+        if ((metaJson.parameters?.optional?.language != null) &&
+          (data.language != null) &&
+          shouldSkipFile(
+            entry.name.removeSuffix(TEMPLATE_EXTENSION),
+            safeLanguageName(data.language)
+          )
+        ) continue
 
-      val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION))
+        val relativePath = entry.name.removePrefix("$basePath/")
+          .replace(packageName.value, defModule.packageName.replace(".", "/"))
 
-      if (entry.isDirectory) {
-        outFile.mkdirs()
-      } else {
-        outFile.parentFile?.mkdirs()
-        val content = zip.getInputStream(entry).bufferedReader().readText()
+        val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION))
 
-        zip.getInputStream(entry).use { input ->
-          FileOutputStream(outFile).use { output ->
-            if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
-              log.debug("template processing ${entry.name}")
-              val template = pebbleEngine.getTemplate(content)
-              val writer = StringWriter()
-              template.evaluate(writer, params)
-              outFile.writeText(writer.toString(), Charsets.UTF_8)
-            } else {
-              input.copyTo(output)
+        if (entry.isDirectory) {
+          outFile.mkdirs()
+        } else {
+          outFile.parentFile?.mkdirs()
+          val content = zip.getInputStream(entry).bufferedReader().readText()
+
+          zip.getInputStream(entry).use { input ->
+            FileOutputStream(outFile).use { output ->
+              if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
+                log.debug("template processing ${entry.name}")
+                val template = pebbleEngine.getTemplate(content)
+                val writer = StringWriter()
+                template.evaluate(writer, params)
+                outFile.writeText(writer.toString(), Charsets.UTF_8)
+              } else {
+                input.copyTo(output)
+              }
             }
           }
         }

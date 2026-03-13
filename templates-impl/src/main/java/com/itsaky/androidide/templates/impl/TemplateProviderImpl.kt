@@ -51,7 +51,6 @@ class TemplateProviderImpl : ITemplateProvider {
   }
 
   private fun initializeTemplates() {
-    // val folder = File("/sdcard/Download/templates")
     val folder = TEMPLATES_DIR
     log.debug("Template listing archives in: ${folder.toString()} with extension: ${TEMPLATE_ARCHIVE_EXTENSION}")
     val list = folder.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION } ?: return
@@ -73,8 +72,8 @@ class TemplateProviderImpl : ITemplateProvider {
         }
 
         log.debug("templates: $templates")
-      } catch (e: Throwable) {
-        e.printStackTrace()
+      } catch (e: Exception) {
+        log.error("Failed to load template from archive: $zipFile", e)
       }
     }
   }
