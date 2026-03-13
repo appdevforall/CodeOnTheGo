@@ -52,7 +52,6 @@ import org.jetbrains.kotlin.config.useFir
 import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -98,29 +97,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		Environment.init(app)
 
 		app.coroutineScope.launch {
-			System.getProperties().forEach { (key, value) ->
-				logger.info("prop: {}={}", key, value)
-			}
-
-			val targetName = "test"
-			val source =
-				"""
-				package com.itsaky.ktcompiler
-
-				class Main {
-					fun main(args: Array<String>) {
-						println("Hello World!")
-						
-						var s = "Hello"
-						s!!.toString()
-					}
-				}
-				""".trimIndent()
-
 			val filesDir = app.filesDir
-			val sourceFile = filesDir.resolve(targetName)
-			sourceFile.writeText(source)
-
 			val ideaSystem = filesDir.resolve("idea-system")
 			ideaSystem.mkdirs()
 
@@ -141,7 +118,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			val pluginRoot = app.applicationInfo.sourceDir
 			val pluginRootPublic = app.applicationInfo.sourceDir
 			logger.info("pluginRoot={}, pluginRootPublic={}", pluginRoot, pluginRootPublic)
-			val firs = compileToFir("Main.kt", source, pluginRoot)
+			val firs = testK2Compiler(pluginRoot)
 			logger.info("result: firs: {}", firs)
 		}
 
@@ -177,9 +154,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		}
 	}
 
-	fun compileToFir(
-		fileName: String,
-		content: String,
+	fun testK2Compiler(
 		pluginRoot: String,
 	) {
 		val disposable = Disposer.newDisposable()
@@ -191,14 +166,75 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				intellijPluginRoot = pluginRoot
 			}
 
-		val virtualFile =
+		val mainClass =
 			LightVirtualFile(
-				fileName,
+				"Main.kt",
 				KotlinFileType.INSTANCE,
-				content,
+				$$"""
+package com.itsaky.ktcompiler
+
+fun main() {
+    val numbers = Processor(listOf(1, 2, 3, 4, 5))
+
+    // Trailing lambda usage
+    numbers.process {
+        println("Processing number: $it")
+    }
+
+    // Generic transformation
+    val strings = numbers.map {
+        "Number: $it"
+    }
+
+    println(strings)
+
+    // Another example with strings
+    val words = Processor(listOf("kotlin", "java", "swift"))
+
+    words.process {
+        println(it.uppercase())
+    }
+
+    val lengths = words.map {
+        it.length
+    }
+
+    println(lengths)
+}
+				""".trimIndent(),
 				StandardCharsets.UTF_8,
 				LocalTimeCounter.currentTime(),
 			)
+
+		val processorClass = LightVirtualFile(
+			"Processor.kt",
+			KotlinFileType.INSTANCE,
+			"""
+package com.itsaky.ktcompiler
+				
+// A generic processor class
+class Processor<T>(private val items: List<T>) {
+
+    // Generic function with a lambda parameter
+    fun process(action: (T) -> Unit) {
+        for (item in items) {
+            action(item)
+        }
+    }
+
+    // Generic transform function returning a different type
+    fun <R> map(transform: (T) -> R): List<R> {
+        val result = mutableListOf<R>()
+        for (item in items) {
+            result.add(transform(item))
+        }
+        return result
+    }
+}
+			""".trimIndent(),
+			StandardCharsets.UTF_8,
+			LocalTimeCounter.currentTime(),
+		)
 
 		val session =
 			buildStandaloneAnalysisAPISession(
@@ -225,7 +261,8 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 						buildKtSourceModule {
 							platform = JvmPlatforms.jvm11
 							moduleName = "core"
-							addSourceVirtualFile(virtualFile)
+							addSourceVirtualFile(mainClass)
+							addSourceVirtualFile(processorClass)
 							addRegularDependency(stdlibModule)
 							addRegularDependency(androidJarModule)
 						},
@@ -234,10 +271,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			}
 
 		val manager = PsiManager.getInstance(session.project)
-		val ktFile = manager.findFile(virtualFile)
+		val ktFile = manager.findFile(processorClass)
 		logger.info("ktFile={} ({})", ktFile, ktFile?.javaClass)
 
-		logger.info("analyzing: {}", content)
 		analyze(ktFile as KtFile) {
 			logger.info("fileSymbol: {}", ktFile.symbol)
 
