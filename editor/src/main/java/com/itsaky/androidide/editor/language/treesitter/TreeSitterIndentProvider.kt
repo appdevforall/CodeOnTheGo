@@ -39,6 +39,7 @@ import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.TextUtils
 import org.slf4j.LoggerFactory
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Computes indentation for tree sitter languages using the indents query.
@@ -73,6 +74,7 @@ class TreeSitterIndentProvider(
     internal const val INDENT_AUTO = Int.MAX_VALUE
 
     private val DELIMITER_REGEX = Regex("""[\-.+\[\]()$^\\?*]""")
+    private const val CONTEXT_LINES_LIMIT = 5
   }
 
   fun getIndentsForLines(
@@ -152,6 +154,9 @@ class TreeSitterIndentProvider(
 
     return TSQueryCursor.create().use { cursor ->
       cursor.addPredicateHandler(SetDirectiveHandler())
+
+			optimizeCursorRange(positions, content, cursor)
+
       cursor.exec(indentsQuery, tree.rootNode)
 
       val indents = getIndents(languageSpec.indentsQuery, cursor)
@@ -162,6 +167,23 @@ class TreeSitterIndentProvider(
       }
     }
   }
+
+	private fun optimizeCursorRange(
+		positions: LongArray,
+		content: Content,
+		cursor: TSQueryCursor?
+	) {
+		if (!positions.isNotEmpty()) return
+
+		val targetLine = IntPair.getFirst(positions[0])
+		val startLine = max(targetLine - CONTEXT_LINES_LIMIT, 0)
+		val startByte = content.getCharIndex(startLine, 0) shl 1
+
+		val endLine = min(targetLine + CONTEXT_LINES_LIMIT, content.lineCount - 1)
+		val endByte = content.getCharIndex(endLine, content.getColumnCount(endLine)) shl 1
+
+		cursor?.setByteRange(startByte, endByte)
+	}
 
   private fun computeIndentForLine(
     content: Content,
