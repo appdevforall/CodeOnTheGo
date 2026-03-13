@@ -442,6 +442,17 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: main
 
+      - name: Verify Telegram token
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: |
+          if [ -z "${TELEGRAM_TOKEN}" ]; then
+            echo "ERROR: TELEGRAM_TOKEN is not set or is empty"
+            exit 1
+          fi
+          echo "TELEGRAM_TOKEN length: ${#TELEGRAM_TOKEN}"
+          echo "TELEGRAM_TOKEN (first 3 and last 3 chars): ${TELEGRAM_TOKEN:0:3}...${TELEGRAM_TOKEN: -3}"
+
       - name: Set branch to main for build
         id: determine_branch
         run: |
@@ -591,7 +602,7 @@ jobs:
           CLOUDFLARE_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
           CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
         run: |
-          uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.find_apk.outputs.APK_PATH }}" "${{ matrix.variant }}"
+          uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Clean up build folder after upload
         run: |
@@ -696,18 +707,16 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_EARLY_ACCESS_CHAT_ID: ${{ vars.TELEGRAM_EARLY_ACCESS_CHAT_ID }}
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
-          VARIANT: ${{ matrix.variant }}
         run: |
           GIT_LOG=$(git log --oneline --since "24 hours ago" || true)
           if [ -z "$GIT_LOG" ]; then
             GIT_LOG="(no commits in the last 24 hours)"
           fi
-          APK_BASENAME=$(basename "$APK_PATH")
-          APK_FILENAME="${APK_BASENAME%.*}-${VARIANT}.${APK_BASENAME##*.}"
+          APK_FILENAME=$(basename "$APK_PATH")
           DOWNLOAD_URL="https://download.appdevforall.org/${APK_FILENAME}"
-          MESSAGE=$( printf "Download: %s\n\n%s" "$DOWNLOAD_URL" "$GIT_LOG" )
-          # Telegram message limit 4096; use first 4096 chars
+          MESSAGE=$(printf "Download: %s\n\n%s" "$DOWNLOAD_URL" "$GIT_LOG")
           MESSAGE="${MESSAGE:0:4096}"
+          printf '%s' "$MESSAGE" | od -c
           curl -s -X POST -H "Content-Type: application/json" \
             -d "$(jq -n --arg chat_id "$TELEGRAM_EARLY_ACCESS_CHAT_ID" --arg text "$MESSAGE" '{chat_id: $chat_id, text: $text}')" \
             "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage"

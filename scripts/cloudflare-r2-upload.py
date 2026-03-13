@@ -38,17 +38,13 @@ s3 = boto3.client(
     config=config,
 )
 
-if len(sys.argv) < 3:
-    print("Usage: cloudflare-r2-upload.py <file_path> <variant>", file=sys.stderr)
+if len(sys.argv) < 2:
+    print("Usage: cloudflare-r2-upload.py <file_path>", file=sys.stderr)
     sys.exit(1)
 
 file_path = sys.argv[1]
-variant = sys.argv[2]
 file_size = os.path.getsize(file_path)
-base_name = os.path.basename(file_path)
-# Inject variant into filename before .apk so v7 and v8 upload to distinct R2 keys
-name_root, ext = os.path.splitext(base_name)
-file_name = f"{name_root}-{variant}{ext}"
+file_name = os.path.basename(file_path)
 
 extra_args = {}
 if file_name.lower().endswith(".apk"):
