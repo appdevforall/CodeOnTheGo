@@ -705,7 +705,7 @@ jobs:
           APK_BASENAME=$(basename "$APK_PATH")
           APK_FILENAME="${APK_BASENAME%.*}-${VARIANT}.${APK_BASENAME##*.}"
           DOWNLOAD_URL="https://download.appdevforall.org/${APK_FILENAME}"
-          MESSAGE="${GIT_LOG}"$'\n\n'"Download: ${DOWNLOAD_URL}"
+          MESSAGE=$( printf "Download: %s\n\n%s" "$DOWNLOAD_URL" "$GIT_LOG" )
           # Telegram message limit 4096; use first 4096 chars
           MESSAGE="${MESSAGE:0:4096}"
           curl -s -X POST -H "Content-Type: application/json" \
