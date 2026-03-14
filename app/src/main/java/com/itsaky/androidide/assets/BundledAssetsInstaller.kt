@@ -229,6 +229,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
         AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
         GRADLE_API_NAME_JAR_ZIP           -> 29447748L
         AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> 86442L
+        TEMPLATE_CORE_ARCHIVE               -> 133120L
         else -> 0L
     }
 
