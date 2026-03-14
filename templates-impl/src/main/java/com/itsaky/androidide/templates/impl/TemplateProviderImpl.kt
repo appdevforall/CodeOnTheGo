@@ -61,13 +61,9 @@ class TemplateProviderImpl : ITemplateProvider {
           ZipRecipeExecutor({ ZipFile(zipFile) }, json, path, /* params */ data, defModule)
         }
 
-        if (zipTemplates != null) {
-          for (t in zipTemplates) {
-            log.debug("template: $t")
-            if (t != null) {
-              templates[t.templateId] = t
-            }
-          }
+        for (t in zipTemplates) {
+          log.debug("template: $t")
+          templates[t.templateId] = t
         }
 
         log.debug("templates: $templates")
