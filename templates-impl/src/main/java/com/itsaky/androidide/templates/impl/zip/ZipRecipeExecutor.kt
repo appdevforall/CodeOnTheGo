@@ -48,6 +48,8 @@ class ZipRecipeExecutor(
         return ProjectTemplateRecipeResultImpl(data)
       }
 
+      val projectRoot = projectDir.canonicalFile
+
       val customSyntax = Syntax.Builder()
         .setPrintOpenDelimiter(DELIM_PRINT_OPEN)
         .setPrintCloseDelimiter(DELIM_PRINT_CLOSE)
@@ -85,23 +87,28 @@ class ZipRecipeExecutor(
         val relativePath = entry.name.removePrefix("$basePath/")
           .replace(packageName.value, defModule.packageName.replace(".", "/"))
 
-        val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION))
+        val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION)).canonicalFile
+
+        if (!outFile.toPath().startsWith(projectRoot.toPath())) {
+          log.warn("Skipping suspicious ZIP entry outside project dir: {}", entry.name)
+          continue
+        }
 
         if (entry.isDirectory) {
           outFile.mkdirs()
         } else {
           outFile.parentFile?.mkdirs()
-          val content = zip.getInputStream(entry).bufferedReader().readText()
 
-          zip.getInputStream(entry).use { input ->
-            FileOutputStream(outFile).use { output ->
-              if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
-                log.debug("template processing ${entry.name}")
-                val template = pebbleEngine.getTemplate(content)
-                val writer = StringWriter()
-                template.evaluate(writer, params)
-                outFile.writeText(writer.toString(), Charsets.UTF_8)
-              } else {
+          if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
+            log.debug("template processing ${entry.name}")
+            val content = zip.getInputStream(entry).bufferedReader().use { it.readText() }
+            val template = pebbleEngine.getTemplate(content)
+            val writer = StringWriter()
+            template.evaluate(writer, params)
+            outFile.writeText(writer.toString(), Charsets.UTF_8)
+          } else {
+            zip.getInputStream(entry).use { input ->
+              outFile.outputStream().use { output ->
                 input.copyTo(output)
               }
             }
