@@ -1,12 +1,17 @@
 package com.itsaky.androidide.templates.impl.zip
 
 import com.google.gson.Gson
+import com.itsaky.androidide.templates.BooleanParameterBuilder
+import com.itsaky.androidide.templates.CheckBoxWidget
 import com.itsaky.androidide.templates.ModuleTemplateData
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.R
+import com.itsaky.androidide.templates.StringParameterBuilder
 import com.itsaky.androidide.templates.TemplateRecipe
+import com.itsaky.androidide.templates.TextFieldWidget
+import com.itsaky.androidide.templates.Widget
 import com.itsaky.androidide.templates.base.baseZipProject
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -54,6 +59,24 @@ object ZipTemplateReader {
 
             if (thumbData == null) log.error("template $basePath/$META_FOLDER/$META_THUMBNAIL not found or is invalid")
             log.debug("thumbData: $thumbData")
+
+            val userWidgets = mutableListOf<Widget<*>>()
+
+//            metaJson.parameters?.user?.text?.forEach { textParam ->
+//              val param = StringParameterBuilder()
+//                .name(textParam.label)
+//                .default(textParam.default ?: "")
+//                .build()
+//              userWidgets.add(TextFieldWidget(param))
+//            }
+//
+//            metaJson.parameters?.user?.checkbox?.forEach { checkboxParam ->
+//              val param = BooleanParameterBuilder()
+//                .name(checkboxParam.label)
+//                .default(checkboxParam.default ?: false)
+//                .build()
+//              userWidgets.add(CheckBoxWidget(param))
+//            }
 
             val project = baseZipProject(
               showLanguage = (metaJson.parameters?.optional?.language != null),
