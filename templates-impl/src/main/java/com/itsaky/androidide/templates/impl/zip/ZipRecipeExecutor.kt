@@ -2,7 +2,6 @@ package com.itsaky.androidide.templates.impl.zip
 
 import com.itsaky.androidide.templates.Language
 import java.io.File
-import java.io.FileOutputStream
 import java.io.StringWriter
 import java.util.zip.ZipFile
 
