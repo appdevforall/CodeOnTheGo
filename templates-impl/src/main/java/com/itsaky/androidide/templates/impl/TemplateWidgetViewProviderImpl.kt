@@ -19,7 +19,6 @@ package com.itsaky.androidide.templates.impl
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.drawable.ColorDrawable
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.MotionEvent

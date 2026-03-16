@@ -1,7 +1,6 @@
 package com.itsaky.androidide.templates.impl.zip
 
 import com.google.gson.Gson
-import com.itsaky.androidide.templates.BooleanParameterBuilder
 import com.itsaky.androidide.templates.CheckBoxWidget
 import com.itsaky.androidide.templates.ModuleTemplateData
 import com.itsaky.androidide.templates.Parameter
@@ -9,12 +8,10 @@ import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.R
-import com.itsaky.androidide.templates.StringParameterBuilder
 import com.itsaky.androidide.templates.TemplateRecipe
 import com.itsaky.androidide.templates.TextFieldWidget
 import com.itsaky.androidide.templates.Widget
 import com.itsaky.androidide.templates.base.baseZipProject
-import com.itsaky.androidide.templates.R.string
 import com.itsaky.androidide.templates.booleanParameter
 import com.itsaky.androidide.templates.stringParameter
 import org.slf4j.LoggerFactory
