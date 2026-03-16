@@ -8,7 +8,7 @@ permissions:
 on:
   schedule:
     - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
-  workflow_dispatch: #
+  workflow_dispatch:
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -582,60 +582,16 @@ jobs:
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
-      - name: Set up SSH key
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Upload APK to Cloudflare R2
         env:
-          GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
-          GREENGEEKS_KEY: ${{ secrets.GREENGEEKS_SSH_PRIVATE_KEY }}
-          GREENGEEKS_USER: ${{ vars.GREENGEEKS_SSH_USER }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
         run: |
-          mkdir -p ~/.ssh
-          if [ -z "$GREENGEEKS_HOST" ]; then
-            echo "Error: SSH_HOST variable is not set"
-            exit 1
-          fi
-          # Write the SSH key, ensuring proper formatting
-          echo "$GREENGEEKS_KEY" > ~/.ssh/id_rsa
-          # Remove any trailing newlines and ensure proper key format
-          sed -i '' -e '$ { /^$/ d; }' ~/.ssh/id_rsa 2>/dev/null || sed -i '$ { /^$/ d; }' ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # Verify key format
-          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
-            echo "Error: SSH key does not appear to be in correct format"
-            exit 1
-          fi
-          # Configure SSH to use only the key file and disable other auth methods
-          cat > ~/.ssh/config <<EOF
-          Host *
-            IdentitiesOnly yes
-            PreferredAuthentications publickey
-            StrictHostKeyChecking no
-            UserKnownHostsFile ~/.ssh/known_hosts
-            PubkeyAuthentication yes
-            PasswordAuthentication no
-            ChallengeResponseAuthentication no
-            GSSAPIAuthentication no
-            GSSAPIKeyExchange no
-            GSSAPIDelegateCredentials no
-          Host $GREENGEEKS_HOST
-            User $GREENGEEKS_USER
-            IdentityFile ~/.ssh/id_rsa
-            IdentitiesOnly yes
-            PreferredAuthentications publickey
-            PubkeyAuthentication yes
-            PasswordAuthentication no
-            ChallengeResponseAuthentication no
-            GSSAPIAuthentication no
-            GSSAPIKeyExchange no
-            GSSAPIDelegateCredentials no
-            NumberOfPasswordPrompts 0
-          EOF
-          chmod 600 ~/.ssh/config
-          # Disable SSH agent completely
-          unset SSH_AUTH_SOCK
-          unset SSH_AGENT_PID
-          # Remove any default SSH keys that might interfere
-          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null
-          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Clean up build folder after upload
         run: |
@@ -734,6 +690,24 @@ jobs:
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
 
           rm -f payload.json
+
+      - name: Send Telegram message
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_EARLY_ACCESS_CHAT_ID: ${{ vars.TELEGRAM_EARLY_ACCESS_CHAT_ID }}
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+        run: |
+          GIT_LOG=$(git log --oneline --since "24 hours ago" || true)
+          if [ -z "$GIT_LOG" ]; then
+            GIT_LOG="(no commits in the last 24 hours)"
+          fi
+          APK_FILENAME=$(basename "$APK_PATH")
+          DOWNLOAD_URL="https://download.appdevforall.org/${APK_FILENAME}"
+          MESSAGE=$(printf "Download: %s\n\n%s" "$DOWNLOAD_URL" "$GIT_LOG")
+          MESSAGE="${MESSAGE:0:4096}"
+          curl -s -X POST -H "Content-Type: application/json" \
+            -d "$(jq -n --arg chat_id "$TELEGRAM_EARLY_ACCESS_CHAT_ID" --arg text "$MESSAGE" '{chat_id: $chat_id, text: $text}')" \
+            "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage"
 
       - name: Cleanup google-services.json
         if: always()
