@@ -1174,4 +1174,14 @@
     <string name="view_commit_history">View Commit History</string>
     <string name="git_commit_history">Git Commit History</string>
     <string name="no_commit_history">No commit history</string>
+
+    <!-- Git Preferences -->
+    <string name="idepref_git_title">Git</string>
+    <string name="idepref_git_summary">Set and update git configuration</string>
+    <string name="idepref_git_author_title">Author Identity</string>
+    <string name="idepref_git_author_summary">Set the name and email used for commits</string>
+    <string name="idepref_git_user_name_title">User Name</string>
+    <string name="idepref_git_user_name_summary">Used as author name in commits</string>
+    <string name="idepref_git_user_email_title">User Email</string>
+    <string name="idepref_git_user_email_summary">Used as author email in commits</string>
 </resources>
