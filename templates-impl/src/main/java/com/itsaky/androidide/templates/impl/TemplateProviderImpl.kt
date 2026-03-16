@@ -57,8 +57,8 @@ class TemplateProviderImpl : ITemplateProvider {
     for (zipFile in list) {
       log.debug("Template archive: $zipFile")
       try {
-        val zipTemplates = ZipTemplateReader.read(zipFile) { json, path, /* params */ data, defModule ->
-          ZipRecipeExecutor({ ZipFile(zipFile) }, json, path, /* params */ data, defModule)
+        val zipTemplates = ZipTemplateReader.read(zipFile) { json, params, path, data, defModule ->
+          ZipRecipeExecutor({ ZipFile(zipFile) }, json, params, path, data, defModule)
         }
 
         for (t in zipTemplates) {

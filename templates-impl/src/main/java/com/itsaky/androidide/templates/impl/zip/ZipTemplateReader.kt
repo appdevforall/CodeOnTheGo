@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.itsaky.androidide.templates.BooleanParameterBuilder
 import com.itsaky.androidide.templates.CheckBoxWidget
 import com.itsaky.androidide.templates.ModuleTemplateData
+import com.itsaky.androidide.templates.Parameter
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
@@ -13,6 +14,9 @@ import com.itsaky.androidide.templates.TemplateRecipe
 import com.itsaky.androidide.templates.TextFieldWidget
 import com.itsaky.androidide.templates.Widget
 import com.itsaky.androidide.templates.base.baseZipProject
+import com.itsaky.androidide.templates.R.string
+import com.itsaky.androidide.templates.booleanParameter
+import com.itsaky.androidide.templates.stringParameter
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.zip.ZipFile
@@ -24,7 +28,7 @@ object ZipTemplateReader {
 
   fun read(
     zipFile: File,
-    recipeFactory: (TemplateJson, String, ProjectTemplateData, ModuleTemplateData) -> TemplateRecipe<ProjectTemplateRecipeResult>
+    recipeFactory: (TemplateJson, MutableMap<String, Parameter<*>>, String, ProjectTemplateData, ModuleTemplateData) -> TemplateRecipe<ProjectTemplateRecipeResult>
   ): List<ProjectTemplate> {
 
     val templates = mutableListOf<ProjectTemplate>()
@@ -61,22 +65,30 @@ object ZipTemplateReader {
             log.debug("thumbData: $thumbData")
 
             val userWidgets = mutableListOf<Widget<*>>()
+            val params = mutableMapOf<String, Parameter<*>>()
 
-//            metaJson.parameters?.user?.text?.forEach { textParam ->
-//              val param = StringParameterBuilder()
-//                .name(textParam.label)
-//                .default(textParam.default ?: "")
-//                .build()
-//              userWidgets.add(TextFieldWidget(param))
-//            }
-//
-//            metaJson.parameters?.user?.checkbox?.forEach { checkboxParam ->
-//              val param = BooleanParameterBuilder()
-//                .name(checkboxParam.label)
-//                .default(checkboxParam.default ?: false)
-//                .build()
-//              userWidgets.add(CheckBoxWidget(param))
-//            }
+            metaJson.parameters?.user?.text?.forEach { textParam ->
+              val param = stringParameter {
+                // name = string.project_app_name
+                name = 0
+                nameStr = textParam.label ?: ""
+                default = textParam.default ?: ""
+
+              }
+              userWidgets.add(TextFieldWidget(param))
+              params[textParam.identifier] = param
+            }
+
+            metaJson.parameters?.user?.checkbox?.forEach { checkboxParam ->
+              val param = booleanParameter {
+                // name = string.project_app_name
+                name = 0
+                nameStr = checkboxParam.label ?: ""
+                default = checkboxParam.default ?: false
+              }
+              userWidgets.add(CheckBoxWidget(param))
+              params[checkboxParam.identifier] = param
+            }
 
             val project = baseZipProject(
               showLanguage = (metaJson.parameters?.optional?.language != null),
@@ -89,9 +101,13 @@ object ZipTemplateReader {
               this.templateName = 0
               this.thumb = R.drawable.template_no_activity
 
+              for (widget in userWidgets) {
+                widgets(widget)
+              }
+
               log.debug("this.name: ${this.templateNameStr}")
               this.recipe = TemplateRecipe { executor ->
-                val innerRecipe = recipeFactory(metaJson, basePath, data, defModule)
+                val innerRecipe = recipeFactory(metaJson, params, basePath, data, defModule)
                 innerRecipe.execute(executor)
               }
             }
@@ -105,7 +121,6 @@ object ZipTemplateReader {
       }
     } catch (e: Exception) {
       log.error("Failed to read zip file $zipFile", e)
-      // return emptyList()
     }
 
     return templates

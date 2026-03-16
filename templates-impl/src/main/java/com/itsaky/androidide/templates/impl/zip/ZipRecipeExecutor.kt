@@ -11,6 +11,7 @@ import io.pebbletemplates.pebble.loader.StringLoader
 import io.pebbletemplates.pebble.lexer.Syntax
 
 import com.itsaky.androidide.templates.ModuleTemplateData
+import com.itsaky.androidide.templates.Parameter
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.RecipeExecutor
@@ -25,13 +26,14 @@ import org.adfa.constants.Sdk
 class ZipRecipeExecutor(
   private val zipProvider: () -> ZipFile,
   private val metaJson: TemplateJson,
+  private val params: MutableMap<String, Parameter<*>>,
   private val basePath: String,
   private val data: ProjectTemplateData,
   private val defModule: ModuleTemplateData,
 ) : TemplateRecipe<ProjectTemplateRecipeResult> {
 
   companion object {
-
+    const val ZIP_SEPARATOR = "/"
     private val log = LoggerFactory.getLogger(ZipRecipeExecutor::class.java)
   }
 
@@ -40,14 +42,25 @@ class ZipRecipeExecutor(
   ): ProjectTemplateRecipeResult {
 
     log.debug("executor called!!")
+
+    //log.debug("params:")
+    //params.forEach { (identifier, param) ->
+    //  log.debug("identifier: $identifier, name=${param.name}, default=${param.default}, value=${param.value}")
+    //}
+
+    val projectDir = data.projectDir
+    if (projectDir.exists()) {
+      return ProjectTemplateRecipeResultImpl(data)
+    }
+
+    val projectRoot = projectDir.canonicalFile
+
+    val flags: Map<String, Boolean> =
+      params.mapNotNull { (identifier, param) ->
+        (param.value as? Boolean)?.let { identifier to it }
+      }.toMap()
+
     zipProvider().use { zip ->
-
-      val projectDir = data.projectDir
-      if (projectDir.exists()) {
-        return ProjectTemplateRecipeResultImpl(data)
-      }
-
-      val projectRoot = projectDir.canonicalFile
 
       val customSyntax = Syntax.Builder()
         .setPrintOpenDelimiter(DELIM_PRINT_OPEN)
@@ -63,10 +76,10 @@ class ZipRecipeExecutor(
         .syntax(customSyntax)
         .build()
 
-      val (params, warnings) = metaJson.pebbleParams(data, defModule)
-      log.debug("params warnings: $warnings")
+      val (identifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
+      log.debug("identifiers warnings: $warnings")
 
-      log.debug("defModule: $defModule")
+      //log.debug("defModule: $defModule")
 
       val packageName =
         resolveString(metaJson.parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
@@ -83,7 +96,10 @@ class ZipRecipeExecutor(
           )
         ) continue
 
-        val relativePath = entry.name.removePrefix("$basePath/")
+        val normalized = filterAndNormalizeZipEntry(entry.name, flags) ?: continue
+
+        // val relativePath = entry.name.removePrefix("$basePath/")
+        val relativePath = normalized.removePrefix("$basePath/")
           .replace(packageName.value, defModule.packageName.replace(".", "/"))
 
         val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION)).canonicalFile
@@ -103,7 +119,7 @@ class ZipRecipeExecutor(
             val content = zip.getInputStream(entry).bufferedReader().use { it.readText() }
             val template = pebbleEngine.getTemplate(content)
             val writer = StringWriter()
-            template.evaluate(writer, params)
+            template.evaluate(writer, identifiers)
             outFile.writeText(writer.toString(), Charsets.UTF_8)
           } else {
             zip.getInputStream(entry).use { input ->
@@ -147,15 +163,16 @@ class ZipRecipeExecutor(
     }
   }
 
-  fun safeLanguageName(language: Language?): String =
+  private fun safeLanguageName(language: Language?): String =
     language?.name?.lowercase() ?: ""
 
-  fun safeMinSdkApi(minSdk: Sdk?): String =
+  private fun safeMinSdkApi(minSdk: Sdk?): String =
     minSdk?.api?.toString() ?: ""
 
-  fun TemplateJson.pebbleParams(
+  private fun TemplateJson.pebbleParams(
     data: ProjectTemplateData,
-    defModule: ModuleTemplateData
+    defModule: ModuleTemplateData,
+    params: MutableMap<String, Parameter<*>>
   ): Pair<Map<String, Any>, List<String>> {
 
     val warnings = mutableListOf<String>()
@@ -199,7 +216,7 @@ class ZipRecipeExecutor(
     val javaTarget = resolveString(system?.javaTarget?.identifier, KEY_JAVA_TARGET)
     if (javaTarget.usedDefault) warnings += "Missing 'javaTarget', defaulted to $KEY_JAVA_TARGET"
 
-    val map = mapOf(
+    val baseMap = mapOf(
       appName.value to data.name,
       packageName.value to defModule.packageName,
       saveLocation.value to data.projectDir.toString(),
@@ -215,6 +232,10 @@ class ZipRecipeExecutor(
       javaTarget.value to defModule.versions.javaTarget
     )
 
+    val map = baseMap + params.mapValues { (_, param) ->
+      param.value ?: ""
+    }
+
     return map to warnings
   }
 
@@ -223,14 +244,34 @@ class ZipRecipeExecutor(
     val usedDefault: Boolean
   )
 
-  fun resolveString(value: String?, default: String): ResolvedParam<String> {
+  private fun resolveString(value: String?, default: String): ResolvedParam<String> {
     return if (value.isNullOrBlank()) ResolvedParam(default, true)
     else ResolvedParam(value, false)
   }
 
-  fun resolveBoolean(raw: Boolean?, default: Boolean): ResolvedParam<Boolean> {
+  private fun resolveBoolean(raw: Boolean?, default: Boolean): ResolvedParam<Boolean> {
     return if (raw == null) ResolvedParam(default, true)
     else ResolvedParam(raw, false)
+  }
+
+  private fun filterAndNormalizeZipEntry(
+    entryName: String,
+    flags: Map<String, Boolean>
+  ): String? {
+    val parts = entryName.split(ZIP_SEPARATOR).filter { it.isNotEmpty() }
+    if (parts.isEmpty()) return null
+
+    val normalizedParts = mutableListOf<String>()
+
+    for (part in parts) {
+      when (flags[part]) {
+        null -> normalizedParts.add(part)
+        true -> { }
+        false -> return null
+      }
+    }
+
+    return normalizedParts.joinToString(ZIP_SEPARATOR)
   }
 
 }
