@@ -57,6 +57,15 @@ object PrivilegedActions {
 				// launch in debug mode,
 				launchCmd.add("-D")
 
+				val jdwpPort = JdwpOptions.activeJdwpPort()
+				if (jdwpPort == -1) {
+					logger.error("Unable to launch application in debug mode. Cannot retrieve active" +
+							" JDWP listen port.")
+					return false
+				}
+
+				logger.info("Using port {} for incoming JDWP connections", jdwpPort)
+
 				// Instead of using ADB to connect to the already-running JDWP server (like Android Studio),
 				// we instruct the system to attach the JDWP agent to process before it's started.
 				// We also provide options to the JDWP agent so that it connects to us on the right
@@ -72,7 +81,7 @@ object PrivilegedActions {
 				// not already available in system's libjdwp.so, we'll have to update this to load
 				// our version of the agent.
 				launchCmd.add("--attach-agent")
-				launchCmd.add("libjdwp.so=${JdwpOptions.JDWP_OPTIONS}")
+				launchCmd.add("libjdwp.so=${JdwpOptions.createJdwpAgentOptions(listenPort = jdwpPort)}")
 			}
 
 			logger.debug("Launching app with command: {}", launchCmd.joinToString(" "))

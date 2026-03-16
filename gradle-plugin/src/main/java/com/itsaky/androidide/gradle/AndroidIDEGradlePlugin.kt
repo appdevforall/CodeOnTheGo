@@ -16,7 +16,7 @@
  */
 package com.itsaky.androidide.gradle
 
-import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
@@ -37,7 +37,7 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
 		}
 
 		target.run {
-			val isLogSenderEnabled = findProperty(PROPERTY_LOGSENDER_ENABLED) == "true"
+			val isLogSenderEnabled = findProperty(PROPERTY_LOG_SENDER_ENABLED) == "true"
 			if (plugins.hasPlugin(APP_PLUGIN)) {
 				if (isLogSenderEnabled) {
 					logger.info("Applying LogSender plugin to project '${project.path}'")

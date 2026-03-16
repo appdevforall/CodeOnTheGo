@@ -1,7 +1,7 @@
 package com.itsaky.androidide.gradle
 
-import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_IS_TEST_ENV
-import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_MAVEN_LOCAL_REPOSITORY
+import com.itsaky.androidide.tooling.api.GradlePluginConfig._PROPERTY_IS_TEST_ENV
+import com.itsaky.androidide.tooling.api.GradlePluginConfig._PROPERTY_MAVEN_LOCAL_REPOSITORY
 import org.adfa.constants.MAVEN_LOCAL_REPOSITORY
 import org.gradle.StartParameter
 import org.gradle.api.Plugin
