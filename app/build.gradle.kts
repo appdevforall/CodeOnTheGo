@@ -753,8 +753,7 @@ val skipLlamaAssets =
 	providers
 		.environmentVariable("SKIP_LLAMA_ASSETS")
 		.map { it.equals("true", ignoreCase = true) }
-		.getOrElse(false) ||
-	(project.findProperty("skipLlamaAssets")?.toString()?.toBoolean() ?: false)
+		.getOrElse(false)
 
 if (skipLlamaAssets) {
 	project.logger.lifecycle("SKIP_LLAMA_ASSETS enabled - debug assemble tasks will skip llama asset bundling.")
