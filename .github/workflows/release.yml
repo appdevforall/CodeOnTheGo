@@ -8,7 +8,7 @@ permissions:
 on:
   schedule:
     - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
-  workflow_dispatch: #
+  workflow_dispatch:
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -591,7 +591,7 @@ jobs:
           CLOUDFLARE_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
           CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
         run: |
-          uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.find_apk.outputs.APK_PATH }}" "${{ matrix.variant }}"
+          uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Clean up build folder after upload
         run: |
@@ -696,17 +696,14 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_EARLY_ACCESS_CHAT_ID: ${{ vars.TELEGRAM_EARLY_ACCESS_CHAT_ID }}
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
-          VARIANT: ${{ matrix.variant }}
         run: |
           GIT_LOG=$(git log --oneline --since "24 hours ago" || true)
           if [ -z "$GIT_LOG" ]; then
             GIT_LOG="(no commits in the last 24 hours)"
           fi
-          APK_BASENAME=$(basename "$APK_PATH")
-          APK_FILENAME="${APK_BASENAME%.*}-${VARIANT}.${APK_BASENAME##*.}"
+          APK_FILENAME=$(basename "$APK_PATH")
           DOWNLOAD_URL="https://download.appdevforall.org/${APK_FILENAME}"
-          MESSAGE="${GIT_LOG}"$'\n\n'"Download: ${DOWNLOAD_URL}"
-          # Telegram message limit 4096; use first 4096 chars
+          MESSAGE=$(printf "Download: %s\n\n%s" "$DOWNLOAD_URL" "$GIT_LOG")
           MESSAGE="${MESSAGE:0:4096}"
           curl -s -X POST -H "Content-Type: application/json" \
             -d "$(jq -n --arg chat_id "$TELEGRAM_EARLY_ACCESS_CHAT_ID" --arg text "$MESSAGE" '{chat_id: $chat_id, text: $text}')" \
