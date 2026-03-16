@@ -1,26 +1,30 @@
 package com.itsaky.androidide.git.core
 
-import com.itsaky.androidide.git.core.models.*
-import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.api.ListBranchCommand.ListMode
-import org.eclipse.jgit.lib.Constants
-import org.eclipse.jgit.lib.Repository
-import org.eclipse.jgit.revwalk.RevCommit
-import org.eclipse.jgit.storage.file.FileRepositoryBuilder
-import java.io.File
-
+import com.itsaky.androidide.git.core.models.ChangeType
+import com.itsaky.androidide.git.core.models.FileChange
+import com.itsaky.androidide.git.core.models.GitBranch
+import com.itsaky.androidide.git.core.models.GitCommit
+import com.itsaky.androidide.git.core.models.GitStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.ListBranchCommand.ListMode
 import org.eclipse.jgit.api.errors.NoHeadException
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.dircache.DirCacheIterator
+import org.eclipse.jgit.lib.Constants
+import org.eclipse.jgit.lib.PersonIdent
+import org.eclipse.jgit.lib.Repository
+import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 import org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.eclipse.jgit.treewalk.EmptyTreeIterator
 import org.eclipse.jgit.treewalk.FileTreeIterator
 import org.eclipse.jgit.treewalk.filter.PathFilter
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
  * JGit-based implementation of the [GitRepository] interface.
@@ -151,11 +155,23 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         Unit
     }
 
-    override suspend fun commit(message: String): GitCommit? = withContext(Dispatchers.IO) {
-        val revCommit = git.commit()
+    override suspend fun commit(
+        message: String,
+        authorName: String?,
+        authorEmail: String?
+    ): GitCommit? = withContext(Dispatchers.IO) {
+        val commitCommand = git.commit()
             .setMessage(message)
-            .call()
-            
+
+        if (!authorName.isNullOrBlank() && !authorEmail.isNullOrBlank()) {
+            val author = PersonIdent(authorName, authorEmail)
+            commitCommand.apply {
+                setAuthor(author)
+                setCommitter(author)
+            }
+        }
+
+        val revCommit = commitCommand.call()
         revCommit?.toGitCommit()
     }
 

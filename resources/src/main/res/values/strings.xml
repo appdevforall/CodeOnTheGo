@@ -1184,4 +1184,8 @@
     <string name="idepref_git_user_name_summary">Used as author name in commits</string>
     <string name="idepref_git_user_email_title">User Email</string>
     <string name="idepref_git_user_email_summary">Used as author email in commits</string>
+    <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nClick on the avatar for more info.</string>
+    <string name="git_committing_as">Committing as %1$s</string>
+    <string name="git_committing_email">Email - %1$s</string>
+    <string name="git_update_config_in_preferences">You can update your git configuration in Preferences.</string>
 </resources>

@@ -21,5 +21,5 @@ interface GitRepository : Closeable {
     
     // Commit Operations
     suspend fun stageFiles(files: List<File>)
-    suspend fun commit(message: String): GitCommit?
+    suspend fun commit(message: String, authorName: String? = null, authorEmail: String? = null): GitCommit?
 }

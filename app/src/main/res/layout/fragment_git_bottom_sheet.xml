@@ -3,8 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:layout_margin="16dp"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:padding="16dp">
 
     <TextView
         android:id="@+id/emptyView"
@@ -30,13 +30,31 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/authorAvatar"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/colorSecondaryContainer"
+        android:padding="2dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_account"
+        app:layout_constraintBottom_toBottomOf="@id/commitSummaryLayout"
+        app:layout_constraintEnd_toStartOf="@id/commitSummaryLayout"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/commitSummaryLayout"
+        app:shapeAppearanceOverlay="@style/AppTheme.ShapeAppearance.Circle" />
+
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/commitSummaryLayout"
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
         android:hint="@string/commit_summary"
-        app:layout_constraintBottom_toTopOf="@id/commitDescriptionLayout">
+        app:layout_constraintBottom_toTopOf="@id/commitDescriptionLayout"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/authorAvatar">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/commitSummary"
@@ -52,9 +70,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="8dp"
         android:hint="@string/commit_description_optional"
-        app:layout_constraintBottom_toTopOf="@id/commitButton">
+        app:layout_constraintBottom_toTopOf="@id/authorWarning">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/commitDescription"
@@ -66,10 +84,22 @@
             android:minLines="2" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <TextView
+        android:id="@+id/authorWarning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="@string/idepref_git_author_missing_warning"
+        android:textAppearance="?attr/textAppearanceCaption"
+        android:textColor="?attr/colorError"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/commitButton" />
+
     <com.google.android.material.button.MaterialButton
         android:id="@+id/commitButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
         android:enabled="false"
         android:text="@string/commit"
         app:layout_constraintBottom_toTopOf="@id/commitHistoryButton" />
@@ -78,7 +108,8 @@
         android:id="@+id/commit_section"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="commitSummaryLayout, commitDescriptionLayout, commitButton" />
+        android:visibility="gone"
+        app:constraint_referenced_ids="authorAvatar, commitSummaryLayout, commitDescriptionLayout, commitButton" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/commitHistoryButton"

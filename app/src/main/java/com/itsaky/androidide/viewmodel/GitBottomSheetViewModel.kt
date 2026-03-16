@@ -11,6 +11,7 @@ import com.itsaky.androidide.git.core.GitRepository
 import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
+import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -93,7 +94,11 @@ class GitBottomSheetViewModel : ViewModel() {
 
                 val message =
                     if (!description.isNullOrBlank()) "$summary\n\n$description" else summary
-                currentRepository?.commit(message)
+                currentRepository?.commit(
+                    message = message,
+                    authorName = GitPreferences.userName,
+                    authorEmail = GitPreferences.userEmail
+                )
 
                 refreshStatus()
             } catch (e: Exception) {
