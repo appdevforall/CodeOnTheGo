@@ -749,6 +749,16 @@ tasks.register("recompressApk") {
 
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
+val skipLlamaAssets =
+	providers
+		.environmentVariable("SKIP_LLAMA_ASSETS")
+		.map { it.equals("true", ignoreCase = true) }
+		.getOrElse(false)
+
+if (skipLlamaAssets) {
+	project.logger.lifecycle("SKIP_LLAMA_ASSETS enabled - debug assemble tasks will skip llama asset bundling.")
+}
+
 val noCompress =
 	setOf(
 		"so",
@@ -771,12 +781,12 @@ afterEvaluate {
 	tasks
 		.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }
 		.configureEach {
-			dependsOn(bundleLlamaV8Assets)
+			if (!skipLlamaAssets) { dependsOn(bundleLlamaV8Assets) }
 		}
 	tasks
 		.matching { it.name.contains("V7") && it.name.lowercase().contains("lint") }
 		.configureEach {
-			dependsOn(bundleLlamaV7Assets)
+			if (!skipLlamaAssets) { dependsOn(bundleLlamaV7Assets) }
 		}
 
 	tasks.named("assembleV8Release").configure {
@@ -828,7 +838,9 @@ afterEvaluate {
 			}
 		}
 
-		dependsOn(bundleLlamaV8Assets)
+		if (!skipLlamaAssets) {
+			dependsOn(bundleLlamaV8Assets)
+		}
 		if (!isCiCd) {
 			dependsOn("assetsDownloadDebug")
 		}
@@ -849,7 +861,9 @@ afterEvaluate {
 			}
 		}
 
-		dependsOn(bundleLlamaV7Assets)
+		if (!skipLlamaAssets) {
+			dependsOn(bundleLlamaV7Assets)
+		}
 		if (!isCiCd) {
 			dependsOn("assetsDownloadDebug")
 		}
