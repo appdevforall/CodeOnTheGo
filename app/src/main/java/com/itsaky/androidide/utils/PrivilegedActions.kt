@@ -3,6 +3,7 @@ package com.itsaky.androidide.utils
 import android.content.ComponentName
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
@@ -57,7 +58,18 @@ object PrivilegedActions {
 				// launch in debug mode,
 				launchCmd.add("-D")
 
-				val jdwpPort = JdwpOptions.activeJdwpPort()
+				val jdwpPort = run {
+					var resolvedPort: Int
+					repeat(20) {
+						resolvedPort = JdwpOptions.activeJdwpPort()
+						if (resolvedPort != -1) {
+							return@run resolvedPort
+						}
+						delay(50)
+					}
+					-1
+				}
+
 				if (jdwpPort == -1) {
 					logger.error("Unable to launch application in debug mode. Cannot retrieve active" +
 							" JDWP listen port.")
