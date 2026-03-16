@@ -76,6 +76,8 @@ jobs:
     timeout-minutes: 60
     needs: check_changes
     if: needs.check_changes.outputs.must_build == 'true'
+    env:
+      SKIP_LLAMA_ASSETS: "true"
 
     steps:
 
