@@ -1,6 +1,7 @@
 package com.itsaky.androidide.fragments.git.adapter
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -36,6 +37,7 @@ class GitCommitHistoryAdapter :
                 tvCommitMessage.text = commit.message
                 tvCommitAuthor.text = commit.authorName
                 tvCommitTime.text = dateFormat.format(Date(commit.timestamp))
+                imgNotPushedCommit.visibility = if (commit.hasBeenPushed) View.GONE else View.VISIBLE
             }
         }
     }

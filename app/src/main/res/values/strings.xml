@@ -25,4 +25,5 @@
     <string name="desc_file_untracked">File untracked</string>
     <string name="desc_file_renamed">File renamed</string>
     <string name="desc_file_conflicted">File conflicted</string>
+    <string name="commit_not_pushed">This commit has not been pushed to the remote repository</string>
 </resources>

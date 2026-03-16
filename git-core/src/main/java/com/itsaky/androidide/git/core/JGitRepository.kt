@@ -12,6 +12,7 @@ import org.eclipse.jgit.api.ListBranchCommand.ListMode
 import org.eclipse.jgit.api.errors.NoHeadException
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.dircache.DirCacheIterator
+import org.eclipse.jgit.lib.BranchConfig
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.lib.Repository
@@ -106,8 +107,19 @@ class JGitRepository(override val rootDir: File) : GitRepository {
 
     override suspend fun getHistory(limit: Int): List<GitCommit> = withContext(Dispatchers.IO) {
         try {
-            git.log().setMaxCount(limit).call().map { revCommit ->
-                revCommit.toGitCommit()
+            val branchName = repository.branch ?: return@withContext emptyList()
+            val trackingBranch = BranchConfig(repository.config, branchName).trackingBranch
+
+            RevWalk(repository).use { walk ->
+                val remoteCommit = trackingBranch?.let { repository.resolve(it) }?.let {
+                    walk.parseCommit(it)
+                }
+
+                git.log().setMaxCount(limit).call().map { revCommit ->
+                    val commit = walk.parseCommit(revCommit.id)
+                    val isPushed = remoteCommit?.let { walk.isMergedInto(commit, it) } ?: false
+                    commit.toGitCommit(isPushed)
+                }
             }
         } catch (_: NoHeadException) {
             emptyList()
@@ -160,8 +172,7 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         authorName: String?,
         authorEmail: String?
     ): GitCommit? = withContext(Dispatchers.IO) {
-        val commitCommand = git.commit()
-            .setMessage(message)
+        val commitCommand = git.commit().setMessage(message)
 
         if (!authorName.isNullOrBlank() && !authorEmail.isNullOrBlank()) {
             val author = PersonIdent(authorName, authorEmail)
@@ -172,10 +183,10 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         }
 
         val revCommit = commitCommand.call()
-        revCommit?.toGitCommit()
+        revCommit?.toGitCommit(false)
     }
 
-    private fun RevCommit.toGitCommit(): GitCommit {
+    private fun RevCommit.toGitCommit(hasBeenPushed: Boolean): GitCommit {
         val author = authorIdent
         return GitCommit(
             hash = name,
@@ -184,7 +195,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
             authorEmail = author.emailAddress,
             message = fullMessage.trim(),
             timestamp = author.`when`.time,
-            parentHashes = parents.map { it.name }
+            parentHashes = parents.map { it.name },
+            hasBeenPushed = hasBeenPushed
         )
     }
     
