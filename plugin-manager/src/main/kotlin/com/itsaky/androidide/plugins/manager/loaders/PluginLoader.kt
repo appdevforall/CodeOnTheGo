@@ -7,12 +7,9 @@ import android.content.res.AssetManager
 import android.content.res.Resources
 import android.os.Build
 import android.util.Log
-import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
-import com.itsaky.androidide.plugins.manager.loaders.PluginManifestParser
-import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import dalvik.system.DexClassLoader
 import java.io.File
-import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 
 /**
  * Loader for APK-based plugins with full resource support
@@ -154,17 +151,21 @@ class PluginLoader(
         pluginNativeDir.mkdirs()
 
         var found = false
-        ZipInputStream(pluginApk.inputStream()).use { zip ->
-            generateSequence { zip.nextEntry }.forEach { entry ->
-                if (!entry.isDirectory && entry.name.startsWith(libPrefix) && entry.name.endsWith(".so")) {
+        ZipFile(pluginApk).use { zip ->
+            zip.entries().asSequence()
+                .filter { !it.isDirectory && it.name.startsWith(libPrefix) && it.name.endsWith(".so") }
+                .forEach { entry ->
                     val outPath = targetPath.resolve(entry.name.substringAfterLast("/")).normalize()
                     if (outPath.startsWith(targetPath)) {
-                        outPath.toFile().outputStream().use { zip.copyTo(it) }
+                        zip.getInputStream(entry).use { input ->
+                            outPath.toFile().outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        outPath.toFile().setExecutable(true, false)
                         found = true
                     }
                 }
-                zip.closeEntry()
-            }
         }
 
         if (!found) {
