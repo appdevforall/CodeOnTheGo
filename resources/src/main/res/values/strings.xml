@@ -254,6 +254,7 @@
 	<string name="rename_file">Rename</string>
 	<string name="delete_file">Delete</string>
 	<string name="action_closeAll">Close all</string>
+	<string name="action_install">Install</string>
 	<string name="action_closeOthers">Close others</string>
 	<string name="action_closeThis">Close this</string>
 	<string name="all_saved">All files saved</string>
@@ -1156,10 +1157,15 @@
     <string name="use_authentication">Use Authentication</string>
     <string name="username">Username</string>
     <string name="personal_access_token">Personal access token</string>
-    <string name="clone">Clone project</string>
+    <string name="download_project">Download project</string>
     <string name="destination_directory_not_empty">Destination directory is not empty</string>
     <string name="clone_successful">Clone successful!</string>
     <string name="clone_failed">Clone failed: %1$s</string>
     <string name="cloning_repo">Cloning repository…</string>
     <string name="pick_folder">Pick folder</string>
+    <string name="git_title">Git</string>
+    <string name="no_uncommitted_changes">No uncommitted changes</string>
+    <string name="unable_to_load_diff">Unable to load diff</string>
+    <string name="diff_viewer">Diff Viewer</string>
+    <string name="diff_loading">Loading Git Diff…</string>
 </resources>

@@ -302,7 +302,7 @@ dependencies {
 	implementation(projects.idetooltips)
 	implementation(projects.cvImageToXml)
 	implementation(projects.composePreview)
-  implementation(projects.gitCore)
+	implementation(projects.gitCore)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -318,7 +318,7 @@ dependencies {
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
 	androidTestUtil(libs.tests.orchestrator)
-    testImplementation(libs.tests.kotlinx.coroutines)
+	testImplementation(libs.tests.kotlinx.coroutines)
 
 	// brotli4j
 	implementation(libs.brotli4j)
@@ -503,6 +503,21 @@ fun createAssetsZip(arch: String) {
 
 			// 4. Set the full command line
 			commandLine(d8Command)
+
+			// Prepend JAVA_HOME/bin to PATH, so that `java` can be resolved
+			// on systems which don't already have `java` in PATH
+			val javaHome = System.getProperty("java.home")
+			if (javaHome.isNotBlank()) {
+				val javaHomeBin = javaHome + File.separator + "bin"
+				val currentPath = System.getenv("PATH") ?: ""
+				var finalPath = javaHomeBin
+				if (currentPath.isNotBlank()) {
+					finalPath += File.pathSeparator
+					finalPath += currentPath
+				}
+
+				environment("PATH", finalPath)
+			}
 		}.assertNormalExitValue()
 
 	if (!dexOutputFile.exists()) {
@@ -734,6 +749,16 @@ tasks.register("recompressApk") {
 
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
+val skipLlamaAssets =
+	providers
+		.environmentVariable("SKIP_LLAMA_ASSETS")
+		.map { it.equals("true", ignoreCase = true) }
+		.getOrElse(false)
+
+if (skipLlamaAssets) {
+	project.logger.lifecycle("SKIP_LLAMA_ASSETS enabled - debug assemble tasks will skip llama asset bundling.")
+}
+
 val noCompress =
 	setOf(
 		"so",
@@ -756,12 +781,12 @@ afterEvaluate {
 	tasks
 		.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }
 		.configureEach {
-			dependsOn(bundleLlamaV8Assets)
+			if (!skipLlamaAssets) { dependsOn(bundleLlamaV8Assets) }
 		}
 	tasks
 		.matching { it.name.contains("V7") && it.name.lowercase().contains("lint") }
 		.configureEach {
-			dependsOn(bundleLlamaV7Assets)
+			if (!skipLlamaAssets) { dependsOn(bundleLlamaV7Assets) }
 		}
 
 	tasks.named("assembleV8Release").configure {
@@ -813,10 +838,12 @@ afterEvaluate {
 			}
 		}
 
-		dependsOn(bundleLlamaV8Assets)
-    if (!isCiCd) {
-      dependsOn("assetsDownloadDebug")
-    }
+		if (!skipLlamaAssets) {
+			dependsOn(bundleLlamaV8Assets)
+		}
+		if (!isCiCd) {
+			dependsOn("assetsDownloadDebug")
+		}
 	}
 
 	tasks.named("assembleV7Debug").configure {
@@ -834,10 +861,12 @@ afterEvaluate {
 			}
 		}
 
-		dependsOn(bundleLlamaV7Assets)
-    if (!isCiCd) {
-      dependsOn("assetsDownloadDebug")
-    }
+		if (!skipLlamaAssets) {
+			dependsOn(bundleLlamaV7Assets)
+		}
+		if (!isCiCd) {
+			dependsOn("assetsDownloadDebug")
+		}
 	}
 }
 
