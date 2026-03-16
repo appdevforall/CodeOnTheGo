@@ -3,8 +3,10 @@ package com.itsaky.androidide.lsp.java.debug
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
+import com.sun.jdi.connect.IllegalConnectorArgumentsException
 import com.sun.tools.jdi.SocketListeningConnector
 import com.sun.tools.jdi.isListening
+import java.io.IOException
 
 internal data class ListenerState(
     val client: IDebugClient,
@@ -23,6 +25,7 @@ internal data class ListenerState(
 	 */
 	var listenAddress: String? = null
 		private set
+		get() = field.takeIf { isListening }
 
     /**
      * Start listening for connections from VMs.
@@ -39,8 +42,11 @@ internal data class ListenerState(
      * Stop listening for connections from VMs.
      */
     fun stopListening() {
-		listenAddress = null
-		connector.stopListening(args)
+		try {
+			connector.stopListening(args)
+		} finally {
+			listenAddress = null
+		}
 	}
 
     /**
