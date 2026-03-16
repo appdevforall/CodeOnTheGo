@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         app:barrierDirection="start"
         app:barrierMargin="16dp"
-        app:constraint_referenced_ids="img_unpushed_commit" />
+        app:constraint_referenced_ids="img_not_pushed_commit" />
 
     <TextView
         android:id="@+id/tv_commit_message"
