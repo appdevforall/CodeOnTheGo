@@ -3,7 +3,6 @@ package moe.shizuku.manager
 import android.os.Bundle
 import androidx.core.os.bundleOf
 import com.itsaky.androidide.buildinfo.BuildInfo
-import moe.shizuku.api.BinderContainer
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuApiConstants.USER_SERVICE_ARG_TOKEN
@@ -30,10 +29,8 @@ class ShizukuManagerProvider : ShizukuProvider() {
 
 		return if (method == METHOD_SEND_USER_SERVICE) {
 			try {
-				extras.classLoader = BinderContainer::class.java.classLoader
-
 				val token = extras.getString(USER_SERVICE_ARG_TOKEN) ?: return null
-				val binder = extras.getParcelable<BinderContainer>(EXTRA_BINDER)?.binder ?: return null
+				val binder = extras.getBinder(EXTRA_BINDER) ?: return null
 
 				val countDownLatch = CountDownLatch(1)
 				var reply: Bundle? = Bundle()
@@ -48,7 +45,7 @@ class ShizukuManagerProvider : ShizukuProvider() {
 										USER_SERVICE_ARG_TOKEN to token,
 									),
 								)
-								reply!!.putParcelable(EXTRA_BINDER, BinderContainer(Shizuku.getBinder()))
+								reply!!.putBinder(EXTRA_BINDER, Shizuku.getBinder())
 							} catch (e: Throwable) {
 								logger.error("attachUserService $token", e)
 								reply = null

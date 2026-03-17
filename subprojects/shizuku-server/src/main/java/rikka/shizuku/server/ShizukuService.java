@@ -22,12 +22,8 @@ import android.os.Looper;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-
 import com.itsaky.androidide.buildinfo.BuildInfo;
-
 import java.util.List;
-
-import moe.shizuku.api.BinderContainer;
 import moe.shizuku.common.util.OsUtils;
 import moe.shizuku.common.util.UserUtils;
 import moe.shizuku.server.IShizukuApplication;
@@ -116,7 +112,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 			}
 
 			Bundle extra = new Bundle();
-			extra.putParcelable(BuildInfo.PACKAGE_NAME + ".shizuku.intent.extra.BINDER", new BinderContainer(binder));
+			extra.putBinder(BuildInfo.PACKAGE_NAME + ".shizuku.intent.extra.BINDER", binder);
 
 			Bundle reply = IContentProviderUtils.callCompat(provider, null, name, "sendBinder", null, extra);
 			if (reply != null) {
@@ -283,10 +279,6 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 		return new ShizukuUserServiceManager();
 	}
 
-	void sendBinderToManager() {
-		sendBinderToManager(this);
-	}
-
 	public void onUidGone(int uid) {
 		if (!isManager(uid)) {
 			return;
@@ -299,5 +291,9 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 			LOGGER.w("manager app is uninstalled in user 0, exiting...");
 			System.exit(ServerConstants.MANAGER_APP_NOT_FOUND);
 		}
+	}
+
+	void sendBinderToManager() {
+		sendBinderToManager(this);
 	}
 }
