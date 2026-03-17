@@ -58,11 +58,13 @@ internal object DeviceProtectedApplicationLoader :
 			FeatureFlags.initialize()
 		}
 
+		LeakCanaryConfig.applyFromFeatureFlags()
+
 		// Enable StrictMode for debug builds
 		StrictModeManager.install(
 			StrictModeConfig(
 				enabled = BuildConfig.DEBUG && !FeatureFlags.isPardonEnabled,
-                isReprieveEnabled = true,
+				isReprieveEnabled = true,
 			),
 		)
 
