@@ -14,7 +14,7 @@ internal class FileManagementGroup : ShortcutGroup {
 	override fun shortcuts(context: Context): List<ShortcutDefinition> {
 		return listOf(
 			ShortcutDefinition(
-				id = ShortcutDefinitionIds.SAVE_FILE,
+				id = ShortcutDefinitionIds.SAVE_ALL_FILES,
 				title = context.getString(R.string.save),
 				bindings = listOf(
 					KeyShortcut.ctrl(KeyEvent.KEYCODE_S),

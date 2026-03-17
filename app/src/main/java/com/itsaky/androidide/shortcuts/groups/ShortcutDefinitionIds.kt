@@ -7,7 +7,7 @@ internal object ShortcutDefinitionIds {
 	const val CREATE_PROJECT = "shortcut.createProject"
 	const val OPEN_PROJECT = "shortcut.openProject"
 	const val CLONE_REPOSITORY = "shortcut.cloneRepository"
-	const val SAVE_FILE = "shortcut.saveFile"
+	const val SAVE_ALL_FILES = "shortcut.saveAllFiles"
 	const val CLOSE_CURRENT_FILE = "shortcut.closeCurrentFile"
 	const val FIND_IN_PROJECT = "shortcut.findInProject"
 	const val FIND_IN_FILE = "shortcut.findInFile"
