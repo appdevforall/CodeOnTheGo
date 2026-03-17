@@ -17,6 +17,9 @@
 
 package com.itsaky.androidide.gradle
 
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import com.android.build.api.variant.ApplicationVariant
+import com.android.build.api.variant.Variant
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tooling.api.GradlePluginConfig._PROPERTY_IS_TEST_ENV
 import org.gradle.api.Project
@@ -35,21 +38,46 @@ const val APP_PLUGIN = "com.android.application"
 const val LIBRARY_PLUGIN = "com.android.library"
 
 internal val Project.isTestEnv: Boolean
-  get() = hasProperty(_PROPERTY_IS_TEST_ENV) && property(
-    _PROPERTY_IS_TEST_ENV).toString().toBoolean()
+	get() = hasProperty(_PROPERTY_IS_TEST_ENV) && property(
+		_PROPERTY_IS_TEST_ENV
+	).toString().toBoolean()
 
 internal fun depVersion(testEnv: Boolean): String {
-  return if (testEnv && !System.getenv("CI").toBoolean()) {
-    BuildInfo.VERSION_NAME_SIMPLE
-  } else {
-    BuildInfo.VERSION_NAME_DOWNLOAD
-  }
+	return if (testEnv && !System.getenv("CI").toBoolean()) {
+		BuildInfo.VERSION_NAME_SIMPLE
+	} else {
+		BuildInfo.VERSION_NAME_DOWNLOAD
+	}
 }
 
 fun Project.ideDependency(artifact: String): Dependency {
-  return dependencies.ideDependency(artifact, isTestEnv)
+	return dependencies.ideDependency(artifact, isTestEnv)
 }
 
 fun DependencyHandler.ideDependency(artifact: String, testEnv: Boolean): Dependency {
-  return create("${BuildInfo.MVN_GROUP_ID}:${artifact}:${depVersion(testEnv)}")
+	return create("${BuildInfo.MVN_GROUP_ID}:${artifact}:${depVersion(testEnv)}")
 }
+
+/**
+ * Perform the given [action] on debuggable variants in this [ApplicationAndroidComponentsExtension].
+ */
+fun ApplicationAndroidComponentsExtension.onDebuggableVariants(action: (ApplicationVariant) -> Unit) {
+	val debuggableBuilds = hashSetOf<String>()
+
+	beforeVariants { variantBuilder ->
+		if (variantBuilder.debuggable) {
+			debuggableBuilds.add(variantBuilder.name)
+		}
+	}
+
+	onVariants { variant ->
+		if (variant.name !in debuggableBuilds) {
+			return@onVariants
+		}
+
+		action(variant)
+	}
+}
+
+fun Variant.generateTaskName(prefix: String, suffix: String = "") =
+	prefix + this.name.replaceFirstChar { it.uppercase() } + suffix

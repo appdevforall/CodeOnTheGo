@@ -25,8 +25,12 @@ package com.itsaky.androidide.tooling.api;
 public final class GradlePluginConfig {
 
 	/**
-	 * Property to enable or disable <code>LogSender</code> in the project. Value can be
-	 * <code>true</code> or <code>false</code>.
+	 * Property used by the Gradle plugin to determine whether the Gradle build includes JDWP (debugging) support. This is usually set when for builds which are intended to be launched in debug mode.
+	 */
+	public static final String PROPERTY_JDWP_ENABLED = "cotg.jdwp.enabled";
+
+	/**
+	 * Property to enable or disable <code>LogSender</code> in the project. Value can be <code>true</code> or <code>false</code>.
 	 */
 	public static final String PROPERTY_LOG_SENDER_ENABLED = "androidide.logsender.isEnabled";
 
@@ -36,17 +40,15 @@ public final class GradlePluginConfig {
 	public static final String PROPERTY_LOG_SENDER_AAR = "androidide.logsender.aar";
 
 	/**
-	 * Property that is set in tests to indicate that the plugin is being applied in a test
-	 * environment.
+	 * Property that is set in tests to indicate that the plugin is being applied in a test environment.
 	 * <p>
 	 * <b>This is an internal property and should not be manually set by users.</b>
 	 */
 	public static final String _PROPERTY_IS_TEST_ENV = "androidide.plugins.internal.isTestEnv";
 
 	/**
-	 * Property that is set in tests to provide path to the local maven repository. If this property
-	 * is empty, `null` or not set at all, the default maven local repository is used.
-	 * <p>
+	 * Property that is set in tests to provide path to the local maven repository. If this property is empty, `null` or not set at all, the default maven local repository is used.
+	 *
 	 * <b>This is an internal property and should not be manually set by users.</b>
 	 */
 	public static final String _PROPERTY_MAVEN_LOCAL_REPOSITORY = "androidide.plugins.internal.mavenLocalRepositories";

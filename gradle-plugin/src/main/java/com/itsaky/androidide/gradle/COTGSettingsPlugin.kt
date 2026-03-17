@@ -56,7 +56,11 @@ class COTGSettingsPlugin : Plugin<Settings> {
 			val mavenLocalRepos =
 				projectProperties.getOrDefault(_PROPERTY_MAVEN_LOCAL_REPOSITORY, "")
 
-			isTestEnv to mavenLocalRepos.split(File.pathSeparatorChar).toList().filter { it.isNotBlank() }
+			isTestEnv to
+				mavenLocalRepos
+					.split(File.pathSeparatorChar)
+					.toList()
+					.filter { it.isNotBlank() }
 		}
 }
 

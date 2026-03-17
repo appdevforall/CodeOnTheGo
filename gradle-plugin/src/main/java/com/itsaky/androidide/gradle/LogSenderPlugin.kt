@@ -37,87 +37,60 @@ import java.io.FileNotFoundException
  */
 
 class LogSenderPlugin : Plugin<Project> {
+	companion object {
+		private val logger = Logging.getLogger(LogSenderPlugin::class.java)
+	}
 
-    companion object {
-        private val logger = Logging.getLogger(LogSenderPlugin::class.java)
-    }
+	override fun apply(target: Project) {
+		if (!target.plugins.hasPlugin(APP_PLUGIN)) {
+			return
+		}
 
-    override fun apply(target: Project) {
-        if (target.isTestEnv) {
-            logger.lifecycle("Applying {} to project '{}'", javaClass.simpleName, target.path)
-        }
+		logger.info("Applying {} to project '${target.path}'", LogSenderPlugin::class.simpleName)
 
-        val logsenderAar =
-            target.findProperty(PROPERTY_LOG_SENDER_AAR)?.let { aarPath -> File(aarPath.toString()) }
-                ?: throw GradleException("LogSenderPlugin has been applied but no property '$PROPERTY_LOG_SENDER_AAR' is set")
+		if (target.isTestEnv) {
+			logger.lifecycle("Applying {} to project '{}'", javaClass.simpleName, target.path)
+		}
 
-        if (!logsenderAar.exists()) {
-            throw FileNotFoundException("LogSender AAR file not found at '${logsenderAar.absolutePath}'")
-        }
+		val logsenderAar =
+			target.findProperty(PROPERTY_LOG_SENDER_AAR)?.let { aarPath -> File(aarPath.toString()) }
+				?: throw GradleException("LogSenderPlugin has been applied but no property '$PROPERTY_LOG_SENDER_AAR' is set")
 
-        if (!logsenderAar.isFile) {
-            throw GradleException("LogSender AAR file at '${logsenderAar.absolutePath}' is not a file")
-        }
+		if (!logsenderAar.exists()) {
+			throw FileNotFoundException("LogSender AAR file not found at '${logsenderAar.absolutePath}'")
+		}
 
-        target.run {
-            check(plugins.hasPlugin(APP_PLUGIN)) {
-                "${javaClass.simpleName} can only be applied to Android application projects."
-            }
+		if (!logsenderAar.isFile) {
+			throw GradleException("LogSender AAR file at '${logsenderAar.absolutePath}' is not a file")
+		}
 
-            extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
+		target.run {
+			check(plugins.hasPlugin(APP_PLUGIN)) {
+				"${javaClass.simpleName} can only be applied to Android application projects."
+			}
 
-                val debuggableBuilds = hashSetOf<String>()
+			extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
+				onDebuggableVariants { variant ->
+					variant.withRuntimeConfiguration {
+						logger.lifecycle(
+							"Adding LogSender dependency to variant '{}' of project '{}'",
+							variant.name,
+							project.path,
+						)
 
-                beforeVariants { variantBuilder ->
-                    logger.info(
-                        "Variant :'{}' isDebuggable: {}",
-                        variantBuilder.name,
-                        variantBuilder.debuggable
-                    )
+						logger.debug("Adding logsender dependency: {}", logsenderAar.absolutePath)
+						dependencies.add(project.dependencies.create(project.fileTree(logsenderAar)))
+					}
+				}
+			}
+		}
+	}
 
-                    if (variantBuilder.debuggable) {
-                        debuggableBuilds.add(variantBuilder.name)
-                    }
-                }
-
-                onVariants { variant ->
-                    logger.info(
-                        "Found {} debuggable builds in project '{}': {}",
-                        debuggableBuilds.size,
-                        project.path,
-                        debuggableBuilds
-                    )
-
-                    if (debuggableBuilds.isEmpty()) {
-                        logger.warn("No debuggable builds found in project '${project.path}'")
-                    }
-
-                    if (variant.name !in debuggableBuilds) {
-                        return@onVariants
-                    }
-
-                    variant.withRuntimeConfiguration {
-                        logger.lifecycle(
-                            "Adding LogSender dependency to variant '{}' of project '{}'",
-                            variant.name,
-                            project.path
-                        )
-
-                        logger.debug("Adding logsender dependency: {}", logsenderAar.absolutePath)
-                        dependencies.add(project.dependencies.create(project.fileTree(logsenderAar)))
-                    }
-                }
-            }
-        }
-    }
-
-    private fun ApplicationVariant.withRuntimeConfiguration(
-        action: Configuration.() -> Unit
-    ) {
-        if (this is ApplicationVariantImpl) {
-            variantDependencies.runtimeClasspath.action()
-        } else if (this is AnalyticsEnabledApplicationVariant) {
-            delegate.withRuntimeConfiguration(action)
-        }
-    }
+	private fun ApplicationVariant.withRuntimeConfiguration(action: Configuration.() -> Unit) {
+		if (this is ApplicationVariantImpl) {
+			variantDependencies.runtimeClasspath.action()
+		} else if (this is AnalyticsEnabledApplicationVariant) {
+			delegate.withRuntimeConfiguration(action)
+		}
+	}
 }
