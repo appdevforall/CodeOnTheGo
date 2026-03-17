@@ -53,12 +53,11 @@ class ShortcutManager(
 			.filter { definition -> definition.contexts.any { it in activeContexts } }
 			.filter { definition -> definition.bindings.any { binding -> binding.matches(event) } }
 
-		if (matchingDefinitions.isEmpty()) return null
-
 		return matchingDefinitions.maxByOrNull { definition ->
-			definition.contexts.maxOfOrNull { shortcutContext ->
-				priorityScore(shortcutContext)
-			} ?: Int.MIN_VALUE
+			definition.contexts
+				.filter { it in activeContexts }
+				.maxOfOrNull(::priorityScore)
+				?: Int.MIN_VALUE
 		}
 	}
 
