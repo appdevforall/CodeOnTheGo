@@ -59,6 +59,7 @@ internal class JavaDebugAdapter :
 	EventConsumer,
 	AutoCloseable {
 	private val vmm = Bootstrap.virtualMachineManager()
+
 	private val vms = CopyOnWriteArraySet<VmConnection>()
 	private val adapterScope = CoroutineScope(Dispatchers.Default)
 
@@ -117,18 +118,25 @@ internal class JavaDebugAdapter :
 	fun evalContext() = connVm().evalContext
 
 	override fun connectDebugClient(client: IDebugClient) {
-		val connector = vmm.listeningConnectors().firstOrNull() as? SocketListeningConnector?
+		val listeningConnectors = vmm.listeningConnectors()
+		listeningConnectors.forEach { conn ->
+			logger.info("Listening connector: {}", conn.javaClass.canonicalName)
+		}
+
+		val connector =
+			vmm.listeningConnectors().filterIsInstance<SocketListeningConnector>().firstOrNull()
 		if (connector == null) {
 			logger.error("No listening connectors found, or the connector is not a SocketListeningConnector")
 			return
 		}
 
 		val args = connector.defaultArguments()
+		args[JdwpOptions.CONNECTOR_LOCAL_ADDR]!!.setValue(JdwpOptions.DEFAULT_JDWP_HOST)
 		args[JdwpOptions.CONNECTOR_PORT]!!.setValue(JdwpOptions.DEFAULT_JDWP_PORT.toString())
 		args[JdwpOptions.CONNECTOR_TIMEOUT]!!.setValue(JdwpOptions.DEFAULT_JDWP_TIMEOUT.inWholeMilliseconds.toString())
 
 		logger.debug(
-			"Starting JDWP listener. Arguments={}",
+			"Starting JDWP listener. Arguments: {}",
 			args.map { (_, value) -> "$value" }.joinToString(),
 		)
 
@@ -351,8 +359,18 @@ internal class JavaDebugAdapter :
 					val resolveSuccess = result.getOrDefault(false)
 
 					when {
-						resolveSuccess && spec.isResolved -> BreakpointResult.Success(breakpoint, false)
-						resolveSuccess && !spec.isResolved -> BreakpointResult.Success(breakpoint, true)
+						resolveSuccess && spec.isResolved ->
+							BreakpointResult.Success(
+								breakpoint,
+								false,
+							)
+
+						resolveSuccess && !spec.isResolved ->
+							BreakpointResult.Success(
+								breakpoint,
+								true,
+							)
+
 						else -> BreakpointResult.Failure(breakpoint, failure)
 					}
 				},
@@ -539,6 +557,7 @@ internal class JavaDebugAdapter :
 	}
 
 	override fun close() {
+		logger.debug("close")
 		try {
 			_listenerState?.stopListening()
 			listenerThread?.interrupt()
@@ -584,14 +603,19 @@ internal class JDWPListenerThread(
 	}
 
 	override fun run() {
+		logger.debug("run::start")
 		if (!listenerState.isListening) {
+			logger.debug("startListening")
 			listenerState.startListening()
 		}
 
 		while (isAlive && !isInterrupted) {
 			try {
 				logger.debug("Waiting for VM connection")
-				onConnect(listenerState.accept())
+				val client = listenerState.accept()
+				logger.debug("client: {}", client)
+
+				onConnect(client)
 			} catch (_: TransportTimeoutException) {
 				logger.warn("Timeout waiting for VM connection")
 			} catch (e: SocketException) {
@@ -606,5 +630,7 @@ internal class JDWPListenerThread(
 				logger.error("An error occurred while listening for VM connections", err)
 			}
 		}
+
+		logger.debug("run::end")
 	}
 }

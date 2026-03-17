@@ -12,7 +12,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.itsaky.androidide.buildinfo.BuildInfo;
-import moe.shizuku.api.BinderContainer;
 
 /**
  * <p>
@@ -83,8 +82,6 @@ public class ShizukuProvider extends ContentProvider {
 			return null;
 		}
 
-		extras.setClassLoader(BinderContainer.class.getClassLoader());
-
 		Bundle reply = new Bundle();
 		switch (method) {
 		case METHOD_SEND_BINDER: {
@@ -141,7 +138,7 @@ public class ShizukuProvider extends ContentProvider {
 		if (binder == null || !binder.pingBinder())
 			return false;
 
-		reply.putParcelable(EXTRA_BINDER, new BinderContainer(binder));
+		reply.putBinder(EXTRA_BINDER, binder);
 		return true;
 	}
 
@@ -151,10 +148,10 @@ public class ShizukuProvider extends ContentProvider {
 			return;
 		}
 
-		BinderContainer container = extras.getParcelable(EXTRA_BINDER);
-		if (container != null && container.binder != null) {
+		IBinder container = extras.getBinder(EXTRA_BINDER);
+		if (container != null) {
 			Log.d(TAG, "binder received");
-			Shizuku.onBinderReceived(container.binder, getContext().getPackageName());
+			Shizuku.onBinderReceived(container, getContext().getPackageName());
 		}
 	}
 }

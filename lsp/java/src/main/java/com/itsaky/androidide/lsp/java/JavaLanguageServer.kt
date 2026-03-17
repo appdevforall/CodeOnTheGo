@@ -136,7 +136,10 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun connectDebugClient(client: IDebugClient) {
 		if (JdwpOptions.JDWP_ENABLED) {
+			log.info("Connecting to debug client: {}", client)
 			this.debugAdapter.connectDebugClient(client)
+		} else {
+			log.info("Not connecting to debug client. JDWP disabled.")
 		}
 	}
 
