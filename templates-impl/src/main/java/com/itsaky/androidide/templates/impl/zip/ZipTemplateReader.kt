@@ -33,7 +33,7 @@ object ZipTemplateReader {
     try {
       ZipFile(zipFile).use { zip ->
 
-        log.debug("zipFile: $zipFile zip: $zip")
+        log.debug("zipFile: $zipFile")
 
         val indexEntry = zip.getEntry(ARCHIVE_JSON) ?: return emptyList()
         val indexJson = zip.getInputStream(indexEntry).bufferedReader().use {
