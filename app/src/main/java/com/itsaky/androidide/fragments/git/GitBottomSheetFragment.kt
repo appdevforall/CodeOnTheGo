@@ -120,9 +120,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     }
 
     private fun showAuthorPopup() {
-        val name = GitPreferences.userName ?: "Not set"
-        val email = GitPreferences.userEmail ?: "Not set"
-
+        val name = GitPreferences.userName.orEmpty().ifBlank { getString(R.string.author_not_set) }
+        val email = GitPreferences.userEmail.orEmpty().ifBlank { getString(R.string.author_not_set) }
         val message = getString(R.string.git_committing_as, name) + "\n" +
                 getString(R.string.git_committing_email, email) + "\n\n" +
                 getString(R.string.git_update_config_in_preferences)
