@@ -52,6 +52,7 @@ import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
+import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
@@ -114,8 +115,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val binding: ActivityMainBinding
 		get() = checkNotNull(_binding)
 
-	override fun onCreate(savedInstanceState: Bundle?) {
+		override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		MainScreenActions.register(this)
 
 		// Start WebServer after installation is complete
 		startWebServer()
@@ -222,7 +224,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	override fun onResume() {
 		super.onResume()
+		MainScreenActions.register(this)
 		feedbackButtonManager?.loadFabPosition()
+	}
+
+	override fun onPause() {
+		MainScreenActions.clear()
+		super.onPause()
 	}
 
 	/**

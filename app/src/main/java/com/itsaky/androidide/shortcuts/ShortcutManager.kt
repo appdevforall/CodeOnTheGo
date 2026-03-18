@@ -49,9 +49,10 @@ class ShortcutManager(
 		event: KeyEvent,
 		activeContexts: Set<ShortcutContext>,
 	): ShortcutDefinition? {
-		val matchingDefinitions = catalog
-			.filter { definition -> definition.contexts.any { it in activeContexts } }
-			.filter { definition -> definition.bindings.any { binding -> binding.matches(event) } }
+		val matchingDefinitions = catalog.filter { definition ->
+			definition.contexts.any(activeContexts::contains) &&
+			definition.bindings.any { it.matches(event) }
+		}
 
 		return matchingDefinitions.maxByOrNull { definition ->
 			definition.contexts

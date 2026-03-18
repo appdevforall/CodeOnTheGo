@@ -2,9 +2,11 @@ package com.itsaky.androidide.shortcuts.groups
 
 import android.content.Context
 import android.view.KeyEvent
+import com.itsaky.androidide.actions.main.CloneRepositoryAction
+import com.itsaky.androidide.actions.main.CreateProjectAction
+import com.itsaky.androidide.actions.main.OpenProjectAction
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.shortcuts.KeyShortcut
-import com.itsaky.androidide.shortcuts.ShortcutActionIds
 import com.itsaky.androidide.shortcuts.ShortcutCategory
 import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutDefinition
@@ -22,7 +24,7 @@ internal class ProjectsAndSolutionsGroup : ShortcutGroup {
 				contexts = setOf(
 					ShortcutContext.MAIN,
 				),
-				actionId = ShortcutActionIds.MAIN_CREATE_PROJECT,
+				actionId = CreateProjectAction.ID,
 			),
 			ShortcutDefinition(
 				id = ShortcutDefinitionIds.OPEN_PROJECT,
@@ -34,7 +36,7 @@ internal class ProjectsAndSolutionsGroup : ShortcutGroup {
 				contexts = setOf(
 					ShortcutContext.MAIN,
 				),
-				actionId = ShortcutActionIds.MAIN_OPEN_PROJECT,
+				actionId = OpenProjectAction.ID,
 			),
 			ShortcutDefinition(
 				id = ShortcutDefinitionIds.CLONE_REPOSITORY,
@@ -46,7 +48,7 @@ internal class ProjectsAndSolutionsGroup : ShortcutGroup {
 				contexts = setOf(
 					ShortcutContext.MAIN,
 				),
-				actionId = ShortcutActionIds.MAIN_CLONE_REPOSITORY,
+				actionId = CloneRepositoryAction.ID,
 			),
 		)
 	}
