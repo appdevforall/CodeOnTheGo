@@ -20,6 +20,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_SELECT
 import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
+import com.itsaky.androidide.models.Checkable
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -61,23 +62,34 @@ class DeleteProjectFragment : BaseFragment() {
 
     private fun observeProjects() {
         recentProjectsViewModel.projects.observe(viewLifecycleOwner) { projects ->
+            val selectedPaths = adapter
+                ?.getSelectedProjects()
+                ?.map { it.path }
+                ?.toSet()
+                .orEmpty()
+
+            val checkableProjects = projects.map { project ->
+                Checkable(project.path in selectedPaths, project)
+            }
+
             if (adapter == null) {
                 // Create adapter and pass a callback to update delete button state on selection change
                 adapter = DeleteProjectListAdapter(
-                    projects,
+                    checkableProjects,
                     { enableBtn ->
                         updateDeleteButtonState(enableBtn)
                     },
                     onCheckboxLongPress = {
-                        showToolTip(DELETE_PROJECT_SELECT)
+                        showToolTip(DELETE_PROJECT_SELECT, binding.listProjects)
                         true
                     }
 
                 )
                 binding.listProjects.adapter = adapter
             } else {
-                adapter?.updateProjects(projects)
+                adapter?.updateProjects(checkableProjects)
             }
+
             binding.recentProjectsTxt.isVisible = projects.isNotEmpty()
             binding.noProjectsView.isVisible = projects.isEmpty()
 
@@ -87,7 +99,7 @@ class DeleteProjectFragment : BaseFragment() {
                 binding.delete.isEnabled = true
             } else {
                 binding.delete.text = getString(R.string.delete_project)
-                updateDeleteButtonState(adapter?.getSelectedProjects()?.isNotEmpty() ?: false)
+                updateDeleteButtonState(adapter?.getSelectedProjects()?.isNotEmpty() == true)
             }
         }
     }
