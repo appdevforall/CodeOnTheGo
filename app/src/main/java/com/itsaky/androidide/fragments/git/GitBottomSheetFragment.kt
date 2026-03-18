@@ -58,10 +58,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     binding.emptyView.visibility = View.VISIBLE
                     binding.recyclerView.visibility = View.GONE
                     binding.commitSection.visibility = View.GONE
+                    binding.authorWarning.visibility = View.GONE
                 } else {
                     binding.emptyView.visibility = View.GONE
                     binding.recyclerView.visibility = View.VISIBLE
                     binding.commitSection.visibility = View.VISIBLE
+                    binding.authorWarning.visibility = if (hasAuthorInfo()) View.GONE else View.VISIBLE
                     fileChangeAdapter.submitList(allChanges)
                 }
             }
@@ -84,7 +86,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
     private fun updateAuthorUI() {
         val hasAuthor = hasAuthorInfo()
-        binding.authorWarning.visibility = if (hasAuthor) View.GONE else View.VISIBLE
+        val allChanges = viewModel.gitStatus.value.staged + viewModel.gitStatus.value.unstaged + viewModel.gitStatus.value.untracked + viewModel.gitStatus.value.conflicted
+        binding.authorWarning.visibility = if (!hasAuthor && allChanges.isNotEmpty()) View.VISIBLE else View.GONE
         validateCommitButton()
     }
 
