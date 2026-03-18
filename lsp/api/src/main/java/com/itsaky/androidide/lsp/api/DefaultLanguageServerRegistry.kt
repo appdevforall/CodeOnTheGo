@@ -82,20 +82,17 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 
 	override fun destroy() {
 		EventBus.getDefault().unregister(this)
-		lock.readLock().lock()
-		try {
-			for (server in mRegister.values) {
+		val servers = lock.readLock().withLock { mRegister.values.toList() }
+		for (server in servers) {
+			try {
 				server.shutdown()
+			} catch (e: Exception) {
+				sLogger.error("Unable to shut down LSP server {}", server.serverId, e)
 			}
-		} finally {
-			lock.readLock().unlock()
 		}
 
-		lock.writeLock().lock()
-		try {
+		lock.writeLock().withLock {
 			mRegister.clear()
-		} finally {
-			lock.writeLock().unlock()
 		}
 	}
 
@@ -137,12 +134,17 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 	}
 
 	override fun unregister(serverId: String) {
-		lock.writeLock().lock()
+		val registered = lock.writeLock().withLock {
+			mRegister.remove(serverId)
+		}
+
+		checkNotNull(registered) { "No server found for the given server ID" }
+
 		try {
-			val registered = mRegister.remove(serverId)
-			checkNotNull(registered) { "No server found for the given server ID" }
-		} finally {
-			lock.writeLock().unlock()
+			registered.shutdown()
+		} catch (e: Exception) {
+			sLogger.error("Unable to shut down server {}", registered.serverId, e)
+			throw e
 		}
 	}
 

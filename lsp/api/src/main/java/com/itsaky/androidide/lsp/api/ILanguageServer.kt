@@ -80,7 +80,8 @@ interface ILanguageServer {
 	 *
 	 * @param client The debugger client.
 	 */
-	suspend fun connectDebugClient(client: IDebugClient): DebugClientConnectionResult = DebugClientConnectionResult.Success
+	suspend fun connectDebugClient(client: IDebugClient): DebugClientConnectionResult =
+		debugAdapter?.connectDebugClient(client) ?: DebugClientConnectionResult.Success
 
 	/**
 	 * Apply settings to the language server. It's up to the language server how it applies these
