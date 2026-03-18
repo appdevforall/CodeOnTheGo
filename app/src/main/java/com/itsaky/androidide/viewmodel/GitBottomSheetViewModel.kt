@@ -82,7 +82,8 @@ class GitBottomSheetViewModel : ViewModel() {
     fun commitChanges(
         summary: String,
         description: String? = null,
-        selectedPaths: List<String>
+        selectedPaths: List<String>,
+        onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
             try {
@@ -102,6 +103,7 @@ class GitBottomSheetViewModel : ViewModel() {
                 )
 
                 refreshStatus()
+                onSuccess()
             } catch (e: Exception) {
                 log.error("Failed to commit changes", e)
             }

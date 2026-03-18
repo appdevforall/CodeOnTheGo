@@ -109,12 +109,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     summary = summary,
                     description = description,
                     selectedPaths = fileChangeAdapter.selectedFiles.toList()
-                )
-
-                // Clear the inputs on commit attempt
-                binding.commitSummary.text?.clear()
-                binding.commitDescription.text?.clear()
-                fileChangeAdapter.selectedFiles.clear()
+                ) {
+                    // Clear the inputs on successful commit
+                    binding.commitSummary.text?.clear()
+                    binding.commitDescription.text?.clear()
+                    fileChangeAdapter.selectedFiles.clear()
+                }
             }
         }
     }
