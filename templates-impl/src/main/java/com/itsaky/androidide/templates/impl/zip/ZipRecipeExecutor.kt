@@ -86,6 +86,7 @@ class ZipRecipeExecutor(
 
       for (entry in zip.entries()) {
         if (!entry.name.startsWith("$basePath/")) continue
+        if (entry.name == "$basePath/") continue
         if (entry.name.startsWith("$basePath/$META_FOLDER/")) continue
 
         if ((metaJson.parameters?.optional?.language != null) &&
