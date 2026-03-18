@@ -145,7 +145,8 @@ internal class JavaDebugAdapter :
 			args.map { (_, value) -> "$value" }.joinToString(),
 		)
 
-		this._listenerState =
+		_listenerState?.invalidate()
+		_listenerState =
 			ListenerState(
 				client = client,
 				connector = connector,
@@ -170,7 +171,7 @@ internal class JavaDebugAdapter :
 			return failure
 		}
 
-		this.listenerThread =
+		listenerThread =
 			JDWPListenerThread(
 				_listenerState!!,
 				this::onConnectedToVm,
@@ -583,7 +584,7 @@ internal class JavaDebugAdapter :
 	override fun close() {
 		logger.debug("close")
 		try {
-			_listenerState?.stopListening()
+			_listenerState?.invalidate()
 			listenerThread?.interrupt()
 		} catch (err: Throwable) {
 			logger.error("Unable to stop VM connection listener", err)
@@ -628,7 +629,7 @@ internal class JDWPListenerThread(
 
 	override fun run() {
 		logger.debug("run::start")
-		if (!listenerState.isListening) {
+		if (!listenerState.isListening && !listenerState.isInvalidated) {
 			logger.warn("Listener should've been listening at this point, but it's not. " +
 					"Trying to start listening...")
 			listenerState.startListening()
