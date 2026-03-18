@@ -37,9 +37,20 @@ class GitAuthorConfig(
 class GitUserName(
     override val key: String = GitPreferences.GIT_USER_NAME,
     override val title: Int = R.string.idepref_git_user_name_title,
-    override val summary: Int? = R.string.idepref_git_user_name_summary,
+    override val summary: Int? = null,
     override val icon: Int? = R.drawable.ic_account
 ) : EditTextPreference() {
+
+    override fun onCreateView(context: android.content.Context): Preference {
+        val pref = super.onCreateView(context)
+        val currentName = GitPreferences.userName
+        if (!currentName.isNullOrBlank()) {
+            pref.summary = currentName
+        } else {
+            pref.summary = context.getString(R.string.idepref_git_user_name_summary)
+        }
+        return pref
+    }
 
     override fun onConfigureTextInput(input: TextInputLayout) {
         input.editText?.setText(GitPreferences.userName)
@@ -47,7 +58,13 @@ class GitUserName(
     }
 
     override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-        GitPreferences.userName = newValue as? String
+        val name = newValue as? String
+        GitPreferences.userName = name
+        if (!name.isNullOrBlank()) {
+            preference.summary = name
+        } else {
+            preference.summary = preference.context.getString(R.string.idepref_git_user_name_summary)
+        }
         return true
     }
 }
@@ -56,9 +73,20 @@ class GitUserName(
 class GitUserEmail(
     override val key: String = GitPreferences.GIT_USER_EMAIL,
     override val title: Int = R.string.idepref_git_user_email_title,
-    override val summary: Int? = R.string.idepref_git_user_email_summary,
+    override val summary: Int? = null,
     override val icon: Int? = R.drawable.ic_email
 ) : EditTextPreference() {
+
+    override fun onCreateView(context: android.content.Context): Preference {
+        val pref = super.onCreateView(context)
+        val currentEmail = GitPreferences.userEmail
+        if (!currentEmail.isNullOrBlank()) {
+            pref.summary = currentEmail
+        } else {
+            pref.summary = context.getString(R.string.idepref_git_user_email_summary)
+        }
+        return pref
+    }
 
     override fun onConfigureTextInput(input: TextInputLayout) {
         input.editText?.setText(GitPreferences.userEmail)
@@ -66,7 +94,13 @@ class GitUserEmail(
     }
 
     override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-        GitPreferences.userEmail = newValue as? String
+        val email = newValue as? String
+        GitPreferences.userEmail = email
+        if (!email.isNullOrBlank()) {
+            preference.summary = email
+        } else {
+            preference.summary = preference.context.getString(R.string.idepref_git_user_email_summary)
+        }
         return true
     }
 }
