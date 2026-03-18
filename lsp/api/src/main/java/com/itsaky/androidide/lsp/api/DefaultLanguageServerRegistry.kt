@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory
 import java.util.Objects
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.withLock
 
 /**
  * Thread-safe implementation of [ILanguageServerRegistry].
@@ -54,26 +55,23 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 	@Throws(Throwable::class)
 	override suspend fun connectDebugClient(client: IDebugClient): Map<String, DebugClientConnectionResult> {
 		Objects.requireNonNull(client)
-		lock.readLock().lock()
-
+		val servers = lock.readLock().withLock {
+			mRegister.values.toList()
+		}
 
 		return buildMap {
-			try {
-				for (server in mRegister.values) {
-					try {
-						this[server.serverId] = server.connectDebugClient(client)
-					} catch (e: Throwable) {
-						sLogger.error(
-							"Unable to connect LSP server '{}' to debug client",
-							server.serverId,
-							e
-						)
+			for (server in servers) {
+				try {
+					this[server.serverId] = server.connectDebugClient(client)
+				} catch (e: Throwable) {
+					sLogger.error(
+						"Unable to connect LSP server '{}' to debug client",
+						server.serverId,
+						e
+					)
 
-						this[server.serverId] = DebugClientConnectionResult.Failure(cause = e)
-					}
+					this[server.serverId] = DebugClientConnectionResult.Failure(cause = e)
 				}
-			} finally {
-				lock.readLock().unlock()
 			}
 		}
 	}
