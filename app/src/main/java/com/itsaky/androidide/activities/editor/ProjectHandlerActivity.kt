@@ -96,6 +96,7 @@ import com.itsaky.androidide.viewmodel.BuildViewModel
 import io.github.rosemoe.sora.text.ICUUtils
 import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -973,6 +974,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val results = try {
 			connectDebugClient(debuggerViewModel.debugClient).values
 		} catch (e: Throwable) {
+			if (e is CancellationException) {
+				throw e
+			}
+
 			Sentry.captureException(e)
 			logger.error("Unable to connect LSP servers with debug client", e)
 			listOf(DebugClientConnectionResult.Failure(cause = e))
