@@ -64,13 +64,13 @@ class FeedbackButtonManager(
     private fun setupLayoutChangeListener(fab: FloatingActionButton) {
         fab.post {
             val parentView = fab.parent as? ViewGroup ?: return@post
-            var lastWidth = parentView.width
-            var lastHeight = parentView.height
 
-            parentView.addOnLayoutChangeListener { _, _, _, right, bottom, _, _, _, _ ->
-                if (right != lastWidth || bottom != lastHeight) {
-                    lastWidth = right
-                    lastHeight = bottom
+            parentView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+                val newWidth = right - left
+                val newHeight = bottom - top
+                val oldWidth = oldRight - oldLeft
+                val oldHeight = oldBottom - oldTop
+                if (newWidth != oldWidth || newHeight != oldHeight) {
                     loadFabPosition()
                 }
             }

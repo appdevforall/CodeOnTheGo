@@ -17,27 +17,34 @@ internal class FabPositionCalculator {
         val bounds = Rect()
         // Get margin from layout params, or use default 16dp if not available
         val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
-        val fabMarginPx = layoutParams?.topMargin?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
+        val defaultMargin = SizeUtils.dp2px(16f)
+
+        val marginStart = layoutParams?.marginStart ?: defaultMargin
+        val marginTop = layoutParams?.topMargin ?: defaultMargin
+        val marginEnd = layoutParams?.marginEnd ?: defaultMargin
+        val marginBottom = layoutParams?.bottomMargin ?: defaultMargin
 
         // Get system window insets (status bar, navigation bar, etc.)
         val insets = ViewCompat.getRootWindowInsets(parentView)
-        val systemBarsInsets = insets?.getInsets(WindowInsetsCompat.Type.systemBars())
-        // Calculate safe minimum Y position
-        // Start with system bars top inset (status bar), add a safety margin
-        val minY = (systemBarsInsets?.top?.toFloat() ?: 0f) + fabMarginPx
+            ?.getInsets(WindowInsetsCompat.Type.systemBars())
+
+        val insetLeft = insets?.left ?: 0
+        val insetTop = insets?.top ?: 0
+        val insetRight = insets?.right ?: 0
+        val insetBottom = insets?.bottom ?: 0
 
         // Calculate safe bounds
-        bounds.left = 0
-        bounds.top = minY.toInt()
-        bounds.right = (parentView.width - fabView.width).coerceAtLeast(0)
-        bounds.bottom = (parentView.height - fabView.height).coerceAtLeast(0)
-
-        return bounds
+        return Rect(
+            insetLeft + marginStart,
+            insetTop + marginTop,
+            (parentView.width - fabView.width - insetRight - marginEnd).coerceAtLeast(insetLeft + marginStart),
+            (parentView.height - fabView.height - insetBottom - marginBottom).coerceAtLeast(insetTop + marginTop)
+        )
     }
 
     /**
      * Validates if the given position is within safe bounds.
-     * If not, returns a safe default position (bottom-left with margins).
+     * If not, clamps it to the nearest valid position within the safe area.
      */
     fun validateAndCorrectPosition(
         x: Float,
@@ -46,24 +53,11 @@ internal class FabPositionCalculator {
         fabView: FloatingActionButton
     ): Pair<Float, Float> {
         val safeBounds = getSafeDraggingBounds(parentView, fabView)
-        // Check if position is within safe bounds
-        val isXValid = x >= safeBounds.left && x <= safeBounds.right
-        val isYValid = y >= safeBounds.top && y <= safeBounds.bottom
 
-        return if (isXValid && isYValid) {
-            // Position is valid, return as-is
-            x to y
-        } else {
-            // Get margins from layout params, or use default 16dp if not available
-            val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
-            val marginStart = layoutParams?.marginStart?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
-            val marginBottom = layoutParams?.bottomMargin?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
+        val correctedX = x.coerceIn(safeBounds.left.toFloat(), safeBounds.right.toFloat())
+        val correctedY = y.coerceIn(safeBounds.top.toFloat(), safeBounds.bottom.toFloat())
 
-            // Position is invalid, return default position (bottom-left)
-            val defaultX = marginStart
-            val defaultY = parentView.height - fabView.height - marginBottom
-            defaultX to defaultY
-        }
+        return correctedX to correctedY
     }
 
     fun toRatio(value: Float, min: Int, availableSpace: Float): Float {

@@ -49,6 +49,7 @@ internal class DraggableTouchListener(
             MotionEvent.ACTION_DOWN -> handleActionDown(fab, event)
             MotionEvent.ACTION_MOVE -> handleActionMove(fab, parentView, event)
             MotionEvent.ACTION_UP -> handleActionUp(fab)
+            MotionEvent.ACTION_CANCEL -> handleActionCancel()
             else -> false
         }
     }
@@ -85,6 +86,12 @@ internal class DraggableTouchListener(
         } else if (!isLongPressed) {
             fab.performClick()
         }
+        return true
+    }
+
+    private fun handleActionCancel(): Boolean {
+        isDragging = false
+        isLongPressed = false
         return true
     }
 
