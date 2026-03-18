@@ -9,7 +9,7 @@ import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.git.core.GitRepository
 import com.itsaky.androidide.git.core.GitRepositoryManager
-import com.itsaky.androidide.git.core.models.GitCommit
+import com.itsaky.androidide.git.core.models.CommitHistoryUiState
 import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.projects.IProjectManager
@@ -29,8 +29,9 @@ class GitBottomSheetViewModel : ViewModel() {
 
     private val _gitStatus = MutableStateFlow(GitStatus.EMPTY)
     val gitStatus: StateFlow<GitStatus> = _gitStatus.asStateFlow()
-    private val _commitHistory = MutableStateFlow(emptyList<GitCommit>())
-    val commitHistory: StateFlow<List<GitCommit>> = _commitHistory.asStateFlow()
+    private val _commitHistory =
+        MutableStateFlow<CommitHistoryUiState>(CommitHistoryUiState.Loading)
+    val commitHistory: StateFlow<CommitHistoryUiState> = _commitHistory.asStateFlow()
 
     var currentRepository: GitRepository? = null
         private set
@@ -110,8 +111,18 @@ class GitBottomSheetViewModel : ViewModel() {
 
     fun getCommitHistoryList() {
         viewModelScope.launch {
-            val history = currentRepository?.getHistory()
-            _commitHistory.value = history ?: emptyList()
+            _commitHistory.value = CommitHistoryUiState.Loading
+            try {
+                val history = currentRepository?.getHistory()
+                if (history.isNullOrEmpty()) {
+                    _commitHistory.value = CommitHistoryUiState.Empty
+                } else {
+                    _commitHistory.value = CommitHistoryUiState.Success(history)
+                }
+            } catch (e: Exception) {
+                log.error("Failed to fetch commit history", e)
+                _commitHistory.value = CommitHistoryUiState.Error(e.message)
+            }
         }
     }
 

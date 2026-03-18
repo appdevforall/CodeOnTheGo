@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
 import com.itsaky.androidide.fragments.git.adapter.GitCommitHistoryAdapter
+import com.itsaky.androidide.git.core.models.CommitHistoryUiState
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -53,14 +54,31 @@ class GitCommitHistoryDialog : DialogFragment() {
         viewModel.getCommitHistoryList()
 
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.commitHistory.collectLatest { history ->
-                if (history.isEmpty()) {
-                    binding.emptyView.visibility = View.VISIBLE
-                    binding.rvCommitHistory.visibility = View.GONE
-                } else {
-                    binding.emptyView.visibility = View.GONE
-                    binding.rvCommitHistory.visibility = View.VISIBLE
-                    commitHistoryAdapter.submitList(history)
+            viewModel.commitHistory.collectLatest { state ->
+                when (state) {
+                    is CommitHistoryUiState.Loading -> {
+                        binding.progressBar.visibility = View.VISIBLE
+                        binding.emptyView.visibility = View.GONE
+                        binding.rvCommitHistory.visibility = View.GONE
+                    }
+                    is CommitHistoryUiState.Empty -> {
+                        binding.progressBar.visibility = View.GONE
+                        binding.emptyView.visibility = View.VISIBLE
+                        binding.emptyView.setText(R.string.no_commit_history)
+                        binding.rvCommitHistory.visibility = View.GONE
+                    }
+                    is CommitHistoryUiState.Error -> {
+                        binding.progressBar.visibility = View.GONE
+                        binding.emptyView.visibility = View.VISIBLE
+                        binding.emptyView.text = state.message ?: getString(R.string.unknown_error)
+                        binding.rvCommitHistory.visibility = View.GONE
+                    }
+                    is CommitHistoryUiState.Success -> {
+                        binding.progressBar.visibility = View.GONE
+                        binding.emptyView.visibility = View.GONE
+                        binding.rvCommitHistory.visibility = View.VISIBLE
+                        commitHistoryAdapter.submitList(state.commits)
+                    }
                 }
             }
         }
