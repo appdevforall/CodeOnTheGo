@@ -4,6 +4,7 @@ import android.system.ErrnoException
 import android.system.OsConstants
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
+import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.RemoteClient
@@ -72,6 +73,9 @@ internal class JavaDebugAdapter :
 				"Listener state is not initialized"
 			}
 
+	override val isReady: Boolean
+		get() = _listenerState?.isListening == true && listenerThread?.run { isAlive && !isInterrupted } == true
+
 	companion object {
 		private val logger = LoggerFactory.getLogger(JavaDebugAdapter::class.java)
 
@@ -88,7 +92,7 @@ internal class JavaDebugAdapter :
 		 * Get the current instance of the [JavaDebugAdapter].
 		 */
 		fun currentInstance(): JavaDebugAdapter? {
-			val lsp = ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
+			val lsp = ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
 			return ((lsp as? JavaLanguageServer?)?.debugAdapter as? JavaDebugAdapter?)
 		}
 
@@ -117,7 +121,7 @@ internal class JavaDebugAdapter :
 
 	fun evalContext() = connVm().evalContext
 
-	override fun connectDebugClient(client: IDebugClient) {
+	override suspend fun connectDebugClient(client: IDebugClient): DebugClientConnectionResult {
 		val listeningConnectors = vmm.listeningConnectors()
 		listeningConnectors.forEach { conn ->
 			logger.info("Listening connector: {}", conn.javaClass.canonicalName)
@@ -127,7 +131,7 @@ internal class JavaDebugAdapter :
 			vmm.listeningConnectors().filterIsInstance<SocketListeningConnector>().firstOrNull()
 		if (connector == null) {
 			logger.error("No listening connectors found, or the connector is not a SocketListeningConnector")
-			return
+			return DebugClientConnectionResult.Failure()
 		}
 
 		val args = connector.defaultArguments()
@@ -147,11 +151,27 @@ internal class JavaDebugAdapter :
 				args = args,
 			)
 
+		val failure = withContext(Dispatchers.IO) {
+			try {
+				logger.debug("startListening")
+				listenerState.startListening()
+				null
+			} catch (e: Throwable) {
+				logger.error("Failed to listen for incoming JDWP connections", e)
+				return@withContext DebugClientConnectionResult.Failure(cause = e)
+			}
+		}
+
+		if (failure != null) {
+			return failure
+		}
+
 		this.listenerThread =
 			JDWPListenerThread(
 				_listenerState!!,
 				this::onConnectedToVm,
 			).also { thread -> thread.start() }
+		return DebugClientConnectionResult.Success
 	}
 
 	@WorkerThread
@@ -605,7 +625,8 @@ internal class JDWPListenerThread(
 	override fun run() {
 		logger.debug("run::start")
 		if (!listenerState.isListening) {
-			logger.debug("startListening")
+			logger.warn("Listener should've been listening at this point, but it's not. " +
+					"Trying to start listening...")
 			listenerState.startListening()
 		}
 
