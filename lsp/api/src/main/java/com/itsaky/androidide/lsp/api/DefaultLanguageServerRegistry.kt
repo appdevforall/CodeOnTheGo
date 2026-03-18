@@ -68,7 +68,7 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 					if (e is CancellationException) {
 						throw e
 					}
-					
+
 					sLogger.error(
 						"Unable to connect LSP server '{}' to debug client",
 						server.serverId,
@@ -115,7 +115,8 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 		val project = event.get(Workspace::class.java) ?: return
 
 		ILogger.ROOT.debug("Dispatching ProjectInitializedEvent to language servers...")
-		for (server in mRegister.values) {
+		val servers = lock.readLock().withLock { mRegister.values.toList() }
+		for (server in servers) {
 			server.setupWithProject(project)
 		}
 	}
