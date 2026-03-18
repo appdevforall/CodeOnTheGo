@@ -21,6 +21,7 @@ import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.ILogger
+import kotlinx.coroutines.CancellationException
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -64,6 +65,10 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 				try {
 					this[server.serverId] = server.connectDebugClient(client)
 				} catch (e: Throwable) {
+					if (e is CancellationException) {
+						throw e
+					}
+					
 					sLogger.error(
 						"Unable to connect LSP server '{}' to debug client",
 						server.serverId,
