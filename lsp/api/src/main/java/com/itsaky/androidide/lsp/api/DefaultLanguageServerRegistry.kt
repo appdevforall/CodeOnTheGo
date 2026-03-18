@@ -20,7 +20,6 @@ import com.itsaky.androidide.eventbus.events.project.ProjectInitializedEvent
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.projects.api.Workspace
-import com.itsaky.androidide.utils.ILogger
 import kotlinx.coroutines.CancellationException
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -114,7 +113,7 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 	fun onProjectInitialized(event: ProjectInitializedEvent) {
 		val project = event.get(Workspace::class.java) ?: return
 
-		ILogger.ROOT.debug("Dispatching ProjectInitializedEvent to language servers...")
+		sLogger.debug("Dispatching ProjectInitializedEvent to language servers...")
 		val servers = lock.readLock().withLock { mRegister.values.toList() }
 		for (server in servers) {
 			server.setupWithProject(project)
@@ -128,9 +127,9 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 
 		lock.writeLock().lock()
 		try {
-			val old = mRegister.put(server.serverId, server)
+			val old = mRegister.putIfAbsent(server.serverId, server)
 			if (old != null) {
-				mRegister[old.serverId] = old
+				sLogger.warn("Attempt to re-register LSP server with ID '{}'", server.serverId)
 			}
 		} finally {
 			lock.writeLock().unlock()
