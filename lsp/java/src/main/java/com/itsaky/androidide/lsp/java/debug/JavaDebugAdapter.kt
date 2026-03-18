@@ -42,6 +42,7 @@ import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.jdi.request.EventRequest
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -157,6 +158,9 @@ internal class JavaDebugAdapter :
 				listenerState.startListening()
 				null
 			} catch (e: Throwable) {
+				if (e is CancellationException) {
+					throw e
+				}
 				logger.error("Failed to listen for incoming JDWP connections", e)
 				return@withContext DebugClientConnectionResult.Failure(cause = e)
 			}
