@@ -86,7 +86,9 @@ class DebugAction(
 			.getServer(JavaLanguageServer.SERVER_ID)
 		if (javaLsp?.debugAdapter?.isReady != true
 		) {
-			showDebuggerNotReadyMessage(activity)
+			withContext(Dispatchers.Main.immediate) {
+				showDebuggerNotReadyMessage(activity)
+			}
 			return false
 		}
 
