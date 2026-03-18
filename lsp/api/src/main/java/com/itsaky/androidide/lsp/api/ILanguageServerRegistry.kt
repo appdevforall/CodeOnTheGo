@@ -69,15 +69,12 @@ abstract class ILanguageServerRegistry {
 	abstract fun getServer(serverId: String): ILanguageServer?
 
 	companion object {
-		private var sRegistry: ILanguageServerRegistry? = null
 
-		val default: ILanguageServerRegistry
-			get() {
-				if (sRegistry == null) {
-					sRegistry = DefaultLanguageServerRegistry()
-				}
-
-				return sRegistry!!
-			}
+		/**
+		 * The default implementation of [ILanguageServerRegistry].
+		 */
+		val default: ILanguageServerRegistry by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+			DefaultLanguageServerRegistry()
+		}
 	}
 }
