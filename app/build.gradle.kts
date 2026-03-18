@@ -168,6 +168,10 @@ android {
 	}
 }
 
+sentry {
+      includeProguardMapping = false
+}
+
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
 
 desugaring {

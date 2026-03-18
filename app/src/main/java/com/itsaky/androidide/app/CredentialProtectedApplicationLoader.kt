@@ -73,6 +73,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		Environment.init(app)
 
 		FeatureFlags.initialize()
+		LeakCanaryConfig.applyFromFeatureFlags()
 
 		EventBus.getDefault().register(this)
 
