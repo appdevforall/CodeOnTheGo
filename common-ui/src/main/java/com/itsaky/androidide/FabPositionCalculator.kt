@@ -1,6 +1,7 @@
 package com.itsaky.androidide
 
 import android.graphics.Rect
+import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -14,17 +15,9 @@ internal class FabPositionCalculator {
      * Returns a Rect with the safe dragging area (left, top, right, bottom).
      */
     fun getSafeDraggingBounds(parentView: ViewGroup, fabView: FloatingActionButton): Rect {
-        val bounds = Rect()
-        // Get margin from layout params, or use default 16dp if not available
-        val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
         val defaultMargin = SizeUtils.dp2px(16f)
+        val margins = resolvePhysicalMargins(parentView, fabView, defaultMargin)
 
-        val marginStart = layoutParams?.marginStart ?: defaultMargin
-        val marginTop = layoutParams?.topMargin ?: defaultMargin
-        val marginEnd = layoutParams?.marginEnd ?: defaultMargin
-        val marginBottom = layoutParams?.bottomMargin ?: defaultMargin
-
-        // Get system window insets (status bar, navigation bar, etc.)
         val insets = ViewCompat.getRootWindowInsets(parentView)
             ?.getInsets(WindowInsetsCompat.Type.systemBars())
 
@@ -33,12 +26,13 @@ internal class FabPositionCalculator {
         val insetRight = insets?.right ?: 0
         val insetBottom = insets?.bottom ?: 0
 
-        // Calculate safe bounds
         return Rect(
-            insetLeft + marginStart,
-            insetTop + marginTop,
-            (parentView.width - fabView.width - insetRight - marginEnd).coerceAtLeast(insetLeft + marginStart),
-            (parentView.height - fabView.height - insetBottom - marginBottom).coerceAtLeast(insetTop + marginTop)
+            insetLeft + margins.left,
+            insetTop + margins.top,
+            (parentView.width - fabView.width - insetRight - margins.right)
+                .coerceAtLeast(insetLeft + margins.left),
+            (parentView.height - fabView.height - insetBottom - margins.bottom)
+                .coerceAtLeast(insetTop + margins.top)
         )
     }
 
@@ -61,18 +55,54 @@ internal class FabPositionCalculator {
     }
 
     fun toRatio(value: Float, min: Int, availableSpace: Float): Float {
-        return if (availableSpace > 0f) {
-            ((value - min) / availableSpace).coerceIn(0f, 1f)
-        } else {
-            0f
+        if (availableSpace > 0f) {
+            return ((value - min) / availableSpace).coerceIn(0f, 1f)
         }
+        return 0f
     }
 
     fun fromRatio(ratio: Float, min: Int, availableSpace: Float): Float {
-        return if (availableSpace > 0f) {
-            min + (availableSpace * ratio.coerceIn(0f, 1f))
-        } else {
-            min.toFloat()
+        if (availableSpace > 0f) {
+            return min + (availableSpace * ratio.coerceIn(0f, 1f))
         }
+        return min.toFloat()
     }
+
+    private fun resolvePhysicalMargins(
+        parentView: ViewGroup,
+        fabView: FloatingActionButton,
+        defaultMargin: Int
+    ): PhysicalMargins {
+        val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
+            ?: return PhysicalMargins(
+                left = defaultMargin,
+                top = defaultMargin,
+                right = defaultMargin,
+                bottom = defaultMargin
+            )
+
+        val isRtl = parentView.layoutDirection == View.LAYOUT_DIRECTION_RTL
+        val start = layoutParams.marginStart.takeIf { it >= 0 }
+        val end = layoutParams.marginEnd.takeIf { it >= 0 }
+
+        val (resolvedLeft, resolvedRight) = if (isRtl) {
+            end to start
+        } else {
+            start to end
+        }
+
+        return PhysicalMargins(
+            left = resolvedLeft ?: layoutParams.leftMargin,
+            top = layoutParams.topMargin,
+            right = resolvedRight ?: layoutParams.rightMargin,
+            bottom = layoutParams.bottomMargin
+        )
+    }
+
+    private data class PhysicalMargins(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int
+    )
 }
