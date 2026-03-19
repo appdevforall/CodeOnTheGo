@@ -53,6 +53,10 @@ android {
         jvmTarget = "$JAVA_TARGET_VERSION"
     }
 
+    aaptOptions {
+        additionalParameters("--package-id", "0x71", "--allow-reserved-package-id")
+    }
+
     packaging {
         resources {
             excludes += setOf(

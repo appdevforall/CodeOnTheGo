@@ -320,8 +320,13 @@ class PluginManager private constructor(
             }
 
             if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
-                logger.warn("Plugin ${manifest.id} bundles native libs without native.code permission — native libs will not be loaded")
-                nativeLibPath = null
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(SecurityException(
+                    "Plugin '${manifest.name}' bundles native libraries but does not declare " +
+                    "'native.code' permission. Add 'native.code' to plugin.permissions in the manifest."
+                ))
             }
 
             val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!, nativeLibPath)

@@ -1,8 +1,10 @@
 package com.itsaky.androidide.plugins.base
 
 import android.content.Context
+import android.content.res.Resources
 import android.view.LayoutInflater
 import com.itsaky.androidide.plugins.ServiceRegistry
+import java.lang.ref.WeakReference
 
 /**
  * Base class for plugin fragments that ensures proper resource context.
@@ -13,11 +15,20 @@ import com.itsaky.androidide.plugins.ServiceRegistry
  */
 object PluginFragmentHelper {
 
-    // Map of plugin IDs to their resource contexts
     private val pluginContexts = mutableMapOf<String, Context>()
-
-    // Map of plugin IDs to their service registries
     private val serviceRegistries = mutableMapOf<String, ServiceRegistry>()
+
+    @Volatile
+    private var activityThemeRef: WeakReference<Resources.Theme>? = null
+
+    @Volatile
+    private var activityContextRef: WeakReference<Context>? = null
+
+    @JvmStatic
+    fun getCurrentActivityTheme(): Resources.Theme? = activityThemeRef?.get()
+
+    @JvmStatic
+    fun getCurrentActivityContext(): Context? = activityContextRef?.get()
 
     /**
      * Register a plugin's resource context.
@@ -82,10 +93,9 @@ object PluginFragmentHelper {
     @JvmStatic
     fun getPluginInflater(pluginId: String, defaultInflater: LayoutInflater): LayoutInflater {
         val pluginContext = getPluginContext(pluginId) ?: return defaultInflater
-
+        activityContextRef = WeakReference(defaultInflater.context)
+        activityThemeRef = WeakReference(defaultInflater.context.theme)
         pluginContext.theme
-
-        val inflater = pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
-        return inflater ?: defaultInflater.cloneInContext(pluginContext)
+        return defaultInflater.cloneInContext(pluginContext)
     }
 }

@@ -4,101 +4,102 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.res.AssetManager
-import android.content.res.Configuration
 import android.content.res.Resources
 import android.content.res.Resources.Theme
-import android.util.AttributeSet
+import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
-import android.view.View
-import androidx.appcompat.app.AppCompatDelegate
+import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 
 class PluginResourceContext(
     baseContext: Context,
-    pluginResources: Resources,
+    private val pluginResources: Resources,
     private val pluginPackageInfo: PackageInfo? = null,
     private val pluginClassLoader: ClassLoader? = null
 ) : ContextThemeWrapper(baseContext, 0) {
 
-    private var pluginResources: Resources = pluginResources
+    companion object {
+        private const val TAG = "PluginResourceContext"
+        private val ADD_ASSET_PATH_METHOD = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
+    }
+
     private var inflater: LayoutInflater? = null
-    private var lastNightMode: Int = -1
     private var pluginTheme: Theme? = null
-    private val hostSourceDir: String? = baseContext.applicationInfo?.sourceDir
+    private var lastActivityTheme: Theme? = null
+    private var addedToAssetManager: AssetManager? = null
+    private var usesCustomPackageId = false
 
     init {
-        val pluginSourceDir = pluginPackageInfo?.applicationInfo?.sourceDir
-        if (pluginSourceDir != null && hostSourceDir != null) {
-            @Suppress("DEPRECATION")
-            this.pluginResources = Resources(
-                createMergedAssetManager(pluginSourceDir),
-                baseContext.resources.displayMetrics,
-                baseContext.resources.configuration
-            )
+        usesCustomPackageId = detectCustomPackageId()
+    }
+
+    private fun detectCustomPackageId(): Boolean {
+        val cl = pluginClassLoader ?: return false
+        val pkg = pluginPackageInfo?.packageName ?: return false
+        try {
+            val rClass = cl.loadClass("$pkg.R")
+            for (inner in rClass.declaredClasses) {
+                for (field in inner.declaredFields) {
+                    if (field.type == Int::class.javaPrimitiveType) {
+                        val id = field.getInt(null)
+                        if (id != 0) return (id ushr 24) != 0x7F
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to detect custom package ID for $pkg", e)
+        }
+        return false
+    }
+
+    private fun ensurePluginPathAdded(assets: AssetManager) {
+        if (addedToAssetManager === assets) return
+        val pluginSourceDir = pluginPackageInfo?.applicationInfo?.sourceDir ?: return
+        try {
+            ADD_ASSET_PATH_METHOD.invoke(assets, pluginSourceDir)
+            addedToAssetManager = assets
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to add plugin asset path", e)
         }
     }
 
     override fun getResources(): Resources {
+        if (!usesCustomPackageId) return pluginResources
+
+        val actCtx = PluginFragmentHelper.getCurrentActivityContext()
+        if (actCtx != null) {
+            ensurePluginPathAdded(actCtx.resources.assets)
+            return actCtx.resources
+        }
         return pluginResources
     }
 
-    override fun getAssets(): AssetManager {
-        return pluginResources.assets
-    }
-
-    private fun createMergedAssetManager(pluginSourceDir: String): AssetManager {
-        @Suppress("DEPRECATION")
-        val assetManager = AssetManager::class.java.getDeclaredConstructor().newInstance()
-        val addAssetPath = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
-        addAssetPath.invoke(assetManager, pluginSourceDir)
-        hostSourceDir?.let { addAssetPath.invoke(assetManager, it) }
-        return assetManager
-    }
-
-    private fun recreatePluginResources(newConfig: Configuration) {
-        val sourceDir = pluginPackageInfo?.applicationInfo?.sourceDir ?: return
-        @Suppress("DEPRECATION")
-        pluginResources = Resources(createMergedAssetManager(sourceDir), baseContext.resources.displayMetrics, newConfig)
-    }
-
-    private fun resolveCurrentNightMode(): Int {
-        return when (AppCompatDelegate.getDefaultNightMode()) {
-            AppCompatDelegate.MODE_NIGHT_YES -> Configuration.UI_MODE_NIGHT_YES
-            AppCompatDelegate.MODE_NIGHT_NO -> Configuration.UI_MODE_NIGHT_NO
-            else -> baseContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        }
-    }
+    override fun getAssets(): AssetManager = getResources().assets
 
     override fun getTheme(): Theme {
-        val currentNightMode = resolveCurrentNightMode()
+        if (!usesCustomPackageId) return baseContext.theme
 
-        if (currentNightMode != lastNightMode || pluginTheme == null) {
-            lastNightMode = currentNightMode
-            val correctedConfig = Configuration(baseContext.resources.configuration).apply {
-                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or currentNightMode
-            }
-            recreatePluginResources(correctedConfig)
-            inflater = null
+        val actCtx = PluginFragmentHelper.getCurrentActivityContext()
+        val actTheme = PluginFragmentHelper.getCurrentActivityTheme()
+        if (actCtx != null && actTheme != null) {
+            ensurePluginPathAdded(actCtx.resources.assets)
+            if (pluginTheme == null || lastActivityTheme !== actTheme) {
+                lastActivityTheme = actTheme
+                inflater = null
 
-            val pluginThemeResId = pluginResources.getIdentifier(
-                "PluginTheme",
-                "style",
-                pluginPackageInfo?.packageName
-            )
+                val pluginThemeResId = actCtx.resources.getIdentifier(
+                    "PluginTheme", "style", pluginPackageInfo?.packageName
+                )
 
-            val themeResId = if (pluginThemeResId != 0) {
-                pluginThemeResId
-            } else if (currentNightMode == Configuration.UI_MODE_NIGHT_YES) {
-                android.R.style.Theme_Material
-            } else {
-                android.R.style.Theme_Material_Light
-            }
-
-            pluginTheme = pluginResources.newTheme().apply {
-                applyStyle(themeResId, true)
+                pluginTheme = actCtx.resources.newTheme().apply {
+                    setTo(actTheme)
+                    if (pluginThemeResId != 0) {
+                        applyStyle(pluginThemeResId, true)
+                    }
+                }
             }
         }
-        return pluginTheme!!
+        return pluginTheme ?: baseContext.theme
     }
 
     override fun getClassLoader(): ClassLoader {
@@ -106,70 +107,29 @@ class PluginResourceContext(
     }
 
     override fun getPackageName(): String {
-        // Return plugin's package name if available
         return pluginPackageInfo?.packageName ?: super.getPackageName()
     }
 
     override fun getApplicationInfo(): ApplicationInfo {
-        // Return plugin's application info if available
         return pluginPackageInfo?.applicationInfo ?: super.getApplicationInfo()
     }
 
     override fun getSystemService(name: String): Any? {
         if (Context.LAYOUT_INFLATER_SERVICE == name) {
             if (inflater == null) {
-                // Create a custom LayoutInflater that can properly handle system widgets
-                val baseInflater = LayoutInflater.from(baseContext)
-                inflater = object : LayoutInflater(baseInflater, this) {
-                    override fun cloneInContext(newContext: Context): LayoutInflater {
-                        return getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
-                    }
-
-                    override fun onCreateView(name: String, attrs: AttributeSet): View? {
-                        if (name.indexOf('.') == -1) {
-                            try {
-                                val view = createView(name, "android.widget.", attrs)
-                                return view
-                            } catch (e: ClassNotFoundException) {
-                                try {
-                                    val view = createView(name, "android.view.", attrs)
-                                    return view
-                                } catch (e2: ClassNotFoundException) {
-                                    try {
-                                        val view = createView(name, "android.webkit.", attrs)
-                                        return view
-                                    } catch (e3: ClassNotFoundException) {
-                                        // Let parent handle it
-                                    }
-                                }
-                            }
-                        }
-                        return super.onCreateView(name, attrs)
-                    }
-                }
+                inflater = LayoutInflater.from(baseContext).cloneInContext(this)
             }
             return inflater
         }
         return super.getSystemService(name)
     }
 
-    /**
-     * Get the plugin's package info
-     */
-    fun getPluginPackageInfo(): PackageInfo? {
-        return pluginPackageInfo
-    }
+    fun getPluginPackageInfo(): PackageInfo? = pluginPackageInfo
 
-    /**
-     * Helper to get resource ID by name
-     */
     fun getResourceId(name: String, type: String): Int {
-        return pluginResources.getIdentifier(name, type, packageName)
+        return getResources().getIdentifier(name, type, packageName)
     }
 
-    /**
-     * Helper to inflate layout
-     */
     fun inflateLayout(layoutResId: Int, root: android.view.ViewGroup? = null, attachToRoot: Boolean = false): android.view.View {
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         return inflater.inflate(layoutResId, root, attachToRoot)
