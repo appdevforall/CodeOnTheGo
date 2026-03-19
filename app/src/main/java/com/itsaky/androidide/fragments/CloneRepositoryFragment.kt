@@ -5,12 +5,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.FragmentCloneRepositoryBinding
@@ -147,25 +149,34 @@ class CloneRepositoryFragment : BaseFragment() {
 
                         when (state) {
                             is CloneRepoUiState.Idle -> {
-                                cloneButton.isEnabled = state.isCloneButtonEnabled
-                                retryButton.visibility = View.GONE
+                                cloneButton.apply {
+                                    isEnabled = state.isCloneButtonEnabled
+                                    refreshStatus(isForRetry = false)
+                                }
                                 statusText.text = ""
                             }
+
                             is CloneRepoUiState.Cloning -> {
-                                cloneButton.isEnabled = false
-                                retryButton.visibility = View.GONE
+                                cloneButton.apply {
+                                    isEnabled = false
+                                    refreshStatus(isForRetry = false)
+                                }
                                 statusText.text = getString(R.string.cloning_repo)
                             }
+
                             is CloneRepoUiState.Error -> {
-                                cloneButton.isEnabled = true
-                                retryButton.visibility = View.VISIBLE
-                                val statusMessage = state.errorResId?.let { getString(it) } ?: state.errorMessage
+                                cloneButton.apply {
+                                    isEnabled = true
+                                    refreshStatus(isForRetry = true)
+                                }
+                                val statusMessage =
+                                    state.errorResId?.let { getString(it) } ?: state.errorMessage
                                 statusText.text = statusMessage
                             }
+
                             is CloneRepoUiState.Success -> {
                                 cloneButton.isEnabled = true
                                 statusText.text = getString(R.string.clone_successful)
-                                
                                 val destDir = File(state.localPath)
                                 if (destDir.exists()) {
                                     mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
@@ -185,6 +196,14 @@ class CloneRepositoryFragment : BaseFragment() {
                 }
             }
         }
+    }
+
+    private fun MaterialButton.refreshStatus(isForRetry: Boolean) {
+        setIconResource(if (isForRetry) R.drawable.ic_refresh else 0)
+
+        text = context.getString(
+            if (isForRetry) R.string.retry else R.string.download_project
+        )
     }
 
     override fun onDestroyView() {
