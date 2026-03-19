@@ -89,14 +89,16 @@ class GitBottomSheetViewModel : ViewModel() {
             try {
                 if (selectedPaths.isEmpty()) return@launch
 
+                val repository = currentRepository ?: return@launch
+
                 val projectDir = File(IProjectManager.getInstance().projectDirPath)
                 val filesToStage = selectedPaths.map { File(projectDir, it) }
 
-                currentRepository?.stageFiles(filesToStage)
+                repository.stageFiles(filesToStage)
 
                 val message =
                     if (!description.isNullOrBlank()) "$summary\n\n$description" else summary
-                currentRepository?.commit(
+                repository.commit(
                     message = message,
                     authorName = GitPreferences.userName,
                     authorEmail = GitPreferences.userEmail
