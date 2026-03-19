@@ -91,6 +91,14 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	}
 
 	override fun clearOutput() {
+		// This fragment uses `activityViewModels()`, which relies on the fragment being attached.
+		// `clearOutput()` can be triggered from build/service callbacks even after the fragment
+		// has been detached, so we must guard before touching the activity-scoped ViewModel.
+		if (!isAdded || isDetached) {
+			super.clearOutput()
+			return
+		}
+
 		buildOutputViewModel.clear()
 		super.clearOutput()
 	}
