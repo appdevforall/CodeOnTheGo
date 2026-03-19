@@ -93,6 +93,7 @@ object ZipTemplateReader {
             ) {
 
               this.templateNameStr = metaJson.name
+              this.tooltipTag = metaJson.tooltipTag
               this.thumbData = thumbData
 
               this.templateName = 0

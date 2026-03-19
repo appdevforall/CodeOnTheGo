@@ -8,6 +8,7 @@ data class TemplateJson(
   val name: String,
   val description: String?,
   val version: String?,
+  val tooltipTag: String = "",
   val parameters: ParametersJson? = null,
   val system: SystemParametersJson? = null
 )
