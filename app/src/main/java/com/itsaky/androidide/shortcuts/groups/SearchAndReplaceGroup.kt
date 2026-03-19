@@ -17,7 +17,7 @@ internal class SearchAndReplaceGroup : ShortcutGroup {
 				id = ShortcutDefinitionIds.FIND_IN_PROJECT,
 				title = context.getString(R.string.menu_find_project),
 				bindings = listOf(
-					KeyShortcut.ctrl(KeyEvent.KEYCODE_F),
+					KeyShortcut.ctrlShift(KeyEvent.KEYCODE_F),
 				),
 				category = ShortcutCategory.SEARCH_AND_REPLACE,
 				contexts = setOf(
@@ -29,7 +29,7 @@ internal class SearchAndReplaceGroup : ShortcutGroup {
 				id = ShortcutDefinitionIds.FIND_IN_FILE,
 				title = context.getString(R.string.menu_find_file),
 				bindings = listOf(
-					KeyShortcut.ctrlShift(KeyEvent.KEYCODE_F),
+					KeyShortcut.ctrl(KeyEvent.KEYCODE_F),
 				),
 				category = ShortcutCategory.SEARCH_AND_REPLACE,
 				contexts = setOf(
