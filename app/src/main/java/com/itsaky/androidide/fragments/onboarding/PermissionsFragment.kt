@@ -141,8 +141,14 @@ class PermissionsFragment :
 
 	override fun onResume() {
 		super.onResume()
+        (activity as? OnboardingActivity)?.setOnboardingChromeVisible(false)
 		onPermissionsUpdated()
 	}
+
+    override fun onPause() {
+        (activity as? OnboardingActivity)?.setOnboardingChromeVisible(true)
+        super.onPause()
+    }
 
 	private fun observeViewModelState() {
 		viewLifecycleScope.launch {
