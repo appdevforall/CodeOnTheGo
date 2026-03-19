@@ -28,7 +28,7 @@ internal class WindowsAndDisplayGroup : ShortcutGroup {
 				actionId = TerminalSidebarAction.ID,
 			),
 			ShortcutDefinition(
-				id = "${ShortcutDefinitionIds.OPEN_TERMINAL}.main",
+				id = ShortcutDefinitionIds.OPEN_TERMINAL_MAIN,
 				title = context.getString(R.string.shortcut_open_terminal),
 				bindings = listOf(
 					KeyShortcut.ctrlAlt(KeyEvent.KEYCODE_T),
@@ -52,7 +52,7 @@ internal class WindowsAndDisplayGroup : ShortcutGroup {
 				actionId = PreferencesSidebarAction.ID,
 			),
 			ShortcutDefinition(
-				id = "${ShortcutDefinitionIds.OPEN_PREFERENCES}.main",
+				id = ShortcutDefinitionIds.OPEN_PREFERENCES_MAIN,
 				title = context.getString(R.string.shortcut_open_preferences),
 				bindings = listOf(
 					KeyShortcut.ctrl(KeyEvent.KEYCODE_COMMA),
