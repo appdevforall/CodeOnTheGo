@@ -19,7 +19,8 @@ import kotlinx.coroutines.launch
 
 class GitCommitHistoryDialog : DialogFragment() {
 
-    private lateinit var binding: DialogGitCommitHistoryBinding
+    private var _binding: DialogGitCommitHistoryBinding? = null
+    private val binding get() = _binding!!
     private val viewModel: GitBottomSheetViewModel by activityViewModels()
     private lateinit var commitHistoryAdapter: GitCommitHistoryAdapter
 
@@ -33,7 +34,7 @@ class GitCommitHistoryDialog : DialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        binding = DialogGitCommitHistoryBinding.inflate(inflater, container, false)
+        _binding = DialogGitCommitHistoryBinding.inflate(inflater, container, false)
         return binding.root
     }
 
@@ -82,6 +83,11 @@ class GitCommitHistoryDialog : DialogFragment() {
                 }
             }
         }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
 }
