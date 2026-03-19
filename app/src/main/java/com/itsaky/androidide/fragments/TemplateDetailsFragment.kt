@@ -136,9 +136,7 @@ class TemplateDetailsFragment :
                         name = result.data.name,
                         createdAt = now,
                         lastModified = now,
-//                        templateName = getString(template.templateName),
                         templateName = template.templateNameStr,
-//                        language = result.data.language.name
                         language = result.data.language?.name ?: "unknown"
                     )
                 )
