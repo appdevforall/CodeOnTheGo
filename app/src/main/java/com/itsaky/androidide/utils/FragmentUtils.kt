@@ -9,7 +9,7 @@ fun FragmentManager.hasVisibleDialog(): Boolean {
 			return true
 		}
 
-		if (fragment.childFragmentManager.hasVisibleDialog()) {
+		if (fragment.isAdded && fragment.childFragmentManager.hasVisibleDialog()) {
 			return true
 		}
 	}
@@ -24,7 +24,7 @@ fun FragmentManager.dismissTopDialog(): Boolean {
 			return true
 		}
 
-		if (fragment.childFragmentManager.dismissTopDialog()) {
+		if (fragment.isAdded && fragment.childFragmentManager.dismissTopDialog()) {
 			return true
 		}
 	}
