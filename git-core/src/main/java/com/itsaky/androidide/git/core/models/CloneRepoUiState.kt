@@ -14,7 +14,8 @@ sealed interface CloneRepoUiState {
         val url: String,
         val localPath: String,
         val cloneProgress: String = "",
-        val clonePercentage: Int = 0
+        val clonePercentage: Int = 0,
+        val isCancellable: Boolean = false
     ) : CloneRepoUiState
     
     data class Success(

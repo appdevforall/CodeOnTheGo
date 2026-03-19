@@ -131,6 +131,16 @@
             app:layout_constraintTop_toBottomOf="@id/passwordLayout"
             app:layout_goneMarginTop="16dp" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/cancelButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/cancel_clone"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/cloneButton"
+            app:layout_constraintTop_toBottomOf="@id/cloneButton" />
+
         <ProgressBar
             android:id="@+id/progressBar"
             style="?android:attr/progressBarStyleHorizontal"
@@ -139,7 +149,7 @@
             android:layout_marginTop="16dp"
             android:max="100"
             android:visibility="gone"
-            app:layout_constraintTop_toBottomOf="@id/cloneButton" />
+            app:layout_constraintTop_toBottomOf="@id/cancelButton" />
 
         <TextView
             android:id="@+id/progressText"

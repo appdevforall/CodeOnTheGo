@@ -27,6 +27,8 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
     private val _uiState = MutableStateFlow<CloneRepoUiState>(CloneRepoUiState.Idle())
     val uiState: StateFlow<CloneRepoUiState> = _uiState.asStateFlow()
 
+    private var isCloneCancelled = false
+
     fun onInputChanged(url: String, path: String) {
         val currentState = _uiState.value
         if (currentState is CloneRepoUiState.Idle) {
@@ -58,6 +60,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         username: String? = null,
         token: String? = null
     ) {
+        isCloneCancelled = false
         val destDir = File(localPath)
         val isExistingDir = destDir.exists()
         if (isExistingDir && destDir.listFiles()?.isNotEmpty() == true) {
@@ -118,7 +121,9 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
 
                     override fun endTask() {}
 
-                    override fun isCancelled(): Boolean = false
+                    override fun isCancelled(): Boolean {
+                        return isCloneCancelled
+                    }
 
                     override fun showDuration(enabled: Boolean) {}
 
@@ -159,6 +164,17 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 }
             } catch (e: Exception) {
                 // Error handling
+                if (isCloneCancelled) {
+                    _uiState.update {
+                        CloneRepoUiState.Idle(
+                            url = url,
+                            localPath = localPath,
+                            isCloneButtonEnabled = true
+                        )
+                    }
+                    return@launch
+                }
+
                 val isNetworkError = e is TransportException && e.cause is UnknownHostException
                 val isConnectionDrop = e.cause is EOFException || 
                     e.message?.contains("Unexpected end of stream") == true ||
@@ -206,6 +222,10 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 }
             }
         }
+    }
+
+    fun cancelClone() {
+        isCloneCancelled = true
     }
 
 }

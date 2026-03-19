@@ -87,8 +87,8 @@ class CloneRepositoryFragment : BaseFragment() {
                 cloneRepo()
             }
             
-            retryButton.setOnClickListener {
-                cloneRepo()
+            cancelButton.setOnClickListener {
+                viewModel.cancelClone()
             }
             
             exitButton.setOnClickListener {
@@ -146,6 +146,8 @@ class CloneRepositoryFragment : BaseFragment() {
                                 visibility = View.GONE
                             }
                         }
+
+                        cancelButton.visibility = if (state is CloneRepoUiState.Cloning) View. VISIBLE else View.GONE
 
                         when (state) {
                             is CloneRepoUiState.Idle -> {
