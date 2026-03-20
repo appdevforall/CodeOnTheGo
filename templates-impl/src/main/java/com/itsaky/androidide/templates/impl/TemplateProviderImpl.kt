@@ -39,57 +39,55 @@ import java.util.zip.ZipFile
 @AutoService(ITemplateProvider::class)
 class TemplateProviderImpl : ITemplateProvider {
 
-  companion object {
-    private val log = LoggerFactory.getLogger(TemplateProviderImpl::class.java)
-  }
-
-  private val templates = mutableMapOf<String, Template<*>>()
-
-  init {
-    reload()
-  }
-
-  private fun initializeTemplates() {
-    val folder = TEMPLATES_DIR
-    log.debug("Template listing archives in: ${folder.toString()} with extension: ${TEMPLATE_ARCHIVE_EXTENSION}")
-    val list = folder.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION } ?: return
-
-    for (zipFile in list) {
-      log.debug("Template archive: $zipFile")
-      try {
-        val zipTemplates = ZipTemplateReader.read(zipFile) { json, params, path, data, defModule ->
-          ZipRecipeExecutor({ ZipFile(zipFile) }, json, params, path, data, defModule)
-        }
-
-        for (t in zipTemplates) {
-          log.debug("template: $t")
-          templates[t.templateId] = t
-        }
-
-        log.debug("templates: $templates")
-      } catch (e: Exception) {
-        log.error("Failed to load template from archive: $zipFile", e)
-      }
+    companion object {
+        private val log = LoggerFactory.getLogger(TemplateProviderImpl::class.java)
     }
-  }
 
-  override fun getTemplates(): List<Template<*>> {
-    return ImmutableList.copyOf(templates.values)
-  }
+    private val templates = mutableMapOf<String, Template<*>>()
 
-  override fun getTemplate(templateId: String): Template<*>? {
-    return templates[templateId]
-  }
+    init {
+        reload()
+    }
 
-  override fun reload() {
-    release()
-  //  CoroutineScope(Dispatchers.IO).launch {
-      initializeTemplates()
-  //  }
-  }
+    private fun initializeTemplates() {
+        val folder = TEMPLATES_DIR
+        log.debug("Template listing archives in: ${folder.toString()} with extension: ${TEMPLATE_ARCHIVE_EXTENSION}")
+        val list = folder.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION } ?: return
 
-  override fun release() {
-    templates.forEach { it.value.release() }
-    templates.clear()
-  }
+        for (zipFile in list) {
+            log.debug("Template archive: $zipFile")
+            try {
+                val zipTemplates = ZipTemplateReader.read(zipFile) { json, params, path, data, defModule ->
+                    ZipRecipeExecutor({ ZipFile(zipFile) }, json, params, path, data, defModule)
+                }
+
+                for (t in zipTemplates) {
+                    log.debug("template: $t")
+                    templates[t.templateId] = t
+                }
+
+                log.debug("templates: $templates")
+            } catch (e: Exception) {
+                log.error("Failed to load template from archive: $zipFile", e)
+            }
+        }
+    }
+
+    override fun getTemplates(): List<Template<*>> {
+        return ImmutableList.copyOf(templates.values)
+    }
+
+    override fun getTemplate(templateId: String): Template<*>? {
+        return templates[templateId]
+    }
+
+    override fun reload() {
+        release()
+        initializeTemplates()
+    }
+
+    override fun release() {
+        templates.forEach { it.value.release() }
+        templates.clear()
+    }
 }

@@ -163,7 +163,6 @@ class TemplateDetailsFragment :
         template ?: return
 
         binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
-        //binding.title.setText(template.templateName)
         binding.title.text = template.templateNameStr
     }
 }

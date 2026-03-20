@@ -328,97 +328,96 @@ inline fun <R : FileTemplateRecipeResult> baseFile(
  * @param block Function to configure the template.
  */
 inline fun baseZipProject(
-  projectName: StringParameter = projectNameParameter(),
-  packageName: StringParameter = packageNameParameter(),
-  useKts: BooleanParameter = useKtsParameter(),
-  minSdk: EnumParameter<Sdk> = minSdkParameter(),
-  language: EnumParameter<Language> = projectLanguageParameter(),
-  projectVersionData: ProjectVersionData = ProjectVersionData(),
-  isToml: Boolean = false,
-  showUseKts: Boolean = false,
-  showMinSdk: Boolean = true,
-  showLanguage: Boolean = true,
-  crossinline block: ProjectTemplateBuilder.() -> Unit
+    projectName: StringParameter = projectNameParameter(),
+    packageName: StringParameter = packageNameParameter(),
+    useKts: BooleanParameter = useKtsParameter(),
+    minSdk: EnumParameter<Sdk> = minSdkParameter(),
+    language: EnumParameter<Language> = projectLanguageParameter(),
+    projectVersionData: ProjectVersionData = ProjectVersionData(),
+    isToml: Boolean = false,
+    showUseKts: Boolean = false,
+    showMinSdk: Boolean = true,
+    showLanguage: Boolean = true,
+    crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
-  return ProjectTemplateBuilder().apply {
+    return ProjectTemplateBuilder().apply {
 
-    // When project name is changed, change the package name accordingly
-    projectName.observe { name ->
-      val newPackage =
-        AndroidUtils.appNameToPackageName(name.value, packageName.value)
-      packageName.setValue(newPackage)
-    }
+        // When project name is changed, change the package name accordingly
+        projectName.observe { name ->
+            val newPackage = AndroidUtils.appNameToPackageName(name.value, packageName.value)
+            packageName.setValue(newPackage)
+        }
 
-    Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
+        Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
 
-    val saveLocation = stringParameter {
-      name = R.string.wizard_save_location
-      default = Environment.PROJECTS_DIR.absolutePath
-      endIcon = { R.drawable.ic_folder }
-      constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
-      inputType =
-        android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-      imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
-      maxLines = 1
-      tooltipTag = "setup.save.location"
-    }
+        val saveLocation = stringParameter {
+            name = R.string.wizard_save_location
+            default = Environment.PROJECTS_DIR.absolutePath
+            endIcon = { R.drawable.ic_folder }
+            constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
+            inputType =
+            android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            maxLines = 1
+            tooltipTag = "setup.save.location"
+        }
 
-    projectName.doBeforeCreateView {
-      it.setValue(getNewProjectName(saveLocation.value, projectName.value))
-    }
+        projectName.doBeforeCreateView {
+            it.setValue(getNewProjectName(saveLocation.value, projectName.value))
+        }
 
-    widgets(
-      TextFieldWidget(projectName), TextFieldWidget(packageName),
-      TextFieldWidget(saveLocation)
-    )
-
-    if (showLanguage) {
-      widgets(SpinnerWidget(language))
-    }
-
-    if (showMinSdk) {
-      widgets(SpinnerWidget(minSdk))
-    }
-
-    if (showUseKts) {
-      widgets(CheckBoxWidget(useKts))
-    }
-
-    // Setup the required properties before executing the recipe
-    preRecipe = {
-      this@apply._executor = this
-
-      if (!showUseKts) {
-        useKts.setValue(true, notify = false)
-      }
-
-      this@apply._data = ProjectTemplateData(
-        projectName.value,
-        File(saveLocation.value, projectName.value),
-        projectVersionData,
-        language = if (showLanguage) language.value else null,
-        useKts = useKts.value,
-        useToml = isToml
-      )
-
-      if (data.projectDir.exists() && data.projectDir.listFiles()
-          ?.isNotEmpty() == true
-      ) {
-        throw IllegalArgumentException("Project directory already exists")
-      }
-
-      setDefaultModuleData(
-        ModuleTemplateData(
-          ":app", appName = data.name, packageName.value,
-          data.moduleNameToDir(":app"), type = AndroidApp,
-          language = if (showLanguage) language.value else null,
-          minSdk = if (showMinSdk) minSdk.value else null,
-          useKts = data.useKts, useToml = isToml
+        widgets(
+            TextFieldWidget(projectName), TextFieldWidget(packageName),
+            TextFieldWidget(saveLocation)
         )
-      )
-    }
 
-    block()
+        if (showLanguage) {
+            widgets(SpinnerWidget(language))
+        }
 
-  }.build() as ProjectTemplate
+        if (showMinSdk) {
+            widgets(SpinnerWidget(minSdk))
+        }
+
+        if (showUseKts) {
+            widgets(CheckBoxWidget(useKts))
+        }
+
+        // Setup the required properties before executing the recipe
+        preRecipe = {
+            this@apply._executor = this
+
+            if (!showUseKts) {
+                useKts.setValue(true, notify = false)
+            }
+
+            this@apply._data = ProjectTemplateData(
+                projectName.value,
+                File(saveLocation.value, projectName.value),
+                projectVersionData,
+                language = if (showLanguage) language.value else null,
+                useKts = useKts.value,
+                useToml = isToml
+            )
+
+            if (data.projectDir.exists() && data.projectDir.listFiles()
+                ?.isNotEmpty() == true
+            ) {
+                throw IllegalArgumentException("Project directory already exists")
+            }
+
+            setDefaultModuleData(
+                ModuleTemplateData(
+                    ":app", appName = data.name, packageName.value,
+                    data.moduleNameToDir(":app"), type = AndroidApp,
+                    language = if (showLanguage) language.value else null,
+                    minSdk = if (showMinSdk) minSdk.value else null,
+                    useKts = data.useKts, useToml = isToml
+                )
+            )
+        }
+
+        block()
+
+    }.build() as ProjectTemplate
 }

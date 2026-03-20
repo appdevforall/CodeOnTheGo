@@ -80,36 +80,36 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 					}
 				}
 
-        TEMPLATE_CORE_ARCHIVE -> {
-          val assetPath = ToolsManager.getCommonAsset(TEMPLATE_CORE_ARCHIVE_BR)
-          BrotliInputStream(assets.open(assetPath)).use { input ->
-            val destFile = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
-            destFile.outputStream().use { output ->
-              input.copyTo(output)
-            }
-          }
-        }
+                TEMPLATE_CORE_ARCHIVE -> {
+                    val assetPath = ToolsManager.getCommonAsset(TEMPLATE_CORE_ARCHIVE_BR)
+                    BrotliInputStream(assets.open(assetPath)).use { input ->
+                        val destFile = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
 
-        AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+                AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
 					val assetPath =
 						ToolsManager.getCommonAsset("${AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME}.br")
 
 					val result = retryOnceOnNoSuchFile (
 						onFirstFailure = { Files.createDirectories(stagingDir) },
 						onSecondFailure = { e2 ->
-            	throw IOException(
-								context.getString(R.string.terminal_installation_failed_low_storage),
-								e2
-							)
-						}
-					) {
-						withTempZipChannel(
-							stagingDir = stagingDir,
-							prefix = "bootstrap",
-							writeTo = { path -> writeBrotliAssetToPath(context, assetPath, path) },
-							useChannel = { ch -> TerminalInstaller.installIfNeeded(context, ch) }
-						)
-					}
+                            throw IOException(
+                                            context.getString(R.string.terminal_installation_failed_low_storage),
+                                            e2
+                                        )
+                                    }
+                        ) {
+                            withTempZipChannel(
+                                stagingDir = stagingDir,
+                                prefix = "bootstrap",
+                                writeTo = { path -> writeBrotliAssetToPath(context, assetPath, path) },
+                                useChannel = { ch -> TerminalInstaller.installIfNeeded(context, ch) }
+                            )
+					    }
 
 					when (result) {
 						is TerminalInstaller.InstallResult.Success -> {}

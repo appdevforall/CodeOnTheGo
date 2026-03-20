@@ -115,7 +115,7 @@ object AssetsInstallationHelper {
 				GRADLE_API_NAME_JAR_ZIP,
                 LLAMA_AAR,
                 PLUGIN_ARTIFACTS_ZIP,
-        TEMPLATE_CORE_ARCHIVE,
+                TEMPLATE_CORE_ARCHIVE,
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())

@@ -40,5 +40,5 @@ dependencies {
 	api(libs.androidx.appcompat)
 	api(libs.google.material)
 
-  implementation(libs.google.gson)
+    implementation(libs.google.gson)
 }

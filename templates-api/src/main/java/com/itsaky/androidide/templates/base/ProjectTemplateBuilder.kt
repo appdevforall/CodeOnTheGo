@@ -199,7 +199,7 @@ class ProjectTemplateBuilder : ExecutorDataTemplateBuilder<ProjectTemplateRecipe
 			tooltipTag,
 			widgets!!,
 			recipe!!,
-      templateNameStr!!,
-      thumbData!!
+            templateNameStr!!,
+            thumbData!!
 		)
 }

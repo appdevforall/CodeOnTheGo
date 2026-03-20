@@ -27,7 +27,6 @@ import com.google.android.material.shape.CornerFamily
 import com.itsaky.androidide.adapters.TemplateListAdapter.ViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateListItemBinding
 import com.itsaky.androidide.templates.Template
-import org.slf4j.LoggerFactory
 
 /**
  * [RecyclerView.Adapter] for showing templates in a [RecyclerView].
@@ -64,22 +63,23 @@ class TemplateListAdapter(
 		holder: ViewHolder,
 		position: Int,
 	) {
-		holder.binding.apply {
-      val template = templates[position]
+
+        holder.binding.apply {
+            val template = templates[position]
 			if (template == Template.EMPTY) {
 				root.visibility = View.INVISIBLE
 				return@apply
 			}
 
-      templateName.text = template.templateNameStr
-      if (template.thumbData != null) {
-        Glide.with(templateIcon.context)
-          .asBitmap()
-          .load(template.thumbData)
-          .into(templateIcon)
-      } else {
-        templateIcon.setImageResource(template.thumb)
-      }
+            templateName.text = template.templateNameStr
+            if (template.thumbData != null) {
+                Glide.with(templateIcon.context)
+                    .asBitmap()
+                    .load(template.thumbData)
+                    .into(templateIcon)
+            } else {
+                templateIcon.setImageResource(template.thumb)
+            }
 
 			templateIcon.shapeAppearanceModel =
 				templateIcon.shapeAppearanceModel
