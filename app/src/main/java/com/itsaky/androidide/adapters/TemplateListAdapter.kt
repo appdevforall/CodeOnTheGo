@@ -39,9 +39,6 @@ class TemplateListAdapter(
 	private val onClick: ((Template<*>, ViewHolder) -> Unit)? = null,
 	private val onLongClick: ((Template<*>, View) -> Unit)? = null,
 ) : RecyclerView.Adapter<ViewHolder>() {
-  companion object {
-    private val log = LoggerFactory.getLogger(TemplateListAdapter::class.java)
-  }
 
 	private val templates = templates.toMutableList()
 
