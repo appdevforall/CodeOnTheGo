@@ -22,6 +22,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
@@ -66,6 +67,10 @@ import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
+import com.itsaky.androidide.shortcuts.IdeShortcutActions
+import com.itsaky.androidide.shortcuts.ShortcutContext
+import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
+import com.itsaky.androidide.shortcuts.ShortcutManager
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
@@ -85,6 +90,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
+import com.itsaky.androidide.utils.hasVisibleDialog
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -107,6 +113,7 @@ open class EditorHandlerActivity :
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
+	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
 	private fun getTabPositionForFileIndex(fileIndex: Int): Int {
 		val safeContent = contentOrNull ?: return -1
@@ -123,6 +130,24 @@ open class EditorHandlerActivity :
 			tabPos++
 		}
 		return -1
+	}
+
+	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+		return shortcutManager.dispatch(
+			event = event,
+			context = ShortcutContext.EDITOR,
+			focusView = currentFocus,
+			hasModal = supportFragmentManager.hasVisibleDialog(),
+			executionContext = editorShortcutExecutionContext(),
+		) || super.dispatchKeyEvent(event)
+	}
+
+	private fun editorShortcutExecutionContext(): ShortcutExecutionContext {
+		return ShortcutExecutionContext(
+			ideShortcutActions = IdeShortcutActions {
+				createToolbarActionData()
+			},
+		)
 	}
 
 	override fun doOpenFile(
