@@ -273,6 +273,16 @@
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
 
+	<!-- Shortcuts -->
+	<string name="shortcut_close_current_file">Close current file</string>
+	<string name="shortcut_create_project">Create project</string>
+    <string name="shortcut_open_project">Open project</string>
+    <string name="shortcut_clone_repository">Clone repository</string>
+    <string name="shortcut_close_file">Close file</string>
+    <string name="shortcut_open_preferences">Open preferences</string>
+    <string name="shortcut_find_in_project">Find in project</string>
+    <string name="shortcut_open_terminal">Open terminal</string>
+
 	<!-- Code Editor -->
 	<string name="open_with">Open with…</string>
 
