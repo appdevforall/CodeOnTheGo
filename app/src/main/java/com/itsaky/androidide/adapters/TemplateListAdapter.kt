@@ -74,11 +74,8 @@ class TemplateListAdapter(
 				return@apply
 			}
 
-      log.debug("template: $template")
       templateName.text = template.templateNameStr
-      log.debug("text: ${template.templateNameStr} templateName.text: ${templateName.text}")
       if (template.thumbData != null) {
-        log.debug("thumbData is not null")
         Glide.with(templateIcon.context)
           .asBitmap()
           .load(template.thumbData)
