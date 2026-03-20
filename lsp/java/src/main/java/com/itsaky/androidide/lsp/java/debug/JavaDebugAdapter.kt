@@ -131,7 +131,6 @@ internal class JavaDebugAdapter :
 		}
 
 		val args = connector.defaultArguments()
-		args[JdwpOptions.CONNECTOR_LOCAL_ADDR]!!.setValue(JdwpOptions.DEFAULT_JDWP_HOST)
 		args[JdwpOptions.CONNECTOR_PORT]!!.setValue(JdwpOptions.DEFAULT_JDWP_PORT.toString())
 		args[JdwpOptions.CONNECTOR_TIMEOUT]!!.setValue(JdwpOptions.DEFAULT_JDWP_TIMEOUT.inWholeMilliseconds.toString())
 
