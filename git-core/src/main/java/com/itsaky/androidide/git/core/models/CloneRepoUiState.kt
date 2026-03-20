@@ -27,5 +27,6 @@ sealed interface CloneRepoUiState {
         val localPath: String,
         val errorMessage: String? = null,
         @StringRes val errorResId: Int? = null,
+        val canRetry: Boolean = false,
     ) : CloneRepoUiState
 }

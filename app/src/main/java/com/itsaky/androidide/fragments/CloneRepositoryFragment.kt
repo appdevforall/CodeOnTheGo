@@ -169,7 +169,7 @@ class CloneRepositoryFragment : BaseFragment() {
                             is CloneRepoUiState.Error -> {
                                 cloneButton.apply {
                                     isEnabled = true
-                                    refreshStatus(isForRetry = true)
+                                    refreshStatus(isForRetry = state.canRetry)
                                 }
                                 val statusMessage =
                                     state.errorResId?.let { getString(it) } ?: state.errorMessage

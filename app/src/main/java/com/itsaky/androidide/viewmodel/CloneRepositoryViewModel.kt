@@ -79,7 +79,8 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 CloneRepoUiState.Error(
                     url = url,
                     localPath = localPath,
-                    errorResId = R.string.no_internet_connection
+                    errorResId = R.string.no_internet_connection,
+                    canRetry = true
                 )
             }
             return
@@ -195,7 +196,8 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                         url = url,
                         localPath = localPath,
                         errorResId = errorResId,
-                        errorMessage = errorMessage?.let { application.getString(R.string.clone_failed, it) }
+                        errorMessage = errorMessage?.let { application.getString(R.string.clone_failed, it) },
+                        canRetry = true
                     )
                 }
             } finally {
