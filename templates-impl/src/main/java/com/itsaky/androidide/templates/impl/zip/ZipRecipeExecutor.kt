@@ -33,7 +33,6 @@ class ZipRecipeExecutor(
 ) : TemplateRecipe<ProjectTemplateRecipeResult> {
 
   companion object {
-    const val ZIP_SEPARATOR = "/"
     private val log = LoggerFactory.getLogger(ZipRecipeExecutor::class.java)
   }
 
@@ -42,11 +41,6 @@ class ZipRecipeExecutor(
   ): ProjectTemplateRecipeResult {
 
     log.debug("executor called!!")
-
-    //log.debug("params:")
-    //params.forEach { (identifier, param) ->
-    //  log.debug("identifier: $identifier, name=${param.name}, default=${param.default}, value=${param.value}")
-    //}
 
     val projectDir = data.projectDir
     if (projectDir.exists()) {
@@ -78,8 +72,6 @@ class ZipRecipeExecutor(
 
       val (identifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
       log.debug("identifiers warnings: $warnings")
-
-      //log.debug("defModule: $defModule")
 
       val packageName =
         resolveString(metaJson.parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
@@ -259,7 +251,7 @@ class ZipRecipeExecutor(
     entryName: String,
     flags: Map<String, Boolean>
   ): String? {
-    val parts = entryName.split(ZIP_SEPARATOR).filter { it.isNotEmpty() }
+    val parts = entryName.split(File.separator).filter { it.isNotEmpty() }
     if (parts.isEmpty()) return null
 
     val normalizedParts = mutableListOf<String>()
@@ -272,7 +264,7 @@ class ZipRecipeExecutor(
       }
     }
 
-    return normalizedParts.joinToString(ZIP_SEPARATOR)
+    return normalizedParts.joinToString(File.separator)
   }
 
 }
