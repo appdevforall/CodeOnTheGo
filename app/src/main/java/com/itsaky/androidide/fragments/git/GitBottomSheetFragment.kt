@@ -21,6 +21,7 @@ import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
@@ -50,50 +51,41 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         binding.recyclerView.adapter = fileChangeAdapter
 
         viewLifecycleOwner.lifecycleScope.launch {
-            launch {
-                viewModel.isGitRepository.collectLatest { isRepo ->
-                    if (!isRepo) {
-                        binding.apply {
-                            emptyView.visibility = View.VISIBLE
-                            emptyView.text = getString(R.string.not_a_git_repo)
-                            recyclerView.visibility = View.GONE
-                            commitSection.visibility = View.GONE
-                            authorWarning.visibility = View.GONE
-                            commitHistoryButton.visibility = View.GONE
-                        }
-                    } else {
-                        binding.commitHistoryButton.visibility = View.VISIBLE
+            combine(
+                viewModel.isGitRepository,
+                viewModel.gitStatus
+            ) { isRepo, status ->
+                val allChanges = status.staged + status.unstaged + status.untracked + status.conflicted
+
+                when {
+                    !isRepo -> binding.apply {
+                        emptyView.visibility = View.VISIBLE
+                        emptyView.text = getString(R.string.not_a_git_repo)
+                        recyclerView.visibility = View.GONE
+                        commitSection.visibility = View.GONE
+                        authorWarning.visibility = View.GONE
+                        commitHistoryButton.visibility = View.GONE
                     }
-                }
-            }
-            
-            launch {
-                viewModel.gitStatus.collectLatest { status ->
-                    if (!viewModel.isGitRepository.value) return@collectLatest
-
-                    val allChanges =
-                        status.staged + status.unstaged + status.untracked + status.conflicted
-
-                    if (allChanges.isEmpty()) {
-                        binding.apply {
-                            emptyView.visibility = View.VISIBLE
-                            emptyView.text = getString(R.string.no_uncommitted_changes)
-                            recyclerView.visibility = View.GONE
-                            commitSection.visibility = View.GONE
-                            authorWarning.visibility = View.GONE
-                        }
-                    } else {
+                    allChanges.isEmpty() -> binding.apply {
+                        emptyView.visibility = View.VISIBLE
+                        emptyView.text = getString(R.string.no_uncommitted_changes)
+                        recyclerView.visibility = View.GONE
+                        commitSection.visibility = View.GONE
+                        authorWarning.visibility = View.GONE
+                        commitHistoryButton.visibility = View.VISIBLE
+                    }
+                    else -> {
                         binding.apply {
                             emptyView.visibility = View.GONE
                             recyclerView.visibility = View.VISIBLE
                             commitSection.visibility = View.VISIBLE
-                            authorWarning.visibility =
-                                if (hasAuthorInfo()) View.GONE else View.VISIBLE
-                            fileChangeAdapter.submitList(allChanges)
+                            authorWarning.visibility = if (hasAuthorInfo()) View.GONE else View.VISIBLE
+                            commitHistoryButton.visibility = View.VISIBLE
                         }
+                        fileChangeAdapter.submitList(allChanges)
                     }
                 }
-            }
+            }.collectLatest { }
         }
 
         setupCommitUI()
