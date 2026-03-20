@@ -1,6 +1,5 @@
 plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.android.library)
 }
 
 android {
@@ -38,9 +37,9 @@ dependencies {
 
     implementation(libs.koin.android)
 
-    implementation("com.google.ai.edge.litert:litert:1.0.1")
-    implementation("com.google.ai.edge.litert:litert-support:1.0.1")
-    implementation("com.google.ai.edge.litert:litert-gpu:1.0.1")
+    implementation("com.google.ai.edge.litert:litert:1.4.2")
+    implementation("com.google.ai.edge.litert:litert-support-api:1.4.2")
+    implementation("com.google.ai.edge.litert:litert-gpu:1.4.2")
 
     implementation("com.google.mlkit:text-recognition:16.0.1")
 

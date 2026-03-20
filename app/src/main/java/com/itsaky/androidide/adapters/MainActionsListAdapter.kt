@@ -63,7 +63,7 @@ constructor(val actions: List<MainScreenAction> = emptyList()) :
             }
             action.view = button
         }
-        (binding.root as? MaterialButton)?.findViewById<View>(com.google.android.material.R.id.icon)
+        binding.root.findViewById<View>(androidx.appcompat.R.id.icon)
             ?.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         if (binding.root is ViewGroup) {
             for (i in 0 until (binding.root as ViewGroup).childCount) {

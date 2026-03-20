@@ -173,14 +173,13 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 		variant: Variant,
 		variantName: String,
 	) {
-		val flavorName = variant.flavorName!!
 		addProjectArtifactToAssets<AddFileToAssetsTask>(
 			variant = variant,
 			taskName = "copy${variantName}LogSenderAar",
 			projectPath = ":logsender",
-			projectTask = "assemble${flavorName.capitalized()}Release",
+			projectTask = "assembleRelease",
 		) { project ->
-			project.layout.buildDirectory.file("outputs/aar/logsender-$flavorName-release.aar")
+			project.layout.buildDirectory.file("outputs/aar/logsender-release.aar")
 		}
 	}
 

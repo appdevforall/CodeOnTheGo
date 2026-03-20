@@ -1,9 +1,9 @@
 import com.itsaky.androidide.build.config.BuildConfig
+import com.itsaky.androidide.plugins.util.javaexecCompat
 import java.util.zip.ZipFile
 
 plugins {
-    id("com.android.library")
-    id("kotlin-android")
+    alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -96,8 +96,11 @@ val extractComposeClasses by tasks.registering {
     }
 }
 
+fun androidSdkDir(): File =
+	androidComponents.sdkComponents.sdkDirectory.get().asFile
+
 fun resolveD8Jar(): File {
-    val buildToolsDir = File(android.sdkDirectory, "build-tools")
+    val buildToolsDir = File(androidSdkDir(), "build-tools")
     return buildToolsDir.listFiles()
         ?.filter { it.isDirectory }
         ?.sortedByDescending { it.name }
@@ -106,7 +109,7 @@ fun resolveD8Jar(): File {
 }
 
 fun resolveAndroidJar(): File {
-    val platformsDir = File(android.sdkDirectory, "platforms")
+    val platformsDir = File(androidSdkDir(), "platforms")
     return platformsDir.listFiles()
         ?.filter { it.isDirectory }
         ?.sortedByDescending { it.name }
@@ -126,7 +129,7 @@ val compileRuntimeDex by tasks.registering {
             file.extension == "jar" && file.name != "compose-compiler-plugin.jar"
         }?.toList() ?: throw GradleException("No runtime JARs found to compile to DEX")
 
-        project.javaexec {
+        project.javaexecCompat {
             classpath = files(resolveD8Jar())
             mainClass.set("com.android.tools.r8.D8")
             maxHeapSize = "1g"

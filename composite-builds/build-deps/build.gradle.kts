@@ -20,25 +20,24 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-  id("build-logic.root-project")
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.android.library) apply false
-  alias(libs.plugins.kotlin.android) apply false
+	id("build-logic.root-project")
+	alias(libs.plugins.android.application) apply false
+	alias(libs.plugins.android.library) apply false
 }
 
 allprojects {
-  plugins.withId("java-library") {
-    extensions.configure<JavaPluginExtension> {
-      sourceCompatibility = JavaVersion.VERSION_17
-      targetCompatibility = JavaVersion.VERSION_17
-    }
-  }
+	plugins.withId("java-library") {
+		extensions.configure<JavaPluginExtension> {
+			sourceCompatibility = JavaVersion.VERSION_17
+			targetCompatibility = JavaVersion.VERSION_17
+		}
+	}
 
-  plugins.withId("com.android.library") {
-    configureAndroidModule(libs.androidx.libDesugaring)
-  }
+	plugins.withId("com.android.library") {
+		configureAndroidModule(libs.androidx.libDesugaring)
+	}
 
-  tasks.withType<KotlinCompile> {
-    compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
-  }
+	tasks.withType<KotlinCompile> {
+		compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+	}
 }

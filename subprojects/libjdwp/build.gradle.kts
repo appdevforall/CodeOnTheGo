@@ -4,8 +4,7 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.plugins.extension.AssetSource
 
 plugins {
-	id("com.android.library")
-	id("kotlin-android")
+	alias(libs.plugins.android.library)
 	id("com.itsaky.androidide.build.external-assets")
 }
 

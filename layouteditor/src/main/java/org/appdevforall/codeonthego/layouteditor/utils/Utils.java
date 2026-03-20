@@ -65,7 +65,7 @@ public class Utils {
   }
 
   public static int getPrimaryColor(Context context) {
-    return MaterialColors.getColor(context, R.attr.colorPrimary, 0);
+    return MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, 0);
   }
 
   public static int getSecondaryColor(Context context) {

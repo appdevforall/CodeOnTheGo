@@ -18,9 +18,8 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-	id("com.android.library")
-	id("org.jetbrains.kotlin.android")
-	id("kotlin-kapt")
+  alias(libs.plugins.android.library)
+	alias(libs.plugins.legacy.kapt)
 }
 
 android {

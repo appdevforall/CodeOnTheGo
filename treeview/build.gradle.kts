@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-plugins { id("com.android.library") }
+plugins { alias(libs.plugins.android.library) }
 
 android { namespace = "com.unnamed.b.atv" }
 

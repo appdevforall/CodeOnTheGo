@@ -1,10 +1,15 @@
 @file:Suppress("UnstableApiUsage")
 
 import ch.qos.logback.core.util.EnvUtil
+import com.android.build.api.variant.impl.VariantOutputImpl
 import com.itsaky.androidide.build.config.BuildConfig
+import com.itsaky.androidide.build.config.projectVersionCode
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import com.itsaky.androidide.plugins.conf.COTG_FLAVOR_ABIS
+import com.itsaky.androidide.plugins.conf.hasBundledAssets
+import com.itsaky.androidide.plugins.util.execCompat
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -18,6 +23,8 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import java.util.Properties
 import java.util.zip.CRC32
@@ -29,41 +36,9 @@ import kotlin.reflect.jvm.javaMethod
 
 val isWindows = System.getProperty("os.name").lowercase().contains("windows")
 
-fun TaskContainer.registerD8Task(
-	taskName: String,
-	inputJar: File,
-	outputDex: File,
-): org.gradle.api.tasks.TaskProvider<Exec> {
-	val androidSdkDir = android.sdkDirectory.absolutePath
-	val buildToolsVersion = android.buildToolsVersion // Gets the version from your project
-	val d8Executable =
-		File(
-			"$androidSdkDir/build-tools/$buildToolsVersion/" +
-				if (isWindows) "d8.bat" else "d8",
-		)
-
-	if (!d8Executable.exists()) {
-		throw FileNotFoundException("D8 executable not found at: ${d8Executable.absolutePath}")
-	}
-
-	return register<Exec>(taskName) {
-		inputs.file(inputJar)
-		outputs.file(outputDex)
-
-		commandLine(
-			d8Executable.absolutePath,
-			"--release", // Enables optimizations
-			"--output",
-			outputDex.parent, // D8 outputs to a directory
-			inputJar.absolutePath,
-		)
-	}
-}
-
 plugins {
-	id("com.android.application")
-	id("kotlin-android")
-	id("kotlin-kapt")
+	alias(libs.plugins.android.application)
+	alias(libs.plugins.legacy.kapt)
 	id("kotlin-parcelize")
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
@@ -101,6 +76,35 @@ android {
 	defaultConfig {
 		applicationId = BuildConfig.PACKAGE_NAME
 		vectorDrawables.useSupportLibrary = true
+	}
+
+	flavorDimensions += "abi"
+
+	//noinspection ChromeOsAbiSupport
+	productFlavors {
+		create("v7") {
+			dimension = "abi"
+
+			ndk.abiFilters.clear()
+			ndk.abiFilters += "armeabi-v7a"
+		}
+
+		create("v8") {
+			dimension = "abi"
+
+			ndk.abiFilters.clear()
+			ndk.abiFilters += "arm64-v8a"
+		}
+	}
+
+	//noinspection WrongGradleMethod
+	COTG_FLAVOR_ABIS.forEach { (abi, _) ->
+		// the common defaultConfig, not the flavor-specific
+		defaultConfig.buildConfigField(
+			"String",
+			"ABI_${abi.replace('-', '_').uppercase()}",
+			"\"${abi}\"",
+		)
 	}
 
 	signingConfigs {
@@ -148,13 +152,24 @@ android {
 
 	lint {
 		abortOnError = false
-		disable.addAll(arrayOf("VectorPath", "NestedWeights", "ContentDescription", "SmallSp"))
+		disable.addAll(
+			arrayOf(
+				"VectorPath",
+				"NestedWeights",
+				"ContentDescription",
+				"SmallSp",
+			)
+		)
 	}
 
 	packaging {
 		resources {
 			excludes += "META-INF/DEPENDENCIES"
 			excludes += "META-INF/gradle/incremental.annotation.processors"
+			excludes += "META-INF/CHANGES"
+			excludes += "META-INF/README.md"
+			excludes += "META-INF/LICENSE-notice.md"
+			excludes += "com/sun/jna/**"
 
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
@@ -169,22 +184,72 @@ android {
 			pickFirsts += "META-INF/thirdparty-LICENSE"
 			pickFirsts += "META-INF/FastDoubleParser-NOTICE"
 			pickFirsts += "META-INF/thirdparty-NOTICE"
+			pickFirsts += "META-INF/eclipse.inf"
+			pickFirsts += "META-INF/LICENSE.md"
+			pickFirsts += "META-INF/AL2.0"
+			pickFirsts += "META-INF/LGPL2.1"
+			pickFirsts += "META-INF/INDEX.LIST"
+			pickFirsts += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+			pickFirsts += "about_files/LICENSE-2.0.txt"
+			pickFirsts += "plugin.xml"
+			pickFirsts += "plugin.properties"
+			pickFirsts += "about.mappings"
+			pickFirsts += "about.properties"
+			pickFirsts += "about.ini"
+			pickFirsts += "modeling32.png"
 		}
 
 		jniLibs {
-			useLegacyPackaging = false
+			useLegacyPackaging = true
 		}
 	}
+}
 
-	compileOptions {
-		sourceCompatibility = JavaVersion.VERSION_17
-		targetCompatibility = JavaVersion.VERSION_17
-		isCoreLibraryDesugaringEnabled = true
+androidComponents.onVariants { variant ->
+	variant.outputs.forEach { output ->
+		// version code increment
+		// NOTE: use the following lines when using split abis instead of flavor abis - jm 250916
+		// val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
+		// val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 1
+		val verCodeIncrement = when {
+			variant.name.contains("v8", ignoreCase = true) -> COTG_FLAVOR_ABIS["arm64-v8a"]
+			variant.name.contains("v7", ignoreCase = true) -> COTG_FLAVOR_ABIS["armeabi-v7a"]
+			else -> 1
+		} ?: 1
+
+		output.versionCode.set(10 * projectVersionCode + verCodeIncrement)
+
+		val flavorName = variant.flavorName ?: "default"
+		val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
+		val buildTypeName = variant.buildType
+		val newApkName = "CodeOnTheGo-$flavorName-${buildTypeName}$date.apk"
+
+		(output as VariantOutputImpl).outputFileName = newApkName
+	}
+
+	if (hasBundledAssets(variant)) {
+		// include bundled assets in the APK
+		val assetsDir = rootProject.file("assets/release")
+		variant.sources.assets?.apply {
+			val commonAssets = assetsDir.resolve("common")
+			val flavorAssets = assetsDir.resolve(variant.flavorName!!)
+
+			if (!commonAssets.isDirectory) {
+				throw GradleException("${commonAssets.absolutePath} does not exist or is not a directory")
+			}
+
+			if (!flavorAssets.isDirectory) {
+				throw GradleException("${flavorAssets.absolutePath} does not exist or is not a directory")
+			}
+
+			addStaticSourceDirectory(commonAssets.absolutePath)
+			addStaticSourceDirectory(flavorAssets.absolutePath)
+		}
 	}
 }
 
 sentry {
-      includeProguardMapping = false
+	includeProguardMapping = false
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
@@ -431,12 +496,7 @@ fun createAssetsZip(arch: String) {
 	val zipFile = outputDir.resolve("assets-$arch.zip")
 
 	// --- Part 1: Get the classes.jar from our llama-impl AAR ---
-	val llamaAarName =
-		when (arch) {
-			"arm64-v8a" -> "llama-impl-v8-release.aar"
-			"armeabi-v7a" -> "llama-impl-v7-release.aar"
-			else -> throw IllegalArgumentException("Unsupported architecture for Llama AAR: $arch")
-		}
+	val llamaAarName = "llama-impl-release.aar"
 	val originalLlamaAarFile = project.rootDir.resolve("llama-impl/build/outputs/aar/$llamaAarName")
 
 	val tempDir =
@@ -464,8 +524,7 @@ fun createAssetsZip(arch: String) {
 	}
 
 	val llamaImplProject = project.project(":llama-impl")
-	val flavorName = if (arch == "arm64-v8a") "v8" else "v7"
-	val configName = "${flavorName}ReleaseRuntimeClasspath"
+	val configName = "releaseRuntimeClasspath"
 	val runtimeClasspathFiles = llamaImplProject.configurations.getByName(configName).files
 
 	val explodedAarsDir =
@@ -496,8 +555,8 @@ fun createAssetsZip(arch: String) {
 	// --- Part 3: Run D8 with the corrected command-line arguments ---
 	val dexOutputFile = File(tempDir, "classes.dex")
 	project
-		.exec {
-			val androidSdkDir = android.sdkDirectory.absolutePath
+		.execCompat {
+			val androidSdkDir = androidComponents.sdkComponents.sdkDirectory.get().asFile.absolutePath
 			val buildToolsVersion = android.buildToolsVersion
 			val d8Executable =
 				File(
@@ -661,7 +720,7 @@ fun registerBundleLlamaAssetsTask(
 			val brotliAvailable =
 				try {
 					val result =
-						project.exec {
+						project.execCompat {
 							commandLine("brotli", "--version")
 							isIgnoreExitValue = true
 						}
@@ -671,9 +730,10 @@ fun registerBundleLlamaAssetsTask(
 				}
 
 			if (brotliAvailable) {
-				project.exec {
+				project.execCompat {
 					commandLine("brotli", "-f", "-o", destBr.absolutePath, tempAar.absolutePath)
 				}
+
 				project.logger.lifecycle(
 					"Bundled llama AAR compressed to ${
 						destBr.relativeTo(
@@ -681,6 +741,7 @@ fun registerBundleLlamaAssetsTask(
 						)
 					}",
 				)
+
 				destAar.delete()
 			} else {
 				project.logger.warn(
@@ -724,7 +785,7 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 }
 
 tasks.register("assembleV8Assets") {
-	dependsOn(":llama-impl:assembleV8Release", "createPluginArtifactsZip")
+	dependsOn(":llama-impl:assembleRelease", "createPluginArtifactsZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
 	}
@@ -734,7 +795,7 @@ tasks.register("assembleV8Assets") {
 }
 
 tasks.register("assembleV7Assets") {
-	dependsOn(":llama-impl:assembleV7Release", "createPluginArtifactsZip")
+	dependsOn(":llama-impl:assembleRelease", "createPluginArtifactsZip")
 	if (!isCiCd) {
 		dependsOn("assetsDownloadDebug")
 	}
@@ -805,12 +866,16 @@ afterEvaluate {
 	tasks
 		.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }
 		.configureEach {
-			if (!skipLlamaAssets) { dependsOn(bundleLlamaV8Assets) }
+			if (!skipLlamaAssets) {
+				dependsOn(bundleLlamaV8Assets)
+			}
 		}
 	tasks
 		.matching { it.name.contains("V7") && it.name.lowercase().contains("lint") }
 		.configureEach {
-			if (!skipLlamaAssets) { dependsOn(bundleLlamaV7Assets) }
+			if (!skipLlamaAssets) {
+				dependsOn(bundleLlamaV7Assets)
+			}
 		}
 
 	tasks.named("assembleV8Release").configure {
@@ -985,7 +1050,7 @@ fun signApk(apkFile: File) {
 	val keyAlias = signingConfig.keyAlias ?: error("Key alias missing!")
 	val keyPassword = signingConfig.keyPassword ?: error("Key password missing!")
 
-	val androidSdkDir = android.sdkDirectory.absolutePath
+	val androidSdkDir = androidComponents.sdkComponents.sdkDirectory.get().asFile.absolutePath
 	val apkSignerPath: File =
 		File(androidSdkDir, "build-tools")
 			.listFiles()
@@ -1142,7 +1207,7 @@ fun assetsBatch(
 		val tmpDir = File(projectDir, ".tmp/assets")
 		tmpDir.mkdirs()
 		project.logger.lifecycle("Downloading $variant assets → ${tmpDir.absolutePath}")
-		project.exec {
+		project.execCompat {
 			commandLine(
 				"scp",
 				"-r",

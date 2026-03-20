@@ -2,30 +2,24 @@
 
 -dontwarn **
 -dontnote **
--dontobfuscate
 
+# Classes from external libraries/JDK
 -keep class javax.** { *; }
 -keep class jdkx.** { *; }
-
-# keep javac classes
 -keep class openjdk.** { *; }
-
-# Android builder model interfaces
 -keep class com.android.** { *; }
-
-# Tooling API classes
 -keep class com.itsaky.androidide.tooling.** { *; }
-
-# Builder model implementations
 -keep class com.itsaky.androidide.builder.model.** { *; }
-
-# Eclipse
 -keep class org.eclipse.** { *; }
-
-# JAXP
 -keep class jaxp.** { *; }
 -keep class org.w3c.** { *; }
 -keep class org.xml.** { *; }
+-keep class com.sun.tools.jdi.** { *; }
+-keep class com.sun.jdi.** { *; }
+-keep class sun.misc.** { *; }
+
+# HiddenApiBypass
+-keep class org.lsposed.hiddenapibypass.** { *; }
 
 # Services
 -keep @com.google.auto.service.AutoService class ** {
@@ -132,11 +126,4 @@
 -keepattributes SourceFile,LineNumberTable
 -keep class io.sentry.** { *; }
 -dontwarn io.sentry.**
-
-## Prevent R8 from moving what it thinks as unused classes
--dontshrink
-
-## Initial rules to enable when R8 is shrinking to address exceptions
-#-keep class com.sun.tools.jdi.** { *; }
-#-keep class com.sun.jdi.** { *; }
 

@@ -17,7 +17,7 @@
 
 package com.itsaky.androidide.plugins
 
-import com.android.build.gradle.BaseExtension
+import com.android.build.api.dsl.ApplicationExtension
 import com.itsaky.androidide.build.config.KEY_ALIAS
 import com.itsaky.androidide.build.config.KEY_PASS
 import com.itsaky.androidide.build.config.KEY_STORE_PASS
@@ -40,6 +40,11 @@ class SigningConfigPlugin : Plugin<Project> {
 
 	override fun apply(target: Project) {
 		target.run {
+			if (!plugins.hasPlugin("com.android.application")) {
+				logger.warn("{} can only be applied to application projects", SigningConfigPlugin::class.java.simpleName)
+				return
+			}
+
 			if (isFDroidBuild) {
 				logger.warn("!!! Do not apply ${javaClass.simpleName} when building or F-Droid.")
 				return
@@ -49,7 +54,7 @@ class SigningConfigPlugin : Plugin<Project> {
 			downloadSigningKey()
 
 			// Create and apply the signing config
-			extensions.getByType(BaseExtension::class.java).let { extension ->
+			extensions.getByType(ApplicationExtension::class.java).let { extension ->
 				// Keystore credentials
 				val alias = getEnvOrProp(KEY_ALIAS)
 				val storePass = getEnvOrProp(KEY_STORE_PASS)

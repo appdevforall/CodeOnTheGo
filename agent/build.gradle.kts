@@ -1,9 +1,8 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.android.library)
-    id("kotlin-kapt")
+    alias(libs.plugins.legacy.kapt)
     kotlin("plugin.serialization")
 }
 

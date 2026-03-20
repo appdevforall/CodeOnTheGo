@@ -14,8 +14,6 @@ import org.appdevforall.codeonthego.vectormaster.models.GroupModel;
 import org.appdevforall.codeonthego.vectormaster.models.PathModel;
 import org.appdevforall.codeonthego.vectormaster.models.VectorModel;
 import org.appdevforall.codeonthego.vectormaster.utilities.Utils;
-
-import org.appdevforall.codeonthego.vectormaster.DefaultValues;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;

@@ -1,10 +1,12 @@
+import com.itsaky.androidide.build.config.BuildConfig
+
 plugins {
-	id("com.android.library")
-	id("org.jetbrains.kotlin.android")
+  alias(libs.plugins.android.library)
 }
 
 android {
 	namespace = "android.llama.cpp"
+	ndkVersion = BuildConfig.NDK_VERSION
 
 	defaultConfig {
 		minSdk = 33

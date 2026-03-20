@@ -1,8 +1,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-	id("com.android.library")
-	id("kotlin-android")
+	alias(libs.plugins.android.library)
 }
 
 android {
@@ -20,6 +19,7 @@ dependencies {
 
 	api(libs.androidx.appcompat)
 	api(libs.androidx.collection)
+	api(libs.androidx.documentfile)
 	api(libs.androidx.preference)
 	api(libs.androidx.vectors)
 	api(libs.androidx.animated.vectors)

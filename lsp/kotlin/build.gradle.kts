@@ -18,29 +18,33 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-	id("com.android.library")
-	id("kotlin-android")
-	id("kotlin-kapt")
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.legacy.kapt)
 }
 
 android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
-
-	sourceSets {
-		named("main") {
-			resources.srcDir(
-				project(":lsp:kotlin-stdlib-generator")
-					.layout.buildDirectory.dir("generated-resources/stdlib")
-			)
-		}
-	}
 }
 
-afterEvaluate {
-	tasks.matching { it.name.startsWith("process") && it.name.endsWith("JavaRes") }.configureEach {
-		dependsOn(":lsp:kotlin-stdlib-generator:generateStdlibIndex")
-	}
-}
+// This will be removed once we complete K2 compiler integration.
+//androidComponents {
+//	onVariants { variant ->
+//		val stdlibGeneratorProject = project(":lsp:kotlin-stdlib-generator")
+//		variant.sources.resources?.addGeneratedSourceDirectory(
+//			stdlibGeneratorProject.tasks.named("generateStdlibIndex")
+//		) {
+//			stdlibGeneratorProject.objects.directoryProperty().also {
+//				it.set(stdlibGeneratorProject.layout.buildDirectory.dir("generated-resources/stdlib"))
+//			}
+//		}
+//	}
+//}
+//
+//afterEvaluate {
+//	tasks.matching { it.name.startsWith("process") && it.name.endsWith("JavaRes") }.configureEach {
+//		dependsOn(":lsp:kotlin-stdlib-generator:generateStdlibIndex")
+//	}
+//}
 
 kapt {
 	arguments {

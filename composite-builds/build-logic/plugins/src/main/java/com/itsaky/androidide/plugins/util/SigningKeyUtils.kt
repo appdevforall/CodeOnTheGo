@@ -59,7 +59,7 @@ object SigningKeyUtils {
 
 		logger.info("Downloading signing key...")
 		val result =
-			exec {
+			execCompat {
 				var rootGradle: Gradle? = gradle
 				while (rootGradle?.parent != null) {
 					rootGradle = rootGradle.parent
