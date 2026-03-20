@@ -91,7 +91,8 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
             _uiState.update {
                 CloneRepoUiState.Cloning(
                     url = url,
-                    localPath = localPath
+                    localPath = localPath,
+                    statusTextResId = R.string.initialising_clone
                 )
             }
             try {
@@ -147,6 +148,8 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                                 currentState.copy(
                                     cloneProgress = progressMsg,
                                     clonePercentage = percentage,
+                                    isCancellable = true,
+                                    statusTextResId = R.string.cloning_repo
                                 )
                             }
                         }

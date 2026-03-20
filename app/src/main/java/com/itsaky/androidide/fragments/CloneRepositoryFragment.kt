@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -147,7 +146,8 @@ class CloneRepositoryFragment : BaseFragment() {
                             }
                         }
 
-                        cancelButton.visibility = if (state is CloneRepoUiState.Cloning) View. VISIBLE else View.GONE
+                        cancelButton.visibility =
+                            if (state is CloneRepoUiState.Cloning && state.isCancellable) View.VISIBLE else View.GONE
 
                         when (state) {
                             is CloneRepoUiState.Idle -> {
@@ -163,7 +163,8 @@ class CloneRepositoryFragment : BaseFragment() {
                                     isEnabled = false
                                     refreshStatus(isForRetry = false)
                                 }
-                                statusText.text = getString(R.string.cloning_repo)
+                                statusText.text = state.statusTextResId?.let { getString(it) }
+                                    ?: getString(R.string.cloning_repo)
                             }
 
                             is CloneRepoUiState.Error -> {
