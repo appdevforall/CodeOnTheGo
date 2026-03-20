@@ -155,4 +155,26 @@
         android:id="@+id/diagnosticInfo"
         layout="@layout/layout_diagnostic_info" />
 
+    <View
+        android:id="@+id/btn_toggle_top_bar"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/bg_hollow_green_circle"
+        android:visibility="gone"
+        tools:visibility="gone" />
+
+    <View
+        android:id="@+id/btn_toggle_bottom_bar"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/bg_hollow_green_circle"
+        android:visibility="gone"
+        tools:visibility="gone" />
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
