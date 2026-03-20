@@ -3,6 +3,7 @@ package com.itsaky.androidide.utils
 import android.content.ComponentName
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
@@ -57,6 +58,26 @@ object PrivilegedActions {
 				// launch in debug mode,
 				launchCmd.add("-D")
 
+				val jdwpPort = run {
+					var resolvedPort: Int
+					repeat(20) {
+						resolvedPort = JdwpOptions.activeJdwpPort()
+						if (resolvedPort != -1) {
+							return@run resolvedPort
+						}
+						delay(50)
+					}
+					-1
+				}
+
+				if (jdwpPort == -1) {
+					logger.error("Unable to launch application in debug mode. Cannot retrieve active" +
+							" JDWP listen port.")
+					return false
+				}
+
+				logger.info("Using port {} for incoming JDWP connections", jdwpPort)
+
 				// Instead of using ADB to connect to the already-running JDWP server (like Android Studio),
 				// we instruct the system to attach the JDWP agent to process before it's started.
 				// We also provide options to the JDWP agent so that it connects to us on the right
@@ -72,7 +93,7 @@ object PrivilegedActions {
 				// not already available in system's libjdwp.so, we'll have to update this to load
 				// our version of the agent.
 				launchCmd.add("--attach-agent")
-				launchCmd.add("libjdwp.so=${JdwpOptions.JDWP_OPTIONS}")
+				launchCmd.add("libjdwp.so=${JdwpOptions.createJdwpAgentOptions(listenPort = jdwpPort)}")
 			}
 
 			logger.debug("Launching app with command: {}", launchCmd.joinToString(" "))
