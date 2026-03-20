@@ -1189,4 +1189,5 @@
     <string name="git_committing_email">Email - %1$s</string>
     <string name="git_update_config_in_preferences">You can update your git configuration in Preferences.</string>
     <string name="author_not_set">Not set</string>
+    <string name="not_a_git_repo">This project is not a Git repository</string>
 </resources>

@@ -33,6 +33,9 @@ class GitBottomSheetViewModel : ViewModel() {
         MutableStateFlow<CommitHistoryUiState>(CommitHistoryUiState.Loading)
     val commitHistory: StateFlow<CommitHistoryUiState> = _commitHistory.asStateFlow()
 
+    private val _isGitRepository = MutableStateFlow(false)
+    val isGitRepository: StateFlow<Boolean> = _isGitRepository.asStateFlow()
+
     var currentRepository: GitRepository? = null
         private set
 
@@ -52,9 +55,11 @@ class GitBottomSheetViewModel : ViewModel() {
             try {
                 val projectDir = File(IProjectManager.getInstance().projectDirPath)
                 currentRepository = GitRepositoryManager.openRepository(projectDir)
+                _isGitRepository.value = currentRepository != null
                 refreshStatus()
             } catch (e: Exception) {
                 log.error("Failed to initialize repository", e)
+                _isGitRepository.value = false
                 _gitStatus.value = GitStatus.EMPTY
             }
         }
