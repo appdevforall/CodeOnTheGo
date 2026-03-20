@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.ItemGitCommitBinding
 import com.itsaky.androidide.git.core.models.GitCommit
 import java.text.SimpleDateFormat
@@ -37,7 +38,12 @@ class GitCommitHistoryAdapter :
                 tvCommitMessage.text = commit.message
                 tvCommitAuthor.text = commit.authorName
                 tvCommitTime.text = dateFormat.format(Date(commit.timestamp))
-                imgNotPushedCommit.visibility = if (commit.hasBeenPushed) View.GONE else View.VISIBLE
+                imgNotPushedCommit.setImageResource(if (commit.hasBeenPushed) R.drawable.ic_cloud_done else R.drawable.ic_upload)
+                imgNotPushedCommit.contentDescription = if (commit.hasBeenPushed) {
+                    binding.root.context.getString(R.string.commit_pushed)
+                } else {
+                    binding.root.context.getString(R.string.commit_not_pushed)
+                }
             }
         }
     }

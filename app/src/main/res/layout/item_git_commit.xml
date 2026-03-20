@@ -53,9 +53,6 @@
         android:id="@+id/img_not_pushed_commit"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:contentDescription="@string/commit_not_pushed"
-        android:src="@drawable/ic_arrow_up"
-        android:visibility="visible"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
