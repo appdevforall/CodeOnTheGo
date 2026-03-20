@@ -66,7 +66,7 @@ class TemplateListAdapter(
 
         holder.binding.apply {
             val template = templates[position]
-			if (template == Template.EMPTY) {
+            if (template == Template.EMPTY) {
 				root.visibility = View.INVISIBLE
 				return@apply
 			}
