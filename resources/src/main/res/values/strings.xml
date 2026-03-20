@@ -1178,4 +1178,5 @@
     <string name="desc_file_conflicted">Conflicted File</string>
     <string name="cancel_clone">Cancel clone</string>
     <string name="initialising_clone">Initialising clone…</string>
+    <string name="cancelling_clone">Cancelling clone…</string>
 </resources>

@@ -27,6 +27,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
     private val _uiState = MutableStateFlow<CloneRepoUiState>(CloneRepoUiState.Idle())
     val uiState: StateFlow<CloneRepoUiState> = _uiState.asStateFlow()
 
+    @Volatile
     private var isCloneCancelled = false
 
     fun onInputChanged(url: String, path: String) {
@@ -142,15 +143,16 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                             currentTaskTitle
                         }
 
-                        val currentState = _uiState.value
-                        if (currentState is CloneRepoUiState.Cloning) {
-                            _uiState.update {
+                        _uiState.update { currentState ->
+                            if (currentState is CloneRepoUiState.Cloning) {
                                 currentState.copy(
                                     cloneProgress = progressMsg,
                                     clonePercentage = percentage,
                                     isCancellable = true,
-                                    statusTextResId = R.string.cloning_repo
+                                    statusTextResId = if (isCloneCancelled) R.string.cancelling_clone else R.string.cloning_repo
                                 )
+                            } else {
+                                currentState
                             }
                         }
                     }
@@ -231,6 +233,14 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
 
     fun cancelClone() {
         isCloneCancelled = true
+
+        _uiState.update { currentState ->
+            if (currentState is CloneRepoUiState.Cloning) {
+                currentState.copy(statusTextResId = R.string.cancelling_clone)
+            } else {
+                currentState
+            }
+        }
     }
 
 }
