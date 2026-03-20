@@ -18,7 +18,7 @@
 package com.itsaky.androidide.gradle
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOGSENDER_ENABLED
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import org.junit.jupiter.api.Test
 
 /**
@@ -35,7 +35,7 @@ class AndroidIDEPluginTest {
 	fun `test logsender must be enabled if specified explicitly`() {
 		val result =
 			buildProject(configureArgs = {
-				it.add("-P$PROPERTY_LOGSENDER_ENABLED=true")
+				it.add("-P$PROPERTY_LOG_SENDER_ENABLED=true")
 			})
 		assertThat(result.output).doesNotContain("LogSender is disabled")
 	}
@@ -44,7 +44,7 @@ class AndroidIDEPluginTest {
 	fun `test logsender must be disabled if specified explicitly`() {
 		val result =
 			buildProject(configureArgs = {
-				it.add("-P$PROPERTY_LOGSENDER_ENABLED=false")
+				it.add("-P$PROPERTY_LOG_SENDER_ENABLED=false")
 			})
 		assertThat(result.output).contains("LogSender is disabled")
 	}
