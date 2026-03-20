@@ -71,7 +71,7 @@ class ZipRecipeExecutor(
         .build()
 
       val (identifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
-      log.debug("identifiers warnings: $warnings")
+      log.debug("identifiers warnings: ${warnings.joinToString(System.lineSeparator())}")
 
       val packageName =
         resolveString(metaJson.parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
@@ -91,7 +91,6 @@ class ZipRecipeExecutor(
 
         val normalized = filterAndNormalizeZipEntry(entry.name, flags) ?: continue
 
-        // val relativePath = entry.name.removePrefix("$basePath/")
         val relativePath = normalized.removePrefix("$basePath/")
           .replace(packageName.value, defModule.packageName.replace(".", "/"))
 
