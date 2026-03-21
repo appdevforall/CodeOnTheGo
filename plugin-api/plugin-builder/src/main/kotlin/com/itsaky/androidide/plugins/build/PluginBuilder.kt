@@ -1,16 +1,41 @@
 package com.itsaky.androidide.plugins.build
 
+import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 class PluginBuilder : Plugin<Project> {
+
+    companion object {
+        private val TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+        private const val DEFAULT_VERSION = "1.0.0"
+    }
 
     override fun apply(target: Project) {
         val extension = target.extensions.create(
             "pluginBuilder",
             PluginBuilderExtension::class.java
         )
+
+        val androidExtension = target.extensions.getByType(ApplicationExtension::class.java)
+        val componentsExtension = target.extensions.getByType(
+            ApplicationAndroidComponentsExtension::class.java
+        )
+        componentsExtension.onVariants { variant ->
+            val resolvedVersion = if (extension.pluginVersion.isPresent) {
+                extension.pluginVersion.get()
+            } else {
+                val baseVersion = androidExtension.defaultConfig.versionName ?: DEFAULT_VERSION
+                val timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER)
+                "$baseVersion-${variant.name}.$timestamp"
+            }
+            variant.manifestPlaceholders.put("pluginVersion", resolvedVersion)
+            target.logger.lifecycle("PluginBuilder: version resolved to '$resolvedVersion'")
+        }
 
         target.afterEvaluate {
             createDebugTask(target, extension)
