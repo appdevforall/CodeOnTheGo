@@ -1,5 +1,6 @@
 package com.itsaky.androidide.plugins.build
 
+import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import java.io.File
@@ -13,50 +14,50 @@ class PluginBuilder : Plugin<Project> {
         )
 
         target.afterEvaluate {
-            createDebugTask(target, extension)
-            createReleaseTask(target, extension)
+            configurePackageId(target)
+            createAssembleTask(target, extension, "debug")
+            createAssembleTask(target, extension, "release")
         }
     }
 
-    private fun createDebugTask(project: Project, extension: PluginBuilderExtension) {
-        val task = project.tasks.create("assemblePluginDebug")
-        task.group = "build"
-        task.description = "Assembles the debug plugin and creates .cgp file"
-        task.dependsOn("assembleDebug")
+    private fun configurePackageId(project: Project) {
+        val android = project.extensions.findByType(ApplicationExtension::class.java) ?: return
 
-        val pluginName = extension.pluginName.getOrElse(project.name)
-        val apkDir = File(project.buildDir, "outputs/apk/debug")
-        val outputDir = File(project.buildDir, "plugin")
+        val existingParams = android.androidResources.additionalParameters
+        val alreadyConfigured = existingParams.any { it == "--package-id" }
+        if (alreadyConfigured) {
+            project.logger.lifecycle("Plugin package-id already configured manually, skipping auto-assignment")
+            return
+        }
 
-        task.doLast(object : org.gradle.api.Action<org.gradle.api.Task> {
-            override fun execute(t: org.gradle.api.Task) {
-                outputDir.mkdirs()
+        val applicationId = android.defaultConfig.applicationId ?: project.group.toString()
+        val packageId = generatePackageId(applicationId)
+        val packageIdHex = "0x${packageId.toString(16).uppercase().padStart(2, '0')}"
 
-                t.logger.lifecycle("Looking for APK in: ${apkDir.absolutePath}")
+        android.androidResources.additionalParameters(
+            "--package-id", packageIdHex, "--allow-reserved-package-id"
+        )
 
-                val apkFile = apkDir.listFiles()?.firstOrNull { it.extension == "apk" }
-                if (apkFile == null) {
-                    t.logger.warn("No APK found in ${apkDir.absolutePath}")
-                    return
-                }
-
-                val outputFile = File(outputDir, "$pluginName-debug.cgp")
-                apkFile.copyTo(outputFile, overwrite = true)
-                apkFile.delete()
-                t.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")
-            }
-        })
+        project.logger.lifecycle("Auto-assigned plugin package-id: $packageIdHex (from applicationId: $applicationId)")
     }
 
-    private fun createReleaseTask(project: Project, extension: PluginBuilderExtension) {
-        val task = project.tasks.create("assemblePlugin")
+    private fun generatePackageId(applicationId: String): Int {
+        val hash = applicationId.hashCode() and 0x7FFFFFFF
+        return (hash % 0x7D) + 0x02
+    }
+
+    private fun createAssembleTask(project: Project, extension: PluginBuilderExtension, variant: String) {
+        val isDebug = variant == "debug"
+        val taskName = if (isDebug) "assemblePluginDebug" else "assemblePlugin"
+        val task = project.tasks.create(taskName)
         task.group = "build"
-        task.description = "Assembles the release plugin and creates .cgp file"
-        task.dependsOn("assembleRelease")
+        task.description = "Assembles the $variant plugin and creates .cgp file"
+        task.dependsOn("assemble${variant.replaceFirstChar { it.uppercase() }}")
 
         val pluginName = extension.pluginName.getOrElse(project.name)
-        val apkDir = File(project.buildDir, "outputs/apk/release")
-        val outputDir = File(project.buildDir, "plugin")
+        val apkDir = File(project.layout.buildDirectory.asFile.get(), "outputs/apk/$variant")
+        val outputDir = File(project.layout.buildDirectory.asFile.get(), "plugin")
+        val suffix = if (isDebug) "-debug" else ""
 
         task.doLast(object : org.gradle.api.Action<org.gradle.api.Task> {
             override fun execute(t: org.gradle.api.Task) {
@@ -70,7 +71,7 @@ class PluginBuilder : Plugin<Project> {
                     return
                 }
 
-                val outputFile = File(outputDir, "$pluginName.cgp")
+                val outputFile = File(outputDir, "$pluginName$suffix.cgp")
                 apkFile.copyTo(outputFile, overwrite = true)
                 apkFile.delete()
                 t.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")

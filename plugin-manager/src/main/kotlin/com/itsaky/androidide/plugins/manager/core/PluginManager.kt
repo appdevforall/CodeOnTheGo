@@ -695,6 +695,8 @@ class PluginManager private constructor(
     fun setActivityProvider(provider: ActivityProvider?) {
         this.activityProvider = provider
     }
+
+    fun getCurrentActivity(): Activity? = activityProvider?.getCurrentActivity()
     
     /**
      * Set the path validator for validating plugin file access

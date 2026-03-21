@@ -35,9 +35,7 @@ android {
         jvmTarget = "17"
     }
 
-    aaptOptions {
-        additionalParameters("--package-id", "0x71", "--allow-reserved-package-id")
-    }
+
 
     packaging {
         resources {

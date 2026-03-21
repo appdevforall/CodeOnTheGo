@@ -6,10 +6,16 @@ import android.content.pm.PackageInfo
 import android.content.res.AssetManager
 import android.content.res.Resources
 import android.content.res.Resources.Theme
+import android.content.res.loader.ResourcesLoader
+import android.content.res.loader.ResourcesProvider
+import android.os.Build
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
+import com.itsaky.androidide.plugins.manager.core.PluginManager
+import java.io.File
 
 class PluginResourceContext(
     baseContext: Context,
@@ -20,14 +26,18 @@ class PluginResourceContext(
 
     companion object {
         private const val TAG = "PluginResourceContext"
+        private const val PLUGIN_THEME_NAME = "PluginTheme"
         private val ADD_ASSET_PATH_METHOD = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
     }
 
     private var inflater: LayoutInflater? = null
     private var pluginTheme: Theme? = null
     private var lastActivityTheme: Theme? = null
-    private var addedToAssetManager: AssetManager? = null
     private var usesCustomPackageId = false
+    private val pluginSourceDir: String? = pluginPackageInfo?.applicationInfo?.sourceDir
+    private val appThemeResId: Int = pluginPackageInfo?.applicationInfo?.theme ?: 0
+    private var pluginThemeResId: Int = 0
+    private var pluginThemeResIdResolved = false
 
     init {
         usesCustomPackageId = detectCustomPackageId()
@@ -52,26 +62,61 @@ class PluginResourceContext(
         return false
     }
 
-    private fun ensurePluginPathAdded(assets: AssetManager) {
-        if (addedToAssetManager === assets) return
-        val pluginSourceDir = pluginPackageInfo?.applicationInfo?.sourceDir ?: return
+    private var patchedResources: Resources? = null
+    private var cachedLoader: ResourcesLoader? = null
+    private var cachedProvider: ResourcesProvider? = null
+
+    @Suppress("NewApi")
+    private fun ensurePluginResourcesAdded(targetResources: Resources) {
+        if (patchedResources === targetResources) return
+        val sourceDir = pluginSourceDir ?: return
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                if (cachedLoader == null) {
+                    val pfd = ParcelFileDescriptor.open(File(sourceDir), ParcelFileDescriptor.MODE_READ_ONLY)
+                    cachedProvider = ResourcesProvider.loadFromApk(pfd)
+                    pfd.close()
+                    cachedLoader = ResourcesLoader().also { it.addProvider(cachedProvider!!) }
+                }
+                targetResources.addLoaders(cachedLoader!!)
+                patchedResources = targetResources
+                Log.d(TAG, "Added plugin resources via ResourcesLoader for ${pluginPackageInfo?.packageName}")
+            } catch (e: Exception) {
+                Log.e(TAG, "ResourcesLoader failed, falling back to addAssetPath", e)
+                addAssetPathFallback(targetResources.assets, sourceDir)
+                patchedResources = targetResources
+            }
+        } else {
+            addAssetPathFallback(targetResources.assets, sourceDir)
+            patchedResources = targetResources
+        }
+    }
+
+    private fun addAssetPathFallback(assets: AssetManager, pluginSourceDir: String) {
         try {
             ADD_ASSET_PATH_METHOD.invoke(assets, pluginSourceDir)
-            addedToAssetManager = assets
         } catch (e: Exception) {
             Log.e(TAG, "Failed to add plugin asset path", e)
         }
     }
 
+    private fun resolveActivityContextAndTheme(): Pair<Context, Theme>? {
+        val fragmentCtx = PluginFragmentHelper.getCurrentActivityContext()
+        val fragmentTheme = PluginFragmentHelper.getCurrentActivityTheme()
+        if (fragmentCtx != null && fragmentTheme != null) {
+            return fragmentCtx to fragmentTheme
+        }
+        val activity = PluginManager.getInstance()?.getCurrentActivity() ?: return null
+        return activity to activity.theme
+    }
+
     override fun getResources(): Resources {
         if (!usesCustomPackageId) return pluginResources
 
-        val actCtx = PluginFragmentHelper.getCurrentActivityContext()
-        if (actCtx != null) {
-            ensurePluginPathAdded(actCtx.resources.assets)
-            return actCtx.resources
-        }
-        return pluginResources
+        val (actCtx, _) = resolveActivityContextAndTheme() ?: return pluginResources
+        ensurePluginResourcesAdded(actCtx.resources)
+        return actCtx.resources
     }
 
     override fun getAssets(): AssetManager = getResources().assets
@@ -79,23 +124,28 @@ class PluginResourceContext(
     override fun getTheme(): Theme {
         if (!usesCustomPackageId) return baseContext.theme
 
-        val actCtx = PluginFragmentHelper.getCurrentActivityContext()
-        val actTheme = PluginFragmentHelper.getCurrentActivityTheme()
-        if (actCtx != null && actTheme != null) {
-            ensurePluginPathAdded(actCtx.resources.assets)
-            if (pluginTheme == null || lastActivityTheme !== actTheme) {
-                lastActivityTheme = actTheme
-                inflater = null
+        val (actCtx, actTheme) = resolveActivityContextAndTheme() ?: return pluginTheme ?: baseContext.theme
+        ensurePluginResourcesAdded(actCtx.resources)
+        if (pluginTheme == null || lastActivityTheme !== actTheme) {
+            lastActivityTheme = actTheme
+            inflater = null
 
-                val pluginThemeResId = actCtx.resources.getIdentifier(
-                    "PluginTheme", "style", pluginPackageInfo?.packageName
+            if (!pluginThemeResIdResolved) {
+                pluginThemeResId = actCtx.resources.getIdentifier(
+                    PLUGIN_THEME_NAME, "style", pluginPackageInfo?.packageName
                 )
+                pluginThemeResIdResolved = true
+            }
 
-                pluginTheme = actCtx.resources.newTheme().apply {
-                    setTo(actTheme)
-                    if (pluginThemeResId != 0) {
-                        applyStyle(pluginThemeResId, true)
-                    }
+            pluginTheme = actCtx.resources.newTheme().apply {
+                setTo(actTheme)
+
+                if (appThemeResId != 0) {
+                    applyStyle(appThemeResId, false)
+                }
+
+                if (pluginThemeResId != 0) {
+                    applyStyle(pluginThemeResId, true)
                 }
             }
         }
