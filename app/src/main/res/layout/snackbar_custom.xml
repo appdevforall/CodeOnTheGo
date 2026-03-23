@@ -18,8 +18,7 @@
         android:text="@string/msg_action_open_application"
         android:textColor="@android:color/white"
         android:textSize="14sp"
-        android:maxLines="1"
-        android:singleLine="true"
+        android:maxLines="3"
         android:ellipsize="end"/>
 
     <Button

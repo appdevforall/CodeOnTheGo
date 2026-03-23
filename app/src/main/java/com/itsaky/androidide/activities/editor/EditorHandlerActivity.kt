@@ -57,6 +57,9 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
+import com.itsaky.androidide.activities.PluginManagerActivity
+import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
+import com.itsaky.androidide.ui.CustomSnackbar
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
@@ -1095,6 +1098,33 @@ open class EditorHandlerActivity :
 		if (tab.text?.startsWith('*') == true) return
 
 		tab.text = "*${tab.text}"
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPluginCrashed(event: PluginCrashedEvent) {
+		val message = if (event.wasDisabled) {
+			"'${event.pluginName}' disabled after repeated crashes"
+		} else {
+			"'${event.pluginName}' crashed (${event.crashCount}/3)"
+		}
+
+		val snackbar = CustomSnackbar(this, binding.root)
+		if (event.wasDisabled) {
+			snackbar.show(
+				message = message,
+				textFirstAction = "Settings",
+				textSecondaryAction = "Dismiss",
+				actionFirst = {
+					startActivity(Intent(this, PluginManagerActivity::class.java))
+				}
+			)
+		} else {
+			snackbar.show(
+				message = message,
+				textFirstAction = "Dismiss",
+				textSecondaryAction = null
+			)
+		}
 	}
 
 	private fun updateTabs() {

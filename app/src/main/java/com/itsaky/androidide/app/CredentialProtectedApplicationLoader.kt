@@ -11,6 +11,7 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
+import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
@@ -21,6 +22,7 @@ import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.VMUtils
+import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import io.sentry.Sentry
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +33,8 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
+import android.os.Handler
+import android.os.Looper
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
@@ -93,6 +97,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		}
 
 		initializePluginSystem()
+		installPluginCrashLooperGuard()
 
 		app.coroutineScope.launch(Dispatchers.IO) {
 			// color schemes are stored in files
@@ -109,10 +114,24 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		thread: Thread,
 		exception: Throwable,
 	) {
+		val pluginManager = PluginManager.getInstance()
+		val pluginId = runCatching {
+			pluginManager?.let { pm ->
+				pm.crashTracker.findPluginForStackTrace(
+					exception,
+					pm.getLoadedPluginIds()
+				) { pm.getClassLoaderForPluginId(it) }
+			}
+		}.getOrNull()
+
+		if (pluginId != null) {
+			handlePluginCrash(pluginId, exception)
+			return
+		}
+
 		writeException(exception)
 		Sentry.captureException(exception)
 
-		// schedule crash handler activity to be shown
 		runCatching {
 			val intent = Intent()
 			intent.action = CrashHandlerActivity.REPORT_ACTION
@@ -127,12 +146,74 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			logger.error("Unable to start crash handler activity", error)
 		}
 
-		// notify the original exception handler, if any
 		IDEApplication.instance.uncaughtExceptionHandler?.uncaughtException(thread, exception)
 
-		// finally, exit process
 		exitProcess(EXIT_CODE_CRASH)
 	}
+
+	private fun handlePluginCrash(pluginId: String, exception: Throwable) {
+		runCatching {
+			writeException(exception)
+
+			Sentry.configureScope { scope ->
+				scope.setTag("plugin_crash", "true")
+				scope.setTag("plugin_id", pluginId)
+			}
+			Sentry.captureException(exception)
+
+			val pluginManager = PluginManager.getInstance() ?: return
+			val result = pluginManager.recordPluginCrash(pluginId)
+
+			val name = when (result) {
+				is PluginManager.CrashResult.Disabled -> result.pluginName
+				is PluginManager.CrashResult.Recorded -> pluginId
+			}
+			val wasDisabled = result is PluginManager.CrashResult.Disabled
+			val crashCount = when (result) {
+				is PluginManager.CrashResult.Recorded -> result.crashCount
+				is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
+			}
+
+			EventBus.getDefault().post(PluginCrashedEvent(pluginId, name, crashCount, wasDisabled))
+			logger.warn("Plugin crash handled without killing process: {} (disabled={})", pluginId, wasDisabled)
+		}.onFailure { e ->
+			logger.error("Failed to handle plugin crash gracefully for: {}", pluginId, e)
+		}
+	}
+
+	private var lastPluginCrashTime = 0L
+
+	private fun installPluginCrashLooperGuard() {
+		Handler(Looper.getMainLooper()).post {
+			while (true) {
+				try {
+					Looper.loop()
+					break
+				} catch (e: Throwable) {
+					val pluginId = runCatching {
+						PluginManager.getInstance()?.let { pm ->
+							pm.crashTracker.findPluginForStackTrace(
+								e, pm.getLoadedPluginIds()
+							) { pm.getClassLoaderForPluginId(it) }
+						}
+					}.getOrNull()
+
+					if (pluginId != null) {
+						lastPluginCrashTime = System.currentTimeMillis()
+						handlePluginCrash(pluginId, e)
+					} else if (System.currentTimeMillis() - lastPluginCrashTime < COLLATERAL_CRASH_WINDOW_MS) {
+						logger.warn("Suppressing collateral crash after recent plugin crash: {}", e.message)
+					} else {
+						handleUncaughtException(Thread.currentThread(), e)
+						break
+					}
+				}
+			}
+		}
+		logger.info("Plugin crash Looper guard installed on main thread")
+	}
+
+	private const val COLLATERAL_CRASH_WINDOW_MS = 3000L
 
 	private fun writeException(throwable: Throwable?) =
 		runCatching {
@@ -209,6 +290,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 			// Set up plugin service providers
 			setupPluginServices()
+			setupPluginInflationErrorHandler()
 
 			// Load plugins asynchronously
 			GlobalScope.launch {
@@ -232,6 +314,26 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		pluginManager?.let { manager ->
 			manager.setActivityProvider { application.foregroundActivity }
 			logger.info("Plugin services configured successfully")
+		}
+	}
+
+	private fun setupPluginInflationErrorHandler() {
+		PluginFragmentHelper.onPluginInflationError = { pluginId, error ->
+			logger.error("Plugin layout inflation failed for: {}", pluginId, error)
+			runCatching {
+				val pm = PluginManager.getInstance() ?: return@runCatching
+				val result = pm.recordPluginCrash(pluginId)
+				val name = when (result) {
+					is PluginManager.CrashResult.Disabled -> result.pluginName
+					is PluginManager.CrashResult.Recorded -> pluginId
+				}
+				val wasDisabled = result is PluginManager.CrashResult.Disabled
+				val crashCount = when (result) {
+					is PluginManager.CrashResult.Recorded -> result.crashCount
+					is PluginManager.CrashResult.Disabled -> pm.crashTracker.getCrashCount(pluginId)
+				}
+				EventBus.getDefault().post(PluginCrashedEvent(pluginId, name, crashCount, wasDisabled))
+			}
 		}
 	}
 

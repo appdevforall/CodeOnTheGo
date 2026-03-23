@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.annotation.IdRes
 import androidx.core.view.forEach
@@ -51,6 +52,8 @@ import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.actions.PluginSidebarActionItem
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
+import org.greenrobot.eventbus.EventBus
 import java.lang.ref.WeakReference
 
 /**
@@ -241,21 +244,37 @@ internal object EditorSidebarActions {
             .filterIsInstance<UIExtension>()
             .forEach { plugin ->
                 val pluginId = pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
-                val declaredSlots = SidebarSlotManager.getDeclaredSlots(pluginId ?: "")
-                val sideMenuItems = plugin.getSideMenuItems()
+                    ?: return@forEach
 
-                if (sideMenuItems.isEmpty()) return@forEach
+                try {
+                    val declaredSlots = SidebarSlotManager.getDeclaredSlots(pluginId)
+                    val sideMenuItems = plugin.getSideMenuItems()
 
-                if (sideMenuItems.size > declaredSlots) {
-                    throw IllegalStateException(
-                        "Plugin '$pluginId' returned ${sideMenuItems.size} sidebar items " +
-                        "but only declared $declaredSlots in manifest"
-                    )
-                }
+                    if (sideMenuItems.isEmpty()) return@forEach
 
-                sideMenuItems.forEach { navItem ->
-                    val action = PluginSidebarActionItem(context, navItem, order++, pluginId ?: "")
-                    registry.registerAction(action)
+                    if (sideMenuItems.size > declaredSlots) {
+                        Log.w("EditorSidebarActions",
+                            "Plugin '$pluginId' returned ${sideMenuItems.size} sidebar items " +
+                            "but only declared $declaredSlots in manifest — skipping"
+                        )
+                        return@forEach
+                    }
+
+                    sideMenuItems.forEach { navItem ->
+                        val action = PluginSidebarActionItem(context, navItem, order++, pluginId)
+                        registry.registerAction(action)
+                    }
+                } catch (e: Throwable) {
+                    Log.e("EditorSidebarActions", "Plugin '$pluginId' crashed in getSideMenuItems()", e)
+                    val result = pluginManager.recordPluginCrash(pluginId)
+                    val name = (result as? PluginManager.CrashResult.Disabled)?.pluginName
+                        ?: pluginId
+                    val wasDisabled = result is PluginManager.CrashResult.Disabled
+                    val crashCount = when (result) {
+                        is PluginManager.CrashResult.Recorded -> result.crashCount
+                        is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
+                    }
+                    EventBus.getDefault().post(PluginCrashedEvent(pluginId, name, crashCount, wasDisabled))
                 }
             }
     }

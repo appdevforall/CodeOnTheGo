@@ -187,6 +187,7 @@ class PluginManager private constructor(
     private val documentationManager = PluginDocumentationManager(context)
     private var templateReloadListener: (() -> Unit)? = null
     private var snippetRefreshListener: ((String) -> Unit)? = null
+    val crashTracker = PluginCrashTracker(context, logger)
 
     fun setTemplateReloadListener(listener: (() -> Unit)?) {
         this.templateReloadListener = listener
@@ -631,8 +632,12 @@ class PluginManager private constructor(
                 templateService.cleanupAllTemplates()
             }
 
-            loadedPlugin.plugin.deactivate()
-            loadedPlugin.plugin.dispose()
+            runCatching { loadedPlugin.plugin.deactivate() }.onFailure { e ->
+                logger.error("Plugin deactivate threw during unload: $pluginId", e)
+            }
+            runCatching { loadedPlugin.plugin.dispose() }.onFailure { e ->
+                logger.error("Plugin dispose threw during unload: $pluginId", e)
+            }
 
             val themeService = loadedPlugin.context.services.get(IdeThemeService::class.java)
             if (themeService is IdeThemeServiceImpl) {
@@ -728,6 +733,7 @@ class PluginManager private constructor(
         // Remove plugin state and cleanup contributions
         if (deleted) {
             removePluginState(pluginId)
+            crashTracker.removeCrashCount(pluginId)
             cleanupPluginCacheFiles(pluginId)
             logger.info("Plugin uninstall completed successfully: $pluginId")
         } else {
@@ -844,7 +850,7 @@ class PluginManager private constructor(
             loadedPlugin.plugin.activate()
             loadedPlugin.isEnabled = true
             savePluginState(pluginId, true)
-
+            crashTracker.resetCrashCount(pluginId)
             logger.info("Enabled plugin: $pluginId")
             true
         } catch (e: Exception) {
@@ -873,7 +879,32 @@ class PluginManager private constructor(
             false
         }
     }
-    
+
+    fun forceDisablePlugin(pluginId: String) {
+        val loadedPlugin = loadedPlugins[pluginId] ?: return
+        loadedPlugin.isEnabled = false
+        savePluginState(pluginId, false)
+        logger.warn("Force-disabled plugin due to crashes: $pluginId")
+    }
+
+    sealed class CrashResult {
+        data class Recorded(val pluginId: String, val crashCount: Int) : CrashResult()
+        data class Disabled(val pluginId: String, val pluginName: String) : CrashResult()
+    }
+
+    fun recordPluginCrash(pluginId: String): CrashResult {
+        val count = crashTracker.recordCrash(pluginId)
+        return if (crashTracker.shouldDisable(pluginId)) {
+            forceDisablePlugin(pluginId)
+            val name = loadedPlugins[pluginId]?.manifest?.name ?: pluginId
+            CrashResult.Disabled(pluginId, name)
+        } else {
+            CrashResult.Recorded(pluginId, count)
+        }
+    }
+
+    fun getLoadedPluginIds(): Set<String> = loadedPlugins.keys.toSet()
+
     fun getServiceRegistry(): ServiceRegistry = serviceRegistry
     
     /**

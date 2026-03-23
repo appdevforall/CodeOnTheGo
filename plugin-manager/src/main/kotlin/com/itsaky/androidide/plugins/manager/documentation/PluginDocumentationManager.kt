@@ -124,7 +124,9 @@ class PluginDocumentationManager(private val context: Context) {
         plugin: DocumentationExtension? = null
     ): Boolean = withContext(Dispatchers.IO) {
 
-        plugin?.onDocumentationUninstall()
+        runCatching { plugin?.onDocumentationUninstall() }.onFailure { e ->
+            Log.e(TAG, "Plugin onDocumentationUninstall() threw during removal: $pluginId", e)
+        }
 
         val db = getPluginDatabase()
         if (db == null) {
