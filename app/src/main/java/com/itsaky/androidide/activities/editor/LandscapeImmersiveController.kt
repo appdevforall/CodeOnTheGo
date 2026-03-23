@@ -131,6 +131,12 @@ class LandscapeImmersiveController(
         cancelBottomSheetAnimation()
     }
 
+    fun onResume() {
+        if (isLandscape && isTopBarRequestedVisible && !isUserInteractingWithTopBar) {
+            scheduleTopBarAutoHide()
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     fun destroy() {
         onPause()
@@ -166,7 +172,7 @@ class LandscapeImmersiveController(
 
         bottomToggle.setOnClickListener {
             if (!isLandscape) return@setOnClickListener
-            if (isBottomBarShown) hideBottomBar() else showBottomBar()
+            if (isBottomBarShown) hideBottomBar() else showBottomBar(expandHalfWay = true)
         }
     }
 
@@ -260,13 +266,17 @@ class LandscapeImmersiveController(
         autoHideJob = null
     }
 
-    private fun showBottomBar(animate: Boolean = true) {
+    private fun showBottomBar(animate: Boolean = true, expandHalfWay: Boolean = false) {
         isBottomBarRequestedVisible = true
         isBottomBarShown = true
         isPendingBottomBarHideAfterCollapse = false
 
         updateEditorBottomInset()
-        ensureBottomSheetCollapsed()
+
+        if (expandHalfWay) {
+            bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
+        } else { ensureBottomSheetCollapsed() }
+
         animateBottomSheetTranslation(to = 0f, animate = animate)
     }
 

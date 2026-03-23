@@ -165,25 +165,33 @@
         android:id="@+id/diagnosticInfo"
         layout="@layout/layout_diagnostic_info" />
 
-    <View
+    <ImageButton
         android:id="@+id/btn_toggle_top_bar"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
         android:layout_gravity="top|end"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:background="@drawable/bg_hollow_green_circle"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="10dp"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/bg_hollow_green_circle"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/desc_toggle_top_bar"
         android:visibility="gone"
         tools:visibility="visible" />
 
-    <View
+    <ImageButton
         android:id="@+id/btn_toggle_bottom_bar"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
         android:layout_gravity="bottom|end"
-        android:layout_marginBottom="16dp"
-        android:layout_marginEnd="16dp"
-        android:background="@drawable/bg_hollow_green_circle"
+        android:layout_marginBottom="10dp"
+        android:layout_marginEnd="10dp"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/bg_hollow_green_circle"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/desc_toggle_bottom_bar"
         android:visibility="gone"
         tools:visibility="visible" />
 

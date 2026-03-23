@@ -852,6 +852,7 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun onResume() {
+		immersiveController?.onResume()
 		super.onResume()
 		invalidateOptionsMenu()
 
