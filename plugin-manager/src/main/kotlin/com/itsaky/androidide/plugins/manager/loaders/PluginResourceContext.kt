@@ -4,15 +4,18 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.res.AssetManager
+import android.content.res.Configuration
 import android.content.res.Resources
 import android.content.res.Resources.Theme
 import android.content.res.loader.ResourcesLoader
 import android.content.res.loader.ResourcesProvider
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.AttributeSet
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
+import android.view.View
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import java.io.File
@@ -20,7 +23,7 @@ import java.io.File
 class PluginResourceContext(
     baseContext: Context,
     private val pluginId: String,
-    private val pluginResources: Resources,
+    private var pluginResources: Resources,
     private val pluginPackageInfo: PackageInfo? = null,
     private val pluginClassLoader: ClassLoader? = null
 ) : ContextThemeWrapper(baseContext, 0) {
@@ -34,6 +37,7 @@ class PluginResourceContext(
     private var inflater: LayoutInflater? = null
     private var pluginTheme: Theme? = null
     private var lastActivityTheme: Theme? = null
+    private var lastNightMode: Int = -1
     private var usesCustomPackageId = false
     private val pluginSourceDir: String? = pluginPackageInfo?.applicationInfo?.sourceDir
     private val appThemeResId: Int = pluginPackageInfo?.applicationInfo?.theme ?: 0
@@ -59,6 +63,22 @@ class PluginResourceContext(
             Log.w(TAG, "Failed to detect custom package ID for $pkg", e)
             false
         }
+    }
+
+    fun usesCustomPackageId(): Boolean = usesCustomPackageId
+
+    private var recreatedAssetManager: AssetManager? = null
+
+    private fun recreatePluginResources(newConfig: Configuration) {
+        val sourceDir = pluginSourceDir ?: return
+        val oldAssetManager = recreatedAssetManager
+        @Suppress("DEPRECATION")
+        val assetManager = AssetManager::class.java.getDeclaredConstructor().newInstance()
+        addAssetPathFallback(assetManager, sourceDir)
+        @Suppress("DEPRECATION")
+        pluginResources = Resources(assetManager, baseContext.resources.displayMetrics, newConfig)
+        recreatedAssetManager = assetManager
+        oldAssetManager?.close()
     }
 
     private var patchedResources: Resources? = null
@@ -121,7 +141,30 @@ class PluginResourceContext(
     override fun getAssets(): AssetManager = getResources().assets
 
     override fun getTheme(): Theme {
-        if (!usesCustomPackageId) return baseContext.theme
+        if (!usesCustomPackageId) {
+            val currentNightMode = baseContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            if (pluginTheme == null || lastNightMode != currentNightMode) {
+                lastNightMode = currentNightMode
+                inflater = null
+                recreatePluginResources(baseContext.resources.configuration)
+                if (!pluginThemeResIdResolved) {
+                    pluginThemeResId = pluginResources.getIdentifier(
+                        PLUGIN_THEME_NAME, "style", pluginPackageInfo?.packageName
+                    )
+                    pluginThemeResIdResolved = true
+                }
+                val themeResId = when {
+                    pluginThemeResId != 0 -> pluginThemeResId
+                    appThemeResId != 0 -> appThemeResId
+                    currentNightMode == Configuration.UI_MODE_NIGHT_YES -> android.R.style.Theme_Material
+                    else -> android.R.style.Theme_Material_Light
+                }
+                pluginTheme = pluginResources.newTheme().apply {
+                    applyStyle(themeResId, true)
+                }
+            }
+            return pluginTheme!!
+        }
 
         val (actCtx, actTheme) = resolveActivityContextAndTheme() ?: return pluginTheme ?: baseContext.theme
         ensurePluginResourcesAdded(actCtx.resources)
@@ -166,7 +209,25 @@ class PluginResourceContext(
     override fun getSystemService(name: String): Any? {
         if (Context.LAYOUT_INFLATER_SERVICE == name) {
             if (inflater == null) {
-                inflater = LayoutInflater.from(baseContext).cloneInContext(this)
+                if (!usesCustomPackageId) {
+                    val baseInflater = LayoutInflater.from(baseContext)
+                    inflater = object : LayoutInflater(baseInflater, this@PluginResourceContext) {
+                        override fun cloneInContext(newContext: Context): LayoutInflater {
+                            return this@PluginResourceContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+                        }
+
+                        override fun onCreateView(viewName: String, attrs: AttributeSet): View? {
+                            if (viewName.indexOf('.') == -1) {
+                                for (prefix in arrayOf("android.widget.", "android.view.", "android.webkit.")) {
+                                    try { return createView(viewName, prefix, attrs) } catch (_: ClassNotFoundException) {}
+                                }
+                            }
+                            return super.onCreateView(viewName, attrs)
+                        }
+                    }
+                } else {
+                    inflater = LayoutInflater.from(baseContext).cloneInContext(this)
+                }
             }
             return inflater
         }

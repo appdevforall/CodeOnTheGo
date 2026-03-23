@@ -17,6 +17,7 @@ object PluginFragmentHelper {
 
     private val pluginContexts = mutableMapOf<String, Context>()
     private val serviceRegistries = mutableMapOf<String, ServiceRegistry>()
+    private val legacyPlugins = mutableSetOf<String>()
 
     private data class ActivitySnapshot(
         val contextRef: WeakReference<Context>,
@@ -38,8 +39,10 @@ object PluginFragmentHelper {
      * Called by the plugin manager when loading APK-based plugins.
      */
     @JvmStatic
-    fun registerPluginContext(pluginId: String, context: Context) {
+    @JvmOverloads
+    fun registerPluginContext(pluginId: String, context: Context, isLegacy: Boolean = false) {
         pluginContexts[pluginId] = context
+        if (isLegacy) legacyPlugins.add(pluginId) else legacyPlugins.remove(pluginId)
     }
 
     /**
@@ -50,6 +53,7 @@ object PluginFragmentHelper {
     fun unregisterPluginContext(pluginId: String) {
         pluginContexts.remove(pluginId)
         activitySnapshots.remove(pluginId)
+        legacyPlugins.remove(pluginId)
     }
 
     /**
@@ -85,6 +89,7 @@ object PluginFragmentHelper {
         pluginContexts.clear()
         serviceRegistries.clear()
         activitySnapshots.clear()
+        legacyPlugins.clear()
     }
 
     /**
@@ -102,6 +107,10 @@ object PluginFragmentHelper {
             contextRef = WeakReference(defaultInflater.context),
             themeRef = WeakReference(defaultInflater.context.theme)
         )
+        if (pluginId in legacyPlugins) {
+            return pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
+                ?: defaultInflater.cloneInContext(pluginContext)
+        }
         return defaultInflater.cloneInContext(pluginContext)
     }
 }

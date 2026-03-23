@@ -22,6 +22,7 @@ import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
+import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.context.PluginContextImpl
 import com.itsaky.androidide.plugins.manager.context.PluginLoggerImpl
@@ -382,8 +383,9 @@ class PluginManager private constructor(
 
             if (initResult) {
                 // Register the plugin's resource context for UI components
-                PluginFragmentHelper.registerPluginContext(manifest.id, ctx)
-                logger.debug("Registered resource context for plugin: ${manifest.id}")
+                val isLegacy = (ctx as? PluginResourceContext)?.let { !it.usesCustomPackageId() } ?: true
+                PluginFragmentHelper.registerPluginContext(manifest.id, ctx, isLegacy)
+                logger.debug("Registered resource context for plugin: ${manifest.id} (legacy=$isLegacy)")
                 // Register the service registry for fragments to access services
                 PluginFragmentHelper.registerServiceRegistry(manifest.id, pluginContext.services)
                 logger.debug("Registered service registry for plugin: ${manifest.id}")
