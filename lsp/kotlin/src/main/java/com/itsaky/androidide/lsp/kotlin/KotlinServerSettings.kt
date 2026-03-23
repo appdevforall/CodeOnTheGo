@@ -24,14 +24,12 @@ class KotlinServerSettings private constructor() : PrefBasedServerSettings() {
     override fun diagnosticsEnabled(): Boolean = true
 
     companion object {
-        private var instance: KotlinServerSettings? = null
+        private val _instance by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
+			KotlinServerSettings()
+		}
 
         @JvmStatic
-        fun getInstance(): KotlinServerSettings {
-            if (instance == null) {
-                instance = KotlinServerSettings()
-            }
-            return instance!!
-        }
+        fun getInstance(): KotlinServerSettings =
+			_instance
     }
 }
