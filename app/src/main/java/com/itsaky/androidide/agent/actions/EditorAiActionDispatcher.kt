@@ -24,7 +24,7 @@ object EditorAiActionDispatcher {
         )
 
         val chatViewModel = ViewModelProvider(activity)[ChatViewModel::class.java]
-        chatViewModel.sendMessage(fullPrompt, originalUserText, context)
+        chatViewModel.sendMessage(fullPrompt, originalUserText, activity.applicationContext)
 
         return true
     }

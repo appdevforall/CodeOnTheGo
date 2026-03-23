@@ -14,6 +14,7 @@ import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.FeatureFlags
 import java.io.File
@@ -81,11 +82,13 @@ class ExplainSelectionAction(
 
         val file = data.get(File::class.java)
         val range = data.get(Range::class.java)
+        val projectRoot = getCurrentProject()
+        val relativePath = getRelativePath(file, projectRoot)
 
         val selectionContext = SelectedCodeContext(
 					selectedText = clippedText,
 					fileName = file?.name,
-					filePath = file?.path,
+					filePath = relativePath ?: file?.name,
 					fileExtension = file?.extension,
 					lineStart = range?.start?.line?.plus(1),
 					lineEnd = range?.end?.line?.plus(1),
@@ -103,5 +106,19 @@ class ExplainSelectionAction(
         return runCatching {
             AiBackend.valueOf(backendName ?: AiBackend.GEMINI.name)
         }.getOrDefault(AiBackend.GEMINI)
+    }
+
+    private fun getRelativePath(file: File?, projectRoot: File?): String? {
+        if (file == null || projectRoot == null) return null
+
+        return runCatching {
+            file.canonicalFile.relativeTo(projectRoot).path
+        }.getOrNull()
+    }
+
+    private fun getCurrentProject(): File? {
+        return runCatching {
+            IProjectManager.getInstance().projectDir.canonicalFile
+        }.getOrNull()
     }
 }
