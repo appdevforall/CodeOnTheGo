@@ -117,7 +117,7 @@ class PluginLoader(
     /**
      * Create a Context with plugin resources
      */
-    fun createPluginContext(): Context? {
+    fun createPluginContext(pluginId: String): Context? {
         // Ensure we have loaded resources first
         val resources = loadPluginResources()
         if (resources == null) {
@@ -133,6 +133,7 @@ class PluginLoader(
 
         return PluginResourceContext(
             context,
+            pluginId,
             resources,
             packageInfo,
             pluginClassLoader

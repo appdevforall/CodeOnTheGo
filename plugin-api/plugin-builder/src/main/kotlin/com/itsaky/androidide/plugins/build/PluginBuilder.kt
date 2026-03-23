@@ -7,6 +7,21 @@ import java.io.File
 
 class PluginBuilder : Plugin<Project> {
 
+    private enum class BuildVariant(
+        val variantName: String,
+        val taskName: String,
+        val fileSuffix: String
+    ) {
+        DEBUG("debug", "assemblePluginDebug", "-debug"),
+        RELEASE("release", "assemblePlugin", "")
+    }
+
+    companion object {
+        private const val POSITIVE_HASH_MASK = 0x7FFFFFFF
+        private const val PACKAGE_ID_RANGE = 0x7D
+        private const val MIN_PACKAGE_ID = 0x02
+    }
+
     override fun apply(target: Project) {
         val extension = target.extensions.create(
             "pluginBuilder",
@@ -15,8 +30,9 @@ class PluginBuilder : Plugin<Project> {
 
         target.afterEvaluate {
             configurePackageId(target)
-            createAssembleTask(target, extension, "debug")
-            createAssembleTask(target, extension, "release")
+            BuildVariant.values().forEach { variant ->
+                createAssembleTask(target, extension, variant)
+            }
         }
     }
 
@@ -42,22 +58,19 @@ class PluginBuilder : Plugin<Project> {
     }
 
     private fun generatePackageId(applicationId: String): Int {
-        val hash = applicationId.hashCode() and 0x7FFFFFFF
-        return (hash % 0x7D) + 0x02
+        val hash = applicationId.hashCode() and POSITIVE_HASH_MASK
+        return (hash % PACKAGE_ID_RANGE) + MIN_PACKAGE_ID
     }
 
-    private fun createAssembleTask(project: Project, extension: PluginBuilderExtension, variant: String) {
-        val isDebug = variant == "debug"
-        val taskName = if (isDebug) "assemblePluginDebug" else "assemblePlugin"
-        val task = project.tasks.create(taskName)
+    private fun createAssembleTask(project: Project, extension: PluginBuilderExtension, variant: BuildVariant) {
+        val task = project.tasks.create(variant.taskName)
         task.group = "build"
-        task.description = "Assembles the $variant plugin and creates .cgp file"
-        task.dependsOn("assemble${variant.replaceFirstChar { it.uppercase() }}")
+        task.description = "Assembles the ${variant.variantName} plugin and creates .cgp file"
+        task.dependsOn("assemble${variant.variantName.replaceFirstChar { it.uppercase() }}")
 
         val pluginName = extension.pluginName.getOrElse(project.name)
-        val apkDir = File(project.layout.buildDirectory.asFile.get(), "outputs/apk/$variant")
+        val apkDir = File(project.layout.buildDirectory.asFile.get(), "outputs/apk/${variant.variantName}")
         val outputDir = File(project.layout.buildDirectory.asFile.get(), "plugin")
-        val suffix = if (isDebug) "-debug" else ""
 
         task.doLast(object : org.gradle.api.Action<org.gradle.api.Task> {
             override fun execute(t: org.gradle.api.Task) {
@@ -71,7 +84,7 @@ class PluginBuilder : Plugin<Project> {
                     return
                 }
 
-                val outputFile = File(outputDir, "$pluginName$suffix.cgp")
+                val outputFile = File(outputDir, "$pluginName${variant.fileSuffix}.cgp")
                 apkFile.copyTo(outputFile, overwrite = true)
                 apkFile.delete()
                 t.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")

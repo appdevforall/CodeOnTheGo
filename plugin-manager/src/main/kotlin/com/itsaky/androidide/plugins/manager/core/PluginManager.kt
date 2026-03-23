@@ -359,7 +359,7 @@ class PluginManager private constructor(
             }
 
             // Create plugin context with  resources
-            val ctx = pluginLoader.createPluginContext()
+            val ctx = pluginLoader.createPluginContext(manifest.id)
             if (ctx == null) {
                 if (manifest.sidebarItems > 0) {
                     SidebarSlotManager.releasePluginSlots(manifest.id)

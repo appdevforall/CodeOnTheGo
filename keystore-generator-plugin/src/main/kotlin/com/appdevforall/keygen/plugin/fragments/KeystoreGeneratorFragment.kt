@@ -268,7 +268,7 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
                 withContext(Dispatchers.Main) {
                     hideProgress()
                     btnGenerate.isEnabled = true
-                    showError(getString(R.string.error_generation_failed) + ": ${e.message}")
+                    showError(getString(R.string.error_generation_failed) + (e.message?.let { ": $it" } ?: ""))
                 }
             }
         }

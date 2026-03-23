@@ -19,6 +19,7 @@ import java.io.File
 
 class PluginResourceContext(
     baseContext: Context,
+    private val pluginId: String,
     private val pluginResources: Resources,
     private val pluginPackageInfo: PackageInfo? = null,
     private val pluginClassLoader: ClassLoader? = null
@@ -46,20 +47,18 @@ class PluginResourceContext(
     private fun detectCustomPackageId(): Boolean {
         val cl = pluginClassLoader ?: return false
         val pkg = pluginPackageInfo?.packageName ?: return false
-        try {
+        return try {
             val rClass = cl.loadClass("$pkg.R")
-            for (inner in rClass.declaredClasses) {
-                for (field in inner.declaredFields) {
-                    if (field.type == Int::class.javaPrimitiveType) {
-                        val id = field.getInt(null)
-                        if (id != 0) return (id ushr 24) != 0x7F
-                    }
-                }
-            }
-        } catch (e: Exception) {
+            rClass.declaredClasses.asSequence()
+                .flatMap { it.declaredFields.asSequence() }
+                .filter { it.type == Int::class.javaPrimitiveType }
+                .map { it.getInt(null) }
+                .firstOrNull { it != 0 }
+                ?.let { (it ushr 24) != 0x7F } ?: false
+        } catch (e: ReflectiveOperationException) {
             Log.w(TAG, "Failed to detect custom package ID for $pkg", e)
+            false
         }
-        return false
     }
 
     private var patchedResources: Resources? = null
@@ -102,8 +101,8 @@ class PluginResourceContext(
     }
 
     private fun resolveActivityContextAndTheme(): Pair<Context, Theme>? {
-        val fragmentCtx = PluginFragmentHelper.getCurrentActivityContext()
-        val fragmentTheme = PluginFragmentHelper.getCurrentActivityTheme()
+        val fragmentCtx = PluginFragmentHelper.getCurrentActivityContext(pluginId)
+        val fragmentTheme = PluginFragmentHelper.getCurrentActivityTheme(pluginId)
         if (fragmentCtx != null && fragmentTheme != null) {
             return fragmentCtx to fragmentTheme
         }

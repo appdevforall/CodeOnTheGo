@@ -18,17 +18,20 @@ object PluginFragmentHelper {
     private val pluginContexts = mutableMapOf<String, Context>()
     private val serviceRegistries = mutableMapOf<String, ServiceRegistry>()
 
-    @Volatile
-    private var activityThemeRef: WeakReference<Resources.Theme>? = null
+    private data class ActivitySnapshot(
+        val contextRef: WeakReference<Context>,
+        val themeRef: WeakReference<Resources.Theme>
+    )
 
-    @Volatile
-    private var activityContextRef: WeakReference<Context>? = null
-
-    @JvmStatic
-    fun getCurrentActivityTheme(): Resources.Theme? = activityThemeRef?.get()
+    private val activitySnapshots = mutableMapOf<String, ActivitySnapshot>()
 
     @JvmStatic
-    fun getCurrentActivityContext(): Context? = activityContextRef?.get()
+    fun getCurrentActivityTheme(pluginId: String): Resources.Theme? =
+        activitySnapshots[pluginId]?.themeRef?.get()
+
+    @JvmStatic
+    fun getCurrentActivityContext(pluginId: String): Context? =
+        activitySnapshots[pluginId]?.contextRef?.get()
 
     /**
      * Register a plugin's resource context.
@@ -46,6 +49,7 @@ object PluginFragmentHelper {
     @JvmStatic
     fun unregisterPluginContext(pluginId: String) {
         pluginContexts.remove(pluginId)
+        activitySnapshots.remove(pluginId)
     }
 
     /**
@@ -80,6 +84,7 @@ object PluginFragmentHelper {
     fun clearAllContexts() {
         pluginContexts.clear()
         serviceRegistries.clear()
+        activitySnapshots.clear()
     }
 
     /**
@@ -93,8 +98,10 @@ object PluginFragmentHelper {
     @JvmStatic
     fun getPluginInflater(pluginId: String, defaultInflater: LayoutInflater): LayoutInflater {
         val pluginContext = getPluginContext(pluginId) ?: return defaultInflater
-        activityContextRef = WeakReference(defaultInflater.context)
-        activityThemeRef = WeakReference(defaultInflater.context.theme)
+        activitySnapshots[pluginId] = ActivitySnapshot(
+            contextRef = WeakReference(defaultInflater.context),
+            themeRef = WeakReference(defaultInflater.context.theme)
+        )
         return defaultInflater.cloneInContext(pluginContext)
     }
 }
