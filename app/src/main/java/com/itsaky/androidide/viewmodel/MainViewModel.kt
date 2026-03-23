@@ -22,7 +22,12 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.roomData.recentproject.RecentProject
+import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.templates.Template
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -30,7 +35,9 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * @author Akash Yadav
  */
-class MainViewModel : ViewModel() {
+class MainViewModel(
+    private val recentProjectDao: RecentProjectDao
+) : ViewModel() {
 
     companion object {
 
@@ -83,6 +90,12 @@ class MainViewModel : ViewModel() {
             })
         } else {
             action.run()
+        }
+    }
+
+    fun saveProjectToRecents(project: RecentProject) {
+        viewModelScope.launch(Dispatchers.IO) {
+            recentProjectDao.insert(project)
         }
     }
 }

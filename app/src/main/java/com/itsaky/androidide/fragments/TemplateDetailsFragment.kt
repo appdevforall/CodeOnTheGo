@@ -20,6 +20,7 @@ package com.itsaky.androidide.fragments
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.activityViewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.transition.TransitionManager
@@ -54,8 +55,7 @@ class TemplateDetailsFragment :
         R.layout.fragment_template_details, FragmentTemplateDetailsBinding::bind
     ) {
 
-    private val viewModel by viewModels<MainViewModel>(
-        ownerProducer = { requireActivity() })
+    private val viewModel by activityViewModel<MainViewModel>()
 
     private val recentProjectsViewModel: RecentProjectsViewModel by activityViewModels()
 
@@ -130,20 +130,22 @@ class TemplateDetailsFragment :
                 flashSuccess(string.project_created_successfully)
 
                 val now = System.currentTimeMillis().toString()
-                recentProjectsViewModel.insertProject(
-                    RecentProject(
-                        location = result.data.projectDir.path,
-                        name = result.data.name,
-                        createdAt = now,
-                        lastModified = now,
-                        templateName = template.templateNameStr,
-                        language = result.data.language?.name ?: "unknown"
-                    )
+
+                val project = RecentProject(
+                    location = result.data.projectDir.path,
+                    name = result.data.name,
+                    createdAt = now,
+                    lastModified = now,
+                    templateName = template.templateNameStr,
+                    language = result.data.language?.name ?: "unknown"
                 )
 
                 viewModel.postTransition(viewLifecycleOwner) {
                     // open the project
-                    (requireActivity() as MainActivity).openProject(result.data.projectDir)
+                    (requireActivity() as MainActivity).openProject(
+                        result.data.projectDir,
+                        project = project
+                    )
                 }
             }
         }
