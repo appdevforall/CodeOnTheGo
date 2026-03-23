@@ -11,7 +11,8 @@ import com.itsaky.androidide.git.core.models.ChangeType
 import com.itsaky.androidide.git.core.models.FileChange
 
 class GitFileChangeAdapter(
-    private val onFileClicked: (FileChange) -> Unit
+    private val onFileClicked: (FileChange) -> Unit,
+    private val onSelectionChanged: (Int) -> Unit = {}
 ) : ListAdapter<FileChange, GitFileChangeAdapter.ViewHolder>(DiffCallback()) {
 
     // Keep track of which files are selected to be committed
@@ -48,6 +49,7 @@ class GitFileChangeAdapter(
                     } else {
                         selectedFiles.remove(change.path)
                     }
+                    onSelectionChanged(selectedFiles.size)
                 }
             }
         }

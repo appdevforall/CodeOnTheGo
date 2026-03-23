@@ -18,4 +18,8 @@ interface GitRepository : Closeable {
     suspend fun getBranches(): List<GitBranch>
     suspend fun getHistory(limit: Int = 50): List<GitCommit>
     suspend fun getDiff(file: File): String
+    
+    // Commit Operations
+    suspend fun stageFiles(files: List<File>)
+    suspend fun commit(message: String, authorName: String? = null, authorEmail: String? = null): GitCommit?
 }
