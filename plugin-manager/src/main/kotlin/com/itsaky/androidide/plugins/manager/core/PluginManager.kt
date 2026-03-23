@@ -320,6 +320,7 @@ class PluginManager private constructor(
             }
 
             if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
+                File(nativeLibPath).deleteRecursively()
                 if (manifest.sidebarItems > 0) {
                     SidebarSlotManager.releasePluginSlots(manifest.id)
                 }

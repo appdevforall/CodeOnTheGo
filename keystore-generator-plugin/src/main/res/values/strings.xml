@@ -43,7 +43,7 @@
     <string name="error_generation">Generation error: %s</string>
     <string name="error_build_file">Error modifying build file: %s</string>
     <string name="error_file_service_unavailable">IdeFileService not available</string>
-    <string name="error_no_build_gradle">No build.gradle found in app directory</string>
+    <string name="error_no_build_gradle">No build.gradle or build.gradle.kts found in app directory</string>
     <string name="error_signing_pattern_not_found">Could not update signing config - pattern not found</string>
     <string name="success_signing_updated">Updated existing release signing config</string>
     <string name="error_signing_update_failed">Failed to update signing config</string>

@@ -95,7 +95,6 @@ object PluginFragmentHelper {
         val pluginContext = getPluginContext(pluginId) ?: return defaultInflater
         activityContextRef = WeakReference(defaultInflater.context)
         activityThemeRef = WeakReference(defaultInflater.context.theme)
-        pluginContext.theme
         return defaultInflater.cloneInContext(pluginContext)
     }
 }
