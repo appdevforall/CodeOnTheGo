@@ -205,7 +205,7 @@ class CloneRepositoryFragment : BaseFragment() {
         setIconResource(if (isForRetry) R.drawable.ic_refresh else 0)
 
         text = context.getString(
-            if (isForRetry) R.string.retry else R.string.download_project
+            if (isForRetry) R.string.retry else R.string.clone_project
         )
     }
 
