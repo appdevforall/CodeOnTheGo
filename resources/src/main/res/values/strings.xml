@@ -1186,12 +1186,17 @@
     <string name="no_commit_history">No commit history</string>
     <string name="commit_not_pushed">This commit has not been pushed to the remote repository</string>
     <string name="commit_pushed">This commit has been pushed to the remote repository</string>
+    <string name="no_internet_connection">No internet connection. Please check your network and try again.</string>
+    <string name="connection_lost">Connection lost during download. Please check your internet connection and try again.</string>
     <string name="desc_file_added">File added</string>
     <string name="desc_file_modified">File modified</string>
     <string name="desc_file_deleted">File deleted</string>
     <string name="desc_file_untracked">File untracked</string>
     <string name="desc_file_renamed">File renamed</string>
     <string name="desc_file_conflicted">File conflicted</string>
+    <string name="cancel_clone">Cancel clone</string>
+    <string name="initialising_clone">Initialising clone…</string>
+    <string name="cancelling_clone">Cancelling clone…</string>
 
     <!-- Git Preferences -->
     <string name="idepref_git_title">Git</string>
