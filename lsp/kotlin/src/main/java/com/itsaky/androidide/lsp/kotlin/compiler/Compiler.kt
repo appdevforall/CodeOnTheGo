@@ -2,14 +2,10 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 
 import org.jetbrains.kotlin.analysis.api.standalone.StandaloneAnalysisAPISessionBuilder
 import org.jetbrains.kotlin.com.intellij.lang.Language
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiFileFactory
-import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.idea.KotlinLanguage
-import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -24,15 +20,13 @@ class Compiler(
 	configureSession: StandaloneAnalysisAPISessionBuilder.() -> Unit = {},
 ) : AutoCloseable {
 	private val logger = LoggerFactory.getLogger(Compiler::class.java)
-	private val fileSystem =
-		VirtualFileManager.getInstance().getFileSystem(StandardFileSystems.FILE_PROTOCOL)
 
 	private val defaultCompilationEnv = CompilationEnvironment(
-		intellijPluginRoot,
-		jdkHome,
-		jdkRelease,
-		languageVersion,
-		configureSession,
+		intellijPluginRoot = intellijPluginRoot,
+		jdkHome = jdkHome,
+		jdkRelease = jdkRelease,
+		languageVersion = languageVersion,
+		configureSession = configureSession,
 	)
 
 	fun compilationEnvironmentFor(compilationKind: CompilationKind): CompilationEnvironment =
