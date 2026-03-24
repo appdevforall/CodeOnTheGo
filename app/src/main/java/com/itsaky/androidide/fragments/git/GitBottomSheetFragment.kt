@@ -51,6 +51,17 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         binding.recyclerView.adapter = fileChangeAdapter
 
         viewLifecycleOwner.lifecycleScope.launch {
+            launch {
+                viewModel.currentBranch.collectLatest { branchName ->
+                    if (branchName != null) {
+                        binding.tvBranchName.visibility = View.VISIBLE
+                        binding.tvBranchName.text = getString(R.string.current_branch_name, branchName)
+                    } else {
+                        binding.tvBranchName.visibility = View.GONE
+                    }
+                }
+            }
+
             combine(
                 viewModel.isGitRepository,
                 viewModel.gitStatus

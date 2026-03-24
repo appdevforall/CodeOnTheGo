@@ -29,6 +29,10 @@ class GitBottomSheetViewModel : ViewModel() {
 
     private val _gitStatus = MutableStateFlow(GitStatus.EMPTY)
     val gitStatus: StateFlow<GitStatus> = _gitStatus.asStateFlow()
+    
+    private val _currentBranch = MutableStateFlow<String?>(null)
+    val currentBranch: StateFlow<String?> = _currentBranch.asStateFlow()
+    
     private val _commitHistory =
         MutableStateFlow<CommitHistoryUiState>(CommitHistoryUiState.Loading)
     val commitHistory: StateFlow<CommitHistoryUiState> = _commitHistory.asStateFlow()
@@ -74,12 +78,15 @@ class GitBottomSheetViewModel : ViewModel() {
                 currentRepository?.let { repo ->
                     val status = repo.getStatus()
                     _gitStatus.value = status
+                    _currentBranch.value = repo.getCurrentBranch()?.name
                 } ?: run {
                     _gitStatus.value = GitStatus.EMPTY
+                    _currentBranch.value = null
                 }
             } catch (e: Exception) {
                 log.error("Failed to refresh git status", e)
                 _gitStatus.value = GitStatus.EMPTY
+                _currentBranch.value = null
             }
         }
     }
