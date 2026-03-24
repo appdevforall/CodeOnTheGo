@@ -28,6 +28,8 @@ import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.templates.Template
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -55,6 +57,8 @@ class MainViewModel(
         const val SCREEN_SAVED_PROJECTS = 4
         const val SCREEN_DELETE_PROJECTS = 5
         const val SCREEN_CLONE_REPO = 6
+
+        val logger : Logger = LoggerFactory.getLogger(MainViewModel::class.java)
     }
 
     private val _currentScreen = MutableLiveData(-1)
@@ -95,7 +99,11 @@ class MainViewModel(
 
     fun saveProjectToRecents(project: RecentProject) {
         viewModelScope.launch(Dispatchers.IO) {
-            recentProjectDao.insert(project)
+            try {
+                recentProjectDao.insert(project)
+            } catch (e: Exception) {
+                logger.warn("Failed to save project to recents", e)
+            }
         }
     }
 }
