@@ -20,6 +20,8 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE_BR
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
@@ -78,26 +80,36 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 					}
 				}
 
-				AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+                TEMPLATE_CORE_ARCHIVE -> {
+                    val assetPath = ToolsManager.getCommonAsset(TEMPLATE_CORE_ARCHIVE_BR)
+                    BrotliInputStream(assets.open(assetPath)).use { input ->
+                        val destFile = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+
+                AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
 					val assetPath =
 						ToolsManager.getCommonAsset("${AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME}.br")
 
 					val result = retryOnceOnNoSuchFile (
 						onFirstFailure = { Files.createDirectories(stagingDir) },
 						onSecondFailure = { e2 ->
-            	throw IOException(
-								context.getString(R.string.terminal_installation_failed_low_storage),
-								e2
-							)
-						}
-					) {
-						withTempZipChannel(
-							stagingDir = stagingDir,
-							prefix = "bootstrap",
-							writeTo = { path -> writeBrotliAssetToPath(context, assetPath, path) },
-							useChannel = { ch -> TerminalInstaller.installIfNeeded(context, ch) }
-						)
-					}
+                            throw IOException(
+                                            context.getString(R.string.terminal_installation_failed_low_storage),
+                                            e2
+                                        )
+                                    }
+                        ) {
+                            withTempZipChannel(
+                                stagingDir = stagingDir,
+                                prefix = "bootstrap",
+                                writeTo = { path -> writeBrotliAssetToPath(context, assetPath, path) },
+                                useChannel = { ch -> TerminalInstaller.installIfNeeded(context, ch) }
+                            )
+					    }
 
 					when (result) {
 						is TerminalInstaller.InstallResult.Success -> {}
@@ -217,6 +229,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
         AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
         GRADLE_API_NAME_JAR_ZIP           -> 29447748L
         AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> 86442L
+        TEMPLATE_CORE_ARCHIVE               -> 133120L
         else -> 0L
     }
 
