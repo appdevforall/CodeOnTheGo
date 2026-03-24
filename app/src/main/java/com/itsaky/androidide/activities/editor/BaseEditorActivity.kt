@@ -493,14 +493,15 @@ abstract class BaseEditorActivity :
 
 	private fun applyStandardInsets(systemBars: Insets, windowInsets: WindowInsetsCompat) {
 		val content = _binding?.content ?: return
+		val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-		val appBarContent = content.editorAppbarContent
-    if (appBarContent != null) {
-    	content.editorAppBarLayout.updatePadding(top = 0)
-    	appBarContent.updatePadding(top = systemBars.top)
-    } else {
-    	content.editorAppBarLayout.updatePadding(top = systemBars.top)
-    }
+		if (isLandscape) {
+			content.editorAppBarLayout.updatePadding(top = 0)
+			content.editorAppbarContent.updatePadding(top = systemBars.top)
+		} else {
+			content.editorAppBarLayout.updatePadding(top = systemBars.top)
+			content.editorAppbarContent.updatePadding(top = 0)
+		}
 
 		immersiveController?.onSystemBarInsetsChanged(systemBars.top)
 		applySidebarInsets(systemBars)
@@ -510,15 +511,17 @@ abstract class BaseEditorActivity :
 	private fun applyImmersiveModeInsets(systemBars: Insets) {
 		val content = _binding?.content ?: return
 		val baseMargin = SizeUtils.dp2px(16f)
+		val isRtl = content.root.layoutDirection == View.LAYOUT_DIRECTION_RTL
+		val endInset = if (isRtl) systemBars.left else systemBars.right
 
 		content.btnToggleTopBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 			topMargin = baseMargin + systemBars.top
-			marginEnd = baseMargin + systemBars.right
+			marginEnd = baseMargin + endInset
 		}
 
 		content.btnToggleBottomBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 			bottomMargin = baseMargin + systemBars.bottom
-			marginEnd = baseMargin + systemBars.right
+			marginEnd = baseMargin + endInset
 		}
 
 		content.bottomSheet.updatePadding(top = systemBars.top)
@@ -750,9 +753,10 @@ abstract class BaseEditorActivity :
 		_binding?.apply {
 			contentCard.progress = progress
 			val insetsTop = systemBarInsets?.top ?: 0
-			content.editorAppBarLayout.updatePadding(
-				top = (insetsTop * (1f - progress)).roundToInt(),
-			)
+			val topInset = (insetsTop * (1f - progress)).roundToInt()
+
+			content.editorAppbarContent.updatePadding(top = topInset)
+
 			memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
 			}

@@ -36,7 +36,7 @@ class LandscapeImmersiveController(
     private val coroutineScope: CoroutineScope,
 ) {
     private val topBar = contentBinding.editorAppBarLayout
-    private val appBarContent = runCatching { contentBinding.editorAppbarContent }.getOrNull()
+    private val appBarContent = contentBinding.editorAppbarContent
     private val viewContainer = contentBinding.viewContainer
     private val editorContainer = contentBinding.editorContainer
     private val bottomSheet = contentBinding.bottomSheet
@@ -56,6 +56,8 @@ class LandscapeImmersiveController(
     private var statusBarTopInset = 0
     private var currentAppBarOffset = 0
     private var lastKnownScrollRange = 0
+    private val defaultEditorBottomMargin =
+        (editorContainer.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin
 
     private val topBarOffsetListener =
         AppBarLayout.OnOffsetChangedListener { appBarLayout, verticalOffset ->
@@ -69,17 +71,23 @@ class LandscapeImmersiveController(
             if (!isLandscape) return@OnLayoutChangeListener
 
             val newScrollRange = topBar.totalScrollRange
-            if (newScrollRange == lastKnownScrollRange) return@OnLayoutChangeListener
+            val scrollRangeChanged = newScrollRange != lastKnownScrollRange
 
             lastKnownScrollRange = newScrollRange
 
-            if (!isTopBarRequestedVisible) {
-                topBar.post {
-                    collapseTopBarWithoutAnimation()
-                    updateEditorTopInset()
-                }
+            val isVisuallyOutOfSync = !isTopBarRequestedVisible && currentAppBarOffset > -newScrollRange
+
+            if (scrollRangeChanged || isVisuallyOutOfSync) {
+                topBar.post(::enforceCollapsedStateIfNeeded)
             }
         }
+
+    private fun enforceCollapsedStateIfNeeded() {
+        if (isTopBarRequestedVisible) return
+
+        collapseTopBarWithoutAnimation()
+        updateEditorTopInset()
+    }
 
     private val bottomSheetCallback =
         object : BottomSheetBehavior.BottomSheetCallback() {
@@ -120,15 +128,22 @@ class LandscapeImmersiveController(
         isBound = true
 
         topBar.addOnOffsetChangedListener(topBarOffsetListener)
-        appBarContent?.addOnLayoutChangeListener(appBarLayoutChangeListener)
+        appBarContent.addOnLayoutChangeListener(appBarLayoutChangeListener)
         bottomSheetBehavior.addBottomSheetCallback(bottomSheetCallback)
-        appBarContent?.onTouchEventObserved = topBarTouchObserver
+        appBarContent.onTouchEventObserved = topBarTouchObserver
     }
 
     fun onPause() {
         cancelAutoHide()
         isUserInteractingWithTopBar = false
         cancelBottomSheetAnimation()
+        setBottomSheetTranslation(
+            if (!isBottomBarShown && bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
+                bottomSheetBehavior.peekHeight.toFloat()
+            } else {
+                0f
+            },
+        )
     }
 
     fun onResume() {
@@ -148,14 +163,30 @@ class LandscapeImmersiveController(
         bottomToggle.setOnClickListener(null)
 
         topBar.removeOnOffsetChangedListener(topBarOffsetListener)
-        appBarContent?.removeOnLayoutChangeListener(appBarLayoutChangeListener)
+        appBarContent.removeOnLayoutChangeListener(appBarLayoutChangeListener)
         bottomSheetBehavior.removeBottomSheetCallback(bottomSheetCallback)
-        appBarContent?.onTouchEventObserved = null
+        appBarContent.onTouchEventObserved = null
     }
 
     fun onConfigurationChanged(newConfig: Configuration) {
         isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-        if (isLandscape) enableImmersiveMode() else disableImmersiveMode()
+
+        appBarContent.updateLayoutParams<AppBarLayout.LayoutParams> {
+            scrollFlags = if (isLandscape) {
+                AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
+                AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS or
+                AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP
+            } else {
+                0
+            }
+        }
+
+        if (isLandscape) {
+            enableImmersiveMode()
+        } else {
+            disableImmersiveMode()
+        }
+
         updateEditorBottomInset()
     }
 
@@ -221,8 +252,17 @@ class LandscapeImmersiveController(
         cancelAutoHide()
         isUserInteractingWithTopBar = false
         setTogglesVisible(false)
-        showTopBar(autoHide = false, animate = false)
-        showBottomBar(animate = false)
+
+        isTopBarRequestedVisible = true
+        topBar.setExpanded(true, false)
+
+        isBottomBarRequestedVisible = true
+        isBottomBarShown = true
+        isPendingBottomBarHideAfterCollapse = false
+
+        cancelBottomSheetAnimation()
+        setBottomSheetTranslation(0f)
+
         updateEditorBottomInset()
     }
 
@@ -328,10 +368,10 @@ class LandscapeImmersiveController(
     }
 
     private fun updateEditorBottomInset() {
-        val bottomMargin = if (isLandscape && isBottomBarShown) {
-            bottomSheetBehavior.peekHeight
+        val bottomMargin = if (isLandscape) {
+            if (isBottomBarShown) bottomSheetBehavior.peekHeight else 0
         } else {
-            0
+            defaultEditorBottomMargin
         }
 
         editorContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
