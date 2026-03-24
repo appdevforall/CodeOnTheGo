@@ -172,6 +172,7 @@ abstract class BaseEditorActivity :
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var immersiveController: LandscapeImmersiveController? = null
 
 	var isDestroying = false
 		protected set
@@ -448,6 +449,9 @@ abstract class BaseEditorActivity :
 		editorBottomSheet = null
 		gestureDetector = null
 
+		immersiveController?.destroy()
+		immersiveController = null
+
 		_binding = null
 
 		if (isDestroying) {
@@ -480,11 +484,50 @@ abstract class BaseEditorActivity :
 		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
 		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 
-		_binding?.content?.editorAppBarLayout?.updatePadding(top = systemBars.top)
-		applySidebarInsets(systemBars)
-		
-		_binding?.root?.applyBottomWindowInsetsPadding(insets)
+		applyStandardInsets(systemBars, insets)
 
+		applyImmersiveModeInsets(systemBars)
+
+		handleKeyboardInsets(imeInsets)
+	}
+
+	private fun applyStandardInsets(systemBars: Insets, windowInsets: WindowInsetsCompat) {
+		val content = _binding?.content ?: return
+		val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+		if (isLandscape) {
+			content.editorAppBarLayout.updatePadding(top = 0)
+			content.editorAppbarContent.updatePadding(top = systemBars.top)
+		} else {
+			content.editorAppBarLayout.updatePadding(top = systemBars.top)
+			content.editorAppbarContent.updatePadding(top = 0)
+		}
+
+		immersiveController?.onSystemBarInsetsChanged(systemBars.top)
+		applySidebarInsets(systemBars)
+		_binding?.root?.applyBottomWindowInsetsPadding(windowInsets)
+	}
+
+	private fun applyImmersiveModeInsets(systemBars: Insets) {
+		val content = _binding?.content ?: return
+		val baseMargin = SizeUtils.dp2px(16f)
+		val isRtl = content.root.layoutDirection == View.LAYOUT_DIRECTION_RTL
+		val endInset = if (isRtl) systemBars.left else systemBars.right
+
+		content.btnToggleTopBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+			topMargin = baseMargin + systemBars.top
+			marginEnd = baseMargin + endInset
+		}
+
+		content.btnToggleBottomBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+			bottomMargin = baseMargin + systemBars.bottom
+			marginEnd = baseMargin + endInset
+		}
+
+		content.bottomSheet.updatePadding(top = systemBars.top)
+	}
+
+	private fun handleKeyboardInsets(imeInsets: Insets) {
 		val isImeVisible = imeInsets.bottom > 0
 		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
 
@@ -612,6 +655,15 @@ abstract class BaseEditorActivity :
 		setupStateObservers()
 		setupViews()
 
+		immersiveController = LandscapeImmersiveController(
+			contentBinding = content,
+			bottomSheetBehavior = editorBottomSheet!!,
+			coroutineScope = lifecycleScope,
+		).also {
+			it.bind()
+			it.onConfigurationChanged(resources.configuration)
+		}
+
 		setupContainers()
 		setupDiagnosticInfo()
 
@@ -643,6 +695,7 @@ abstract class BaseEditorActivity :
 
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
+		immersiveController?.onConfigurationChanged(newConfig)
 	}
 
 	private fun setupToolbar() {
@@ -700,9 +753,10 @@ abstract class BaseEditorActivity :
 		_binding?.apply {
 			contentCard.progress = progress
 			val insetsTop = systemBarInsets?.top ?: 0
-			content.editorAppBarLayout.updatePadding(
-				top = (insetsTop * (1f - progress)).roundToInt(),
-			)
+			val topInset = (insetsTop * (1f - progress)).roundToInt()
+
+			content.editorAppbarContent.updatePadding(top = topInset)
+
 			memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
 			}
@@ -792,6 +846,7 @@ abstract class BaseEditorActivity :
 		}
 
 	override fun onPause() {
+		immersiveController?.onPause()
 		super.onPause()
 		memoryUsageWatcher.listener = null
 		memoryUsageWatcher.stopWatching(false)
@@ -801,6 +856,7 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun onResume() {
+		immersiveController?.onResume()
 		super.onResume()
 		invalidateOptionsMenu()
 
@@ -1299,7 +1355,8 @@ abstract class BaseEditorActivity :
 					slideOffset: Float,
 				) {
 					content.apply {
-						val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+						val safeOffset = slideOffset.coerceAtLeast(0f)
+						val editorScale = 1 - safeOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
 						this.bottomSheet.onSlide(slideOffset)
 						this.viewContainer.scaleX = editorScale
 						this.viewContainer.scaleY = editorScale
