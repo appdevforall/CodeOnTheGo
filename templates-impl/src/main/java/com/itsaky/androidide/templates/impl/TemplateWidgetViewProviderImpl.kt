@@ -19,7 +19,6 @@ package com.itsaky.androidide.templates.impl
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.drawable.ColorDrawable
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -114,7 +113,11 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
   private fun createCheckBox(context: Context, widget: CheckBoxWidget): View {
     return LayoutCheckboxBinding.inflate(LayoutInflater.from(context)).apply {
       val param = widget.parameter as BooleanParameter
-      root.setText(param.name)
+      if (param.nameStr != null) {
+        root.text = param.nameStr
+      } else {
+        root.setText(param.name)
+      }
       root.isChecked = param.value
 
       val observer = object : DefaultObserver<Boolean>() {
@@ -327,7 +330,11 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
     root: TextInputLayout,
     crossinline onTextChanged: (String) -> Unit
   ) {
-    root.setHint(name)
+    if (nameStr != null) {
+      root.hint = nameStr
+    } else {
+      root.setHint(name)
+    }
     resetStartAndEndIcons(context, root)
     root.editText!!.addTextChangedListener(object : SingleTextWatcher() {
       override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
