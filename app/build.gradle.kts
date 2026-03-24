@@ -1118,12 +1118,6 @@ val releaseAssets =
 			"release",
 		),
         Asset(
-          "assets/release/common/data/common/core.cgt.br",
-          "https://appdevforall.org/dev-assets/release/core.cgt.br",
-          "core.cgt.br",
-          "release",
-        ),
-        Asset(
           "assets/release/core.cgt",
           "https://appdevforall.org/dev-assets/release/core.cgt",
           "core.cgt",
