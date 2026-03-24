@@ -19,6 +19,8 @@ import android.view.View
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
 
 class PluginResourceContext(
     baseContext: Context,
@@ -57,8 +59,8 @@ class PluginResourceContext(
                 .flatMap { it.declaredFields.asSequence() }
                 .filter { it.type == Int::class.javaPrimitiveType }
                 .map { it.getInt(null) }
-                .firstOrNull { it != 0 }
-                ?.let { (it ushr 24) != 0x7F } ?: false
+                .filter { it != 0 }
+                .any { (it ushr 24) != 0x7F }
         } catch (e: ReflectiveOperationException) {
             Log.w(TAG, "Failed to detect custom package ID for $pkg", e)
             false
@@ -93,15 +95,19 @@ class PluginResourceContext(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 if (cachedLoader == null) {
-                    val pfd = ParcelFileDescriptor.open(File(sourceDir), ParcelFileDescriptor.MODE_READ_ONLY)
-                    cachedProvider = ResourcesProvider.loadFromApk(pfd)
-                    pfd.close()
-                    cachedLoader = ResourcesLoader().also { it.addProvider(cachedProvider!!) }
+                    ParcelFileDescriptor.open(File(sourceDir), ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+                        cachedProvider = ResourcesProvider.loadFromApk(pfd)
+                        cachedLoader = ResourcesLoader().also { it.addProvider(cachedProvider!!) }
+                    }
                 }
                 targetResources.addLoaders(cachedLoader!!)
                 patchedResources = targetResources
                 Log.d(TAG, "Added plugin resources via ResourcesLoader for ${pluginPackageInfo?.packageName}")
-            } catch (e: Exception) {
+            } catch (e: FileNotFoundException) {
+                Log.e(TAG, "ResourcesLoader failed, falling back to addAssetPath", e)
+                addAssetPathFallback(targetResources.assets, sourceDir)
+                patchedResources = targetResources
+            } catch (e: IOException) {
                 Log.e(TAG, "ResourcesLoader failed, falling back to addAssetPath", e)
                 addAssetPathFallback(targetResources.assets, sourceDir)
                 patchedResources = targetResources
