@@ -19,9 +19,7 @@ package com.itsaky.androidide.fragments
 
 import android.os.Bundle
 import android.view.View
-import androidx.fragment.app.activityViewModels
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
-import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.transition.TransitionManager
 import com.itsaky.androidide.R
@@ -43,7 +41,6 @@ import com.itsaky.androidide.utils.TemplateRecipeExecutor
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
-import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 
 /**
  * A fragment which shows a wizard-like interface for creating templates.
@@ -56,9 +53,6 @@ class TemplateDetailsFragment :
     ) {
 
     private val viewModel by activityViewModel<MainViewModel>()
-
-    private val recentProjectsViewModel: RecentProjectsViewModel by activityViewModels()
-
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
