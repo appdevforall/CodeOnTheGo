@@ -29,6 +29,7 @@ import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.build.RunTasksAction
 import com.itsaky.androidide.actions.editor.CopyAction
 import com.itsaky.androidide.actions.editor.CutAction
+import com.itsaky.androidide.actions.agent.ExplainSelectionAction
 import com.itsaky.androidide.actions.editor.ExpandSelectionAction
 import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
@@ -110,6 +111,7 @@ class EditorActivityActions {
             registry.registerAction(LongSelectAction(context, order++))
             registry.registerAction(CutAction(context, order++))
             registry.registerAction(CopyAction(context, order++))
+            registry.registerAction(ExplainSelectionAction(context, order++))
             registry.registerAction(PasteAction(context, order++))
             registry.registerAction(FormatCodeAction(context, order++))
             registry.registerAction(ShowTooltipAction(context, order++))
