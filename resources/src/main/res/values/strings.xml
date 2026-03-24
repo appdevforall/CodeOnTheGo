@@ -359,6 +359,9 @@
 
 	<string name="title_translations">Translations</string>
 	<string name="action_expand_selection">Expand selection</string>
+	<string name="action_explain_selection">Explain selection</string>
+	<string name="msg_ai_gemini_api_key_missing">Gemini API key is missing. Add it in AI Settings.</string>
+	<string name="msg_ai_local_model_not_loaded">Local model is not loaded. Load a model in AI Settings.</string>
 	<string name="idepref_java_matchLower_title">Match completions in lower case</string>
 	<string name="title_common">Common</string>
 	<string name="idepref_editor_category_common" translatable="false">@string/title_common</string>
@@ -832,6 +835,8 @@
 	<string name="breakpoint">Breakpoint</string>
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
+	<string name="desc_toggle_top_bar">Toggle top bar</string>
+    <string name="desc_toggle_bottom_bar">Toggle bottom bar</string>
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
