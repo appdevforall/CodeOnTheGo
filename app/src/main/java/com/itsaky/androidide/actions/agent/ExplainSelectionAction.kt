@@ -1,6 +1,7 @@
 package com.itsaky.androidide.actions.agent
 
 import android.content.Context
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
@@ -8,11 +9,9 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.agent.actions.EditorAiActionDispatcher
 import com.itsaky.androidide.agent.actions.SelectedCodeContext
 import com.itsaky.androidide.agent.actions.SelectionAiPromptFactory
-import com.itsaky.androidide.agent.fragments.EncryptedPrefs
-import com.itsaky.androidide.agent.repository.AiBackend
-import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
-import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
-import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.agent.repository.BackendAvailability
+import com.itsaky.androidide.agent.repository.getBackendAvailability
+import com.itsaky.androidide.agent.repository.Util.getCurrentBackend
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
@@ -30,7 +29,6 @@ class ExplainSelectionAction(
     }
 
     override val id: String = ID
-    private var currentBackend: AiBackend = AiBackend.GEMINI
 
     init {
         label = context.getString(R.string.action_explain_selection)
@@ -58,27 +56,24 @@ class ExplainSelectionAction(
         enabled = visible && target?.hasSelection() == true
 
         if (!enabled) return
-
-        currentBackend = getCurrentBackend()
-
-        enabled = when (currentBackend) {
-            AiBackend.GEMINI -> !EncryptedPrefs.getGeminiApiKey(context).isNullOrBlank()
-            AiBackend.LOCAL_LLM -> LlmInferenceEngineProvider.instance.isModelLoaded
-        }
     }
 
     override suspend fun execAction(data: ActionData): Boolean {
         if (!this.enabled) return false
+
+        when (val availability = getBackendAvailability(context)) {
+            is BackendAvailability.Available -> Unit
+            is BackendAvailability.Unavailable -> {
+                Toast.makeText(context, availability.messageRes, Toast.LENGTH_SHORT).show()
+                return false
+            }
+        }
+
         val target = getTextTarget(data) ?: return false
         val rawSelectedText = target.getSelectedText() ?: return false
         if (rawSelectedText.isBlank()) return false
 
-        val clippedText =
-            if (rawSelectedText.length > MAX_SELECTION_CHARS) {
-                rawSelectedText.take(MAX_SELECTION_CHARS) + "\n... [truncated due to size]"
-            } else {
-                rawSelectedText
-            }
+        val clippedText = getClippedText(rawSelectedText)
 
         val file = data.get(File::class.java)
         val range = data.get(Range::class.java)
@@ -95,17 +90,16 @@ class ExplainSelectionAction(
 					selectionLength = rawSelectedText.length
 				)
 
-        val prompt = SelectionAiPromptFactory.build(selectionContext, currentBackend)
+        val prompt = SelectionAiPromptFactory.build(selectionContext, getCurrentBackend())
         return EditorAiActionDispatcher.dispatch(data, prompt, rawSelectedText)
     }
 
-    private fun getCurrentBackend(): AiBackend {
-        val prefs = BaseApplication.baseInstance.prefManager
-        val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
+    private fun getClippedText(rawSelectedText: String): String {
+        if (rawSelectedText.length > MAX_SELECTION_CHARS) {
+            return rawSelectedText.take(MAX_SELECTION_CHARS) + "\n... [truncated due to size]"
+        }
 
-        return runCatching {
-            AiBackend.valueOf(backendName ?: AiBackend.GEMINI.name)
-        }.getOrDefault(AiBackend.GEMINI)
+        return rawSelectedText
     }
 
     private fun getRelativePath(file: File?, projectRoot: File?): String? {

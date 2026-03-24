@@ -360,6 +360,8 @@
 	<string name="title_translations">Translations</string>
 	<string name="action_expand_selection">Expand selection</string>
 	<string name="action_explain_selection">Explain selection</string>
+	<string name="msg_ai_gemini_api_key_missing">Gemini API key is missing. Add it in AI Settings.</string>
+	<string name="msg_ai_local_model_not_loaded">Local model is not loaded. Load a model in AI Settings.</string>
 	<string name="idepref_java_matchLower_title">Match completions in lower case</string>
 	<string name="title_common">Common</string>
 	<string name="idepref_editor_category_common" translatable="false">@string/title_common</string>
