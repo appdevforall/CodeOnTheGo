@@ -543,10 +543,9 @@ fun createAssetsZip(arch: String) {
 			"plugin-artifacts.zip",
             "core.cgt"
 		).forEach { fileName ->
-			val filePath = sourceDir.resolve(fileName)
-			if (!filePath.exists()) {
-				throw FileNotFoundException(filePath.absolutePath)
-			}
+			val filePath = sourceDir.resolve(fileName).takeIf { it.exists() }
+				?: project.rootDir.resolve("assets/release/$fileName").takeIf { it.exists() }
+				?: throw FileNotFoundException(sourceDir.resolve(fileName).absolutePath)
 
 			project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
 			val entryName =
@@ -1122,6 +1121,12 @@ val releaseAssets =
           "assets/release/common/data/common/core.cgt.br",
           "https://appdevforall.org/dev-assets/release/core.cgt.br",
           "core.cgt.br",
+          "release",
+        ),
+        Asset(
+          "assets/release/core.cgt",
+          "https://appdevforall.org/dev-assets/release/core.cgt",
+          "core.cgt",
           "release",
         ),
 	)
