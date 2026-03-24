@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.lsp.kotlin
 
+import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
@@ -24,6 +26,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
@@ -35,160 +38,255 @@ import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
+import com.itsaky.androidide.utils.Environment
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
+import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryModule
+import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModule
+import org.jetbrains.kotlin.config.JvmTarget
+import org.jetbrains.kotlin.config.LanguageVersion
+import org.jetbrains.kotlin.platform.jvm.JdkPlatform
+import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import java.nio.file.Paths
+import kotlin.io.path.pathString
 
 class KotlinLanguageServer : ILanguageServer {
 
 	private var _client: ILanguageClient? = null
-    private var _settings: IServerSettings? = null
-    private var selectedFile: Path? = null
-    private var initialized = false
+	private var _settings: IServerSettings? = null
+	private var selectedFile: Path? = null
+	private var initialized = false
 
-    override val serverId: String = SERVER_ID
+	private var compiler: Compiler? = null
 
-    override val client: ILanguageClient?
-        get() = _client
+	override val serverId: String = SERVER_ID
 
-    val settings: IServerSettings
-        get() = _settings ?: KotlinServerSettings.getInstance().also { _settings = it }
+	override val client: ILanguageClient?
+		get() = _client
 
-    companion object {
-        const val SERVER_ID = "ide.lsp.kotlin"
-        private val log = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
-    }
+	val settings: IServerSettings
+		get() = _settings ?: KotlinServerSettings.getInstance().also { _settings = it }
 
-    init {
-        applySettings(KotlinServerSettings.getInstance())
-
-        if (!EventBus.getDefault().isRegistered(this)) {
-            EventBus.getDefault().register(this)
-        }
-    }
-
-    override fun shutdown() {
-        EventBus.getDefault().unregister(this)
-        initialized = false
-    }
-
-    override fun connectClient(client: ILanguageClient?) {
-        this._client = client
-    }
-
-	override fun applySettings(settings: IServerSettings?) {
-        this._settings = settings
-    }
-
-    override fun setupWithProject(workspace: Workspace) {
-        log.info("setupWithProject called, initialized={}", initialized)
-        if (!initialized) {
-            initialized = true
-        }
-    }
-
-
-    override fun complete(params: CompletionParams?): CompletionResult {
-        return CompletionResult.EMPTY
-    }
-
-    override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
-        if (!settings.referencesEnabled()) {
-            return ReferenceResult.empty()
-        }
-
-        if (!DocumentUtils.isKotlinFile(params.file)) {
-            return ReferenceResult.empty()
-        }
-
-        return ReferenceResult.empty()
-    }
-
-    override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
-        if (!settings.definitionsEnabled()) {
-            return DefinitionResult.empty()
-        }
-
-        if (!DocumentUtils.isKotlinFile(params.file)) {
-            return DefinitionResult.empty()
-        }
-
-		return DefinitionResult.empty()
-    }
-
-    override suspend fun expandSelection(params: ExpandSelectionParams): Range {
-        return params.selection
-    }
-
-    override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
-        if (!settings.signatureHelpEnabled()) {
-            return SignatureHelp.empty()
-        }
-
-        if (!DocumentUtils.isKotlinFile(params.file)) {
-            return SignatureHelp.empty()
-        }
-
-		return SignatureHelp.empty()
-    }
-
-    override suspend fun analyze(file: Path): DiagnosticResult {
-        log.debug("analyze(file={})", file)
-
-        if (!settings.diagnosticsEnabled() || !settings.codeAnalysisEnabled()) {
-            log.debug("analyze() skipped: diagnosticsEnabled={}, codeAnalysisEnabled={}",
-                settings.diagnosticsEnabled(), settings.codeAnalysisEnabled())
-            return DiagnosticResult.NO_UPDATE
-        }
-
-        if (!DocumentUtils.isKotlinFile(file)) {
-            log.debug("analyze() skipped: not a Kotlin file")
-            return DiagnosticResult.NO_UPDATE
-        }
-
-        return DiagnosticResult.NO_UPDATE
-    }
-
-    @Subscribe(threadMode = ThreadMode.ASYNC)
-    @Suppress("unused")
-    fun onDocumentOpen(event: DocumentOpenEvent) {
-        if (!DocumentUtils.isKotlinFile(event.openedFile)) {
-            return
-        }
-
-        selectedFile = event.openedFile
+	companion object {
+		const val SERVER_ID = "ide.lsp.kotlin"
+		private val log = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 	}
 
-    @Subscribe(threadMode = ThreadMode.ASYNC)
-    @Suppress("unused")
-    fun onDocumentChange(event: DocumentChangeEvent) {
-        if (!DocumentUtils.isKotlinFile(event.changedFile)) {
-            return
-        }
-    }
+	init {
+		applySettings(KotlinServerSettings.getInstance())
 
-    @Subscribe(threadMode = ThreadMode.ASYNC)
-    @Suppress("unused")
-    fun onDocumentClose(event: DocumentCloseEvent) {
-        if (!DocumentUtils.isKotlinFile(event.closedFile)) {
-            return
-        }
-    }
+		if (!EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().register(this)
+		}
+	}
 
-    @Subscribe(threadMode = ThreadMode.ASYNC)
-    @Suppress("unused")
-    fun onDocumentSelected(event: DocumentSelectedEvent) {
-        if (!DocumentUtils.isKotlinFile(event.selectedFile)) {
-            return
-        }
+	override fun shutdown() {
+		EventBus.getDefault().unregister(this)
+		compiler?.close()
+		initialized = false
+	}
 
-        selectedFile = event.selectedFile
-        val uri = event.selectedFile.toUri().toString()
+	override fun connectClient(client: ILanguageClient?) {
+		this._client = client
+	}
 
-        log.debug("onDocumentSelected: uri={}", uri)
-    }
+	override fun applySettings(settings: IServerSettings?) {
+		this._settings = settings
+	}
+
+	override fun setupWithProject(workspace: Workspace) {
+		log.info("setupWithProject called, initialized={}", initialized)
+		if (!initialized) {
+			recreateSession(workspace)
+			initialized = true
+		}
+	}
+
+	private fun recreateSession(workspace: Workspace) {
+		compiler?.close()
+
+		val jdkHome = Environment.JAVA_HOME.toPath()
+		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE
+		val intellijPluginRoot = Paths.get(
+			BaseApplication
+				.baseInstance.applicationInfo.sourceDir
+		)
+
+		val jdkPlatform = JvmPlatforms.jvmPlatformByTargetVersion(
+			JvmTarget.supportedValues().first { it.majorVersion == jdkRelease })
+
+		compiler = Compiler(
+			intellijPluginRoot = intellijPluginRoot,
+			jdkHome = jdkHome,
+			jdkRelease = jdkRelease,
+			languageVersion = LanguageVersion.LATEST_STABLE
+		) {
+			buildKtModuleProvider {
+				platform = jdkPlatform
+
+				val moduleProjects =
+					workspace.subProjects
+						.filterIsInstance<ModuleProject>()
+						.filter { it.path != workspace.rootProject.path }
+
+				val libraryDependencies =
+					moduleProjects
+						.flatMap { it.getCompileClasspaths() }
+						.associateWith { library ->
+							addModule(buildKtLibraryModule {
+								addBinaryRoot(library.toPath())
+							})
+						}
+
+				val subprojectsAsModules = mutableMapOf<ModuleProject, KaSourceModule>()
+
+				fun getOrCreateModule(project: ModuleProject): KaSourceModule {
+					subprojectsAsModules[project]?.also { module ->
+						// a source module already exists for this project
+						return module
+					}
+
+					val module = buildKtSourceModule {
+						addSourceRoots(
+							project.getSourceDirectories().map { it.toPath() })
+
+						project.getCompileClasspaths(excludeSourceGeneratedClassPath = true)
+							.forEach { classpath ->
+								val libDependency = libraryDependencies[classpath]
+								if (libDependency == null) {
+									log.error(
+										"Unable to locate library module for classpath: {}",
+										libDependency
+									)
+									return@forEach
+								}
+
+								addRegularDependency(libDependency)
+							}
+
+						project.getCompileModuleProjects()
+							.forEach { dependencyModule ->
+								addRegularDependency(getOrCreateModule(dependencyModule))
+							}
+					}
+
+					subprojectsAsModules[project] = module
+					return module
+				}
+
+				moduleProjects.forEach { project ->
+					addModule(getOrCreateModule(project))
+				}
+			}
+		}
+	}
+
+	override fun complete(params: CompletionParams?): CompletionResult {
+		return CompletionResult.EMPTY
+	}
+
+	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
+		if (!settings.referencesEnabled()) {
+			return ReferenceResult.empty()
+		}
+
+		if (!DocumentUtils.isKotlinFile(params.file)) {
+			return ReferenceResult.empty()
+		}
+
+		return ReferenceResult.empty()
+	}
+
+	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
+		if (!settings.definitionsEnabled()) {
+			return DefinitionResult.empty()
+		}
+
+		if (!DocumentUtils.isKotlinFile(params.file)) {
+			return DefinitionResult.empty()
+		}
+
+		return DefinitionResult.empty()
+	}
+
+	override suspend fun expandSelection(params: ExpandSelectionParams): Range {
+		return params.selection
+	}
+
+	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
+		if (!settings.signatureHelpEnabled()) {
+			return SignatureHelp.empty()
+		}
+
+		if (!DocumentUtils.isKotlinFile(params.file)) {
+			return SignatureHelp.empty()
+		}
+
+		return SignatureHelp.empty()
+	}
+
+	override suspend fun analyze(file: Path): DiagnosticResult {
+		log.debug("analyze(file={})", file)
+
+		if (!settings.diagnosticsEnabled() || !settings.codeAnalysisEnabled()) {
+			log.debug(
+				"analyze() skipped: diagnosticsEnabled={}, codeAnalysisEnabled={}",
+				settings.diagnosticsEnabled(), settings.codeAnalysisEnabled()
+			)
+			return DiagnosticResult.NO_UPDATE
+		}
+
+		if (!DocumentUtils.isKotlinFile(file)) {
+			log.debug("analyze() skipped: not a Kotlin file")
+			return DiagnosticResult.NO_UPDATE
+		}
+
+		return DiagnosticResult.NO_UPDATE
+	}
+
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onDocumentOpen(event: DocumentOpenEvent) {
+		if (!DocumentUtils.isKotlinFile(event.openedFile)) {
+			return
+		}
+
+		selectedFile = event.openedFile
+	}
+
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onDocumentChange(event: DocumentChangeEvent) {
+		if (!DocumentUtils.isKotlinFile(event.changedFile)) {
+			return
+		}
+	}
+
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onDocumentClose(event: DocumentCloseEvent) {
+		if (!DocumentUtils.isKotlinFile(event.closedFile)) {
+			return
+		}
+	}
+
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onDocumentSelected(event: DocumentSelectedEvent) {
+		if (!DocumentUtils.isKotlinFile(event.selectedFile)) {
+			return
+		}
+
+		selectedFile = event.selectedFile
+		val uri = event.selectedFile.toUri().toString()
+
+		log.debug("onDocumentSelected: uri={}", uri)
+	}
 }
