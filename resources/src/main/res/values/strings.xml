@@ -179,7 +179,7 @@
 	<string name="template_tabs">Tabbed Activity</string>
 	<string name="template_no_activity">No Activity</string>
 	<string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
-	<string name="template_plugin">Code on the Go Plugin</string>
+	<string name="template_plugin">Plugin</string>
 	<string name="template_ndk">NDK Activity</string>
 
 	<!-- Plugin Template Wizard -->
@@ -272,6 +272,16 @@
 	<string name="lang_kotlin">Kotlin</string>
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
+
+	<!-- Shortcuts -->
+	<string name="shortcut_close_current_file">Close current file</string>
+	<string name="shortcut_create_project">Create project</string>
+    <string name="shortcut_open_project">Open project</string>
+    <string name="shortcut_clone_repository">Clone repository</string>
+    <string name="shortcut_close_file">Close file</string>
+    <string name="shortcut_open_preferences">Open preferences</string>
+    <string name="shortcut_find_in_project">Find in project</string>
+    <string name="shortcut_open_terminal">Open terminal</string>
 
 	<!-- Code Editor -->
 	<string name="open_with">Open with…</string>
@@ -1168,4 +1178,39 @@
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>
     <string name="diff_loading">Loading Git Diff…</string>
+    <string name="commit_summary">Summary (required)</string>
+    <string name="commit_description_optional">Description</string>
+    <string name="commit">Commit</string>
+    <string name="view_commit_history">View Commit History</string>
+    <string name="git_commit_history">Git Commit History</string>
+    <string name="no_commit_history">No commit history</string>
+    <string name="commit_not_pushed">This commit has not been pushed to the remote repository</string>
+    <string name="commit_pushed">This commit has been pushed to the remote repository</string>
+    <string name="no_internet_connection">No internet connection. Please check your network and try again.</string>
+    <string name="connection_lost">Connection lost during download. Please check your internet connection and try again.</string>
+    <string name="desc_file_added">File added</string>
+    <string name="desc_file_modified">File modified</string>
+    <string name="desc_file_deleted">File deleted</string>
+    <string name="desc_file_untracked">File untracked</string>
+    <string name="desc_file_renamed">File renamed</string>
+    <string name="desc_file_conflicted">File conflicted</string>
+    <string name="cancel_clone">Cancel clone</string>
+    <string name="initialising_clone">Initialising clone…</string>
+    <string name="cancelling_clone">Cancelling clone…</string>
+
+    <!-- Git Preferences -->
+    <string name="idepref_git_title">Git</string>
+    <string name="idepref_git_summary">Set and update git configuration</string>
+    <string name="idepref_git_author_title">Author Identity</string>
+    <string name="idepref_git_author_summary">Set the name and email used for commits</string>
+    <string name="idepref_git_user_name_title">User Name</string>
+    <string name="idepref_git_user_name_summary">Used as author name in commits</string>
+    <string name="idepref_git_user_email_title">User Email</string>
+    <string name="idepref_git_user_email_summary">Used as author email in commits</string>
+    <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nClick on the avatar for more info.</string>
+    <string name="git_committing_as">Committing as %1$s</string>
+    <string name="git_committing_email">Email - %1$s</string>
+    <string name="git_update_config_in_preferences">You can update your git configuration in Preferences.</string>
+    <string name="author_not_set">Not set</string>
+    <string name="not_a_git_repo">This project is not a Git repository</string>
 </resources>
