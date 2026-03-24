@@ -64,6 +64,7 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
@@ -1149,7 +1150,9 @@ open class EditorHandlerActivity :
 
 				val iconRes = pluginTab.icon
 				if (iconRes != null) {
-					tab.icon = ResourcesCompat.getDrawable(resources, iconRes, theme)
+					val pluginId = tabManager.getPluginIdForTab(pluginTab.id)
+					tab.icon = PluginDrawableResolver.resolve(iconRes, pluginId, this@EditorHandlerActivity)
+						?: ResourcesCompat.getDrawable(resources, android.R.drawable.ic_menu_info_details, theme)
 				}
 
 				val tabIndex = content.tabs.tabCount
