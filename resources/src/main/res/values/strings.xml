@@ -835,6 +835,8 @@
 	<string name="breakpoint">Breakpoint</string>
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
+	<string name="desc_toggle_top_bar">Toggle top bar</string>
+    <string name="desc_toggle_bottom_bar">Toggle bottom bar</string>
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
