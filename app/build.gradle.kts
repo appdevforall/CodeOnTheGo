@@ -541,6 +541,7 @@ fun createAssetsZip(arch: String) {
 			"documentation.db",
 			bootstrapName,
 			"plugin-artifacts.zip",
+            "core.cgt"
 		).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
 			if (!filePath.exists()) {
@@ -1059,6 +1060,12 @@ val debugAssets =
 			"localMvnRepository.zip",
 			"debug",
 		),
+        Asset(
+          "assets/core.cgt",
+          "https://appdevforall.org/dev-assets/debug/core.cgt",
+          "core.cgt",
+          "debug",
+        ),
 	)
 
 val releaseAssets =
@@ -1111,6 +1118,12 @@ val releaseAssets =
 			"v8/bootstrap.zip.br",
 			"release",
 		),
+        Asset(
+          "assets/release/common/data/common/core.cgt.br",
+          "https://appdevforall.org/dev-assets/release/core.cgt.br",
+          "core.cgt.br",
+          "release",
+        ),
 	)
 
 fun assetsBatch(
