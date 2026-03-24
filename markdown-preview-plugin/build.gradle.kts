@@ -35,6 +35,8 @@ android {
         jvmTarget = "17"
     }
 
+
+
     packaging {
         resources {
             excludes += setOf(

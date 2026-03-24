@@ -22,7 +22,8 @@ enum class PluginPermission(val value: String, val displayName: String) {
 	NETWORK_ACCESS("network.access", "Network Access"),
 	SYSTEM_COMMANDS("system.commands", "System Commands"),
 	IDE_SETTINGS("ide.settings", "IDE Settings"),
-	PROJECT_STRUCTURE("project.structure", "Project Structure")
+	PROJECT_STRUCTURE("project.structure", "Project Structure"),
+	NATIVE_CODE("native.code", "Native Code")
 }
 
 enum class PluginExtension(val interfaceName: String, val displayName: String) {
