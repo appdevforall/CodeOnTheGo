@@ -1,8 +1,10 @@
 package com.itsaky.androidide.plugins.base
 
 import android.content.Context
+import android.content.res.Resources
 import android.view.LayoutInflater
 import com.itsaky.androidide.plugins.ServiceRegistry
+import java.lang.ref.WeakReference
 
 /**
  * Base class for plugin fragments that ensures proper resource context.
@@ -13,19 +15,34 @@ import com.itsaky.androidide.plugins.ServiceRegistry
  */
 object PluginFragmentHelper {
 
-    // Map of plugin IDs to their resource contexts
     private val pluginContexts = mutableMapOf<String, Context>()
-
-    // Map of plugin IDs to their service registries
     private val serviceRegistries = mutableMapOf<String, ServiceRegistry>()
+    private val legacyPlugins = mutableSetOf<String>()
+
+    private data class ActivitySnapshot(
+        val contextRef: WeakReference<Context>,
+        val themeRef: WeakReference<Resources.Theme>
+    )
+
+    private val activitySnapshots = mutableMapOf<String, ActivitySnapshot>()
+
+    @JvmStatic
+    fun getCurrentActivityTheme(pluginId: String): Resources.Theme? =
+        activitySnapshots[pluginId]?.themeRef?.get()
+
+    @JvmStatic
+    fun getCurrentActivityContext(pluginId: String): Context? =
+        activitySnapshots[pluginId]?.contextRef?.get()
 
     /**
      * Register a plugin's resource context.
      * Called by the plugin manager when loading APK-based plugins.
      */
     @JvmStatic
-    fun registerPluginContext(pluginId: String, context: Context) {
+    @JvmOverloads
+    fun registerPluginContext(pluginId: String, context: Context, isLegacy: Boolean = false) {
         pluginContexts[pluginId] = context
+        if (isLegacy) legacyPlugins.add(pluginId) else legacyPlugins.remove(pluginId)
     }
 
     /**
@@ -35,6 +52,8 @@ object PluginFragmentHelper {
     @JvmStatic
     fun unregisterPluginContext(pluginId: String) {
         pluginContexts.remove(pluginId)
+        activitySnapshots.remove(pluginId)
+        legacyPlugins.remove(pluginId)
     }
 
     /**
@@ -69,6 +88,8 @@ object PluginFragmentHelper {
     fun clearAllContexts() {
         pluginContexts.clear()
         serviceRegistries.clear()
+        activitySnapshots.clear()
+        legacyPlugins.clear()
     }
 
     /**
@@ -82,10 +103,14 @@ object PluginFragmentHelper {
     @JvmStatic
     fun getPluginInflater(pluginId: String, defaultInflater: LayoutInflater): LayoutInflater {
         val pluginContext = getPluginContext(pluginId) ?: return defaultInflater
-
-        pluginContext.theme
-
-        val inflater = pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
-        return inflater ?: defaultInflater.cloneInContext(pluginContext)
+        activitySnapshots[pluginId] = ActivitySnapshot(
+            contextRef = WeakReference(defaultInflater.context),
+            themeRef = WeakReference(defaultInflater.context.theme)
+        )
+        if (pluginId in legacyPlugins) {
+            return pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
+                ?: defaultInflater.cloneInContext(pluginContext)
+        }
+        return defaultInflater.cloneInContext(pluginContext)
     }
 }
