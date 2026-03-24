@@ -28,20 +28,20 @@ import java.time.Instant
  * @author Akash Yadav
  */
 open class ActiveDocument(
-  val file: Path,
-  var version: Int,
-  var modified: Instant,
-  content: String = ""
+	val file: Path,
+	var version: Int,
+	var modified: Instant,
+	content: String = ""
 ) {
 
-  var content: String = content
-    internal set
+	var content: String = content
+		internal set
 
-  fun inputStream(): BufferedInputStream {
-    return content.byteInputStream().buffered()
-  }
+	fun inputStream(): BufferedInputStream {
+		return content.byteInputStream().buffered()
+	}
 
-  fun reader(): BufferedReader {
-    return content.reader().buffered()
-  }
+	fun reader(): BufferedReader {
+		return content.reader().buffered()
+	}
 }

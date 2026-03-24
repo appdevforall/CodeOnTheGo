@@ -119,8 +119,10 @@ class KotlinLanguageServer : ILanguageServer {
 				.baseInstance.applicationInfo.sourceDir
 		)
 
-		val jdkPlatform = JvmPlatforms.jvmPlatformByTargetVersion(
-			JvmTarget.supportedValues().first { it.majorVersion == jdkRelease })
+		val jvmTarget = JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
+			?: JvmTarget.JVM_21
+
+		val jvmPlatform = JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget)
 
 		compiler = Compiler(
 			intellijPluginRoot = intellijPluginRoot,
@@ -129,7 +131,7 @@ class KotlinLanguageServer : ILanguageServer {
 			languageVersion = LanguageVersion.LATEST_STABLE
 		) {
 			buildKtModuleProvider {
-				platform = jdkPlatform
+				platform = jvmPlatform
 
 				val moduleProjects =
 					workspace.subProjects
