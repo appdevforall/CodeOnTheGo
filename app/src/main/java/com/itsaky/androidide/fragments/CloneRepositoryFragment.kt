@@ -6,7 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import androidx.core.widget.doAfterTextChanged
-import androidx.fragment.app.activityViewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -29,7 +29,7 @@ class CloneRepositoryFragment : BaseFragment() {
 
     private var binding: FragmentCloneRepositoryBinding? = null
     private val viewModel: CloneRepositoryViewModel by viewModels()
-    private val mainViewModel: MainViewModel by activityViewModels()
+    private val mainViewModel: MainViewModel by activityViewModel()
 
     override fun onCreateView(
         inflater: LayoutInflater,
