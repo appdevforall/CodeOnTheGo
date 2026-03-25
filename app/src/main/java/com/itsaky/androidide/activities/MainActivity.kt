@@ -23,7 +23,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.viewModels
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -55,10 +55,13 @@ import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
 import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
+import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
 import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
 import com.itsaky.androidide.shortcuts.ShortcutManager
+import com.itsaky.androidide.utils.getCreatedTime
+import com.itsaky.androidide.utils.getLastModifiedTime
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_CLONE_REPO
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -80,7 +83,7 @@ import com.itsaky.androidide.utils.hasVisibleDialog
 class MainActivity : EdgeToEdgeIDEActivity() {
 	private val log = LoggerFactory.getLogger(MainActivity::class.java)
 
-	private val viewModel by viewModels<MainViewModel>()
+	private val viewModel by viewModel<MainViewModel>()
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: ActivityMainBinding? = null
@@ -397,9 +400,20 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
-	internal fun openProject(root: File) {
+	internal fun openProject(root: File, project: RecentProject? = null) {
 		ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-		GeneralPreferences.lastOpenedProject = root.absolutePath
+        GeneralPreferences.lastOpenedProject = root.absolutePath
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            val location = root.absolutePath
+            val recentProject = project ?: RecentProject(
+                name = root.name,
+                location = location,
+                createdAt = getCreatedTime(location).toString(),
+                lastModified = getLastModifiedTime(location).toString()
+            )
+            viewModel.saveProjectToRecents(recentProject)
+        }
 
 		// Track project open in Firebase Analytics
 		analyticsManager.trackProjectOpened(root.absolutePath)
