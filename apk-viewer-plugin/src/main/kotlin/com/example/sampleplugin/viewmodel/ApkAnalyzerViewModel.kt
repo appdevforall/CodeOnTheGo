@@ -5,13 +5,18 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
+private val ZipEntry.safeSize: Long get() = size.coerceAtLeast(0L)
+private val ZipEntry.safeCompressedSize: Long get() = compressedSize.coerceAtLeast(0L)
 
 class ApkAnalyzerViewModel : ViewModel() {
 
@@ -30,40 +35,34 @@ class ApkAnalyzerViewModel : ViewModel() {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     var pendingFile: java.io.File? = null
+    private var analysisJob: Job? = null
 
-    fun analyzeApk(file: java.io.File) {
-        _uiState.value = UiState.Analyzing
-        viewModelScope.launch {
-            runCatching {
-                withContext(Dispatchers.IO) { parseApk(file) }
-            }.onSuccess { data ->
-                _uiState.value = UiState.Success(data)
-            }.onFailure { e ->
-                _uiState.value = UiState.Error(e.message ?: "Unknown error")
+    fun analyzeApk(file: java.io.File) = launchAnalysis { parseApk(file) }
+
+    fun analyzeApk(uri: Uri, context: Context) = launchAnalysis {
+        val tempFile = java.io.File.createTempFile("apk_", ".apk", context.cacheDir)
+        try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: throw IllegalStateException("Failed to open InputStream for URI: $uri")
+            inputStream.use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output) }
             }
+            parseApk(tempFile)
+        } finally {
+            tempFile.delete()
         }
     }
 
-    fun analyzeApk(uri: Uri, context: Context) {
+    private fun launchAnalysis(block: suspend () -> ApkParseResult) {
+        analysisJob?.cancel()
         _uiState.value = UiState.Analyzing
-        viewModelScope.launch {
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    val tempFile = java.io.File.createTempFile("apk_", ".apk", context.cacheDir)
-                    try {
-                        val inputStream = context.contentResolver.openInputStream(uri)
-                            ?: throw IllegalStateException("Failed to open InputStream for URI: $uri")
-                        inputStream.use { input ->
-                            tempFile.outputStream().use { output -> input.copyTo(output) }
-                        }
-                        parseApk(tempFile)
-                    } finally {
-                        tempFile.delete()
-                    }
-                }
-            }.onSuccess { data ->
+        analysisJob = viewModelScope.launch {
+            try {
+                val data = withContext(Dispatchers.IO) { block() }
                 _uiState.value = UiState.Success(data)
-            }.onFailure { e ->
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -85,8 +84,8 @@ class ApkAnalyzerViewModel : ViewModel() {
 
             entries.forEach { entry ->
                 totalEntries++
-                totalUncompressed += entry.size
-                totalCompressed += entry.compressedSize
+                totalUncompressed += entry.safeSize
+                totalCompressed += entry.safeCompressedSize
                 if (entry.isDirectory) {
                     explicitDirs.add(entry.name)
                 } else {
@@ -114,8 +113,8 @@ class ApkAnalyzerViewModel : ViewModel() {
                 KeyFileInfo(
                     name = name,
                     exists = entry != null,
-                    rawSize = entry?.size ?: 0L,
-                    compressedSize = entry?.compressedSize ?: 0L
+                    rawSize = entry?.safeSize ?: 0L,
+                    compressedSize = entry?.safeCompressedSize ?: 0L
                 )
             }
 
@@ -128,8 +127,8 @@ class ApkAnalyzerViewModel : ViewModel() {
                     archMap.getOrPut(arch) { mutableListOf() }.add(
                         NativeLibInfo(
                             name = parts.last(),
-                            rawSize = entry?.size ?: 0L,
-                            compressedSize = entry?.compressedSize ?: 0L
+                            rawSize = entry?.safeSize ?: 0L,
+                            compressedSize = entry?.safeCompressedSize ?: 0L
                         )
                     )
                 }
@@ -144,15 +143,15 @@ class ApkAnalyzerViewModel : ViewModel() {
                 ResourceDirInfo(
                     path = dir,
                     fileCount = dirFiles.size,
-                    rawSize = dirFiles.sumOf { name -> entryMap[name]?.size ?: 0L },
-                    compressedSize = dirFiles.sumOf { name -> entryMap[name]?.compressedSize ?: 0L }
+                    rawSize = dirFiles.sumOf { name -> entryMap[name]?.safeSize ?: 0L },
+                    compressedSize = dirFiles.sumOf { name -> entryMap[name]?.safeCompressedSize ?: 0L }
                 )
             }
 
             val largeFiles = fileNames.mapNotNull { name ->
                 entryMap[name]?.let { entry ->
-                    if (entry.size > 100 * 1024) {
-                        LargeFileInfo(name, entry.size, entry.compressedSize)
+                    if (entry.safeSize > 100 * 1024) {
+                        LargeFileInfo(name, entry.safeSize, entry.safeCompressedSize)
                     } else null
                 }
             }.sortedByDescending { it.rawSize }
