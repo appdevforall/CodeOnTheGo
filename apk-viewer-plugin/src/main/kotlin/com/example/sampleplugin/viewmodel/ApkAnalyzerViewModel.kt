@@ -51,7 +51,9 @@ class ApkAnalyzerViewModel : ViewModel() {
                 withContext(Dispatchers.IO) {
                     val tempFile = java.io.File.createTempFile("apk_", ".apk", context.cacheDir)
                     try {
-                        context.contentResolver.openInputStream(uri)?.use { input ->
+                        val inputStream = context.contentResolver.openInputStream(uri)
+                            ?: throw IllegalStateException("Failed to open InputStream for URI: $uri")
+                        inputStream.use { input ->
                             tempFile.outputStream().use { output -> input.copyTo(output) }
                         }
                         parseApk(tempFile)
