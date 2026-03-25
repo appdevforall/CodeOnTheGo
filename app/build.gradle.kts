@@ -205,18 +205,6 @@ desugaring {
 			EnvUtil::logbackVersion.javaMethod!!,
 			DesugarEnvUtil::logbackVersion.javaMethod!!,
 		)
-
-		// Replace usages of Unsafe class (from com.intellij.util.containers)
-		// with our own implementation
-		// The original implementation uses MethodHandle instances to access APIs
-		// from sun.misc.Unsafe which are not directly accessible on Android
-		// As a result, we have our implementatio of that class which makes use
-		// of HiddenApiBypass to access the same methods, and provides a drop-in
-		// replacement of the original class
-		replaceClass(
-			"org.jetbrains.kotlin.com.intellij.util.containers.Unsafe",
-			"org.jetbrains.kotlin.com.intellij.util.containers.UnsafeImpl",
-		)
 	}
 }
 
