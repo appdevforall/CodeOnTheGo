@@ -984,6 +984,22 @@
 	<string name="btn_restart_now">Restart Now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
+	<string name="msg_plugin_installed">Plugin installed successfully</string>
+	<string name="msg_plugin_load_failed">Failed to load plugins: %1$s</string>
+	<string name="msg_plugin_enabled">Plugin enabled</string>
+	<string name="msg_plugin_enable_failed">Failed to enable plugin</string>
+	<string name="msg_plugin_enable_error">Error enabling plugin: %1$s</string>
+	<string name="msg_plugin_disabled">Plugin disabled</string>
+	<string name="msg_plugin_disable_failed">Failed to disable plugin</string>
+	<string name="msg_plugin_disable_error">Error disabling plugin: %1$s</string>
+	<string name="msg_plugin_uninstalled">Plugin uninstalled successfully</string>
+	<string name="msg_plugin_uninstall_failed">Failed to uninstall plugin</string>
+	<string name="msg_plugin_uninstall_error">Error uninstalling plugin: %1$s</string>
+	<string name="msg_source_delete_failed">Could not delete the installation file.</string>
+	<string name="msg_source_delete_no_permission">No permission to delete the installation file.</string>
+	<string name="msg_no_file_manager">No file manager found</string>
+	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
+	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
