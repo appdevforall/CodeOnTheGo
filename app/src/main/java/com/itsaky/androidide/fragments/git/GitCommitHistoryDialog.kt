@@ -9,9 +9,13 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
+import com.itsaky.androidide.databinding.DialogGitCredentialsBinding
 import com.itsaky.androidide.fragments.git.adapter.GitCommitHistoryAdapter
+import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -88,12 +92,74 @@ class GitCommitHistoryDialog : DialogFragment() {
     }
 
     private fun setupPushUI() {
+        binding.btnPush.setOnClickListener {
+            val context = requireContext()
+            if (GitCredentialsManager.hasCredentials(context)) {
+                viewModel.push(GitCredentialsManager.getUsername(context), GitCredentialsManager.getToken(context))
+            } else {
+                showCredentialsDialog()
+            }
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.localCommitsCount.collectLatest { count ->
                 binding.btnPush.visibility = if (count > 0) View.VISIBLE else View.GONE
             }
         }
 
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.pushState.collectLatest { state ->
+                when (state) {
+                    is GitBottomSheetViewModel.PushUiState.Idle -> {
+                        binding.btnPush.isEnabled = true
+                        binding.btnPush.text = getString(R.string.push)
+                        binding.pushProgress.visibility = View.GONE
+                    }
+                    is GitBottomSheetViewModel.PushUiState.Pushing -> {
+                        binding.btnPush.isEnabled = false
+                        binding.btnPush.text = null
+                        binding.pushProgress.visibility = View.VISIBLE
+                    }
+                    is GitBottomSheetViewModel.PushUiState.Success -> {
+                        binding.btnPush.isEnabled = true
+                        binding.pushProgress.visibility = View.GONE
+                        Snackbar.make(binding.root, R.string.push_successful, Snackbar.LENGTH_SHORT).show()
+                    }
+                    is GitBottomSheetViewModel.PushUiState.Error -> {
+                        binding.btnPush.isEnabled = true
+                        binding.pushProgress.visibility = View.GONE
+                        val message = state.message ?: getString(R.string.unknown_error)
+                        MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(R.string.push_failed)
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
+                }
+            }
+        }
+
+    }
+
+    private fun showCredentialsDialog() {
+        val context = requireContext()
+        val dialogBinding = DialogGitCredentialsBinding.inflate(layoutInflater)
+
+        dialogBinding.username.setText(GitCredentialsManager.getUsername(context))
+        dialogBinding.token.setText(GitCredentialsManager.getToken(context))
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.git_credentials_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.push) { _, _ ->
+                val username = dialogBinding.username.text?.toString()?.trim()
+                val token = dialogBinding.token.text?.toString()?.trim()
+                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    viewModel.push(username, token)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     override fun onDestroyView() {

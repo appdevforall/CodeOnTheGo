@@ -2,21 +2,26 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
+import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.GitRepository
 import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
 import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.projects.IProjectManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.eclipse.jgit.transport.RemoteRefUpdate
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -42,6 +47,9 @@ class GitBottomSheetViewModel : ViewModel() {
 
     private val _localCommitsCount = MutableStateFlow(0)
     val localCommitsCount: StateFlow<Int> = _localCommitsCount.asStateFlow()
+
+    private val _pushState = MutableStateFlow<PushUiState>(PushUiState.Idle)
+    val pushState: StateFlow<PushUiState> = _pushState.asStateFlow()
 
     var currentRepository: GitRepository? = null
         private set
@@ -153,6 +161,68 @@ class GitBottomSheetViewModel : ViewModel() {
                 _commitHistory.value = CommitHistoryUiState.Error(e.message)
             }
         }
+    }
+
+    fun checkLocalCommits() {
+        viewModelScope.launch {
+            _localCommitsCount.value = currentRepository?.getLocalCommitsCount() ?: 0
+        }
+    }
+
+    fun push(username: String?, token: String?) {
+        viewModelScope.launch {
+            _pushState.value = PushUiState.Pushing
+            try {
+                val repository = currentRepository ?: return@launch
+                val credentials = if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    UsernamePasswordCredentialsProvider(username, token)
+                } else null
+
+                val results = repository.push(credentialsProvider = credentials)
+                var hasError = false
+                var errorMessage: String? = null
+
+                for (result in results) {
+                    for (update in result.remoteUpdates) {
+                        if (update.status != RemoteRefUpdate.Status.OK &&
+                            update.status != RemoteRefUpdate.Status.UP_TO_DATE
+                        ) {
+                            hasError = true
+                            errorMessage = update.message ?: update.status.name
+                            break
+                        }
+                    }
+                    if (hasError) break
+                }
+
+                if (hasError) {
+                    _pushState.value = PushUiState.Error(errorMessage)
+                } else {
+                    _pushState.value = PushUiState.Success
+                    // Persist credentials only on success
+                    if (username != null && token != null) {
+                        GitCredentialsManager.saveCredentials(BaseApplication.baseInstance, username, token)
+                    }
+                    refreshStatus()
+                    checkLocalCommits()
+                }
+            } catch (e: Exception) {
+                log.error("Push failed", e)
+                _pushState.value = PushUiState.Error(e.message)
+            } finally {
+                viewModelScope.launch {
+                    delay(3000)
+                    _pushState.value = PushUiState.Idle
+                }
+            }
+        }
+    }
+
+    sealed class PushUiState {
+        object Idle : PushUiState()
+        object Pushing : PushUiState()
+        object Success : PushUiState()
+        data class Error(val message: String?) : PushUiState()
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)

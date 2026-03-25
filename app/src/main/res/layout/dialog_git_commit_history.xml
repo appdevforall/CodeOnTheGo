@@ -29,6 +29,18 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="@id/tv_commit_history" />
 
+    <com.google.android.material.progressindicator.CircularProgressIndicator
+        android:id="@+id/pushProgress"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:indeterminate="true"
+        android:visibility="gone"
+        app:indicatorSize="24dp"
+        app:layout_constraintBottom_toBottomOf="@id/btnPush"
+        app:layout_constraintEnd_toEndOf="@id/btnPush"
+        app:layout_constraintStart_toStartOf="@id/btnPush"
+        app:layout_constraintTop_toTopOf="@id/btnPush" />
+
     <com.google.android.material.divider.MaterialDivider
         android:id="@+id/divider"
         android:layout_width="match_parent"
