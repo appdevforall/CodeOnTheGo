@@ -15,10 +15,13 @@ import org.eclipse.jgit.dircache.DirCacheIterator
 import org.eclipse.jgit.lib.BranchConfig
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.PersonIdent
+import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
+import org.eclipse.jgit.transport.CredentialsProvider
+import org.eclipse.jgit.transport.PushResult
 import org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.eclipse.jgit.treewalk.EmptyTreeIterator
@@ -198,6 +201,24 @@ class JGitRepository(override val rootDir: File) : GitRepository {
             parentHashes = parents.map { it.name },
             hasBeenPushed = hasBeenPushed
         )
+    }
+    
+    override suspend fun push(
+        remote: String,
+        credentialsProvider: CredentialsProvider?,
+        progressMonitor: ProgressMonitor?
+    ): Iterable<PushResult> = withContext(Dispatchers.IO) {
+        val pushCommand = git.push().setRemote(remote)
+        
+        if (credentialsProvider != null) {
+            pushCommand.setCredentialsProvider(credentialsProvider)
+        }
+        
+        if (progressMonitor != null) {
+            pushCommand.setProgressMonitor(progressMonitor)
+        }
+
+        pushCommand.call()
     }
     
     override fun close() {
