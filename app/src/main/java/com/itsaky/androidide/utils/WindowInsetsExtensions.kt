@@ -7,6 +7,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnAttach
 import androidx.core.view.updatePadding
 import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.ContentEditorBinding
+import com.blankj.utilcode.util.SizeUtils
+import androidx.core.graphics.Insets
+import android.view.ViewGroup
+import androidx.core.view.updateLayoutParams
 
 data class InitialPadding(val left: Int, val top: Int, val right: Int, val bottom: Int)
 
@@ -63,22 +68,65 @@ fun View.applyRootSystemInsetsAsPadding(
 ) {
     val initial = getOrStoreInitialPadding()
 
-    fun applyNow() {
-        val rootInsets = ViewCompat.getRootWindowInsets(this) ?: return
-        val insets = rootInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+    ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
+        val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
 
-        updatePadding(
+        view.updatePadding(
             left = initial.left + if (applyLeft) insets.left else 0,
             top = initial.top + if (applyTop) insets.top else 0,
             right = initial.right + if (applyRight) insets.right else 0,
             bottom = initial.bottom + if (applyBottom) insets.bottom else 0
         )
+        windowInsets
     }
 
-    doOnAttach {
-        applyNow()
-        if (ViewCompat.getRootWindowInsets(this) == null) {
-            post { applyNow() }
-        }
+    doOnAttach { it.requestApplyInsets() }
+}
+
+/**
+ * Applies immersive mode insets to editor UI elements that float near system bars.
+ *
+ * Keeps toggle buttons and bottom sheet aligned with system bars (status/nav).
+ */
+fun ContentEditorBinding.applyImmersiveModeInsets(systemBars: Insets) {
+    val baseMargin = SizeUtils.dp2px(16f)
+    val isRtl = root.layoutDirection == View.LAYOUT_DIRECTION_RTL
+    val endInset = if (isRtl) systemBars.left else systemBars.right
+
+    btnToggleTopBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+        topMargin = baseMargin + systemBars.top
+        marginEnd = baseMargin + endInset
+    }
+
+    btnToggleBottomBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+        bottomMargin = baseMargin + systemBars.bottom
+        marginEnd = baseMargin + endInset
+    }
+
+    bottomSheet.updatePadding(top = systemBars.top)
+}
+
+/**
+ * Recomputes bottom sheet offsets based on the current app bar height.
+ */
+fun ContentEditorBinding.refreshBottomSheetAnchor() {
+    bottomSheet.setOffsetAnchor(editorAppBarLayout)
+}
+
+/**
+ * Allows the bottom sheet to expand fully (no app bar anchor).
+ */
+fun ContentEditorBinding.resetBottomSheetAnchor() {
+    bottomSheet.resetOffsetAnchor()
+}
+
+/**
+ * Applies the correct bottom sheet anchor based on orientation.
+ */
+fun ContentEditorBinding.applyBottomSheetAnchorForOrientation(orientation: Int) {
+    if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+        refreshBottomSheetAnchor()
+    } else {
+        resetBottomSheetAnchor()
     }
 }
