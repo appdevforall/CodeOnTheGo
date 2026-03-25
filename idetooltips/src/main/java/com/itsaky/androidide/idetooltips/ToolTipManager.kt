@@ -41,6 +41,7 @@ import java.io.File
 
 object TooltipManager {
     private const val TAG = "TooltipManager"
+    private var activePopupWindow: PopupWindow? = null
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/documentation.db")
@@ -147,6 +148,11 @@ object TooltipManager {
 
             IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
         }
+    }
+
+    fun dismissActiveTooltip() {
+        activePopupWindow?.dismiss()
+        activePopupWindow = null
     }
 
     // Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
@@ -355,7 +361,16 @@ object TooltipManager {
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
-        popupWindow.isFocusable = true
+        dismissActiveTooltip()
+
+        activePopupWindow = popupWindow
+        popupWindow.setOnDismissListener {
+            if (activePopupWindow === popupWindow) {
+                activePopupWindow = null
+            }
+        }
+
+        popupWindow.isFocusable = false
         popupWindow.isOutsideTouchable = true
         if (anchorView.isInOverlayWindow()) {
             showOverlayTooltip(popupWindow, popupView, anchorView)

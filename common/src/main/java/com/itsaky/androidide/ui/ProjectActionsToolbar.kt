@@ -4,7 +4,9 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.util.TypedValue
+import android.view.InputDevice
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -36,10 +38,14 @@ class ProjectActionsToolbar @JvmOverloads constructor(
         hint: String,
         onClick: () -> Unit,
         onLongClick: () -> Unit,
+        onHover: ((View) -> Unit)? = null,
+        onHoverExit: (() -> Unit)? = null,
         shouldAddMargin: Boolean
     ) {
         val item = ImageButton(context).apply {
-            tooltipText = hint
+            if (onHover == null) {
+                tooltipText = hint
+            }
             contentDescription = hint
             setImageDrawable(icon)
             addCircleRipple()
@@ -56,6 +62,24 @@ class ProjectActionsToolbar @JvmOverloads constructor(
             setOnLongClickListener {
                 onLongClick()
                 true
+            }
+            var hoverRunnable: Runnable? = null
+            setOnHoverListener { view, event ->
+                if (!event.isFromSource(InputDevice.SOURCE_MOUSE)) return@setOnHoverListener false
+
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_HOVER_ENTER -> {
+                        hoverRunnable?.let { view.removeCallbacks(it) }
+                        hoverRunnable = Runnable { onHover?.invoke(view) }
+                        view.postDelayed(hoverRunnable, 600L)
+                    }
+                    MotionEvent.ACTION_HOVER_EXIT -> {
+                        hoverRunnable?.let { view.removeCallbacks(it) }
+                        onHoverExit?.invoke()
+                    }
+                }
+
+                false
             }
         }
         binding.menuContainer.addView(item)

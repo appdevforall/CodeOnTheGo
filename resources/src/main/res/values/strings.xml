@@ -145,6 +145,7 @@
 	<string name="save_and_close">Save files and close project</string>
 	<string name="search_projects_hint">Search projects by name…</string>
     <string name="sort_projects_label">Sort projects</string>
+    <string name="toggle_sorting">Toggle sorting</string>
     <string name="reset_sorting">Reset</string>
     <string name="apply_sorting">Sort</string>
     <string name="sort_by_hint">Sort by</string>
