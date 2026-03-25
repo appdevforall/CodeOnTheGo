@@ -40,6 +40,9 @@ class GitBottomSheetViewModel : ViewModel() {
     private val _isGitRepository = MutableStateFlow(false)
     val isGitRepository: StateFlow<Boolean> = _isGitRepository.asStateFlow()
 
+    private val _localCommitsCount = MutableStateFlow(0)
+    val localCommitsCount: StateFlow<Int> = _localCommitsCount.asStateFlow()
+
     var currentRepository: GitRepository? = null
         private set
 
@@ -79,15 +82,24 @@ class GitBottomSheetViewModel : ViewModel() {
                     val status = repo.getStatus()
                     _gitStatus.value = status
                     _currentBranch.value = repo.getCurrentBranch()?.name
+                    getLocalCommitsCount()
                 } ?: run {
                     _gitStatus.value = GitStatus.EMPTY
                     _currentBranch.value = null
+                    _localCommitsCount.value = 0
                 }
             } catch (e: Exception) {
                 log.error("Failed to refresh git status", e)
                 _gitStatus.value = GitStatus.EMPTY
                 _currentBranch.value = null
+                _localCommitsCount.value = 0
             }
+        }
+    }
+
+    fun getLocalCommitsCount() {
+        viewModelScope.launch {
+            _localCommitsCount.value = currentRepository?.getLocalCommitsCount() ?: 0
         }
     }
 
@@ -135,6 +147,7 @@ class GitBottomSheetViewModel : ViewModel() {
                 } else {
                     _commitHistory.value = CommitHistoryUiState.Success(history)
                 }
+                getLocalCommitsCount()
             } catch (e: Exception) {
                 log.error("Failed to fetch commit history", e)
                 _commitHistory.value = CommitHistoryUiState.Error(e.message)
@@ -166,4 +179,5 @@ class GitBottomSheetViewModel : ViewModel() {
     fun onFileRenamed(event: FileRenameEvent) {
         refreshStatus()
     }
+
 }

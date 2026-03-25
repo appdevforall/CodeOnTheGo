@@ -83,6 +83,17 @@ class GitCommitHistoryDialog : DialogFragment() {
                 }
             }
         }
+
+        setupPushUI()
+    }
+
+    private fun setupPushUI() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.localCommitsCount.collectLatest { count ->
+                binding.btnPush.visibility = if (count > 0) View.VISIBLE else View.GONE
+            }
+        }
+
     }
 
     override fun onDestroyView() {

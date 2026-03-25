@@ -32,4 +32,6 @@ interface GitRepository : Closeable {
         credentialsProvider: CredentialsProvider? = null,
         progressMonitor: ProgressMonitor? = null
     ): Iterable<PushResult>
+
+    suspend fun getLocalCommitsCount(): Int
 }

@@ -220,6 +220,30 @@ class JGitRepository(override val rootDir: File) : GitRepository {
 
         pushCommand.call()
     }
+
+    override suspend fun getLocalCommitsCount(): Int = withContext(Dispatchers.IO) {
+        try {
+            val branchName = repository.branch ?: return@withContext 0
+            val branch = repository.resolve(Constants.HEAD) ?: return@withContext 0
+            val trackingBranch = BranchConfig(repository.config, branchName).trackingBranch
+                ?: return@withContext 0
+            val remoteBranch = repository.resolve(trackingBranch) ?: return@withContext 0
+
+            RevWalk(repository).use { walk ->
+                val localCommit = walk.parseCommit(branch)
+                val remoteCommit = walk.parseCommit(remoteBranch)
+                walk.markStart(localCommit)
+                walk.markUninteresting(remoteCommit)
+                var count = 0
+                for (commit in walk) {
+                    count++
+                }
+                count
+            }
+        } catch (_: Exception) {
+            0
+        }
+    }
     
     override fun close() {
         repository.close()

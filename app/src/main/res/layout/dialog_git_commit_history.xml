@@ -9,12 +9,25 @@
     <TextView
         android:id="@+id/tv_commit_history"
         style="@style/TextAppearance.AppCompat.Headline"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:padding="16dp"
         android:text="@string/git_commit_history"
+        app:layout_constraintEnd_toStartOf="@id/btnPush"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPush"
+        style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/push"
+        android:visibility="visible"
+        app:icon="@drawable/ic_upload"
+        app:layout_constraintBottom_toBottomOf="@id/tv_commit_history"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/tv_commit_history" />
 
     <com.google.android.material.divider.MaterialDivider
         android:id="@+id/divider"
