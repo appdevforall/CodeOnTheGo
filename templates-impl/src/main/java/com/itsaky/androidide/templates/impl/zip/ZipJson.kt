@@ -21,7 +21,7 @@ data class ParametersJson(
 
 data class RequiredParametersJson(
     val appName: IdentifierJson,
-    val packageName: IdentifierJson,
+    val packageName: IdentifierJson? = null,
     val saveLocation: IdentifierJson
 )
 

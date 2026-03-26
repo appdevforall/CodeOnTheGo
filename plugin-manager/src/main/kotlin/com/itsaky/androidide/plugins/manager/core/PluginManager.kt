@@ -30,6 +30,9 @@ import com.itsaky.androidide.plugins.manager.context.PluginRegistry
 import com.itsaky.androidide.plugins.manager.context.ResourceManagerImpl
 import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
 import com.itsaky.androidide.plugins.manager.documentation.PluginDocumentationManager
+import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
+import com.itsaky.androidide.plugins.manager.services.IdeTemplateServiceImpl
+import com.itsaky.androidide.plugins.services.IdeTemplateService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeFileService
@@ -102,6 +105,12 @@ class PluginManager private constructor(
     
     private val pluginsDir = File(context.filesDir, "plugins")
     private val documentationManager = PluginDocumentationManager(context)
+    private var templateReloadListener: (() -> Unit)? = null
+
+    fun setTemplateReloadListener(listener: (() -> Unit)?) {
+        this.templateReloadListener = listener
+        PluginProjectManager.getInstance().setTemplateReloadListener(listener)
+    }
 
     // Helper methods for cleaner error handling
     private fun <T> executeWithErrorHandling(
@@ -459,6 +468,13 @@ class PluginManager private constructor(
                 }
             }
 
+            PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+
+            val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
+            if (templateService is IdeTemplateServiceImpl) {
+                templateService.cleanupAllTemplates()
+            }
+
             loadedPlugin.plugin.deactivate()
             loadedPlugin.plugin.dispose()
 
@@ -662,6 +678,7 @@ class PluginManager private constructor(
             loadedPlugin.plugin.activate()
             loadedPlugin.isEnabled = true
             savePluginState(pluginId, true)
+
             logger.info("Enabled plugin: $pluginId")
             true
         } catch (e: Exception) {
@@ -669,19 +686,20 @@ class PluginManager private constructor(
             false
         }
     }
-    
+
     fun disablePlugin(pluginId: String): Boolean {
         val loadedPlugin = loadedPlugins[pluginId] ?: return false
-        
+
         if (!loadedPlugin.isEnabled) {
             logger.info("Plugin $pluginId is already disabled")
             return true
         }
-        
+
         return try {
             loadedPlugin.plugin.deactivate()
             loadedPlugin.isEnabled = false
             savePluginState(pluginId, false)
+
             logger.info("Disabled plugin: $pluginId")
             true
         } catch (e: Exception) {
@@ -900,6 +918,19 @@ class PluginManager private constructor(
             IdeThemeServiceImpl(context)
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTemplateService::class.java,
+            pluginId,
+            "template"
+        ) {
+            IdeTemplateServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                onTemplatesChanged = { templateReloadListener?.invoke() }
+            )
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -1021,6 +1052,19 @@ class PluginManager private constructor(
             "theme"
         ) {
             IdeThemeServiceImpl(context)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTemplateService::class.java,
+            pluginId,
+            "template"
+        ) {
+            IdeTemplateServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                onTemplatesChanged = { templateReloadListener?.invoke() }
+            )
         }
 
         return PluginContextImpl(

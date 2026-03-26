@@ -33,18 +33,14 @@ object ZipTemplateReader {
         try {
             ZipFile(zipFile).use { zip ->
 
-                log.debug("zipFile: $zipFile")
-
                 val indexEntry = zip.getEntry(ARCHIVE_JSON) ?: return emptyList()
                 val indexJson = zip.getInputStream(indexEntry).bufferedReader().use {
                     gson.fromJson(it, TemplatesIndex::class.java)
                 }
 
-                log.debug("indexJson: $indexJson")
                 for (templateRef in indexJson.templates) {
                     try {
                         val basePath = templateRef.path
-                        log.debug("basePath: $basePath")
                         val metaEntry = zip.getEntry("$basePath/$META_FOLDER/$META_JSON") ?: continue
 
                         val metaJsonString = zip.getInputStream(metaEntry).bufferedReader().use { reader ->
@@ -53,13 +49,8 @@ object ZipTemplateReader {
 
                         val metaJson = gson.fromJson(metaJsonString, TemplateJson::class.java)
 
-                        log.debug("metaJson: $metaJson")
-
                         val thumbEntry = zip.getEntry("$basePath/$META_FOLDER/$META_THUMBNAIL")
                         val thumbData = thumbEntry?.let { zip.getInputStream(it).use { s -> s.readBytes() } }
-
-                        if (thumbData == null) log.error("template $basePath/$META_FOLDER/$META_THUMBNAIL not found or is invalid")
-                        log.debug("thumbData: $thumbData")
 
                         val userWidgets = mutableListOf<Widget<*>>()
                         val params = mutableMapOf<String, Parameter<*>>()
@@ -86,7 +77,8 @@ object ZipTemplateReader {
 
                         val project = baseZipProject(
                             showLanguage = (metaJson.parameters?.optional?.language != null),
-                            showMinSdk = (metaJson.parameters?.optional?.minsdk != null)
+                            showMinSdk = (metaJson.parameters?.optional?.minsdk != null),
+                            showPackageName = (metaJson.parameters?.required?.packageName != null)
                         ) {
 
                             this.templateNameStr = metaJson.name
@@ -100,14 +92,12 @@ object ZipTemplateReader {
                                 widgets(widget)
                             }
 
-                            log.debug("this.name: ${this.templateNameStr}")
                             this.recipe = TemplateRecipe { executor ->
                                 val innerRecipe = recipeFactory(metaJson, params, basePath, data, defModule)
                                 innerRecipe.execute(executor)
                             }
                         }
 
-                        log.debug("adding project ${metaJson.name}")
                         templates.add(project)
                     } catch (e: Exception) {
                         log.error("Failed to load template at ${templateRef.path}", e)

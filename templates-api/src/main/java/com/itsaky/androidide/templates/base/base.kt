@@ -338,14 +338,16 @@ inline fun baseZipProject(
     showUseKts: Boolean = false,
     showMinSdk: Boolean = true,
     showLanguage: Boolean = true,
+    showPackageName: Boolean = true,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
     return ProjectTemplateBuilder().apply {
 
-        // When project name is changed, change the package name accordingly
-        projectName.observe { name ->
-            val newPackage = AndroidUtils.appNameToPackageName(name.value, packageName.value)
-            packageName.setValue(newPackage)
+        if (showPackageName) {
+            projectName.observe { name ->
+                val newPackage = AndroidUtils.appNameToPackageName(name.value, packageName.value)
+                packageName.setValue(newPackage)
+            }
         }
 
         Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
@@ -366,10 +368,9 @@ inline fun baseZipProject(
             it.setValue(getNewProjectName(saveLocation.value, projectName.value))
         }
 
-        widgets(
-            TextFieldWidget(projectName), TextFieldWidget(packageName),
-            TextFieldWidget(saveLocation)
-        )
+        widgets(TextFieldWidget(projectName))
+        if (showPackageName) widgets(TextFieldWidget(packageName))
+        widgets(TextFieldWidget(saveLocation))
 
         if (showLanguage) {
             widgets(SpinnerWidget(language))
