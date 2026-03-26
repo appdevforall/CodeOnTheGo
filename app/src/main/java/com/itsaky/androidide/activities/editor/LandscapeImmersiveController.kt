@@ -2,6 +2,7 @@ package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.View.OnLayoutChangeListener
@@ -128,7 +129,7 @@ class LandscapeImmersiveController(
      * and resumes it when the cursor leaves.
      */
     private val topBarHoverObserver: (MotionEvent) -> Unit = { event ->
-        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) {
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_HOVER_ENTER,
                 MotionEvent.ACTION_HOVER_MOVE -> onTopBarInteractionStarted()
