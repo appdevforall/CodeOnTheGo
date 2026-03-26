@@ -87,7 +87,6 @@ class KotlinDiagnosticProvider(
 		inMemoryPsi.originalFile = ktFile
 
 		val rawDiagnostics = ktAnalyze(inMemoryPsi) {
-			logger.info("ktFile.text={}", inMemoryPsi.text)
 			ktFile.collectDiagnostics(filter = KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS)
 		}
 
