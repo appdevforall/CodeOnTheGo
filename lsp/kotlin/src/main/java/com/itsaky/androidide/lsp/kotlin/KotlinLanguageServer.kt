@@ -124,10 +124,8 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override fun setupWithProject(workspace: Workspace) {
 		log.info("setupWithProject called, initialized={}", initialized)
-		if (!initialized) {
-			recreateSession(workspace)
-			initialized = true
-		}
+		recreateSession(workspace)
+		initialized = true
 	}
 
 	private fun recreateSession(workspace: Workspace) {
