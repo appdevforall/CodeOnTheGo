@@ -48,4 +48,5 @@
     <string name="value_v1_signing">v1 (JAR signing)</string>
     <string name="value_v2_or_unsigned">v2+ or unsigned</string>
     <string name="value_na">N/A</string>
+    <string name="action_show_all">Show all (%d)</string>
 </resources>

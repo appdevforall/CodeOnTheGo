@@ -11,16 +11,14 @@ object PluginDrawableResolver {
     fun resolve(resId: Int, pluginId: String?, fallbackContext: Context): Drawable? {
         if (pluginId != null) {
             val pluginContext = PluginFragmentHelper.getPluginContext(pluginId)
-            if (pluginContext != null) {
-                try {
-                    return ContextCompat.getDrawable(pluginContext, resId)
-                } catch (_: Resources.NotFoundException) { }
-            }
+                ?: return loadDrawable(fallbackContext, resId)
+            try {
+                return ContextCompat.getDrawable(pluginContext, resId)
+            } catch (_: Resources.NotFoundException) { }
         }
-        return try {
-            ContextCompat.getDrawable(fallbackContext, resId)
-        } catch (_: Resources.NotFoundException) {
-            null
-        }
+        return loadDrawable(fallbackContext, resId)
     }
+
+    private fun loadDrawable(context: Context, resId: Int): Drawable? =
+        try { ContextCompat.getDrawable(context, resId) } catch (_: Resources.NotFoundException) { null }
 }

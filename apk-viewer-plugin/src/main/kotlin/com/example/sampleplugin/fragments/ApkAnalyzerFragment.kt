@@ -30,18 +30,21 @@ import kotlinx.coroutines.launch
 data class TableSection(
     val title: String,
     val headers: List<String>,
-    val rows: List<List<String>>
+    val rows: List<List<String>>,
+    val showAllAction: String? = null
 )
 
 class ApkAnalyzerFragment : Fragment() {
 
     companion object {
         private const val PLUGIN_ID = "com.example.apkviewer"
+        private const val MAX_LARGE_FILES_DISPLAYED = 10
         private const val FALLBACK_SURFACE = 0xFFFFFBFE.toInt()
         private const val FALLBACK_SURFACE_VARIANT = 0xFFE7E0EC.toInt()
     }
 
     private val viewModel by viewModels<ApkAnalyzerViewModel>()
+    private var showAllLargeFiles = false
 
     private var statusText: TextView? = null
     private var btnStart: Button? = null
@@ -106,6 +109,7 @@ class ApkAnalyzerFragment : Fragment() {
                 btnStart?.isEnabled = true
             }
             is ApkAnalyzerViewModel.UiState.Analyzing -> {
+                showAllLargeFiles = false
                 progressBar?.visibility = View.VISIBLE
                 statusText?.visibility = View.VISIBLE
                 statusText?.text = getString(R.string.analyzing_apk)
@@ -225,16 +229,17 @@ class ApkAnalyzerFragment : Fragment() {
         }
 
         if (data.largeFiles.isNotEmpty()) {
-            val largeFileRows = data.largeFiles.map { lf ->
+            val displayedFiles = if (showAllLargeFiles) data.largeFiles else data.largeFiles.take(MAX_LARGE_FILES_DISPLAYED)
+            val largeFileRows = displayedFiles.map { lf ->
                 listOf(lf.name, formatFileSize(lf.rawSize), formatFileSize(lf.compressedSize), formatRatio(lf.compressedSize, lf.rawSize))
-            }.toMutableList()
-            if (data.totalLargeFiles > 10) {
-                largeFileRows.add(listOf("+${data.totalLargeFiles - 10} more", "", "", ""))
             }
             sections.add(TableSection(
                 title = getString(R.string.section_large_files),
                 headers = listOf(getString(R.string.header_file), getString(R.string.header_raw), getString(R.string.header_compressed), getString(R.string.header_ratio)),
-                rows = largeFileRows
+                rows = largeFileRows,
+                showAllAction = if (!showAllLargeFiles && data.largeFiles.size > MAX_LARGE_FILES_DISPLAYED) {
+                    getString(R.string.action_show_all, data.largeFiles.size)
+                } else null
             ))
         }
 
@@ -297,6 +302,24 @@ class ApkAnalyzerFragment : Fragment() {
                     )
                 }
                 table.addView(dataRow)
+            }
+
+            if (section.showAllAction != null) {
+                val actionText = TextView(cardCtx).apply {
+                    text = section.showAllAction
+                    setPadding(16, 12, 16, 12)
+                    setTextColor(MaterialColors.getColor(cardCtx, com.google.android.material.R.attr.colorPrimary, 0))
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        showAllLargeFiles = true
+                        val currentState = viewModel.uiState.value
+                        if (currentState is ApkAnalyzerViewModel.UiState.Success) {
+                            renderState(currentState)
+                        }
+                    }
+                }
+                (cardView as ViewGroup).addView(actionText)
             }
 
             container.addView(cardView)
