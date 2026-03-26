@@ -3,6 +3,7 @@ package com.itsaky.androidide.git.core
 import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
+import org.eclipse.jgit.api.PullResult
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.CredentialsProvider
 import org.eclipse.jgit.transport.PushResult
@@ -34,4 +35,10 @@ interface GitRepository : Closeable {
     ): Iterable<PushResult>
 
     suspend fun getLocalCommitsCount(): Int
+
+    suspend fun pull(
+        remote: String = "origin",
+        credentialsProvider: CredentialsProvider? = null,
+        progressMonitor: ProgressMonitor? = null
+    ): PullResult
 }

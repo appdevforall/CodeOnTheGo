@@ -48,6 +48,9 @@ class GitBottomSheetViewModel : ViewModel() {
     private val _localCommitsCount = MutableStateFlow(0)
     val localCommitsCount: StateFlow<Int> = _localCommitsCount.asStateFlow()
 
+    private val _pullState = MutableStateFlow<PullUiState>(PullUiState.Idle)
+    val pullState: StateFlow<PullUiState> = _pullState.asStateFlow()
+
     private val _pushState = MutableStateFlow<PushUiState>(PushUiState.Idle)
     val pushState: StateFlow<PushUiState> = _pushState.asStateFlow()
 
@@ -217,6 +220,44 @@ class GitBottomSheetViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    fun pull(username: String?, token: String?) {
+        viewModelScope.launch {
+            _pullState.value = PullUiState.Pulling
+            try {
+                val repository = currentRepository ?: return@launch
+                val credentials = if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    UsernamePasswordCredentialsProvider(username, token)
+                } else null
+
+                val result = repository.pull(credentialsProvider = credentials)
+                
+                if (result.isSuccessful) {
+                    _pullState.value = PullUiState.Success
+                    refreshStatus()
+                    getCommitHistoryList()
+                } else {
+                    val status = result.mergeResult?.mergeStatus?.name ?: "Unknown error"
+                    _pullState.value = PullUiState.Error("Pull failed: $status")
+                }
+            } catch (e: Exception) {
+                log.error("Pull failed", e)
+                _pullState.value = PullUiState.Error(e.message)
+            } finally {
+                viewModelScope.launch {
+                    delay(3000)
+                    _pullState.value = PullUiState.Idle
+                }
+            }
+        }
+    }
+
+    sealed class PullUiState {
+        object Idle : PullUiState()
+        object Pulling : PullUiState()
+        object Success : PullUiState()
+        data class Error(val message: String?) : PullUiState()
     }
 
     sealed class PushUiState {

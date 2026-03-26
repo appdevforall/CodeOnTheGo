@@ -22,6 +22,7 @@ import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 import org.eclipse.jgit.transport.CredentialsProvider
 import org.eclipse.jgit.transport.PushResult
+import org.eclipse.jgit.api.PullResult
 import org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.eclipse.jgit.treewalk.EmptyTreeIterator
@@ -243,6 +244,24 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         } catch (_: Exception) {
             0
         }
+    }
+
+    override suspend fun pull(
+        remote: String,
+        credentialsProvider: CredentialsProvider?,
+        progressMonitor: ProgressMonitor?
+    ): PullResult = withContext(Dispatchers.IO) {
+        val pullCommand = git.pull().setRemote(remote)
+        
+        if (credentialsProvider != null) {
+            pullCommand.setCredentialsProvider(credentialsProvider)
+        }
+        
+        if (progressMonitor != null) {
+            pullCommand.setProgressMonitor(progressMonitor)
+        }
+
+        pullCommand.call()
     }
     
     override fun close() {
