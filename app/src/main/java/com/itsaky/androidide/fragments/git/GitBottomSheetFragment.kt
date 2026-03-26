@@ -14,10 +14,12 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.PreferencesActivity
 import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
+import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -106,6 +108,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             dialog.show(childFragmentManager, "CommitHistoryDialog")
         }
 
+        setupPullUI()
     }
 
     override fun onResume() {
@@ -196,6 +199,74 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         val hasSelection = fileChangeAdapter.selectedFiles.isNotEmpty()
         val hasAuthor = hasAuthorInfo()
         binding.commitButton.isEnabled = hasSummary && hasSelection && hasAuthor
+    }
+
+    private fun setupPullUI() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.isGitRepository.collectLatest { isRepo ->
+                binding.btnPull.visibility = if (isRepo) View.VISIBLE else View.GONE
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.pullState.collectLatest { state ->
+                when (state) {
+                    is GitBottomSheetViewModel.PullUiState.Idle -> {
+                        binding.btnPull.isEnabled = true
+                        binding.pullProgress.visibility = View.GONE
+                    }
+                    is GitBottomSheetViewModel.PullUiState.Pulling -> {
+                        binding.btnPull.isEnabled = false
+                        binding.pullProgress.visibility = View.VISIBLE
+                    }
+                    is GitBottomSheetViewModel.PullUiState.Success -> {
+                        binding.btnPull.isEnabled = true
+                        binding.pullProgress.visibility = View.GONE
+                        Snackbar.make(binding.root, R.string.pull_successful, Snackbar.LENGTH_SHORT).show()
+                    }
+                    is GitBottomSheetViewModel.PullUiState.Error -> {
+                        binding.btnPull.isEnabled = true
+                        binding.pullProgress.visibility = View.GONE
+                        val message = state.message ?: getString(R.string.unknown_error)
+                        MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(R.string.pull_failed)
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
+                }
+            }
+        }
+
+        binding.btnPull.setOnClickListener {
+            val context = requireContext()
+            if (GitCredentialsManager.hasCredentials(context)) {
+                viewModel.pull(GitCredentialsManager.getUsername(context), GitCredentialsManager.getToken(context))
+            } else {
+                showCredentialsDialog()
+            }
+        }
+    }
+
+    private fun showCredentialsDialog() {
+        val context = requireContext()
+        val dialogBinding = com.itsaky.androidide.databinding.DialogGitCredentialsBinding.inflate(layoutInflater)
+
+        dialogBinding.username.setText(GitCredentialsManager.getUsername(context))
+        dialogBinding.token.setText(GitCredentialsManager.getToken(context))
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.git_credentials_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.pull) { _, _ ->
+                val username = dialogBinding.username.text?.toString()?.trim()
+                val token = dialogBinding.token.text?.toString()?.trim()
+                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    viewModel.pull(username, token)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     override fun onDestroyView() {

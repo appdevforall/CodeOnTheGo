@@ -1223,6 +1223,10 @@
     <string name="pushing">Pushing…</string>
     <string name="push_successful">Push successful!</string>
     <string name="push_failed">Push failed: %1$s</string>
+    <string name="pull">Pull</string>
+    <string name="pulling">Pulling…</string>
+    <string name="pull_successful">Pull successful!</string>
+    <string name="pull_failed">Pull failed: %1$s</string>
     <string name="git_credentials_title">Git Credentials</string>
-    <string name="git_credentials_message">Enter your credentials to push changes to the remote repository.</string>
+    <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
 </resources>
