@@ -12,9 +12,12 @@ import com.itsaky.androidide.tasks.cancelIfActive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.analyzeCopy
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticWithPsi
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileModule
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileResolutionMode
 import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.util.TextRange
 import org.jetbrains.kotlin.com.intellij.psi.PsiDocumentManager
@@ -25,6 +28,7 @@ import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.io.path.name
 import kotlin.io.path.pathString
 import org.jetbrains.kotlin.analysis.api.analyze as ktAnalyze
 
@@ -79,15 +83,24 @@ class KotlinDiagnosticProvider(
 		}
 
 		if (ktFile !is KtFile) {
-			logger.warn("Expected KtFile, but found {} for path:{}", ktFile.javaClass, file.pathString)
+			logger.warn(
+				"Expected KtFile, but found {} for path:{}",
+				ktFile.javaClass,
+				file.pathString
+			)
 			return DiagnosticResult.NO_UPDATE
 		}
 
-		val inMemoryPsi = compiler.createKtFile(fileContents, file, CompilationKind.Default)
+		val inMemoryPsi = compiler.defaultKotlinParser
+			.createFile(file.name, fileContents)
 		inMemoryPsi.originalFile = ktFile
 
-		val rawDiagnostics = ktAnalyze(inMemoryPsi) {
-			ktFile.collectDiagnostics(filter = KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS)
+		val rawDiagnostics = analyzeCopy(
+			useSiteElement = inMemoryPsi,
+			resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
+		) {
+			logger.info("ktFile.text={}", inMemoryPsi.text)
+			inMemoryPsi.collectDiagnostics(filter = KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS)
 		}
 
 		logger.info("Found {} diagnostics", rawDiagnostics.size)
