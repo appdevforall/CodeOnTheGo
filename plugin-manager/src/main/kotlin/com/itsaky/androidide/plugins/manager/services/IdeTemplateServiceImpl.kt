@@ -42,7 +42,8 @@ class IdeTemplateServiceImpl(
         return try {
             cgtFile.copyTo(destFile, overwrite = true)
             log.info("Plugin $pluginId registered template: ${destFile.name}")
-            onTemplatesChanged()
+            runCatching { onTemplatesChanged() }
+                .onFailure { log.warn("Failed to notify template change for plugin $pluginId", it) }
             true
         } catch (e: Exception) {
             log.error("Failed to register template for plugin $pluginId", e)
@@ -54,13 +55,13 @@ class IdeTemplateServiceImpl(
         val destFile = File(Environment.TEMPLATES_DIR, prefixedName(templateFileName))
         if (!destFile.exists()) return false
 
-        return try {
-            destFile.delete()
+        return if (destFile.delete()) {
             log.info("Plugin $pluginId unregistered template: ${destFile.name}")
-            onTemplatesChanged()
+            runCatching { onTemplatesChanged() }
+                .onFailure { log.warn("Failed to notify template change for plugin $pluginId", it) }
             true
-        } catch (e: Exception) {
-            log.error("Failed to unregister template for plugin $pluginId", e)
+        } else {
+            log.warn("Failed to delete template file: ${destFile.name}")
             false
         }
     }
@@ -83,14 +84,14 @@ class IdeTemplateServiceImpl(
 
     fun cleanupAllTemplates() {
         val prefix = prefixedName("")
-        val files = Environment.TEMPLATES_DIR
+        val deleted = Environment.TEMPLATES_DIR
             .listFiles { file -> file.name.startsWith(prefix) && file.extension == CGT_EXTENSION }
-            ?: return
+            ?.count { it.delete() }
+            ?: 0
 
-        files.forEach { it.delete() }
-
-        if (files.isNotEmpty()) {
-            onTemplatesChanged()
+        if (deleted > 0) {
+            runCatching { onTemplatesChanged() }
+                .onFailure { log.warn("Failed to notify template change for plugin $pluginId", it) }
         }
     }
 }

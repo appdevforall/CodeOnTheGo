@@ -339,6 +339,7 @@ inline fun baseZipProject(
     showMinSdk: Boolean = true,
     showLanguage: Boolean = true,
     showPackageName: Boolean = true,
+    defaultSaveLocation: String? = null,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
     return ProjectTemplateBuilder().apply {
@@ -350,11 +351,16 @@ inline fun baseZipProject(
             }
         }
 
-        Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
+        val saveDir = if (defaultSaveLocation != null) {
+            File(defaultSaveLocation).also { Environment.mkdirIfNotExists(it) }
+        } else {
+            Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
+            Environment.PROJECTS_DIR
+        }
 
         val saveLocation = stringParameter {
             name = R.string.wizard_save_location
-            default = Environment.PROJECTS_DIR.absolutePath
+            default = saveDir.absolutePath
             endIcon = { R.drawable.ic_folder }
             constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
             inputType =

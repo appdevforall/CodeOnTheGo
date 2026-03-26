@@ -15,6 +15,7 @@ class CgtTemplateBuilder(private val templateName: String) {
     private var showLanguage: Boolean = false
     private var showMinSdk: Boolean = false
     private var showPackageName: Boolean = false
+    private var defaultSaveLocation: String? = null
 
     private val textParameters = mutableListOf<TextParam>()
     private val checkboxParameters = mutableListOf<CheckboxParam>()
@@ -36,6 +37,8 @@ class CgtTemplateBuilder(private val templateName: String) {
 
     fun showPackageNameOption() = apply { this.showPackageName = true }
 
+    fun defaultSaveLocation(path: String) = apply { this.defaultSaveLocation = path }
+
     fun thumbnailFromAssets(assetPath: String, context: PluginContext) = apply {
         this.thumbnail = context.androidContext.assets.open(assetPath).use { it.readBytes() }
     }
@@ -49,37 +52,38 @@ class CgtTemplateBuilder(private val templateName: String) {
     }
 
     fun addTemplateFile(path: String, content: String) = apply {
-        templateFiles.add(FileEntry(path, toPebbleSyntax(content)))
+        templateFiles.add(FileEntry(sanitizePath(path), toPebbleSyntax(content)))
     }
 
     fun addTemplateFromAssets(path: String, assetPath: String, context: PluginContext) = apply {
         val content = context.androidContext.assets.open(assetPath)
             .bufferedReader()
             .use { it.readText() }
-        templateFiles.add(FileEntry(path, content))
+        templateFiles.add(FileEntry(sanitizePath(path), content))
     }
 
     fun addStaticFile(path: String, content: String) = apply {
-        staticFiles.add(FileEntry(path, content))
+        staticFiles.add(FileEntry(sanitizePath(path), content))
     }
 
     fun addStaticFile(path: String, bytes: ByteArray) = apply {
-        binaryFiles.add(BinaryFileEntry(path, bytes))
+        binaryFiles.add(BinaryFileEntry(sanitizePath(path), bytes))
     }
 
     fun addStaticFile(path: String, inputStream: InputStream) = apply {
-        binaryFiles.add(BinaryFileEntry(path, inputStream.use { it.readBytes() }))
+        binaryFiles.add(BinaryFileEntry(sanitizePath(path), inputStream.use { it.readBytes() }))
     }
 
     fun addStaticFromAssets(path: String, assetPath: String, context: PluginContext) = apply {
         val bytes = context.androidContext.assets.open(assetPath)
             .use { it.readBytes() }
-        binaryFiles.add(BinaryFileEntry(path, bytes))
+        binaryFiles.add(BinaryFileEntry(sanitizePath(path), bytes))
     }
 
     fun build(outputDir: File): File {
         outputDir.mkdirs()
-        val dirName = templateName.replace(Regex("[^a-zA-Z0-9]"), "")
+        val dirName = templateName.replace(DIR_NAME_REGEX, "")
+        require(dirName.isNotBlank()) { "Template name must contain at least one letter or digit" }
         val outputFile = File(outputDir, "$dirName.cgt")
 
         ZipOutputStream(outputFile.outputStream()).use { zip ->
@@ -92,6 +96,27 @@ class CgtTemplateBuilder(private val templateName: String) {
         }
 
         return outputFile
+    }
+
+    private fun sanitizePath(path: String): String {
+        val normalized = path.replace('\\', '/')
+        require(!normalized.startsWith("/")) { "Absolute paths are not allowed: $path" }
+        require(normalized.split('/').none { it == ".." }) { "Path traversal is not allowed: $path" }
+        return normalized
+    }
+
+    private fun escapeJson(value: String): String = buildString(value.length) {
+        for (ch in value) {
+            when {
+                ch == '\\' -> append("\\\\")
+                ch == '"' -> append("\\\"")
+                ch == '\n' -> append("\\n")
+                ch == '\r' -> append("\\r")
+                ch == '\t' -> append("\\t")
+                ch < '\u0020' -> append("\\u${ch.code.toString(16).padStart(4, '0')}")
+                else -> append(ch)
+            }
+        }
     }
 
     private fun toPebbleSyntax(content: String): String {
@@ -116,6 +141,11 @@ class CgtTemplateBuilder(private val templateName: String) {
     }
 
     private fun writeMetadata(zip: ZipOutputStream, dirName: String) {
+        val escapedName = escapeJson(templateName)
+        val escapedDesc = escapeJson(description)
+        val escapedTooltip = escapeJson(tooltipTag)
+        val escapedVersion = escapeJson(version)
+
         val optionalBlock = buildString {
             val parts = mutableListOf<String>()
             if (showLanguage) parts.add(""""language": {"identifier": "LANGUAGE"}""")
@@ -133,12 +163,12 @@ class CgtTemplateBuilder(private val templateName: String) {
             if (textParameters.isEmpty() && checkboxParameters.isEmpty()) return@buildString
 
             val textJson = textParameters.joinToString(",\n                ") { p ->
-                val defaultPart = if (p.default != null) """, "default": "${p.default}"""" else ""
-                """{"label": "${p.label}", "identifier": "${p.identifier}"$defaultPart}"""
+                val defaultPart = if (p.default != null) """, "default": "${escapeJson(p.default)}"""" else ""
+                """{"label": "${escapeJson(p.label)}", "identifier": "${escapeJson(p.identifier)}"$defaultPart}"""
             }
 
             val checkboxJson = checkboxParameters.joinToString(",\n                ") { p ->
-                """{"label": "${p.label}", "identifier": "${p.identifier}", "default": ${p.default}}"""
+                """{"label": "${escapeJson(p.label)}", "identifier": "${escapeJson(p.identifier)}", "default": ${p.default}}"""
             }
 
             append(""""user": {""")
@@ -155,12 +185,17 @@ class CgtTemplateBuilder(private val templateName: String) {
                 },""")
         }
 
+        val saveLocLine = defaultSaveLocation?.let {
+            """"defaultSaveLocation": "${escapeJson(it)}","""
+        } ?: ""
+
         val json = """
             {
-                "name": "$templateName",
-                "description": "$description",
-                "tooltipTag": "$tooltipTag",
-                "version": "$version",
+                "name": "$escapedName",
+                "description": "$escapedDesc",
+                "tooltipTag": "$escapedTooltip",
+                "version": "$escapedVersion",
+                $saveLocLine
                 "parameters": {
                     "required": {
                         "appName": {"identifier": "APP_NAME"},
@@ -225,6 +260,7 @@ class CgtTemplateBuilder(private val templateName: String) {
     private data class FileEntry(val path: String, val content: String)
     private data class BinaryFileEntry(val path: String, val bytes: ByteArray)
 
-    companion object
-
+    companion object {
+        private val DIR_NAME_REGEX = Regex("[^\\p{L}\\p{N}]")
+    }
 }

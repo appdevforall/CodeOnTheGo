@@ -78,7 +78,8 @@ object ZipTemplateReader {
                         val project = baseZipProject(
                             showLanguage = (metaJson.parameters?.optional?.language != null),
                             showMinSdk = (metaJson.parameters?.optional?.minsdk != null),
-                            showPackageName = (metaJson.parameters?.required?.packageName != null)
+                            showPackageName = (metaJson.parameters?.required?.packageName != null),
+                            defaultSaveLocation = metaJson.defaultSaveLocation
                         ) {
 
                             this.templateNameStr = metaJson.name
