@@ -14,13 +14,13 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.snackbar.Snackbar
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.PreferencesActivity
 import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.preferences.internal.GitPreferences
+import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -222,7 +222,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     is GitBottomSheetViewModel.PullUiState.Success -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
-                        Snackbar.make(binding.root, R.string.pull_successful, Snackbar.LENGTH_SHORT).show()
+                        flashSuccess(R.string.pull_successful)
+                        viewModel.resetPullState()
                     }
                     is GitBottomSheetViewModel.PullUiState.Error -> {
                         binding.btnPull.isEnabled = true

@@ -10,13 +10,13 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.snackbar.Snackbar
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
 import com.itsaky.androidide.databinding.DialogGitCredentialsBinding
 import com.itsaky.androidide.fragments.git.adapter.GitCommitHistoryAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
+import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -123,7 +123,9 @@ class GitCommitHistoryDialog : DialogFragment() {
                     is GitBottomSheetViewModel.PushUiState.Success -> {
                         binding.btnPush.isEnabled = true
                         binding.pushProgress.visibility = View.GONE
-                        Snackbar.make(binding.root, R.string.push_successful, Snackbar.LENGTH_SHORT).show()
+                        flashSuccess(R.string.push_successful)
+                        viewModel.resetPushState()
+                        dismiss()
                     }
                     is GitBottomSheetViewModel.PushUiState.Error -> {
                         binding.btnPush.isEnabled = true

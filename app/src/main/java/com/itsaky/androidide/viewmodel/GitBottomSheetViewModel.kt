@@ -253,6 +253,14 @@ class GitBottomSheetViewModel : ViewModel() {
         }
     }
 
+    fun resetPullState() {
+        _pullState.value = PullUiState.Idle
+    }
+
+    fun resetPushState() {
+        _pushState.value = PushUiState.Idle
+    }
+
     sealed class PullUiState {
         object Idle : PullUiState()
         object Pulling : PullUiState()
