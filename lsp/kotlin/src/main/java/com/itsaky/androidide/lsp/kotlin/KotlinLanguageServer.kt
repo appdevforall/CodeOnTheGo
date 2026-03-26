@@ -38,8 +38,10 @@ import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
+import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
 import org.greenrobot.eventbus.EventBus
@@ -50,12 +52,10 @@ import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryMod
 import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModule
 import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.config.LanguageVersion
-import org.jetbrains.kotlin.platform.jvm.JdkPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlin.io.path.pathString
 
 class KotlinLanguageServer : ILanguageServer {
 
@@ -138,11 +138,27 @@ class KotlinLanguageServer : ILanguageServer {
 						.filterIsInstance<ModuleProject>()
 						.filter { it.path != workspace.rootProject.path }
 
+				val bootClassPaths =
+					moduleProjects
+						.filterIsInstance<AndroidModule>()
+						.flatMap { project ->
+							project.bootClassPaths
+								.map { bootClassPath ->
+									addModule(buildKtLibraryModule {
+										this.platform = jvmPlatform
+										this.libraryName = bootClassPath.nameWithoutExtension
+										addBinaryRoot(bootClassPath.toPath())
+									})
+								}
+						}
+
 				val libraryDependencies =
 					moduleProjects
 						.flatMap { it.getCompileClasspaths() }
 						.associateWith { library ->
 							addModule(buildKtLibraryModule {
+								this.platform = jvmPlatform
+								this.libraryName = library.nameWithoutExtension
 								addBinaryRoot(library.toPath())
 							})
 						}
@@ -156,8 +172,15 @@ class KotlinLanguageServer : ILanguageServer {
 					}
 
 					val module = buildKtSourceModule {
+						this.platform = jvmPlatform
+						this.moduleName = project.name
 						addSourceRoots(
 							project.getSourceDirectories().map { it.toPath() })
+
+						// always dependent on boot class paths, if any
+						bootClassPaths.forEach { bootClassPathModule ->
+							addRegularDependency(bootClassPathModule)
+						}
 
 						project.getCompileClasspaths(excludeSourceGeneratedClassPath = true)
 							.forEach { classpath ->

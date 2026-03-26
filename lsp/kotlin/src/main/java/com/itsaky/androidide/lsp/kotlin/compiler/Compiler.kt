@@ -2,6 +2,9 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 
 import org.jetbrains.kotlin.analysis.api.standalone.StandaloneAnalysisAPISessionBuilder
 import org.jetbrains.kotlin.com.intellij.lang.Language
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileSystem
 import org.jetbrains.kotlin.com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiFileFactory
 import org.jetbrains.kotlin.config.LanguageVersion
@@ -20,14 +23,23 @@ class Compiler(
 	configureSession: StandaloneAnalysisAPISessionBuilder.() -> Unit = {},
 ) : AutoCloseable {
 	private val logger = LoggerFactory.getLogger(Compiler::class.java)
+	private val defaultCompilationEnv: CompilationEnvironment
 
-	private val defaultCompilationEnv = CompilationEnvironment(
-		intellijPluginRoot = intellijPluginRoot,
-		jdkHome = jdkHome,
-		jdkRelease = jdkRelease,
-		languageVersion = languageVersion,
-		configureSession = configureSession,
-	)
+	val fileSystem: VirtualFileSystem
+
+	init {
+		defaultCompilationEnv = CompilationEnvironment(
+			intellijPluginRoot = intellijPluginRoot,
+			jdkHome = jdkHome,
+			jdkRelease = jdkRelease,
+			languageVersion = languageVersion,
+			configureSession = configureSession,
+		)
+
+		// must be initialized AFTER the compilation env has been initialized
+		fileSystem = VirtualFileManager.getInstance()
+			.getFileSystem(StandardFileSystems.FILE_PROTOCOL)
+	}
 
 	fun compilationEnvironmentFor(compilationKind: CompilationKind): CompilationEnvironment =
 		when (compilationKind) {

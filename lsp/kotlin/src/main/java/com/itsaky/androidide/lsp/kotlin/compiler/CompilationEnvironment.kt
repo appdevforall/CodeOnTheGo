@@ -4,7 +4,12 @@ import org.jetbrains.kotlin.analysis.api.standalone.StandaloneAnalysisAPISession
 import org.jetbrains.kotlin.analysis.api.standalone.StandaloneAnalysisAPISessionBuilder
 import org.jetbrains.kotlin.analysis.api.standalone.buildStandaloneAnalysisAPISession
 import org.jetbrains.kotlin.cli.common.intellijPluginRoot
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
+import org.jetbrains.kotlin.com.intellij.psi.PsiDocumentManager
+import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.config.ApiVersion
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.LanguageFeature
@@ -13,10 +18,12 @@ import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
 import org.jetbrains.kotlin.config.jdkHome
 import org.jetbrains.kotlin.config.jdkRelease
 import org.jetbrains.kotlin.config.languageVersionSettings
+import org.jetbrains.kotlin.config.messageCollector
 import org.jetbrains.kotlin.config.moduleName
 import org.jetbrains.kotlin.config.useFir
 import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.psi.KtPsiFactory
+import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.io.path.pathString
 
@@ -39,6 +46,30 @@ class CompilationEnvironment(
 
 	val session: StandaloneAnalysisAPISession
 	val parser: KtPsiFactory
+	val psiManager: PsiManager
+	val psiDocumentManager: PsiDocumentManager
+
+	private val envMessageCollector = object: MessageCollector {
+		override fun clear() {
+		}
+
+		override fun report(
+			severity: CompilerMessageSeverity,
+			message: String,
+			location: CompilerMessageSourceLocation?
+		) {
+			logger.info("[{}] {} ({})", severity.name, message, location)
+		}
+
+		override fun hasErrors(): Boolean {
+			return false
+		}
+
+	}
+
+	companion object {
+		private val logger = LoggerFactory.getLogger(CompilationEnvironment::class.java)
+	}
 
 	init {
 		val configuration = CompilerConfiguration().apply {
@@ -51,12 +82,14 @@ class CompilationEnvironment(
 				analysisFlags = emptyMap(),
 				specificFeatures = buildMap {
 					// enable all features
-					LanguageFeature.entries.associateWith { LanguageFeature.State.ENABLED }
+					putAll(LanguageFeature.entries.associateWith { LanguageFeature.State.ENABLED })
 				}
 			)
 
 			this.jdkHome = jdkHome.toFile()
 			this.jdkRelease = jdkRelease
+
+			this.messageCollector = envMessageCollector
 		}
 
 		session = buildStandaloneAnalysisAPISession(
@@ -67,6 +100,8 @@ class CompilationEnvironment(
 		)
 
 		parser = KtPsiFactory(session.project)
+		psiManager = PsiManager.getInstance(session.project)
+		psiDocumentManager = PsiDocumentManager.getInstance(session.project)
 	}
 
 	override fun close() {
