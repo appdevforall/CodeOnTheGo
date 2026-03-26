@@ -22,6 +22,7 @@ import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
+import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.context.PluginContextImpl
 import com.itsaky.androidide.plugins.manager.context.PluginLoggerImpl
@@ -314,8 +315,25 @@ class PluginManager private constructor(
                 }.toSet()
             }.getOrElse { emptySet() }
 
-            // Load plugin classes
-            val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!)
+            var nativeLibPath: String? = try {
+                pluginLoader.extractNativeLibs(manifest.id)?.absolutePath
+            } catch (e: Exception) {
+                logger.warn("Failed to extract native libs for plugin: ${manifest.id}", e)
+                null
+            }
+
+            if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
+                File(nativeLibPath).deleteRecursively()
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(SecurityException(
+                    "Plugin '${manifest.name}' bundles native libraries but does not declare " +
+                    "'native.code' permission. Add 'native.code' to plugin.permissions in the manifest."
+                ))
+            }
+
+            val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!, nativeLibPath)
             if (classLoader == null) {
                 if (manifest.sidebarItems > 0) {
                     SidebarSlotManager.releasePluginSlots(manifest.id)
@@ -344,7 +362,7 @@ class PluginManager private constructor(
             }
 
             // Create plugin context with  resources
-            val ctx = pluginLoader.createPluginContext()
+            val ctx = pluginLoader.createPluginContext(manifest.id)
             if (ctx == null) {
                 if (manifest.sidebarItems > 0) {
                     SidebarSlotManager.releasePluginSlots(manifest.id)
@@ -367,8 +385,9 @@ class PluginManager private constructor(
 
             if (initResult) {
                 // Register the plugin's resource context for UI components
-                PluginFragmentHelper.registerPluginContext(manifest.id, ctx)
-                logger.debug("Registered resource context for plugin: ${manifest.id}")
+                val isLegacy = (ctx as? PluginResourceContext)?.let { !it.usesCustomPackageId() } ?: true
+                PluginFragmentHelper.registerPluginContext(manifest.id, ctx, isLegacy)
+                logger.debug("Registered resource context for plugin: ${manifest.id} (legacy=$isLegacy)")
                 // Register the service registry for fragments to access services
                 PluginFragmentHelper.registerServiceRegistry(manifest.id, pluginContext.services)
                 logger.debug("Registered service registry for plugin: ${manifest.id}")
@@ -453,8 +472,11 @@ class PluginManager private constructor(
             // Unregister the plugin's resource context
             PluginFragmentHelper.unregisterPluginContext(pluginId)
 
-            // Unregister all fragment classloaders for this plugin to avoid leaks
             PluginFragmentFactory.unregisterAllClassLoadersForPlugin(pluginId)
+
+            File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
+                if (dir.exists()) dir.deleteRecursively()
+            }
 
             logger.info("Unloaded plugin: $pluginId")
             return true
@@ -678,6 +700,8 @@ class PluginManager private constructor(
     fun setActivityProvider(provider: ActivityProvider?) {
         this.activityProvider = provider
     }
+
+    fun getCurrentActivity(): Activity? = activityProvider?.getCurrentActivity()
     
     /**
      * Set the path validator for validating plugin file access
@@ -1036,11 +1060,14 @@ class PluginManager private constructor(
         executeWithErrorHandling("cleanup plugin cache files", pluginId) {
             logger.debug("Cleaning up ALL files and cache for plugin: $pluginId")
 
-            // Clean up plugin's own directory if it exists
             val pluginDir = File(pluginsDir, pluginId)
             if (pluginDir.exists()) {
                 val deleted = pluginDir.deleteRecursively()
                 logger.debug("Deleted plugin directory: ${pluginDir.absolutePath} (success: $deleted)")
+            }
+
+            File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
+                if (dir.exists()) dir.deleteRecursively()
             }
 
             // Clean up ART cache files in oat directory
