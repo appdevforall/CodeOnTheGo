@@ -54,11 +54,11 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -118,8 +118,13 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
+import com.itsaky.androidide.utils.applyImmersiveModeInsets
+import com.itsaky.androidide.utils.applyRootSystemInsetsAsPadding
+import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
+import com.itsaky.androidide.utils.getOrStoreInitialPadding
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
@@ -374,7 +379,6 @@ abstract class BaseEditorActivity :
 	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
 	private var editorAppBarInsetTop: Int = 0
-	private var sidebarLastInsetTop: Int = 0
 
 	companion object {
 		private const val TAG = "ResizePanelDebugger"
@@ -484,47 +488,22 @@ abstract class BaseEditorActivity :
 		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
 		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 
-		applyStandardInsets(systemBars, insets)
+		applyStandardInsets(systemBars)
 
 		applyImmersiveModeInsets(systemBars)
 
 		handleKeyboardInsets(imeInsets)
 	}
 
-	private fun applyStandardInsets(systemBars: Insets, windowInsets: WindowInsetsCompat) {
-		val content = _binding?.content ?: return
-		val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-		if (isLandscape) {
-			content.editorAppBarLayout.updatePadding(top = 0)
-			content.editorAppbarContent.updatePadding(top = systemBars.top)
-		} else {
-			content.editorAppBarLayout.updatePadding(top = systemBars.top)
-			content.editorAppbarContent.updatePadding(top = 0)
-		}
-
+	private fun applyStandardInsets(systemBars: Insets) {
 		immersiveController?.onSystemBarInsetsChanged(systemBars.top)
-		applySidebarInsets(systemBars)
-		_binding?.root?.applyBottomWindowInsetsPadding(windowInsets)
+		val root = _binding?.root ?: return
+		val initial = root.getOrStoreInitialPadding()
+		root.updatePadding(bottom = initial.bottom + systemBars.bottom)
 	}
 
 	private fun applyImmersiveModeInsets(systemBars: Insets) {
-		val content = _binding?.content ?: return
-		val baseMargin = SizeUtils.dp2px(16f)
-		val isRtl = content.root.layoutDirection == View.LAYOUT_DIRECTION_RTL
-		val endInset = if (isRtl) systemBars.left else systemBars.right
-
-		content.btnToggleTopBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-			topMargin = baseMargin + systemBars.top
-			marginEnd = baseMargin + endInset
-		}
-
-		content.btnToggleBottomBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-			bottomMargin = baseMargin + systemBars.bottom
-			marginEnd = baseMargin + endInset
-		}
-
-		content.bottomSheet.updatePadding(top = systemBars.top)
+		_binding?.content?.applyImmersiveModeInsets(systemBars)
 	}
 
 	private fun handleKeyboardInsets(imeInsets: Insets) {
@@ -556,13 +535,6 @@ abstract class BaseEditorActivity :
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		editorAppBarInsetTop = insets.top
-	}
-
-	private fun applySidebarInsets(systemBars: Insets) {
-		val sidebar = _binding?.drawerSidebar ?: return
-		val baseTop = sidebar.paddingTop - sidebarLastInsetTop
-		sidebarLastInsetTop = systemBars.top
-		sidebar.updatePadding(top = baseTop + systemBars.top)
 	}
 
 	@Subscribe(threadMode = MAIN)
@@ -696,13 +668,32 @@ abstract class BaseEditorActivity :
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
 		immersiveController?.onConfigurationChanged(newConfig)
+		window?.decorView?.let { ViewCompat.requestApplyInsets(it) }
+		reapplySystemBarInsetsFromRoot()
+		_binding?.content?.applyBottomSheetAnchorForOrientation(newConfig.orientation)
 	}
+
+	private fun reapplySystemBarInsetsFromRoot() {
+		val root = _binding?.root ?: return
+		val rootInsets = ViewCompat.getRootWindowInsets(root)
+		if (rootInsets == null) {
+			root.post { reapplySystemBarInsetsFromRoot() }
+			return
+		}
+
+		val systemBars = rootInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+		applyStandardInsets(systemBars)
+		applyImmersiveModeInsets(systemBars)
+	}
+
 
 	private fun setupToolbar() {
 		// Set the project name in the title TextView
 		content.root.findViewById<TextView>(R.id.title_text)?.apply {
 			text = editorViewModel.getProjectName()
 		}
+
+		content.editorAppBarLayout.applyResponsiveAppBarInsets(content.editorAppbarContent)
 
 		// Set up the drawer toggle on the title toolbar (where the hamburger menu should be)
 		content.titleToolbar.apply {
@@ -755,7 +746,13 @@ abstract class BaseEditorActivity :
 			val insetsTop = systemBarInsets?.top ?: 0
 			val topInset = (insetsTop * (1f - progress)).roundToInt()
 
-			content.editorAppbarContent.updatePadding(top = topInset)
+			val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+			if (isLandscape) {
+				content.editorAppbarContent.updatePadding(top = topInset)
+			} else {
+				content.editorAppBarLayout.updatePadding(top = topInset)
+			}
 
 			memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
@@ -1111,6 +1108,7 @@ abstract class BaseEditorActivity :
 					ContentTranslatingDrawerLayout.TranslationBehavior.FULL
 				setScrimColor(Color.TRANSPARENT)
 			}
+			drawerSidebar.applyRootSystemInsetsAsPadding(applyTop = true)
 		}
 	}
 
