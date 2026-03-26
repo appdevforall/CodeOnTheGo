@@ -205,6 +205,7 @@ class GitBottomSheetViewModel : ViewModel() {
                     }
                     refreshStatus()
                     checkLocalCommits()
+                    getCommitHistoryList()
                 }
             } catch (e: Exception) {
                 log.error("Push failed", e)
