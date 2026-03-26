@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.activityViewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.adapters.MainActionsListAdapter
@@ -21,7 +21,7 @@ import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
 
 class MainFragment : BaseFragment() {
-	private val viewModel by activityViewModels<MainViewModel>()
+	private val viewModel by activityViewModel<MainViewModel>()
 	private var binding: FragmentMainBinding? = null
 
 	companion object {

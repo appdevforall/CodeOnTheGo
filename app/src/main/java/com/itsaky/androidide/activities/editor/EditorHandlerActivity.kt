@@ -1156,7 +1156,9 @@ open class EditorHandlerActivity :
 				}
 
 				val tabIndex = content.tabs.tabCount
-				content.tabs.addTab(tab)
+
+				pluginTabIndices[pluginTab.id] = tabIndex
+				tabIndexToPluginId[tabIndex] = pluginTab.id
 
 				val containerView =
 					android.widget.FrameLayout(this@EditorHandlerActivity).apply {
@@ -1165,21 +1167,17 @@ open class EditorHandlerActivity :
 					}
 				content.editorContainer.addView(containerView)
 
-				pluginTabIndices[pluginTab.id] = tabIndex
-				tabIndexToPluginId[tabIndex] = pluginTab.id
-
-
-				// Load the plugin fragment into the container
 				val fragment = tabManager.getOrCreateTabFragment(pluginTab.id)
 				if (fragment != null) {
-					val fragmentManager = supportFragmentManager
-					val transaction = fragmentManager.beginTransaction()
-					transaction.add(containerView.id, fragment, "plugin_tab_${pluginTab.id}")
-					transaction.commitAllowingStateLoss()
+					supportFragmentManager.beginTransaction()
+						.add(containerView.id, fragment, "plugin_tab_${pluginTab.id}")
+						.commitNowAllowingStateLoss()
 					Log.d("EditorHandlerActivity", "Plugin fragment added to container for tab: ${pluginTab.id}")
 				} else {
 					Log.w("EditorHandlerActivity", "Failed to create fragment for plugin tab: ${pluginTab.id}")
 				}
+
+				content.tabs.addTab(tab)
 
 				if (!tab.isSelected) {
 					tab.select()

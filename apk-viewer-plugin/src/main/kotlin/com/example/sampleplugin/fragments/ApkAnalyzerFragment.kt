@@ -45,6 +45,7 @@ class ApkAnalyzerFragment : Fragment() {
 
     private val viewModel by viewModels<ApkAnalyzerViewModel>()
     private var showAllLargeFiles = false
+    private var pendingAnalysisFile: java.io.File? = null
 
     private var statusText: TextView? = null
     private var btnStart: Button? = null
@@ -94,7 +95,9 @@ class ApkAnalyzerFragment : Fragment() {
             }
         }
 
-        viewModel.pendingFile?.let { file ->
+        val file = pendingAnalysisFile ?: viewModel.pendingFile
+        if (file != null) {
+            pendingAnalysisFile = null
             viewModel.pendingFile = null
             viewModel.analyzeApk(file)
         }
@@ -140,7 +143,7 @@ class ApkAnalyzerFragment : Fragment() {
 
     fun analyzeFile(file: java.io.File) {
         if (!isAdded || view == null) {
-            viewModel.pendingFile = file
+            pendingAnalysisFile = file
             return
         }
         viewModel.analyzeApk(file)
