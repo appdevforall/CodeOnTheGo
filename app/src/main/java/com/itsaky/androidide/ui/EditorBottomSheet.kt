@@ -366,6 +366,19 @@ constructor(
 		view.viewTreeObserver.addOnGlobalLayoutListener(listener)
 	}
 
+	fun resetOffsetAnchor() {
+		anchorOffset = 0
+		behavior.peekHeight = collapsedHeight.roundToInt()
+		behavior.expandedOffset = 0
+		binding.root.updatePadding(bottom = insetBottom)
+		binding.headerContainer.apply {
+			updatePaddingRelative(bottom = insetBottom)
+			updateLayoutParams<LayoutParams> {
+				height = (collapsedHeight + insetBottom).roundToInt()
+			}
+		}
+	}
+
 	fun onSlide(sheetOffset: Float) {
 		val heightScale =
 			if (sheetOffset >= COLLAPSE_HEADER_AT_OFFSET) {
