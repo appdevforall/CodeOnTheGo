@@ -254,7 +254,7 @@ internal object EditorSidebarActions {
                 }
 
                 sideMenuItems.forEach { navItem ->
-                    val action = PluginSidebarActionItem(context, navItem, order++)
+                    val action = PluginSidebarActionItem(context, navItem, order++, pluginId)
                     registry.registerAction(action)
                 }
             }
