@@ -1,5 +1,6 @@
 package com.itsaky.androidide.ui.models
 
+import android.net.Uri
 import androidx.annotation.StringRes
 import com.itsaky.androidide.plugins.PluginInfo
 
@@ -7,14 +8,13 @@ data class PluginManagerUiState(
     val isLoading: Boolean = false,
     val plugins: List<PluginInfo> = emptyList(),
     val isPluginManagerAvailable: Boolean = false,
-    val hasError: Boolean = false,
     val isInstalling: Boolean = false
 ) {
     val isEmpty: Boolean
         get() = plugins.isEmpty() && !isLoading
 
     val showEmptyState: Boolean
-        get() = isEmpty && isPluginManagerAvailable && !hasError
+        get() = isEmpty && isPluginManagerAvailable
 }
 
 sealed class PluginManagerUiEvent {
@@ -22,7 +22,7 @@ sealed class PluginManagerUiEvent {
     data class EnablePlugin(val pluginId: String) : PluginManagerUiEvent()
     data class DisablePlugin(val pluginId: String) : PluginManagerUiEvent()
     data class UninstallPlugin(val pluginId: String) : PluginManagerUiEvent()
-    data class InstallPlugin(val uri: android.net.Uri, val deleteSourceAfterInstall: Boolean) : PluginManagerUiEvent()
+    data class InstallPlugin(val uri: Uri, val deleteSourceAfterInstall: Boolean) : PluginManagerUiEvent()
     object OpenFilePicker : PluginManagerUiEvent()
     data class ShowPluginDetails(val plugin: PluginInfo) : PluginManagerUiEvent()
 }

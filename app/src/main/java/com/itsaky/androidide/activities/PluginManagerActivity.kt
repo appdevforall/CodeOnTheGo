@@ -5,6 +5,7 @@ package com.itsaky.androidide.activities
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.CheckBox
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +23,7 @@ import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
+import com.itsaky.androidide.utils.getFileName
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
@@ -35,6 +37,11 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class PluginManagerActivity : EdgeToEdgeIDEActivity() {
+
+    companion object {
+        private const val TAG = "PluginManagerActivity"
+        private const val PLUGIN_EXTENSION = ".cgp"
+    }
 
     private var _binding: ActivityPluginManagerBinding? = null
     private val binding: ActivityPluginManagerBinding
@@ -53,8 +60,15 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
                         it,
                         Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
-                } catch (_: SecurityException) {
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Could not take persistable URI permission", e)
                 }
+
+                if (!it.isSupportedPluginFile()) {
+                    flashError(getString(R.string.msg_unsupported_plugin_file))
+                    return@let
+                }
+
                 showInstallConfirmation(it)
             }
         }
@@ -221,6 +235,9 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             flashError(getString(R.string.msg_no_file_manager))
         }
     }
+
+    private fun Uri.isSupportedPluginFile(): Boolean =
+        getFileName(this@PluginManagerActivity).endsWith(PLUGIN_EXTENSION, ignoreCase = true)
 
     private fun showInstallConfirmation(uri: Uri) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_install_plugin, null)

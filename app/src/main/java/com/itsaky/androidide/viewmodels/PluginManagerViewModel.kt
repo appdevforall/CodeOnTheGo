@@ -87,7 +87,7 @@ class PluginManagerViewModel(
 
         viewModelScope.launch {
             _currentOperation.value = PluginOperation.Loading
-            _uiState.update { it.copy(isLoading = true, hasError = false) }
+            _uiState.update { it.copy(isLoading = true) }
 
             pluginRepository.getAllPlugins()
                 .onSuccess { plugins ->
@@ -96,18 +96,14 @@ class PluginManagerViewModel(
                         it.copy(
                             isLoading = false,
                             plugins = plugins,
-                            isPluginManagerAvailable = true,
-                            hasError = false
+                            isPluginManagerAvailable = true
                         )
                     }
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "Failed to load plugins", exception)
                     _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            hasError = true
-                        )
+                        it.copy(isLoading = false)
                     }
                     _uiEffect.trySend(
                         PluginManagerUiEffect.ShowError(
@@ -312,10 +308,10 @@ class PluginManagerViewModel(
                         PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed)
                     )
                 }
-            } catch (e: SecurityException) {
-                Log.w(TAG, "No permission to delete source document", e)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to delete source document", e)
                 _uiEffect.trySend(
-                    PluginManagerUiEffect.ShowError(R.string.msg_source_delete_no_permission)
+                    PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed)
                 )
             }
         }
