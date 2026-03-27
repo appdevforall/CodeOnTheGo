@@ -64,6 +64,7 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
@@ -430,6 +431,17 @@ open class EditorHandlerActivity :
 						anchorView = content.projectActionsToolbar,
 						tag = action.retrieveTooltipTag(false),
 					)
+				},
+				onHover = { anchor ->
+					TooltipManager.cancelScheduledDismiss()
+					TooltipManager.showIdeCategoryTooltip(
+						context = this@EditorHandlerActivity,
+						anchorView = anchor,
+						tag = action.retrieveTooltipTag(false)
+					)
+				},
+				onHoverExit = {
+					TooltipManager.scheduleActiveTooltipDismiss()
 				},
 				shouldAddMargin = !isLast,
 			)
@@ -1149,11 +1161,15 @@ open class EditorHandlerActivity :
 
 				val iconRes = pluginTab.icon
 				if (iconRes != null) {
-					tab.icon = ResourcesCompat.getDrawable(resources, iconRes, theme)
+					val pluginId = tabManager.getPluginIdForTab(pluginTab.id)
+					tab.icon = PluginDrawableResolver.resolve(iconRes, pluginId, this@EditorHandlerActivity)
+						?: ResourcesCompat.getDrawable(resources, android.R.drawable.ic_menu_info_details, theme)
 				}
 
 				val tabIndex = content.tabs.tabCount
-				content.tabs.addTab(tab)
+
+				pluginTabIndices[pluginTab.id] = tabIndex
+				tabIndexToPluginId[tabIndex] = pluginTab.id
 
 				val containerView =
 					android.widget.FrameLayout(this@EditorHandlerActivity).apply {
@@ -1162,21 +1178,17 @@ open class EditorHandlerActivity :
 					}
 				content.editorContainer.addView(containerView)
 
-				pluginTabIndices[pluginTab.id] = tabIndex
-				tabIndexToPluginId[tabIndex] = pluginTab.id
-
-
-				// Load the plugin fragment into the container
 				val fragment = tabManager.getOrCreateTabFragment(pluginTab.id)
 				if (fragment != null) {
-					val fragmentManager = supportFragmentManager
-					val transaction = fragmentManager.beginTransaction()
-					transaction.add(containerView.id, fragment, "plugin_tab_${pluginTab.id}")
-					transaction.commitAllowingStateLoss()
+					supportFragmentManager.beginTransaction()
+						.add(containerView.id, fragment, "plugin_tab_${pluginTab.id}")
+						.commitNowAllowingStateLoss()
 					Log.d("EditorHandlerActivity", "Plugin fragment added to container for tab: ${pluginTab.id}")
 				} else {
 					Log.w("EditorHandlerActivity", "Failed to create fragment for plugin tab: ${pluginTab.id}")
 				}
+
+				content.tabs.addTab(tab)
 
 				if (!tab.isSelected) {
 					tab.select()
