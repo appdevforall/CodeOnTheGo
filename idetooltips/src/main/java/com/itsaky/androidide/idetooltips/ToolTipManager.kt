@@ -22,6 +22,10 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import android.os.Handler
+import android.os.Looper
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.itsaky.androidide.activities.editor.HelpActivity
@@ -41,6 +45,10 @@ import java.io.File
 
 object TooltipManager {
     private const val TAG = "TooltipManager"
+    private const val DEFAULT_HOVER_DISMISS_DELAY_MS = 800L
+    private var activePopupWindow: PopupWindow? = null
+    private val dismissHandler = Handler(Looper.getMainLooper())
+    private var pendingDismiss: Runnable? = null
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/documentation.db")
@@ -147,6 +155,27 @@ object TooltipManager {
 
             IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
         }
+    }
+
+    fun dismissActiveTooltip() {
+        cancelScheduledDismiss()
+        activePopupWindow?.dismiss()
+        activePopupWindow = null
+    }
+
+    fun scheduleActiveTooltipDismiss(delayMs: Long = DEFAULT_HOVER_DISMISS_DELAY_MS) {
+        cancelScheduledDismiss()
+        val popup = activePopupWindow ?: return
+        pendingDismiss = Runnable {
+            if (activePopupWindow === popup) {
+                popup.dismiss()
+            }
+        }.also { dismissHandler.postDelayed(it, delayMs) }
+    }
+
+    fun cancelScheduledDismiss() {
+        pendingDismiss?.let { dismissHandler.removeCallbacks(it) }
+        pendingDismiss = null
     }
 
     // Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
@@ -355,6 +384,16 @@ object TooltipManager {
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
+        dismissActiveTooltip()
+
+        activePopupWindow = popupWindow
+        popupWindow.setOnDismissListener {
+            cancelScheduledDismiss()
+            if (activePopupWindow === popupWindow) {
+                activePopupWindow = null
+            }
+        }
+
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
         if (anchorView.isInOverlayWindow()) {
@@ -391,6 +430,31 @@ object TooltipManager {
             }
             setColorFilter(iconTintColor)
         }
+
+        val hoverGuard: (MotionEvent) -> Unit = label@{ event ->
+            if (!event.isFromSource(InputDevice.SOURCE_MOUSE)) return@label
+            when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_ENTER,
+                MotionEvent.ACTION_HOVER_MOVE -> cancelScheduledDismiss()
+                MotionEvent.ACTION_HOVER_EXIT -> scheduleActiveTooltipDismiss()
+            }
+        }
+
+        val hoverListener = View.OnHoverListener { _, event ->
+            hoverGuard(event)
+            false
+        }
+
+        installHoverGuard(
+            hoverListener = hoverListener,
+            popupView = popupView,
+            webView = webView,
+            seeMore = seeMore,
+            infoButton = infoButton,
+            feedbackButton = feedbackButton,
+        )
+
+        cancelScheduledDismiss()
     }
 
     /**
@@ -506,6 +570,21 @@ object TooltipManager {
         val y = (screenHeight - popupHeight) / 2
 
         popupWindow.showAtLocation(parentView, Gravity.NO_GRAVITY, x, y)
+    }
+
+    private fun installHoverGuard(
+        hoverListener: View.OnHoverListener,
+        popupView: View,
+        webView: WebView,
+        seeMore: View,
+        infoButton: View,
+        feedbackButton: View,
+    ) {
+        popupView.setOnHoverListener(hoverListener)
+        webView.setOnHoverListener(hoverListener)
+        seeMore.setOnHoverListener(hoverListener)
+        infoButton.setOnHoverListener(hoverListener)
+        feedbackButton.setOnHoverListener(hoverListener)
     }
 
 }
