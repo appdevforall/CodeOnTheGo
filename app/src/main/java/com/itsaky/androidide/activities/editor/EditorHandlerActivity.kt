@@ -432,6 +432,17 @@ open class EditorHandlerActivity :
 						tag = action.retrieveTooltipTag(false),
 					)
 				},
+				onHover = { anchor ->
+					TooltipManager.cancelScheduledDismiss()
+					TooltipManager.showIdeCategoryTooltip(
+						context = this@EditorHandlerActivity,
+						anchorView = anchor,
+						tag = action.retrieveTooltipTag(false)
+					)
+				},
+				onHoverExit = {
+					TooltipManager.scheduleActiveTooltipDismiss()
+				},
 				shouldAddMargin = !isLast,
 			)
 		}
