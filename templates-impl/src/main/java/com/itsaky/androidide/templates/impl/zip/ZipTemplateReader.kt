@@ -43,8 +43,16 @@ object ZipTemplateReader {
                 log.debug("indexJson: $indexJson")
                 for (templateRef in indexJson.templates) {
                     try {
+
+
                         val basePath = templateRef.path
                         log.debug("basePath: $basePath")
+
+                        if (templateRef.experimental) {
+                            println("Skipping experimental template: $basePath")
+                            continue
+                        }
+
                         val metaEntry = zip.getEntry("$basePath/$META_FOLDER/$META_JSON") ?: continue
 
                         val metaJsonString = zip.getInputStream(metaEntry).bufferedReader().use { reader ->
