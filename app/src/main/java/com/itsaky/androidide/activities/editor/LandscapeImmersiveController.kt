@@ -2,6 +2,7 @@ package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.View.OnLayoutChangeListener
@@ -122,6 +123,22 @@ class LandscapeImmersiveController(
         }
     }
 
+    /**
+     * Observes mouse hover events to manage the top bar's auto-hide behavior.
+     * It pauses the auto-hide timer while the cursor is over the bar (or its buttons),
+     * and resumes it when the cursor leaves.
+     */
+    private val topBarHoverObserver: (MotionEvent) -> Unit = { event ->
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_ENTER,
+                MotionEvent.ACTION_HOVER_MOVE -> onTopBarInteractionStarted()
+
+                MotionEvent.ACTION_HOVER_EXIT -> onTopBarInteractionEnded()
+            }
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     fun bind() {
         if (isBound) return
@@ -131,6 +148,7 @@ class LandscapeImmersiveController(
         appBarContent.addOnLayoutChangeListener(appBarLayoutChangeListener)
         bottomSheetBehavior.addBottomSheetCallback(bottomSheetCallback)
         appBarContent.onTouchEventObserved = topBarTouchObserver
+        appBarContent.onHoverEventObserved = topBarHoverObserver
     }
 
     fun onPause() {
@@ -166,6 +184,7 @@ class LandscapeImmersiveController(
         appBarContent.removeOnLayoutChangeListener(appBarLayoutChangeListener)
         bottomSheetBehavior.removeBottomSheetCallback(bottomSheetCallback)
         appBarContent.onTouchEventObserved = null
+        appBarContent.onHoverEventObserved = null
     }
 
     fun onConfigurationChanged(newConfig: Configuration) {
