@@ -18,12 +18,19 @@ object CryptoManager {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val KEY_ALIAS = "git_credentials_key"
 
-    private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply {
-        load(null)
+    private val keyStore: KeyStore? by lazy {
+        try {
+            KeyStore.getInstance(ANDROID_KEYSTORE).apply {
+                load(null)
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun getSecretKey(): SecretKey {
-        return (keyStore.getEntry(KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)?.secretKey
+        val ks = keyStore ?: throw IllegalStateException("KeyStore could not be initialized")
+        return (ks.getEntry(KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)?.secretKey
             ?: generateSecretKey()
     }
 
