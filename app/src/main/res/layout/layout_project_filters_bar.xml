@@ -31,5 +31,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="6dp"
+        android:tooltipText="@string/sort_projects_label"
         app:icon="@drawable/ic_sort" />
 </LinearLayout>
