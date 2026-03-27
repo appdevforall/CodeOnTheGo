@@ -2,50 +2,68 @@ package com.itsaky.androidide.git.core
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import androidx.core.content.edit
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
+import org.slf4j.LoggerFactory
 
 /**
- * Manages Git credentials securely using EncryptedSharedPreferences.
+ * Manages Git credentials securely using standard SharedPreferences + CryptoManager.
  */
 object GitCredentialsManager {
 
-    private const val PREF_FILE_NAME = "git_secure_prefs"
-    private const val KEY_USERNAME = "git_username"
-    private const val KEY_TOKEN = "git_token"
+    private const val PREF_FILE_NAME = "git_credentials_prefs"
+    private const val KEY_USERNAME_IV = "git_username_iv"
+    private const val KEY_USERNAME_DATA = "git_username_data"
+    private const val KEY_TOKEN_IV = "git_token_iv"
+    private const val KEY_TOKEN_DATA = "git_token_data"
+
+    private val log = LoggerFactory.getLogger(GitCredentialsManager::class.java)
+
+    private var cachedPrefs: SharedPreferences? = null
 
     private fun getPrefs(context: Context): SharedPreferences {
-        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-        return EncryptedSharedPreferences.create(
-            PREF_FILE_NAME,
-            masterKeyAlias,
-            context,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+        if (cachedPrefs == null) {
+            cachedPrefs = context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE)
+        }
+        return cachedPrefs!!
     }
 
     fun saveCredentials(context: Context, username: String, token: String) {
-        getPrefs(context).edit {
-            putString(KEY_USERNAME, username)
-            putString(KEY_TOKEN, token)
+        try {
+            val (usernameIv, usernameData) = CryptoManager.encrypt(username)
+            val (tokenIv, tokenData) = CryptoManager.encrypt(token)
+
+            getPrefs(context).edit {
+                putString(KEY_USERNAME_IV, Base64.encodeToString(usernameIv, Base64.NO_WRAP))
+                putString(KEY_USERNAME_DATA, Base64.encodeToString(usernameData, Base64.NO_WRAP))
+                putString(KEY_TOKEN_IV, Base64.encodeToString(tokenIv, Base64.NO_WRAP))
+                putString(KEY_TOKEN_DATA, Base64.encodeToString(tokenData, Base64.NO_WRAP))
+            }
+        } catch (e: Exception) {
+            log.error("Failed to save credentials", e)
         }
     }
 
-    fun getUsername(context: Context): String? = getPrefs(context).getString(KEY_USERNAME, null)
-    fun getToken(context: Context): String? = getPrefs(context).getString(KEY_TOKEN, null)
+    fun getUsername(context: Context): String? = decrypt(context, KEY_USERNAME_IV, KEY_USERNAME_DATA)
+    fun getToken(context: Context): String? = decrypt(context, KEY_TOKEN_IV, KEY_TOKEN_DATA)
 
     fun hasCredentials(context: Context): Boolean {
         val prefs = getPrefs(context)
-        return !prefs.getString(KEY_USERNAME, null).isNullOrBlank() &&
-               !prefs.getString(KEY_TOKEN, null).isNullOrBlank()
+        return prefs.contains(KEY_USERNAME_DATA) && prefs.contains(KEY_TOKEN_DATA)
     }
 
-    fun clearCredentials(context: Context) {
-        getPrefs(context).edit {
-            remove(KEY_USERNAME)
-            remove(KEY_TOKEN)
+    private fun decrypt(context: Context, ivKey: String, dataKey: String): String? {
+        val prefs = getPrefs(context)
+        val ivBase64 = prefs.getString(ivKey, null) ?: return null
+        val dataBase64 = prefs.getString(dataKey, null) ?: return null
+
+        return try {
+            val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
+            val data = Base64.decode(dataBase64, Base64.NO_WRAP)
+            CryptoManager.decrypt(iv, data)
+        } catch (e: Exception) {
+            log.error("Failed to decrypt field: $dataKey", e)
+            null
         }
     }
 }

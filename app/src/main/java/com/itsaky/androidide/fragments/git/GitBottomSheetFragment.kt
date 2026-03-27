@@ -243,7 +243,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         binding.btnPull.setOnClickListener {
             val context = requireContext()
             if (GitCredentialsManager.hasCredentials(context)) {
-                viewModel.pull(GitCredentialsManager.getUsername(context), GitCredentialsManager.getToken(context), shouldSaveCredentials = false)
+                viewModel.pull(
+                    username = GitCredentialsManager.getUsername(context),
+                    token = GitCredentialsManager.getToken(context),
+                    shouldSaveCredentials = false
+                )
             } else {
                 showCredentialsDialog()
             }
@@ -264,7 +268,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                 val username = dialogBinding.username.text?.toString()?.trim()
                 val token = dialogBinding.token.text?.toString()?.trim()
                 if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    viewModel.pull(username, token, shouldSaveCredentials = true)
+                    viewModel.pull(username, token, true)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
