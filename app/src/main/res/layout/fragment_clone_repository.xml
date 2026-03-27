@@ -15,7 +15,7 @@
             android:id="@+id/tv_download_project"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/download_git_project"
+            android:text="@string/clone_git_project"
             android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
             android:transitionName="title"
             app:layout_constraintStart_toStartOf="parent"
@@ -126,7 +126,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:enabled="false"
-            android:text="@string/download_project"
+            android:text="@string/clone_project"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toBottomOf="@id/passwordLayout"
             app:layout_goneMarginTop="16dp" />
