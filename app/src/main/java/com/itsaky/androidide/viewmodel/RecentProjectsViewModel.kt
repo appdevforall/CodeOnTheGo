@@ -121,10 +121,6 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         applyFilters()
     }
 
-    fun insertProject(project: RecentProject) = viewModelScope.launch(Dispatchers.IO) {
-        recentProjectDao.insert(project)
-    }
-
     suspend fun getProjectByName(name: String): RecentProject? {
         return withContext(Dispatchers.IO) {
             recentProjectDao.getProjectByName(name)
