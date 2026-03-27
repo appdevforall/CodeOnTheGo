@@ -9,7 +9,7 @@ import kotlinx.parcelize.Parcelize
 @Parcelize
 class GitPreferencesScreen(
     override val key: String = "idepref_git",
-    override val title: Int = R.string.idepref_git_title,
+    override val title: Int = R.string.git_title,
     override val summary: Int? = R.string.idepref_git_summary,
     override val children: List<IPreference> = mutableListOf()
 ) : IPreferenceScreen() {
