@@ -30,6 +30,7 @@ import org.eclipse.jgit.treewalk.FileTreeIterator
 import org.eclipse.jgit.treewalk.filter.PathFilter
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 
 /**
  * JGit-based implementation of the [GitRepository] interface.
@@ -226,21 +227,29 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         try {
             val branchName = repository.branch ?: return@withContext 0
             val branch = repository.resolve(Constants.HEAD) ?: return@withContext 0
-            val trackingBranch = BranchConfig(repository.config, branchName).trackingBranch
-                ?: return@withContext 0
-            val remoteBranch = repository.resolve(trackingBranch) ?: return@withContext 0
+            val config = BranchConfig(repository.config, branchName)
+            val trackingBranch = config.trackingBranch
+            val remoteBranch = trackingBranch?.let { repository.resolve(it) }
 
             RevWalk(repository).use { walk ->
                 val localCommit = walk.parseCommit(branch)
-                val remoteCommit = walk.parseCommit(remoteBranch)
                 walk.markStart(localCommit)
-                walk.markUninteresting(remoteCommit)
+                
+                if (remoteBranch != null) {
+                    val remoteCommit = walk.parseCommit(remoteBranch)
+                    walk.markUninteresting(remoteCommit)
+                }
+
                 var count = 0
-                for (commit in walk) {
+                walk.forEach { _ ->
                     count++
                 }
                 count
             }
+        } catch (_: NoHeadException) {
+            0
+        } catch (_: IOException) {
+            0
         } catch (_: Exception) {
             0
         }
