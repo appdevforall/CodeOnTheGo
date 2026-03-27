@@ -19,7 +19,7 @@ class CloneRepositoryAction(context: Context) : ActionItem {
         const val ID = "ide.main.cloneRepository"
     }
 
-    override var label: String = context.getString(R.string.download_git_project)
+    override var label: String = context.getString(R.string.clone_git_project)
     override var visible: Boolean = true
     override var enabled: Boolean = true
     override var icon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_clone_repo)
