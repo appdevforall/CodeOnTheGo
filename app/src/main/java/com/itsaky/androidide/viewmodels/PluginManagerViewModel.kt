@@ -2,11 +2,13 @@ package com.itsaky.androidide.viewmodels
 
 import android.content.ContentResolver
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
@@ -68,10 +70,9 @@ class PluginManagerViewModel(
             is PluginManagerUiEvent.EnablePlugin -> enablePlugin(event.pluginId)
             is PluginManagerUiEvent.DisablePlugin -> disablePlugin(event.pluginId)
             is PluginManagerUiEvent.UninstallPlugin -> showUninstallConfirmation(event.pluginId)
-            is PluginManagerUiEvent.InstallPlugin -> installPlugin(event.uri)
+            is PluginManagerUiEvent.InstallPlugin -> installPlugin(event.uri, event.deleteSourceAfterInstall)
             is PluginManagerUiEvent.OpenFilePicker -> openFilePicker()
             is PluginManagerUiEvent.ShowPluginDetails -> showPluginDetails(event.plugin)
-            is PluginManagerUiEvent.ClearMessages -> clearMessages()
         }
     }
 
@@ -86,7 +87,7 @@ class PluginManagerViewModel(
 
         viewModelScope.launch {
             _currentOperation.value = PluginOperation.Loading
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            _uiState.update { it.copy(isLoading = true) }
 
             pluginRepository.getAllPlugins()
                 .onSuccess { plugins ->
@@ -95,20 +96,21 @@ class PluginManagerViewModel(
                         it.copy(
                             isLoading = false,
                             plugins = plugins,
-                            isPluginManagerAvailable = true,
-                            errorMessage = null
+                            isPluginManagerAvailable = true
                         )
                     }
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "Failed to load plugins", exception)
                     _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to load plugins: ${exception.message}"
-                        )
+                        it.copy(isLoading = false)
                     }
-                    _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to load plugins: ${exception.message}"))
+                    _uiEffect.trySend(
+                        PluginManagerUiEffect.ShowError(
+                            R.string.msg_plugin_load_failed,
+                            listOf(exception.message ?: "")
+                        )
+                    )
                 }
 
             _currentOperation.value = PluginOperation.None
@@ -126,16 +128,21 @@ class PluginManagerViewModel(
                 .onSuccess { success ->
                     if (success) {
                         Log.d(TAG, "Plugin enabled successfully: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess("Plugin enabled"))
+                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_enabled))
                         loadPlugins()
                     } else {
                         Log.w(TAG, "Failed to enable plugin: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to enable plugin"))
+                        _uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_enable_failed))
                     }
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "Error enabling plugin: $pluginId", exception)
-                    _uiEffect.trySend(PluginManagerUiEffect.ShowError("Error enabling plugin: ${exception.message}"))
+                    _uiEffect.trySend(
+                        PluginManagerUiEffect.ShowError(
+                            R.string.msg_plugin_enable_error,
+                            listOf(exception.message ?: "")
+                        )
+                    )
                 }
 
             _currentOperation.value = PluginOperation.None
@@ -153,16 +160,21 @@ class PluginManagerViewModel(
                 .onSuccess { success ->
                     if (success) {
                         Log.d(TAG, "Plugin disabled successfully: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess("Plugin disabled"))
+                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_disabled))
                         loadPlugins()
                     } else {
                         Log.w(TAG, "Failed to disable plugin: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to disable plugin"))
+                        _uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_disable_failed))
                     }
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "Error disabling plugin: $pluginId", exception)
-                    _uiEffect.trySend(PluginManagerUiEffect.ShowError("Error disabling plugin: ${exception.message}"))
+                    _uiEffect.trySend(
+                        PluginManagerUiEffect.ShowError(
+                            R.string.msg_plugin_disable_error,
+                            listOf(exception.message ?: "")
+                        )
+                    )
                 }
 
             _currentOperation.value = PluginOperation.None
@@ -192,18 +204,22 @@ class PluginManagerViewModel(
                 .onSuccess { success ->
                     if (success) {
                         Log.d(TAG, "Plugin uninstalled successfully: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess("Plugin uninstalled successfully"))
-                        loadPlugins() // Refresh the list
-                        // Show restart prompt to apply changes
+                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_uninstalled))
+                        loadPlugins()
                         _uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
                     } else {
                         Log.w(TAG, "Failed to uninstall plugin: $pluginId")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to uninstall plugin"))
+                        _uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_uninstall_failed))
                     }
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "Error uninstalling plugin: $pluginId", exception)
-                    _uiEffect.trySend(PluginManagerUiEffect.ShowError("Error uninstalling plugin: ${exception.message}"))
+                    _uiEffect.trySend(
+                        PluginManagerUiEffect.ShowError(
+                            R.string.msg_plugin_uninstall_error,
+                            listOf(exception.message ?: "")
+                        )
+                    )
                 }
 
             _currentOperation.value = PluginOperation.None
@@ -213,7 +229,7 @@ class PluginManagerViewModel(
     /**
      * Install a plugin from URI
      */
-    private fun installPlugin(uri: Uri) {
+    private fun installPlugin(uri: Uri, deleteSourceAfterInstall: Boolean) {
         viewModelScope.launch {
             _currentOperation.value = PluginOperation.Installing
             _uiState.update { it.copy(isInstalling = true) }
@@ -221,20 +237,16 @@ class PluginManagerViewModel(
             var tempFile: File? = null
 
             try {
-                // Move all file I/O to IO dispatcher
                 tempFile = withContext(Dispatchers.IO) {
                     val inputStream = contentResolver.openInputStream(uri)
                         ?: throw Exception("Cannot open file")
 
-                    // Create temporary file in cache directory (not plugins directory)
-                    // Get the actual filename from the URI
                     val fileName = getFileNameFromUri(uri)
                     val extension = if (fileName?.endsWith(".cgp", ignoreCase = true) == true) ".cgp" else ".apk"
                     val tempFileName = "temp_plugin_${System.currentTimeMillis()}$extension"
                     val tempDir = File(filesDir, "temp").apply { mkdirs() }
                     val tempFile = File(tempDir, tempFileName)
 
-                    // Copy file content
                     FileOutputStream(tempFile).use { output ->
                         inputStream.use { input ->
                             input.copyTo(output)
@@ -243,23 +255,35 @@ class PluginManagerViewModel(
                     tempFile
                 }
 
-                // Install using repository
                 pluginRepository.installPluginFromFile(tempFile)
                     .onSuccess {
                         Log.d(TAG, "Plugin installed successfully")
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess("Plugin installed successfully"))
-                        loadPlugins() // Refresh the list
-                        // Show restart prompt to apply changes
+                        _uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
+                        loadPlugins()
                         _uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+
+                        if (deleteSourceAfterInstall) {
+                            deleteSourceDocument(uri)
+                        }
                     }
                     .onFailure { exception ->
                         Log.e(TAG, "Failed to install plugin", exception)
-                        _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to install plugin: ${exception.message}"))
+                        _uiEffect.trySend(
+                            PluginManagerUiEffect.ShowError(
+                                R.string.msg_plugin_install_failed,
+                                listOf(exception.message ?: "")
+                            )
+                        )
                     }
 
             } catch (exception: Exception) {
                 Log.e(TAG, "Error installing plugin from URI", exception)
-                _uiEffect.trySend(PluginManagerUiEffect.ShowError("Failed to install plugin: ${exception.message}"))
+                _uiEffect.trySend(
+                    PluginManagerUiEffect.ShowError(
+                        R.string.msg_plugin_install_failed,
+                        listOf(exception.message ?: "")
+                    )
+                )
             } finally {
                 tempFile?.let { file ->
                     withContext(Dispatchers.IO) {
@@ -272,6 +296,24 @@ class PluginManagerViewModel(
 
             _uiState.update { it.copy(isInstalling = false) }
             _currentOperation.value = PluginOperation.None
+        }
+    }
+
+    private suspend fun deleteSourceDocument(uri: Uri) {
+        withContext(Dispatchers.IO) {
+            try {
+                val deleted = DocumentsContract.deleteDocument(contentResolver, uri)
+                if (!deleted) {
+                    _uiEffect.trySend(
+                        PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed)
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to delete source document", e)
+                _uiEffect.trySend(
+                    PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed)
+                )
+            }
         }
     }
 
@@ -290,18 +332,6 @@ class PluginManagerViewModel(
     private fun showPluginDetails(plugin: PluginInfo) {
         viewModelScope.launch {
             _uiEffect.trySend(PluginManagerUiEffect.ShowPluginDetails(plugin))
-        }
-    }
-
-    /**
-     * Clear success/error messages
-     */
-    private fun clearMessages() {
-        _uiState.update {
-            it.copy(
-                errorMessage = null,
-                successMessage = null
-            )
         }
     }
 
