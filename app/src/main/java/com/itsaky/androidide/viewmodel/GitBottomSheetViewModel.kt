@@ -176,7 +176,7 @@ class GitBottomSheetViewModel : ViewModel() {
         }
     }
 
-    fun push(username: String?, token: String?) {
+    fun push(username: String?, token: String?, shouldSaveCredentials: Boolean = true) {
         pushResetJob?.cancel()
         viewModelScope.launch {
             _pushState.value = PushUiState.Pushing
@@ -207,8 +207,8 @@ class GitBottomSheetViewModel : ViewModel() {
                     _pushState.value = PushUiState.Error(errorMessage)
                 } else {
                     _pushState.value = PushUiState.Success
-                    // Persist credentials only on success
-                    if (username != null && token != null) {
+                    // Persist credentials on success if requested
+                    if (shouldSaveCredentials && username != null && token != null) {
                         GitCredentialsManager.saveCredentials(BaseApplication.baseInstance, username, token)
                     }
                     refreshStatus()
@@ -227,7 +227,7 @@ class GitBottomSheetViewModel : ViewModel() {
         }
     }
 
-    fun pull(username: String?, token: String?) {
+    fun pull(username: String?, token: String?, shouldSaveCredentials: Boolean = true) {
         pullResetJob?.cancel()
         viewModelScope.launch {
             _pullState.value = PullUiState.Pulling
@@ -241,6 +241,10 @@ class GitBottomSheetViewModel : ViewModel() {
                 
                 if (result.isSuccessful) {
                     _pullState.value = PullUiState.Success
+                    // Persist credentials on success if requested
+                    if (shouldSaveCredentials && username != null && token != null) {
+                        GitCredentialsManager.saveCredentials(BaseApplication.baseInstance, username, token)
+                    }
                     refreshStatus()
                     getCommitHistoryList()
                 } else {

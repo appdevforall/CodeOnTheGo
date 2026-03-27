@@ -95,7 +95,7 @@ class GitCommitHistoryDialog : DialogFragment() {
         binding.btnPush.setOnClickListener {
             val context = requireContext()
             if (GitCredentialsManager.hasCredentials(context)) {
-                viewModel.push(GitCredentialsManager.getUsername(context), GitCredentialsManager.getToken(context))
+                viewModel.push(GitCredentialsManager.getUsername(context), GitCredentialsManager.getToken(context), shouldSaveCredentials = false)
             } else {
                 showCredentialsDialog()
             }
@@ -157,7 +157,7 @@ class GitCommitHistoryDialog : DialogFragment() {
                 val username = dialogBinding.username.text?.toString()?.trim()
                 val token = dialogBinding.token.text?.toString()?.trim()
                 if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    viewModel.push(username, token)
+                    viewModel.push(username, token, shouldSaveCredentials = true)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)

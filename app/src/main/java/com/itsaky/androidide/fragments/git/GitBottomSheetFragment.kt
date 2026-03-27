@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.PreferencesActivity
+import com.itsaky.androidide.databinding.DialogGitCredentialsBinding
 import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
@@ -242,7 +243,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         binding.btnPull.setOnClickListener {
             val context = requireContext()
             if (GitCredentialsManager.hasCredentials(context)) {
-                viewModel.pull(GitCredentialsManager.getUsername(context), GitCredentialsManager.getToken(context))
+                viewModel.pull(GitCredentialsManager.getUsername(context), GitCredentialsManager.getToken(context), shouldSaveCredentials = false)
             } else {
                 showCredentialsDialog()
             }
@@ -251,7 +252,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
     private fun showCredentialsDialog() {
         val context = requireContext()
-        val dialogBinding = com.itsaky.androidide.databinding.DialogGitCredentialsBinding.inflate(layoutInflater)
+        val dialogBinding = DialogGitCredentialsBinding.inflate(layoutInflater)
 
         dialogBinding.username.setText(GitCredentialsManager.getUsername(context))
         dialogBinding.token.setText(GitCredentialsManager.getToken(context))
@@ -263,7 +264,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                 val username = dialogBinding.username.text?.toString()?.trim()
                 val token = dialogBinding.token.text?.toString()?.trim()
                 if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    viewModel.pull(username, token)
+                    viewModel.pull(username, token, shouldSaveCredentials = true)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
