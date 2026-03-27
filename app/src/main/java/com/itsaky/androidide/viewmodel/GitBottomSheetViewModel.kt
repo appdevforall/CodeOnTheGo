@@ -15,6 +15,7 @@ import com.itsaky.androidide.git.core.models.CommitHistoryUiState
 import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.projects.IProjectManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +54,9 @@ class GitBottomSheetViewModel : ViewModel() {
 
     private val _pushState = MutableStateFlow<PushUiState>(PushUiState.Idle)
     val pushState: StateFlow<PushUiState> = _pushState.asStateFlow()
+
+    private var pullResetJob: Job? = null
+    private var pushResetJob: Job? = null
 
     var currentRepository: GitRepository? = null
         private set
@@ -173,6 +177,7 @@ class GitBottomSheetViewModel : ViewModel() {
     }
 
     fun push(username: String?, token: String?) {
+        pushResetJob?.cancel()
         viewModelScope.launch {
             _pushState.value = PushUiState.Pushing
             try {
@@ -214,7 +219,7 @@ class GitBottomSheetViewModel : ViewModel() {
                 log.error("Push failed", e)
                 _pushState.value = PushUiState.Error(e.message)
             } finally {
-                viewModelScope.launch {
+                pushResetJob = viewModelScope.launch {
                     delay(3000)
                     _pushState.value = PushUiState.Idle
                 }
@@ -223,6 +228,7 @@ class GitBottomSheetViewModel : ViewModel() {
     }
 
     fun pull(username: String?, token: String?) {
+        pullResetJob?.cancel()
         viewModelScope.launch {
             _pullState.value = PullUiState.Pulling
             try {
@@ -245,7 +251,7 @@ class GitBottomSheetViewModel : ViewModel() {
                 log.error("Pull failed", e)
                 _pullState.value = PullUiState.Error(e.message)
             } finally {
-                viewModelScope.launch {
+                pullResetJob = viewModelScope.launch {
                     delay(3000)
                     _pullState.value = PullUiState.Idle
                 }
@@ -254,10 +260,12 @@ class GitBottomSheetViewModel : ViewModel() {
     }
 
     fun resetPullState() {
+        pullResetJob?.cancel()
         _pullState.value = PullUiState.Idle
     }
 
     fun resetPushState() {
+        pushResetJob?.cancel()
         _pushState.value = PushUiState.Idle
     }
 
