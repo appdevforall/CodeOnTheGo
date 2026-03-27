@@ -38,6 +38,8 @@ import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
+import com.itsaky.androidide.plugins.services.IdeFeatureFlagService
+import com.itsaky.androidide.plugins.manager.services.IdeFeatureFlagServiceImpl
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.SidebarSlotExceededException
 import kotlinx.coroutines.CoroutineScope
@@ -900,6 +902,15 @@ class PluginManager private constructor(
             IdeThemeServiceImpl(context)
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFeatureFlagService::class.java,
+            pluginId,
+            "feature_flag"
+        ) {
+            IdeFeatureFlagServiceImpl()
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -1021,6 +1032,15 @@ class PluginManager private constructor(
             "theme"
         ) {
             IdeThemeServiceImpl(context)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFeatureFlagService::class.java,
+            pluginId,
+            "feature_flag"
+        ) {
+            IdeFeatureFlagServiceImpl()
         }
 
         return PluginContextImpl(

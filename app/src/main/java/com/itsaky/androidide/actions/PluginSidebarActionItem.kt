@@ -7,19 +7,17 @@ import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.plugins.extensions.NavigationItem
+import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.reflect.KClass
 
-/**
- * A sidebar action item that wraps plugin-contributed navigation items.
- *
- */
 class PluginSidebarActionItem(
     private val context: Context,
     private val navigationItem: NavigationItem,
-    baseOrder: Int
+    baseOrder: Int,
+    pluginId: String? = null
 ) : SidebarActionItem {
 
     override val id: String = "plugin_sidebar_${navigationItem.id}"
@@ -37,11 +35,8 @@ class PluginSidebarActionItem(
     init {
         val iconResId = navigationItem.icon
         icon = if (iconResId != null) {
-            try {
-                ContextCompat.getDrawable(context, iconResId)
-            } catch (e: Exception) {
-                ContextCompat.getDrawable(context, R.drawable.ic_extension)
-            }
+            PluginDrawableResolver.resolve(iconResId, pluginId, context)
+                ?: ContextCompat.getDrawable(context, R.drawable.ic_extension)
         } else {
             ContextCompat.getDrawable(context, R.drawable.ic_extension)
         }
