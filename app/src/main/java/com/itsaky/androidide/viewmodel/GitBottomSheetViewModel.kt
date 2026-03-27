@@ -170,12 +170,6 @@ class GitBottomSheetViewModel : ViewModel() {
         }
     }
 
-    fun checkLocalCommits() {
-        viewModelScope.launch {
-            _localCommitsCount.value = currentRepository?.getLocalCommitsCount() ?: 0
-        }
-    }
-
     fun push(username: String?, token: String?, shouldSaveCredentials: Boolean = true) {
         pushResetJob?.cancel()
         viewModelScope.launch {
@@ -212,7 +206,7 @@ class GitBottomSheetViewModel : ViewModel() {
                         GitCredentialsManager.saveCredentials(BaseApplication.baseInstance, username, token)
                     }
                     refreshStatus()
-                    checkLocalCommits()
+                    getLocalCommitsCount()
                     getCommitHistoryList()
                 }
             } catch (e: Exception) {
