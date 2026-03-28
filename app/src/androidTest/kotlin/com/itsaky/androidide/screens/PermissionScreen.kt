@@ -17,6 +17,8 @@ object PermissionScreen : KScreen<PermissionScreen>() {
     val title = KTextView { withText(R.string.onboarding_title_permissions) }
     val subTitle = KTextView { withText(R.string.onboarding_subtitle_permissions) }
 
+    val finishInstallationButton = KButton { withId(R.id.finish_installation_button) }
+
     val rvPermissions = KRecyclerView(
         builder = { withId(R.id.onboarding_items) },
         itemTypeBuilder = { itemType(::PermissionItem) }

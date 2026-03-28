@@ -52,6 +52,7 @@ import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.PermissionsHelper
+import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.resolveAttr
@@ -239,7 +240,7 @@ class OnboardingActivity : AppIntro2() {
 		super.onPageSelected(position)
 
         if (nextButton.isVisible) {
-            if (nextButton.animation == null) {
+            if (!isTestMode() && nextButton.animation == null) {
                 nextButton.startAnimation(pulseAnimation)
             }
         } else {

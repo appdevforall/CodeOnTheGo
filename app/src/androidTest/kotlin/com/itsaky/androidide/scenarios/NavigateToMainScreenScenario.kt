@@ -1,6 +1,7 @@
 package com.itsaky.androidide.scenarios
 
 import androidx.test.uiautomator.UiSelector
+import com.itsaky.androidide.helper.passPermissionsInfoSlideWithPrivacyDialog
 import com.itsaky.androidide.screens.InstallToolsScreen
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
@@ -30,6 +31,7 @@ class NavigateToMainScreenScenario : Scenario() {
                 }
             }
         }
+        passPermissionsInfoSlideWithPrivacyDialog()
         val permissionsScreen = device.uiDevice.findObject(UiSelector().text("Permissions"))
 
         if (permissionsScreen.exists()) {

@@ -1,16 +1,23 @@
 package com.itsaky.androidide
 
+import android.Manifest
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.rules.activityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.activities.SplashActivity
+import com.itsaky.androidide.helper.grantDisplayOverOtherAppsUi
+import com.itsaky.androidide.helper.grantInstallUnknownAppsUi
+import com.itsaky.androidide.helper.grantPostNotificationsUi
+import com.itsaky.androidide.helper.grantStorageManageAllFilesUi
+import com.itsaky.androidide.helper.passPermissionsInfoSlideWithPrivacyDialog
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
-import com.itsaky.androidide.screens.SystemPermissionsScreen
+import com.itsaky.androidide.utils.PermissionsHelper
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,12 +33,10 @@ class PermissionsScreenTest : TestCase() {
         InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
     }
 
-
     @Test
     fun test_permissionsScreen_greenCheckMarksAppearCorrectly() = run {
         step("Wait for app to start") {
             flakySafely(timeoutMs = 10000) {
-                // Give app time to fully initialize
                 device.uiDevice.waitForIdle(5000)
             }
         }
@@ -46,9 +51,15 @@ class PermissionsScreenTest : TestCase() {
             }
         }
 
+        passPermissionsInfoSlideWithPrivacyDialog()
+
+        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val required = PermissionsHelper.getRequiredPermissions(targetContext)
+        val appLabel =
+            targetContext.applicationInfo.loadLabel(targetContext.packageManager).toString()
+
         step("Verify items on the Permission Screen") {
             PermissionScreen {
-                // Wait for screen to fully load
                 flakySafely(timeoutMs = 10000) {
                     title {
                         isVisible()
@@ -64,49 +75,31 @@ class PermissionsScreenTest : TestCase() {
                 flakySafely(timeoutMs = 15000) {
                     rvPermissions {
                         isVisible()
-                        // Wait for RecyclerView to fully load
                         isDisplayed()
                     }
                 }
 
-                // Make the size check flaky-safe with increased timeout
                 flakySafely(timeoutMs = 15000) {
-                    assertEquals(2, rvPermissions.getSize())
+                    assertEquals(required.size, rvPermissions.getSize())
                 }
 
                 rvPermissions {
-                    flakySafely(timeoutMs = 10000) {
-                        childAt<PermissionScreen.PermissionItem>(0) {
-                            title {
-                                isVisible()
-                                hasText(R.string.permission_title_storage)
-                            }
-                            description {
-                                isVisible()
-                                hasText(R.string.permission_desc_storage)
-                            }
-                            grantButton {
-                                isVisible()
-                                isClickable()
-                                hasText(R.string.title_grant)
-                            }
-                        }
-                    }
-
-                    flakySafely(timeoutMs = 10000) {
-                        childAt<PermissionScreen.PermissionItem>(1) {
-                            title {
-                                isVisible()
-                                hasText(R.string.permission_title_install_packages)
-                            }
-                            description {
-                                isVisible()
-                                hasText(R.string.permission_desc_install_packages)
-                            }
-                            grantButton {
-                                isVisible()
-                                isClickable()
-                                hasText(R.string.title_grant)
+                    required.forEachIndexed { index, item ->
+                        flakySafely(timeoutMs = 10000) {
+                            childAt<PermissionScreen.PermissionItem>(index) {
+                                title {
+                                    isVisible()
+                                    hasText(item.title)
+                                }
+                                description {
+                                    isVisible()
+                                    hasText(item.description)
+                                }
+                                grantButton {
+                                    isVisible()
+                                    isClickable()
+                                    hasText(R.string.title_grant)
+                                }
                             }
                         }
                     }
@@ -114,150 +107,86 @@ class PermissionsScreenTest : TestCase() {
             }
         }
 
-        step("Grant Storage Permissions") {
-            flakySafely(timeoutMs = 30000) {
-                PermissionScreen {
-                    rvPermissions {
-                        childAt<PermissionScreen.PermissionItem>(0) {
-                            grantButton.click()
-                        }
-                    }
-
-                    // Wait for system permission dialog to appear
-                    device.uiDevice.waitForIdle(3000)
-
-                    SystemPermissionsScreen {
-                        try {
-                            // Try the original permission text first
-                            storagePermissionView {
-                                isDisplayed()
-                                click()
-                            }
-                        } catch (e: Exception) {
-                            println("Trying alternative text for storage permission: ${e.message}")
-                            try {
-                                storagePermissionViewAlt1 {
-                                    isDisplayed()
+        required.forEachIndexed { index, item ->
+            step("Grant: ${targetContext.getString(item.title)}") {
+                flakySafely(timeoutMs = 120_000) {
+                    PermissionScreen {
+                        rvPermissions {
+                            childAt<PermissionScreen.PermissionItem>(index) {
+                                grantButton {
+                                    isVisible()
                                     click()
                                 }
-                            } catch (e1: Exception) {
-                                try {
-                                    storagePermissionViewAlt2 {
-                                        isDisplayed()
-                                        click()
-                                    }
-                                } catch (e2: Exception) {
-                                    try {
-                                        storagePermissionViewAlt3 {
-                                            isDisplayed()
-                                            click()
-                                        }
-                                    } catch (e3: Exception) {
-                                        try {
-                                            storagePermissionViewAlt4 {
-                                                isDisplayed()
-                                                click()
-                                            }
-                                        } catch (e4: Exception) {
-                                            try {
-                                                storagePermissionViewAlt5 {
-                                                    isDisplayed()
-                                                    click()
-                                                }
-                                            } catch (e5: Exception) {
-                                                try {
-                                                    storagePermissionViewAlt6 {
-                                                        isDisplayed()
-                                                        click()
-                                                    }
-                                                } catch (e6: Exception) {
-                                                    try {
-                                                        storagePermissionViewAlt7 {
-                                                            isDisplayed()
-                                                            click()
-                                                        }
-                                                    } catch (e7: Exception) {
-                                                        storagePermissionViewAlt8 {
-                                                            isDisplayed()
-                                                            click()
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
-
                     }
+                    when (item.permission) {
+                        Manifest.permission.POST_NOTIFICATIONS -> {
+                            device.grantPostNotificationsUi()
+                        }
 
-                    // Wait after click and before going back
-                    device.uiDevice.waitForIdle(2000)
-                    device.uiDevice.pressBack()
-                    device.uiDevice.waitForIdle(2000)
+                        Manifest.permission_group.STORAGE -> {
+                            device.grantStorageManageAllFilesUi()
+                        }
+
+                        Manifest.permission.REQUEST_INSTALL_PACKAGES -> {
+                            device.grantInstallUnknownAppsUi()
+                        }
+
+                        Manifest.permission.SYSTEM_ALERT_WINDOW -> {
+                            device.grantDisplayOverOtherAppsUi(
+                                listOf(
+                                    appLabel,
+                                    targetContext.getString(R.string.app_name),
+                                    targetContext.packageName,
+                                ),
+                                targetContext,
+                            )
+                        }
+
+                        else -> {
+                            throw IllegalStateException("Unknown permission row: ${item.permission}")
+                        }
+                    }
                 }
             }
         }
 
-        step("Grant Install Packages Permissions") {
-            flakySafely(timeoutMs = 30000) {
-                PermissionScreen {
-                    rvPermissions {
-                        childAt<PermissionScreen.PermissionItem>(1) {
-                            grantButton.click()
-                        }
-                    }
-
-                    // Wait for system permission dialog to appear
-                    device.uiDevice.waitForIdle(3000)
-
-                    SystemPermissionsScreen {
-                        try {
-                            // Try the original permission text first
-                            installPackagesPermission {
-                                isDisplayed()
-                                click()
-                            }
-                        } catch (e: Exception) {
-                            println("Trying alternative text for install packages permission: ${e.message}")
-                            try {
-                                installPackagesPermissionAlt1 {
-                                    isDisplayed()
-                                    click()
-                                }
-                            } catch (e: Exception) {
-                                installPackagesPermissionAlt2 {
-                                    isDisplayed()
-                                    click()
-                                }
-                            }
-                        }
-                    }
-
-                    // Wait after click and before going back
-                    device.uiDevice.waitForIdle(2000)
-                    device.uiDevice.pressBack()
-                    device.uiDevice.waitForIdle(2000)
-                }
+        step("Confirm Android reports all required permissions granted") {
+            flakySafely(timeoutMs = 20_000) {
+                assertTrue(
+                    PermissionsHelper.areAllPermissionsGranted(
+                        InstrumentationRegistry.getInstrumentation().targetContext,
+                    ),
+                )
             }
         }
 
-        step("Confirm that all menu items don't have allow text") {
-            flakySafely(timeoutMs = 15000) {
+        step("Confirm every row shows granted state") {
+            flakySafely(timeoutMs = 15_000) {
                 device.uiDevice.waitForIdle(2000)
                 PermissionScreen {
                     rvPermissions {
-                        childAt<PermissionScreen.PermissionItem>(0) {
-                            grantButton {
-                                isNotEnabled()
+                        for (index in required.indices) {
+                            childAt<PermissionScreen.PermissionItem>(index) {
+                                grantButton {
+                                    isNotEnabled()
+                                }
                             }
                         }
-                        childAt<PermissionScreen.PermissionItem>(1) {
-                            grantButton {
-                                isNotEnabled()
-                            }
-                        }
+                    }
+                }
+            }
+        }
+
+        step("Finish installation") {
+            flakySafely(timeoutMs = 20_000) {
+                PermissionScreen {
+                    finishInstallationButton {
+                        isVisible()
+                        isEnabled()
+                        isClickable()
+                        click()
                     }
                 }
             }
