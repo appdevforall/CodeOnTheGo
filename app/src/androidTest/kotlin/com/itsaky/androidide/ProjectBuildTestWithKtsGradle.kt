@@ -1,6 +1,7 @@
 package com.itsaky.androidide
 
 import androidx.test.ext.junit.rules.activityScenarioRule
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
@@ -14,7 +15,9 @@ import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 
+@RunWith(AndroidJUnit4::class)
 class ProjectBuildTestWithKtsGradle : TestCase() {
 
     @get:Rule

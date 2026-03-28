@@ -1,15 +1,11 @@
 package com.itsaky.androidide
 
-import android.Manifest
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.rules.activityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.activities.SplashActivity
-import com.itsaky.androidide.helper.grantDisplayOverOtherAppsUi
-import com.itsaky.androidide.helper.grantInstallUnknownAppsUi
-import com.itsaky.androidide.helper.grantPostNotificationsUi
-import com.itsaky.androidide.helper.grantStorageManageAllFilesUi
+import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
 import com.itsaky.androidide.helper.passPermissionsInfoSlideWithPrivacyDialog
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
@@ -55,8 +51,6 @@ class PermissionsScreenTest : TestCase() {
 
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
         val required = PermissionsHelper.getRequiredPermissions(targetContext)
-        val appLabel =
-            targetContext.applicationInfo.loadLabel(targetContext.packageManager).toString()
 
         step("Verify items on the Permission Screen") {
             PermissionScreen {
@@ -107,50 +101,7 @@ class PermissionsScreenTest : TestCase() {
             }
         }
 
-        required.forEachIndexed { index, item ->
-            step("Grant: ${targetContext.getString(item.title)}") {
-                flakySafely(timeoutMs = 120_000) {
-                    PermissionScreen {
-                        rvPermissions {
-                            childAt<PermissionScreen.PermissionItem>(index) {
-                                grantButton {
-                                    isVisible()
-                                    click()
-                                }
-                            }
-                        }
-                    }
-                    when (item.permission) {
-                        Manifest.permission.POST_NOTIFICATIONS -> {
-                            device.grantPostNotificationsUi()
-                        }
-
-                        Manifest.permission_group.STORAGE -> {
-                            device.grantStorageManageAllFilesUi()
-                        }
-
-                        Manifest.permission.REQUEST_INSTALL_PACKAGES -> {
-                            device.grantInstallUnknownAppsUi()
-                        }
-
-                        Manifest.permission.SYSTEM_ALERT_WINDOW -> {
-                            device.grantDisplayOverOtherAppsUi(
-                                listOf(
-                                    appLabel,
-                                    targetContext.getString(R.string.app_name),
-                                    targetContext.packageName,
-                                ),
-                                targetContext,
-                            )
-                        }
-
-                        else -> {
-                            throw IllegalStateException("Unknown permission row: ${item.permission}")
-                        }
-                    }
-                }
-            }
-        }
+        grantAllRequiredPermissionsThroughOnboardingUi()
 
         step("Confirm Android reports all required permissions granted") {
             flakySafely(timeoutMs = 20_000) {
