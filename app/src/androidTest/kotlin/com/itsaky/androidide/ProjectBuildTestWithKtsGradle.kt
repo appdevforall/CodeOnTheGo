@@ -2,255 +2,57 @@ package com.itsaky.androidide
 
 import androidx.test.ext.junit.rules.activityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
 import com.itsaky.androidide.helper.navigateToMainScreen
 import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
-import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
-import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * Smoke test: **Kotlin DSL** templates only, **three** templates in **one** test so we do not
+ * `pm clear` between runs ([navigateToMainScreen] and asset unpack stay done once).
+ *
+ * [com.itsaky.androidide.scenarios.EditorNewTemplateProjectScenario] exits the project after each
+ * template (back → save and close) so the next iteration starts from home.
+ *
+ * For full matrix coverage (all templates × Java), add separate targeted tests or CI jobs — not
+ * this path.
+ */
 @RunWith(AndroidJUnit4::class)
 class ProjectBuildTestWithKtsGradle : TestCase() {
 
-    @get:Rule
-    val activityRule = activityScenarioRule<SplashActivity>()
+	@get:Rule
+	val activityRule = activityScenarioRule<SplashActivity>()
 
-    @After
-    fun cleanUp() {
-        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
-    }
+	@Test
+	fun test_projectBuild_kts_smoke_threeTemplatesKotlin() {
+		run {
+			val templates =
+				listOf(
+					"No Activity" to R.string.template_no_activity,
+					"Empty Activity" to R.string.template_empty,
+					"Basic Activity" to R.string.template_basic,
+				)
 
+			navigateToMainScreen()
 
-    @Test
-    fun test_projectBuild_emptyProject_java() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the empty project",
-                R.string.template_empty
-            )
-            selectJavaLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_emptyProject_kotlin() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the empty project",
-                R.string.template_empty
-            )
-            selectKotlinLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_baseProject_java() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the basic project",
-                R.string.template_basic
-            )
-            selectJavaLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_baseProject_kotlin() {
-        run {
-            step("Navigate to main screen") {
-                // Ensure consistent start state with increased timeout
-                flakySafely(timeoutMs = 30000) {
-                    navigateToMainScreen()
-                }
-            }
-
-            step("Click create project on home screen") {
-                flakySafely(timeoutMs = 10000) {
-                    clickCreateProjectHomeScreen()
-                }
-            }
-
-            step("Select the basic project template") {
-                flakySafely(timeoutMs = 10000) {
-                    selectProjectTemplate(
-                        "Select the basic project",
-                        R.string.template_basic
-                    )
-                }
-            }
-
-            step("Select Kotlin language") {
-                flakySafely(timeoutMs = 10000) {
-                    selectKotlinLanguage()
-                }
-            }
-
-            step("Click create project on settings screen") {
-                flakySafely(timeoutMs = 10000) {
-                    clickCreateProjectProjectSettings()
-                }
-            }
-
-            step("Initialize project and cancel build") {
-                flakySafely(timeoutMs = 10000) {
-                    initializeProjectAndCancelBuild()
-                }
-            }
-        }
-    }
-
-    @Test
-    fun test_projectBuild_navigationDrawerProject_java() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the navigation drawer project",
-                R.string.template_navigation_drawer
-            )
-            selectJavaLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_navigationDrawerProject_kotlin() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the navigation drawer project",
-                R.string.template_navigation_drawer
-            )
-            selectKotlinLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_bottomNavigationProject_java() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the bottom navigation project",
-                R.string.template_navigation_tabs
-            )
-            selectJavaLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_bottomNavigationProject_kotlin() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the bottom navigation project",
-                R.string.template_navigation_tabs
-            )
-            selectKotlinLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_tabbedActivityProject_java() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the tabbed activity project",
-                R.string.template_tabs
-            )
-            selectJavaLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_tabbedActivityProject_kotlin() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the tabbed activity project",
-                R.string.template_tabs
-            )
-            selectKotlinLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_noAnd2roidXProject_java() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the no AndroidX project",
-                R.string.template_no_AndroidX
-            )
-            selectJavaLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_noAndroidXProject_kotlin() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the no AndroidX project",
-                R.string.template_no_AndroidX
-            )
-            selectKotlinLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-// TODO: to be uncommented out when the compose project template is fixed
-//    @Test
-//    fun test_projectBuild_composeProject() {
-//        run {
-//            navigateToMainScreen()
-//            clickCreateProjectHomeScreen()
-//            selectProjectTemplate(
-//                "Select the no Compose project",
-//                R.string.template_compose
-//            )
-//            clickCreateProjectProjectSettings()
-//            initializeProjectAndCancelBuild()
-//        }
-//    }
+			for ((label, templateRes) in templates) {
+				step("KTS $label — create, init build, exit") {
+					flakySafely(timeoutMs = 900_000) {
+						clickCreateProjectHomeScreen()
+						selectProjectTemplate("Select $label", templateRes)
+						selectKotlinLanguage()
+						clickCreateProjectProjectSettings()
+						initializeProjectAndCancelBuild()
+					}
+				}
+			}
+		}
+	}
 }

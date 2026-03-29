@@ -1,9 +1,10 @@
 package com.itsaky.androidide.scenarios
 
 import androidx.test.uiautomator.UiSelector
-import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
+import com.itsaky.androidide.helper.logOnboardingNavigation
 import com.itsaky.androidide.helper.passPermissionsInfoSlideWithPrivacyDialog
+import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.screens.InstallToolsScreen
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
@@ -13,6 +14,7 @@ import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 class NavigateToMainScreenScenario : Scenario() {
 
     override val steps: TestContext<Unit>.() -> Unit = {
+        logOnboardingNavigation("NavigateToMainScreenScenario: first step")
         step("Click continue button on the Welcome Screen") {
             try {
                 OnboardingScreen.nextButton {
@@ -62,18 +64,26 @@ class NavigateToMainScreenScenario : Scenario() {
             }
         }
 
-        step("Click continue button on the Install Tools Screen") {
-            flakySafely(120000) {
-                device.uiDevice.waitForIdle(10000)
-                InstallToolsScreen.doneButton {
-                    flakySafely(20000) {
-                        isVisible()
-                        isEnabled()
-                        isClickable()
-                        click()
-                    }
-                }
-            }
+        step("After Finish installation: optional AppIntro Done, then wait for IDE setup → main UI") {
+            logOnboardingNavigation(
+                "Permissions Finish starts in-app IDE setup; AppIntro R.id.done is often absent — waiting for main UI",
+            )
+			runCatching {
+				flakySafely(timeoutMs = 12_000) {
+					InstallToolsScreen.doneButton {
+						isVisible()
+						click()
+					}
+				}
+			}.fold(
+				onSuccess = { logOnboardingNavigation("Clicked legacy AppIntro Done (optional)") },
+				onFailure = {
+					logOnboardingNavigation(
+						"No AppIntro Done within 12s (expected): ${it.javaClass.simpleName} ${it.message}",
+					)
+				},
+			)
+            waitForMainHomeOrEditorUi(device.uiDevice, maxWaitMs = 300_000L)
         }
 
         step("Decline runtime permission dialog if still shown") {
@@ -83,7 +93,5 @@ class NavigateToMainScreenScenario : Scenario() {
                 }
             }
         }
-
-        ensureOnHomeScreenBeforeCreateProject()
     }
 }
