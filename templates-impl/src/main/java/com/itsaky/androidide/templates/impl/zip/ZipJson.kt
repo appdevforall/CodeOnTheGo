@@ -9,6 +9,7 @@ data class TemplateJson(
     val description: String?,
     val version: String?,
     val tooltipTag: String = "",
+    val defaultSaveLocation: String? = null,
     val parameters: ParametersJson? = null,
     val system: SystemParametersJson? = null
 )
@@ -21,7 +22,7 @@ data class ParametersJson(
 
 data class RequiredParametersJson(
     val appName: IdentifierJson,
-    val packageName: IdentifierJson,
+    val packageName: IdentifierJson? = null,
     val saveLocation: IdentifierJson
 )
 

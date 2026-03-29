@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.adapters
 
+import android.widget.ImageView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -73,6 +74,7 @@ class TemplateListAdapter(
 
             templateName.text = template.templateNameStr
             if (template.thumbData != null) {
+                templateIcon.scaleType = ImageView.ScaleType.FIT_CENTER
                 Glide.with(templateIcon.context)
                     .asBitmap()
                     .load(template.thumbData)
