@@ -68,7 +68,7 @@ fun View.applyRootSystemInsetsAsPadding(
 ) {
     val initial = getOrStoreInitialPadding()
 
-    ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
+    fun applyInsets(view: View, windowInsets: WindowInsetsCompat) {
         val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
 
         view.updatePadding(
@@ -77,10 +77,20 @@ fun View.applyRootSystemInsetsAsPadding(
             right = initial.right + if (applyRight) insets.right else 0,
             bottom = initial.bottom + if (applyBottom) insets.bottom else 0
         )
+    }
+
+    ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
+        applyInsets(view, windowInsets)
         windowInsets
     }
 
-    doOnAttach { it.requestApplyInsets() }
+    doOnAttach { view ->
+        ViewCompat.requestApplyInsets(view)
+
+        ViewCompat.getRootWindowInsets(view)?.let { rootInsets ->
+            applyInsets(view, rootInsets)
+        }
+    }
 }
 
 /**
