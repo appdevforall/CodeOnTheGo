@@ -630,7 +630,6 @@ abstract class BaseEditorActivity :
 		immersiveController = LandscapeImmersiveController(
 			contentBinding = content,
 			bottomSheetBehavior = editorBottomSheet!!,
-			coroutineScope = lifecycleScope,
 		).also {
 			it.bind()
 			it.onConfigurationChanged(resources.configuration)
@@ -853,7 +852,6 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun onResume() {
-		immersiveController?.onResume()
 		super.onResume()
 		invalidateOptionsMenu()
 
