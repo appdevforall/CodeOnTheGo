@@ -169,7 +169,7 @@ public class LogSenderService extends Service {
 
 		// Set Exit button action
 		Intent exitIntent = new Intent(this, LogSenderService.class).setAction(ACTION_STOP_SERVICE);
-		builder.addAction(android.R.drawable.ic_delete,
+		builder.addAction(R.drawable.ic_delete,
 				res.getString(R.string.notification_action_exit),
 				PendingIntent.getService(this, 0, exitIntent, PendingIntent.FLAG_IMMUTABLE));
 
