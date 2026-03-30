@@ -115,11 +115,16 @@ class KotlinDiagnosticProvider(
 		}
 	}
 
+	internal fun clearTimestamps() {
+		analyzeTimestamps.clear()
+	}
+
 	internal fun clearTimestamp(file: Path) {
 		analyzeTimestamps.remove(file)
 	}
 
 	override fun close() {
+		clearTimestamps()
 		scope.cancelIfActive("diagnostic provider is being destroyed")
 	}
 }
