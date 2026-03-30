@@ -115,9 +115,6 @@ class TemplateListFragment :
 
 		log.debug("Reloading templates...")
 
-		// Show only project templates
-		// reloading the templates also makes sure that the resources are
-		// released from template parameter widgets
 		val templates =
 			ITemplateProvider
 				.getInstance(reload = true)

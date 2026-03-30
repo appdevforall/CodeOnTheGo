@@ -200,6 +200,6 @@ class ProjectTemplateBuilder : ExecutorDataTemplateBuilder<ProjectTemplateRecipe
 			widgets!!,
 			recipe!!,
             templateNameStr!!,
-            thumbData!!
+            thumbData
 		)
 }
