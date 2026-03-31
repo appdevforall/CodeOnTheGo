@@ -307,14 +307,14 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         object Idle : PullUiState()
         object Pulling : PullUiState()
         object Success : PullUiState()
-        data class Error(val message: String? = "", val errorResId: Int? = R.string.unknown_error) : PullUiState()
+        data class Error(val message: String? = null, val errorResId: Int? = R.string.unknown_error) : PullUiState()
     }
 
     sealed class PushUiState {
         object Idle : PushUiState()
         object Pushing : PushUiState()
         object Success : PushUiState()
-        data class Error(val message: String? = "", val errorResId: Int? = R.string.unknown_error) : PushUiState()
+        data class Error(val message: String? = null, val errorResId: Int? = R.string.unknown_error) : PushUiState()
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)

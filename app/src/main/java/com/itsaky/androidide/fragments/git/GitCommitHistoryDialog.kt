@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.DialogFragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -20,14 +19,16 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 class GitCommitHistoryDialog : DialogFragment() {
 
     private var _binding: DialogGitCommitHistoryBinding? = null
     private val binding get() = _binding!!
-    private val viewModel: GitBottomSheetViewModel by activityViewModels()
+    private val viewModel: GitBottomSheetViewModel by activityViewModel()
     private lateinit var commitHistoryAdapter: GitCommitHistoryAdapter
-    private lateinit var credentialsManager: GitCredentialsManager
+    private val credentialsManager: GitCredentialsManager by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,7 +47,6 @@ class GitCommitHistoryDialog : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         commitHistoryAdapter = GitCommitHistoryAdapter()
-        credentialsManager = GitCredentialsManager(requireContext())
         val linearLayoutManager = LinearLayoutManager(requireContext())
         val dividerItemDecoration = DividerItemDecoration(
             binding.rvCommitHistory.context,
@@ -121,7 +121,6 @@ class GitCommitHistoryDialog : DialogFragment() {
                     }
                     is GitBottomSheetViewModel.PushUiState.Pushing -> {
                         binding.btnPush.isEnabled = false
-                        binding.btnPush.text = null
                         binding.pushProgress.visibility = View.VISIBLE
                     }
                     is GitBottomSheetViewModel.PushUiState.Success -> {
