@@ -1436,16 +1436,30 @@ abstract class BaseEditorActivity :
 						velocityX: Float,
 						velocityY: Float,
 					): Boolean {
+						if (e1 == null) return false
+
+						val diffX = e2.x - e1.x
+						val diffY = e2.y - e1.y
+
+						// Check for a swipe down (to show top bar)
+						// This is placed before the noFilesOpen check so it works while editing
+						if (diffY > flingDistanceThreshold && abs(velocityY) > flingVelocityThreshold && abs(diffY) > abs(diffX)) {
+							val topEdgeThreshold = SizeUtils.dp2px(60f)
+							if (e1.y < topEdgeThreshold) {
+								immersiveController?.showTopBar()
+								return true
+							}
+						}
+
 						// Check if no files are open by looking at the displayedChild of the view flipper
 						val noFilesOpen = content.viewContainer.displayedChild == 1
 						if (!noFilesOpen) {
 							return false // If files are open, do nothing
 						}
 
-						val diffX = e2.x - (e1?.x ?: 0f)
-
 						// Check for a right swipe (to open left drawer) - This part is still correct
-						if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+						// Added abs(diffX) > abs(diffY) to prevent diagonal swipes from triggering this
+						if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold && abs(diffX) > abs(diffY)) {
 							// Use the correct binding for the drawer layout
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
