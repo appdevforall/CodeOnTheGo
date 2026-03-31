@@ -137,7 +137,7 @@
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>
-	<string name="download_git_project">Download a Git project</string>
+	<string name="clone_git_project">Clone a Git project</string>
 	<string name="msg_delete_existing_project_failed">Failed to delete existing project.</string>
 	<string name="title_confirm_project_close">Close project</string>
 	<string name="cancel_project_text">Cancel</string>
@@ -145,6 +145,7 @@
 	<string name="save_and_close">Save files and close project</string>
 	<string name="search_projects_hint">Search projects by name…</string>
     <string name="sort_projects_label">Sort projects</string>
+    <string name="toggle_sorting">Toggle sorting</string>
     <string name="reset_sorting">Reset</string>
     <string name="apply_sorting">Sort</string>
     <string name="sort_by_hint">Sort by</string>
@@ -273,6 +274,16 @@
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
 
+	<!-- Shortcuts -->
+	<string name="shortcut_close_current_file">Close current file</string>
+	<string name="shortcut_create_project">Create project</string>
+    <string name="shortcut_open_project">Open project</string>
+    <string name="shortcut_clone_repository">Clone repository</string>
+    <string name="shortcut_close_file">Close file</string>
+    <string name="shortcut_open_preferences">Open preferences</string>
+    <string name="shortcut_find_in_project">Find in project</string>
+    <string name="shortcut_open_terminal">Open terminal</string>
+
 	<!-- Code Editor -->
 	<string name="open_with">Open with…</string>
 
@@ -349,6 +360,9 @@
 
 	<string name="title_translations">Translations</string>
 	<string name="action_expand_selection">Expand selection</string>
+	<string name="action_explain_selection">Explain selection</string>
+	<string name="msg_ai_gemini_api_key_missing">Gemini API key is missing. Add it in AI Settings.</string>
+	<string name="msg_ai_local_model_not_loaded">Local model is not loaded. Load a model in AI Settings.</string>
 	<string name="idepref_java_matchLower_title">Match completions in lower case</string>
 	<string name="title_common">Common</string>
 	<string name="idepref_editor_category_common" translatable="false">@string/title_common</string>
@@ -835,6 +849,8 @@
 	<string name="breakpoint">Breakpoint</string>
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
+	<string name="desc_toggle_top_bar">Toggle top bar</string>
+    <string name="desc_toggle_bottom_bar">Toggle bottom bar</string>
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
@@ -982,6 +998,22 @@
 	<string name="btn_restart_now">Restart Now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
+	<string name="msg_plugin_installed">Plugin installed successfully</string>
+	<string name="msg_plugin_load_failed">Failed to load plugins: %1$s</string>
+	<string name="msg_plugin_enabled">Plugin enabled</string>
+	<string name="msg_plugin_enable_failed">Failed to enable plugin</string>
+	<string name="msg_plugin_enable_error">Error enabling plugin: %1$s</string>
+	<string name="msg_plugin_disabled">Plugin disabled</string>
+	<string name="msg_plugin_disable_failed">Failed to disable plugin</string>
+	<string name="msg_plugin_disable_error">Error disabling plugin: %1$s</string>
+	<string name="msg_plugin_uninstalled">Plugin uninstalled successfully</string>
+	<string name="msg_plugin_uninstall_failed">Failed to uninstall plugin</string>
+	<string name="msg_plugin_uninstall_error">Error uninstalling plugin: %1$s</string>
+	<string name="msg_source_delete_failed">Could not delete the installation file</string>
+	<string name="msg_unsupported_plugin_file">Unsupported file type. Please select a .cgp file</string>
+	<string name="msg_no_file_manager">No file manager found</string>
+	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
+	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
@@ -1170,7 +1202,7 @@
     <string name="use_authentication">Use Authentication</string>
     <string name="username">Username</string>
     <string name="personal_access_token">Personal access token</string>
-    <string name="download_project">Download project</string>
+    <string name="clone_project">Clone project</string>
     <string name="destination_directory_not_empty">Destination directory is not empty</string>
     <string name="clone_successful">Clone successful!</string>
     <string name="clone_failed">Clone failed: %1$s</string>
@@ -1181,4 +1213,38 @@
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>
     <string name="diff_loading">Loading Git Diff…</string>
+    <string name="commit_summary">Summary (required)</string>
+    <string name="commit_description_optional">Description</string>
+    <string name="commit">Commit</string>
+    <string name="view_commit_history">View Commit History</string>
+    <string name="git_commit_history">Git Commit History</string>
+    <string name="no_commit_history">No commit history</string>
+    <string name="commit_not_pushed">This commit has not been pushed to the remote repository</string>
+    <string name="commit_pushed">This commit has been pushed to the remote repository</string>
+    <string name="no_internet_connection">No internet connection. Please check your network and try again.</string>
+    <string name="connection_lost">Connection lost during download. Please check your internet connection and try again.</string>
+    <string name="desc_file_added">File added</string>
+    <string name="desc_file_modified">File modified</string>
+    <string name="desc_file_deleted">File deleted</string>
+    <string name="desc_file_untracked">File untracked</string>
+    <string name="desc_file_renamed">File renamed</string>
+    <string name="desc_file_conflicted">File conflicted</string>
+    <string name="cancel_clone">Cancel clone</string>
+    <string name="initialising_clone">Initialising clone…</string>
+    <string name="cancelling_clone">Cancelling clone…</string>
+
+    <!-- Git Preferences -->
+    <string name="idepref_git_summary">Set and update Git configuration</string>
+    <string name="idepref_git_author_title">Author Identity</string>
+    <string name="idepref_git_author_summary">Set the name and email used for commits</string>
+    <string name="idepref_git_user_name_title">User Name</string>
+    <string name="idepref_git_user_name_summary">Used as author name in commits</string>
+    <string name="idepref_git_user_email_title">User Email</string>
+    <string name="idepref_git_user_email_summary">Used as author email in commits</string>
+    <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nClick on the avatar for more info.</string>
+    <string name="git_committing_as">Committing as %1$s</string>
+    <string name="git_committing_email">Email - %1$s</string>
+    <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>
+    <string name="author_not_set">Not set</string>
+    <string name="not_a_git_repo">This project is not a Git repository</string>
 </resources>

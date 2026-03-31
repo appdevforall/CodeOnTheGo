@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="plugin_primary">#B1C5FF</color>
-    <color name="plugin_on_primary">#172E60</color>
-    <color name="plugin_primary_container">#304578</color>
-    <color name="plugin_on_primary_container">#DAE2FF</color>
+    <color name="plugin_primary">#88D6B8</color>
+    <color name="plugin_on_primary">#00382A</color>
+    <color name="plugin_primary_container">#00513D</color>
+    <color name="plugin_on_primary_container">#A4F2D3</color>
+    <color name="plugin_secondary">#B3CCBF</color>
+    <color name="plugin_on_secondary">#1F352C</color>
+    <color name="plugin_surface">#191C1A</color>
+    <color name="plugin_on_surface">#E1E3DF</color>
+    <color name="plugin_on_surface_variant">#BFC9C1</color>
+    <color name="plugin_outline">#89938C</color>
+    <color name="plugin_outline_variant">#404943</color>
 
-    <color name="status_text">#E4E2E6</color>
-    <color name="status_background">#44464F</color>
-
-    <color name="status_success_text">#81C784</color>
-    <color name="status_success_background">#1B3A1B</color>
-
-    <color name="status_error_text">#F2B8B5</color>
-    <color name="status_error_background">#8C1D18</color>
+    <color name="status_text">#E1E3DF</color>
+    <color name="status_background">#2E3230</color>
+    <color name="status_success_text">#88D6B8</color>
+    <color name="status_success_background">#0D2E22</color>
+    <color name="status_error_text">#FFB4AB</color>
+    <color name="status_error_background">#690005</color>
 </resources>

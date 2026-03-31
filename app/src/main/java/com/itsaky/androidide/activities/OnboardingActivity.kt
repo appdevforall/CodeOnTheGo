@@ -230,20 +230,13 @@ class OnboardingActivity : AppIntro2() {
 		tryNavigateToMainIfSetupIsCompleted()
 	}
 
+    fun setOnboardingChromeVisible(visible: Boolean) {
+        isIndicatorEnabled = visible
+        isButtonsEnabled = visible
+    }
+
 	override fun onPageSelected(position: Int) {
 		super.onPageSelected(position)
-
-		// Get the fragment at the current position
-		val fragment = supportFragmentManager.fragments.getOrNull(position)
-
-		// Hide indicator and buttons when on PermissionsFragment
-		if (fragment is PermissionsFragment) {
-			isIndicatorEnabled = false
-			isButtonsEnabled = false
-		} else {
-			isIndicatorEnabled = true
-			isButtonsEnabled = true
-		}
 
         if (nextButton.isVisible) {
             if (nextButton.animation == null) {

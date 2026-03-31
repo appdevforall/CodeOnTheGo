@@ -20,10 +20,7 @@ package com.itsaky.androidide.fragments
 import android.os.Bundle
 import android.view.View
 import android.content.res.Configuration
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
-import androidx.fragment.app.viewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.recyclerview.widget.GridLayoutManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.TemplateListAdapter
@@ -47,7 +44,7 @@ class TemplateListFragment :
 	) {
 	private var adapter: TemplateListAdapter? = null
 
-	private val viewModel by viewModels<MainViewModel>(ownerProducer = { requireActivity() })
+	private val viewModel by activityViewModel<MainViewModel>()
 
 	companion object {
 		private val log = LoggerFactory.getLogger(TemplateListFragment::class.java)
@@ -118,9 +115,6 @@ class TemplateListFragment :
 
 		log.debug("Reloading templates...")
 
-		// Show only project templates
-		// reloading the templates also makes sure that the resources are
-		// released from template parameter widgets
 		val templates =
 			ITemplateProvider
 				.getInstance(reload = true)

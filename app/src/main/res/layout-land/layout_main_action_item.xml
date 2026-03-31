@@ -11,15 +11,21 @@
     android:id="@+id/itemButton"
     style="@style/Widget.Material3.Button.TextButton.Icon"
     android:layout_width="match_parent"
-    android:layout_height="40dp"
+
+    android:layout_height="wrap_content"
+    android:minHeight="48dp"
+
     android:layout_marginTop="1dp"
     android:layout_marginBottom="1dp"
     android:elevation="0dp"
-    android:maxLines="1"
+
+    android:maxLines="3"
+    android:ellipsize="end"
+
     android:textAlignment="textStart"
     android:textColor="?attr/colorOnBackground"
     android:textStyle="bold"
-    app:iconPadding="6dp"
+    app:iconPadding="12dp"
     app:iconTint="?attr/colorOnBackground"
     tools:icon="@drawable/ic_add"
     tools:text="@string/msg_create_new_project" />
