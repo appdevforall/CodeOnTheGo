@@ -1443,12 +1443,12 @@ abstract class BaseEditorActivity :
 
 						// Check for a swipe down (to show top bar)
 						// This is placed before the noFilesOpen check so it works while editing
-						if (diffY > flingDistanceThreshold && abs(velocityY) > flingVelocityThreshold && abs(diffY) > abs(diffX)) {
-							val topEdgeThreshold = SizeUtils.dp2px(60f)
-							if (e1.y < topEdgeThreshold) {
-								immersiveController?.showTopBar()
-								return true
-							}
+						val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+						val topEdgeThreshold = SizeUtils.dp2px(60f)
+
+						if (isLandscape && e1.y < topEdgeThreshold && diffY > flingDistanceThreshold && abs(velocityY) > flingVelocityThreshold && abs(diffY) > abs(diffX)) {
+							immersiveController?.showTopBar()
+							return true
 						}
 
 						// Check if no files are open by looking at the displayedChild of the view flipper
