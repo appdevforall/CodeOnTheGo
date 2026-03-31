@@ -12,6 +12,7 @@ import com.itsaky.androidide.agent.actions.SelectionAiPromptFactory
 import com.itsaky.androidide.agent.repository.BackendAvailability
 import com.itsaky.androidide.agent.repository.getBackendAvailability
 import com.itsaky.androidide.agent.repository.Util.getCurrentBackend
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
@@ -29,6 +30,7 @@ class ExplainSelectionAction(
     }
 
     override val id: String = ID
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_AI
 
     init {
         label = context.getString(R.string.action_explain_selection)
