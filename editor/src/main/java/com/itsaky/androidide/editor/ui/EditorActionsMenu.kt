@@ -309,12 +309,12 @@ open class EditorActionsMenu(val editor: IDEEditor) :
         data.put(com.itsaky.androidide.models.Range::class.java, editor.cursorLSPRange)
         data.put(
             JavaLanguageServer::class.java,
-            ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
+            ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
                     as? JavaLanguageServer?
         )
         data.put(
             XMLLanguageServer::class.java,
-            ILanguageServerRegistry.getDefault().getServer(XMLLanguageServer.SERVER_ID)
+            ILanguageServerRegistry.default.getServer(XMLLanguageServer.SERVER_ID)
                     as? XMLLanguageServer?
         )
         data.put(TextTarget::class.java, IdeEditorAdapter(this.editor))

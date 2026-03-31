@@ -549,7 +549,7 @@ class CodeEditorView(
 				else -> return null
 			}
 
-		return ILanguageServerRegistry.getDefault().getServer(serverID)
+		return ILanguageServerRegistry.default.getServer(serverID)
 	}
 
 	private fun configureEditorIfNeeded() {
