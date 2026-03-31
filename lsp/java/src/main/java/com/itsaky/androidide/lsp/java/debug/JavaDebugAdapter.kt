@@ -145,6 +145,8 @@ internal class JavaDebugAdapter :
 		)
 
 		_listenerState?.invalidate()
+		listenerThread?.interrupt()
+		
 		_listenerState =
 			ListenerState(
 				client = client,
