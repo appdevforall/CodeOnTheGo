@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
-import org.jetbrains.kotlin.analysis.api.standalone.StandaloneAnalysisAPISessionBuilder
+import com.itsaky.androidide.lsp.kotlin.FileEventConsumer
+import com.itsaky.androidide.utils.DocumentUtils
 import org.jetbrains.kotlin.com.intellij.lang.Language
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
@@ -14,6 +15,7 @@ import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.io.path.extension
 import kotlin.io.path.pathString
 
 class Compiler(
@@ -44,8 +46,19 @@ class Compiler(
 		)
 
 		// must be initialized AFTER the compilation env has been initialized
-		fileSystem = VirtualFileManager.getInstance()
-			.getFileSystem(StandardFileSystems.FILE_PROTOCOL)
+		fileSystem =
+			VirtualFileManager.getInstance().getFileSystem(StandardFileSystems.FILE_PROTOCOL)
+	}
+
+	fun compilationKindFor(file: Path): CompilationKind {
+		// TODO: This should return a different environment for Kotlin script files
+		return CompilationKind.Default
+	}
+
+	fun compilationEnvironmentFor(file: Path): CompilationEnvironment? {
+		if (!DocumentUtils.isKotlinFile(file)) return null
+
+		return compilationEnvironmentFor(compilationKindFor(file))
 	}
 
 	fun compilationEnvironmentFor(compilationKind: CompilationKind): CompilationEnvironment =
@@ -66,11 +79,7 @@ class Compiler(
 		require(!content.contains('\r'))
 
 		val psiFile = psiFileFactoryFor(compilationKind).createFileFromText(
-			file.pathString,
-			language,
-			content,
-			true,
-			false
+			file.pathString, language, content, true, false
 		)
 		check(psiFile.virtualFile != null) {
 			"No virtual-file associated with newly created psiFile"
@@ -83,8 +92,7 @@ class Compiler(
 		content: String,
 		file: Path = Paths.get("dummy.virtual.kt"),
 		compilationKind: CompilationKind = CompilationKind.Default
-	): KtFile =
-		createPsiFileFor(content, file, KotlinLanguage.INSTANCE, compilationKind) as KtFile
+	): KtFile = createPsiFileFor(content, file, KotlinLanguage.INSTANCE, compilationKind) as KtFile
 
 	override fun close() {
 		defaultCompilationEnv.close()

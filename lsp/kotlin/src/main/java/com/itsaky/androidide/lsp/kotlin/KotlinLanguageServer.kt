@@ -22,13 +22,14 @@ import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
+import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
-import com.itsaky.androidide.lsp.kotlin.diagnostic.KotlinDiagnosticProvider
+import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
@@ -76,7 +77,6 @@ class KotlinLanguageServer : ILanguageServer {
 		CoroutineScope(SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!))
 	private var projectModel: KotlinProjectModel? = null
 	private var compiler: Compiler? = null
-	private var diagnosticProvider: KotlinDiagnosticProvider? = null
 	private var analyzeJob: Job? = null
 
 	override val serverId: String = SERVER_ID
@@ -106,7 +106,6 @@ class KotlinLanguageServer : ILanguageServer {
 	override fun shutdown() {
 		EventBus.getDefault().unregister(this)
 		scope.cancel("LSP is being shut down")
-		diagnosticProvider?.close()
 		compiler?.close()
 		initialized = false
 	}
@@ -150,7 +149,6 @@ class KotlinLanguageServer : ILanguageServer {
 			)
 
 			this.compiler = compiler
-			this.diagnosticProvider = KotlinDiagnosticProvider(compiler, scope)
 		} else {
 			logger.info("Updating project model")
 
@@ -221,7 +219,7 @@ class KotlinLanguageServer : ILanguageServer {
 			return DiagnosticResult.NO_UPDATE
 		}
 
-		return diagnosticProvider?.analyze(file)
+		return compiler?.compilationEnvironmentFor(file)?.collectDiagnosticsFor(file)
 			?: DiagnosticResult.NO_UPDATE
 	}
 
@@ -230,6 +228,11 @@ class KotlinLanguageServer : ILanguageServer {
 	fun onDocumentOpen(event: DocumentOpenEvent) {
 		if (!DocumentUtils.isKotlinFile(event.openedFile)) {
 			return
+		}
+
+		compiler?.compilationEnvironmentFor(event.openedFile)?.apply {
+			val content = FileManager.getDocumentContents(event.openedFile)
+			fileManager.onFileOpened(event.openedFile, content)
 		}
 
 		selectedFile = event.openedFile
@@ -262,6 +265,13 @@ class KotlinLanguageServer : ILanguageServer {
 		if (!DocumentUtils.isKotlinFile(event.changedFile)) {
 			return
 		}
+
+		compiler?.compilationEnvironmentFor(event.changedFile)?.apply {
+			val content = FileManager.getDocumentContents(event.changedFile)
+			logger.info("Notifying KtFileManager for file {} with contents {}", event.changedFile, content)
+			fileManager.onFileContentChanged(event.changedFile, content)
+		}
+
 		debouncingAnalyze()
 	}
 
@@ -272,10 +282,26 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		diagnosticProvider?.clearTimestamp(event.closedFile)
+		compiler?.compilationEnvironmentFor(event.closedFile)?.apply {
+			fileManager.onFileClosed(event.closedFile)
+			fileManager.clearAnalyzeTimestampOf(event.closedFile)
+		}
+
 		if (FileManager.getActiveDocumentCount() == 0) {
 			selectedFile = null
 			analyzeJob?.cancel("No active files")
+		}
+	}
+
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onDocumentSaved(event: DocumentSaveEvent) {
+		if (!DocumentUtils.isKotlinFile(event.savedFile)) {
+			return
+		}
+
+		compiler?.compilationEnvironmentFor(event.savedFile)?.apply {
+			fileManager.onFileSaved(event.savedFile)
 		}
 	}
 
