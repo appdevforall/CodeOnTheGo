@@ -2,6 +2,7 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.blankj.utilcode.util.NetworkUtils
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
@@ -14,6 +15,7 @@ import com.itsaky.androidide.git.core.models.CommitHistoryUiState
 import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -173,6 +175,12 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
 
     fun push(username: String?, token: String?) {
         pushResetJob?.cancel()
+
+        if (!NetworkUtils.isConnected()){
+            _pushState.value = PushUiState.Error(errorResId = R.string.no_internet_connection)
+            return
+        }
+
         viewModelScope.launch {
             _pushState.value = PushUiState.Pushing
             try {
@@ -233,8 +241,14 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         getCommitHistoryList()
     }
 
-    fun pull(username: String?, token: String?, shouldSaveCredentials: Boolean = true) {
+    fun pull(username: String?, token: String?) {
         pullResetJob?.cancel()
+
+        if (!NetworkUtils.isConnected()){
+            _pullState.value = PullUiState.Error(errorResId = R.string.no_internet_connection)
+            return
+        }
+
         viewModelScope.launch {
             _pullState.value = PullUiState.Pulling
             try {
@@ -293,14 +307,14 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         object Idle : PullUiState()
         object Pulling : PullUiState()
         object Success : PullUiState()
-        data class Error(val message: String?) : PullUiState()
+        data class Error(val message: String? = "", val errorResId: Int? = R.string.unknown_error) : PullUiState()
     }
 
     sealed class PushUiState {
         object Idle : PushUiState()
         object Pushing : PushUiState()
         object Success : PushUiState()
-        data class Error(val message: String?) : PushUiState()
+        data class Error(val message: String? = "", val errorResId: Int? = R.string.unknown_error) : PushUiState()
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)

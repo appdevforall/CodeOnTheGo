@@ -134,7 +134,8 @@ class GitCommitHistoryDialog : DialogFragment() {
                     is GitBottomSheetViewModel.PushUiState.Error -> {
                         binding.btnPush.isEnabled = true
                         binding.pushProgress.visibility = View.GONE
-                        val message = state.message ?: getString(R.string.unknown_error)
+                        val message =
+                            state.errorResId?.let { getString(it) } ?: state.message
                         MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.push_failed)
                             .setMessage(message)

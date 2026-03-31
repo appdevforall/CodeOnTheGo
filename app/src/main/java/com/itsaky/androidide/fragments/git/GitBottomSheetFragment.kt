@@ -231,7 +231,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     is GitBottomSheetViewModel.PullUiState.Error -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
-                        val message = state.message ?: getString(R.string.unknown_error)
+                        val message =
+                            state.errorResId?.let { getString(it) } ?: state.message
                         MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.pull_failed)
                             .setMessage(message)
@@ -246,8 +247,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             if (credentialsManager.hasCredentials()) {
                 viewModel.pull(
                     username = credentialsManager.getUsername(),
-                    token = credentialsManager.getToken(),
-                    shouldSaveCredentials = false
+                    token = credentialsManager.getToken()
                 )
             } else {
                 showCredentialsDialog()
@@ -269,7 +269,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                 val username = dialogBinding.username.text?.toString()?.trim()
                 val token = dialogBinding.token.text?.toString()?.trim()
                 if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    viewModel.pull(username, token, true)
+                    viewModel.pull(username, token)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
