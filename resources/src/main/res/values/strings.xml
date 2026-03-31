@@ -781,6 +781,19 @@
 	<string name="debugger_dialog_button_set">Set</string>
 	<string name="debugger_variable_value_invalid">Invalid value for this variable</string>
 	<string name="debugger_error_immutable_variable">The value of variable \'%1$s\' cannot be updated.</string>
+	<string name="debugger_error_network_access_error">Network access error</string>
+	<string name="debugger_error_errno">Unable to listen for JDWP connections. Operation failed with error %1$d.</string>
+	<string name="debugger_error_errno_eperm">Code On the Go is not allowed to open or bind a network socket on the local network.</string>
+	<string name="debugger_error_errno_econnrefused">Network access for Code On the Go is blocked by the system. The app is not allowed to use the network or the service is unavailable.</string>
+	<string name="debugger_error_debugger_startup_failure">Unable to start Code On the Go debugger.</string>
+	<string name="debugger_not_ready">The debugger is not ready for a debug session.</string>
+	<string name="debugger_error_suggestion_network_restriction">Please ensure Code On the Go has permissions to access the local network. This can be checked by
+		going to the "App info" screen of Code On the Go in your device\'s settings, and checking if
+		network access is allowed under \"Data usage\" (exact name might differ between devices).
+
+		If network access is allowed and the issue still persists, please file a bug report with the
+		logs attached.
+	</string>
 
 	<string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
