@@ -9,7 +9,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand.ListMode
-import org.eclipse.jgit.api.errors.NoHeadException
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.dircache.DirCacheIterator
 import org.eclipse.jgit.lib.BranchConfig
@@ -28,14 +27,16 @@ import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.eclipse.jgit.treewalk.EmptyTreeIterator
 import org.eclipse.jgit.treewalk.FileTreeIterator
 import org.eclipse.jgit.treewalk.filter.PathFilter
+import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.IOException
 
 /**
  * JGit-based implementation of the [GitRepository] interface.
  */
 class JGitRepository(override val rootDir: File) : GitRepository {
+
+    private val log = LoggerFactory.getLogger(JGitRepository::class.java)
 
     private val repository: Repository = FileRepositoryBuilder()
         .setWorkTree(rootDir)
@@ -126,7 +127,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
                     commit.toGitCommit(isPushed)
                 }
             }
-        } catch (_: NoHeadException) {
+        } catch (e: Exception) {
+            log.error("Error fetching commit history", e)
             emptyList()
         }
     }
@@ -246,11 +248,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
                 }
                 count
             }
-        } catch (_: NoHeadException) {
-            0
-        } catch (_: IOException) {
-            0
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            log.error("Error fetching local commits", e)
             0
         }
     }
