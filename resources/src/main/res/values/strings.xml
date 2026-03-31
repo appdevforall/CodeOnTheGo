@@ -1215,7 +1215,7 @@
     <string name="desc_file_untracked">File untracked</string>
     <string name="desc_file_renamed">File renamed</string>
     <string name="desc_file_conflicted">File conflicted</string>
-    <string name="cancel_clone">Cancel clone</string>
+    <string name="cancel_clone">Cancel cl.one</string>
     <string name="initialising_clone">Initialising clone…</string>
     <string name="cancelling_clone">Cancelling clone…</string>
 
@@ -1238,11 +1238,11 @@
     <string name="push">Push</string>
     <string name="pushing">Pushing…</string>
     <string name="push_successful">Push successful!</string>
-    <string name="push_failed">Push failed: %1$s</string>
+    <string name="push_failed">Push failed</string>
     <string name="pull">Pull</string>
     <string name="pulling">Pulling…</string>
     <string name="pull_successful">Pull successful!</string>
-    <string name="pull_failed">Pull failed: %1$s</string>
+    <string name="pull_failed">Pull failed</string>
     <string name="git_credentials_title">Git Credentials</string>
     <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
 </resources>

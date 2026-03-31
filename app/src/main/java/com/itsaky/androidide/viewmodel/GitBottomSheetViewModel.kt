@@ -2,7 +2,6 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
@@ -21,6 +20,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.eclipse.jgit.api.PullResult
+import org.eclipse.jgit.errors.NoRemoteRepositoryException
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.greenrobot.eventbus.EventBus
@@ -29,7 +30,7 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
 
-class GitBottomSheetViewModel : ViewModel() {
+class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsManager) : ViewModel() {
 
     private val log = LoggerFactory.getLogger(GitBottomSheetViewModel::class.java)
 
@@ -170,47 +171,32 @@ class GitBottomSheetViewModel : ViewModel() {
         }
     }
 
-    fun push(username: String?, token: String?, shouldSaveCredentials: Boolean = true) {
+    fun push(username: String?, token: String?) {
         pushResetJob?.cancel()
         viewModelScope.launch {
             _pushState.value = PushUiState.Pushing
             try {
                 val repository = currentRepository ?: return@launch
-                val credentials = if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    UsernamePasswordCredentialsProvider(username, token)
-                } else null
-
+                val credentials = buildCredentials(username, token)
                 val results = repository.push(credentialsProvider = credentials)
-                var hasError = false
-                var errorMessage: String? = null
-
-                for (result in results) {
-                    for (update in result.remoteUpdates) {
-                        if (update.status != RemoteRefUpdate.Status.OK &&
-                            update.status != RemoteRefUpdate.Status.UP_TO_DATE
-                        ) {
-                            hasError = true
-                            errorMessage = update.message ?: update.status.name
-                            break
-                        }
+                val error = results.flatMap { it.remoteUpdates }
+                    .firstOrNull {
+                        it.status != RemoteRefUpdate.Status.OK &&
+                                it.status != RemoteRefUpdate.Status.UP_TO_DATE
                     }
-                    if (hasError) break
+
+                if (error != null) {
+                    handlePushError(error)
+                    return@launch
                 }
 
-                if (hasError) {
-                    _pushState.value = PushUiState.Error(errorMessage)
-                } else {
-                    _pushState.value = PushUiState.Success
-                    // Persist credentials on success if requested
-                    if (shouldSaveCredentials && username != null && token != null) {
-                        GitCredentialsManager.saveCredentials(BaseApplication.baseInstance, username, token)
-                    }
-                    refreshStatus()
-                    getLocalCommitsCount()
-                    getCommitHistoryList()
-                }
+                handlePushSuccess(username, token)
             } catch (e: Exception) {
                 log.error("Push failed", e)
+                if (e is NoRemoteRepositoryException) {
+                    _pushState.value = PushUiState.Error("No remote repository found")
+                    return@launch
+                }
                 _pushState.value = PushUiState.Error(e.message)
             } finally {
                 pushResetJob = viewModelScope.launch {
@@ -221,30 +207,47 @@ class GitBottomSheetViewModel : ViewModel() {
         }
     }
 
+    private fun buildCredentials(username: String?, token: String?) =
+        if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+            UsernamePasswordCredentialsProvider(username, token)
+        } else null
+
+    private fun handlePushError(update: RemoteRefUpdate) {
+        _pushState.value = PushUiState.Error(
+            update.message ?: update.status.name
+        )
+    }
+
+    private fun handlePushSuccess(
+        username: String?,
+        token: String?,
+    ) {
+        _pushState.value = PushUiState.Success
+
+        if (!credentialsManager.hasCredentials() && !username.isNullOrBlank() && !token.isNullOrBlank()) {
+            credentialsManager.saveCredentials( username, token)
+        }
+
+        refreshStatus()
+        getLocalCommitsCount()
+        getCommitHistoryList()
+    }
+
     fun pull(username: String?, token: String?, shouldSaveCredentials: Boolean = true) {
         pullResetJob?.cancel()
         viewModelScope.launch {
             _pullState.value = PullUiState.Pulling
             try {
                 val repository = currentRepository ?: return@launch
-                val credentials = if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    UsernamePasswordCredentialsProvider(username, token)
-                } else null
-
+                val credentials = buildCredentials(username, token)
                 val result = repository.pull(credentialsProvider = credentials)
-                
-                if (result.isSuccessful) {
-                    _pullState.value = PullUiState.Success
-                    // Persist credentials on success if requested
-                    if (shouldSaveCredentials && username != null && token != null) {
-                        GitCredentialsManager.saveCredentials(BaseApplication.baseInstance, username, token)
-                    }
-                    refreshStatus()
-                    getCommitHistoryList()
-                } else {
-                    val status = result.mergeResult?.mergeStatus?.name ?: "Unknown error"
-                    _pullState.value = PullUiState.Error("Pull failed: $status")
+
+                if (!result.isSuccessful) {
+                    handlePullError(result)
+                    return@launch
                 }
+
+                handlePullSuccess(username, token)
             } catch (e: Exception) {
                 log.error("Pull failed", e)
                 _pullState.value = PullUiState.Error(e.message)
@@ -255,6 +258,25 @@ class GitBottomSheetViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    private fun handlePullError(result: PullResult) {
+        val status = result.mergeResult?.mergeStatus?.name ?: "Unknown error"
+        _pullState.value = PullUiState.Error("Pull failed: $status")
+    }
+
+    private fun handlePullSuccess(
+        username: String?,
+        token: String?,
+    ) {
+        _pullState.value = PullUiState.Success
+
+        if (!credentialsManager.hasCredentials() && !username.isNullOrBlank() && !token.isNullOrBlank()) {
+            credentialsManager.saveCredentials(username, token)
+        }
+
+        refreshStatus()
+        getCommitHistoryList()
     }
 
     fun resetPullState() {
