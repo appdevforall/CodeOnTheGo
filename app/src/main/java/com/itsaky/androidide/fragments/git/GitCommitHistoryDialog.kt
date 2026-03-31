@@ -27,6 +27,7 @@ class GitCommitHistoryDialog : DialogFragment() {
     private val binding get() = _binding!!
     private val viewModel: GitBottomSheetViewModel by activityViewModels()
     private lateinit var commitHistoryAdapter: GitCommitHistoryAdapter
+    private lateinit var credentialsManager: GitCredentialsManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,6 +46,7 @@ class GitCommitHistoryDialog : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         commitHistoryAdapter = GitCommitHistoryAdapter()
+        credentialsManager = GitCredentialsManager(requireContext())
         val linearLayoutManager = LinearLayoutManager(requireContext())
         val dividerItemDecoration = DividerItemDecoration(
             binding.rvCommitHistory.context,
@@ -93,9 +95,11 @@ class GitCommitHistoryDialog : DialogFragment() {
 
     private fun setupPushUI() {
         binding.btnPush.setOnClickListener {
-            val context = requireContext()
-            if (GitCredentialsManager.hasCredentials(context)) {
-                viewModel.push(GitCredentialsManager.getUsername(context), GitCredentialsManager.getToken(context), shouldSaveCredentials = false)
+            if (credentialsManager.hasCredentials()) {
+                viewModel.push(
+                    username = credentialsManager.getUsername(),
+                    token = credentialsManager.getToken()
+                )
             } else {
                 showCredentialsDialog()
             }
@@ -144,20 +148,19 @@ class GitCommitHistoryDialog : DialogFragment() {
     }
 
     private fun showCredentialsDialog() {
-        val context = requireContext()
         val dialogBinding = DialogGitCredentialsBinding.inflate(layoutInflater)
 
-        dialogBinding.username.setText(GitCredentialsManager.getUsername(context))
-        dialogBinding.token.setText(GitCredentialsManager.getToken(context))
+        dialogBinding.username.setText(credentialsManager.getUsername())
+        dialogBinding.token.setText(credentialsManager.getToken())
 
-        MaterialAlertDialogBuilder(context)
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.git_credentials_title)
             .setView(dialogBinding.root)
             .setPositiveButton(R.string.push) { _, _ ->
                 val username = dialogBinding.username.text?.toString()?.trim()
                 val token = dialogBinding.token.text?.toString()?.trim()
                 if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    viewModel.push(username, token, shouldSaveCredentials = true)
+                    viewModel.push(username, token)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)

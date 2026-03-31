@@ -9,31 +9,35 @@ import org.slf4j.LoggerFactory
 /**
  * Manages Git credentials securely using standard SharedPreferences + CryptoManager.
  */
-object GitCredentialsManager {
+class GitCredentialsManager(
+    private val context: Context
+) {
 
-    private const val PREF_FILE_NAME = "git_credentials_prefs"
-    private const val KEY_USERNAME_IV = "git_username_iv"
-    private const val KEY_USERNAME_DATA = "git_username_data"
-    private const val KEY_TOKEN_IV = "git_token_iv"
-    private const val KEY_TOKEN_DATA = "git_token_data"
+    companion object {
+        private const val PREF_FILE_NAME = "git_credentials_prefs"
+        private const val KEY_USERNAME_IV = "git_username_iv"
+        private const val KEY_USERNAME_DATA = "git_username_data"
+        private const val KEY_TOKEN_IV = "git_token_iv"
+        private const val KEY_TOKEN_DATA = "git_token_data"
+    }
 
     private val log = LoggerFactory.getLogger(GitCredentialsManager::class.java)
 
     private var cachedPrefs: SharedPreferences? = null
 
-    private fun getPrefs(context: Context): SharedPreferences {
+    private fun getPrefs(): SharedPreferences {
         if (cachedPrefs == null) {
             cachedPrefs = context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE)
         }
         return cachedPrefs!!
     }
 
-    fun saveCredentials(context: Context, username: String, token: String) {
+    fun saveCredentials(username: String, token: String) {
         try {
             val (usernameIv, usernameData) = CryptoManager.encrypt(username)
             val (tokenIv, tokenData) = CryptoManager.encrypt(token)
 
-            getPrefs(context).edit {
+            getPrefs().edit {
                 putString(KEY_USERNAME_IV, Base64.encodeToString(usernameIv, Base64.NO_WRAP))
                 putString(KEY_USERNAME_DATA, Base64.encodeToString(usernameData, Base64.NO_WRAP))
                 putString(KEY_TOKEN_IV, Base64.encodeToString(tokenIv, Base64.NO_WRAP))
@@ -44,16 +48,16 @@ object GitCredentialsManager {
         }
     }
 
-    fun getUsername(context: Context): String? = decrypt(context, KEY_USERNAME_IV, KEY_USERNAME_DATA)
-    fun getToken(context: Context): String? = decrypt(context, KEY_TOKEN_IV, KEY_TOKEN_DATA)
+    fun getUsername(): String? = decrypt(KEY_USERNAME_IV, KEY_USERNAME_DATA)
+    fun getToken(): String? = decrypt(KEY_TOKEN_IV, KEY_TOKEN_DATA)
 
-    fun hasCredentials(context: Context): Boolean {
-        val prefs = getPrefs(context)
+    fun hasCredentials(): Boolean {
+        val prefs = getPrefs()
         return prefs.contains(KEY_USERNAME_DATA) && prefs.contains(KEY_TOKEN_DATA)
     }
 
-    private fun decrypt(context: Context, ivKey: String, dataKey: String): String? {
-        val prefs = getPrefs(context)
+    private fun decrypt(ivKey: String, dataKey: String): String? {
+        val prefs = getPrefs()
         val ivBase64 = prefs.getString(ivKey, null) ?: return null
         val dataBase64 = prefs.getString(dataKey, null) ?: return null
 

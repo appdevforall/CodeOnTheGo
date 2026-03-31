@@ -10,7 +10,6 @@ import android.view.View
 import android.widget.TextView
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -26,11 +25,13 @@ import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
-    private val viewModel: GitBottomSheetViewModel by activityViewModels()
+    private val viewModel: GitBottomSheetViewModel by activityViewModel()
     private lateinit var fileChangeAdapter: GitFileChangeAdapter
+    private lateinit var credentialsManager: GitCredentialsManager
 
     private var _binding: FragmentGitBottomSheetBinding? = null
     private val binding get() = _binding!!
@@ -38,6 +39,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentGitBottomSheetBinding.bind(view)
+        credentialsManager = GitCredentialsManager(requireContext())
 
         fileChangeAdapter = GitFileChangeAdapter(
             onFileClicked = { change ->
@@ -241,11 +243,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         }
 
         binding.btnPull.setOnClickListener {
-            val context = requireContext()
-            if (GitCredentialsManager.hasCredentials(context)) {
+            if (credentialsManager.hasCredentials()) {
                 viewModel.pull(
-                    username = GitCredentialsManager.getUsername(context),
-                    token = GitCredentialsManager.getToken(context),
+                    username = credentialsManager.getUsername(),
+                    token = credentialsManager.getToken(),
                     shouldSaveCredentials = false
                 )
             } else {
@@ -258,8 +259,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         val context = requireContext()
         val dialogBinding = DialogGitCredentialsBinding.inflate(layoutInflater)
 
-        dialogBinding.username.setText(GitCredentialsManager.getUsername(context))
-        dialogBinding.token.setText(GitCredentialsManager.getToken(context))
+        dialogBinding.username.setText(credentialsManager.getUsername())
+        dialogBinding.token.setText(credentialsManager.getToken())
 
         MaterialAlertDialogBuilder(context)
             .setTitle(R.string.git_credentials_title)
