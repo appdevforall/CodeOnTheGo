@@ -2,9 +2,13 @@ package com.itsaky.androidide.roomData.recentproject
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "recent_project_table")
+@Entity(
+    tableName = "recent_project_table",
+    indices = [Index(value = ["location"], unique = true)]
+)
 data class RecentProject(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "id") val id: Int = 0,

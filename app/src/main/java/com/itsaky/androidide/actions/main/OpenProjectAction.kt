@@ -21,7 +21,7 @@ class OpenProjectAction(context: Context) : ActionItem {
     override var label: String = context.getString(R.string.msg_open_existing_project)
     override var visible: Boolean = true
     override var enabled: Boolean = true
-    override var icon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_folder)
+    override var icon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_folder_open)
     override var requiresUIThread: Boolean = true
     override var location: ActionItem.Location = ActionItem.Location.MAIN_SCREEN
     override val order: Int = 1
