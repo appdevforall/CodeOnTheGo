@@ -2,7 +2,6 @@ package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
-import android.view.MotionEvent
 import android.view.View
 import android.view.View.OnLayoutChangeListener
 import android.view.ViewGroup
@@ -12,10 +11,6 @@ import androidx.core.view.updateLayoutParams
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.appbar.AppBarLayout
 import com.itsaky.androidide.databinding.ContentEditorBinding
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -23,8 +18,7 @@ import kotlin.math.roundToInt
  *
  * Top bar:
  * - expands/collapses through AppBarLayout behavior
- * - supports auto-hide after being shown
- * - pauses auto-hide while the user is interacting with the top bar
+ * - stays visible until the user manually hides it
  *
  * Bottom bar:
  * - remains backed by BottomSheetBehavior
@@ -33,7 +27,6 @@ import kotlin.math.roundToInt
 class LandscapeImmersiveController(
     contentBinding: ContentEditorBinding,
     private val bottomSheetBehavior: BottomSheetBehavior<out View?>,
-    private val coroutineScope: CoroutineScope,
 ) {
     private val topBar = contentBinding.editorAppBarLayout
     private val appBarContent = contentBinding.editorAppbarContent
@@ -43,7 +36,6 @@ class LandscapeImmersiveController(
     private val topToggle = contentBinding.btnToggleTopBar
     private val bottomToggle = contentBinding.btnToggleBottomBar
 
-    private var autoHideJob: Job? = null
     private var isBound = false
 
     private var isLandscape = false
@@ -51,7 +43,6 @@ class LandscapeImmersiveController(
     private var isBottomBarRequestedVisible = true
     private var isBottomBarShown = true
     private var isPendingBottomBarHideAfterCollapse = false
-    private var isUserInteractingWithTopBar = false
 
     private var statusBarTopInset = 0
     private var currentAppBarOffset = 0
@@ -114,14 +105,6 @@ class LandscapeImmersiveController(
         setupClickListeners()
     }
 
-    private val topBarTouchObserver: (MotionEvent) -> Unit = { event ->
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> onTopBarInteractionStarted()
-            MotionEvent.ACTION_UP,
-            MotionEvent.ACTION_CANCEL -> onTopBarInteractionEnded()
-        }
-    }
-
     @SuppressLint("ClickableViewAccessibility")
     fun bind() {
         if (isBound) return
@@ -130,12 +113,9 @@ class LandscapeImmersiveController(
         topBar.addOnOffsetChangedListener(topBarOffsetListener)
         appBarContent.addOnLayoutChangeListener(appBarLayoutChangeListener)
         bottomSheetBehavior.addBottomSheetCallback(bottomSheetCallback)
-        appBarContent.onTouchEventObserved = topBarTouchObserver
     }
 
     fun onPause() {
-        cancelAutoHide()
-        isUserInteractingWithTopBar = false
         cancelBottomSheetAnimation()
         setBottomSheetTranslation(
             if (!isBottomBarShown && bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
@@ -144,12 +124,6 @@ class LandscapeImmersiveController(
                 0f
             },
         )
-    }
-
-    fun onResume() {
-        if (isLandscape && isTopBarRequestedVisible && !isUserInteractingWithTopBar) {
-            scheduleTopBarAutoHide()
-        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -165,7 +139,6 @@ class LandscapeImmersiveController(
         topBar.removeOnOffsetChangedListener(topBarOffsetListener)
         appBarContent.removeOnLayoutChangeListener(appBarLayoutChangeListener)
         bottomSheetBehavior.removeBottomSheetCallback(bottomSheetCallback)
-        appBarContent.onTouchEventObserved = null
     }
 
     fun onConfigurationChanged(newConfig: Configuration) {
@@ -198,25 +171,13 @@ class LandscapeImmersiveController(
     private fun setupClickListeners() {
         topToggle.setOnClickListener {
             if (!isLandscape) return@setOnClickListener
-            if (isTopBarRequestedVisible) hideTopBar() else showTopBar(autoHide = true)
+            if (isTopBarRequestedVisible) hideTopBar() else showTopBar()
         }
 
         bottomToggle.setOnClickListener {
             if (!isLandscape) return@setOnClickListener
             if (isBottomBarShown) hideBottomBar() else showBottomBar(expandHalfWay = true)
         }
-    }
-
-    private fun onTopBarInteractionStarted() {
-        if (!isLandscape || !isTopBarRequestedVisible) return
-        isUserInteractingWithTopBar = true
-        cancelAutoHide()
-    }
-
-    private fun onTopBarInteractionEnded() {
-        if (!isLandscape || !isTopBarRequestedVisible) return
-        isUserInteractingWithTopBar = false
-        scheduleTopBarAutoHide()
     }
 
     private fun onBottomBarExpandedOrHalfExpanded() {
@@ -249,8 +210,6 @@ class LandscapeImmersiveController(
     }
 
     private fun disableImmersiveMode() {
-        cancelAutoHide()
-        isUserInteractingWithTopBar = false
         setTogglesVisible(false)
 
         isTopBarRequestedVisible = true
@@ -271,16 +230,12 @@ class LandscapeImmersiveController(
         bottomToggle.isVisible = visible
     }
 
-    private fun showTopBar(autoHide: Boolean, animate: Boolean = true) {
-        cancelAutoHide()
+    private fun showTopBar(animate: Boolean = true) {
         isTopBarRequestedVisible = true
         topBar.setExpanded(true, animate)
-        if (autoHide) scheduleTopBarAutoHide()
     }
 
     private fun hideTopBar(animate: Boolean = true) {
-        cancelAutoHide()
-        isUserInteractingWithTopBar = false
         isTopBarRequestedVisible = false
         topBar.setExpanded(false, animate)
     }
@@ -288,22 +243,6 @@ class LandscapeImmersiveController(
     private fun collapseTopBarWithoutAnimation() {
         topBar.setExpanded(false, false)
         currentAppBarOffset = -topBar.totalScrollRange
-    }
-
-    private fun scheduleTopBarAutoHide() {
-        if (isUserInteractingWithTopBar || !isTopBarRequestedVisible) return
-
-        autoHideJob = coroutineScope.launch {
-            delay(TOP_BAR_AUTO_HIDE_DELAY_MS)
-            if (!isUserInteractingWithTopBar && isTopBarRequestedVisible) {
-                hideTopBar()
-            }
-        }
-    }
-
-    private fun cancelAutoHide() {
-        autoHideJob?.cancel()
-        autoHideJob = null
     }
 
     private fun showBottomBar(animate: Boolean = true, expandHalfWay: Boolean = false) {
@@ -400,7 +339,6 @@ class LandscapeImmersiveController(
     }
 
     private companion object {
-        const val TOP_BAR_AUTO_HIDE_DELAY_MS = 3500L
         const val BOTTOM_BAR_ANIMATION_DURATION_MS = 200L
     }
 }

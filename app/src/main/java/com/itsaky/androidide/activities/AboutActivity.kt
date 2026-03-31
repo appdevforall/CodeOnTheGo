@@ -33,7 +33,6 @@ import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.SimpleIconTitleDescriptionAdapter
-import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.buildinfo.BuildInfo

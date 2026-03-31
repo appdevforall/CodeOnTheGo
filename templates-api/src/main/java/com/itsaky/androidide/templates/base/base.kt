@@ -338,21 +338,29 @@ inline fun baseZipProject(
     showUseKts: Boolean = false,
     showMinSdk: Boolean = true,
     showLanguage: Boolean = true,
+    showPackageName: Boolean = true,
+    defaultSaveLocation: String? = null,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
     return ProjectTemplateBuilder().apply {
 
-        // When project name is changed, change the package name accordingly
-        projectName.observe { name ->
-            val newPackage = AndroidUtils.appNameToPackageName(name.value, packageName.value)
-            packageName.setValue(newPackage)
+        if (showPackageName) {
+            projectName.observe { name ->
+                val newPackage = AndroidUtils.appNameToPackageName(name.value, packageName.value)
+                packageName.setValue(newPackage)
+            }
         }
 
-        Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
+        val saveDir = if (defaultSaveLocation != null) {
+            File(defaultSaveLocation).also { Environment.mkdirIfNotExists(it) }
+        } else {
+            Environment.mkdirIfNotExists(Environment.PROJECTS_DIR)
+            Environment.PROJECTS_DIR
+        }
 
         val saveLocation = stringParameter {
             name = R.string.wizard_save_location
-            default = Environment.PROJECTS_DIR.absolutePath
+            default = saveDir.absolutePath
             endIcon = { R.drawable.ic_folder }
             constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
             inputType =
@@ -366,10 +374,9 @@ inline fun baseZipProject(
             it.setValue(getNewProjectName(saveLocation.value, projectName.value))
         }
 
-        widgets(
-            TextFieldWidget(projectName), TextFieldWidget(packageName),
-            TextFieldWidget(saveLocation)
-        )
+        widgets(TextFieldWidget(projectName))
+        if (showPackageName) widgets(TextFieldWidget(packageName))
+        widgets(TextFieldWidget(saveLocation))
 
         if (showLanguage) {
             widgets(SpinnerWidget(language))
