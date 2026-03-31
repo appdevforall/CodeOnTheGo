@@ -5,10 +5,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
 import com.itsaky.androidide.helper.navigateToMainScreen
+import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
-import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Rule
 import org.junit.Test
@@ -27,6 +27,10 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ProjectBuildTestWithKtsGradle : TestCase() {
 
+	companion object {
+		private const val TEMPLATE_ITERATION_TIMEOUT_MS = 300_000L
+	}
+
 	@get:Rule
 	val activityRule = activityScenarioRule<SplashActivity>()
 
@@ -44,11 +48,11 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
 
 			for ((label, templateRes) in templates) {
 				step("KTS $label — create, init build, exit") {
-					flakySafely(timeoutMs = 900_000) {
-						clickCreateProjectHomeScreen()
-						selectProjectTemplate("Select $label", templateRes)
-						selectKotlinLanguage()
-						clickCreateProjectProjectSettings()
+					ensureOnHomeScreenBeforeCreateProject()
+					clickCreateProjectHomeScreen()
+					selectProjectTemplate("Select $label", templateRes)
+					clickCreateProjectProjectSettings()
+					flakySafely(timeoutMs = TEMPLATE_ITERATION_TIMEOUT_MS) {
 						initializeProjectAndCancelBuild()
 					}
 				}

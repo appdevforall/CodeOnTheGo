@@ -78,6 +78,8 @@ import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
+import com.itsaky.androidide.testing.InstrumentationStateProbe
+import com.itsaky.androidide.testing.ProbeProjectInitState
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
@@ -696,6 +698,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	protected open fun preProjectInit() {
 		setStatus(getString(string.msg_initializing_project))
 		editorViewModel.isInitializing = true
+		InstrumentationStateProbe.projectInitState = ProbeProjectInitState.INITIALIZING
 	}
 
 	protected open fun postProjectInit(
@@ -704,6 +707,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	) {
 		val manager = ProjectManagerImpl.getInstance()
 		if (!isSuccessful) {
+			InstrumentationStateProbe.projectInitState = ProbeProjectInitState.FAILED
 			// Get project name for error message
 			val projectName =
 				try {
@@ -746,6 +750,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		initialSetup()
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
+		InstrumentationStateProbe.projectInitState = ProbeProjectInitState.INITIALIZED
 
 		if (mFindInProjectDialog?.isShowing == true) {
 			mFindInProjectDialog!!.dismiss()
