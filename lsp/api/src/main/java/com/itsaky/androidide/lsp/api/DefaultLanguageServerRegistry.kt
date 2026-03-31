@@ -81,7 +81,9 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 	}
 
 	override fun destroy() {
-		EventBus.getDefault().unregister(this)
+		if (EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().unregister(this)
+		}
 		val servers = lock.readLock().withLock { mRegister.values.toList() }
 		for (server in servers) {
 			try {
