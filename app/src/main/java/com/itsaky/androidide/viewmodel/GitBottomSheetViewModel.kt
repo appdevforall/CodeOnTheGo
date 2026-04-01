@@ -115,10 +115,8 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         }
     }
 
-    fun getLocalCommitsCount() {
-        viewModelScope.launch {
-            _localCommitsCount.value = currentRepository?.getLocalCommitsCount() ?: 0
-        }
+    suspend fun getLocalCommitsCount() {
+        _localCommitsCount.value = currentRepository?.getLocalCommitsCount() ?: 0
     }
 
     fun commitChanges(
@@ -226,16 +224,12 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         )
     }
 
-    private fun handlePushSuccess(
+    private suspend fun handlePushSuccess(
         username: String?,
         token: String?,
     ) {
         _pushState.value = PushUiState.Success
-
-        if (!credentialsManager.hasCredentials() && !username.isNullOrBlank() && !token.isNullOrBlank()) {
-            credentialsManager.saveCredentials( username, token)
-        }
-
+        credentialsManager.saveCredentialsIfNeeded(username, token)
         refreshStatus()
         getLocalCommitsCount()
         getCommitHistoryList()
@@ -284,11 +278,7 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         token: String?,
     ) {
         _pullState.value = PullUiState.Success
-
-        if (!credentialsManager.hasCredentials() && !username.isNullOrBlank() && !token.isNullOrBlank()) {
-            credentialsManager.saveCredentials(username, token)
-        }
-
+        credentialsManager.saveCredentialsIfNeeded(username, token)
         refreshStatus()
         getCommitHistoryList()
     }
