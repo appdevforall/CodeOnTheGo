@@ -34,6 +34,7 @@ class ZipRecipeExecutor(
 
     companion object {
         private val log = LoggerFactory.getLogger(ZipRecipeExecutor::class.java)
+        private val CLASS_NAME_PATTERN = Regex("[^a-zA-Z0-9]")
     }
 
     override fun execute(
@@ -70,7 +71,9 @@ class ZipRecipeExecutor(
             .syntax(customSyntax)
             .build()
 
-        val (identifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
+        val className = data.name.replace(CLASS_NAME_PATTERN, "")
+        val (baseIdentifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
+        val identifiers = baseIdentifiers + (KEY_CLASS_NAME to className)
         log.debug("identifiers warnings: ${warnings.joinToString(System.lineSeparator())}")
 
         val packageName =
@@ -93,6 +96,7 @@ class ZipRecipeExecutor(
 
             val relativePath = normalized.removePrefix("$basePath/")
                 .replace(packageName.value, defModule.packageName.replace(".", "/"))
+                .replace(KEY_CLASS_NAME, className)
 
             val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION)).canonicalFile
 
