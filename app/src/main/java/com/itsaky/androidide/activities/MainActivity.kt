@@ -400,7 +400,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
-	internal fun openProject(root: File, project: RecentProject? = null) {
+	internal fun openProject(root: File, project: RecentProject? = null, hasTemplateIssues: Boolean = false) {
 		ProjectManagerImpl.getInstance().projectPath = root.absolutePath
         GeneralPreferences.lastOpenedProject = root.absolutePath
         
@@ -425,6 +425,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		val intent =
 			Intent(this, EditorActivityKt::class.java).apply {
 				putExtra("PROJECT_PATH", root.absolutePath)
+                if (hasTemplateIssues) {
+                    putExtra("HAS_TEMPLATE_ISSUES", true)
+                }
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 			}
 

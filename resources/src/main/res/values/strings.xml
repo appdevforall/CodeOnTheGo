@@ -1016,6 +1016,8 @@
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
+	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
+
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
 	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
 

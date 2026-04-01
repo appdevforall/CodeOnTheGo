@@ -18,6 +18,7 @@ import com.itsaky.androidide.templates.RecipeExecutor
 import com.itsaky.androidide.templates.TemplateRecipe
 import com.itsaky.androidide.templates.impl.base.ProjectTemplateRecipeResultImpl
 import com.itsaky.androidide.utils.Environment
+import io.pebbletemplates.pebble.error.PebbleException
 
 import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
 import org.adfa.constants.KOTLIN_VERSION
@@ -32,6 +33,8 @@ class ZipRecipeExecutor(
     private val defModule: ModuleTemplateData,
 ) : TemplateRecipe<ProjectTemplateRecipeResult> {
 
+    var hasErrorsWarnings: Boolean = false
+
     companion object {
         private val log = LoggerFactory.getLogger(ZipRecipeExecutor::class.java)
     }
@@ -40,11 +43,11 @@ class ZipRecipeExecutor(
     executor: RecipeExecutor
     ): ProjectTemplateRecipeResult {
 
-        log.debug("executor called!!")
+        info("Starting project creation for $basePath")
 
         val projectDir = data.projectDir
         if (projectDir.exists()) {
-            return ProjectTemplateRecipeResultImpl(data)
+            return ProjectTemplateRecipeResultImpl(data, hasErrorsWarnings)
         }
 
         val projectRoot = projectDir.canonicalFile
@@ -56,69 +59,107 @@ class ZipRecipeExecutor(
 
         zipProvider().use { zip ->
 
-        val customSyntax = Syntax.Builder()
-            .setPrintOpenDelimiter(DELIM_PRINT_OPEN)
-            .setPrintCloseDelimiter(DELIM_PRINT_CLOSE)
-            .setExecuteOpenDelimiter(DELIM_EXECUTE_OPEN)
-            .setExecuteCloseDelimiter(DELIM_EXECUTE_CLOSE)
-            .setCommentOpenDelimiter(DELIM_COMMENT_OPEN)
-            .setCommentCloseDelimiter(DELIM_COMMENT_CLOSE)
-            .build()
+            val customSyntax = Syntax.Builder()
+                .setPrintOpenDelimiter(DELIM_PRINT_OPEN)
+                .setPrintCloseDelimiter(DELIM_PRINT_CLOSE)
+                .setExecuteOpenDelimiter(DELIM_EXECUTE_OPEN)
+                .setExecuteCloseDelimiter(DELIM_EXECUTE_CLOSE)
+                .setCommentOpenDelimiter(DELIM_COMMENT_OPEN)
+                .setCommentCloseDelimiter(DELIM_COMMENT_CLOSE)
+                .build()
 
-        val pebbleEngine = PebbleEngine.Builder()
-            .loader(StringLoader())
-            .syntax(customSyntax)
-            .build()
+            val pebbleEngine = PebbleEngine.Builder()
+                .loader(StringLoader())
+                .syntax(customSyntax)
+                .build()
 
-        val (identifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
-        log.debug("identifiers warnings: ${warnings.joinToString(System.lineSeparator())}")
-
-        val packageName =
-            resolveString(metaJson.parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
-
-        for (entry in zip.entries()) {
-            if (!entry.name.startsWith("$basePath/")) continue
-            if (entry.name == "$basePath/") continue
-            if (entry.name.startsWith("$basePath/$META_FOLDER/")) continue
-
-            if ((metaJson.parameters?.optional?.language != null) &&
-                (data.language != null) &&
-                    shouldSkipFile(
-                    entry.name.removeSuffix(TEMPLATE_EXTENSION),
-                    safeLanguageName(data.language)
-                )
-            ) continue
-
-            val normalized = filterAndNormalizeZipEntry(entry.name, flags) ?: continue
-
-            val relativePath = normalized.removePrefix("$basePath/")
-                .replace(packageName.value, defModule.packageName.replace(".", "/"))
-
-            val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION)).canonicalFile
-
-            if (!outFile.toPath().startsWith(projectRoot.toPath())) {
-                log.warn("Skipping suspicious ZIP entry outside project dir: {}", entry.name)
-                continue
+            val (identifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
+            if (warnings.isNotEmpty()) {
+                warn("Identifier warnings: ${warnings.joinToString(System.lineSeparator())}")
             }
 
-            if (entry.isDirectory) {
-                outFile.mkdirs()
-            } else {
-                    outFile.parentFile?.mkdirs()
+            val packageName =
+                resolveString(metaJson.parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
 
-                    if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
-                        log.debug("template processing ${entry.name}")
-                        val content = zip.getInputStream(entry).bufferedReader().use { it.readText() }
-                        val template = pebbleEngine.getTemplate(content)
-                        val writer = StringWriter()
-                        template.evaluate(writer, identifiers)
-                        outFile.writeText(writer.toString(), Charsets.UTF_8)
-                    } else {
-                        zip.getInputStream(entry).use { input ->
-                            outFile.outputStream().use { output ->
-                                input.copyTo(output)
+            for (entry in zip.entries()) {
+                if (!entry.name.startsWith("$basePath/")) continue
+                if (entry.name == "$basePath/") continue
+                if (entry.name.startsWith("$basePath/$META_FOLDER/")) continue
+
+                if ((metaJson.parameters?.optional?.language != null) &&
+                    (data.language != null) &&
+                        shouldSkipFile(
+                        entry.name.removeSuffix(TEMPLATE_EXTENSION),
+                        safeLanguageName(data.language)
+                    )
+                ) continue
+
+                val normalized = filterAndNormalizeZipEntry(entry.name, flags) ?: continue
+
+                val relativePath = normalized.removePrefix("$basePath/")
+                    .replace(packageName.value, defModule.packageName.replace(".", "/"))
+
+                val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION)).canonicalFile
+
+                if (!outFile.toPath().startsWith(projectRoot.toPath())) {
+                    warn("Skipping suspicious template entry outside project dir: ${entry.name}")
+                    continue
+                }
+
+                if (entry.isDirectory) {
+                    outFile.mkdirs()
+                } else {
+                    try {
+                        outFile.parentFile?.mkdirs()
+
+                        if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
+                            info("Processing template ${entry.name}")
+                            val content = try {
+                                zip.getInputStream(entry).bufferedReader().use { it.readText() }
+                            } catch (e: Exception) {
+                                throw e.wrap("Failed to read template ${entry.name}")
+                            }
+
+                            val template = try {
+                                pebbleEngine.getTemplate(content)
+                            } catch (e: PebbleException) {
+                                throw e.wrap(
+                                    "Pebble parse error in ${entry.name} at line ${e.lineNumber}: ${e.message}"
+                                )
+                            } catch (e: Exception) {
+                                throw e.wrap("Unexpected Pebble parse error in ${entry.name}")
+                            }
+
+                            val writer = StringWriter()
+                            try {
+                                template.evaluate(writer, identifiers)
+                            } catch (e: PebbleException) {
+                                error(
+                                    "Pebble evaluation error in ${entry.name} at line ${e.lineNumber}: ${e.message}", e
+                                )
+                            } catch (e: Exception) {
+                                error("Unexpected Pebble evaluation error in ${entry.name}", e)
+                            }
+
+                            try {
+                                outFile.writeText(writer.toString(), Charsets.UTF_8)
+                            } catch (e: Exception) {
+                                error("Failed writing output file: ${outFile.absolutePath}", e)
+                            }
+
+                        } else {
+                            try {
+                                zip.getInputStream(entry).use { input ->
+                                    outFile.outputStream().use { output ->
+                                        input.copyTo(output)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                error("Failed copying binary entry: ${entry.name}", e)
                             }
                         }
+                    } catch (e: Exception) {
+                        error("Failed to process template entry: ${entry.name}", e)
                     }
                 }
             }
@@ -126,7 +167,7 @@ class ZipRecipeExecutor(
 
         keystore(executor)
 
-        return ProjectTemplateRecipeResultImpl(data)
+        return ProjectTemplateRecipeResultImpl(data, hasErrorsWarnings)
     }
 
     private fun keystore(executor: RecipeExecutor) {
@@ -266,4 +307,20 @@ class ZipRecipeExecutor(
         return normalizedParts.joinToString(File.separator)
     }
 
+    private fun warn(msg: String) {
+        hasErrorsWarnings = true
+        log.warn(msg)
+    }
+
+    private fun info(msg: String) {
+        log.info(msg)
+    }
+
+    private fun error(msg: String, e: Exception) {
+        hasErrorsWarnings = true
+        log.error(msg, e)
+    }
+
+    private fun Exception.wrap(msg: String): RuntimeException =
+        RuntimeException(msg, this)
 }

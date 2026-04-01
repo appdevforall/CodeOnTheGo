@@ -29,6 +29,8 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.ProjectTemplate
+import com.itsaky.androidide.templates.impl.TemplateProviderImpl
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.MainViewModel
 import org.slf4j.LoggerFactory
 
@@ -115,11 +117,9 @@ class TemplateListFragment :
 
 		log.debug("Reloading templates...")
 
-		val templates =
-			ITemplateProvider
-				.getInstance(reload = true)
-				.getTemplates()
-				.filterIsInstance<ProjectTemplate>()
+        val provider = ITemplateProvider.getInstance(reload = true)
+        val templates = provider.getTemplates().filterIsInstance<ProjectTemplate>()
+		val warnings = (provider as TemplateProviderImpl).warnings
 
 		adapter =
 			TemplateListAdapter(
@@ -140,5 +140,9 @@ class TemplateListFragment :
 			)
 		binding.list.adapter = adapter
 		updateSpanCount()
-	}
+
+		if (warnings.isNotEmpty()) {
+			requireActivity().flashError(warnings.joinToString("\n"))
+		}
+    }
 }

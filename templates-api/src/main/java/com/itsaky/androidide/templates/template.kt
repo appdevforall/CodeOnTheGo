@@ -58,7 +58,9 @@ val data: D
 /**
  * Result of recipe execution for a [ProjectTemplate].
  */
-interface ProjectTemplateRecipeResult : TemplateRecipeResultWithData<ProjectTemplateData>
+interface ProjectTemplateRecipeResult : TemplateRecipeResultWithData<ProjectTemplateData> {
+    val hasErrorsWarnings: Boolean
+}
 
 /**
  * Result of recipe execution for a [ModuleTemplate].
