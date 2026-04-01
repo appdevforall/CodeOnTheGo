@@ -29,8 +29,12 @@ import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
 import com.blankj.utilcode.util.SizeUtils
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.databinding.LayoutEditorFileTreeBinding
+import com.itsaky.androidide.dnd.FileDragFailureReason
+import com.itsaky.androidide.dnd.FileDragResult
+import com.itsaky.androidide.dnd.FileDragStarter
 import com.itsaky.androidide.eventbus.events.filetree.FileClickEvent
 import com.itsaky.androidide.eventbus.events.filetree.FileLongClickEvent
 import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
@@ -43,6 +47,8 @@ import com.itsaky.androidide.tasks.callables.FileTreeCallable
 import com.itsaky.androidide.tasks.callables.FileTreeCallable.SortFileName
 import com.itsaky.androidide.tasks.callables.FileTreeCallable.SortFolder
 import com.itsaky.androidide.utils.doOnApplyWindowInsets
+import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.FileTreeViewModel
 import com.unnamed.b.atv.model.TreeNode
 import com.unnamed.b.atv.model.TreeNode.TreeNodeClickListener
@@ -55,12 +61,30 @@ import java.io.File
 import java.util.Arrays
 
 class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
-  TreeNodeLongClickListener {
+  TreeNodeLongClickListener, TreeNode.TreeNodeDragListener {
 
   private var binding: LayoutEditorFileTreeBinding? = null
   private var fileTreeView: AndroidTreeView? = null
 
   private val viewModel by viewModels<FileTreeViewModel>(ownerProducer = { requireActivity() })
+  private val fileDragStarter by lazy(LazyThreadSafetyMode.NONE) {
+    FileDragStarter(requireContext())
+  }
+  private var _dropController: FileTreeDropController? = null
+  private val dropController: FileTreeDropController
+    get() {
+      if (_dropController == null) {
+        _dropController = FileTreeDropController(
+          activity = requireActivity(),
+          onDropCompleted = ::onExternalDropCompleted,
+          onDropFailed = ::flashError,
+        )
+      }
+      return _dropController!!
+    }
+
+  private val externalDropHandler: FileTreeViewHolder.ExternalDropHandler
+    get() = dropController.nodeBinder
 
   override fun onCreateView(
     inflater: LayoutInflater,
@@ -91,14 +115,15 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
 
     binding = null
     fileTreeView = null
+    _dropController = null
   }
 
   fun saveTreeState() {
     viewModel.saveState(fileTreeView)
   }
 
-  override fun onClick(node: TreeNode, p2: Any) {
-    val file = p2 as File
+  override fun onClick(node: TreeNode, value: Any) {
+    val file = value as File
     if (!file.exists()) {
       return
     }
@@ -149,33 +174,40 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
     }
   }
 
-  private fun listNode(node: TreeNode, whenDone: Runnable) {
+  private fun listNode(node: TreeNode, onListed: () -> Unit) {
+    val safeContext = context ?: return
+    val safeDropHandler = externalDropHandler
+
     node.children.clear()
     node.isExpanded = false
     executeAsync({
-      listFilesForNode(node.value.listFiles() ?: return@executeAsync null, node)
+      listFilesForNode(node.value.listFiles() ?: return@executeAsync null, node, safeContext, safeDropHandler)
       var temp = node
       while (temp.size() == 1) {
         temp = temp.childAt(0)
         if (!temp.value.isDirectory) {
           break
         }
-        listFilesForNode(temp.value.listFiles() ?: continue, temp)
+        listFilesForNode(temp.value.listFiles() ?: continue, temp, safeContext, safeDropHandler)
         temp.isExpanded = true
       }
       null
     }) {
-      whenDone.run()
+      onListed()
     }
   }
 
-  private fun listFilesForNode(files: Array<File>, parent: TreeNode) {
+  private fun listFilesForNode(files: Array<File>, parent: TreeNode, context: Context, dropHandler: FileTreeViewHolder.ExternalDropHandler) {
     Arrays.sort(files, SortFileName())
     Arrays.sort(files, SortFolder())
     for (file in files) {
-      val node = TreeNode(file)
-      node.viewHolder = FileTreeViewHolder(context)
-      parent.addChild(node, false)
+      parent.addChild(createFileNode(file, context, dropHandler), false)
+    }
+  }
+
+  private fun createFileNode(file: File, context: Context, dropHandler: FileTreeViewHolder.ExternalDropHandler): TreeNode {
+    return TreeNode(file).apply {
+      viewHolder = FileTreeViewHolder(context, dropHandler)
     }
   }
 
@@ -185,6 +217,26 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
     event.put(TreeNode::class.java, node)
     EventBus.getDefault().post(event)
     return true
+  }
+
+  override fun onStartDrag(node: TreeNode, value: Any) {
+    val file = value as? File ?: return
+    val sourceView = node.viewHolder?.view ?: return
+
+    when (val result = fileDragStarter.startDrag(sourceView, file)) {
+      FileDragResult.Started -> Unit
+
+      is FileDragResult.NotStarted -> {
+        val message = when (result.reason) {
+          FileDragFailureReason.FILE_NOT_FOUND -> getString(R.string.msg_file_tree_drag_file_not_found)
+          FileDragFailureReason.NOT_A_FILE -> getString(R.string.msg_file_tree_drag_not_a_file)
+          FileDragFailureReason.DRAG_NOT_STARTED -> getString(R.string.msg_file_tree_drag_failed)
+        }
+        flashError(message)
+      }
+
+      is FileDragResult.Failed -> flashError(getString(R.string.msg_file_tree_drag_error))
+    }
   }
 
   @Suppress("unused", "UNUSED_PARAMETER")
@@ -229,15 +281,15 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
     val projectDirPath = IProjectManager.getInstance().projectDirPath
     val projectDir = File(projectDirPath)
     val rootNode = TreeNode(File(""))
-    rootNode.viewHolder = FileTreeViewHolder(requireContext())
+    rootNode.viewHolder = FileTreeViewHolder(requireContext(), externalDropHandler)
 
     val projectRoot = TreeNode.root(projectDir)
-    projectRoot.viewHolder = FileTreeViewHolder(context)
+    projectRoot.viewHolder = FileTreeViewHolder(context, externalDropHandler)
     rootNode.addChild(projectRoot, false)
 
     binding!!.horizontalCroll.visibility = View.GONE
     binding!!.horizontalCroll.visibility = View.VISIBLE
-    executeAsync(FileTreeCallable(context, projectRoot, projectDir)) {
+    executeAsync(FileTreeCallable(context, projectRoot, projectDir, externalDropHandler)) {
       if (binding == null) {
         // Fragment has been destroyed
         return@executeAsync
@@ -252,6 +304,8 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
         binding!!.horizontalCroll.removeAllViews()
         val view = tree.view
         binding!!.horizontalCroll.addView(view)
+        dropController.bindRootTarget(binding!!.horizontalCroll, projectDir)
+
         view.post { tryRestoreState(rootNode) }
       }
     }
@@ -260,7 +314,10 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
   private fun createTreeView(node: TreeNode): AndroidTreeView? {
     return if (context == null) {
       null
-    } else AndroidTreeView(context, node, drawable.bg_ripple).also { fileTreeView = it }
+    } else AndroidTreeView(context, node, drawable.bg_ripple).also {
+      fileTreeView = it
+      it.setDefaultNodeDragListener(this)
+    }
   }
 
   private fun tryRestoreState(rootNode: TreeNode, state: String? = viewModel.savedState) {
@@ -277,18 +334,45 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
   }
 
   private fun restoreNodeState(root: TreeNode, openNodes: Set<String>) {
-    val children = root.children
-    var i = 0
-    val childrenSize = children.size
-    while (i < childrenSize) {
-      val node = children[i]
+    for (node in root.children) {
       if (openNodes.contains(node.path)) {
         listNode(node) {
           expandNode(node, false)
           restoreNodeState(node, openNodes)
         }
       }
-      i++
+    }
+  }
+
+  private fun onExternalDropCompleted(targetNode: TreeNode?, targetFile: File, importedCount: Int) {
+    refreshNodeAfterDrop(targetNode, targetFile)
+    flashSuccess(
+      if (importedCount == 1) {
+        getString(R.string.msg_file_tree_drop_imported_single)
+      } else {
+        getString(R.string.msg_file_tree_drop_imported_multiple, importedCount)
+      }
+    )
+  }
+
+  private fun refreshNodeAfterDrop(targetNode: TreeNode?, targetFile: File) {
+    if (targetNode == null) {
+      listProjectFiles()
+      return
+    }
+
+    if (targetFile.isDirectory) {
+      setLoading(targetNode)
+      listNode(targetNode) { expandNode(targetNode) }
+      return
+    }
+
+    val parentNode = targetNode.parent
+    if (parentNode?.value?.isDirectory == true) {
+      setLoading(parentNode)
+      listNode(parentNode) { expandNode(parentNode) }
+    } else {
+      listProjectFiles()
     }
   }
 

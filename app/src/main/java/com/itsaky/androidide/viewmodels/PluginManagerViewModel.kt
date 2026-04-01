@@ -13,6 +13,7 @@ import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
 import com.itsaky.androidide.ui.models.PluginOperation
+import com.itsaky.androidide.utils.UriFileImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +24,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
 
 /**
  * ViewModel for the Plugin Manager screen
@@ -238,19 +238,14 @@ class PluginManagerViewModel(
 
             try {
                 tempFile = withContext(Dispatchers.IO) {
-                    val inputStream = contentResolver.openInputStream(uri)
-                        ?: throw Exception("Cannot open file")
-
-                    val fileName = getFileNameFromUri(uri)
+                    val fileName = UriFileImporter.getDisplayName(contentResolver, uri)
                     val extension = if (fileName?.endsWith(".cgp", ignoreCase = true) == true) ".cgp" else ".apk"
                     val tempFileName = "temp_plugin_${System.currentTimeMillis()}$extension"
                     val tempDir = File(filesDir, "temp").apply { mkdirs() }
                     val tempFile = File(tempDir, tempFileName)
 
-                    FileOutputStream(tempFile).use { output ->
-                        inputStream.use { input ->
-                            input.copyTo(output)
-                        }
+                    UriFileImporter.copyUriToFile(contentResolver, uri, tempFile) {
+                        Exception("Cannot open file")
                     }
                     tempFile
                 }
@@ -275,7 +270,6 @@ class PluginManagerViewModel(
                             )
                         )
                     }
-
             } catch (exception: Exception) {
                 Log.e(TAG, "Error installing plugin from URI", exception)
                 _uiEffect.trySend(
@@ -347,28 +341,4 @@ class PluginManagerViewModel(
         }
     }
 
-    /**
-     * Get the actual filename from a content URI
-     */
-    private fun getFileNameFromUri(uri: Uri): String? {
-        return try {
-            when (uri.scheme) {
-                "content" -> {
-                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                        if (nameIndex != -1 && cursor.moveToFirst()) {
-                            cursor.getString(nameIndex)
-                        } else {
-                            null
-                        }
-                    }
-                }
-                "file" -> uri.lastPathSegment
-                else -> uri.lastPathSegment
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting filename from URI", e)
-            null
-        }
-    }
 }

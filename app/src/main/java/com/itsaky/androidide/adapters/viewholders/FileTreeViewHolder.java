@@ -35,10 +35,20 @@ import java.io.File;
 
 public class FileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {
 
+  public interface ExternalDropHandler {
+    void onNodeBound(TreeNode node, File file, View view);
+  }
+
   private LayoutFiletreeItemBinding binding;
+  private final ExternalDropHandler externalDropHandler;
 
   public FileTreeViewHolder(Context context) {
+    this(context, null);
+  }
+
+  public FileTreeViewHolder(Context context, ExternalDropHandler externalDropHandler) {
     super(context);
+    this.externalDropHandler = externalDropHandler;
   }
 
   @Override
@@ -59,6 +69,10 @@ public class FileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {
       updateChevronIcon(node.isExpanded());
     } else {
       chevron.setVisibility(View.INVISIBLE);
+    }
+
+    if (externalDropHandler != null) {
+      externalDropHandler.onNodeBound(node, file, root);
     }
 
     return root;

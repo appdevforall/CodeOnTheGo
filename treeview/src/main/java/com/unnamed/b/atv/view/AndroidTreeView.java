@@ -1,5 +1,6 @@
 package com.unnamed.b.atv.view;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.text.TextUtils;
 import android.view.ContextThemeWrapper;
@@ -35,6 +36,7 @@ public class AndroidTreeView {
   private TreeNode.BaseNodeViewHolder defaultViewHolder;
   private TreeNode.TreeNodeClickListener nodeClickListener;
   private TreeNode.TreeNodeLongClickListener nodeLongClickListener;
+  private TreeNode.TreeNodeDragListener nodeDragListener;
   private boolean mSelectionModeEnabled;
   private boolean use2dScroll = false;
   private boolean enableAutoToggle = true;
@@ -141,6 +143,10 @@ public class AndroidTreeView {
 
   public void setDefaultNodeLongClickListener(TreeNode.TreeNodeLongClickListener listener) {
     nodeLongClickListener = listener;
+  }
+
+  public void setDefaultNodeDragListener(TreeNode.TreeNodeDragListener listener) {
+    this.nodeDragListener = listener;
   }
 
   public void expandAll() {
@@ -402,6 +408,7 @@ public class AndroidTreeView {
     }
   }
 
+  @SuppressLint("ClickableViewAccessibility")
   private void addNode(ViewGroup container, final TreeNode n) {
     final TreeNode.BaseNodeViewHolder viewHolder = getViewHolderForNode(n);
     final View nodeView = viewHolder.getView();
@@ -414,30 +421,9 @@ public class AndroidTreeView {
       viewHolder.toggleSelectionMode(true);
     }
 
-    nodeView.setOnClickListener(
-        v -> {
-          if (n.getClickListener() != null) {
-            n.getClickListener().onClick(n, n.getValue());
-          } else if (nodeClickListener != null) {
-            nodeClickListener.onClick(n, n.getValue());
-          }
-          if (enableAutoToggle) {
-            toggleNode(n);
-          }
-        });
-
-    nodeView.setOnLongClickListener(
-        view -> {
-          if (n.getLongClickListener() != null) {
-            return n.getLongClickListener().onLongClick(n, n.getValue());
-          } else if (nodeLongClickListener != null) {
-            return nodeLongClickListener.onLongClick(n, n.getValue());
-          }
-          if (enableAutoToggle) {
-            toggleNode(n);
-          }
-          return false;
-        });
+    nodeView.setOnClickListener(v -> handleNodeClick(n));
+    nodeView.setOnLongClickListener(v -> handleNodeLongClick(n));
+    nodeView.setOnTouchListener(new NodeTouchHandler(n, nodeView, nodeDragListener));
   }
 
   private void toggleSelectionMode(TreeNode parent, boolean mSelectionModeEnabled) {
@@ -449,6 +435,19 @@ public class AndroidTreeView {
         toggleSelectionMode(node, mSelectionModeEnabled);
       }
     }
+  }
+
+  private void handleNodeClick(TreeNode n) {
+    if (n.getClickListener() != null) n.getClickListener().onClick(n, n.getValue());
+    else if (nodeClickListener != null) nodeClickListener.onClick(n, n.getValue());
+    if (enableAutoToggle) toggleNode(n);
+  }
+
+  private boolean handleNodeLongClick(TreeNode n) {
+    if (n.getLongClickListener() != null) return n.getLongClickListener().onLongClick(n, n.getValue());
+    if (nodeLongClickListener != null) return nodeLongClickListener.onLongClick(n, n.getValue());
+    if (enableAutoToggle) toggleNode(n);
+    return false;
   }
 
   // TODO Do we need to go through whole tree? Save references or consider collapsed nodes as not

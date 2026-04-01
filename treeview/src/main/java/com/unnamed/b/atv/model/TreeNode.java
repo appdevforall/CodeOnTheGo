@@ -31,6 +31,7 @@ public class TreeNode {
   private File mValue;
   private boolean mExpanded;
   private boolean mIsDirectory;
+  private TreeNodeDragListener mDragListener;
 
   public TreeNode(File value) {
     children = Collections.synchronizedList(new ArrayList<TreeNode>());
@@ -216,6 +217,15 @@ public class TreeNode {
     return this;
   }
 
+  public TreeNodeDragListener getDragListener() {
+    return mDragListener;
+  }
+
+  public TreeNode setDragListener(TreeNodeDragListener listener) {
+    mDragListener = listener;
+    return this;
+  }
+
   public BaseNodeViewHolder getViewHolder() {
     return mViewHolder;
   }
@@ -331,5 +341,9 @@ public class TreeNode {
 
   public interface TreeNodeLongClickListener {
     boolean onLongClick(TreeNode node, Object value);
+  }
+
+  public interface TreeNodeDragListener {
+    void onStartDrag(TreeNode node, Object value);
   }
 }

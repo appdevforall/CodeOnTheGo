@@ -33,27 +33,40 @@ public class FileTreeCallable implements Callable<Boolean> {
   private final Context ctx;
   private final TreeNode parent;
   private final File file;
+  private final FileTreeViewHolder.ExternalDropHandler externalDropHandler;
 
   public FileTreeCallable(Context ctx, TreeNode parent, File file) {
+    this(ctx, parent, file, null);
+  }
+
+  public FileTreeCallable(
+      Context ctx, TreeNode parent, File file, FileTreeViewHolder.ExternalDropHandler externalDropHandler) {
     this.ctx = ctx;
     this.parent = parent;
     this.file = file;
+    this.externalDropHandler = externalDropHandler;
   }
 
   @Override
   public Boolean call() throws Exception {
-    getNodeFromArray(file.listFiles(/*new HiddenFilesFilter()*/ ), parent);
+    populateChildren(file.listFiles(/*new HiddenFilesFilter()*/ ), parent);
     return true;
   }
 
-  private void getNodeFromArray(File[] files, TreeNode parent) {
+  private void populateChildren(File[] files, TreeNode parent) {
+    if (files == null) return;
+
     Arrays.sort(files, new SortFileName());
     Arrays.sort(files, new SortFolder());
     for (File file : files) {
-      TreeNode node = new TreeNode(file);
-      node.setViewHolder(new FileTreeViewHolder(ctx));
-      parent.addChild(node, false);
+      parent.addChild(createNode(file), false);
     }
+  }
+
+  private TreeNode createNode(File file) {
+    TreeNode node = new TreeNode(file);
+    node.setViewHolder(new FileTreeViewHolder(ctx, externalDropHandler));
+    return node;
   }
 
   public static class HiddenFilesFilter implements FileFilter {
