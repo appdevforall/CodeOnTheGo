@@ -1,0 +1,338 @@
+package com.itsaky.androidide.lsp.kotlin.completion
+
+import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.models.Command
+import com.itsaky.androidide.lsp.models.CompletionItem
+import com.itsaky.androidide.lsp.models.CompletionItemKind
+import com.itsaky.androidide.lsp.models.CompletionParams
+import com.itsaky.androidide.lsp.models.CompletionResult
+import com.itsaky.androidide.lsp.models.InsertTextFormat
+import com.itsaky.androidide.projects.FileManager
+import kotlinx.coroutines.CancellationException
+import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.analyzeCopy
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileResolutionMode
+import org.jetbrains.kotlin.analysis.api.renderer.types.KaTypeRenderer
+import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
+import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
+import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaClassifierSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaConstructorSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaEnumEntrySymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaFunctionSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaLocalVariableSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaTypeAliasSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaTypeParameterSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.name
+import org.jetbrains.kotlin.analysis.api.types.KaType
+import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
+import org.jetbrains.kotlin.psi.KtElement
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtQualifiedExpression
+import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
+import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
+import org.jetbrains.kotlin.psi.psiUtil.startOffset
+import org.jetbrains.kotlin.types.Variance
+import org.slf4j.LoggerFactory
+
+private const val KT_COMPLETION_PLACEHOLDER = "KT_COMPLETION_PLACEHOLDER"
+
+private val logger = LoggerFactory.getLogger("KotlinCompletions")
+
+/**
+ * Provide code completion for the given completion parameters.
+ *
+ * @param CompilationEnvironment The compilation environment to use for the code completion.
+ * @param params The completion parameters.
+ * @return The completion result.
+ */
+fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult {
+	val managedFile = fileManager.getOpenFile(params.file)
+	if (managedFile == null) {
+		logger.warn("No managed file for {}", params.file)
+		return CompletionResult.EMPTY
+	}
+
+	// Need to use the original document contents here, instead of
+	// managedFile.inMemoryKtFile.text
+	val originalText = FileManager.getDocumentContents(params.file)
+	val requestPosition = params.position
+	val completionOffset = requestPosition.requireIndex()
+	val prefix = params.requirePrefix()
+	val partial = partialIdentifier(prefix)
+
+	// insert placeholder to fix broken trees
+	val textWithPlaceholder = buildString {
+		append(originalText, 0, completionOffset)
+		append(KT_COMPLETION_PLACEHOLDER)
+		append(originalText, completionOffset, originalText.length)
+	}
+
+	val completionKtFile = managedFile.createInMemoryFileWithContent(parser, textWithPlaceholder)
+	val elementAtOffset = completionKtFile.findElementAt(completionOffset)
+
+	if (elementAtOffset == null) {
+		logger.error("Unable to locate element at position {}", requestPosition)
+		return CompletionResult.EMPTY
+	}
+
+	return try {
+		analyzeCopy(
+			useSiteElement = completionKtFile,
+			resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
+		) {
+			val completionContext = determineCompletionContext(elementAtOffset)
+			val items = mutableListOf<CompletionItem>()
+
+			when (completionContext) {
+				CompletionContext.Scope -> collectScopeCompletions(
+					element = elementAtOffset,
+					file = completionKtFile,
+					partial = partial,
+					to = items
+				)
+
+				CompletionContext.Member -> collectMemberCompletions(
+					element = elementAtOffset,
+					partial = partial,
+					to = items
+				)
+			}
+
+			CompletionResult(items)
+		}
+	} catch (e: Throwable) {
+		if (e is CancellationException) {
+			throw e
+		}
+
+		logger.warn("An error occurred while computing completions for {}", params.file)
+		return CompletionResult.EMPTY
+	}
+}
+
+private fun KaSession.collectMemberCompletions(
+	element: PsiElement,
+	partial: String,
+	to: MutableList<CompletionItem>
+) {
+	val qualifiedExpr = element.getParentOfType<KtQualifiedExpression>(strict = false)
+	if (qualifiedExpr == null) {
+		logger.error("No qualified expression found requested position")
+		return
+	}
+
+	val receiver = qualifiedExpr.receiverExpression
+	val receiverType = receiver.expressionType
+
+	if (receiverType == null) {
+		logger.error("Unable to find receiver expression type")
+		return
+	}
+
+	collectMembersFromType(receiverType, partial, to)
+
+	if (qualifiedExpr is KtSafeQualifiedExpression) {
+		val nonNullType = receiverType.withNullability(isMarkedNullable = false)
+		collectMembersFromType(nonNullType, partial, to)
+	}
+}
+
+private fun KaSession.collectMembersFromType(
+	receiverType: KaType,
+	partial: String,
+	to: MutableList<CompletionItem>
+) {
+
+}
+
+private fun KaSession.collectScopeCompletions(
+	element: PsiElement,
+	file: KtFile,
+	partial: String,
+	to: MutableList<CompletionItem>
+) {
+	// Find the nearest KtElement parent for scope resolution
+	val ktElement = element.getParentOfType<KtElement>(strict = false)
+	if (ktElement == null) {
+		logger.error("Cannot find parent of element {} with partial {}", element, partial)
+		return
+	}
+
+	logger.info(
+		"Complete scope members of {}: [{}] matching '{}'",
+		ktElement,
+		ktElement.text,
+		partial
+	)
+
+	val scopeContext = file.scopeContext(ktElement)
+	val compositeScope = scopeContext.compositeScope()
+
+	compositeScope.callables { name -> matchesPrefix(name, partial) }
+		.forEach { symbol ->
+			val item = callableSymbolToCompletionItem(symbol, partial)
+			if (item != null) {
+				to += item
+			}
+		}
+
+	compositeScope.classifiers { name -> matchesPrefix(name, partial) }
+		.forEach { symbol ->
+			val item = classifierSymbolToCompletionItem(symbol, partial)
+			if (item != null) {
+				to += item
+			}
+		}
+}
+
+private fun determineCompletionContext(element: PsiElement): CompletionContext {
+	// Walk up to find a qualified expression where we're the selector
+	val dotExpr = element.getParentOfType<KtDotQualifiedExpression>(strict = false)
+	if (dotExpr != null && isInSelectorPosition(element, dotExpr)) {
+		return CompletionContext.Member
+	}
+
+	val safeExpr = element.getParentOfType<KtSafeQualifiedExpression>(strict = false)
+	if (safeExpr != null && isInSelectorPosition(element, safeExpr)) {
+		return CompletionContext.Member
+	}
+
+	return CompletionContext.Scope
+}
+
+private fun isInSelectorPosition(
+	element: PsiElement,
+	qualifiedExpr: KtQualifiedExpression,
+): Boolean {
+	val selector = qualifiedExpr.selectorExpression ?: return false
+	val elementOffset = element.startOffset
+	return elementOffset >= selector.startOffset
+}
+
+@OptIn(KaExperimentalApi::class)
+private fun KaSession.callableSymbolToCompletionItem(
+	symbol: KaCallableSymbol,
+	partial: String
+): CompletionItem? {
+	val item = createSymbolCompletionItem(symbol, partial) ?: return null
+	val name = item.ideLabel
+	item.overrideTypeText = renderName(symbol.returnType)
+
+	when (symbol) {
+		is KaNamedFunctionSymbol -> {
+			val params = symbol.valueParameters.joinToString(", ") { param ->
+				"${param.name.asString()}: ${renderName(param.returnType)}"
+			}
+
+			val hasParams = symbol.valueParameters.isNotEmpty()
+
+			item.detail = "${name}($params)"
+			item.insertTextFormat = InsertTextFormat.SNIPPET
+			item.insertText = if (hasParams) {
+				"${name}($0)"
+			} else {
+				"${name}()$0"
+			}
+
+			if (hasParams) {
+				item.command = Command("Trigger parameter hints", Command.TRIGGER_PARAMETER_HINTS)
+			}
+
+			// TODO(itsaky): provide method completion data in order to show API info
+			//               in completion items
+		}
+
+		// TODO: For properties, we can check if they're a compile-time constant
+		//       and include that constant value in the "detail" field of the
+		// 		 completion item
+
+		else -> {}
+	}
+
+	return item
+}
+
+@OptIn(KaExperimentalApi::class)
+private fun KaSession.classifierSymbolToCompletionItem(
+	symbol: KaClassifierSymbol,
+	partial: String
+): CompletionItem? {
+	val item = createSymbolCompletionItem(symbol, partial) ?: return null
+	item.detail = when (symbol) {
+		is KaClassSymbol -> symbol.classId?.asFqNameString() ?: ""
+		is KaTypeAliasSymbol -> renderName(symbol.expandedType, KaTypeRendererForSource.WITH_QUALIFIED_NAMES)
+		is KaTypeParameterSymbol -> item.ideLabel
+	}
+	return item
+}
+
+private fun KaSession.createSymbolCompletionItem(
+	symbol: KaSymbol,
+	partial: String
+): CompletionItem? {
+	val name = symbol.name?.asString() ?: return null
+
+	val item = KotlinCompletionItem()
+	item.ideLabel = name
+	item.completionKind = kindOf(symbol)
+	item.matchLevel = CompletionItem.matchLevel(name, partial)
+
+	return item
+}
+
+private fun KaSession.kindOf(symbol: KaSymbol): CompletionItemKind {
+	return when (symbol) {
+		is KaClassSymbol -> when (symbol.classKind) {
+			KaClassKind.CLASS -> CompletionItemKind.CLASS
+			KaClassKind.ENUM_CLASS -> CompletionItemKind.ENUM
+			KaClassKind.ANNOTATION_CLASS -> CompletionItemKind.ANNOTATION_TYPE
+			KaClassKind.OBJECT -> CompletionItemKind.CLASS
+			KaClassKind.COMPANION_OBJECT -> CompletionItemKind.CLASS
+			KaClassKind.INTERFACE -> CompletionItemKind.INTERFACE
+			KaClassKind.ANONYMOUS_OBJECT -> CompletionItemKind.CLASS
+		}
+
+		is KaTypeParameterSymbol -> CompletionItemKind.TYPE_PARAMETER
+		is KaTypeAliasSymbol -> CompletionItemKind.CLASS
+		is KaFunctionSymbol -> when (symbol) {
+			is KaConstructorSymbol -> CompletionItemKind.CONSTRUCTOR
+			else -> CompletionItemKind.METHOD
+		}
+
+		is KaPropertySymbol -> CompletionItemKind.PROPERTY
+		is KaLocalVariableSymbol -> CompletionItemKind.VARIABLE
+		is KaValueParameterSymbol -> CompletionItemKind.VARIABLE
+		is KaEnumEntrySymbol -> CompletionItemKind.ENUM_MEMBER
+		else -> CompletionItemKind.NONE
+	}
+}
+
+@OptIn(KaExperimentalApi::class, KaContextParameterApi::class)
+private fun KaSession.renderName(
+	type: KaType,
+	renderer: KaTypeRenderer = KaTypeRendererForSource.WITH_SHORT_NAMES,
+	position: Variance = Variance.INVARIANT
+): String {
+	return type.run {
+		render(renderer, position)
+	}
+}
+
+private fun partialIdentifier(prefix: String): String {
+	return prefix.takeLastWhile { char -> Character.isJavaIdentifierPart(char) }
+}
+
+private fun matchesPrefix(name: Name, partial: String): Boolean {
+	if (partial.isEmpty()) return true
+	return name.asString().startsWith(partial, ignoreCase = true)
+}

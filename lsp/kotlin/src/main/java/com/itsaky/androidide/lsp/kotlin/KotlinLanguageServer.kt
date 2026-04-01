@@ -29,6 +29,7 @@ import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
+import com.itsaky.androidide.lsp.kotlin.completion.complete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -160,7 +161,14 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	override fun complete(params: CompletionParams?): CompletionResult {
-		return CompletionResult.EMPTY
+		if (params == null) {
+			logger.warn("Cannot complete for null params")
+			return CompletionResult.EMPTY
+		}
+
+		logger.debug("complete(position={}, file={})", params.position, params.file)
+		return compiler?.compilationEnvironmentFor(params.file)?.complete(params)
+			?: CompletionResult.EMPTY
 	}
 
 	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
@@ -268,7 +276,6 @@ class KotlinLanguageServer : ILanguageServer {
 
 		compiler?.compilationEnvironmentFor(event.changedFile)?.apply {
 			val content = FileManager.getDocumentContents(event.changedFile)
-			logger.info("Notifying KtFileManager for file {} with contents {}", event.changedFile, content)
 			fileManager.onFileContentChanged(event.changedFile, content)
 		}
 
