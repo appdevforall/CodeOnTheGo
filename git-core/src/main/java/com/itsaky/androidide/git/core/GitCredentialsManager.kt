@@ -52,7 +52,8 @@ class GitCredentialsManager(
     fun getToken(): String? = decrypt(KEY_TOKEN_IV, KEY_TOKEN_DATA)
 
     fun hasCredentials(): Boolean {
-        return !getUsername().isNullOrBlank() && !getToken().isNullOrBlank()
+        val prefs = getPrefs()
+        return prefs.contains(KEY_USERNAME_DATA) && prefs.contains(KEY_TOKEN_DATA)
     }
 
     private fun decrypt(ivKey: String, dataKey: String): String? {
@@ -67,6 +68,12 @@ class GitCredentialsManager(
         } catch (e: Exception) {
             log.error("Failed to decrypt field: $dataKey", e)
             null
+        }
+    }
+
+    fun saveCredentialsIfNeeded(username: String?, token: String?) {
+        if (!hasCredentials() && !username.isNullOrBlank() && !token.isNullOrBlank()) {
+            saveCredentials(username, token)
         }
     }
 }

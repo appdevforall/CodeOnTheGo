@@ -244,11 +244,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         }
 
         binding.btnPull.setOnClickListener {
-            if (credentialsManager.hasCredentials()) {
-                viewModel.pull(
-                    username = credentialsManager.getUsername(),
-                    token = credentialsManager.getToken()
-                )
+            val username = credentialsManager.getUsername()
+            val token = credentialsManager.getToken()
+            if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                viewModel.pull(username, token)
             } else {
                 showCredentialsDialog()
             }

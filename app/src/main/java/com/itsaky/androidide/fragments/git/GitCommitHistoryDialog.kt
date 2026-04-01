@@ -95,11 +95,10 @@ class GitCommitHistoryDialog : DialogFragment() {
 
     private fun setupPushUI() {
         binding.btnPush.setOnClickListener {
-            if (credentialsManager.hasCredentials()) {
-                viewModel.push(
-                    username = credentialsManager.getUsername(),
-                    token = credentialsManager.getToken()
-                )
+            val username = credentialsManager.getUsername()
+            val token = credentialsManager.getToken()
+            if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                viewModel.push(username, token)
             } else {
                 showCredentialsDialog()
             }
