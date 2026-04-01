@@ -416,7 +416,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         }
 
 		// Track project open in Firebase Analytics
-		analyticsManager.trackProjectOpened(root.absolutePath)
+        analyticsManager.trackProjectOpened(root.absolutePath)
 
 		if (isFinishing) {
 			return
