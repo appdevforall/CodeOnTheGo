@@ -131,15 +131,18 @@ class ZipRecipeExecutor(
                             }
 
                             val writer = StringWriter()
-                            try {
+                            val rendered = try {
                                 template.evaluate(writer, identifiers)
                             } catch (e: PebbleException) {
                                 error(
                                     "Pebble evaluation error in ${entry.name} at line ${e.lineNumber}: ${e.message}", e
                                 )
+                                null
                             } catch (e: Exception) {
                                 error("Unexpected Pebble evaluation error in ${entry.name}", e)
+                                null
                             }
+                            if (rendered == null) continue
 
                             try {
                                 outFile.writeText(writer.toString(), Charsets.UTF_8)

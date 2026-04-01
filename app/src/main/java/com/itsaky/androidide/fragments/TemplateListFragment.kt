@@ -119,7 +119,7 @@ class TemplateListFragment :
 
         val provider = ITemplateProvider.getInstance(reload = true)
         val templates = provider.getTemplates().filterIsInstance<ProjectTemplate>()
-		val warnings = (provider as TemplateProviderImpl).warnings
+		val warnings = (provider as? TemplateProviderImpl)?.warnings.orEmpty()
 
 		adapter =
 			TemplateListAdapter(

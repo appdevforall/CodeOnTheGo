@@ -60,6 +60,7 @@ val data: D
  */
 interface ProjectTemplateRecipeResult : TemplateRecipeResultWithData<ProjectTemplateData> {
     val hasErrorsWarnings: Boolean
+        get() = false
 }
 
 /**
