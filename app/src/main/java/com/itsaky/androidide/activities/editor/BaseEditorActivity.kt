@@ -178,6 +178,7 @@ abstract class BaseEditorActivity :
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 	private var immersiveController: LandscapeImmersiveController? = null
+	private val topEdgeThreshold by lazy { SizeUtils.dp2px(TOP_EDGE_SWIPE_THRESHOLD_DP) }
 
 	var isDestroying = false
 		protected set
@@ -398,6 +399,7 @@ abstract class BaseEditorActivity :
 		protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
 
 		private const val OPTIONS_MENU_INVALIDATION_DELAY = 150L
+		private const val TOP_EDGE_SWIPE_THRESHOLD_DP = 60f
 
 		const val EDITOR_CONTAINER_SCALE_FACTOR = 0.87f
 		const val KEY_BOTTOM_SHEET_SHOWN = "editor_bottomSheetShown"
@@ -1441,12 +1443,21 @@ abstract class BaseEditorActivity :
 						val diffX = e2.x - e1.x
 						val diffY = e2.y - e1.y
 
+						val isVerticalSwipe = abs(diffY) > abs(diffX)
+						val isHorizontalSwipe = abs(diffX) > abs(diffY)
+
+						val hasDownFlingDistance = diffY > flingDistanceThreshold
+						val hasRightFlingDistance = diffX > flingDistanceThreshold
+
+						val hasVerticalVelocity = abs(velocityY) > flingVelocityThreshold
+						val hasHorizontalVelocity = abs(velocityX) > flingVelocityThreshold
+
 						// Check for a swipe down (to show top bar)
 						// This is placed before the noFilesOpen check so it works while editing
 						val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-						val topEdgeThreshold = SizeUtils.dp2px(60f)
+						val startedNearTopEdge = e1.y < topEdgeThreshold
 
-						if (isLandscape && e1.y < topEdgeThreshold && diffY > flingDistanceThreshold && abs(velocityY) > flingVelocityThreshold && abs(diffY) > abs(diffX)) {
+						if (isLandscape && startedNearTopEdge && hasDownFlingDistance && hasVerticalVelocity && isVerticalSwipe) {
 							immersiveController?.showTopBar()
 							return true
 						}
@@ -1459,7 +1470,7 @@ abstract class BaseEditorActivity :
 
 						// Check for a right swipe (to open left drawer) - This part is still correct
 						// Added abs(diffX) > abs(diffY) to prevent diagonal swipes from triggering this
-						if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold && abs(diffX) > abs(diffY)) {
+						if (hasRightFlingDistance && hasHorizontalVelocity && isHorizontalSwipe) {
 							// Use the correct binding for the drawer layout
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
