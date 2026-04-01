@@ -198,12 +198,11 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
 
                 handlePushSuccess(username, token)
             } catch (e: Exception) {
-                log.error("Push failed", e)
-                if (e is NoRemoteRepositoryException) {
-                    _pushState.value = PushUiState.Error("No remote repository found")
+                if (e.message?.contains("not authorized", ignoreCase = true) == true) {
+                    credentialsManager.clearCredentials()
+                    _pushState.value = PushUiState.Error(errorResId = R.string.repo_authorization_error)
                     return@launch
                 }
-                credentialsManager.clearCredentials()
                 _pushState.value = PushUiState.Error(e.message)
             } finally {
                 pushResetJob = viewModelScope.launch {
@@ -259,7 +258,11 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
                 handlePullSuccess(username, token)
             } catch (e: Exception) {
                 log.error("Pull failed", e)
-                credentialsManager.clearCredentials()
+                if (e.message?.contains("not authorized", ignoreCase = true) == true) {
+                    credentialsManager.clearCredentials()
+                    _pullState.value = PullUiState.Error(errorResId = R.string.repo_authorization_error)
+                    return@launch
+                }
                 _pullState.value = PullUiState.Error(e.message)
             } finally {
                 pullResetJob = viewModelScope.launch {
