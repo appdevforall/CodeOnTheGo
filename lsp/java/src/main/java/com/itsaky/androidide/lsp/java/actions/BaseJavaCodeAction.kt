@@ -99,7 +99,7 @@ abstract class BaseJavaCodeAction : EditorActionItem {
   }
 
   protected fun ActionData.requireLanguageServer(): JavaLanguageServer {
-    return ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
+    return ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
         as JavaLanguageServer
   }
 
