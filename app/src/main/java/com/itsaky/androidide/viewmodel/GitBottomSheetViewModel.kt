@@ -203,6 +203,7 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
                     _pushState.value = PushUiState.Error("No remote repository found")
                     return@launch
                 }
+                credentialsManager.clearCredentials()
                 _pushState.value = PushUiState.Error(e.message)
             } finally {
                 pushResetJob = viewModelScope.launch {
@@ -258,6 +259,7 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
                 handlePullSuccess(username, token)
             } catch (e: Exception) {
                 log.error("Pull failed", e)
+                credentialsManager.clearCredentials()
                 _pullState.value = PullUiState.Error(e.message)
             } finally {
                 pullResetJob = viewModelScope.launch {

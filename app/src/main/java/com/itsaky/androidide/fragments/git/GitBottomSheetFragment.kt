@@ -271,6 +271,9 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     viewModel.pull(username, token)
                 }
             }
+            .setNeutralButton(R.string.git_credentials_clear) { _, _ ->
+                credentialsManager.clearCredentials()
+            }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }

@@ -1245,4 +1245,6 @@
     <string name="pull_failed">Pull failed</string>
     <string name="git_credentials_title">Git Credentials</string>
     <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
+    <string name="git_credentials_clear">Clear Credentials</string>
+    <string name="repo_authorization_error">Authentication failed. Ensure your Personal Access Token has \'repo\' permissions, or try clearing and re-entering credentials.</string>
 </resources>

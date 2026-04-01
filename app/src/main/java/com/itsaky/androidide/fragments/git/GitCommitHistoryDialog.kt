@@ -162,6 +162,9 @@ class GitCommitHistoryDialog : DialogFragment() {
                     viewModel.push(username, token)
                 }
             }
+            .setNeutralButton(R.string.git_credentials_clear) { _, _ ->
+                credentialsManager.clearCredentials()
+            }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }

@@ -72,8 +72,17 @@ class GitCredentialsManager(
     }
 
     fun saveCredentialsIfNeeded(username: String?, token: String?) {
-        if (!hasCredentials() && !username.isNullOrBlank() && !token.isNullOrBlank()) {
+        if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
             saveCredentials(username, token)
+        }
+    }
+
+    fun clearCredentials() {
+        getPrefs().edit {
+            remove(KEY_USERNAME_IV)
+            remove(KEY_USERNAME_DATA)
+            remove(KEY_TOKEN_IV)
+            remove(KEY_TOKEN_DATA)
         }
     }
 }
