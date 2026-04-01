@@ -44,6 +44,7 @@ class TemplateProviderImpl : ITemplateProvider {
     }
 
     private val templates = mutableMapOf<String, Template<*>>()
+    val warnings: MutableList<String> = mutableListOf()
 
     init {
         reload()
@@ -55,7 +56,7 @@ class TemplateProviderImpl : ITemplateProvider {
 
         for (zipFile in list) {
             try {
-                val zipTemplates = ZipTemplateReader.read(zipFile) { json, params, path, data, defModule ->
+                val zipTemplates = ZipTemplateReader.read(zipFile, warnings) { json, params, path, data, defModule ->
                     ZipRecipeExecutor({ ZipFile(zipFile) }, json, params, path, data, defModule)
                 }
 
@@ -63,6 +64,7 @@ class TemplateProviderImpl : ITemplateProvider {
                     templates[t.templateId] = t
                 }
             } catch (e: Exception) {
+                warnings.add("Failed to load template archive $zipFile error: ${e.message}")
                 log.error("Failed to load template from archive: $zipFile", e)
             }
         }
@@ -78,6 +80,7 @@ class TemplateProviderImpl : ITemplateProvider {
 
     override fun reload() {
         release()
+        warnings.clear()
         initializeTemplates()
     }
 
