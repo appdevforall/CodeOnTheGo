@@ -18,6 +18,7 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_OUTPUT_SELECT_ALL = "output.selection.selectall"
   const val EDITOR_TOOLBAR_FORMAT_CODE = "editor.toolbar.formatcode"
 	const val EDITOR_TOOLBAR_HELP = "editor.toolbar.help"
+	const val EDITOR_TOOLBAR_AI = "editor.toolbar.ai"
 	const val PROJECT_APP_LOGS = "project.applogs"
 	const val PROJECT_IDE_LOGS = "project.idelogs"
 	const val PROJECT_SEARCH_RESULTS = "project.searchresults"
@@ -80,6 +81,7 @@ object TooltipTag {
     const val FEEDBACK = "feedback"
     const val MAIN_PREFERENCES = "main.prefs"
     const val MAIN_TERMINAL = "main.terminal"
+    const val MAIN_GIT = "main.git"
 
     // Editor toolbar
     const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"
@@ -158,4 +160,7 @@ object TooltipTag {
     const val DEBUGGER_ACTION_RESTART = "debug.toolbar.restart"
 
     const val PROJECT_PLUGIN_TAB = "project.plugin.tab"
+
+    // Git
+    const val GIT_DOWNLOAD_SCREEN = "git.download"
 }

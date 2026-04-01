@@ -44,6 +44,8 @@ dependencies {
 
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
+    implementation(libs.composite.fuzzysearch)
+
     testImplementation(libs.tests.junit)
     androidTestImplementation(libs.tests.androidx.junit)
     androidTestImplementation(libs.tests.androidx.espresso.core)

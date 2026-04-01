@@ -19,13 +19,9 @@ package com.itsaky.androidide.fragments
 
 import android.os.Bundle
 import android.view.View
-import androidx.fragment.app.activityViewModels
-import androidx.fragment.app.viewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.transition.TransitionManager
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.activities.MainActivity
@@ -45,7 +41,6 @@ import com.itsaky.androidide.utils.TemplateRecipeExecutor
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
-import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 
 /**
  * A fragment which shows a wizard-like interface for creating templates.
@@ -57,20 +52,10 @@ class TemplateDetailsFragment :
         R.layout.fragment_template_details, FragmentTemplateDetailsBinding::bind
     ) {
 
-    private val viewModel by viewModels<MainViewModel>(
-        ownerProducer = { requireActivity() })
-
-    private val recentProjectsViewModel: RecentProjectsViewModel by activityViewModels()
-
+    private val viewModel by activityViewModel<MainViewModel>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.updatePadding(bottom = insets.bottom)
-            windowInsets
-        }
 
         viewModel.template.observe(viewLifecycleOwner) {
             binding.widgets.adapter = null
@@ -139,20 +124,22 @@ class TemplateDetailsFragment :
                 flashSuccess(string.project_created_successfully)
 
                 val now = System.currentTimeMillis().toString()
-                recentProjectsViewModel.insertProject(
-                    RecentProject(
-                        location = result.data.projectDir.path,
-                        name = result.data.name,
-                        createdAt = now,
-                        lastModified = now,
-                        templateName = getString(template.templateName),
-                        language = result.data.language.name
-                    )
+
+                val project = RecentProject(
+                    location = result.data.projectDir.path,
+                    name = result.data.name,
+                    createdAt = now,
+                    lastModified = now,
+                    templateName = template.templateNameStr,
+                    language = result.data.language?.name ?: "unknown"
                 )
 
                 viewModel.postTransition(viewLifecycleOwner) {
                     // open the project
-                    (requireActivity() as MainActivity).openProject(result.data.projectDir)
+                    (requireActivity() as MainActivity).openProject(
+                        result.data.projectDir,
+                        project = project
+                    )
                 }
             }
         }
@@ -172,6 +159,6 @@ class TemplateDetailsFragment :
         template ?: return
 
         binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
-        binding.title.setText(template.templateName)
+        binding.title.text = template.templateNameStr
     }
 }

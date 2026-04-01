@@ -1,16 +1,31 @@
 package com.itsaky.androidide.git.core
 
-import com.itsaky.androidide.git.core.models.*
-import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.api.ListBranchCommand.ListMode
-import org.eclipse.jgit.lib.Constants
-import org.eclipse.jgit.lib.Repository
-import org.eclipse.jgit.revwalk.RevCommit
-import org.eclipse.jgit.storage.file.FileRepositoryBuilder
-import java.io.File
-
+import com.itsaky.androidide.git.core.models.ChangeType
+import com.itsaky.androidide.git.core.models.FileChange
+import com.itsaky.androidide.git.core.models.GitBranch
+import com.itsaky.androidide.git.core.models.GitCommit
+import com.itsaky.androidide.git.core.models.GitStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.ListBranchCommand.ListMode
+import org.eclipse.jgit.api.errors.NoHeadException
+import org.eclipse.jgit.diff.DiffFormatter
+import org.eclipse.jgit.dircache.DirCacheIterator
+import org.eclipse.jgit.lib.BranchConfig
+import org.eclipse.jgit.lib.Constants
+import org.eclipse.jgit.lib.PersonIdent
+import org.eclipse.jgit.lib.Repository
+import org.eclipse.jgit.revwalk.RevCommit
+import org.eclipse.jgit.revwalk.RevWalk
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder
+import org.eclipse.jgit.treewalk.AbstractTreeIterator
+import org.eclipse.jgit.treewalk.CanonicalTreeParser
+import org.eclipse.jgit.treewalk.EmptyTreeIterator
+import org.eclipse.jgit.treewalk.FileTreeIterator
+import org.eclipse.jgit.treewalk.filter.PathFilter
+import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
  * JGit-based implementation of the [GitRepository] interface.
@@ -23,6 +38,18 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         .build()
 
     private val git: Git = Git(repository)
+
+    private fun getHeadTree(repository: Repository): AbstractTreeIterator {
+        val head = repository.resolve(Constants.HEAD) ?: return EmptyTreeIterator()
+        val treeParser = CanonicalTreeParser()
+        RevWalk(repository).use { revWalk ->
+            val commit = revWalk.parseCommit(head)
+            repository.newObjectReader().use { reader ->
+                treeParser.reset(reader, commit.tree.id)
+            }
+        }
+        return treeParser
+    }
 
     override suspend fun getStatus(): GitStatus = withContext(Dispatchers.IO) {
         val jgitStatus = git.status().call()
@@ -42,6 +69,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         jgitStatus.untracked.forEach { untracked.add(FileChange(it, ChangeType.UNTRACKED)) }
         
         jgitStatus.conflicting.forEach { conflicted.add(FileChange(it, ChangeType.CONFLICTED)) }
+
+
 
         GitStatus(
             isClean = jgitStatus.isClean,
@@ -78,28 +107,96 @@ class JGitRepository(override val rootDir: File) : GitRepository {
 
     override suspend fun getHistory(limit: Int): List<GitCommit> = withContext(Dispatchers.IO) {
         try {
-            git.log().setMaxCount(limit).call().map { revCommit ->
-                revCommit.toGitCommit()
+            val branchName = repository.branch ?: return@withContext emptyList()
+            val trackingBranch = BranchConfig(repository.config, branchName).trackingBranch
+
+            RevWalk(repository).use { walk ->
+                val remoteCommit = trackingBranch?.let { repository.resolve(it) }?.let {
+                    walk.parseCommit(it)
+                }
+
+                git.log().setMaxCount(limit).call().map { revCommit ->
+                    val commit = walk.parseCommit(revCommit.id)
+                    val isPushed = remoteCommit?.let { walk.isMergedInto(commit, it) } ?: false
+                    commit.toGitCommit(isPushed)
+                }
             }
-        } catch (_: org.eclipse.jgit.api.errors.NoHeadException) {
+        } catch (_: NoHeadException) {
             emptyList()
         }
     }
 
     override suspend fun getDiff(file: File): String = withContext(Dispatchers.IO) {
-        ""
+        val relativePath = file.toRelativeString(rootDir).replace('\\', '/')
+        val outputStream = ByteArrayOutputStream()
+        DiffFormatter(outputStream).use { formatter ->
+            formatter.setRepository(repository)
+            val indexTree = DirCacheIterator(repository.readDirCache())
+            val workingTree = FileTreeIterator(repository)
+            formatter.pathFilter = PathFilter.create(relativePath)
+            formatter.format(indexTree, workingTree)
+            
+            // If empty, check staged diff
+            if (outputStream.size() == 0) {
+                val headTree = getHeadTree(repository)
+                val freshIndexTree = DirCacheIterator(repository.readDirCache())
+                formatter.format(headTree, freshIndexTree)
+            }
+        }
+        outputStream.toString()
     }
 
-    private fun RevCommit.toGitCommit(): GitCommit {
+    override suspend fun stageFiles(files: List<File>) = withContext(Dispatchers.IO) {
+        val addCommand = git.add()
+        val rmCommand = git.rm()
+        var hasAdds = false
+        var hasRms = false
+
+        files.forEach { file ->
+            val relativePath = file.toRelativeString(rootDir).replace('\\', '/')
+            if (file.exists()) {
+                addCommand.addFilepattern(relativePath)
+                hasAdds = true
+            } else {
+                rmCommand.addFilepattern(relativePath)
+                hasRms = true
+            }
+        }
+        if (hasAdds) addCommand.call()
+        if (hasRms) rmCommand.call()
+        Unit
+    }
+
+    override suspend fun commit(
+        message: String,
+        authorName: String?,
+        authorEmail: String?
+    ): GitCommit? = withContext(Dispatchers.IO) {
+        val commitCommand = git.commit().setMessage(message)
+
+        if (!authorName.isNullOrBlank() && !authorEmail.isNullOrBlank()) {
+            val author = PersonIdent(authorName, authorEmail)
+            commitCommand.apply {
+                setAuthor(author)
+                setCommitter(author)
+            }
+        }
+
+        val revCommit = commitCommand.call()
+        revCommit?.toGitCommit(false)
+    }
+
+    private fun RevCommit.toGitCommit(hasBeenPushed: Boolean): GitCommit {
         val author = authorIdent
         return GitCommit(
             hash = name,
             shortHash = name.take(7),
             authorName = author.name,
             authorEmail = author.emailAddress,
-            message = fullMessage,
+            message = fullMessage.trim(),
             timestamp = author.`when`.time,
-            parentHashes = parents.map { it.name }
+            parentHashes = parents.map { it.name },
+            hasBeenPushed = hasBeenPushed
         )
     }
     

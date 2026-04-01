@@ -41,7 +41,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResult
@@ -55,6 +54,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
@@ -101,6 +101,7 @@ import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
@@ -117,8 +118,13 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
+import com.itsaky.androidide.utils.applyImmersiveModeInsets
+import com.itsaky.androidide.utils.applyRootSystemInsetsAsPadding
+import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
+import com.itsaky.androidide.utils.getOrStoreInitialPadding
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
@@ -171,6 +177,7 @@ abstract class BaseEditorActivity :
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var immersiveController: LandscapeImmersiveController? = null
 
 	var isDestroying = false
 		protected set
@@ -232,10 +239,11 @@ abstract class BaseEditorActivity :
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
+			var dataChanged = false
 			memoryUsage.forEachValue { proc ->
 				_binding?.memUsageView?.chart?.apply {
 					val dataset =
-						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
+						(data.getDataSetByIndex(pidToDatasetIdxMap.getOrDefault(proc.pid, -1)) as LineDataSet?)
 							?: run {
 								log.error(
 									"No dataset found for process: {}: {}",
@@ -252,6 +260,12 @@ abstract class BaseEditorActivity :
 
 					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
 					dataset.notifyDataSetChanged()
+					dataChanged = true
+				}
+			}
+
+			if (dataChanged) {
+				_binding?.memUsageView?.chart?.apply {
 					data.notifyDataChanged()
 					notifyDataSetChanged()
 					invalidate()
@@ -365,7 +379,6 @@ abstract class BaseEditorActivity :
 	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
 	private var editorAppBarInsetTop: Int = 0
-	private var sidebarLastInsetTop: Int = 0
 
 	companion object {
 		private const val TAG = "ResizePanelDebugger"
@@ -440,6 +453,9 @@ abstract class BaseEditorActivity :
 		editorBottomSheet = null
 		gestureDetector = null
 
+		immersiveController?.destroy()
+		immersiveController = null
+
 		_binding = null
 
 		if (isDestroying) {
@@ -472,9 +488,25 @@ abstract class BaseEditorActivity :
 		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
 		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 
-		_binding?.content?.editorAppBarLayout?.updatePadding(top = systemBars.top)
-		applySidebarInsets(systemBars)
+		applyStandardInsets(systemBars)
 
+		applyImmersiveModeInsets(systemBars)
+
+		handleKeyboardInsets(imeInsets)
+	}
+
+	private fun applyStandardInsets(systemBars: Insets) {
+		immersiveController?.onSystemBarInsetsChanged(systemBars.top)
+		val root = _binding?.root ?: return
+		val initial = root.getOrStoreInitialPadding()
+		root.updatePadding(bottom = initial.bottom + systemBars.bottom)
+	}
+
+	private fun applyImmersiveModeInsets(systemBars: Insets) {
+		_binding?.content?.applyImmersiveModeInsets(systemBars)
+	}
+
+	private fun handleKeyboardInsets(imeInsets: Insets) {
 		val isImeVisible = imeInsets.bottom > 0
 		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
 
@@ -503,13 +535,6 @@ abstract class BaseEditorActivity :
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		editorAppBarInsetTop = insets.top
-	}
-
-	private fun applySidebarInsets(systemBars: Insets) {
-		val sidebar = _binding?.drawerSidebar ?: return
-		val baseTop = sidebar.paddingTop - sidebarLastInsetTop
-		sidebarLastInsetTop = systemBars.top
-		sidebar.updatePadding(top = baseTop + systemBars.top)
 	}
 
 	@Subscribe(threadMode = MAIN)
@@ -596,12 +621,19 @@ abstract class BaseEditorActivity :
 		}
 
 		setupToolbar()
-		syncProjectToolbarRowForOrientation(resources.configuration.orientation)
 		setupDrawers()
 		content.tabs.addOnTabSelectedListener(this)
 
 		setupStateObservers()
 		setupViews()
+
+		immersiveController = LandscapeImmersiveController(
+			contentBinding = content,
+			bottomSheetBehavior = editorBottomSheet!!,
+		).also {
+			it.bind()
+			it.onConfigurationChanged(resources.configuration)
+		}
 
 		setupContainers()
 		setupDiagnosticInfo()
@@ -634,14 +666,33 @@ abstract class BaseEditorActivity :
 
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
-		syncProjectToolbarRowForOrientation(newConfig.orientation)
+		immersiveController?.onConfigurationChanged(newConfig)
+		window?.decorView?.let { ViewCompat.requestApplyInsets(it) }
+		reapplySystemBarInsetsFromRoot()
+		_binding?.content?.applyBottomSheetAnchorForOrientation(newConfig.orientation)
 	}
+
+	private fun reapplySystemBarInsetsFromRoot() {
+		val root = _binding?.root ?: return
+		val rootInsets = ViewCompat.getRootWindowInsets(root)
+		if (rootInsets == null) {
+			root.post { reapplySystemBarInsetsFromRoot() }
+			return
+		}
+
+		val systemBars = rootInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+		applyStandardInsets(systemBars)
+		applyImmersiveModeInsets(systemBars)
+	}
+
 
 	private fun setupToolbar() {
 		// Set the project name in the title TextView
-		content.root.findViewById<android.widget.TextView>(R.id.title_text)?.apply {
+		content.root.findViewById<TextView>(R.id.title_text)?.apply {
 			text = editorViewModel.getProjectName()
 		}
+
+		content.editorAppBarLayout.applyResponsiveAppBarInsets(content.editorAppbarContent)
 
 		// Set up the drawer toggle on the title toolbar (where the hamburger menu should be)
 		content.titleToolbar.apply {
@@ -688,97 +739,20 @@ abstract class BaseEditorActivity :
 		}
 	}
 
-	private fun syncProjectToolbarRowForOrientation(currentOrientation: Int) {
-		val appBar = content.editorAppBarLayout
-		val titleToolbar = content.titleToolbar
-		val actionsToolbar = content.projectActionsToolbar
-
-		val titleParent = titleToolbar.parent as? ViewGroup ?: return
-		val actionsParent = actionsToolbar.parent as? ViewGroup ?: return
-		if (titleParent != actionsParent) return
-
-		val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-
-		if (isLandscape && titleParent === appBar) {
-			val insertAt =
-				minOf(
-					appBar.indexOfChild(titleToolbar),
-					appBar.indexOfChild(actionsToolbar),
-				).coerceAtLeast(0)
-			val row =
-				LinearLayout(this).apply {
-					orientation = LinearLayout.HORIZONTAL
-					gravity = Gravity.CENTER_VERTICAL
-					layoutParams =
-						com.google.android.material.appbar.AppBarLayout.LayoutParams(
-							ViewGroup.LayoutParams.MATCH_PARENT,
-							ViewGroup.LayoutParams.WRAP_CONTENT,
-						)
-				}
-
-			appBar.removeView(titleToolbar)
-			appBar.removeView(actionsToolbar)
-
-			titleToolbar.layoutParams =
-				LinearLayout.LayoutParams(
-					0,
-					ViewGroup.LayoutParams.WRAP_CONTENT,
-					1f,
-				)
-			actionsToolbar.layoutParams =
-				LinearLayout
-					.LayoutParams(
-						ViewGroup.LayoutParams.WRAP_CONTENT,
-						ViewGroup.LayoutParams.WRAP_CONTENT,
-					).apply { marginEnd = SizeUtils.dp2px(8f) }
-
-			content.root.findViewById<TextView>(R.id.title_text)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-				marginEnd = SizeUtils.dp2px(8f)
-			}
-
-			row.addView(titleToolbar)
-			row.addView(actionsToolbar)
-			appBar.addView(row, insertAt)
-			return
-		}
-
-		if (!isLandscape && titleParent is LinearLayout && titleParent.parent === appBar) {
-			val row = titleParent
-			val insertAt = appBar.indexOfChild(row).coerceAtLeast(0)
-			row.removeView(titleToolbar)
-			row.removeView(actionsToolbar)
-			appBar.removeView(row)
-
-			titleToolbar.layoutParams =
-				com.google.android.material.appbar.AppBarLayout.LayoutParams(
-					ViewGroup.LayoutParams.MATCH_PARENT,
-					ViewGroup.LayoutParams.WRAP_CONTENT,
-				)
-			actionsToolbar.layoutParams =
-				com.google.android.material.appbar.AppBarLayout
-					.LayoutParams(
-						ViewGroup.LayoutParams.MATCH_PARENT,
-						ViewGroup.LayoutParams.WRAP_CONTENT,
-					).apply {
-						topMargin = SizeUtils.dp2px(4f)
-					}
-
-			content.root.findViewById<TextView>(R.id.title_text)?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-				marginEnd = SizeUtils.dp2px(16f)
-			}
-
-			appBar.addView(titleToolbar, insertAt)
-			appBar.addView(actionsToolbar, insertAt + 1)
-		}
-	}
-
 	private fun onSwipeRevealDragProgress(progress: Float) {
 		_binding?.apply {
 			contentCard.progress = progress
 			val insetsTop = systemBarInsets?.top ?: 0
-			content.editorAppBarLayout.updatePadding(
-				top = (insetsTop * (1f - progress)).roundToInt(),
-			)
+			val topInset = (insetsTop * (1f - progress)).roundToInt()
+
+			val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+			if (isLandscape) {
+				content.editorAppbarContent.updatePadding(top = topInset)
+			} else {
+				content.editorAppBarLayout.updatePadding(top = topInset)
+			}
+
 			memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
 			}
@@ -868,6 +842,7 @@ abstract class BaseEditorActivity :
 		}
 
 	override fun onPause() {
+		immersiveController?.onPause()
 		super.onPause()
 		memoryUsageWatcher.listener = null
 		memoryUsageWatcher.stopWatching(false)
@@ -975,9 +950,23 @@ abstract class BaseEditorActivity :
 			(this as EditorHandlerActivity).showPluginTabPopup(tab)
 			return
 		}
+
+		val pluginMenuItems = if (this is EditorHandlerActivity) {
+			val fileIndex = getFileIndexForTabPosition(position)
+			if (fileIndex >= 0) {
+				val file = editorViewModel.getOpenedFile(fileIndex)
+				IDEApplication.getPluginManager()?.getFileTabMenuItems(file) ?: emptyList()
+			} else {
+				emptyList()
+			}
+		} else {
+			emptyList()
+		}
+
 		showPopupWindow(
 			context = this,
 			anchorView = tab.view,
+			pluginMenuItems = pluginMenuItems,
 		)
 	}
 
@@ -1117,6 +1106,7 @@ abstract class BaseEditorActivity :
 					ContentTranslatingDrawerLayout.TranslationBehavior.FULL
 				setScrimColor(Color.TRANSPARENT)
 			}
+			drawerSidebar.applyRootSystemInsetsAsPadding(applyTop = true)
 		}
 	}
 
@@ -1361,7 +1351,8 @@ abstract class BaseEditorActivity :
 					slideOffset: Float,
 				) {
 					content.apply {
-						val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+						val safeOffset = slideOffset.coerceAtLeast(0f)
+						val editorScale = 1 - safeOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
 						this.bottomSheet.onSlide(slideOffset)
 						this.viewContainer.scaleX = editorScale
 						this.viewContainer.scaleY = editorScale

@@ -4,18 +4,24 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import androidx.core.widget.doAfterTextChanged
-import androidx.fragment.app.activityViewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.databinding.FragmentCloneRepositoryBinding
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.git.core.models.CloneRepoUiState
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.forEachViewRecursively
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -23,7 +29,7 @@ class CloneRepositoryFragment : BaseFragment() {
 
     private var binding: FragmentCloneRepositoryBinding? = null
     private val viewModel: CloneRepositoryViewModel by viewModels()
-    private val mainViewModel: MainViewModel by activityViewModels()
+    private val mainViewModel: MainViewModel by activityViewModel()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -77,18 +83,40 @@ class CloneRepositoryFragment : BaseFragment() {
             }
 
             cloneButton.setOnClickListener {
-                val url = repoUrl.text.toString()
-                val path = localPath.text.toString()
-                val username = if (authCheckbox.isChecked) username.text.toString() else null
-                val password = if (authCheckbox.isChecked) password.text.toString() else null
-
-                viewModel.cloneRepository(url, path, username, password)
+                cloneRepo()
+            }
+            
+            cancelButton.setOnClickListener {
+                viewModel.cancelClone()
             }
             
             exitButton.setOnClickListener {
                 mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
             }
+
+            root.forEachViewRecursively { child ->
+                if (child is EditText || child is TextInputLayout) {
+                    return@forEachViewRecursively
+                }
+                child.setOnLongClickListener { v ->
+                    TooltipManager.showIdeCategoryTooltip(
+                        context = requireContext(),
+                        anchorView = v,
+                        tag = TooltipTag.GIT_DOWNLOAD_SCREEN
+                    )
+                    true
+                }
+            }
         }
+    }
+
+    private fun FragmentCloneRepositoryBinding.cloneRepo() {
+        val url = repoUrl.text.toString()
+        val path = localPath.text.toString()
+        val mUsername = if (authCheckbox.isChecked) username.text.toString() else null
+        val mPassword = if (authCheckbox.isChecked) password.text.toString() else null
+
+        viewModel.cloneRepository(url, path, mUsername, mPassword)
     }
 
     private fun observeViewModel() {
@@ -118,24 +146,40 @@ class CloneRepositoryFragment : BaseFragment() {
                             }
                         }
 
+                        cancelButton.visibility =
+                            if (state is CloneRepoUiState.Cloning && state.isCancellable) View.VISIBLE else View.GONE
+
                         when (state) {
                             is CloneRepoUiState.Idle -> {
-                                cloneButton.isEnabled = state.isCloneButtonEnabled
+                                cloneButton.apply {
+                                    isEnabled = state.isCloneButtonEnabled
+                                    refreshStatus(isForRetry = false)
+                                }
                                 statusText.text = ""
                             }
+
                             is CloneRepoUiState.Cloning -> {
-                                cloneButton.isEnabled = false
-                                statusText.text = getString(R.string.cloning_repo)
+                                cloneButton.apply {
+                                    isEnabled = false
+                                    refreshStatus(isForRetry = false)
+                                }
+                                statusText.text = state.statusTextResId?.let { getString(it) }
+                                    ?: getString(R.string.cloning_repo)
                             }
+
                             is CloneRepoUiState.Error -> {
-                                cloneButton.isEnabled = true
-                                val statusMessage = state.errorResId?.let { getString(it) } ?: state.errorMessage
+                                cloneButton.apply {
+                                    isEnabled = true
+                                    refreshStatus(isForRetry = state.canRetry)
+                                }
+                                val statusMessage =
+                                    state.errorResId?.let { getString(it) } ?: state.errorMessage
                                 statusText.text = statusMessage
                             }
+
                             is CloneRepoUiState.Success -> {
                                 cloneButton.isEnabled = true
                                 statusText.text = getString(R.string.clone_successful)
-                                
                                 val destDir = File(state.localPath)
                                 if (destDir.exists()) {
                                     mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
@@ -155,6 +199,14 @@ class CloneRepositoryFragment : BaseFragment() {
                 }
             }
         }
+    }
+
+    private fun MaterialButton.refreshStatus(isForRetry: Boolean) {
+        setIconResource(if (isForRetry) R.drawable.ic_refresh else 0)
+
+        text = context.getString(
+            if (isForRetry) R.string.retry else R.string.clone_project
+        )
     }
 
     override fun onDestroyView() {

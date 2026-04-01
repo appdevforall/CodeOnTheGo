@@ -31,55 +31,70 @@
         android:fitsSystemWindows="false"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior">
 
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/title_toolbar"
+        <LinearLayout
+            android:id="@+id/editor_appbar_content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minHeight="0dp"
-            android:padding="0dp"
-            app:contentInsetStartWithNavigation="0dp"
-            app:contentInsetStart="0dp"
-            app:contentInsetEnd="0dp">
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/title_text"
-                style="@style/TextAppearance.Material3.TitleMedium"
+            <com.google.android.flexbox.FlexboxLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:gravity="start|center_vertical"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                app:flexWrap="wrap"
+                app:alignItems="center">
+                <com.google.android.material.appbar.MaterialToolbar
+                    android:id="@+id/title_toolbar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:layout_flexGrow="1"
+                    android:minHeight="0dp"
+                    android:padding="0dp"
+                    app:contentInsetStartWithNavigation="0dp"
+                    app:contentInsetStart="0dp"
+                    app:contentInsetEnd="0dp">
 
-        </com.google.android.material.appbar.MaterialToolbar>
+                    <TextView
+                        android:id="@+id/title_text"
+                        style="@style/TextAppearance.Material3.TitleMedium"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:layout_marginEnd="16dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp"
+                        android:gravity="start|center_vertical"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
 
-        <com.itsaky.androidide.ui.ProjectActionsToolbar
-            android:id="@+id/project_actions_toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="0dp"
-            android:minHeight="0dp"
-            android:paddingTop="0dp"
-            android:paddingBottom="0dp" />
+                </com.google.android.material.appbar.MaterialToolbar>
 
-        <com.google.android.material.progressindicator.LinearProgressIndicator
-            android:id="@+id/progress_indicator"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:indeterminate="true" />
+                <com.itsaky.androidide.ui.ProjectActionsToolbar
+                    android:id="@+id/project_actions_toolbar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:layout_flexShrink="0"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
+            </com.google.android.flexbox.FlexboxLayout>
 
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tabs"
-            style="@style/AppTheme.TabLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="8dp"
-            app:tabGravity="start" />
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/progress_indicator"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:indeterminate="true" />
 
+            <com.google.android.material.tabs.TabLayout
+                android:id="@+id/tabs"
+                style="@style/AppTheme.TabLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                app:tabGravity="start" />
+
+        </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>
 
     <ViewFlipper
@@ -146,5 +161,35 @@
     <include
         android:id="@+id/diagnosticInfo"
         layout="@layout/layout_diagnostic_info" />
+
+    <ImageButton
+            android:id="@+id/btn_toggle_top_bar"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="10dp"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/bg_hollow_green_circle"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/desc_toggle_top_bar"
+            android:visibility="gone"
+            tools:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/btn_toggle_bottom_bar"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginBottom="10dp"
+            android:layout_marginEnd="10dp"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/bg_hollow_green_circle"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/desc_toggle_bottom_bar"
+            android:visibility="gone"
+            tools:visibility="gone" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

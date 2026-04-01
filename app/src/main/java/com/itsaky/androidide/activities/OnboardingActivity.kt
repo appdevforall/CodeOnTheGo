@@ -17,9 +17,7 @@
 
 package com.itsaky.androidide.activities
 
-import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -78,12 +76,8 @@ class OnboardingActivity : AppIntro2() {
 			"ide.archConfig.experimentalWarning.isShown"
 	}
 
-	@SuppressLint("SourceLockedOrientationActivity")
 	override fun onCreate(savedInstanceState: Bundle?) {
 		IThemeManager.getInstance().applyTheme(this)
-		setOrientationFunction {
-			requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-		}
 
 		super.onCreate(savedInstanceState)
 
@@ -230,20 +224,13 @@ class OnboardingActivity : AppIntro2() {
 		tryNavigateToMainIfSetupIsCompleted()
 	}
 
+    fun setOnboardingChromeVisible(visible: Boolean) {
+        isIndicatorEnabled = visible
+        isButtonsEnabled = visible
+    }
+
 	override fun onPageSelected(position: Int) {
 		super.onPageSelected(position)
-
-		// Get the fragment at the current position
-		val fragment = supportFragmentManager.fragments.getOrNull(position)
-
-		// Hide indicator and buttons when on PermissionsFragment
-		if (fragment is PermissionsFragment) {
-			isIndicatorEnabled = false
-			isButtonsEnabled = false
-		} else {
-			isIndicatorEnabled = true
-			isButtonsEnabled = true
-		}
 
         if (nextButton.isVisible) {
             if (nextButton.animation == null) {

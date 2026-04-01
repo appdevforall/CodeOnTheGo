@@ -1,12 +1,20 @@
 package com.itsaky.androidide.di
 
+
 import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.analytics.AnalyticsManager
 import com.itsaky.androidide.analytics.IAnalyticsManager
-import org.koin.androidx.viewmodel.dsl.viewModel
+import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
+import com.itsaky.androidide.viewmodel.MainViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import org.koin.android.ext.koin.androidApplication
 import org.koin.dsl.module
+import org.koin.core.module.dsl.viewModel
 
 val coreModule =
 	module {
@@ -19,4 +27,21 @@ val coreModule =
 		viewModel {
 			ChatViewModel()
 		}
+		viewModel {
+            GitBottomSheetViewModel()
+		}
+
+        single<CoroutineScope> {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        }
+
+        single {
+            RecentProjectRoomDatabase.getDatabase(androidApplication(), get())
+        }
+
+        single {
+            get<RecentProjectRoomDatabase>().recentProjectDao()
+        }
+
+        viewModel { MainViewModel(get()) }
 	}

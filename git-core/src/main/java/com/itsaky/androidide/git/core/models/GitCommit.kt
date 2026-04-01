@@ -10,5 +10,6 @@ data class GitCommit(
     val authorEmail: String,
     val message: String,
     val timestamp: Long,
-    val parentHashes: List<String>
+    val parentHashes: List<String>,
+    val hasBeenPushed: Boolean
 )

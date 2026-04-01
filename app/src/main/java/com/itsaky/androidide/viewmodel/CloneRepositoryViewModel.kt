@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.R
 import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.git.core.models.CloneRepoUiState
 import kotlinx.coroutines.Dispatchers
@@ -16,12 +15,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.eclipse.jgit.api.errors.TransportException
+import java.net.UnknownHostException
+import java.io.EOFException
 import java.io.File
+import com.blankj.utilcode.util.NetworkUtils
+import com.itsaky.androidide.resources.R
 
 class CloneRepositoryViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow<CloneRepoUiState>(CloneRepoUiState.Idle())
     val uiState: StateFlow<CloneRepoUiState> = _uiState.asStateFlow()
+
+    @Volatile
+    private var isCloneCancelled = false
 
     fun onInputChanged(url: String, path: String) {
         val currentState = _uiState.value
@@ -54,6 +61,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         username: String? = null,
         token: String? = null
     ) {
+        isCloneCancelled = false
         val destDir = File(localPath)
         val isExistingDir = destDir.exists()
         if (isExistingDir && destDir.listFiles()?.isNotEmpty() == true) {
@@ -67,12 +75,25 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
             return
         }
 
+        if (!NetworkUtils.isConnected()) {
+            _uiState.update {
+                CloneRepoUiState.Error(
+                    url = url,
+                    localPath = localPath,
+                    errorResId = R.string.no_internet_connection,
+                    canRetry = true
+                )
+            }
+            return
+        }
+
         viewModelScope.launch {
             var hasCloned = false
             _uiState.update {
                 CloneRepoUiState.Cloning(
                     url = url,
-                    localPath = localPath
+                    localPath = localPath,
+                    statusTextResId = R.string.initialising_clone
                 )
             }
             try {
@@ -103,7 +124,9 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
 
                     override fun endTask() {}
 
-                    override fun isCancelled(): Boolean = false
+                    override fun isCancelled(): Boolean {
+                        return isCloneCancelled
+                    }
 
                     override fun showDuration(enabled: Boolean) {}
 
@@ -120,13 +143,16 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                             currentTaskTitle
                         }
 
-                        val currentState = _uiState.value
-                        if (currentState is CloneRepoUiState.Cloning) {
-                            _uiState.update {
+                        _uiState.update { currentState ->
+                            if (currentState is CloneRepoUiState.Cloning) {
                                 currentState.copy(
                                     cloneProgress = progressMsg,
                                     clonePercentage = percentage,
+                                    isCancellable = true,
+                                    statusTextResId = if (isCloneCancelled) R.string.cancelling_clone else R.string.cloning_repo
                                 )
+                            } else {
+                                currentState
                             }
                         }
                     }
@@ -143,12 +169,40 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                     CloneRepoUiState.Success(localPath = localPath)
                 }
             } catch (e: Exception) {
-                val errorMessage = e.message ?: application.getString(R.string.unknown_error)
+                // Error handling
+                if (isCloneCancelled) {
+                    _uiState.update {
+                        CloneRepoUiState.Idle(
+                            url = url,
+                            localPath = localPath,
+                            isCloneButtonEnabled = true
+                        )
+                    }
+                    return@launch
+                }
+
+                val isNetworkError = e is TransportException && e.cause is UnknownHostException
+                val isConnectionDrop = e.cause is EOFException || 
+                    e.message?.contains("Unexpected end of stream") == true ||
+                    e.message?.contains("Software caused connection abort") == true
+                
+                val errorResId = when {
+                    isNetworkError -> R.string.no_internet_connection
+                    isConnectionDrop -> R.string.connection_lost
+                    else -> null
+                }
+                
+                val errorMessage = if (errorResId == null) {
+                    e.message ?: application.getString(R.string.unknown_error)
+                } else null
+                
                 _uiState.update {
                     CloneRepoUiState.Error(
                         url = url,
                         localPath = localPath,
-                        errorMessage = application.getString(R.string.clone_failed, errorMessage)
+                        errorResId = errorResId,
+                        errorMessage = errorMessage?.let { application.getString(R.string.clone_failed, it) },
+                        canRetry = true
                     )
                 }
             } finally {
@@ -173,6 +227,18 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                         }
                     }
                 }
+            }
+        }
+    }
+
+    fun cancelClone() {
+        isCloneCancelled = true
+
+        _uiState.update { currentState ->
+            if (currentState is CloneRepoUiState.Cloning) {
+                currentState.copy(statusTextResId = R.string.cancelling_clone)
+            } else {
+                currentState
             }
         }
     }

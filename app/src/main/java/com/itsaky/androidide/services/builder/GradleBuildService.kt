@@ -34,6 +34,7 @@ import com.itsaky.androidide.analytics.gradle.BuildStartedMetric
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
@@ -45,10 +46,11 @@ import com.itsaky.androidide.services.builder.ToolingServerRunner.OnServerStartL
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
-import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_AAR
-import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
@@ -352,10 +354,13 @@ class GradleBuildService :
 
 			val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
 			val buildType = getBuildType(buildInfo.tasks)
+			val isDebugBuild = buildType == "debug"
 
 			val currentTuningConfig = tuningConfig
 			var newTuningConfig: GradleTuningConfig? = null
-			val extraArgs = getGradleExtraArgs()
+
+			@Suppress("SimplifyBooleanWithConstants")
+			val extraArgs = getGradleExtraArgs(enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild)
 
 			var buildParams =
 				if (FeatureFlags.isExperimentsEnabled) {
@@ -363,7 +368,7 @@ class GradleBuildService :
 						newTuningConfig =
 							GradleBuildTuner.autoTune(
 								device = DeviceInfo.buildDeviceProfile(applicationContext),
-								build = BuildProfile(isDebugBuild = buildType == "debug"),
+								build = BuildProfile(isDebugBuild),
 								previousConfig = currentTuningConfig,
 								analyticsManager = analyticsManager,
 								buildId = buildInfo.buildId,
@@ -440,7 +445,10 @@ class GradleBuildService :
 		eventListener?.onProgressEvent(event)
 	}
 
-	private fun getGradleExtraArgs(): List<String> {
+	private fun getGradleExtraArgs(
+		enableJdwp: Boolean = JdwpOptions.JDWP_ENABLED,
+		enableLogSender: Boolean = DevOpsPreferences.logsenderEnabled,
+	): List<String> {
 		val extraArgs = ArrayList<String>()
 		extraArgs.add("--init-script")
 		extraArgs.add(Environment.INIT_SCRIPT.absolutePath)
@@ -448,8 +456,9 @@ class GradleBuildService :
 		// Override AAPT2 binary
 		// The one downloaded from Maven is not built for Android
 		extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
+		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
+		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
 		if (BuildPreferences.isStacktraceEnabled) {
 			extraArgs.add("--stacktrace")

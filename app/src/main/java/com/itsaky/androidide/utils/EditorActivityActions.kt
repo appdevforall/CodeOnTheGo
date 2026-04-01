@@ -29,6 +29,7 @@ import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.build.RunTasksAction
 import com.itsaky.androidide.actions.editor.CopyAction
 import com.itsaky.androidide.actions.editor.CutAction
+import com.itsaky.androidide.actions.agent.ExplainSelectionAction
 import com.itsaky.androidide.actions.editor.ExpandSelectionAction
 import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
@@ -42,6 +43,7 @@ import com.itsaky.androidide.actions.etc.PreviewLayoutAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
 import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.file.CloseOtherFilesAction
+import com.itsaky.androidide.actions.file.InstallFileAction
 import com.itsaky.androidide.actions.file.FormatCodeAction
 import com.itsaky.androidide.actions.file.SaveFileAction
 import com.itsaky.androidide.actions.file.ShowTooltipAction
@@ -109,6 +111,7 @@ class EditorActivityActions {
             registry.registerAction(LongSelectAction(context, order++))
             registry.registerAction(CutAction(context, order++))
             registry.registerAction(CopyAction(context, order++))
+            registry.registerAction(ExplainSelectionAction(context, order++))
             registry.registerAction(PasteAction(context, order++))
             registry.registerAction(FormatCodeAction(context, order++))
             registry.registerAction(ShowTooltipAction(context, order++))
@@ -117,6 +120,7 @@ class EditorActivityActions {
             registry.registerAction(CloseFileAction(context, order++))
             registry.registerAction(CloseOtherFilesAction(context, order++))
             registry.registerAction(CloseAllFilesAction(context, order++))
+            registry.registerAction(InstallFileAction(context, order++))
 
             // file tree actions
             registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
