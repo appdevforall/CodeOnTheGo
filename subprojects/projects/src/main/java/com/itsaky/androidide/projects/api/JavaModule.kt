@@ -86,9 +86,18 @@ class JavaModule(
 
 	override fun getModuleClasspaths(): Set<File> = mutableSetOf(classesJar)
 
-	override fun getCompileClasspaths(): Set<File> {
-		val classpaths = getModuleClasspaths().toMutableSet()
-		getCompileModuleProjects().forEach { classpaths.addAll(it.getCompileClasspaths()) }
+	override fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File> {
+		val classpaths =
+			if (excludeSourceGeneratedClassPath) mutableSetOf() else getModuleClasspaths().toMutableSet()
+
+		getCompileModuleProjects().forEach {
+			classpaths.addAll(
+				it.getCompileClasspaths(
+					excludeSourceGeneratedClassPath
+				)
+			)
+		}
+
 		classpaths.addAll(getDependencyClassPaths())
 		return classpaths
 	}
@@ -126,9 +135,9 @@ class JavaModule(
 	): Boolean =
 		this.dependencyList.any { dependency ->
 			dependency.hasExternalLibrary() &&
-				dependency.externalLibrary.libraryInfo?.let { artifact ->
-					artifact.group == group && artifact.name == name
-				} ?: false
+					dependency.externalLibrary.libraryInfo?.let { artifact ->
+						artifact.group == group && artifact.name == name
+					} ?: false
 		}
 
 	fun getDependencyClassPaths(): Set<File> =

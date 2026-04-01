@@ -1,3 +1,6 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 /*
  *  This file is part of AndroidIDE.
  *
@@ -16,26 +19,34 @@
  */
 
 plugins {
-  `kotlin-dsl`
+	`kotlin-dsl`
 }
 
 dependencies {
-  implementation(gradleApi())
-  implementation(libs.composite.desugaringCore)
+	implementation(gradleApi())
+	implementation(libs.composite.desugaringCore)
 
-  compileOnly(libs.android.gradle.plugin)
+	compileOnly(libs.android.gradle.plugin)
 
-  testImplementation(libs.tests.junit)
-  testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }
 
 gradlePlugin {
-  plugins {
-    create("desugaring") {
-      id = "com.itsaky.androidide.desugaring"
-      implementationClass = "com.itsaky.androidide.desugaring.DesugarGradlePlugin"
-      displayName = "AndroidIDE Method Desugaring Plugin"
-      description = "Gradle plugin for method desugaring in Android projects."
-    }
-  }
+	plugins {
+		create("desugaring") {
+			id = "com.itsaky.androidide.desugaring"
+			implementationClass = "com.itsaky.androidide.desugaring.DesugarGradlePlugin"
+			displayName = "AndroidIDE Method Desugaring Plugin"
+			description = "Gradle plugin for method desugaring in Android projects."
+		}
+	}
 }
+
+tasks.withType<KotlinCompile> {
+	compilerOptions {
+		apiVersion.set(KotlinVersion.KOTLIN_2_1)
+		languageVersion.set(KotlinVersion.KOTLIN_2_1)
+	}
+}
+
