@@ -17,9 +17,7 @@
 
 package com.itsaky.androidide.activities
 
-import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -78,12 +76,8 @@ class OnboardingActivity : AppIntro2() {
 			"ide.archConfig.experimentalWarning.isShown"
 	}
 
-	@SuppressLint("SourceLockedOrientationActivity")
 	override fun onCreate(savedInstanceState: Bundle?) {
 		IThemeManager.getInstance().applyTheme(this)
-		setOrientationFunction {
-			requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-		}
 
 		super.onCreate(savedInstanceState)
 
