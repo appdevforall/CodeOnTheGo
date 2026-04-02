@@ -230,7 +230,7 @@ class LandscapeImmersiveController(
         bottomToggle.isVisible = visible
     }
 
-    private fun showTopBar(animate: Boolean = true) {
+     fun showTopBar(animate: Boolean = true) {
         isTopBarRequestedVisible = true
         topBar.setExpanded(true, animate)
     }

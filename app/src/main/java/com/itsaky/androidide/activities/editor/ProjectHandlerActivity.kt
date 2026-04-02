@@ -214,6 +214,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		observeStates()
 		startServices()
+
+        if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
+            flashError(getString(string.msg_template_warnings))
+        }
+
 	}
 
 	private fun observeStates() {
