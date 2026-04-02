@@ -138,7 +138,8 @@ class TemplateDetailsFragment :
                     // open the project
                     (requireActivity() as MainActivity).openProject(
                         result.data.projectDir,
-                        project = project
+                        project = project,
+                        hasTemplateIssues = result.hasErrorsWarnings
                     )
                 }
             }
