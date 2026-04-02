@@ -26,6 +26,7 @@ object ZipTemplateReader {
 
     fun read(
         zipFile: File,
+        warnings: MutableList<String>,
         recipeFactory: (TemplateJson, MutableMap<String, Parameter<*>>, String, ProjectTemplateData, ModuleTemplateData) -> TemplateRecipe<ProjectTemplateRecipeResult>
     ): List<ProjectTemplate> {
 
@@ -110,11 +111,13 @@ object ZipTemplateReader {
 
                         templates.add(project)
                     } catch (e: Exception) {
+                        warnings.add("Failed to load template at ${templateRef.path} error: ${e.message}")
                         log.error("Failed to load template at ${templateRef.path}", e)
                     }
                 }
             }
         } catch (e: Exception) {
+            warnings.add("Failed to load template archive $zipFile error: ${e.message}")
             log.error("Failed to read zip file $zipFile", e)
         }
 
