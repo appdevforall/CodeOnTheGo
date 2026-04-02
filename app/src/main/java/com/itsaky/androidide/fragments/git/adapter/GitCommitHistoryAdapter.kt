@@ -38,8 +38,8 @@ class GitCommitHistoryAdapter :
                 tvCommitMessage.text = commit.message
                 tvCommitAuthor.text = commit.authorName
                 tvCommitTime.text = dateFormat.format(Date(commit.timestamp))
-                imgNotPushedCommit.setImageResource(if (commit.hasBeenPushed) R.drawable.ic_cloud_done else R.drawable.ic_upload)
-                imgNotPushedCommit.contentDescription = if (commit.hasBeenPushed) {
+                imgCommitStatus.setImageResource(if (commit.hasBeenPushed) R.drawable.ic_cloud_done else R.drawable.ic_upload)
+                imgCommitStatus.contentDescription = if (commit.hasBeenPushed) {
                     binding.root.context.getString(R.string.commit_pushed)
                 } else {
                     binding.root.context.getString(R.string.commit_not_pushed)
