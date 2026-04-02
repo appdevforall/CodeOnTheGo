@@ -36,15 +36,10 @@ fun View.getOrStoreInitialPadding(): InitialPadding {
 fun View.applyResponsiveAppBarInsets(appbarContent: View) {
     ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
         val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-        if (isLandscape) {
-            view.updatePadding(top = 0)
-            appbarContent.updatePadding(top = insets.top)
-        } else {
-            view.updatePadding(top = insets.top)
-            appbarContent.updatePadding(top = 0)
-        }
+        view.updatePadding(top = insets.top)
+        appbarContent.updatePadding(top = 0)
+
         windowInsets
     }
 
@@ -103,12 +98,7 @@ fun ContentEditorBinding.applyImmersiveModeInsets(systemBars: Insets) {
     val isRtl = root.layoutDirection == View.LAYOUT_DIRECTION_RTL
     val endInset = if (isRtl) systemBars.left else systemBars.right
 
-    btnToggleTopBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-        topMargin = baseMargin + systemBars.top
-        marginEnd = baseMargin + endInset
-    }
-
-    btnToggleBottomBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+    btnFullscreenToggle.updateLayoutParams<ViewGroup.MarginLayoutParams> {
         bottomMargin = baseMargin + systemBars.bottom
         marginEnd = baseMargin + endInset
     }
@@ -117,26 +107,8 @@ fun ContentEditorBinding.applyImmersiveModeInsets(systemBars: Insets) {
 }
 
 /**
- * Recomputes bottom sheet offsets based on the current app bar height.
- */
-fun ContentEditorBinding.refreshBottomSheetAnchor() {
-    bottomSheet.setOffsetAnchor(editorAppBarLayout)
-}
-
-/**
- * Allows the bottom sheet to expand fully (no app bar anchor).
- */
-fun ContentEditorBinding.resetBottomSheetAnchor() {
-    bottomSheet.resetOffsetAnchor()
-}
-
-/**
- * Applies the correct bottom sheet anchor based on orientation.
+ * Allows the bottom sheet to expand fully while relying on top insets to stay clear of system bars.
  */
 fun ContentEditorBinding.applyBottomSheetAnchorForOrientation(orientation: Int) {
-    if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-        refreshBottomSheetAnchor()
-    } else {
-        resetBottomSheetAnchor()
-    }
+    bottomSheet.resetOffsetAnchor()
 }
