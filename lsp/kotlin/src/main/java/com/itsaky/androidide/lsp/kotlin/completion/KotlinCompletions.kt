@@ -16,6 +16,7 @@ import org.jetbrains.kotlin.analysis.api.analyzeCopy
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileResolutionMode
 import org.jetbrains.kotlin.analysis.api.renderer.types.KaTypeRenderer
 import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
+import org.jetbrains.kotlin.analysis.api.scopes.KaScope
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
@@ -31,13 +32,13 @@ import org.jetbrains.kotlin.analysis.api.symbols.KaTypeAliasSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaTypeParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.name
+import org.jetbrains.kotlin.analysis.api.symbols.receiverType
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtElement
-import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
@@ -92,21 +93,48 @@ fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult 
 			resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
 		) {
 			val completionContext = determineCompletionContext(elementAtOffset)
+
+			// Find the nearest KtElement parent for scope resolution
+			val ktElement = elementAtOffset.getParentOfType<KtElement>(strict = false)
+			val scopeContext = ktElement?.let { element -> completionKtFile.scopeContext(element) }
+			val compositeScope = scopeContext?.compositeScope()
 			val items = mutableListOf<CompletionItem>()
 
-			when (completionContext) {
-				CompletionContext.Scope -> collectScopeCompletions(
-					element = elementAtOffset,
-					file = completionKtFile,
-					partial = partial,
-					to = items
+			if (ktElement == null) {
+				logger.error(
+					"Cannot find parent of element {} with partial {}",
+					elementAtOffset,
+					partial
 				)
 
-				CompletionContext.Member -> collectMemberCompletions(
-					element = elementAtOffset,
-					partial = partial,
-					to = items
+				return@analyzeCopy CompletionResult.EMPTY
+			}
+
+			if (compositeScope == null) {
+				logger.error(
+					"Unable to get CompositeScope for element {} with partial {}",
+					compositeScope,
+					partial
 				)
+				return@analyzeCopy CompletionResult.EMPTY
+			}
+
+			when (completionContext) {
+				CompletionContext.Scope ->
+					collectScopeCompletions(
+						ktElement = ktElement,
+						scope = compositeScope,
+						partial = partial,
+						to = items
+					)
+
+				CompletionContext.Member ->
+					collectMemberCompletions(
+						scope = compositeScope,
+						element = elementAtOffset,
+						partial = partial,
+						to = items
+					)
 			}
 
 			CompletionResult(items)
@@ -122,6 +150,7 @@ fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult 
 }
 
 private fun KaSession.collectMemberCompletions(
+	scope: KaScope,
 	element: PsiElement,
 	partial: String,
 	to: MutableList<CompletionItem>
@@ -140,12 +169,22 @@ private fun KaSession.collectMemberCompletions(
 		return
 	}
 
+	logger.info(
+		"Complete members of {}: {} [{}] matching '{}'",
+		receiver,
+		receiverType,
+		receiver.text,
+		partial
+	)
+
 	collectMembersFromType(receiverType, partial, to)
 
 	if (qualifiedExpr is KtSafeQualifiedExpression) {
 		val nonNullType = receiverType.withNullability(isMarkedNullable = false)
 		collectMembersFromType(nonNullType, partial, to)
 	}
+
+	collectExtensionFunctions(scope, partial, receiverType, to)
 }
 
 @OptIn(KaExperimentalApi::class)
@@ -156,8 +195,15 @@ private fun KaSession.collectMembersFromType(
 ) {
 	val typeScope = receiverType.scope
 	if (typeScope != null) {
-		to += toCompletionItems(typeScope.getCallableSignatures { name -> matchesPrefix(name, partial) }.map { it.symbol }, partial)
-		to += toCompletionItems(typeScope.getClassifierSymbols { name ->  matchesPrefix(name, partial) }, partial)
+		val callables =
+			typeScope.getCallableSignatures { name -> matchesPrefix(name, partial) }
+				.map { it.symbol }
+
+		val classifiers =
+			typeScope.getClassifierSymbols { name -> matchesPrefix(name, partial) }
+
+		to += toCompletionItems(callables, partial)
+		to += toCompletionItems(classifiers, partial)
 		return
 	}
 
@@ -166,22 +212,37 @@ private fun KaSession.collectMembersFromType(
 	val classSymbol = classType.symbol as? KaClassSymbol ?: return
 	val memberScope = classSymbol.memberScope
 
-	to += toCompletionItems(memberScope.callables { name -> matchesPrefix(name, partial) }, partial)
-	to += toCompletionItems(memberScope.classifiers { name -> matchesPrefix(name, partial) }, partial)
+	val callables = memberScope.callables { name -> matchesPrefix(name, partial) }
+	val classifiers = memberScope.classifiers { name -> matchesPrefix(name, partial) }
+
+	to += toCompletionItems(callables, partial)
+	to += toCompletionItems(classifiers, partial)
+}
+
+private fun KaSession.collectExtensionFunctions(
+	scope: KaScope,
+	partial: String,
+	receiverType: KaType,
+	to: MutableList<CompletionItem>
+) {
+	val extensionSymbols =
+		scope.callables { name -> matchesPrefix(name, partial) }
+			.filter { symbol ->
+				if (!symbol.isExtension) return@filter false
+
+				val extReceiverType = symbol.receiverType ?: return@filter false
+				receiverType.isSubtypeOf(extReceiverType)
+			}
+
+	to += toCompletionItems(extensionSymbols, partial)
 }
 
 private fun KaSession.collectScopeCompletions(
-	element: PsiElement,
-	file: KtFile,
+	ktElement: KtElement,
+	scope: KaScope,
 	partial: String,
-	to: MutableList<CompletionItem>
+	to: MutableList<CompletionItem>,
 ) {
-	// Find the nearest KtElement parent for scope resolution
-	val ktElement = element.getParentOfType<KtElement>(strict = false)
-	if (ktElement == null) {
-		logger.error("Cannot find parent of element {} with partial {}", element, partial)
-		return
-	}
 
 	logger.info(
 		"Complete scope members of {}: [{}] matching '{}'",
@@ -190,21 +251,30 @@ private fun KaSession.collectScopeCompletions(
 		partial
 	)
 
-	val scopeContext = file.scopeContext(ktElement)
-	val compositeScope = scopeContext.compositeScope()
-
-	to += toCompletionItems(compositeScope.callables { name -> matchesPrefix(name, partial) }, partial)
-	to += toCompletionItems(compositeScope.classifiers { name -> matchesPrefix(name, partial) }, partial)
+	to += toCompletionItems(
+		scope.callables { name -> matchesPrefix(name, partial) },
+		partial
+	)
+	to += toCompletionItems(
+		scope.classifiers { name -> matchesPrefix(name, partial) },
+		partial
+	)
 }
 
 @JvmName("callablesToCompletionItems")
-private fun KaSession.toCompletionItems(callables: Sequence<KaCallableSymbol>, partial: String): Sequence<CompletionItem> =
+private fun KaSession.toCompletionItems(
+	callables: Sequence<KaCallableSymbol>,
+	partial: String
+): Sequence<CompletionItem> =
 	callables.mapNotNull {
 		callableSymbolToCompletionItem(it, partial)
 	}
 
 @JvmName("classifiersToCompletionItems")
-private fun KaSession.toCompletionItems(classifiers: Sequence<KaClassifierSymbol>, partial: String): Sequence<CompletionItem> =
+private fun KaSession.toCompletionItems(
+	classifiers: Sequence<KaClassifierSymbol>,
+	partial: String
+): Sequence<CompletionItem> =
 	classifiers.mapNotNull {
 		classifierSymbolToCompletionItem(it, partial)
 	}
@@ -284,7 +354,11 @@ private fun KaSession.classifierSymbolToCompletionItem(
 	val item = createSymbolCompletionItem(symbol, partial) ?: return null
 	item.detail = when (symbol) {
 		is KaClassSymbol -> symbol.classId?.asFqNameString() ?: ""
-		is KaTypeAliasSymbol -> renderName(symbol.expandedType, KaTypeRendererForSource.WITH_QUALIFIED_NAMES)
+		is KaTypeAliasSymbol -> renderName(
+			symbol.expandedType,
+			KaTypeRendererForSource.WITH_QUALIFIED_NAMES
+		)
+
 		is KaTypeParameterSymbol -> item.ideLabel
 	}
 	return item
@@ -347,6 +421,12 @@ private fun partialIdentifier(prefix: String): String {
 }
 
 private fun matchesPrefix(name: Name, partial: String): Boolean {
+	logger.info(
+		"'{}' matches '{}': {}",
+		name,
+		partial,
+		name.asString().startsWith(partial, ignoreCase = true)
+	)
 	if (partial.isEmpty()) return true
 	return name.asString().startsWith(partial, ignoreCase = true)
 }
