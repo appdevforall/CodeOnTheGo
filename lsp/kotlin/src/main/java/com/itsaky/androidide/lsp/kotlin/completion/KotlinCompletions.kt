@@ -31,6 +31,7 @@ import org.jetbrains.kotlin.analysis.api.symbols.KaTypeAliasSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaTypeParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.name
+import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.Name
@@ -147,12 +148,26 @@ private fun KaSession.collectMemberCompletions(
 	}
 }
 
+@OptIn(KaExperimentalApi::class)
 private fun KaSession.collectMembersFromType(
 	receiverType: KaType,
 	partial: String,
 	to: MutableList<CompletionItem>
 ) {
+	val typeScope = receiverType.scope
+	if (typeScope != null) {
+		to += toCompletionItems(typeScope.getCallableSignatures { name -> matchesPrefix(name, partial) }.map { it.symbol }, partial)
+		to += toCompletionItems(typeScope.getClassifierSymbols { name ->  matchesPrefix(name, partial) }, partial)
+		return
+	}
 
+	// fallback approach when typeScope is not available
+	val classType = receiverType as? KaClassType ?: return
+	val classSymbol = classType.symbol as? KaClassSymbol ?: return
+	val memberScope = classSymbol.memberScope
+
+	to += toCompletionItems(memberScope.callables { name -> matchesPrefix(name, partial) }, partial)
+	to += toCompletionItems(memberScope.classifiers { name -> matchesPrefix(name, partial) }, partial)
 }
 
 private fun KaSession.collectScopeCompletions(
@@ -178,22 +193,21 @@ private fun KaSession.collectScopeCompletions(
 	val scopeContext = file.scopeContext(ktElement)
 	val compositeScope = scopeContext.compositeScope()
 
-	compositeScope.callables { name -> matchesPrefix(name, partial) }
-		.forEach { symbol ->
-			val item = callableSymbolToCompletionItem(symbol, partial)
-			if (item != null) {
-				to += item
-			}
-		}
-
-	compositeScope.classifiers { name -> matchesPrefix(name, partial) }
-		.forEach { symbol ->
-			val item = classifierSymbolToCompletionItem(symbol, partial)
-			if (item != null) {
-				to += item
-			}
-		}
+	to += toCompletionItems(compositeScope.callables { name -> matchesPrefix(name, partial) }, partial)
+	to += toCompletionItems(compositeScope.classifiers { name -> matchesPrefix(name, partial) }, partial)
 }
+
+@JvmName("callablesToCompletionItems")
+private fun KaSession.toCompletionItems(callables: Sequence<KaCallableSymbol>, partial: String): Sequence<CompletionItem> =
+	callables.mapNotNull {
+		callableSymbolToCompletionItem(it, partial)
+	}
+
+@JvmName("classifiersToCompletionItems")
+private fun KaSession.toCompletionItems(classifiers: Sequence<KaClassifierSymbol>, partial: String): Sequence<CompletionItem> =
+	classifiers.mapNotNull {
+		classifierSymbolToCompletionItem(it, partial)
+	}
 
 private fun determineCompletionContext(element: PsiElement): CompletionContext {
 	// Walk up to find a qualified expression where we're the selector
