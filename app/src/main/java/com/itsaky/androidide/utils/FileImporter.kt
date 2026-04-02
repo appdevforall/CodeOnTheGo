@@ -3,7 +3,7 @@ package com.itsaky.androidide.utils
 import android.content.ClipData
 import android.content.Context
 import com.itsaky.androidide.R
-import com.itsaky.androidide.dnd.toImportableExternalUri
+import com.itsaky.androidide.dnd.toImportableExternalUris
 import java.io.File
 
 /**
@@ -28,10 +28,10 @@ class FileImporter(private val context: Context) {
         }
 
         val validUris = (0 until clipData.itemCount)
-            .mapNotNull { clipData.getItemAt(it).toImportableExternalUri(context) }
+            .flatMap { clipData.getItemAt(it).toImportableExternalUris(context) }
 
         if (validUris.isEmpty()) {
-            return ImportResult.Failure(IllegalArgumentException("No importable files found"))
+            return ImportResult.Failure(IllegalArgumentException(context.getString(R.string.msg_file_tree_drop_no_files)))
         }
 
         val results = validUris.map { uri ->
@@ -50,7 +50,9 @@ class FileImporter(private val context: Context) {
                     context = context,
                     uri = uri,
                     destinationFile = destinationFile,
-                    onOpenFailed = { IllegalStateException("Unable to open URI: $sanitizedName") }
+                    onOpenFailed = { IllegalStateException(
+                        context.getString(R.string.msg_file_tree_drop_read_failed, sanitizedName)
+                    )}
                 )
             }
         }

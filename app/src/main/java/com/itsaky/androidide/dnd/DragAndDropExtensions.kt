@@ -17,7 +17,7 @@ fun DragEvent.hasImportableContent(context: Context): Boolean {
         DragEvent.ACTION_DROP -> {
             val clip = clipData ?: return false
             (0 until clip.itemCount).any { index ->
-                clip.getItemAt(index).toImportableExternalUri(context) != null
+                clip.getItemAt(index).toImportableExternalUris(context).isNotEmpty()
             }
         }
         else -> clipDescription?.hasImportableMimeType() == true
@@ -25,22 +25,26 @@ fun DragEvent.hasImportableContent(context: Context): Boolean {
 }
 
 /**
- * Resolves the [ClipData.Item] to an external [Uri], ignoring internal application URIs.
+ * Resolves the [ClipData.Item] to a list of external [Uri]s, ignoring internal application URIs.
  */
-fun ClipData.Item.toImportableExternalUri(context: Context): Uri? {
-    val resolvedUri = toExternalUri() ?: return null
-    return resolvedUri.takeUnless { it.isInternalDragUri(context) }
+fun ClipData.Item.toImportableExternalUris(context: Context): List<Uri> {
+    return toExternalUris().filterNot { it.isInternalDragUri(context) }
 }
 
 private fun Uri.isInternalDragUri(context: Context): Boolean {
     return authority == "${context.packageName}.providers.fileprovider"
 }
 
-private fun ClipData.Item.toExternalUri(): Uri? {
-    return uri
-        ?: text?.toString()
-            ?.takeIf { it.startsWith("content://") || it.startsWith("file://") }
-            ?.toUri()
+private fun ClipData.Item.toExternalUris(): List<Uri> {
+    uri?.let { return listOf(it) }
+
+    val textContent = text?.toString() ?: return emptyList()
+
+    return textContent.lineSequence()
+        .map { it.trim() }
+        .filter { it.startsWith("content://") || it.startsWith("file://") }
+        .map { it.toUri() }
+        .toList()
 }
 
 private fun ClipDescription.hasImportableMimeType(): Boolean {

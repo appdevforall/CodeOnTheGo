@@ -32,11 +32,21 @@ object UriFileImporter {
     destinationFile: File,
     onOpenFailed: (() -> Throwable)? = null,
   ) {
-    contentResolver.openInputStream(uri)?.use { input ->
-      destinationFile.outputStream().use { output ->
-        input.copyTo(output)
+    val inputStream = contentResolver.openInputStream(uri)
+      ?: throw (onOpenFailed?.invoke() ?: IllegalStateException("Unable to open URI: $uri"))
+
+    try {
+      inputStream.use { input ->
+        destinationFile.outputStream().use { output ->
+          input.copyTo(output)
+        }
       }
-    } ?: throw (onOpenFailed?.invoke() ?: IllegalStateException("Unable to open URI: $uri"))
+    } catch (e: Exception) {
+      if (destinationFile.exists()) {
+        destinationFile.delete()
+      }
+      throw e
+    }
   }
 
   @JvmStatic
