@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.git.core.GitRepositoryManager
+import com.itsaky.androidide.git.core.parseGitRepositoryUrl
 import com.itsaky.androidide.git.core.models.CloneRepoUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,13 +32,14 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
     private var isCloneCancelled = false
 
     fun onInputChanged(url: String, path: String) {
+        val normalizedUrl = parseGitRepositoryUrl(url)
         val currentState = _uiState.value
         if (currentState is CloneRepoUiState.Idle) {
             _uiState.update {
                 currentState.copy(
                     url = url,
                     localPath = path,
-                    isCloneButtonEnabled = url.isNotBlank() && path.isNotBlank()
+                    isCloneButtonEnabled = normalizedUrl != null && path.isNotBlank()
                 )
             }
         } else if (currentState is CloneRepoUiState.Error) {
@@ -45,7 +47,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 CloneRepoUiState.Idle(
                     url = url,
                     localPath = path,
-                    isCloneButtonEnabled = url.isNotBlank() && path.isNotBlank()
+                    isCloneButtonEnabled = normalizedUrl != null && path.isNotBlank()
                 )
             }
         }
@@ -61,13 +63,25 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         username: String? = null,
         token: String? = null
     ) {
+        val normalizedUrl = parseGitRepositoryUrl(url)
+        if (normalizedUrl == null) {
+            _uiState.update {
+                CloneRepoUiState.Error(
+                    url = url,
+                    localPath = localPath,
+                    errorResId = R.string.msg_invalid_url
+                )
+            }
+            return
+        }
+
         isCloneCancelled = false
         val destDir = File(localPath)
         val isExistingDir = destDir.exists()
         if (isExistingDir && destDir.listFiles()?.isNotEmpty() == true) {
             _uiState.update {
                 CloneRepoUiState.Error(
-                    url = url,
+                    url = normalizedUrl,
                     localPath = localPath,
                     errorResId = R.string.destination_directory_not_empty
                 )
@@ -78,7 +92,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
         if (!NetworkUtils.isConnected()) {
             _uiState.update {
                 CloneRepoUiState.Error(
-                    url = url,
+                    url = normalizedUrl,
                     localPath = localPath,
                     errorResId = R.string.no_internet_connection,
                     canRetry = true
@@ -91,7 +105,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
             var hasCloned = false
             _uiState.update {
                 CloneRepoUiState.Cloning(
-                    url = url,
+                    url = normalizedUrl,
                     localPath = localPath,
                     statusTextResId = R.string.initialising_clone
                 )
@@ -158,7 +172,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                     }
                 }
 
-                GitRepositoryManager.cloneRepository(url, destDir, credentials, progressMonitor)
+                GitRepositoryManager.cloneRepository(normalizedUrl, destDir, credentials, progressMonitor)
                 
                 if (!destDir.exists()) {
                     throw Exception("Destination directory was not created.")
@@ -173,7 +187,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 if (isCloneCancelled) {
                     _uiState.update {
                         CloneRepoUiState.Idle(
-                            url = url,
+                            url = normalizedUrl,
                             localPath = localPath,
                             isCloneButtonEnabled = true
                         )
@@ -198,7 +212,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 
                 _uiState.update {
                     CloneRepoUiState.Error(
-                        url = url,
+                        url = normalizedUrl,
                         localPath = localPath,
                         errorResId = errorResId,
                         errorMessage = errorMessage?.let { application.getString(R.string.clone_failed, it) },
@@ -220,7 +234,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                     if (currentState is CloneRepoUiState.Cloning) {
                         _uiState.update {
                             CloneRepoUiState.Idle(
-                                url = url,
+                                url = normalizedUrl,
                                 localPath = localPath,
                                 isCloneButtonEnabled = true
                             )

@@ -27,6 +27,8 @@ import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.templates.Template
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -65,10 +67,14 @@ class MainViewModel(
     private val _previousScreen = AtomicInteger(-1)
     private val _isTransitionInProgress = MutableLiveData(false)
 
+    private val cloneRepositoryEventChannel = Channel<String>(Channel.BUFFERED)
+
     internal val template = MutableLiveData<Template<*>>(null)
     internal val creatingProject = MutableLiveData(false)
 
     val currentScreen: LiveData<Int> = _currentScreen
+
+    val cloneRepositoryEvent = cloneRepositoryEventChannel.receiveAsFlow()
 
     val previousScreen: Int
         get() = _previousScreen.get()
@@ -82,6 +88,13 @@ class MainViewModel(
     fun setScreen(screen: Int) {
         _previousScreen.set(_currentScreen.value ?: SCREEN_MAIN)
         _currentScreen.value = screen
+    }
+
+    fun requestCloneRepository(url: String) {
+        viewModelScope.launch {
+            cloneRepositoryEventChannel.send(url)
+        }
+        setScreen(SCREEN_CLONE_REPO)
     }
 
     fun postTransition(owner: LifecycleOwner, action: Runnable) {
