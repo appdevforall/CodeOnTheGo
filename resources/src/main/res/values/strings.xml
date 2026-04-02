@@ -170,6 +170,8 @@
 	<string name="project_info_gradle_v">Gradle version</string>
 	<string name="project_info_kotlin_v">Kotlin version</string>
 	<string name="project_info_java_v">Java version</string>
+	<string name="msg_file_tree_drag_failed">Failed to start dragging the file</string>
+    <string name="msg_file_tree_drag_error">Error preparing file for drag</string>
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
@@ -273,6 +275,14 @@
 	<string name="lang_kotlin">Kotlin</string>
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
+	<string name="msg_file_tree_drop_import_failed">Failed to import dropped files</string>
+	<string name="msg_file_tree_drop_no_files">No external files were dropped</string>
+	<string name="msg_file_tree_drop_destination_missing">Destination folder does not exist</string>
+	<string name="msg_file_tree_drop_destination_unresolved">Cannot resolve the destination folder</string>
+	<string name="msg_file_tree_drop_default_name">Dropped file</string>
+	<string name="msg_file_tree_drop_read_failed">Unable to read dropped file: %1$s</string>
+	<string name="msg_file_tree_drop_imported_single">Imported 1 file</string>
+	<string name="msg_file_tree_drop_imported_multiple">Imported %1$d files</string>
 
 	<!-- Shortcuts -->
 	<string name="shortcut_close_current_file">Close current file</string>
