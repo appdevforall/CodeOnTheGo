@@ -50,9 +50,14 @@ class FileImporter(private val context: Context) {
                     context = context,
                     uri = uri,
                     destinationFile = destinationFile,
-                    onOpenFailed = { IllegalStateException(
-                        context.getString(R.string.msg_file_tree_drop_read_failed, sanitizedName)
-                    )}
+                    onOpenFailed = {
+                        IllegalStateException(
+                            context.getString(
+                                R.string.msg_file_tree_drop_read_failed,
+                                sanitizedName
+                            )
+                        )
+                    }
                 )
             }
         }

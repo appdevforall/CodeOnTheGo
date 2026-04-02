@@ -21,6 +21,7 @@ fun DragEvent.hasImportableContent(context: Context): Boolean {
                 clip.getItemAt(index).toImportableExternalUris(context).isNotEmpty()
             }
         }
+
         else -> clipDescription?.hasImportableMimeType() == true
     }
 }
@@ -50,6 +51,6 @@ private fun ClipData.Item.toExternalUris(): List<Uri> {
 
 private fun ClipDescription.hasImportableMimeType(): Boolean {
     return hasMimeType(ClipDescription.MIMETYPE_TEXT_URILIST) ||
-           hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) ||
-           hasMimeType("*/*")
+        hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) ||
+        hasMimeType("*/*")
 }

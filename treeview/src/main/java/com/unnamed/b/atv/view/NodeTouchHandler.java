@@ -61,8 +61,8 @@ class NodeTouchHandler implements View.OnTouchListener {
 
     private void dispatchDrag() {
         TreeNode.TreeNodeDragListener listener = node.getDragListener() != null
-            ? node.getDragListener()
-            : defaultDragListener;
+                ? node.getDragListener()
+                : defaultDragListener;
 
         if (listener != null) {
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);

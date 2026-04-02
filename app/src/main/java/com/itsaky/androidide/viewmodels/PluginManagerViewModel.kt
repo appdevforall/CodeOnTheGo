@@ -70,7 +70,11 @@ class PluginManagerViewModel(
             is PluginManagerUiEvent.EnablePlugin -> enablePlugin(event.pluginId)
             is PluginManagerUiEvent.DisablePlugin -> disablePlugin(event.pluginId)
             is PluginManagerUiEvent.UninstallPlugin -> showUninstallConfirmation(event.pluginId)
-            is PluginManagerUiEvent.InstallPlugin -> installPlugin(event.uri, event.deleteSourceAfterInstall)
+            is PluginManagerUiEvent.InstallPlugin -> installPlugin(
+                event.uri,
+                event.deleteSourceAfterInstall
+            )
+
             is PluginManagerUiEvent.OpenFilePicker -> openFilePicker()
             is PluginManagerUiEvent.ShowPluginDetails -> showPluginDetails(event.plugin)
         }
@@ -239,7 +243,11 @@ class PluginManagerViewModel(
             try {
                 tempFile = withContext(Dispatchers.IO) {
                     val fileName = UriFileImporter.getDisplayName(contentResolver, uri)
-                    val extension = if (fileName?.endsWith(".cgp", ignoreCase = true) == true) ".cgp" else ".apk"
+                    val extension = if (fileName?.endsWith(
+                            ".cgp",
+                            ignoreCase = true
+                        ) == true
+                    ) ".cgp" else ".apk"
                     val tempFileName = "temp_plugin_${System.currentTimeMillis()}$extension"
                     val tempDir = File(filesDir, "temp").apply { mkdirs() }
                     val tempFile = File(tempDir, tempFileName)
