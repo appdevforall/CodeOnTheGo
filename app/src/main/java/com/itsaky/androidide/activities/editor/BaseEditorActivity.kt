@@ -177,7 +177,7 @@ abstract class BaseEditorActivity :
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
-	private var fullscreenController: FullscreenController? = null
+	private var fullscreenManager: FullscreenManager? = null
 	private val topEdgeThreshold by lazy { SizeUtils.dp2px(TOP_EDGE_SWIPE_THRESHOLD_DP) }
 
 	var isDestroying = false
@@ -455,8 +455,8 @@ abstract class BaseEditorActivity :
 		editorBottomSheet = null
 		gestureDetector = null
 
-		fullscreenController?.destroy()
-		fullscreenController = null
+		fullscreenManager?.destroy()
+		fullscreenManager = null
 
 		_binding = null
 
@@ -629,7 +629,7 @@ abstract class BaseEditorActivity :
 		setupFullscreenObserver()
 		setupViews()
 
-		fullscreenController = FullscreenController(
+		fullscreenManager = FullscreenManager(
 			contentBinding = content,
 			bottomSheetBehavior = editorBottomSheet!!,
 			closeDrawerAction = {
@@ -677,13 +677,14 @@ abstract class BaseEditorActivity :
 		window?.decorView?.let { ViewCompat.requestApplyInsets(it) }
 		reapplySystemBarInsetsFromRoot()
 		_binding?.content?.applyBottomSheetAnchorForOrientation(newConfig.orientation)
-		fullscreenController?.render(editorViewModel.isFullscreen, animate = false)
+		fullscreenManager?.render(editorViewModel.isFullscreen, animate = false)
 	}
 
 	private fun reapplySystemBarInsetsFromRoot() {
 		val root = _binding?.root ?: return
 		val rootInsets = ViewCompat.getRootWindowInsets(root)
 		if (rootInsets == null) {
+			// Insets can be temporarily unavailable right after a configuration change.
 			root.post { reapplySystemBarInsetsFromRoot() }
 			return
 		}
@@ -1232,7 +1233,7 @@ abstract class BaseEditorActivity :
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				editorViewModel.uiState.collectLatest { uiState ->
-					fullscreenController?.render(uiState.isFullscreen, animate = true)
+					fullscreenManager?.render(uiState.isFullscreen, animate = true)
 				}
 			}
 		}
@@ -1473,27 +1474,37 @@ abstract class BaseEditorActivity :
 
 						val startedNearTopEdge = e1.y < topEdgeThreshold
 						val startedNearBottomEdge = e1.y > bottomEdgeThreshold
+						val isTopEdgeDismissFling = isVerticalSwipe &&
+							hasVerticalVelocity &&
+							startedNearTopEdge &&
+							hasDownFlingDistance
+						val isBottomEdgeDismissFling = isVerticalSwipe &&
+							hasVerticalVelocity &&
+							startedNearBottomEdge &&
+							hasUpFlingDistance
+						val isDrawerOpenFling = hasRightFlingDistance &&
+							hasHorizontalVelocity &&
+							isHorizontalSwipe
 
-						if (isVerticalSwipe && hasVerticalVelocity && startedNearTopEdge && hasDownFlingDistance) {
-							if (editorViewModel.isFullscreen) {
-								editorViewModel.exitFullscreen()
-								return true
-							}
+						// Fullscreen mode can be dismissed with an inward fling from either vertical edge.
+						if (isTopEdgeDismissFling && editorViewModel.isFullscreen) {
+							editorViewModel.exitFullscreen()
+							return true
 						}
 
-						if (isVerticalSwipe && hasVerticalVelocity && startedNearBottomEdge && hasUpFlingDistance) {
-							if (editorViewModel.isFullscreen) {
-								editorViewModel.exitFullscreen()
-								return true
-							}
+						if (isBottomEdgeDismissFling && editorViewModel.isFullscreen) {
+							editorViewModel.exitFullscreen()
+							return true
 						}
 
+						// Preserve the editor interaction area; drawer gestures are only enabled on the empty state.
 						val noFilesOpen = content.viewContainer.displayedChild == 1
 						if (!noFilesOpen) {
 						    return false
 						}
 
-						if (hasRightFlingDistance && hasHorizontalVelocity && isHorizontalSwipe) {
+						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
+						if (isDrawerOpenFling) {
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
 						}

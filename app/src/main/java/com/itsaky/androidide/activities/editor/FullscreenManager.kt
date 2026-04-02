@@ -9,12 +9,91 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import kotlin.math.abs
 
-class FullscreenController(
+class FullscreenManager(
     private val contentBinding: ContentEditorBinding,
     private val bottomSheetBehavior: BottomSheetBehavior<out View?>,
     private val closeDrawerAction: () -> Unit,
     private val onFullscreenToggleRequested: () -> Unit,
 ) {
+    private sealed interface FullscreenUiState {
+        val isFullscreen: Boolean
+
+        data object Fullscreen : FullscreenUiState {
+            override val isFullscreen = true
+        }
+
+        data object Windowed : FullscreenUiState {
+            override val isFullscreen = false
+        }
+
+        companion object {
+            fun from(isFullscreen: Boolean): FullscreenUiState {
+                return if (isFullscreen) Fullscreen else Windowed
+            }
+        }
+    }
+
+    private sealed interface FullscreenRenderCommand {
+        val targetState: FullscreenUiState
+        val animate: Boolean
+
+        fun apply(manager: FullscreenManager)
+
+        data class EnterFullscreen(
+            override val animate: Boolean,
+        ) : FullscreenRenderCommand {
+            override val targetState = FullscreenUiState.Fullscreen
+
+            override fun apply(manager: FullscreenManager) {
+                manager.applyFullscreen(animate)
+            }
+        }
+
+        data class ExitFullscreen(
+            override val animate: Boolean,
+        ) : FullscreenRenderCommand {
+            override val targetState = FullscreenUiState.Windowed
+
+            override fun apply(manager: FullscreenManager) {
+                manager.applyNonFullscreen(animate)
+            }
+        }
+
+        data class Refresh(
+            override val targetState: FullscreenUiState,
+        ) : FullscreenRenderCommand {
+            override val animate = false
+
+            override fun apply(manager: FullscreenManager) {
+                if (targetState.isFullscreen) {
+                    manager.applyFullscreen(animate = false)
+                } else {
+                    manager.applyNonFullscreen(animate = false)
+                }
+            }
+        }
+
+        companion object {
+            fun resolve(
+                currentState: FullscreenUiState,
+                targetState: FullscreenUiState,
+                animate: Boolean,
+            ): FullscreenRenderCommand {
+                val shouldAnimate = animate && currentState != targetState
+
+                if (!shouldAnimate) {
+                    return Refresh(targetState)
+                }
+
+                return if (targetState.isFullscreen) {
+                    EnterFullscreen(animate = true)
+                } else {
+                    ExitFullscreen(animate = true)
+                }
+            }
+        }
+    }
+
     private val topBar = contentBinding.editorAppBarLayout
     private val appBarContent = contentBinding.editorAppbarContent
     private val editorContainer = contentBinding.editorContainer
@@ -22,8 +101,10 @@ class FullscreenController(
 
     private var isBound = false
     private var isTransitioning = false
-    private var currentFullscreen = false
+    private var currentState: FullscreenUiState = FullscreenUiState.Windowed
     private var defaultSkipCollapsed = false
+    private var transitionToken = 0L
+    private var pendingTransitionToken = 0L
 
     private val transitionDurationMs = 350L
 
@@ -68,28 +149,22 @@ class FullscreenController(
         bottomSheetBehavior.removeBottomSheetCallback(bottomSheetCallback)
         bottomSheetBehavior.skipCollapsed = defaultSkipCollapsed
         fullscreenToggle.removeCallbacks(clearTransitioningRunnable)
+        isTransitioning = false
     }
 
     fun render(isFullscreen: Boolean, animate: Boolean) {
-        val stateChanged = currentFullscreen != isFullscreen
-        val shouldAnimate = animate && stateChanged
-        currentFullscreen = isFullscreen
-        isTransitioning = shouldAnimate
+        val targetState = FullscreenUiState.from(isFullscreen)
+        val command =
+            FullscreenRenderCommand.resolve(
+                currentState = currentState,
+                targetState = targetState,
+                animate = animate,
+            )
 
-        if (isFullscreen) {
-            applyFullscreen(shouldAnimate)
-        } else {
-            applyNonFullscreen(shouldAnimate)
-        }
-
-        syncToggleUi(isFullscreen)
-
-        if (shouldAnimate) {
-            fullscreenToggle.removeCallbacks(clearTransitioningRunnable)
-            fullscreenToggle.postDelayed(clearTransitioningRunnable, transitionDurationMs)
-        } else {
-            isTransitioning = false
-        }
+        currentState = command.targetState
+        syncTransitionState(command)
+        command.apply(this)
+        syncToggleUi(command.targetState)
     }
 
     private fun setupScrollFlags() {
@@ -101,17 +176,35 @@ class FullscreenController(
     }
 
     private fun handleBottomSheetStateChange(newState: Int) {
-        if (newState == BottomSheetBehavior.STATE_COLLAPSED && !currentFullscreen) {
+        val isCollapsedInWindowedMode =
+            newState == BottomSheetBehavior.STATE_COLLAPSED && !currentState.isFullscreen
+        val isSheetRevealedWhileFullscreen =
+            (newState == BottomSheetBehavior.STATE_EXPANDED ||
+                newState == BottomSheetBehavior.STATE_HALF_EXPANDED) &&
+                currentState.isFullscreen &&
+                !isTransitioning
+
+        if (isCollapsedInWindowedMode) {
             bottomSheetBehavior.isHideable = false
         }
 
-        if (newState == BottomSheetBehavior.STATE_EXPANDED ||
-            newState == BottomSheetBehavior.STATE_HALF_EXPANDED
-        ) {
-            if (currentFullscreen && !isTransitioning) {
-                onFullscreenToggleRequested()
-            }
+        if (isSheetRevealedWhileFullscreen) {
+            onFullscreenToggleRequested()
         }
+    }
+
+    private fun syncTransitionState(command: FullscreenRenderCommand) {
+        fullscreenToggle.removeCallbacks(clearTransitioningRunnable)
+
+        if (!command.animate) {
+            isTransitioning = false
+            transitionToken++
+            return
+        }
+
+        isTransitioning = true
+        pendingTransitionToken = ++transitionToken
+        fullscreenToggle.postDelayed(clearTransitioningRunnable, transitionDurationMs)
     }
 
     private fun applyFullscreen(animate: Boolean) {
@@ -145,8 +238,8 @@ class FullscreenController(
         }
     }
 
-    private fun syncToggleUi(isFullscreen: Boolean) {
-        if (isFullscreen) {
+    private fun syncToggleUi(state: FullscreenUiState) {
+        if (state.isFullscreen) {
             fullscreenToggle.setImageResource(R.drawable.ic_fullscreen_exit)
             fullscreenToggle.contentDescription =
                 contentBinding.root.context.getString(R.string.desc_exit_fullscreen)
@@ -158,6 +251,8 @@ class FullscreenController(
     }
 
     private val clearTransitioningRunnable = Runnable {
-        isTransitioning = false
+        if (pendingTransitionToken == transitionToken) {
+            isTransitioning = false
+        }
     }
 }
