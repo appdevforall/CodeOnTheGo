@@ -3,15 +3,19 @@ package com.itsaky.androidide.fragments.sidebar
 import android.app.Activity
 import android.view.DragEvent
 import android.view.View
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.dnd.DragEventRouter
 import com.itsaky.androidide.dnd.DropTargetCallback
 import com.itsaky.androidide.dnd.hasImportableContent
-import com.itsaky.androidide.tasks.executeAsyncProvideError
 import com.itsaky.androidide.utils.DropHighlighter
 import com.itsaky.androidide.utils.FileImporter
 import com.unnamed.b.atv.model.TreeNode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 
@@ -58,13 +62,27 @@ internal class FileTreeDropController(
     val clipData = event.clipData ?: return false
     val dragPermissions = activity.requestDragAndDropPermissions(event)
 
-    executeAsyncProvideError({
-      try {
-        FileImporter(context).copyDroppedFiles(clipData, target.file)
-      } finally {
-        dragPermissions?.release()
+    val lifecycleOwner = activity as? LifecycleOwner
+    if (lifecycleOwner == null) {
+      dragPermissions?.release()
+      return false
+    }
+
+    lifecycleOwner.lifecycleScope.launch {
+      val result = runCatching {
+        withContext(Dispatchers.IO) {
+          FileImporter(context).copyDroppedFiles(clipData, target.file)
+        }
       }
-    }) { result, error -> handleImportResult(target, result, error) }
+
+      dragPermissions?.release()
+
+      handleImportResult(
+        target = target,
+        result = result.getOrNull(),
+        error = result.exceptionOrNull()
+      )
+    }
 
     return true
   }

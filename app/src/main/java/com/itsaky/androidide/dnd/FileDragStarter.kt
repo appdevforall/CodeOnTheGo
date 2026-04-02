@@ -12,14 +12,14 @@ import java.util.Locale
 
 sealed interface FileDragResult {
     data object Started : FileDragResult
-    data class NotStarted(val reason: FileDragFailureReason) : FileDragResult
-    data class Failed(val throwable: Throwable? = null) : FileDragResult
+    data class Failed(val error: FileDragError) : FileDragResult
 }
 
-enum class FileDragFailureReason {
-    FILE_NOT_FOUND,
-    NOT_A_FILE,
-    DRAG_NOT_STARTED,
+sealed interface FileDragError {
+    data object FileNotFound : FileDragError
+    data object NotAFile : FileDragError
+    data object SystemRejected : FileDragError
+    data class Exception(val throwable: Throwable) : FileDragError
 }
 
 class FileDragStarter(
@@ -28,11 +28,11 @@ class FileDragStarter(
 
     fun startDrag(sourceView: View, file: File): FileDragResult {
         if (!file.exists()) {
-            return FileDragResult.NotStarted(FileDragFailureReason.FILE_NOT_FOUND)
+            return FileDragResult.Failed(FileDragError.FileNotFound)
         }
 
         if (!file.isFile) {
-            return FileDragResult.NotStarted(FileDragFailureReason.NOT_A_FILE)
+            return FileDragResult.Failed(FileDragError.NotAFile)
         }
 
         return runCatching {
@@ -49,8 +49,13 @@ class FileDragStarter(
                 DRAG_FLAGS,
             )
         }.fold(
-            onSuccess = ::toDragResult,
-            onFailure = ::toFailureResult,
+            onSuccess = { started ->
+                if (started) FileDragResult.Started
+                else FileDragResult.Failed(FileDragError.SystemRejected)
+            },
+            onFailure = { throwable ->
+                FileDragResult.Failed(FileDragError.Exception(throwable))
+            },
         )
     }
 
@@ -75,18 +80,6 @@ class FileDragStarter(
             arrayOf(mimeType),
             ClipData.Item(contentUri),
         )
-    }
-
-    private fun toDragResult(started: Boolean): FileDragResult {
-        if (started) {
-            return FileDragResult.Started
-        }
-
-        return FileDragResult.NotStarted(FileDragFailureReason.DRAG_NOT_STARTED)
-    }
-
-    private fun toFailureResult(throwable: Throwable): FileDragResult {
-        return FileDragResult.Failed(throwable)
     }
 
     private val fileProviderAuthority: String

@@ -32,7 +32,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.databinding.LayoutEditorFileTreeBinding
-import com.itsaky.androidide.dnd.FileDragFailureReason
+import com.itsaky.androidide.dnd.FileDragError
 import com.itsaky.androidide.dnd.FileDragResult
 import com.itsaky.androidide.dnd.FileDragStarter
 import com.itsaky.androidide.eventbus.events.filetree.FileClickEvent
@@ -226,16 +226,15 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
     when (val result = fileDragStarter.startDrag(sourceView, file)) {
       FileDragResult.Started -> Unit
 
-      is FileDragResult.NotStarted -> {
-        val message = when (result.reason) {
-          FileDragFailureReason.FILE_NOT_FOUND -> getString(R.string.msg_file_tree_drag_file_not_found)
-          FileDragFailureReason.NOT_A_FILE -> getString(R.string.msg_file_tree_drag_not_a_file)
-          FileDragFailureReason.DRAG_NOT_STARTED -> getString(R.string.msg_file_tree_drag_failed)
+      is FileDragResult.Failed -> {
+        val message = when (result.error) {
+          FileDragError.FileNotFound -> getString(R.string.msg_file_tree_drag_file_not_found)
+          FileDragError.NotAFile -> getString(R.string.msg_file_tree_drag_not_a_file)
+          FileDragError.SystemRejected -> getString(R.string.msg_file_tree_drag_failed)
+          is FileDragError.Exception -> getString(R.string.msg_file_tree_drag_error)
         }
         flashError(message)
       }
-
-      is FileDragResult.Failed -> flashError(getString(R.string.msg_file_tree_drag_error))
     }
   }
 

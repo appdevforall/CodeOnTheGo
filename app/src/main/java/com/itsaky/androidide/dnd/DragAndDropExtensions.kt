@@ -2,6 +2,7 @@ package com.itsaky.androidide.dnd
 
 import android.content.ClipData
 import android.content.ClipDescription
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.view.DragEvent
@@ -42,8 +43,8 @@ private fun ClipData.Item.toExternalUris(): List<Uri> {
 
     return textContent.lineSequence()
         .map { it.trim() }
-        .filter { it.startsWith("content://") || it.startsWith("file://") }
         .map { it.toUri() }
+        .filter { it.scheme == ContentResolver.SCHEME_CONTENT || it.scheme == ContentResolver.SCHEME_FILE }
         .toList()
 }
 
