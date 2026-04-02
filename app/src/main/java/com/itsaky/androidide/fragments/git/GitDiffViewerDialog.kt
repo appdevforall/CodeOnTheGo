@@ -12,7 +12,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat.getColor
 import androidx.fragment.app.DialogFragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitDiffBinding
@@ -20,11 +19,12 @@ import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.io.File
 
 class GitDiffViewerDialog : DialogFragment() {
 
-    private val viewModel: GitBottomSheetViewModel by activityViewModels()
+    private val viewModel: GitBottomSheetViewModel by activityViewModel()
 
     private var filePath: String = ""
 
