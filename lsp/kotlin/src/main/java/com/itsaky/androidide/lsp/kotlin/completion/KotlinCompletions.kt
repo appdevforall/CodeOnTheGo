@@ -13,6 +13,7 @@ import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.analyzeCopy
+import org.jetbrains.kotlin.analysis.api.components.KaScopeContext
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileResolutionMode
 import org.jetbrains.kotlin.analysis.api.renderer.types.KaTypeRenderer
 import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
@@ -122,8 +123,9 @@ fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult 
 			when (completionContext) {
 				CompletionContext.Scope ->
 					collectScopeCompletions(
-						ktElement = ktElement,
+						scopeContext = scopeContext,
 						scope = compositeScope,
+						ktElement = ktElement,
 						partial = partial,
 						to = items
 					)
@@ -238,12 +240,12 @@ private fun KaSession.collectExtensionFunctions(
 }
 
 private fun KaSession.collectScopeCompletions(
-	ktElement: KtElement,
+	scopeContext: KaScopeContext,
 	scope: KaScope,
+	ktElement: KtElement,
 	partial: String,
 	to: MutableList<CompletionItem>,
 ) {
-
 	logger.info(
 		"Complete scope members of {}: [{}] matching '{}'",
 		ktElement,
@@ -251,14 +253,23 @@ private fun KaSession.collectScopeCompletions(
 		partial
 	)
 
-	to += toCompletionItems(
-		scope.callables { name -> matchesPrefix(name, partial) },
-		partial
-	)
-	to += toCompletionItems(
-		scope.classifiers { name -> matchesPrefix(name, partial) },
-		partial
-	)
+	val callables =
+		scope.callables { name -> matchesPrefix(name, partial) }
+			.filter { symbol ->
+
+				// always include non-extension functions
+				if (!symbol.isExtension) return@filter true
+
+				// include extension functions with matching implicit receivers
+				val extReceiverType = symbol.receiverType ?: return@filter true
+				scopeContext.implicitReceivers.any { receiver ->
+					receiver.type.isSubtypeOf(extReceiverType)
+				}
+			}
+	val classifiers = scope.classifiers { name -> matchesPrefix(name, partial) }
+
+	to += toCompletionItems(callables, partial)
+	to += toCompletionItems(classifiers, partial)
 }
 
 @JvmName("callablesToCompletionItems")
