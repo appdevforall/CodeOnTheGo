@@ -25,6 +25,8 @@ import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.projects.builder.LaunchResult
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
+import com.itsaky.androidide.testing.InstrumentationStateProbe
+import com.itsaky.androidide.testing.ProbeBuildState
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.tooling.events.configuration.ProjectConfigurationStartEvent
@@ -77,6 +79,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   override fun prepareBuild(buildInfo: BuildInfo) {
     checkActivity("prepareBuild") ?: return
 
+    InstrumentationStateProbe.buildState = ProbeBuildState.IN_PROGRESS
     pluginBuildService?.setBuildInProgress(true)
 
     val isFirstBuild = GeneralPreferences.isFirstBuild
@@ -101,6 +104,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   override fun onBuildSuccessful(tasks: List<String?>) {
     val act = checkActivity("onBuildSuccessful") ?: return
 
+    InstrumentationStateProbe.buildState = ProbeBuildState.SUCCESS
     pluginBuildService?.notifyBuildFinished()
 
     analyzeCurrentFile()
@@ -139,6 +143,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   override fun onBuildFailed(tasks: List<String?>) {
     val act = checkActivity("onBuildFailed") ?: return
 
+    InstrumentationStateProbe.buildState = ProbeBuildState.FAILED
     analyzeCurrentFile()
     GeneralPreferences.isFirstBuild = false
     act.editorViewModel.isBuildInProgress = false

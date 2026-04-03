@@ -126,6 +126,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.getOrStoreInitialPadding
 import com.itsaky.androidide.utils.isAtLeastR
+import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.AppLogsCoordinator
@@ -1030,6 +1031,9 @@ abstract class BaseEditorActivity :
 	}
 
 	open fun showFirstBuildNotice() {
+		if (isTestMode()) {
+			return
+		}
 		newMaterialDialogBuilder(this)
 			.setPositiveButton(android.R.string.ok, null)
 			.setTitle(string.title_first_build)

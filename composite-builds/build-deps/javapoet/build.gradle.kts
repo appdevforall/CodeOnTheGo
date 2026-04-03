@@ -15,8 +15,22 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import org.gradle.api.JavaVersion
+import org.gradle.api.tasks.compile.JavaCompile
+
 plugins {
   kotlin("jvm")
+}
+
+// Kapt (Java 17) consumes this JAR; without an explicit release, the host JDK
+// (e.g. 21 → class file 65) breaks annotation processing with "wrong version".
+java {
+  sourceCompatibility = JavaVersion.VERSION_17
+  targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType<JavaCompile>().configureEach {
+  options.release.set(17)
 }
 
 dependencies {

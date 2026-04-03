@@ -7,7 +7,6 @@ import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.After
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,17 +24,16 @@ class WelcomeScreenTest : TestCase() {
 
 
     @Test
-    fun test_welcomeScreen_itemsAppearCorrectly() {
-        // The SplashActivity immediately starts OnboardingActivity and finishes itself
-        // This might cause a race condition, so we need to wait for OnboardingActivity to be fully shown
-        Thread.sleep(1000) // Wait for activity transitions to complete
-
-        OnboardingScreen {
-            greetingTitle.isVisible()
-            greetingSubtitle.isVisible()
-            nextButton {
-                isVisible()
-                isClickable()
+    fun test_welcomeScreen_itemsAppearCorrectly() = run {
+        flakySafely(timeoutMs = 30_000) {
+            OnboardingScreen {
+                greetingTitle.isVisible()
+                greetingSubtitle.isVisible()
+                nextButton {
+                    isVisible()
+                    isClickable()
+                    click()
+                }
             }
         }
     }

@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.build.config
 
-import org.gradle.api.GradleException
 import java.io.BufferedInputStream
 import java.net.URI
 import javax.xml.parsers.DocumentBuilderFactory
@@ -74,10 +73,10 @@ object VersionUtils {
 				return@use latestVersion
 			}
 		} catch (err: Throwable) {
-			if (CI.isCiBuild) {
-				throw GradleException("Failed to download: $moduleMetadata", err)
-			}
+			// Sonatype or DNS can be unavailable; `latest.integration` still resolves from
+			// declared repositories. Do not fail the build (CI included) on metadata fetch alone.
 			println("Failed to download $moduleMetadata: ${err.message}")
+			cachedVersion = LATEST_INTEGRATION
 			return LATEST_INTEGRATION
 		}
 	}

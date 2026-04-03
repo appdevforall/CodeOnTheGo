@@ -105,9 +105,11 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     fun TestContext<Unit>.clickCreateProjectProjectSettings() {
         step("Click create project on the Settings Page") {
-            createProjectButton {
-                isVisible()
-                click()
+            flakySafely(timeoutMs = 3000L) {
+                createProjectButton {
+                    isVisible()
+                    click()
+                }
             }
         }
     }
