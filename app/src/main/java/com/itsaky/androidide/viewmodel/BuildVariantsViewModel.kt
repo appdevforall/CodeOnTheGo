@@ -28,25 +28,25 @@ import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
  */
 class BuildVariantsViewModel : ViewModel() {
 
-  internal val _buildVariants = MutableLiveData<Map<String, BuildVariantInfo>>(null)
-  internal val _updatedBuildVariants = MutableLiveData<MutableMap<String, BuildVariantInfo>>(null)
+	internal val _buildVariants = MutableLiveData<Map<String, BuildVariantInfo>>(null)
+	internal val _updatedBuildVariants = MutableLiveData<MutableMap<String, BuildVariantInfo>>(null)
 
-  var buildVariants: Map<String, BuildVariantInfo>
-    get() = this._buildVariants.value ?: emptyMap()
-    set(value) {
-      this._buildVariants.value = value
-    }
+	var buildVariants: Map<String, BuildVariantInfo>
+		get() = this._buildVariants.value ?: emptyMap()
+		set(value) {
+			this._buildVariants.value = value
+		}
 
-  var updatedBuildVariants: MutableMap<String, BuildVariantInfo>
-    get() = this._updatedBuildVariants.value ?: mutableMapOf()
-    set(value) {
-      this._updatedBuildVariants.value = value
-    }
+	var updatedBuildVariants: MutableMap<String, BuildVariantInfo>
+		get() = this._updatedBuildVariants.value ?: mutableMapOf()
+		set(value) {
+			this._updatedBuildVariants.value = value
+		}
 
-  /**
-   * Resets the updated selections.
-   */
-  internal fun resetUpdatedSelections() {
-    updatedBuildVariants = updatedBuildVariants.also { it.clear() }
-  }
+	/**
+	 * Resets the updated selections.
+	 */
+	internal fun resetUpdatedSelections() {
+		updatedBuildVariants = updatedBuildVariants.also { it.clear() }
+	}
 }

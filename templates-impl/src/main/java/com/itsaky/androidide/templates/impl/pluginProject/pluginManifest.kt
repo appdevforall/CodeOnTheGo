@@ -25,7 +25,7 @@ fun pluginAndroidManifest(data: PluginTemplateData): String {
 
         <meta-data
             android:name="plugin.version"
-            android:value="${data.version}" />
+            android:value="${'$'}{pluginVersion}" />
 
         <meta-data
             android:name="plugin.description"

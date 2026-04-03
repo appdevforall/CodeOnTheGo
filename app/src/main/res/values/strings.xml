@@ -19,10 +19,4 @@
     <!--  Required by F-Droid-->
     <string name="app_name" translatable="false">Code on the Go</string>
     <string name="pref_use_simple_local_prompt">Use simplified prompt</string>
-    <string name="desc_file_added">File added</string>
-    <string name="desc_file_modified">File modified</string>
-    <string name="desc_file_deleted">File deleted</string>
-    <string name="desc_file_untracked">File untracked</string>
-    <string name="desc_file_renamed">File renamed</string>
-    <string name="desc_file_conflicted">File conflicted</string>
 </resources>
