@@ -80,45 +80,37 @@ fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult 
 		append(originalText, completionOffset, originalText.length)
 	}
 
-	val completionKtFile = managedFile.createInMemoryFileWithContent(parser, textWithPlaceholder)
-	val elementAtOffset = completionKtFile.findElementAt(completionOffset)
-
-	if (elementAtOffset == null) {
-		logger.error("Unable to locate element at position {}", requestPosition)
-		return CompletionResult.EMPTY
-	}
+	val completionKtFile =
+		managedFile.createInMemoryFileWithContent(
+			psiFactory = parser,
+			content = textWithPlaceholder
+		)
 
 	return try {
 		analyzeCopy(
 			useSiteElement = completionKtFile,
 			resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
 		) {
-			val completionContext = determineCompletionContext(elementAtOffset)
+			val cursorContext = resolveCursorContext(completionKtFile, completionOffset)
+			if (cursorContext == null) {
+				logger.error(
+					"Unable to determine context at offset {} in file {}",
+					completionOffset,
+					params.file
+				)
+				return@analyzeCopy CompletionResult.EMPTY
+			}
 
-			// Find the nearest KtElement parent for scope resolution
-			val ktElement = elementAtOffset.getParentOfType<KtElement>(strict = false)
-			val scopeContext = ktElement?.let { element -> completionKtFile.scopeContext(element) }
-			val compositeScope = scopeContext?.compositeScope()
+			val (
+				psiElement,
+				_,
+				ktElement,
+				scopeContext,
+				compositeScope,
+				completionContext
+			) = cursorContext
+
 			val items = mutableListOf<CompletionItem>()
-
-			if (ktElement == null) {
-				logger.error(
-					"Cannot find parent of element {} with partial {}",
-					elementAtOffset,
-					partial
-				)
-
-				return@analyzeCopy CompletionResult.EMPTY
-			}
-
-			if (compositeScope == null) {
-				logger.error(
-					"Unable to get CompositeScope for element {} with partial {}",
-					compositeScope,
-					partial
-				)
-				return@analyzeCopy CompletionResult.EMPTY
-			}
 
 			when (completionContext) {
 				CompletionContext.Scope ->
@@ -133,11 +125,17 @@ fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult 
 				CompletionContext.Member ->
 					collectMemberCompletions(
 						scope = compositeScope,
-						element = elementAtOffset,
+						element = psiElement,
 						partial = partial,
 						to = items
 					)
 			}
+
+			collectKeywordCompletions(
+				ctx = cursorContext,
+				partial = partial,
+				to = items
+			)
 
 			CompletionResult(items)
 		}
@@ -272,6 +270,29 @@ private fun KaSession.collectScopeCompletions(
 	to += toCompletionItems(classifiers, partial)
 }
 
+private fun KaSession.collectKeywordCompletions(
+	ctx: CursorContext,
+	partial: String,
+	to: MutableList<CompletionItem>,
+) {
+	fun kwItem(name: String) =
+		ktCompletionItem(
+			name = name,
+			kind = CompletionItemKind.KEYWORD,
+			partial = partial
+		)
+
+	if (!ctx.isInsideModifierList) {
+		ContextKeywords.keywordsFor(ctx.declarationContext).mapTo(to) { kw ->
+			kwItem(kw.value)
+		}
+	}
+
+	ModifierFilter.validModifiers(ctx).mapTo(to) { kw ->
+		kwItem(kw.value)
+	}
+}
+
 @JvmName("callablesToCompletionItems")
 private fun KaSession.toCompletionItems(
 	callables: Sequence<KaCallableSymbol>,
@@ -289,30 +310,6 @@ private fun KaSession.toCompletionItems(
 	classifiers.mapNotNull {
 		classifierSymbolToCompletionItem(it, partial)
 	}
-
-private fun determineCompletionContext(element: PsiElement): CompletionContext {
-	// Walk up to find a qualified expression where we're the selector
-	val dotExpr = element.getParentOfType<KtDotQualifiedExpression>(strict = false)
-	if (dotExpr != null && isInSelectorPosition(element, dotExpr)) {
-		return CompletionContext.Member
-	}
-
-	val safeExpr = element.getParentOfType<KtSafeQualifiedExpression>(strict = false)
-	if (safeExpr != null && isInSelectorPosition(element, safeExpr)) {
-		return CompletionContext.Member
-	}
-
-	return CompletionContext.Scope
-}
-
-private fun isInSelectorPosition(
-	element: PsiElement,
-	qualifiedExpr: KtQualifiedExpression,
-): Boolean {
-	val selector = qualifiedExpr.selectorExpression ?: return false
-	val elementOffset = element.startOffset
-	return elementOffset >= selector.startOffset
-}
 
 @OptIn(KaExperimentalApi::class)
 private fun KaSession.callableSymbolToCompletionItem(
@@ -379,12 +376,22 @@ private fun KaSession.createSymbolCompletionItem(
 	symbol: KaSymbol,
 	partial: String
 ): CompletionItem? {
-	val name = symbol.name?.asString() ?: return null
+	return ktCompletionItem(
+		name = symbol.name?.asString() ?: return null,
+		kind = kindOf(symbol),
+		partial = partial,
+	)
+}
 
+private fun KaSession.ktCompletionItem(
+	name: String,
+	kind: CompletionItemKind,
+	partial: String,
+): CompletionItem {
 	val item = KotlinCompletionItem()
 	item.ideLabel = name
-	item.completionKind = kindOf(symbol)
-	item.matchLevel = CompletionItem.matchLevel(name, partial)
+	item.completionKind = kind
+	item.matchLevel = CompletionItem.matchLevel(item.ideLabel, partial)
 
 	return item
 }
