@@ -19,6 +19,7 @@ import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.git.core.models.CloneRepoUiState
 import com.itsaky.androidide.R
+import com.itsaky.androidide.dnd.handleGitUrlDrop
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.forEachViewRecursively
@@ -44,7 +45,12 @@ class CloneRepositoryFragment : BaseFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         setupUI()
+        observePendingCloneUrl()
         observeViewModel()
+        handleGitUrlDrop { url ->
+            binding?.repoUrl?.setText(url)
+            viewModel.onInputChanged(url, binding?.localPath?.text?.toString().orEmpty())
+        }
     }
 
     private fun setupUI() {
@@ -195,6 +201,20 @@ class CloneRepositoryFragment : BaseFragment() {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observePendingCloneUrl() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                mainViewModel.cloneRepositoryEvent.collect { url ->
+                    val trimmedUrl = url.trim()
+                    if (trimmedUrl.isNotBlank()) {
+                        binding?.repoUrl?.setText(trimmedUrl)
+                        viewModel.onInputChanged(trimmedUrl, binding?.localPath?.text?.toString().orEmpty())
                     }
                 }
             }

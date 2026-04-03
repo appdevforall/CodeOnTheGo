@@ -9,21 +9,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand.ListMode
-import org.eclipse.jgit.api.errors.NoHeadException
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.dircache.DirCacheIterator
 import org.eclipse.jgit.lib.BranchConfig
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.PersonIdent
+import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
+import org.eclipse.jgit.transport.CredentialsProvider
+import org.eclipse.jgit.transport.PushResult
+import org.eclipse.jgit.api.PullResult
 import org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.eclipse.jgit.treewalk.EmptyTreeIterator
 import org.eclipse.jgit.treewalk.FileTreeIterator
 import org.eclipse.jgit.treewalk.filter.PathFilter
+import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -31,6 +35,8 @@ import java.io.File
  * JGit-based implementation of the [GitRepository] interface.
  */
 class JGitRepository(override val rootDir: File) : GitRepository {
+
+    private val log = LoggerFactory.getLogger(JGitRepository::class.java)
 
     private val repository: Repository = FileRepositoryBuilder()
         .setWorkTree(rootDir)
@@ -121,7 +127,8 @@ class JGitRepository(override val rootDir: File) : GitRepository {
                     commit.toGitCommit(isPushed)
                 }
             }
-        } catch (_: NoHeadException) {
+        } catch (e: Exception) {
+            log.error("Error fetching commit history", e)
             emptyList()
         }
     }
@@ -198,6 +205,71 @@ class JGitRepository(override val rootDir: File) : GitRepository {
             parentHashes = parents.map { it.name },
             hasBeenPushed = hasBeenPushed
         )
+    }
+    
+    override suspend fun push(
+        remote: String,
+        credentialsProvider: CredentialsProvider?,
+        progressMonitor: ProgressMonitor?
+    ): Iterable<PushResult> = withContext(Dispatchers.IO) {
+        val pushCommand = git.push().setRemote(remote)
+        
+        if (credentialsProvider != null) {
+            pushCommand.setCredentialsProvider(credentialsProvider)
+        }
+        
+        if (progressMonitor != null) {
+            pushCommand.setProgressMonitor(progressMonitor)
+        }
+
+        pushCommand.call()
+    }
+
+    override suspend fun getLocalCommitsCount(): Int = withContext(Dispatchers.IO) {
+        try {
+            val branchName = repository.branch ?: return@withContext 0
+            val branch = repository.resolve(Constants.HEAD) ?: return@withContext 0
+            val config = BranchConfig(repository.config, branchName)
+            val trackingBranch = config.trackingBranch
+            val remoteBranch = trackingBranch?.let { repository.resolve(it) }
+
+            RevWalk(repository).use { walk ->
+                val localCommit = walk.parseCommit(branch)
+                walk.markStart(localCommit)
+                
+                if (remoteBranch != null) {
+                    val remoteCommit = walk.parseCommit(remoteBranch)
+                    walk.markUninteresting(remoteCommit)
+                }
+
+                var count = 0
+                walk.forEach { _ ->
+                    count++
+                }
+                count
+            }
+        } catch (e: Exception) {
+            log.error("Error fetching local commits", e)
+            0
+        }
+    }
+
+    override suspend fun pull(
+        remote: String,
+        credentialsProvider: CredentialsProvider?,
+        progressMonitor: ProgressMonitor?
+    ): PullResult = withContext(Dispatchers.IO) {
+        val pullCommand = git.pull().setRemote(remote)
+        
+        if (credentialsProvider != null) {
+            pullCommand.setCredentialsProvider(credentialsProvider)
+        }
+        
+        if (progressMonitor != null) {
+            pullCommand.setProgressMonitor(progressMonitor)
+        }
+
+        pullCommand.call()
     }
     
     override fun close() {
