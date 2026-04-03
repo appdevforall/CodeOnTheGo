@@ -41,18 +41,37 @@ data class PluginManifest(
     val extensions: List<ExtensionInfo> = emptyList(),
 
     @SerializedName("sidebar_items")
-    val sidebarItems: Int = 0
+    val sidebarItems: Int = 0,
+
+    @SerializedName("build_actions")
+    val buildActions: List<ManifestBuildAction> = emptyList()
 )
 
 data class ExtensionInfo(
     @SerializedName("type")
     val type: String,
-    
+
     @SerializedName("class")
     val className: String,
-    
+
     @SerializedName("priority")
     val priority: Int = 0
+)
+
+data class ManifestBuildAction(
+    val id: String,
+    val name: String,
+    val description: String = "",
+    val category: String = "CUSTOM",
+    val command: String? = null,
+    val arguments: List<String> = emptyList(),
+    @SerializedName("gradle_task")
+    val gradleTask: String? = null,
+    @SerializedName("working_directory")
+    val workingDirectory: String? = null,
+    val environment: Map<String, String> = emptyMap(),
+    @SerializedName("timeout_ms")
+    val timeoutMs: Long = 600_000
 )
 
 object PluginManifestParser {

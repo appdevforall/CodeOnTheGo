@@ -43,6 +43,10 @@ import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeFeatureFlagService
 import com.itsaky.androidide.plugins.manager.services.IdeFeatureFlagServiceImpl
+import com.itsaky.androidide.plugins.services.IdeCommandService
+import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
+import com.itsaky.androidide.plugins.extensions.BuildActionExtension
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.SidebarSlotExceededException
 import kotlinx.coroutines.CoroutineScope
@@ -424,6 +428,13 @@ class PluginManager private constructor(
                                 }
                             }
                         }
+
+                        val buildActionManager = PluginBuildActionManager.getInstance()
+                        if (plugin is BuildActionExtension) {
+                            buildActionManager.registerPlugin(manifest.id, manifest.name, plugin)
+                            logger.info("Registered build actions for plugin: ${manifest.id}")
+                        }
+                        buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
                     } catch (e: Exception) {
                         logger.error("Failed to activate  plugin: ${manifest.id}", e)
                         loadedPlugin.isEnabled = false
@@ -471,6 +482,12 @@ class PluginManager private constructor(
             }
 
             PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+
+            PluginBuildActionManager.getInstance().cleanupPlugin(pluginId)
+            val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
+            if (commandService is IdeCommandServiceImpl) {
+                commandService.cancelAllCommands()
+            }
 
             val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
             if (templateService is IdeTemplateServiceImpl) {
@@ -599,7 +616,11 @@ class PluginManager private constructor(
             .filter { it.isEnabled }
             .map { it.plugin }
     }
-    
+
+    fun getLoadedPlugin(pluginId: String): LoadedPlugin? {
+        return loadedPlugins[pluginId]?.takeIf { it.isEnabled }
+    }
+
     /**
      * Get all enabled plugins that implement UI extensions
      */
@@ -942,6 +963,20 @@ class PluginManager private constructor(
             )
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeCommandService::class.java,
+            pluginId,
+            "command"
+        ) {
+            IdeCommandServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+                appFilesDir = context.filesDir
+            )
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -1084,6 +1119,20 @@ class PluginManager private constructor(
                 pluginId = pluginId,
                 permissions = permissions,
                 onTemplatesChanged = { templateReloadListener?.invoke() }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeCommandService::class.java,
+            pluginId,
+            "command"
+        ) {
+            IdeCommandServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+                appFilesDir = context.filesDir
             )
         }
 
