@@ -13,6 +13,7 @@ import com.itsaky.androidide.templates.TextFieldWidget
 import com.itsaky.androidide.templates.Widget
 import com.itsaky.androidide.templates.base.baseZipProject
 import com.itsaky.androidide.templates.booleanParameter
+import com.itsaky.androidide.templates.projectNameParameter
 import com.itsaky.androidide.templates.stringParameter
 import com.itsaky.androidide.utils.FeatureFlags
 import org.slf4j.LoggerFactory
@@ -86,6 +87,9 @@ object ZipTemplateReader {
                         }
 
                         val project = baseZipProject(
+                            projectName = projectNameParameter {
+                                metaJson.defaultAppName?.let { default = it }
+                            },
                             showLanguage = (metaJson.parameters?.optional?.language != null),
                             showMinSdk = (metaJson.parameters?.optional?.minsdk != null),
                             showPackageName = (metaJson.parameters?.required?.packageName != null),
