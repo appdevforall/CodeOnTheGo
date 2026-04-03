@@ -44,6 +44,7 @@ abstract class EditorActivityAction : ActionItem {
     super.prepare(data)
     if (!data.hasRequiredData(Context::class.java)) {
       markInvisible()
+      return
     }
   }
 

@@ -57,9 +57,12 @@ import com.itsaky.androidide.actions.filetree.RenameAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
+import com.itsaky.androidide.actions.build.PluginBuildActionItem
 import com.itsaky.androidide.actions.etc.GenerateXMLAction
 import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+
 
 /**
  * Takes care of registering actions to the actions registry for the editor activity.
@@ -104,6 +107,7 @@ class EditorActivityActions {
 
             // Plugin contributions
             order = registerPluginActions(context, registry, order)
+            order = registerPluginBuildActions(context, registry, order)
 
             // editor text actions
             registry.registerAction(ExpandSelectionAction(context, order++))
@@ -157,7 +161,8 @@ class EditorActivityActions {
             registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
                 action.id == QuickRunAction.ID ||
                         action.id == RunTasksAction.ID ||
-                        action.id == ProjectSyncAction.ID
+                        action.id == ProjectSyncAction.ID ||
+                        action.id.startsWith("plugin.build.")
       }
     }
 
@@ -184,14 +189,30 @@ class EditorActivityActions {
                         val action = PluginActionItem(context, menuItem, order++)
                         registry.registerAction(action)
                     }
-                } catch (e: Exception) {
-                    // Continue with other plugins if one fails
-                    System.err.println("")
-                    Log.d("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName} - ${e.message}")
+                } catch (_: Exception) {
                 }
             }
 
         return order
     }
+
+    @JvmStatic
+    private fun registerPluginBuildActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
+        var order = startOrder
+
+        val buildActions = PluginBuildActionManager.getInstance().getAllBuildActions()
+        for (registered in buildActions) {
+            try {
+                val action = PluginBuildActionItem(context, registered, order++)
+                registry.registerAction(action)
+                Log.d("plugin_debug", "Registered build action: ${registered.action.id} from plugin: ${registered.pluginId}")
+            } catch (e: Exception) {
+                Log.d("plugin_debug", "Failed to register build action: ${registered.action.id} - ${e.message}")
+            }
+        }
+
+        return order
+    }
+
   }
 }
