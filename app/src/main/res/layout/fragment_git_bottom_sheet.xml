@@ -7,6 +7,44 @@
     android:padding="16dp">
 
     <TextView
+        android:id="@+id/tv_branch_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textAppearance="?attr/textAppearanceSubtitle1"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintEnd_toStartOf="@id/btnPull"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPull"
+        style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/pull"
+        android:visibility="gone"
+        app:icon="@drawable/ic_sync"
+        app:layout_constraintBottom_toBottomOf="@id/tv_branch_name"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/tv_branch_name" />
+
+    <com.google.android.material.progressindicator.CircularProgressIndicator
+        android:id="@+id/pullProgress"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:indeterminate="true"
+        android:visibility="gone"
+        app:indicatorSize="24dp"
+        app:layout_constraintBottom_toBottomOf="@id/btnPull"
+        app:layout_constraintEnd_toEndOf="@id/btnPull"
+        app:layout_constraintStart_toStartOf="@id/btnPull"
+        app:layout_constraintTop_toTopOf="@id/btnPull" />
+
+    <TextView
         android:id="@+id/emptyView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -17,7 +55,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/tv_branch_name" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
@@ -28,7 +66,7 @@
         app:layout_constraintBottom_toTopOf="@id/commitSummaryLayout"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/tv_branch_name" />
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/authorAvatar"

@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         app:barrierDirection="start"
         app:barrierMargin="16dp"
-        app:constraint_referenced_ids="img_not_pushed_commit" />
+        app:constraint_referenced_ids="img_commit_status" />
 
     <TextView
         android:id="@+id/tv_commit_message"
@@ -50,7 +50,7 @@
         tools:text="12 Mar 2026, 22:53" />
 
     <ImageView
-        android:id="@+id/img_not_pushed_commit"
+        android:id="@+id/img_commit_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent"
