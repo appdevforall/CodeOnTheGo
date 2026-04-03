@@ -170,6 +170,8 @@
 	<string name="project_info_gradle_v">Gradle version</string>
 	<string name="project_info_kotlin_v">Kotlin version</string>
 	<string name="project_info_java_v">Java version</string>
+	<string name="msg_file_tree_drag_failed">Failed to start dragging the file</string>
+    <string name="msg_file_tree_drag_error">Error preparing file for drag</string>
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
@@ -184,10 +186,10 @@
 	<string name="template_ndk">NDK Activity</string>
 
 	<!-- Plugin Template Wizard -->
-	<string name="wizard_plugin_name">Plugin Name</string>
-	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
+	<string name="wizard_plugin_name">Plugin name</string>
+	<string name="wizard_plugin_id">Plugin ID (package name)</string>
 	<string name="wizard_plugin_description">Plugin description</string>
-	<string name="wizard_plugin_author">Author Name</string>
+	<string name="wizard_plugin_author">Author name</string>
 	<string name="wizard_include_sample_code">Include sample code</string>
 	<string name="wizard_plugin_permissions">Permissions</string>
 	<string name="wizard_plugin_extensions">Extensions</string>
@@ -245,7 +247,7 @@
 	<string name="new_folder">New folder</string>
 	<string name="title_confirm_delete">Confirm delete</string>
 	<string name="msg_confirm_delete">Are you sure you want to delete: \n%s?</string>
-	<string name="copied">Copied successfully!</string>
+	<string name="copied">Copied successfully</string>
 	<string name="msg_rename_file">Enter a new name for the file/folder.</string>
 	<string name="renamed">Renamed successfully</string>
 	<string name="rename_failed">Unable to rename file</string>
@@ -273,6 +275,14 @@
 	<string name="lang_kotlin">Kotlin</string>
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
+	<string name="msg_file_tree_drop_import_failed">Failed to import dropped files</string>
+	<string name="msg_file_tree_drop_no_files">No external files were dropped</string>
+	<string name="msg_file_tree_drop_destination_missing">Destination folder does not exist</string>
+	<string name="msg_file_tree_drop_destination_unresolved">Cannot resolve the destination folder</string>
+	<string name="msg_file_tree_drop_default_name">Dropped file</string>
+	<string name="msg_file_tree_drop_read_failed">Unable to read dropped file: %1$s</string>
+	<string name="msg_file_tree_drop_imported_single">Imported 1 file</string>
+	<string name="msg_file_tree_drop_imported_multiple">Imported %1$d files</string>
 
 	<!-- Shortcuts -->
 	<string name="shortcut_close_current_file">Close current file</string>
@@ -407,7 +417,7 @@
 
 	<string name="build_status_idle">No builds in progress</string>
 	<string name="build_status_in_progress">Build in progress…</string>
-	<string name="build_status_failed">Build failed. See the build output panel for more details.</string>
+	<string name="build_status_failed">Build failed. See the Build Output panel for more details.</string>
 	<string name="build_status_sucess">Build successful</string>
 	<string name="msg_output_text_extraction_failed">Failed to get text from editor</string>
 	<string name="err_invalid_data_by_intent">Intent returned invalid data</string>
@@ -642,7 +652,7 @@
 	<string name="title_device">Device</string>
 	<string name="title_app_version">App version</string>
 	<string name="title_country">Country</string>
-	<string name="title_cpu_arch">CPU Arch</string>
+	<string name="title_cpu_arch">CPU arch</string>
 	<string name="title_preview_data">Preview data</string>
 	<string name="title_android_version">Android version</string>
 	<string name="btn_opt_in">Opt-in</string>
@@ -699,14 +709,14 @@
 	<string name="greeting_subtitle">No computer? No Internet? No problem.</string>
 	<string name="title_grant">Allow</string>
 	<string name="permission_title_storage">Storage</string>
-	<string name="permission_desc_storage">Allow Code on the Go to access files.</string>
+	<string name="permission_desc_storage">Allow Code on the Go to open and save files on this device.</string>
 	<string name="permission_title_install_packages">Install packages</string>
-	<string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
-	<string name="permission_title_overlay_window">Overlay window</string>
-	<string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
-	<string name="permission_overlay_restricted_settings_hint">Overlay access is still denied. On Pixel, open App info, use the top-right menu to enable restricted settings, then allow Display over other apps.</string>
+	<string name="permission_desc_install_packages">Allow Code on the Go to install the apps that you build on this device.</string>
+	<string name="permission_title_overlay_window">Floating debugger</string>
+	<string name="permission_desc_overlay_window">Allow Code on the Go to display floating debugger controls to inspect your code while it runs.</string>
+	<string name="permission_overlay_restricted_settings_hint">If you can\'t enable this permission, display App info for Code on the Go, tap the three-dot menu, and enable restricted settings.</string>
 	<string name="permission_title_notifications">Notifications</string>
-	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
+	<string name="permission_desc_notifications">Allow Code on the Go to display notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
 	<string name="permissions_info_intro">Next page: permissions</string>
@@ -781,6 +791,19 @@
 	<string name="debugger_dialog_button_set">Set</string>
 	<string name="debugger_variable_value_invalid">Invalid value for this variable</string>
 	<string name="debugger_error_immutable_variable">The value of variable \'%1$s\' cannot be updated.</string>
+	<string name="debugger_error_network_access_error">Network access error</string>
+	<string name="debugger_error_errno">Unable to listen for JDWP connections. Operation failed with error %1$d.</string>
+	<string name="debugger_error_errno_eperm">Code On the Go is not allowed to open or bind a network socket on the local network.</string>
+	<string name="debugger_error_errno_econnrefused">Network access for Code On the Go is blocked by the system. The app is not allowed to use the network or the service is unavailable.</string>
+	<string name="debugger_error_debugger_startup_failure">Unable to start Code On the Go debugger.</string>
+	<string name="debugger_not_ready">The debugger is not ready for a debug session.</string>
+	<string name="debugger_error_suggestion_network_restriction">Please ensure Code On the Go has permissions to access the local network. This can be checked by
+		going to the "App info" screen of Code On the Go in your device\'s settings, and checking if
+		network access is allowed under \"Data usage\" (exact name might differ between devices).
+
+		If network access is allowed and the issue still persists, please file a bug report with the
+		logs attached.
+	</string>
 
 	<string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
@@ -965,7 +988,7 @@
 	<string name="cd_drawer_close">Close project menu</string>
 
 	<string name="unknown_error">"An unknown error occurred."</string>
-	<string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
+	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>
 	<string name="error_build_service_not_found">Build service not found.</string>
 	<string name="error_task_execution_failed">Task execution failed.</string>
 	<string name="error_no_output_listing_file">No output listing file found in project model.</string>
@@ -980,9 +1003,9 @@
 	<string name="btn_install">Install</string>
 	<string name="btn_later">Later</string>
 	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
-	<string name="title_restart_required">Restart Required</string>
+	<string name="title_restart_required">Restart required</string>
 	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
-	<string name="btn_restart_now">Restart Now</string>
+	<string name="btn_restart_now">Restart now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
 	<string name="msg_plugin_installed">Plugin installed successfully</string>
@@ -1002,6 +1025,8 @@
 	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
+
+	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
 	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
@@ -1025,7 +1050,7 @@
 	<string name="notification_adb_pairing_succeed_title">Pairing successful</string>
 
 	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-	<string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+	<string name="notification_adb_pairing_succeed_text">Tap the Back button to return to Code on the Go.</string>
 
 	<!-- Title for the notification when wireless debugging pairing has failed. -->
 	<string name="notification_adb_pairing_failed_title">Pairing failed</string>
@@ -1234,4 +1259,17 @@
     <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>
     <string name="author_not_set">Not set</string>
     <string name="not_a_git_repo">This project is not a Git repository</string>
+    <string name="current_branch_name">Current Branch: %1$s</string>
+    <string name="push">Push</string>
+    <string name="pushing">Pushing…</string>
+    <string name="push_successful">Push successful!</string>
+    <string name="push_failed">Push failed</string>
+    <string name="pull">Pull</string>
+    <string name="pulling">Pulling…</string>
+    <string name="pull_successful">Pull successful!</string>
+    <string name="pull_failed">Pull failed</string>
+    <string name="git_credentials_title">Git Credentials</string>
+    <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
+    <string name="git_credentials_clear">Clear Credentials</string>
+    <string name="repo_authorization_error">Authentication failed. Ensure your Personal Access Token has \'repo\' permissions, or try clearing and re-entering credentials.</string>
 </resources>

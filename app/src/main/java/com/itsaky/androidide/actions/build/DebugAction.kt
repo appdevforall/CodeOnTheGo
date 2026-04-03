@@ -19,6 +19,8 @@ import com.google.android.material.textview.MaterialTextView
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
+import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.isPluginProject
@@ -44,10 +46,10 @@ class DebugAction(
 	context: Context,
 	override val order: Int,
 ) : AbstractRunAction(
-		context = context,
-		labelRes = R.string.action_start_debugger,
-		iconRes = R.drawable.ic_db_startdebugger,
-	) {
+	context = context,
+	labelRes = R.string.action_start_debugger,
+	iconRes = R.drawable.ic_db_startdebugger,
+) {
 	override val id = ID
 
 	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_DEBUG
@@ -77,6 +79,16 @@ class DebugAction(
 		val activity = data.requireActivity()
 		if (!isAtLeastR()) {
 			activity.flashError(R.string.err_debugger_requires_a11)
+			return false
+		}
+
+		val javaLsp = ILanguageServerRegistry.default
+			.getServer(JavaLanguageServer.SERVER_ID)
+		if (javaLsp?.debugAdapter?.isReady != true
+		) {
+			withContext(Dispatchers.Main.immediate) {
+				showDebuggerNotReadyMessage(activity)
+			}
 			return false
 		}
 
@@ -190,7 +202,7 @@ class DebugAction(
 		val nm = context.getSystemService(NotificationManager::class.java)
 		val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
 		return nm.areNotificationsEnabled() &&
-			(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+				(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
 	}
 
 	private fun showNotificationPermissionDialog(context: Context): AlertDialog? =
@@ -215,4 +227,14 @@ class DebugAction(
 			}.setNegativeButton(android.R.string.cancel) { dialog, _ ->
 				dialog.dismiss()
 			}.show()
+
+	private fun showDebuggerNotReadyMessage(context: Context) =
+		DialogUtils
+			.newMaterialDialogBuilder(context)
+			.setMessage(
+				context.getString(R.string.debugger_not_ready) + System.lineSeparator()
+					.repeat(2) + context.getString(R.string.debugger_error_suggestion_network_restriction)
+			)
+			.setPositiveButton(android.R.string.ok, null)
+			.show()
 }

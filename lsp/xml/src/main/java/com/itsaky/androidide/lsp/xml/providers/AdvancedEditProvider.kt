@@ -73,7 +73,7 @@ object AdvancedEditProvider {
       }
 
     val client =
-      ILanguageServerRegistry.getDefault().getServer(XMLLanguageServer.SERVER_ID)?.client ?: return
+      ILanguageServerRegistry.default.getServer(XMLLanguageServer.SERVER_ID)?.client ?: return
 
     val start = event.changeRange.start.requireIndex()
     val (endLine, endCol, end) = event.changeRange.end

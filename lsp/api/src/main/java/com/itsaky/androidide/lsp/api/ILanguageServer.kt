@@ -16,6 +16,7 @@
  */
 package com.itsaky.androidide.lsp.api
 
+import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.models.CodeFormatResult
@@ -41,7 +42,8 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 interface ILanguageServer {
-	val serverId: String?
+
+	val serverId: String
 
 	/**
 	 * Get the instance of the language client connected to this server.
@@ -78,10 +80,11 @@ interface ILanguageServer {
 	 *
 	 * @param client The debugger client.
 	 */
-	fun connectDebugClient(client: IDebugClient) = Unit
+	suspend fun connectDebugClient(client: IDebugClient): DebugClientConnectionResult =
+		debugAdapter?.connectDebugClient(client) ?: DebugClientConnectionResult.Success
 
 	/**
-	 * Apply settings to the language server. Its up to the language server how it applies these
+	 * Apply settings to the language server. It's up to the language server how it applies these
 	 * settings to the language service providers.
 	 *
 	 * @param settings The new settings to use. Pass `null` to use default settings.

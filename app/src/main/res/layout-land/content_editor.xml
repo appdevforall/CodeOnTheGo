@@ -30,7 +30,7 @@
         android:fitsSystemWindows="false"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior">
 
-        <com.itsaky.androidide.ui.TouchObservingLinearLayout
+        <LinearLayout
             android:id="@+id/editor_appbar_content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -96,7 +96,7 @@
             android:layout_height="wrap_content"
             android:paddingHorizontal="8dp"
             app:tabGravity="start" />
-        </com.itsaky.androidide.ui.TouchObservingLinearLayout>
+        </LinearLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
 

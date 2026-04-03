@@ -178,6 +178,7 @@ abstract class BaseEditorActivity :
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 	private var immersiveController: LandscapeImmersiveController? = null
+	private val topEdgeThreshold by lazy { SizeUtils.dp2px(TOP_EDGE_SWIPE_THRESHOLD_DP) }
 
 	var isDestroying = false
 		protected set
@@ -398,6 +399,7 @@ abstract class BaseEditorActivity :
 		protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
 
 		private const val OPTIONS_MENU_INVALIDATION_DELAY = 150L
+		private const val TOP_EDGE_SWIPE_THRESHOLD_DP = 60f
 
 		const val EDITOR_CONTAINER_SCALE_FACTOR = 0.87f
 		const val KEY_BOTTOM_SHEET_SHOWN = "editor_bottomSheetShown"
@@ -630,7 +632,6 @@ abstract class BaseEditorActivity :
 		immersiveController = LandscapeImmersiveController(
 			contentBinding = content,
 			bottomSheetBehavior = editorBottomSheet!!,
-			coroutineScope = lifecycleScope,
 		).also {
 			it.bind()
 			it.onConfigurationChanged(resources.configuration)
@@ -853,7 +854,6 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun onResume() {
-		immersiveController?.onResume()
 		super.onResume()
 		invalidateOptionsMenu()
 
@@ -1438,16 +1438,39 @@ abstract class BaseEditorActivity :
 						velocityX: Float,
 						velocityY: Float,
 					): Boolean {
+						if (e1 == null) return false
+
+						val diffX = e2.x - e1.x
+						val diffY = e2.y - e1.y
+
+						val isVerticalSwipe = abs(diffY) > abs(diffX)
+						val isHorizontalSwipe = abs(diffX) > abs(diffY)
+
+						val hasDownFlingDistance = diffY > flingDistanceThreshold
+						val hasRightFlingDistance = diffX > flingDistanceThreshold
+
+						val hasVerticalVelocity = abs(velocityY) > flingVelocityThreshold
+						val hasHorizontalVelocity = abs(velocityX) > flingVelocityThreshold
+
+						// Check for a swipe down (to show top bar)
+						// This is placed before the noFilesOpen check so it works while editing
+						val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+						val startedNearTopEdge = e1.y < topEdgeThreshold
+
+						if (isLandscape && startedNearTopEdge && hasDownFlingDistance && hasVerticalVelocity && isVerticalSwipe) {
+							immersiveController?.showTopBar()
+							return true
+						}
+
 						// Check if no files are open by looking at the displayedChild of the view flipper
 						val noFilesOpen = content.viewContainer.displayedChild == 1
 						if (!noFilesOpen) {
 							return false // If files are open, do nothing
 						}
 
-						val diffX = e2.x - (e1?.x ?: 0f)
-
 						// Check for a right swipe (to open left drawer) - This part is still correct
-						if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+						// Added abs(diffX) > abs(diffY) to prevent diagonal swipes from triggering this
+						if (hasRightFlingDistance && hasHorizontalVelocity && isHorizontalSwipe) {
 							// Use the correct binding for the drawer layout
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
