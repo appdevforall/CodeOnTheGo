@@ -567,6 +567,15 @@ class CodeEditorView(
 		onPinLineNumbersPrefChanged()
 	}
 
+	/**
+	 * Re-applies display-related preferences (font size, typeface, flags) after a configuration change
+	 * such as system font scale, so the editor activity can handle `fontScale` without being recreated.
+	 */
+	fun reapplyEditorDisplayPreferences() {
+		if (_binding == null) return
+		configureEditorIfNeeded()
+	}
+
 	private fun onMagnifierPrefChanged() {
 		binding.editor.getComponent(Magnifier::class.java).isEnabled =
 			EditorPreferences.useMagnifier
