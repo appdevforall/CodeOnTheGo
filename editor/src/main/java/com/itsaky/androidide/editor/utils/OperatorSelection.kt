@@ -1,0 +1,118 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.itsaky.androidide.editor.utils
+
+import io.github.rosemoe.sora.text.Content
+
+/**
+ * Java/Kotlin operators for long-press selection, ordered by length descending
+ * so longer matches are tried first (e.g. `>>>` before `>>` before `>`).
+ */
+private val OPERATORS: List<String> =
+    listOf(
+        // 3-char
+        ">>>",
+        "<<=",
+        ">>=",
+        ">>>=",
+        // 2-char
+        "==",
+        "!=",
+        "<=",
+        ">=",
+        "+=",
+        "-=",
+        "*=",
+        "/=",
+        "%=",
+        "&=",
+        "|=",
+        "^=",
+        "++",
+        "--",
+        "&&",
+        "||",
+        "<<",
+        ">>",
+        "->",
+        "?.",
+        "?:",
+        "..",
+        "!!",
+        "::",
+        // 1-char
+        "+",
+        "-",
+        "*",
+        "/",
+        "%",
+        "=",
+        "<",
+        ">",
+        "!",
+        "&",
+        "|",
+        "^",
+        "~",
+        "?",
+        ":",
+        ";",
+        ",",
+        ".",
+        "@",
+        "(",
+        ")",
+        "[",
+        "]",
+        "{",
+        "}",
+    )
+
+/**
+ * Returns the column range of the operator at the given position, if any.
+ * Columns are 0-based; endColumn is exclusive (one past the last character).
+ *
+ * @param lineContent The full line text.
+ * @param column Cursor column (0-based).
+ * @return (startColumn, endColumnExclusive) or null if no operator at this position.
+ */
+fun getOperatorRangeAt(lineContent: CharSequence, column: Int): Pair<Int, Int>? {
+    if (column < 0 || column >= lineContent.length) return null
+    val suffix = lineContent.subSequence(column, lineContent.length)
+    for (op in OPERATORS) {
+        if (op.length <= suffix.length && suffix.subSequence(0, op.length) == op) {
+            return column to (column + op.length)
+        }
+    }
+    return null
+}
+
+/**
+ * Returns the column range of the operator at (line, column) in [content], if any.
+ * Columns are 0-based; endColumn is exclusive.
+ */
+fun Content.getOperatorRangeAt(line: Int, column: Int): Pair<Int, Int>? {
+    if (line < 0 || line >= lineCount) return null
+    val lineContent = getLine(line)
+    val maxColumn = lineContent.length
+    if (column < 0 || column > maxColumn) return null
+    val range = getOperatorRangeAt(lineContent, column) ?: return null
+    val (start, end) = range
+    if (end > maxColumn) return null
+    return range
+}
