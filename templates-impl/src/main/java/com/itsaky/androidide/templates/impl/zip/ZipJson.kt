@@ -10,6 +10,7 @@ data class TemplateJson(
     val version: String?,
     val tooltipTag: String = "",
     val defaultSaveLocation: String? = null,
+    val defaultAppName: String? = null,
     val parameters: ParametersJson? = null,
     val system: SystemParametersJson? = null
 )

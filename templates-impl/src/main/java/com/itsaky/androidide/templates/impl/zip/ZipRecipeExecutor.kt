@@ -37,6 +37,7 @@ class ZipRecipeExecutor(
 
     companion object {
         private val log = LoggerFactory.getLogger(ZipRecipeExecutor::class.java)
+        private val CLASS_NAME_PATTERN = Regex("[^a-zA-Z0-9]")
     }
 
     override fun execute(
@@ -73,7 +74,10 @@ class ZipRecipeExecutor(
                 .syntax(customSyntax)
                 .build()
 
-            val (identifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
+            val className = data.name.replace(CLASS_NAME_PATTERN, "")
+            val (baseIdentifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
+            val identifiers = baseIdentifiers + (KEY_CLASS_NAME to className)
+
             if (warnings.isNotEmpty()) {
                 warn("Identifier warnings: ${warnings.joinToString(System.lineSeparator())}")
             }
@@ -98,6 +102,7 @@ class ZipRecipeExecutor(
 
                 val relativePath = normalized.removePrefix("$basePath/")
                     .replace(packageName.value, defModule.packageName.replace(".", "/"))
+                .replace(KEY_CLASS_NAME, className)
 
                 val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION)).canonicalFile
 
@@ -223,10 +228,8 @@ class ZipRecipeExecutor(
         if (saveLocation.usedDefault) warnings += "Missing 'saveLocation', defaulted to $KEY_SAVE_LOCATION"
 
         val language = resolveString(parameters?.optional?.language?.identifier, KEY_LANGUAGE)
-        if (language.usedDefault) warnings += "Missing 'language', defaulted to $KEY_LANGUAGE"
 
         val minSdk = resolveString(parameters?.optional?.minsdk?.identifier, KEY_MIN_SDK)
-        if (minSdk.usedDefault) warnings += "Missing 'minsdk', defaulted to $KEY_MIN_SDK"
 
         val agpVersion = resolveString(system?.agpVersion?.identifier, KEY_AGP_VERSION)
         if (agpVersion.usedDefault) warnings += "Missing 'agpVersion', defaulted to $KEY_AGP_VERSION"
