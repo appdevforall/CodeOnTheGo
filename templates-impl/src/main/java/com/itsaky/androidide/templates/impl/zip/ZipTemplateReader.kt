@@ -36,7 +36,10 @@ object ZipTemplateReader {
         try {
             ZipFile(zipFile).use { zip ->
 
-                val indexEntry = zip.getEntry(ARCHIVE_JSON) ?: return emptyList()
+                val indexEntry = requireNotNull(zip.getEntry(ARCHIVE_JSON)) {
+                    "${zip.name} does not contain $ARCHIVE_JSON"
+                }
+
                 val indexJson = zip.getInputStream(indexEntry).bufferedReader().use {
                     gson.fromJson(it, TemplatesIndex::class.java)
                 }
