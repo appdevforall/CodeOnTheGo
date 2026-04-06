@@ -29,7 +29,7 @@ interface DropTargetCallback {
 
     /**
      * Called when the user successfully drops a valid item on the target.
-     * * @return True if the drop was successfully consumed and handled.
+     * @return True if the drop was successfully consumed and handled.
      */
     fun onDrop(event: DragEvent): Boolean
 }
