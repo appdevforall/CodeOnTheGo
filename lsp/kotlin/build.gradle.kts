@@ -37,6 +37,7 @@ dependencies {
 	kapt(projects.annotationProcessors)
 
 	implementation(projects.lsp.api)
+	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.lsp.models)
 	implementation(projects.editorApi)
 	implementation(projects.eventbusEvents)

@@ -23,6 +23,7 @@ dependencies {
 
 	api(projects.eventbus)
 	api(projects.eventbusEvents)
+	api(projects.lsp.indexing)
 	api(projects.subprojects.projectModels)
 	api(projects.subprojects.toolingApi)
 

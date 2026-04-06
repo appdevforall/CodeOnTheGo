@@ -449,6 +449,12 @@ class GradleBuildService :
 				),
 		)
 
+		buildServiceScope.launch {
+			ProjectManagerImpl.getInstance()
+				.indexingServiceManager
+				.onBuildCompleted()
+		}
+
 		EventBus.getDefault()
 			.post(
 				BuildCompletedEvent(

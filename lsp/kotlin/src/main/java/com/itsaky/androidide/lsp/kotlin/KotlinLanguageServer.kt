@@ -43,6 +43,7 @@ import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
+import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
@@ -55,6 +56,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.jvm.JvmIndexingService
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -121,6 +123,11 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override fun setupWithProject(workspace: Workspace) {
 		logger.info("setupWithProject called, initialized={}", initialized)
+
+		(ProjectManagerImpl.getInstance()
+			.indexingServiceManager
+			.getService(JvmIndexingService.ID) as? JvmIndexingService?)
+			?.refresh()
 
 		val jdkHome = Environment.JAVA_HOME.toPath()
 		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE

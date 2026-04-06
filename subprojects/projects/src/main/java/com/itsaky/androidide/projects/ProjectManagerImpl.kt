@@ -53,6 +53,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.service.IndexingService
+import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -75,7 +77,18 @@ import kotlin.io.path.pathString
 class ProjectManagerImpl :
 	IProjectManager,
 	EventReceiver {
+
+	private var _indexingServiceManager: IndexingServiceManager? = null
 	lateinit var projectPath: String
+
+	val indexingServiceManager: IndexingServiceManager
+		get() {
+			if (_indexingServiceManager == null) {
+				_indexingServiceManager = IndexingServiceManager()
+			}
+
+			return _indexingServiceManager!!
+		}
 
     @Volatile
     internal var pluginProjectCached: Boolean? = null
@@ -89,7 +102,7 @@ class ProjectManagerImpl :
 	override val projectDirPath: String
 		get() = projectPath
 
-	override val projectSyncIssues: List<GradleModels.SyncIssue>?
+	override val projectSyncIssues: List<GradleModels.SyncIssue>
 		get() = gradleBuild?.syncIssueList ?: emptyList()
 
 	companion object {
@@ -139,6 +152,10 @@ class ProjectManagerImpl :
 			gradleBuild.syncIssueCount,
 			gradleBuild.syncIssueList,
 		)
+
+		withStopWatch("notify indexing services") {
+			indexingServiceManager.onProjectSynced()
+		}
 
 		withStopWatch("Setup project") {
 			val indexerScope = CoroutineScope(Dispatchers.Default)
@@ -231,6 +248,9 @@ class ProjectManagerImpl :
 		log.info("Destroying project manager")
 		this.workspace = null
 		pluginProjectCached = null
+
+		_indexingServiceManager?.close()
+		_indexingServiceManager = null
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}
