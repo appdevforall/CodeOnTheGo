@@ -277,7 +277,8 @@ open class EditorHandlerActivity :
 	/**
 	 * Reloads disk content into an open editor only when the file changed on disk since the last
 	 * [onPause] snapshot **and** the in-memory buffer is still clean ([CodeEditorView.isModified] is
-	 * false). Never replaces buffers with unsaved edits or touches undo history for dirty files.
+	 * false). A clean buffer may still have undo history after [IDEEditor.markUnmodified] / save; we
+	 * reload anyway so external edits are not ignored. Never replaces buffers with unsaved edits.
 	 */
 	private fun checkForExternalFileChanges() {
 		val openFiles = editorViewModel.getOpenedFiles()
@@ -294,9 +295,6 @@ open class EditorHandlerActivity :
 						val editorView = getEditorForFile(file) ?: return@withContext
 						if (editorView.isModified) return@withContext
 						val ideEditor = editorView.editor ?: return@withContext
-						if (ideEditor.canUndo() || ideEditor.canRedo()) {
-							return@withContext
-						}
 
 						ideEditor.setText(newContent)
 						editorView.markAsSaved()
