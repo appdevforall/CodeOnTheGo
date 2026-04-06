@@ -132,7 +132,7 @@ object AssetsInstallationHelper {
 				true
 			} catch (e: FileNotFoundException) {
 				logger.error("ZIP file not found: {}", e.message)
-                flashError("File not found: ${e.message}")
+                flashError("File not found - ${e.message}")
 				false
 			} catch (e: ZipException) {
 				logger.error("Invalid ZIP format: {}", e.message)
