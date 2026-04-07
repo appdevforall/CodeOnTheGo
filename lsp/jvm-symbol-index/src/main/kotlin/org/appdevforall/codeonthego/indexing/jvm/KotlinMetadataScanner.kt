@@ -385,6 +385,11 @@ object KotlinMetadataScanner {
 			return object : AnnotationVisitor(Opcodes.ASM9) {
 				override fun visit(name: String?, value: Any?) {
 					when (name) {
+						"mv" -> {
+							if (value is IntArray) {
+								metadataVersion = value.copyOf()
+							}
+						}
 						"k" -> metadataKind = value as? Int
 						"xi" -> extraInt = value as? Int
 						"xs" -> extraString = value as? String
