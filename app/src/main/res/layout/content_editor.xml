@@ -109,7 +109,7 @@
             android:id="@+id/editor_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginBottom="@dimen/editor_sheet_peek_height" />
+            android:layout_marginBottom="@dimen/editor_sheet_collapsed_height" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/no_editor_layout"
@@ -155,7 +155,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:behavior_hideable="false"
-        app:behavior_peekHeight="@dimen/editor_sheet_peek_height"
+        app:behavior_peekHeight="@dimen/editor_sheet_collapsed_height"
         app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior" />
 
     <include
@@ -163,33 +163,16 @@
         layout="@layout/layout_diagnostic_info" />
 
     <ImageButton
-            android:id="@+id/btn_toggle_top_bar"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_gravity="top|end"
-            android:layout_marginTop="10dp"
-            android:layout_marginEnd="10dp"
-            android:padding="6dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/bg_hollow_green_circle"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/desc_toggle_top_bar"
-            android:visibility="gone"
-            tools:visibility="gone" />
-
-        <ImageButton
-            android:id="@+id/btn_toggle_bottom_bar"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_gravity="bottom|end"
-            android:layout_marginBottom="10dp"
-            android:layout_marginEnd="10dp"
-            android:padding="6dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/bg_hollow_green_circle"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/desc_toggle_bottom_bar"
-            android:visibility="gone"
-            tools:visibility="gone" />
+        android:id="@+id/btn_fullscreen_toggle"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_fullscreen"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/desc_enter_fullscreen" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
