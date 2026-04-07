@@ -1,6 +1,7 @@
 package com.itsaky.androidide.utils
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -16,8 +17,29 @@ import com.itsaky.androidide.models.OnboardingPermissionItem
  */
 object PermissionsHelper {
 
+	enum class OverlayPermissionState {
+		GRANTED,
+		REQUESTABLE,
+		UNSUPPORTED,
+	}
+
+    fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+    fun getOverlayPermissionState(context: Context): OverlayPermissionState {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        val isLowRamDevice = activityManager?.isLowRamDevice ?: false
+
+        return when {
+            canDrawOverlays(context) -> OverlayPermissionState.GRANTED
+            isLowRamDevice -> OverlayPermissionState.UNSUPPORTED
+            else -> OverlayPermissionState.REQUESTABLE
+        }
+    }
+
 	fun getRequiredPermissions(context: Context): List<OnboardingPermissionItem> {
 		val permissions = mutableListOf<OnboardingPermissionItem>()
+		val overlayState = getOverlayPermissionState(context)
+		val isOverlaySupported = overlayState != OverlayPermissionState.UNSUPPORTED
 
 		if (isAtLeastT()) {
 			permissions.add(
@@ -52,9 +74,11 @@ object PermissionsHelper {
 			OnboardingPermissionItem(
 				Manifest.permission.SYSTEM_ALERT_WINDOW,
 				R.string.permission_title_overlay_window,
-				R.string.permission_desc_overlay_window,
-				canDrawOverlays(context),
-			),
+				if (isOverlaySupported) R.string.permission_desc_overlay_window else R.string.permission_overlay_unsupported_hint,
+				overlayState == OverlayPermissionState.GRANTED,
+				isOptional = !isOverlaySupported,
+				isSupportedOnDevice = isOverlaySupported
+			)
 		)
 
 		return permissions
@@ -65,13 +89,8 @@ object PermissionsHelper {
 	fun canPostNotifications(context: Context) =
 		isPermissionGranted(context, Manifest.permission.POST_NOTIFICATIONS)
 
-
-	fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
-
-
 	fun areAllPermissionsGranted(context: Context): Boolean =
 		getRequiredPermissions(context).all { it.isOptional || it.isGranted }
-
 
 	fun isStoragePermissionGranted(context: Context): Boolean {
 		if (isAtLeastR()) {
@@ -87,10 +106,8 @@ object PermissionsHelper {
 		)
 	}
 
-
 	fun canRequestPackageInstalls(context: Context): Boolean =
 		context.packageManager.canRequestPackageInstalls()
-
 
 	fun isPermissionGranted(
 		context: Context,
@@ -101,7 +118,6 @@ object PermissionsHelper {
 		Manifest.permission.SYSTEM_ALERT_WINDOW -> canDrawOverlays(context)
 		else -> checkSelfPermission(context, permission)
 	}
-
 
 	fun checkSelfPermission(
 		context: Context,
