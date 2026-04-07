@@ -189,7 +189,8 @@ class EditorActivityActions {
                         val action = PluginActionItem(context, menuItem, order++)
                         registry.registerAction(action)
                     }
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    Log.w("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName}", e)
                 }
             }
 

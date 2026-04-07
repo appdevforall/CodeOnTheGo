@@ -20,6 +20,8 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,24 +111,32 @@ class PluginBuildActionItem(
         activity.appendBuildOutput("━━━ ${registered.action.name} ━━━")
         activity.invalidateOptionsMenu()
 
-        actionScope.launch {
-            execution.output.collect { output ->
-                val line = when (output) {
-                    is CommandOutput.StdOut -> output.line
-                    is CommandOutput.StdErr -> output.line
-                    is CommandOutput.ExitCode ->
-                        if (output.code != 0) "Process failed with code ${output.code}" else null
-                }
-                if (line != null) {
-                    withContext(Dispatchers.Main) {
-                        activity.appendBuildOutput(line)
+        activity.lifecycleScope.launch(Dispatchers.Default) {
+            runCatching {
+                execution.output.collect { output ->
+                    val line = when (output) {
+                        is CommandOutput.StdOut -> output.line
+                        is CommandOutput.StdErr -> output.line
+                        is CommandOutput.ExitCode ->
+                            if (output.code != 0) "Process failed with code ${output.code}" else null
+                    }
+                    if (line != null) {
+                        withContext(Dispatchers.Main) {
+                            activity.appendBuildOutput(line)
+                        }
                     }
                 }
-            }
 
-            val result = execution.await()
-            manager.notifyActionCompleted(pluginId, actionId, result)
-            withContext(Dispatchers.Main) { resetProgressIfIdle(activity) }
+                val result = execution.await()
+                manager.notifyActionCompleted(pluginId, actionId, result)
+                withContext(Dispatchers.Main) { resetProgressIfIdle(activity) }
+            }.onFailure { e ->
+                if (e is CancellationException) {
+                    manager.cancelAction(pluginId, actionId)
+                    throw e
+                }
+                withContext(Dispatchers.Main) { resetProgressIfIdle(activity) }
+            }
         }
 
         return true

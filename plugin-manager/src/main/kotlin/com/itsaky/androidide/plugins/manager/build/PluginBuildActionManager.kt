@@ -10,6 +10,7 @@ import com.itsaky.androidide.plugins.manager.loaders.ManifestBuildAction
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.services.CommandExecution
 import com.itsaky.androidide.plugins.services.IdeCommandService
+import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 
 class PluginBuildActionManager private constructor() {
@@ -20,6 +21,8 @@ class PluginBuildActionManager private constructor() {
     private val activeExecutions = ConcurrentHashMap<String, CommandExecution>()
 
     companion object {
+        private const val TAG = "PluginBuildActionManager"
+
         @Volatile
         private var INSTANCE: PluginBuildActionManager? = null
 
@@ -47,11 +50,13 @@ class PluginBuildActionManager private constructor() {
 
         for ((pluginId, extension) in pluginExtensions) {
             val name = pluginNames[pluginId] ?: pluginId
-            try {
+            runCatching {
                 extension.getBuildActions().forEach { action ->
                     actions.add(RegisteredBuildAction(pluginId, name, action))
                 }
-            } catch (_: Throwable) {}
+            }.onFailure { e ->
+                Log.w(TAG, "Failed to get build actions from plugin $pluginId", e)
+            }
         }
 
         for ((pluginId, pluginActions) in manifestActions) {
@@ -69,10 +74,12 @@ class PluginBuildActionManager private constructor() {
         val hidden = mutableSetOf<String>()
 
         for ((_, extension) in pluginExtensions) {
-            try {
+            runCatching {
                 val requested = extension.toolbarActionsToHide()
                 hidden.addAll(requested.intersect(ToolbarActionIds.ALL))
-            } catch (_: Throwable) {}
+            }.onFailure { e ->
+                Log.w(TAG, "Failed to get hidden action ids from plugin", e)
+            }
         }
 
         return hidden
@@ -88,24 +95,26 @@ class PluginBuildActionManager private constructor() {
 
         extension?.onActionStarted(actionId)
 
-        val execution = commandService.executeCommand(action.command, action.timeoutMs)
-        val executionKey = "$pluginId:$actionId"
-        activeExecutions[executionKey] = execution
-
-        return execution
+        return runCatching {
+            commandService.executeCommand(action.command, action.timeoutMs)
+        }.onSuccess { execution ->
+            activeExecutions[executionKey(pluginId, actionId)] = execution
+        }.onFailure { e ->
+            extension?.onActionCompleted(actionId, CommandResult.Failure(-1, "", "", e.message, 0))
+        }.getOrThrow()
     }
 
     fun notifyActionCompleted(pluginId: String, actionId: String, result: CommandResult) {
-        activeExecutions.remove("$pluginId:$actionId")
+        activeExecutions.remove(executionKey(pluginId, actionId))
         pluginExtensions[pluginId]?.onActionCompleted(actionId, result)
     }
 
     fun isActionRunning(pluginId: String, actionId: String): Boolean {
-        return activeExecutions.containsKey("$pluginId:$actionId")
+        return activeExecutions.containsKey(executionKey(pluginId, actionId))
     }
 
     fun cancelAction(pluginId: String, actionId: String): Boolean {
-        val key = "$pluginId:$actionId"
+        val key = executionKey(pluginId, actionId)
         return activeExecutions.remove(key)?.let {
             it.cancel()
             true
@@ -113,20 +122,28 @@ class PluginBuildActionManager private constructor() {
     }
 
     fun cleanupPlugin(pluginId: String) {
-        activeExecutions.entries.removeAll { it.key.startsWith("$pluginId:") }
+        activeExecutions.entries.removeAll { (key, execution) ->
+            if (key.startsWith("$pluginId:")) {
+                execution.cancel()
+                true
+            } else false
+        }
         pluginExtensions.remove(pluginId)
         manifestActions.remove(pluginId)
         pluginNames.remove(pluginId)
     }
 
-    private fun findAction(pluginId: String, actionId: String): PluginBuildAction? {
-        pluginExtensions[pluginId]?.let { ext ->
-            try {
-                return ext.getBuildActions().find { it.id == actionId }
-            } catch (_: Throwable) {}
-        }
+    private fun executionKey(pluginId: String, actionId: String) = "$pluginId:$actionId"
 
-        return manifestActions[pluginId]?.find { it.id == actionId }
+    private fun findAction(pluginId: String, actionId: String): PluginBuildAction? {
+        val fromExtension = pluginExtensions[pluginId]?.let { ext ->
+            runCatching {
+                ext.getBuildActions().find { it.id == actionId }
+            }.onFailure { e ->
+                Log.w(TAG, "Failed to find action $actionId in plugin $pluginId", e)
+            }.getOrNull()
+        }
+        return fromExtension ?: manifestActions[pluginId]?.find { it.id == actionId }
     }
 }
 

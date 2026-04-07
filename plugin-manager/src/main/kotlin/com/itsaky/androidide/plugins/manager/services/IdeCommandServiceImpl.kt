@@ -50,6 +50,12 @@ class IdeCommandServiceImpl(
             is CommandSpec.GradleTask -> {
                 val gradleWrapper = projectRoot?.let { File(it, "gradlew") }
                     ?: throw IllegalStateException("No project root available for Gradle task execution")
+                if (!gradleWrapper.exists()) {
+                    throw IllegalStateException("Gradle wrapper not found at ${gradleWrapper.absolutePath}")
+                }
+                if (!gradleWrapper.canExecute()) {
+                    throw IllegalStateException("Gradle wrapper is not executable: ${gradleWrapper.absolutePath}")
+                }
                 ProcessBuilder(listOf(gradleWrapper.absolutePath, spec.taskPath) + spec.arguments).apply {
                     directory(projectRoot)
                 }
@@ -83,8 +89,10 @@ class IdeCommandServiceImpl(
     override fun getRunningCommandCount(): Int = runningCommands.size
 
     fun cancelAllCommands() {
-        runningCommands.values.forEach { it.cancel() }
-        runningCommands.clear()
+        runningCommands.entries.removeAll { (_, execution) ->
+            execution.cancel()
+            true
+        }
     }
 
     private fun requirePermission() {
@@ -160,7 +168,8 @@ private class CommandExecutionImpl(
     fun start(onComplete: () -> Unit) {
         scope.launch {
             val startTime = System.currentTimeMillis()
-            try {
+
+            runCatching {
                 withTimeout(timeoutMs) {
                     process = processBuilder.start()
                     val proc = process!!
@@ -176,32 +185,34 @@ private class CommandExecutionImpl(
                     outputChannel.close()
 
                     val duration = System.currentTimeMillis() - startTime
-                    val result = if (exitCode == 0) {
+                    if (exitCode == 0) {
                         CommandResult.Success(exitCode, stdoutBuilder.toString(), stderrBuilder.toString(), duration)
                     } else {
                         CommandResult.Failure(exitCode, stdoutBuilder.toString(), stderrBuilder.toString(), null, duration)
                     }
-                    resultDeferred.complete(result)
                 }
-            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            }.onSuccess { result ->
+                resultDeferred.complete(result)
+            }.onFailure { e ->
                 process?.destroyForcibly()
                 outputChannel.close()
+                val stdout = stdoutBuilder.toString()
+                val stderr = stderrBuilder.toString()
                 val duration = System.currentTimeMillis() - startTime
-                resultDeferred.complete(
-                    CommandResult.Failure(-1, stdoutBuilder.toString(), stderrBuilder.toString(), "Command timed out after ${timeoutMs}ms", duration)
-                )
-            } catch (e: Exception) {
-                process?.destroyForcibly()
-                outputChannel.close()
-                val duration = System.currentTimeMillis() - startTime
+                val failureResult = when (e) {
+                    is kotlinx.coroutines.TimeoutCancellationException ->
+                        CommandResult.Failure(-1, stdout, stderr, "Command timed out after ${timeoutMs}ms: ${e.message}", duration)
+                    is kotlinx.coroutines.CancellationException ->
+                        CommandResult.Cancelled(stdout, stderr)
+                    else ->
+                        CommandResult.Failure(-1, stdout, stderr, "Unexpected error: ${e.message}", duration)
+                }
                 if (resultDeferred.isActive) {
-                    resultDeferred.complete(
-                        CommandResult.Cancelled(stdoutBuilder.toString(), stderrBuilder.toString())
-                    )
+                    resultDeferred.complete(failureResult)
                 }
-            } finally {
-                onComplete()
             }
+
+            onComplete()
         }
     }
 

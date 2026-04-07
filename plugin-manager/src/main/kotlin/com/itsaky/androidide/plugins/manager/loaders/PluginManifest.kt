@@ -59,16 +59,23 @@ data class ExtensionInfo(
 )
 
 data class ManifestBuildAction(
+    @SerializedName("id")
     val id: String,
+    @SerializedName("name")
     val name: String,
+    @SerializedName("description")
     val description: String = "",
+    @SerializedName("category")
     val category: String = "CUSTOM",
+    @SerializedName("command")
     val command: String? = null,
+    @SerializedName("arguments")
     val arguments: List<String> = emptyList(),
     @SerializedName("gradle_task")
     val gradleTask: String? = null,
     @SerializedName("working_directory")
     val workingDirectory: String? = null,
+    @SerializedName("environment")
     val environment: Map<String, String> = emptyMap(),
     @SerializedName("timeout_ms")
     val timeoutMs: Long = 600_000
