@@ -107,8 +107,15 @@ fun ContentEditorBinding.applyImmersiveModeInsets(systemBars: Insets) {
 }
 
 /**
- * Allows the bottom sheet to expand fully while relying on top insets to stay clear of system bars.
+ * Anchors the bottom sheet below the app bar in portrait, but allows it to expand
+ * fully in landscape to save vertical screen real estate.
  */
 fun ContentEditorBinding.applyBottomSheetAnchorForOrientation(orientation: Int) {
-    bottomSheet.resetOffsetAnchor()
+    root.post {
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            bottomSheet.resetOffsetAnchor()
+        } else {
+            bottomSheet.setOffsetAnchor(editorAppBarLayout)
+        }
+    }
 }

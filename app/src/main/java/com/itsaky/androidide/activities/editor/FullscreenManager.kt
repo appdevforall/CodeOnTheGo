@@ -130,7 +130,6 @@ class FullscreenManager(
 
     fun bind() {
         if (isBound) return
-        isBound = true
 
         defaultSkipCollapsed = bottomSheetBehavior.skipCollapsed
         bottomSheetBehavior.skipCollapsed = false
@@ -138,11 +137,12 @@ class FullscreenManager(
         topBar.addOnOffsetChangedListener(offsetListener)
         bottomSheetBehavior.addBottomSheetCallback(bottomSheetCallback)
         fullscreenToggle.setOnClickListener { onFullscreenToggleRequested() }
+
+        isBound = true
     }
 
     fun destroy() {
         if (!isBound) return
-        isBound = false
 
         fullscreenToggle.setOnClickListener(null)
         topBar.removeOnOffsetChangedListener(offsetListener)
@@ -150,6 +150,8 @@ class FullscreenManager(
         bottomSheetBehavior.skipCollapsed = defaultSkipCollapsed
         fullscreenToggle.removeCallbacks(clearTransitioningRunnable)
         isTransitioning = false
+
+        isBound = false
     }
 
     fun render(isFullscreen: Boolean, animate: Boolean) {

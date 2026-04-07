@@ -59,7 +59,6 @@ class EditorViewModel : ViewModel() {
 
     internal val _filesModified = MutableLiveData(false)
     internal val _filesSaving = MutableLiveData(false)
-    internal val _isFullscreen = MutableLiveData(false)
 
     private val _openedFiles = MutableLiveData<OpenedFilesCache>()
     private val _isBoundToBuildService = MutableLiveData(false)
@@ -160,7 +159,6 @@ class EditorViewModel : ViewModel() {
                 current.copy(isFullscreen = value)
             }
         }
-        _isFullscreen.value = value
     }
 
     fun toggleFullscreen() {
