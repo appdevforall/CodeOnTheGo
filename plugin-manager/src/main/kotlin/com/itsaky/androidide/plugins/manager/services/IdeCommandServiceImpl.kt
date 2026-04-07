@@ -19,6 +19,8 @@ import kotlinx.coroutines.withTimeout
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -40,7 +42,11 @@ class IdeCommandServiceImpl(
 
         val processBuilder = when (spec) {
             is CommandSpec.ShellCommand -> {
-                val workDir = spec.workingDirectory?.let { File(it) } ?: projectRoot
+                val workDir = when {
+                    spec.workingDirectory == null -> projectRoot
+                    Paths.get(spec.workingDirectory).isAbsolute -> File(spec.workingDirectory)
+                    else -> projectRoot?.let { File(it, spec.workingDirectory).canonicalFile }
+                }
                 validateWorkingDirectory(workDir)
                 ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
                     workDir?.let { directory(it) }
@@ -114,11 +120,11 @@ class IdeCommandServiceImpl(
     private fun validateWorkingDirectory(dir: File?) {
         if (dir == null) return
         val projectRoot = projectRootProvider() ?: return
-        val canonicalDir = dir.canonicalPath
-        val canonicalRoot = projectRoot.canonicalPath
-        if (!canonicalDir.startsWith(canonicalRoot)) {
+        val normalizedDir = dir.canonicalFile.toPath()
+        val normalizedRoot = projectRoot.canonicalFile.toPath()
+        if (normalizedDir != normalizedRoot && !normalizedDir.startsWith(normalizedRoot)) {
             throw SecurityException(
-                "Plugin $pluginId attempted to execute in directory outside project root: $canonicalDir"
+                "Plugin $pluginId attempted to execute in directory outside project root: $normalizedDir"
             )
         }
     }
@@ -156,7 +162,7 @@ private class CommandExecutionImpl(
     private val timeoutMs: Long
 ) : CommandExecution {
 
-    private val outputChannel = Channel<CommandOutput>(capacity = 256)
+    private val outputChannel = Channel<CommandOutput>(capacity = Channel.UNLIMITED)
     private val resultDeferred = CompletableDeferred<CommandResult>()
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var process: Process? = null

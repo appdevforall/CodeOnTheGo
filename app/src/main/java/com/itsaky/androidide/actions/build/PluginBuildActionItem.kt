@@ -143,7 +143,8 @@ class PluginBuildActionItem(
     }
 
     private fun resetProgressIfIdle(activity: com.itsaky.androidide.activities.editor.EditorHandlerActivity) {
-        if (buildService?.isBuildInProgress != true) {
+        val manager = PluginBuildActionManager.getInstance()
+        if (buildService?.isBuildInProgress != true && !manager.hasActiveExecutions()) {
             activity.editorViewModel.isBuildInProgress = false
         }
         activity.invalidateOptionsMenu()

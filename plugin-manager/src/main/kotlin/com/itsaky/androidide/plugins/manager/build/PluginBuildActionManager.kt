@@ -113,6 +113,8 @@ class PluginBuildActionManager private constructor() {
         return activeExecutions.containsKey(executionKey(pluginId, actionId))
     }
 
+    fun hasActiveExecutions(): Boolean = activeExecutions.isNotEmpty()
+
     fun cancelAction(pluginId: String, actionId: String): Boolean {
         val key = executionKey(pluginId, actionId)
         return activeExecutions.remove(key)?.let {

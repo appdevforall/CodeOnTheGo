@@ -83,32 +83,60 @@ data class ManifestBuildAction(
 
 object PluginManifestParser {
     private val gson = Gson()
-    
+
     fun parseFromJar(jarFile: File): PluginManifest? {
         return try {
             JarFile(jarFile).use { jar ->
                 val entry = jar.getJarEntry("plugin.json")
                     ?: jar.getJarEntry("META-INF/plugin.json")
                     ?: return null
-                
+
                 val inputStream = jar.getInputStream(entry)
                 val reader = InputStreamReader(inputStream)
-                gson.fromJson(reader, PluginManifest::class.java)
+                gson.fromJson(reader, PluginManifest::class.java)?.normalize()
             }
         } catch (e: Exception) {
             null
         }
     }
-    
+
     fun parseFromString(json: String): PluginManifest? {
         return try {
-            gson.fromJson(json, PluginManifest::class.java)
+            gson.fromJson(json, PluginManifest::class.java)?.normalize()
         } catch (e: Exception) {
             null
         }
     }
-    
+
     fun toJson(manifest: PluginManifest): String {
         return gson.toJson(manifest)
+    }
+
+    @Suppress("SENSELESS_COMPARISON")
+    private fun PluginManifest.normalize(): PluginManifest {
+        val normalizedActions = (buildActions ?: emptyList()).map { it.normalize() }
+        return if (
+            permissions == null || dependencies == null || extensions == null || buildActions == null ||
+            normalizedActions !== buildActions
+        ) {
+            copy(
+                permissions = permissions ?: emptyList(),
+                dependencies = dependencies ?: emptyList(),
+                extensions = extensions ?: emptyList(),
+                buildActions = normalizedActions
+            )
+        } else this
+    }
+
+    @Suppress("SENSELESS_COMPARISON")
+    private fun ManifestBuildAction.normalize(): ManifestBuildAction {
+        if (arguments == null || environment == null || timeoutMs == 0L) {
+            return copy(
+                arguments = arguments ?: emptyList(),
+                environment = environment ?: emptyMap(),
+                timeoutMs = if (timeoutMs == 0L) 600_000 else timeoutMs
+            )
+        }
+        return this
     }
 }
