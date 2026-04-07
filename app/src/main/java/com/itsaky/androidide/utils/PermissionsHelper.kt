@@ -3,6 +3,7 @@ package com.itsaky.androidide.utils
 import android.Manifest
 import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Environment
@@ -11,6 +12,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import com.itsaky.androidide.R
 import com.itsaky.androidide.models.OnboardingPermissionItem
+import androidx.core.net.toUri
 
 /**
  * @author Akash Yadav
@@ -26,13 +28,27 @@ object PermissionsHelper {
     fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
 
     fun getOverlayPermissionState(context: Context): OverlayPermissionState {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-        val isLowRamDevice = activityManager?.isLowRamDevice ?: false
+        if (canDrawOverlays(context)) {
+            return OverlayPermissionState.GRANTED
+        }
 
-        return when {
-            canDrawOverlays(context) -> OverlayPermissionState.GRANTED
-            isLowRamDevice -> OverlayPermissionState.UNSUPPORTED
-            else -> OverlayPermissionState.REQUESTABLE
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        val isLowRamAndModernAndroid = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && activityManager?.isLowRamDevice == true
+
+        if (isLowRamAndModernAndroid) {
+            return OverlayPermissionState.UNSUPPORTED
+        }
+
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            "package:${context.packageName}".toUri()
+        )
+        val canResolveIntent = intent.resolveActivity(context.packageManager) != null
+
+        return if (canResolveIntent) {
+            OverlayPermissionState.REQUESTABLE
+        } else {
+            OverlayPermissionState.UNSUPPORTED
         }
     }
 
