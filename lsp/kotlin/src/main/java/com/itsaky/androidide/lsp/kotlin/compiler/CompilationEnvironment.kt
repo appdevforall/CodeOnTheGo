@@ -52,7 +52,7 @@ import kotlin.io.path.pathString
  * @param jdkRelease The JDK release version at [jdkHome].
  */
 internal class CompilationEnvironment(
-	val projectModel: KotlinProjectModel,
+	val project: KotlinProjectModel,
 	val intellijPluginRoot: Path,
 	val jdkHome: Path,
 	val jdkRelease: Int,
@@ -82,11 +82,8 @@ internal class CompilationEnvironment(
 	val coreApplicationEnvironment: CoreApplicationEnvironment
 		get() = session.coreApplicationEnvironment
 
-	val moduleResolver: ModuleResolver?
-		get() = projectModel.moduleResolver
-
 	val symbolVisibilityChecker: SymbolVisibilityChecker?
-		get() = projectModel.symbolVisibilityChecker
+		get() = project.symbolVisibilityChecker
 
 	private val envMessageCollector = object : MessageCollector {
 		override fun clear() {
@@ -115,7 +112,7 @@ internal class CompilationEnvironment(
 		parser = KtPsiFactory(session.project, eventSystemEnabled = enableParserEventSystem)
 		fileManager = KtFileManager(parser, psiManager, psiDocumentManager)
 
-		projectModel.addListener(this)
+		project.addListener(this)
 	}
 
 	private fun buildSession(): StandaloneAnalysisAPISession {
@@ -127,7 +124,7 @@ internal class CompilationEnvironment(
 			compilerConfiguration = configuration,
 		) {
 			buildKtModuleProvider {
-				projectModel.configureModules(this)
+				this@CompilationEnvironment.project.configureModules(this)
 			}
 		}
 
@@ -239,7 +236,7 @@ internal class CompilationEnvironment(
 
 	override fun close() {
 		fileManager.close()
-		projectModel.removeListener(this)
+		project.removeListener(this)
 		disposable.dispose()
 	}
 

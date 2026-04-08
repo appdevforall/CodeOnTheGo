@@ -35,7 +35,7 @@ internal class Compiler(
 
 	init {
 		defaultCompilationEnv = CompilationEnvironment(
-			projectModel = projectModel,
+			project = projectModel,
 			intellijPluginRoot = intellijPluginRoot,
 			jdkHome = jdkHome,
 			jdkRelease = jdkRelease,

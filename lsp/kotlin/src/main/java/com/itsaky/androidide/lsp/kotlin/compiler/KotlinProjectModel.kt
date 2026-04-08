@@ -1,10 +1,13 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.lsp.kotlin.completion.SymbolVisibilityChecker
+import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.bootClassPaths
+import org.appdevforall.codeonthego.indexing.jvm.JVM_LIBRARY_SYMBOL_INDEX
+import org.appdevforall.codeonthego.indexing.jvm.JvmLibrarySymbolIndex
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaLibraryModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
 import org.jetbrains.kotlin.analysis.project.structure.builder.KtModuleProviderBuilder
@@ -43,6 +46,12 @@ internal class KotlinProjectModel {
 
 	val symbolVisibilityChecker: SymbolVisibilityChecker?
 		get() = _symbolVisibilityChecker
+
+	val libraryIndex: JvmLibrarySymbolIndex?
+		get() = ProjectManagerImpl.getInstance()
+			.indexingServiceManager
+			.registry
+			.get(JVM_LIBRARY_SYMBOL_INDEX)
 
 	/**
 	 * The kind of change that occurred.

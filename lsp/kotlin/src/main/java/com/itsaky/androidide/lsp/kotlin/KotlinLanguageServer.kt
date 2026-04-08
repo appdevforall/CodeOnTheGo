@@ -124,10 +124,12 @@ class KotlinLanguageServer : ILanguageServer {
 	override fun setupWithProject(workspace: Workspace) {
 		logger.info("setupWithProject called, initialized={}", initialized)
 
-		(ProjectManagerImpl.getInstance()
+		val indexingServiceManager = ProjectManagerImpl.getInstance()
 			.indexingServiceManager
-			.getService(JvmIndexingService.ID) as? JvmIndexingService?)
-			?.refresh()
+		val jvmIndexingService =
+			indexingServiceManager.getService(JvmIndexingService.ID) as? JvmIndexingService?
+
+		jvmIndexingService?.refresh()
 
 		val jdkHome = Environment.JAVA_HOME.toPath()
 		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE

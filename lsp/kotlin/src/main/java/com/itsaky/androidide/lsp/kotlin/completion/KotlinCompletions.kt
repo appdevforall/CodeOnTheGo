@@ -1,14 +1,26 @@
 package com.itsaky.androidide.lsp.kotlin.completion
 
+import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.models.ClassCompletionData
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.models.CompletionItemKind
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.InsertTextFormat
+import com.itsaky.androidide.lsp.models.MethodCompletionData
+import com.itsaky.androidide.lsp.models.SnippetDescription
 import com.itsaky.androidide.projects.FileManager
+import com.itsaky.androidide.projects.ProjectManagerImpl
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.indexing.jvm.JVM_LIBRARY_SYMBOL_INDEX
+import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
+import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
 import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -44,6 +56,7 @@ import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.types.Variance
 import org.slf4j.LoggerFactory
+import kotlin.math.log
 
 private const val KT_COMPLETION_PLACEHOLDER = "KT_COMPLETION_PLACEHOLDER"
 
@@ -118,14 +131,16 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 
 			when (completionContext) {
 				CompletionContext.Scope ->
-					collectScopeCompletions(
-						scopeContext = scopeContext,
-						scope = compositeScope,
-						symbolVisibilityChecker = symbolVisibilityChecker,
-						ktElement = ktElement,
-						partial = partial,
-						to = items
-					)
+					runBlocking {
+						collectScopeCompletions(
+							scopeContext = scopeContext,
+							scope = compositeScope,
+							symbolVisibilityChecker = symbolVisibilityChecker,
+							ktElement = ktElement,
+							partial = partial,
+							to = items
+						)
+					}
 
 				CompletionContext.Member ->
 					collectMemberCompletions(
@@ -242,7 +257,7 @@ private fun KaSession.collectExtensionFunctions(
 	to += toCompletionItems(extensionSymbols, partial)
 }
 
-private fun KaSession.collectScopeCompletions(
+private suspend fun KaSession.collectScopeCompletions(
 	scopeContext: KaScopeContext,
 	scope: KaScope,
 	symbolVisibilityChecker: SymbolVisibilityChecker,
@@ -274,6 +289,76 @@ private fun KaSession.collectScopeCompletions(
 
 	to += toCompletionItems(callables, partial)
 	to += toCompletionItems(classifiers, partial)
+
+	val librarySymbolIndex = ProjectManagerImpl
+		.getInstance()
+		.indexingServiceManager
+		.registry
+		.get(JVM_LIBRARY_SYMBOL_INDEX)
+
+	if (librarySymbolIndex == null) {
+		logger.warn("Unable to find JVM library symbol index")
+		return
+	}
+
+	val useSiteModule = this.useSiteModule
+	librarySymbolIndex.findByPrefix(partial)
+		.collect { symbol ->
+			val isVisible = symbolVisibilityChecker.isVisible(
+				symbol = symbol,
+				useSiteModule = useSiteModule,
+				useSitePackage = ktElement.containingKtFile.packageDirective?.name
+			)
+
+			if (!isVisible) return@collect
+
+			if (symbol.kind.isCallable && !symbol.isTopLevel && !symbol.isExtension) {
+				// member-level, non-imported callable symbols should not be
+				// completed in scope completions
+				return@collect
+			}
+
+			// TODO: filter-out callables with a receiver type whose receiver
+			//       is not an implicit receiver at the current use-site
+
+			val item = ktCompletionItem(
+				name = symbol.shortName,
+				kind = kindOf(symbol),
+				partial = partial,
+			)
+
+			item.overrideTypeText = symbol.returnTypeDisplay
+			when (symbol.kind) {
+				JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
+					val data = symbol.data as JvmFunctionInfo
+					item.detail = data.signatureDisplay
+					item.setInsertTextForFunction(symbol.shortName, data.parameterCount > 0, partial)
+
+					if (symbol.kind == JvmSymbolKind.CONSTRUCTOR) {
+						item.overrideTypeText = symbol.shortName
+					}
+				}
+
+				JvmSymbolKind.TYPE_ALIAS -> {
+					item.detail = (symbol.data as JvmTypeAliasInfo).expandedTypeFqName
+				}
+
+				in JvmSymbolKind.CLASSIFIER_KINDS -> {
+					val classInfo = symbol.data as JvmClassInfo
+					item.detail = symbol.fqName
+					item.data = ClassCompletionData(
+						className = symbol.fqName,
+						isNested = classInfo.isInner,
+						topLevelClass = classInfo.containingClassFqName,
+					)
+				}
+
+				else -> {}
+			}
+
+			logger.debug("Adding completion item: {}", item)
+			to += item
+		}
 }
 
 private fun KaSession.collectKeywordCompletions(
@@ -335,16 +420,7 @@ private fun KaSession.callableSymbolToCompletionItem(
 			val hasParams = symbol.valueParameters.isNotEmpty()
 
 			item.detail = "${name}($params)"
-			item.insertTextFormat = InsertTextFormat.SNIPPET
-			item.insertText = if (hasParams) {
-				"${name}($0)"
-			} else {
-				"${name}()$0"
-			}
-
-			if (hasParams) {
-				item.command = Command("Trigger parameter hints", Command.TRIGGER_PARAMETER_HINTS)
-			}
+			item.setInsertTextForFunction(name, hasParams, partial)
 
 			// TODO(itsaky): provide method completion data in order to show API info
 			//               in completion items
@@ -358,6 +434,25 @@ private fun KaSession.callableSymbolToCompletionItem(
 	}
 
 	return item
+}
+
+private fun CompletionItem.setInsertTextForFunction(
+	name: String,
+	hasParams: Boolean,
+	partial: String,
+) {
+	insertTextFormat = InsertTextFormat.SNIPPET
+	insertText = if (hasParams) {
+		"${name}($0)"
+	} else {
+		"${name}()$0"
+	}
+
+	snippetDescription = describeSnippet(prefix = partial, allowCommandExecution = true)
+
+	if (hasParams) {
+		command = Command("Trigger parameter hints", Command.TRIGGER_PARAMETER_HINTS)
+	}
 }
 
 @OptIn(KaExperimentalApi::class)
@@ -429,6 +524,28 @@ private fun KaSession.kindOf(symbol: KaSymbol): CompletionItemKind {
 	}
 }
 
+private fun KaSession.kindOf(symbol: JvmSymbol): CompletionItemKind =
+	when (symbol.kind) {
+		JvmSymbolKind.CLASS -> CompletionItemKind.CLASS
+		JvmSymbolKind.INTERFACE -> CompletionItemKind.INTERFACE
+		JvmSymbolKind.ENUM -> CompletionItemKind.ENUM
+		JvmSymbolKind.ENUM_ENTRY -> CompletionItemKind.ENUM_MEMBER
+		JvmSymbolKind.ANNOTATION_CLASS -> CompletionItemKind.ANNOTATION_TYPE
+		JvmSymbolKind.OBJECT -> CompletionItemKind.CLASS
+		JvmSymbolKind.COMPANION_OBJECT -> CompletionItemKind.CLASS
+		JvmSymbolKind.DATA_CLASS -> CompletionItemKind.CLASS
+		JvmSymbolKind.VALUE_CLASS -> CompletionItemKind.CLASS
+		JvmSymbolKind.SEALED_CLASS -> CompletionItemKind.CLASS
+		JvmSymbolKind.SEALED_INTERFACE -> CompletionItemKind.INTERFACE
+		JvmSymbolKind.FUNCTION -> CompletionItemKind.FUNCTION
+		JvmSymbolKind.EXTENSION_FUNCTION -> CompletionItemKind.FUNCTION
+		JvmSymbolKind.CONSTRUCTOR -> CompletionItemKind.CONSTRUCTOR
+		JvmSymbolKind.PROPERTY -> CompletionItemKind.PROPERTY
+		JvmSymbolKind.EXTENSION_PROPERTY -> CompletionItemKind.PROPERTY
+		JvmSymbolKind.FIELD -> CompletionItemKind.FIELD
+		JvmSymbolKind.TYPE_ALIAS -> CompletionItemKind.CLASS
+	}
+
 @OptIn(KaExperimentalApi::class, KaContextParameterApi::class)
 private fun KaSession.renderName(
 	type: KaType,
@@ -445,12 +562,6 @@ private fun partialIdentifier(prefix: String): String {
 }
 
 private fun matchesPrefix(name: Name, partial: String): Boolean {
-	logger.info(
-		"'{}' matches '{}': {}",
-		name,
-		partial,
-		name.asString().startsWith(partial, ignoreCase = true)
-	)
 	if (partial.isEmpty()) return true
 	return name.asString().startsWith(partial, ignoreCase = true)
 }
