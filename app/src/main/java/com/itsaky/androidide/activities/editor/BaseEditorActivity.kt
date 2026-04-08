@@ -177,7 +177,7 @@ abstract class BaseEditorActivity :
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
-	private var immersiveController: LandscapeImmersiveController? = null
+	private var fullscreenManager: FullscreenManager? = null
 	private val topEdgeThreshold by lazy { SizeUtils.dp2px(TOP_EDGE_SWIPE_THRESHOLD_DP) }
 
 	var isDestroying = false
@@ -455,8 +455,8 @@ abstract class BaseEditorActivity :
 		editorBottomSheet = null
 		gestureDetector = null
 
-		immersiveController?.destroy()
-		immersiveController = null
+		fullscreenManager?.destroy()
+		fullscreenManager = null
 
 		_binding = null
 
@@ -498,7 +498,6 @@ abstract class BaseEditorActivity :
 	}
 
 	private fun applyStandardInsets(systemBars: Insets) {
-		immersiveController?.onSystemBarInsetsChanged(systemBars.top)
 		val root = _binding?.root ?: return
 		val initial = root.getOrStoreInitialPadding()
 		root.updatePadding(bottom = initial.bottom + systemBars.bottom)
@@ -627,14 +626,21 @@ abstract class BaseEditorActivity :
 		content.tabs.addOnTabSelectedListener(this)
 
 		setupStateObservers()
+		setupFullscreenObserver()
 		setupViews()
 
-		immersiveController = LandscapeImmersiveController(
+		fullscreenManager = FullscreenManager(
 			contentBinding = content,
 			bottomSheetBehavior = editorBottomSheet!!,
+			closeDrawerAction = {
+				binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+			},
+			onFullscreenToggleRequested = {
+				editorViewModel.toggleFullscreen()
+			},
 		).also {
 			it.bind()
-			it.onConfigurationChanged(resources.configuration)
+			it.render(editorViewModel.isFullscreen, animate = false)
 		}
 
 		setupContainers()
@@ -668,16 +674,17 @@ abstract class BaseEditorActivity :
 
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
-		immersiveController?.onConfigurationChanged(newConfig)
 		window?.decorView?.let { ViewCompat.requestApplyInsets(it) }
 		reapplySystemBarInsetsFromRoot()
 		_binding?.content?.applyBottomSheetAnchorForOrientation(newConfig.orientation)
+		fullscreenManager?.render(editorViewModel.isFullscreen, animate = false)
 	}
 
 	private fun reapplySystemBarInsetsFromRoot() {
 		val root = _binding?.root ?: return
 		val rootInsets = ViewCompat.getRootWindowInsets(root)
 		if (rootInsets == null) {
+			// Insets can be temporarily unavailable right after a configuration change.
 			root.post { reapplySystemBarInsetsFromRoot() }
 			return
 		}
@@ -844,7 +851,6 @@ abstract class BaseEditorActivity :
 		}
 
 	override fun onPause() {
-		immersiveController?.onPause()
 		super.onPause()
 		memoryUsageWatcher.listener = null
 		memoryUsageWatcher.stopWatching(false)
@@ -1223,6 +1229,16 @@ abstract class BaseEditorActivity :
 		}
 	}
 
+	private fun setupFullscreenObserver() {
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.STARTED) {
+				editorViewModel.uiState.collectLatest { uiState ->
+					fullscreenManager?.render(uiState.isFullscreen, animate = true)
+				}
+			}
+		}
+	}
+
 	private fun setupViews() {
 		setupNoEditorView()
 		setupBottomSheet()
@@ -1383,7 +1399,7 @@ abstract class BaseEditorActivity :
 
 		content.apply {
 			viewContainer.viewTreeObserver.addOnGlobalLayoutListener(observer)
-			bottomSheet.setOffsetAnchor(editorAppBarLayout)
+			applyBottomSheetAnchorForOrientation(resources.configuration.orientation)
 		}
 	}
 
@@ -1447,31 +1463,48 @@ abstract class BaseEditorActivity :
 						val isHorizontalSwipe = abs(diffX) > abs(diffY)
 
 						val hasDownFlingDistance = diffY > flingDistanceThreshold
-						val hasRightFlingDistance = diffX > flingDistanceThreshold
+						val hasUpFlingDistance = diffY < -flingDistanceThreshold
 
 						val hasVerticalVelocity = abs(velocityY) > flingVelocityThreshold
 						val hasHorizontalVelocity = abs(velocityX) > flingVelocityThreshold
+						val hasRightFlingDistance = diffX > flingDistanceThreshold
 
-						// Check for a swipe down (to show top bar)
-						// This is placed before the noFilesOpen check so it works while editing
-						val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+						val screenHeight = resources.displayMetrics.heightPixels
+						val bottomEdgeThreshold = screenHeight - topEdgeThreshold
+
 						val startedNearTopEdge = e1.y < topEdgeThreshold
+						val startedNearBottomEdge = e1.y > bottomEdgeThreshold
+						val isTopEdgeDismissFling = isVerticalSwipe &&
+							hasVerticalVelocity &&
+							startedNearTopEdge &&
+							hasDownFlingDistance
+						val isBottomEdgeDismissFling = isVerticalSwipe &&
+							hasVerticalVelocity &&
+							startedNearBottomEdge &&
+							hasUpFlingDistance
+						val isDrawerOpenFling = hasRightFlingDistance &&
+							hasHorizontalVelocity &&
+							isHorizontalSwipe
 
-						if (isLandscape && startedNearTopEdge && hasDownFlingDistance && hasVerticalVelocity && isVerticalSwipe) {
-							immersiveController?.showTopBar()
+						// Fullscreen mode can be dismissed with an inward fling from either vertical edge.
+						if (isTopEdgeDismissFling && editorViewModel.isFullscreen) {
+							editorViewModel.exitFullscreen()
 							return true
 						}
 
-						// Check if no files are open by looking at the displayedChild of the view flipper
-						val noFilesOpen = content.viewContainer.displayedChild == 1
-						if (!noFilesOpen) {
-							return false // If files are open, do nothing
+						if (isBottomEdgeDismissFling && editorViewModel.isFullscreen) {
+							editorViewModel.exitFullscreen()
+							return true
 						}
 
-						// Check for a right swipe (to open left drawer) - This part is still correct
-						// Added abs(diffX) > abs(diffY) to prevent diagonal swipes from triggering this
-						if (hasRightFlingDistance && hasHorizontalVelocity && isHorizontalSwipe) {
-							// Use the correct binding for the drawer layout
+						// Preserve the editor interaction area; drawer gestures are only enabled on the empty state.
+						val noFilesOpen = content.viewContainer.displayedChild == 1
+						if (!noFilesOpen) {
+						    return false
+						}
+
+						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
+						if (isDrawerOpenFling) {
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
 						}

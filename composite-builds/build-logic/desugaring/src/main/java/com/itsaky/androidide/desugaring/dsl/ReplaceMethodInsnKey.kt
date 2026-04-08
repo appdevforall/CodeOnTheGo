@@ -25,10 +25,10 @@ import java.io.Serializable
  * @author Akash Yadav
  */
 data class ReplaceMethodInsnKey(
-  val className: String,
-  val methodName: String,
-  val methodDescriptor: String
+	val className: String,
+	val methodName: String,
+	val methodDescriptor: String
 ) : Serializable {
-  @JvmField
-  val serialVersionUID = 1L
+	@JvmField
+	val serialVersionUID = 1L
 }
