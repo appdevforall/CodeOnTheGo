@@ -233,6 +233,10 @@ open class EditorHandlerActivity :
 		loadPluginTabs()
 	}
 
+	/**
+	 * Persists which tabs are open (preferences only). Does **not** write project file buffers to disk;
+	 * saving is explicit or prompted (e.g. close project).
+	 */
 	override fun onPause() {
 		super.onPause()
 		// Record timestamps for all currently open files before saving the cache
@@ -247,7 +251,6 @@ open class EditorHandlerActivity :
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
 			saveOpenedPluginTabs()
-			saveAllAsync(notify = false)
 		}
 	}
 
@@ -272,26 +275,29 @@ open class EditorHandlerActivity :
 		invalidateOptionsMenu()
 	}
 
+	/**
+	 * Reloads disk content into an open editor only when the file changed on disk since the last
+	 * [onPause] snapshot **and** the in-memory buffer is still clean ([CodeEditorView.isModified] is
+	 * false). A clean buffer may still have undo history after [IDEEditor.markUnmodified] / save; we
+	 * reload anyway so external edits are not ignored. Never replaces buffers with unsaved edits.
+	 */
 	private fun checkForExternalFileChanges() {
-		// Get the list of files currently managed by the ViewModel
 		val openFiles = editorViewModel.getOpenedFiles()
 		if (openFiles.isEmpty() || fileTimestamps.isEmpty()) return
 
 		lifecycleScope.launch(Dispatchers.IO) {
-			// Check each open file
 			openFiles.forEach { file ->
 				val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: return@forEach
 				val currentTimestamp = file.lastModified()
 
-				// If the file on disk is newer.
 				if (currentTimestamp > lastKnownTimestamp) {
 					val newContent = runCatching { file.readText() }.getOrNull() ?: return@forEach
 					withContext(Dispatchers.Main) {
-						// If the editor for the new file exists AND has no unsaved changes...
 						val editorView = getEditorForFile(file) ?: return@withContext
 						if (editorView.isModified) return@withContext
+						val ideEditor = editorView.editor ?: return@withContext
 
-						editorView.editor?.setText(newContent)
+						ideEditor.setText(newContent)
 						editorView.markAsSaved()
 						updateTabs()
 					}
@@ -342,12 +348,19 @@ open class EditorHandlerActivity :
 					prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
 				} ?: return@launch
 
+				if (editorViewModel.getOpenedFileCount() > 0) {
+					// Returning to an in-memory session (e.g. after onPause/onStop). Replaying the
+					// snapshot would be redundant and could interfere with dirty buffers and undo.
+					withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null) }
+					return@launch
+				}
+
 				val cache = withContext(Dispatchers.Default) {
 					Gson().fromJson(jsonCache, OpenedFilesCache::class.java)
 				}
 				onReadOpenedFilesCache(cache)
 
-				// Clear the preference so it's only loaded once on startup
+				// Clear the preference so it's only loaded once per cold restore
 				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null) }
 			} catch (err: Throwable) {
 				log.error("Failed to reopen recently opened files", err)
@@ -751,6 +764,11 @@ open class EditorHandlerActivity :
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
 
+		val safeContent = contentOrNull ?: return
+		for (i in 0 until safeContent.editorContainer.childCount) {
+			(safeContent.editorContainer.getChildAt(i) as? CodeEditorView)?.reapplyEditorDisplayPreferences()
+		}
+
 		getCurrentEditor()?.editor?.apply {
 			doOnNextLayout {
 				cursor?.let { c -> ensurePositionVisible(c.leftLine, c.leftColumn, true) }
@@ -1073,17 +1091,20 @@ open class EditorHandlerActivity :
 				nameBuilder.addPath(it, it.path)
 			}
 
-			for (index in 0 until content.tabs.tabCount) {
-				val file = files.getOrNull(index) ?: continue
+			for (tabPos in 0 until content.tabs.tabCount) {
+				if (isPluginTab(tabPos)) continue
+				val fileIndex = getFileIndexForTabPosition(tabPos)
+				if (fileIndex < 0) continue
+				val file = files.getOrNull(fileIndex) ?: continue
 				val count = dupliCount[file.name] ?: 0
 
-				val isModified = getEditorAtIndex(index)?.isModified ?: false
+				val isModified = getEditorAtIndex(fileIndex)?.isModified ?: false
 				var name = if (count > 1) nameBuilder.getShortPath(file) else file.name
 				if (isModified) {
 					name = "*$name"
 				}
 
-				names[index] = name to FileExtension.Factory.forFile(file, file.isDirectory).icon
+				names[tabPos] = name to FileExtension.Factory.forFile(file, file.isDirectory).icon
 			}
 
 			withContext(Dispatchers.Main) {

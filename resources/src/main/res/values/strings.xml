@@ -170,6 +170,11 @@
 	<string name="project_info_gradle_v">Gradle version</string>
 	<string name="project_info_kotlin_v">Kotlin version</string>
 	<string name="project_info_java_v">Java version</string>
+	<string name="msg_file_tree_drag_failed">Failed to start dragging the file</string>
+    <string name="msg_file_tree_drag_error">Error preparing file for drag</string>
+    <string name="msg_file_tree_drag_file_not_found">File not found</string>
+    <string name="msg_file_tree_drag_not_a_file">Only files can be dragged</string>
+
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
@@ -273,6 +278,14 @@
 	<string name="lang_kotlin">Kotlin</string>
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
+	<string name="msg_file_tree_drop_import_failed">Failed to import dropped files</string>
+	<string name="msg_file_tree_drop_no_files">No external files were dropped</string>
+	<string name="msg_file_tree_drop_destination_missing">Destination folder does not exist</string>
+	<string name="msg_file_tree_drop_destination_unresolved">Cannot resolve the destination folder</string>
+	<string name="msg_file_tree_drop_default_name">Dropped file</string>
+	<string name="msg_file_tree_drop_read_failed">Unable to read dropped file: %1$s</string>
+	<string name="msg_file_tree_drop_imported_single">Imported 1 file</string>
+	<string name="msg_file_tree_drop_imported_multiple">Imported %1$d files</string>
 
 	<!-- Shortcuts -->
 	<string name="shortcut_close_current_file">Close current file</string>
@@ -849,8 +862,8 @@
 	<string name="breakpoint">Breakpoint</string>
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
-	<string name="desc_toggle_top_bar">Toggle top bar</string>
-    <string name="desc_toggle_bottom_bar">Toggle bottom bar</string>
+	<string name="desc_enter_fullscreen">Enter full screen</string>
+    <string name="desc_exit_fullscreen">Exit full screen</string>
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
@@ -1249,4 +1262,17 @@
     <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>
     <string name="author_not_set">Not set</string>
     <string name="not_a_git_repo">This project is not a Git repository</string>
+    <string name="current_branch_name">Current Branch: %1$s</string>
+    <string name="push">Push</string>
+    <string name="pushing">Pushing…</string>
+    <string name="push_successful">Push successful!</string>
+    <string name="push_failed">Push failed</string>
+    <string name="pull">Pull</string>
+    <string name="pulling">Pulling…</string>
+    <string name="pull_successful">Pull successful!</string>
+    <string name="pull_failed">Pull failed</string>
+    <string name="git_credentials_title">Git Credentials</string>
+    <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
+    <string name="git_credentials_clear">Clear Credentials</string>
+    <string name="repo_authorization_error">Authentication failed. Ensure your Personal Access Token has \'repo\' permissions, or try clearing and re-entering credentials.</string>
 </resources>
