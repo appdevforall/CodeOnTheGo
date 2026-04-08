@@ -271,7 +271,7 @@ open class EditorHandlerActivity :
 		invalidateOptionsMenu()
 	}
 
-	private fun checkForExternalFileChanges() {
+	fun checkForExternalFileChanges() {
 		// Get the list of files currently managed by the ViewModel
 		val openFiles = editorViewModel.getOpenedFiles()
 		if (openFiles.isEmpty() || fileTimestamps.isEmpty()) return
@@ -292,6 +292,7 @@ open class EditorHandlerActivity :
 
 						editorView.editor?.setText(newContent)
 						editorView.markAsSaved()
+						fileTimestamps[file.absolutePath] = currentTimestamp
 						updateTabs()
 					}
 				}

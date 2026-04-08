@@ -58,6 +58,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             viewLifecycleOwner.lifecycleScope.launch {
                                 val repo = viewModel.currentRepository
                                 repo?.let {
+                                    activity.checkForExternalFileChanges()
                                     activity.openFile(File(repo.rootDir, change.path))
                                     bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
                                 }
