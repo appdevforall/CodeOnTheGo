@@ -93,7 +93,7 @@
             android:theme="@style/Theme.AndroidIDE" />
         <activity
             android:name=".activities.editor.EditorActivityKt"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|fontScale"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize" />
         <activity
