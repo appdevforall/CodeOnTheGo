@@ -22,6 +22,7 @@ import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
+import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.PullUiState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -214,25 +215,38 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.pullState.collectLatest { state ->
                 when (state) {
-                    is GitBottomSheetViewModel.PullUiState.Idle -> {
+                    is PullUiState.Idle -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                     }
-                    is GitBottomSheetViewModel.PullUiState.Pulling -> {
+                    is PullUiState.Pulling -> {
                         binding.btnPull.isEnabled = false
                         binding.pullProgress.visibility = View.VISIBLE
                     }
-                    is GitBottomSheetViewModel.PullUiState.Success -> {
+                    is PullUiState.Success -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                         flashSuccess(R.string.pull_successful)
                         viewModel.resetPullState()
                     }
-                    is GitBottomSheetViewModel.PullUiState.Error -> {
+                    is PullUiState.Conflicts -> {
+                        binding.btnPull.isEnabled = true
+                        binding.pullProgress.visibility = View.GONE
+                        val message = state.message ?: getString(R.string.info_merge_conflicts)
+                        MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(getString(R.string.merge_conflicts))
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                        viewModel.resetPullState()
+                    }
+                    is PullUiState.Error -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                         val message =
-                            state.errorResId?.let { getString(it) } ?: state.message
+                            state.message ?: state.errorResId?.let { resId -> 
+                                if (state.errorArgs != null) getString(resId, *state.errorArgs.toTypedArray()) else getString(resId)
+                            }
                         MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.pull_failed)
                             .setMessage(message)

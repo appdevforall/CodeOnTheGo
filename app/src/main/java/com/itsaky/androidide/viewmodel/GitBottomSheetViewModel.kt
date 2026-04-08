@@ -22,8 +22,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.eclipse.jgit.api.MergeResult.MergeStatus
 import org.eclipse.jgit.api.PullResult
 import org.eclipse.jgit.errors.NoRemoteRepositoryException
+import org.eclipse.jgit.api.errors.CheckoutConflictException
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.greenrobot.eventbus.EventBus
@@ -256,6 +258,10 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
                 }
 
                 handlePullSuccess(username, token)
+            } catch (e: CheckoutConflictException) {
+                log.error("Pull failed with checkout conflict", e)
+                val paths = e.conflictingPaths?.joinToString("\n") ?: ""
+                _pullState.value = PullUiState.Error(errorResId = R.string.checkout_conflict_message, errorArgs = listOf(paths))
             } catch (e: Exception) {
                 log.error("Pull failed", e)
                 if (e.message?.contains("not authorized", ignoreCase = true) == true) {
@@ -274,8 +280,15 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
     }
 
     private fun handlePullError(result: PullResult) {
-        val status = result.mergeResult?.mergeStatus?.name ?: "Unknown error"
-        _pullState.value = PullUiState.Error("Pull failed: $status")
+        val mergeStatus = result.mergeResult?.mergeStatus
+        val statusName = mergeStatus?.name ?: "Unknown error"
+        
+        if (mergeStatus == MergeStatus.CONFLICTING) {
+            _pullState.value = PullUiState.Conflicts()
+            refreshStatus()
+        } else {
+            _pullState.value = PullUiState.Error("Pull failed: $statusName")
+        }
     }
 
     private fun handlePullSuccess(
@@ -302,7 +315,8 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         object Idle : PullUiState()
         object Pulling : PullUiState()
         object Success : PullUiState()
-        data class Error(val message: String? = null, val errorResId: Int? = R.string.unknown_error) : PullUiState()
+        data class Conflicts(val message: String? = null) : PullUiState()
+        data class Error(val message: String? = null, val errorResId: Int? = R.string.unknown_error, val errorArgs: List<String>? = null) : PullUiState()
     }
 
     sealed class PushUiState {
