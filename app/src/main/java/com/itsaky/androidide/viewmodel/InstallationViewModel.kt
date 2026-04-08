@@ -6,6 +6,7 @@ import android.os.StatFs
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
+import com.itsaky.androidide.assets.AssetsInstallationAudit
 import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.models.StorageInfo
@@ -81,10 +82,29 @@ class InstallationViewModel : ViewModel() {
 
 						when (result) {
 							is AssetsInstallationHelper.Result.Success -> {
-								val distributionProvider = IJdkDistributionProvider.getInstance()
-								distributionProvider.loadDistributions()
-
-								_state.update { InstallationComplete }
+								_installationProgress.value =
+									context.getString(R.string.verifying_installation)
+								val auditResult = AssetsInstallationAudit.run(context)
+								when (auditResult) {
+									is AssetsInstallationAudit.Result.Success -> {
+										val distributionProvider = IJdkDistributionProvider.getInstance()
+										distributionProvider.loadDistributions()
+										_state.update { InstallationComplete }
+									}
+									is AssetsInstallationAudit.Result.Failure -> {
+										val errorMsg =
+											context.getString(
+												R.string.asset_verification_failed,
+												auditResult.entryName,
+												auditResult.message,
+											)
+										log.warn("Post-installation audit failed: {}", errorMsg)
+										viewModelScope.launch {
+											_events.emit(InstallationEvent.ShowError(errorMsg))
+										}
+										_state.update { InstallationError(errorMsg) }
+									}
+								}
 							}
 							is AssetsInstallationHelper.Result.Failure -> {
 								if (result.shouldReportToSentry) {
