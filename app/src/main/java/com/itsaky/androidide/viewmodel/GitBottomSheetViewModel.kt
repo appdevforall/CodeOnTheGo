@@ -221,8 +221,14 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         } else null
 
     private fun handlePushError(update: RemoteRefUpdate) {
+        val resId = if (update.status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD) {
+            R.string.push_rejected_nonfastforward
+        } else {
+            R.string.unknown_error
+        }
         _pushState.value = PushUiState.Error(
-            update.message ?: update.status.name
+            message = update.message ?: update.status.name,
+            errorResId = resId
         )
     }
 

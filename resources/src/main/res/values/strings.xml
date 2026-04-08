@@ -1268,6 +1268,7 @@
     <string name="pushing">Pushing…</string>
     <string name="push_successful">Push successful!</string>
     <string name="push_failed">Push failed</string>
+    <string name="push_rejected_nonfastforward">Push rejected: Your branch is behind the remote. Please pull to resolve conflicts before pushing.</string>
     <string name="pull">Pull</string>
     <string name="pulling">Pulling…</string>
     <string name="pull_successful">Pull successful!</string>
