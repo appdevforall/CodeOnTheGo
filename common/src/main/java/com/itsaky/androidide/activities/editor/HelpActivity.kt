@@ -17,15 +17,20 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
+import com.itsaky.androidide.utils.DeviceFormFactorUtils
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.UrlManager
 import org.adfa.constants.CONTENT_TITLE_KEY
@@ -34,6 +39,29 @@ class HelpActivity : BaseIDEActivity() {
 
     companion object {
         private val EXTERNAL_SCHEMES = listOf("mailto:", "tel:", "sms:")
+        private const val MULTI_WINDOW_URI = "cogo-help://tooltip/active-window"
+
+        fun launch(context: Context, url: String, title: String) {
+            val intent = Intent(context, HelpActivity::class.java).apply {
+                putExtra(CONTENT_KEY, url)
+                putExtra(CONTENT_TITLE_KEY, title)
+
+                val formFactor = DeviceFormFactorUtils.getCurrent(context)
+
+                if (formFactor.isLargeScreenLike) {
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_NEW_DOCUMENT or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
+                    )
+                    data = MULTI_WINDOW_URI.toUri()
+                } else if (context !is Activity) {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+            context.startActivity(intent)
+        }
     }
 
     private var _binding: ActivityHelpBinding? = null
@@ -113,6 +141,19 @@ class HelpActivity : BaseIDEActivity() {
                 handleBackNavigation()
             }
         })
+        loadUrlFromIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        loadUrlFromIntent(intent)
+    }
+
+    private fun loadUrlFromIntent(currentIntent: Intent) {
+        currentIntent.getStringExtra(CONTENT_KEY)?.let { url ->
+            binding.webView.loadUrl(url)
+        }
     }
 
     private fun handleUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
