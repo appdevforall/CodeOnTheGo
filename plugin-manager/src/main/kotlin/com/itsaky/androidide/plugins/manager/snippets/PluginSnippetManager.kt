@@ -23,15 +23,18 @@ class PluginSnippetManager private constructor() {
 	private val contributions = mutableMapOf<String, List<SnippetContribution>>()
 
 	fun registerPlugin(pluginId: String, extension: SnippetExtension) {
+		synchronized(contributions) {
+			extensions[pluginId] = extension
+		}
+
 		val snippets = try {
 			extension.getSnippetContributions()
 		} catch (e: Exception) {
 			log.error("Failed to get snippet contributions from plugin: {}", pluginId, e)
-			return
+			emptyList()
 		}
 
 		synchronized(contributions) {
-			extensions[pluginId] = extension
 			contributions[pluginId] = snippets
 		}
 		log.info("Registered {} snippet contributions from plugin: {}", snippets.size, pluginId)
@@ -47,6 +50,7 @@ class PluginSnippetManager private constructor() {
 		}
 
 		synchronized(contributions) {
+			if (extensions[pluginId] == null) return emptyList()
 			contributions[pluginId] = snippets
 		}
 		log.info("Refreshed {} snippet contributions from plugin: {}", snippets.size, pluginId)

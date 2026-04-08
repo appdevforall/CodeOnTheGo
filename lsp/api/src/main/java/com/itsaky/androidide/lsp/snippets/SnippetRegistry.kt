@@ -71,7 +71,7 @@ object SnippetRegistry {
 		val parsed = SnippetParser.parse(language, scopes)
 		lock.write {
 			parsed.forEach { (scope, snippets) ->
-				builtIn.getOrPut(language) { mutableMapOf() }[scope.filename] = snippets.toMutableList()
+				builtIn.getOrPut(language) { mutableMapOf() }[scope.filename] = snippets as MutableList<ISnippet>
 			}
 		}
 	}

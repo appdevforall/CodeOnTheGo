@@ -52,6 +52,7 @@ object SnippetHandler {
 		language: String,
 		scopes: Array<S>,
 	) {
+		SnippetRegistry.clearUserSnippets(language)
 		val userSnippets = UserSnippetLoader.loadUserSnippets(language, scopes)
 		userSnippets.forEach { (scope, snippets) ->
 			if (snippets.isNotEmpty()) {

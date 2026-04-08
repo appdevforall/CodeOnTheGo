@@ -429,6 +429,8 @@ abstract class BaseEditorActivity :
 	protected open fun preDestroy() {
 		BuildOutputProvider.clearBottomSheet()
 
+		IDEApplication.getPluginManager()?.setSnippetRefreshListener(null)
+
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 		if (isAtLeastR()) wadbConnectionViewModel.stop(this)
 

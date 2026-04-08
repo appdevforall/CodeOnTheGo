@@ -415,6 +415,10 @@ class PluginManager private constructor(
                 loadedPlugins[manifest.id] = loadedPlugin
                 if (isEnabled) {
                     try {
+                        if (plugin is SnippetExtension) {
+                            PluginSnippetManager.getInstance().registerPlugin(manifest.id, plugin)
+                        }
+
                         plugin.activate()
                         logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
 
@@ -431,10 +435,6 @@ class PluginManager private constructor(
                                     logger.error("Error verifying/installing documentation for plugin: ${manifest.id}", e)
                                 }
                             }
-                        }
-
-                        if (plugin is SnippetExtension) {
-                            PluginSnippetManager.getInstance().registerPlugin(manifest.id, plugin)
                         }
                     } catch (e: Exception) {
                         logger.error("Failed to activate  plugin: ${manifest.id}", e)
@@ -484,6 +484,7 @@ class PluginManager private constructor(
 
             PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
             PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
+            snippetRefreshListener?.invoke(pluginId)
 
             val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
             if (templateService is IdeTemplateServiceImpl) {

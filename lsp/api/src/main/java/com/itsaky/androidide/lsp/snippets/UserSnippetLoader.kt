@@ -1,8 +1,10 @@
 package com.itsaky.androidide.lsp.snippets
 
+import com.google.gson.JsonParseException
 import com.itsaky.androidide.utils.Environment
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 
 object UserSnippetLoader {
 
@@ -20,7 +22,10 @@ object UserSnippetLoader {
 			val snippets = if (file.isFile) {
 				try {
 					SnippetParser.parseFromReader(file.reader())
-				} catch (e: Exception) {
+				} catch (e: IOException) {
+					log.error("Failed to read user snippets from {}", file.absolutePath, e)
+					emptyList()
+				} catch (e: JsonParseException) {
 					log.error("Failed to parse user snippets from {}", file.absolutePath, e)
 					emptyList()
 				}
