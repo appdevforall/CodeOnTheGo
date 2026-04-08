@@ -31,10 +31,13 @@ public final class LegacyIdeDataDirMigration {
 	private LegacyIdeDataDirMigration() {}
 
 	/**
-	 * If {@code current} does not exist but {@code legacy} does, renames {@code legacy} to {@code
-	 * current}. If both exist, logs a warning and leaves {@code current} as the source of truth.
+	 * Resolves which IDE data directory path is in use: prefers {@code current} after a successful
+	 * rename from {@code legacy}. If {@code current} already exists, it wins (both-existing case is
+	 * logged). If only {@code legacy} exists and {@code legacy.renameTo(current)} fails, returns
+	 * {@code legacy} so callers keep using the existing tree. If neither exists, returns {@code
+	 * current} for the caller to create.
 	 */
-	public static void migrateLegacyIdeDataDirIfNeeded(File legacy, File current) {
+	public static File migrateLegacyIdeDataDirIfNeeded(File legacy, File current) {
 		if (current.exists()) {
 			if (legacy.exists()) {
 				LOG.warn(
@@ -43,10 +46,15 @@ public final class LegacyIdeDataDirMigration {
 						current.getAbsolutePath(),
 						current.getAbsolutePath());
 			}
-			return;
+			return current;
 		}
-		if (legacy.exists() && !legacy.renameTo(current)) {
+		if (legacy.exists()) {
+			if (legacy.renameTo(current)) {
+				return current;
+			}
 			LOG.warn("Failed to rename legacy IDE data dir {} to {}", legacy, current);
+			return legacy;
 		}
+		return current;
 	}
 }

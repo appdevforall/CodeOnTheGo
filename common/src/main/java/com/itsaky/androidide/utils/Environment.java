@@ -129,8 +129,7 @@ public final class Environment {
 	public static File getProjectCacheDir(File projectDir) {
 		File current = new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
 		File legacy = new File(projectDir, SharedEnvironment.LEGACY_PROJECT_CACHE_DIR_NAME);
-		LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacy, current);
-		return current;
+		return LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacy, current);
 	}
 
 	public static void init(Context context) {
@@ -147,8 +146,9 @@ public final class Environment {
 		HOME = mkdirIfNotExists(new File(ROOT, "home"));
 		File ideHomeCandidate = new File(HOME, SharedEnvironment.PROJECT_CACHE_DIR_NAME);
 		File legacyIdeHome = new File(HOME, SharedEnvironment.LEGACY_PROJECT_CACHE_DIR_NAME);
-		LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacyIdeHome, ideHomeCandidate);
-		ANDROIDIDE_HOME = mkdirIfNotExists(ideHomeCandidate);
+		File ideHomeResolved =
+				LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacyIdeHome, ideHomeCandidate);
+		ANDROIDIDE_HOME = mkdirIfNotExists(ideHomeResolved);
 		TMP_DIR = mkdirIfNotExists(new File(PREFIX, "tmp"));
 		BIN_DIR = mkdirIfNotExists(new File(PREFIX, "bin"));
 		OPT_DIR = mkdirIfNotExists(new File(PREFIX, "opt"));
