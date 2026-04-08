@@ -38,14 +38,12 @@ public final class LegacyIdeDataDirMigration {
 	 * current} for the caller to create.
 	 */
 	public static File migrateLegacyIdeDataDirIfNeeded(File legacy, File current) {
-		if (current.exists()) {
-			if (legacy.exists()) {
-				LOG.warn(
-						"Both {} and {} exist; using {} only",
-						legacy.getAbsolutePath(),
-						current.getAbsolutePath(),
-						current.getAbsolutePath());
-			}
+		if (current.exists() && legacy.exists()) {
+			LOG.warn(
+				"Both {} and {} exist; using {} only",
+				legacy.getAbsolutePath(),
+				current.getAbsolutePath(),
+				current.getAbsolutePath());
 			return current;
 		}
 		if (legacy.exists()) {
