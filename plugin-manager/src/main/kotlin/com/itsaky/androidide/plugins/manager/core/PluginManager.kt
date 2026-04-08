@@ -18,6 +18,10 @@ import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
+import com.itsaky.androidide.plugins.extensions.SnippetExtension
+import com.itsaky.androidide.plugins.manager.services.IdeSnippetServiceImpl
+import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
+import com.itsaky.androidide.plugins.services.IdeSnippetService
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
@@ -108,10 +112,15 @@ class PluginManager private constructor(
     private val pluginsDir = File(context.filesDir, "plugins")
     private val documentationManager = PluginDocumentationManager(context)
     private var templateReloadListener: (() -> Unit)? = null
+    private var snippetRefreshListener: ((String) -> Unit)? = null
 
     fun setTemplateReloadListener(listener: (() -> Unit)?) {
         this.templateReloadListener = listener
         PluginProjectManager.getInstance().setTemplateReloadListener(listener)
+    }
+
+    fun setSnippetRefreshListener(listener: ((String) -> Unit)?) {
+        this.snippetRefreshListener = listener
     }
 
     // Helper methods for cleaner error handling
@@ -409,7 +418,6 @@ class PluginManager private constructor(
                         plugin.activate()
                         logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
 
-                        // Verify and install/recreate documentation if plugin implements DocumentationExtension
                         if (plugin is DocumentationExtension) {
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
@@ -423,6 +431,10 @@ class PluginManager private constructor(
                                     logger.error("Error verifying/installing documentation for plugin: ${manifest.id}", e)
                                 }
                             }
+                        }
+
+                        if (plugin is SnippetExtension) {
+                            PluginSnippetManager.getInstance().registerPlugin(manifest.id, plugin)
                         }
                     } catch (e: Exception) {
                         logger.error("Failed to activate  plugin: ${manifest.id}", e)
@@ -471,6 +483,7 @@ class PluginManager private constructor(
             }
 
             PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+            PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
 
             val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
             if (templateService is IdeTemplateServiceImpl) {
@@ -942,6 +955,19 @@ class PluginManager private constructor(
             )
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSnippetService::class.java,
+            pluginId,
+            "snippet"
+        ) {
+            IdeSnippetServiceImpl().apply {
+                setRefreshCallback { pid ->
+                    snippetRefreshListener?.invoke(pid)
+                }
+            }
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -1085,6 +1111,19 @@ class PluginManager private constructor(
                 permissions = permissions,
                 onTemplatesChanged = { templateReloadListener?.invoke() }
             )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSnippetService::class.java,
+            pluginId,
+            "snippet"
+        ) {
+            IdeSnippetServiceImpl().apply {
+                setRefreshCallback { pid ->
+                    snippetRefreshListener?.invoke(pid)
+                }
+            }
         }
 
         return PluginContextImpl(

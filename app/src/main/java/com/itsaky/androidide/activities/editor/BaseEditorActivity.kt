@@ -92,6 +92,9 @@ import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
+import com.itsaky.androidide.handlers.SnippetHandler.loadPluginSnippets
+import com.itsaky.androidide.handlers.SnippetHandler.loadUserSnippets
+import com.itsaky.androidide.handlers.SnippetHandler.refreshPluginSnippets
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
@@ -614,6 +617,11 @@ abstract class BaseEditorActivity :
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
+		loadUserSnippets()
+		loadPluginSnippets()
+		IDEApplication.getPluginManager()?.setSnippetRefreshListener { pluginId ->
+			refreshPluginSnippets(pluginId)
+		}
 		registerLanguageServers()
 
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)

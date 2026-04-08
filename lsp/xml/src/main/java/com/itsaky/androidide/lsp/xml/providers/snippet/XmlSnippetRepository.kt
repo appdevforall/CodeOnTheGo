@@ -18,19 +18,16 @@
 package com.itsaky.androidide.lsp.xml.providers.snippet
 
 import com.itsaky.androidide.lsp.snippets.ISnippet
-import com.itsaky.androidide.lsp.snippets.SnippetParser
+import com.itsaky.androidide.lsp.snippets.SnippetRegistry
 
-/**
- * Repository for XML snippets.
- *
- * @author Akash Yadav
- */
 object XmlSnippetRepository {
 
-  lateinit var snippets: Map<IXmlSnippetScope, List<ISnippet>>
-    private set
+  val snippets: Map<IXmlSnippetScope, List<ISnippet>>
+    get() = XML_SNIPPET_SCOPES.associateWith { scope ->
+      SnippetRegistry.getSnippets("xml", scope.filename)
+    }
 
   fun init() {
-    this.snippets = SnippetParser.parse("xml", XML_SNIPPET_SCOPES)
+    SnippetRegistry.initBuiltIn("xml", XML_SNIPPET_SCOPES)
   }
 }
