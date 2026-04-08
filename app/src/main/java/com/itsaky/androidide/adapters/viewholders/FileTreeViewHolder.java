@@ -24,86 +24,103 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.LinearLayout;
+
 import androidx.transition.ChangeImageTransform;
 import androidx.transition.TransitionManager;
+
 import com.blankj.utilcode.util.SizeUtils;
 import com.itsaky.androidide.databinding.LayoutFiletreeItemBinding;
 import com.itsaky.androidide.models.FileExtension;
 import com.itsaky.androidide.resources.R;
 import com.unnamed.b.atv.model.TreeNode;
+
 import java.io.File;
 
 public class FileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {
 
-  private LayoutFiletreeItemBinding binding;
-
-  public FileTreeViewHolder(Context context) {
-    super(context);
-  }
-
-  @Override
-  public View createNodeView(TreeNode node, File file) {
-    this.binding = LayoutFiletreeItemBinding.inflate(LayoutInflater.from(context));
-
-    final var dp15 = SizeUtils.dp2px(15);
-    final boolean isDir = node.isDirectory();
-    final var icon = getIconForFile(file, isDir);
-    final var chevron = binding.filetreeChevron;
-    binding.filetreeName.setText(file.getName());
-    binding.filetreeIcon.setImageResource(icon);
-
-    final var root = applyPadding(node, binding, dp15);
-
-    if (isDir) {
-      chevron.setVisibility(View.VISIBLE);
-      updateChevronIcon(node.isExpanded());
-    } else {
-      chevron.setVisibility(View.INVISIBLE);
+    public interface ExternalDropHandler {
+        void onNodeBound(TreeNode node, File file, View view);
     }
 
-    return root;
-  }
+    private LayoutFiletreeItemBinding binding;
+    private final ExternalDropHandler externalDropHandler;
 
-  private void updateChevronIcon(boolean expanded) {
-    final int chevronIcon;
-    if (expanded) {
-      chevronIcon = R.drawable.ic_chevron_down;
-    } else {
-      chevronIcon = R.drawable.ic_chevron_right;
+    public FileTreeViewHolder(Context context) {
+        this(context, null);
     }
 
-    TransitionManager.beginDelayedTransition(binding.getRoot(), new ChangeImageTransform());
-    binding.filetreeChevron.setImageResource(chevronIcon);
-  }
-
-  protected LinearLayout applyPadding(
-      final TreeNode node, final LayoutFiletreeItemBinding binding, final int padding) {
-    final var root = binding.getRoot();
-    root.setPaddingRelative(
-        root.getPaddingLeft() + (padding * (node.getLevel() - 1)),
-        root.getPaddingTop(),
-        root.getPaddingRight(),
-        root.getPaddingBottom());
-    return root;
-  }
-
-  protected int getIconForFile(final File file, boolean isDirectory) {
-    return FileExtension.Factory.forFile(file, isDirectory).getIcon();
-  }
-
-  public void updateChevron(boolean expanded) {
-    setLoading(false);
-    updateChevronIcon(expanded);
-  }
-
-  public void setLoading(boolean loading) {
-    final int viewIndex;
-    if (loading) {
-      viewIndex = 1;
-    } else {
-      viewIndex = 0;
+    public FileTreeViewHolder(Context context, ExternalDropHandler externalDropHandler) {
+        super(context);
+        this.externalDropHandler = externalDropHandler;
     }
 
-    binding.chevronLoadingSwitcher.setDisplayedChild(viewIndex);
-  }
+    @Override
+    public View createNodeView(TreeNode node, File file) {
+        this.binding = LayoutFiletreeItemBinding.inflate(LayoutInflater.from(context));
+
+        final var dp15 = SizeUtils.dp2px(15);
+        final boolean isDir = node.isDirectory();
+        final var icon = getIconForFile(file, isDir);
+        final var chevron = binding.filetreeChevron;
+        binding.filetreeName.setText(file.getName());
+        binding.filetreeIcon.setImageResource(icon);
+
+        final var root = applyPadding(node, binding, dp15);
+
+        if (isDir) {
+            chevron.setVisibility(View.VISIBLE);
+            updateChevronIcon(node.isExpanded());
+        } else {
+            chevron.setVisibility(View.INVISIBLE);
+        }
+
+        if (externalDropHandler != null) {
+            externalDropHandler.onNodeBound(node, file, root);
+        }
+
+        return root;
+    }
+
+    private void updateChevronIcon(boolean expanded) {
+        final int chevronIcon;
+        if (expanded) {
+            chevronIcon = R.drawable.ic_chevron_down;
+        } else {
+            chevronIcon = R.drawable.ic_chevron_right;
+        }
+
+        TransitionManager.beginDelayedTransition(binding.getRoot(), new ChangeImageTransform());
+        binding.filetreeChevron.setImageResource(chevronIcon);
+    }
+
+    protected LinearLayout applyPadding(
+            final TreeNode node, final LayoutFiletreeItemBinding binding, final int padding) {
+        final var root = binding.getRoot();
+        root.setPaddingRelative(
+                root.getPaddingLeft() + (padding * (node.getLevel() - 1)),
+                root.getPaddingTop(),
+                root.getPaddingRight(),
+                root.getPaddingBottom());
+        return root;
+    }
+
+    protected int getIconForFile(final File file, boolean isDirectory) {
+        return FileExtension.Factory.forFile(file, isDirectory).getIcon();
+    }
+
+    public void updateChevron(boolean expanded) {
+        setLoading(false);
+        updateChevronIcon(expanded);
+    }
+
+    public void setLoading(boolean loading) {
+        final int viewIndex;
+        if (loading) {
+            viewIndex = 1;
+        } else {
+            viewIndex = 0;
+        }
+
+        binding.chevronLoadingSwitcher.setDisplayedChild(viewIndex);
+    }
 }
