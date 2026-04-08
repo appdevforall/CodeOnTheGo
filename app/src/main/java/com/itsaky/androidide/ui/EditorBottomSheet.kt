@@ -125,7 +125,6 @@ constructor(
 
 	companion object {
 		private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
-		private const val COLLAPSE_HEADER_AT_OFFSET = 0.5f
 
 		const val CHILD_HEADER = 0
 		const val CHILD_SYMBOL_INPUT = 1
@@ -380,19 +379,13 @@ constructor(
 	}
 
 	fun onSlide(sheetOffset: Float) {
-		val heightScale =
-			if (sheetOffset >= COLLAPSE_HEADER_AT_OFFSET) {
-				((COLLAPSE_HEADER_AT_OFFSET - sheetOffset) + COLLAPSE_HEADER_AT_OFFSET) * 2f
-			} else {
-				1f
-			}
+		val safeOffset = sheetOffset.coerceIn(0f, 1f)
 
-		val paddingScale =
-			if (!isImeVisible && sheetOffset <= COLLAPSE_HEADER_AT_OFFSET) {
-				((1f - sheetOffset) * 2f) - 1f
-			} else {
-				0f
-			}
+		val heightScale = 1f - safeOffset
+
+		val paddingScale = if (!isImeVisible) {
+			1f - safeOffset
+		} else 0f
 
 		val padding = insetBottom * paddingScale
 		binding.headerContainer.apply {
