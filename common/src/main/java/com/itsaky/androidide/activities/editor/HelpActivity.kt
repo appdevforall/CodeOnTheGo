@@ -141,16 +141,19 @@ class HelpActivity : BaseIDEActivity() {
                 handleBackNavigation()
             }
         })
-        loadUrlFromIntent(intent)
+        updateUIFromIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        loadUrlFromIntent(intent)
+        updateUIFromIntent(intent)
     }
 
-    private fun loadUrlFromIntent(currentIntent: Intent) {
+    private fun updateUIFromIntent(currentIntent: Intent) {
+        val pageTitle = currentIntent.getStringExtra(CONTENT_TITLE_KEY)
+        supportActionBar?.title = pageTitle ?: getString(R.string.help)
+
         currentIntent.getStringExtra(CONTENT_KEY)?.let { url ->
             binding.webView.loadUrl(url)
         }
