@@ -21,6 +21,7 @@ import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import androidx.lifecycle.lifecycleScope
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -67,7 +68,7 @@ class PluginBuildActionItem(
         val context = data.getContext() ?: return null
         val isRunning = PluginBuildActionManager.getInstance()
             .isActionRunning(registered.pluginId, registered.action.id)
-        val attr = if (isRunning) R.attr.colorError else com.google.android.material.R.attr.colorOnSurface
+        val attr = if (isRunning) R.attr.colorError else R.attr.colorOnSurface
         return PorterDuffColorFilter(
             context.resolveAttr(attr),
             PorterDuff.Mode.SRC_ATOP
@@ -142,7 +143,7 @@ class PluginBuildActionItem(
         return true
     }
 
-    private fun resetProgressIfIdle(activity: com.itsaky.androidide.activities.editor.EditorHandlerActivity) {
+    private fun resetProgressIfIdle(activity: EditorHandlerActivity) {
         val manager = PluginBuildActionManager.getInstance()
         if (buildService?.isBuildInProgress != true && !manager.hasActiveExecutions()) {
             activity.editorViewModel.isBuildInProgress = false

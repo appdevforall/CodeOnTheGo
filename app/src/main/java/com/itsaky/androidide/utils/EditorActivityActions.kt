@@ -201,14 +201,12 @@ class EditorActivityActions {
     private fun registerPluginBuildActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
         var order = startOrder
 
-        val buildActions = PluginBuildActionManager.getInstance().getAllBuildActions()
-        for (registered in buildActions) {
-            try {
-                val action = PluginBuildActionItem(context, registered, order++)
-                registry.registerAction(action)
+        PluginBuildActionManager.getInstance().getAllBuildActions().forEach { registered ->
+            runCatching {
+                registry.registerAction(PluginBuildActionItem(context, registered, order++))
                 Log.d("plugin_debug", "Registered build action: ${registered.action.id} from plugin: ${registered.pluginId}")
-            } catch (e: Exception) {
-                Log.d("plugin_debug", "Failed to register build action: ${registered.action.id} - ${e.message}")
+            }.onFailure { e ->
+                Log.w("plugin_debug", "Failed to register build action: ${registered.action.id}", e)
             }
         }
 
