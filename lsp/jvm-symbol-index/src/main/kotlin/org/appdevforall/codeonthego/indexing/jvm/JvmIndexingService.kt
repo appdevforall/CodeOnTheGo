@@ -8,7 +8,6 @@ import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -20,25 +19,23 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlin.io.path.exists
 import kotlin.io.path.extension
-import kotlin.io.path.pathString
 
 /**
- * Well-known key for the JVM symbol index.
+ * Well-known key for the JVM library symbol index.
  *
  * Both the Kotlin and Java LSPs use this key to retrieve the
  * shared index from the [IndexRegistry].
  */
-val JVM_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-symbols")
+val JVM_LIBRARY_SYMBOL_INDEX = IndexKey<JvmLibrarySymbolIndex>("jvm-library-symbols")
 
 /**
  * [IndexingService] that scans classpath JARs/AARs and builds
- * a [JvmSymbolIndex].
+ * a [JvmLibrarySymbolIndex].
  *
  * Thread safety: all methods are called from the
  * [IndexingServiceManager][org.appdevforall.codeonthego.indexing.service.IndexingServiceManager]'s
- * coroutine scope. The [JvmSymbolIndex] handles its own internal thread safety.
+ * coroutine scope. The [JvmLibrarySymbolIndex] handles its own internal thread safety.
  */
 class JvmIndexingService(
 	private val context: Context,
@@ -51,16 +48,16 @@ class JvmIndexingService(
 
 	override val id = ID
 
-	override val providedKeys = listOf(JVM_SYMBOL_INDEX)
+	override val providedKeys = listOf(JVM_LIBRARY_SYMBOL_INDEX)
 
-	private var index: JvmSymbolIndex? = null
+	private var index: JvmLibrarySymbolIndex? = null
 	private var indexingMutex = Mutex()
 	private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val jvmIndex = JvmSymbolIndex.create(context)
+		val jvmIndex = JvmLibrarySymbolIndex.create(context)
 		this.index = jvmIndex
-		registry.register(JVM_SYMBOL_INDEX, jvmIndex)
+		registry.register(JVM_LIBRARY_SYMBOL_INDEX, jvmIndex)
 		log.info("JVM symbol index initialized")
 	}
 
