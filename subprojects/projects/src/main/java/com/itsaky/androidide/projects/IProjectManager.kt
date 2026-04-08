@@ -23,7 +23,7 @@ import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
-import com.itsaky.androidide.utils.Environment
+
 import com.itsaky.androidide.utils.ServiceLoader
 import java.io.File
 import java.nio.file.Path
@@ -175,13 +175,5 @@ interface IProjectManager {
 }
 
 fun IProjectManager.isPluginProject(): Boolean {
-    val cached = (this as? ProjectManagerImpl)?.pluginProjectCached
-    if (cached != null) {
-        return cached
-    }
-    val result = File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
-    if (this is ProjectManagerImpl) {
-        this.pluginProjectCached = result
-    }
-    return result
+    return (this as? ProjectManagerImpl)?.pluginProjectCached ?: false
 }
