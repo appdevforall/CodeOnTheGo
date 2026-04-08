@@ -16,28 +16,35 @@ import org.appdevforall.codeonthego.indexing.jvm.proto.JvmSymbolProtos.JvmSymbol
  * - `containingClass`: exact, for member lookup
  * - `language`       : exact, for Java-only or Kotlin-only queries
  *
- * Blob serialization uses Protobuf with oneof for type-specific data.
+ * Blob serialization uses Protobuf with `oneof` for type-specific data.
  */
 object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
+
+	const val KEY_NAME = "name"
+	const val KEY_PACKAGE = "package"
+	const val KEY_KIND = "kind"
+	const val KEY_RECEIVER_TYPE = "receiverType"
+	const val KEY_CONTAINING_CLASS = "containingClass"
+	const val KEY_LANGUAGE = "language"
 
     override val name: String = "jvm_symbols"
 
     override val fields: List<IndexField> = listOf(
-        IndexField(name = "name", prefixSearchable = true),
-        IndexField(name = "package"),
-        IndexField(name = "kind"),
-        IndexField(name = "receiverType"),
-        IndexField(name = "containingClass"),
-        IndexField(name = "language"),
+        IndexField(name = KEY_NAME, prefixSearchable = true),
+        IndexField(name = KEY_PACKAGE),
+        IndexField(name = KEY_KIND),
+        IndexField(name = KEY_RECEIVER_TYPE),
+        IndexField(name = KEY_CONTAINING_CLASS),
+        IndexField(name = KEY_LANGUAGE),
     )
 
     override fun fieldValues(entry: JvmSymbol): Map<String, String?> = mapOf(
-        "name" to entry.shortName,
-        "package" to entry.packageName,
-        "kind" to entry.kind.name,
-        "receiverType" to entry.receiverTypeFqName,
-        "containingClass" to entry.containingClassFqName.ifEmpty { null },
-        "language" to entry.language.name,
+        KEY_NAME to entry.shortName,
+        KEY_PACKAGE to entry.packageName,
+        KEY_KIND to entry.kind.name,
+        KEY_RECEIVER_TYPE to entry.receiverTypeFqName,
+        KEY_CONTAINING_CLASS to entry.containingClassFqName.ifEmpty { null },
+        KEY_LANGUAGE to entry.language.name,
     )
 
     override fun serialize(entry: JvmSymbol): ByteArray =

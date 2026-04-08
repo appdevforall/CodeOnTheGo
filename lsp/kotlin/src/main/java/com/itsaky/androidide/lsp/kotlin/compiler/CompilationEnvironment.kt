@@ -1,7 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
-import com.itsaky.androidide.lsp.kotlin.FileEventConsumer
 import com.itsaky.androidide.lsp.kotlin.KtFileManager
+import com.itsaky.androidide.lsp.kotlin.completion.SymbolVisibilityChecker
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
@@ -51,7 +51,7 @@ import kotlin.io.path.pathString
  * @param jdkHome Path to the JDK installation directory.
  * @param jdkRelease The JDK release version at [jdkHome].
  */
-class CompilationEnvironment(
+internal class CompilationEnvironment(
 	val projectModel: KotlinProjectModel,
 	val intellijPluginRoot: Path,
 	val jdkHome: Path,
@@ -81,6 +81,12 @@ class CompilationEnvironment(
 
 	val coreApplicationEnvironment: CoreApplicationEnvironment
 		get() = session.coreApplicationEnvironment
+
+	val moduleResolver: ModuleResolver?
+		get() = projectModel.moduleResolver
+
+	val symbolVisibilityChecker: SymbolVisibilityChecker?
+		get() = projectModel.symbolVisibilityChecker
 
 	private val envMessageCollector = object : MessageCollector {
 		override fun clear() {

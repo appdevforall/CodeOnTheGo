@@ -9,7 +9,6 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
-import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticWithPsi
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
@@ -23,7 +22,7 @@ import kotlin.time.toKotlinInstant
 
 private val logger = LoggerFactory.getLogger("KotlinDiagnosticProvider")
 
-fun CompilationEnvironment.collectDiagnosticsFor(file: Path): DiagnosticResult = try {
+internal fun CompilationEnvironment.collectDiagnosticsFor(file: Path): DiagnosticResult = try {
 	logger.info("Analyzing file: {}", file)
 	return doAnalyze(file)
 } catch (err: Throwable) {

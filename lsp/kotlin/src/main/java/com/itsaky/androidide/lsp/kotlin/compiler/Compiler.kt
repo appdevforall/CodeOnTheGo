@@ -1,6 +1,5 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
-import com.itsaky.androidide.lsp.kotlin.FileEventConsumer
 import com.itsaky.androidide.utils.DocumentUtils
 import org.jetbrains.kotlin.com.intellij.lang.Language
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
@@ -15,10 +14,9 @@ import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlin.io.path.extension
 import kotlin.io.path.pathString
 
-class Compiler(
+internal class Compiler(
 	projectModel: KotlinProjectModel,
 	intellijPluginRoot: Path,
 	jdkHome: Path,

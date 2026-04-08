@@ -7,6 +7,10 @@ import kotlinx.coroutines.flow.take
 import org.appdevforall.codeonthego.indexing.FilteredIndex
 import org.appdevforall.codeonthego.indexing.PersistentIndex
 import org.appdevforall.codeonthego.indexing.api.indexQuery
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_CONTAINING_CLASS
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_NAME
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_PACKAGE
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_RECEIVER_TYPE
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
 import java.io.Closeable
 
@@ -107,50 +111,50 @@ class JvmLibrarySymbolIndex private constructor(
 	) = libraryIndexer.indexSource(sourceId, skipIfExists = false, provider)
 
 	fun findByPrefix(prefix: String, limit: Int = 200): Flow<JvmSymbol> =
-		libraryView.query(indexQuery { prefix("name", prefix); this.limit = limit })
+		libraryView.query(indexQuery { prefix(KEY_NAME, prefix); this.limit = limit })
 
 	fun findByPrefix(
 		prefix: String, kinds: Set<JvmSymbolKind>, limit: Int = 200,
 	): Flow<JvmSymbol> =
-		libraryView.query(indexQuery { prefix("name", prefix); this.limit = 0 })
+		libraryView.query(indexQuery { prefix(KEY_NAME, prefix); this.limit = 0 })
 			.filter { it.kind in kinds }
 			.take(limit)
 
 	fun findExtensionsFor(
 		receiverTypeFqName: String, namePrefix: String = "", limit: Int = 200,
 	): Flow<JvmSymbol> = libraryView.query(indexQuery {
-		eq("receiverType", receiverTypeFqName)
-		if (namePrefix.isNotEmpty()) prefix("name", namePrefix)
+		eq(KEY_RECEIVER_TYPE, receiverTypeFqName)
+		if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
 		this.limit = limit
 	})
 
 	fun findTopLevelCallablesInPackage(
 		packageName: String, namePrefix: String = "", limit: Int = 200,
 	): Flow<JvmSymbol> = libraryView.query(indexQuery {
-		eq("package", packageName)
-		if (namePrefix.isNotEmpty()) prefix("name", namePrefix)
+		eq(KEY_PACKAGE, packageName)
+		if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
 		this.limit = 0
 	}).filter { it.kind.isCallable && it.isTopLevel }.take(limit)
 
 	fun findClassifiersInPackage(
 		packageName: String, namePrefix: String = "", limit: Int = 200,
 	): Flow<JvmSymbol> = libraryView.query(indexQuery {
-		eq("package", packageName)
-		if (namePrefix.isNotEmpty()) prefix("name", namePrefix)
+		eq(KEY_PACKAGE, packageName)
+		if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
 		this.limit = 0
 	}).filter { it.kind.isClassifier }.take(limit)
 
 	fun findMembersOf(
 		classFqName: String, namePrefix: String = "", limit: Int = 200,
 	): Flow<JvmSymbol> = libraryView.query(indexQuery {
-		eq("containingClass", classFqName)
-		if (namePrefix.isNotEmpty()) prefix("name", namePrefix)
+		eq(KEY_CONTAINING_CLASS, classFqName)
+		if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
 		this.limit = limit
 	})
 
 	suspend fun findByFqName(fqName: String): JvmSymbol? = libraryView.get(fqName)
 
-	fun allPackages(): Flow<String> = libraryView.distinctValues("package")
+	fun allPackages(): Flow<String> = libraryView.distinctValues(KEY_PACKAGE)
 
 	suspend fun awaitLibraryIndexing() = libraryIndexer.awaitAll()
 
