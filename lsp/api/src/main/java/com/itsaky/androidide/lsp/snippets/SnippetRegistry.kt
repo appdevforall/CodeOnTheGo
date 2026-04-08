@@ -14,17 +14,13 @@ object SnippetRegistry {
 
 	fun registerBuiltIn(language: String, scope: String, snippets: List<ISnippet>) {
 		lock.write {
-			builtIn.getOrPut(language) { mutableMapOf() }
-				.getOrPut(scope) { mutableListOf() }
-				.addAll(snippets)
+			builtIn.getOrPut(language) { mutableMapOf() }[scope] = snippets.toMutableList()
 		}
 	}
 
 	fun registerUserSnippets(language: String, scope: String, snippets: List<ISnippet>) {
 		lock.write {
-			user.getOrPut(language) { mutableMapOf() }
-				.getOrPut(scope) { mutableListOf() }
-				.addAll(snippets)
+			user.getOrPut(language) { mutableMapOf() }[scope] = snippets.toMutableList()
 		}
 	}
 
@@ -36,9 +32,7 @@ object SnippetRegistry {
 	) {
 		lock.write {
 			plugin.getOrPut(pluginId) { mutableMapOf() }
-				.getOrPut(language) { mutableMapOf() }
-				.getOrPut(scope) { mutableListOf() }
-				.addAll(snippets)
+				.getOrPut(language) { mutableMapOf() }[scope] = snippets.toMutableList()
 		}
 	}
 

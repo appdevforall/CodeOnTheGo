@@ -4,6 +4,7 @@ import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetScope
 import com.itsaky.androidide.lsp.snippets.DefaultSnippet
 import com.itsaky.androidide.lsp.snippets.ISnippetScope
 import com.itsaky.androidide.lsp.snippets.SnippetRegistry
+import com.itsaky.androidide.plugins.extensions.SnippetContribution
 import com.itsaky.androidide.lsp.snippets.UserSnippetLoader
 import com.itsaky.androidide.lsp.xml.providers.snippet.XML_SNIPPET_SCOPES
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
@@ -20,22 +21,9 @@ object SnippetHandler {
 
 
 	fun loadPluginSnippets() {
-
 		val allSnippets = PluginSnippetManager.getInstance().getAllSnippets()
 		allSnippets.forEach { (pluginId, contributions) ->
-			contributions.forEach { contribution ->
-				val snippet = DefaultSnippet(
-					contribution.prefix,
-					contribution.description,
-					contribution.body.toTypedArray(),
-				)
-				SnippetRegistry.registerPluginSnippets(
-					pluginId,
-					contribution.language,
-					contribution.scope,
-					listOf(snippet),
-				)
-			}
+			registerContributions(pluginId, contributions)
 		}
 		if (allSnippets.isNotEmpty()) {
 			log.info("Loaded plugin snippets from {} plugins", allSnippets.size)
@@ -45,18 +33,14 @@ object SnippetHandler {
 	fun refreshPluginSnippets(pluginId: String) {
 		SnippetRegistry.unregisterPluginSnippets(pluginId)
 		val contributions = PluginSnippetManager.getInstance().refreshPlugin(pluginId)
-		contributions.forEach { contribution ->
-			val snippet = DefaultSnippet(
-				contribution.prefix,
-				contribution.description,
-				contribution.body.toTypedArray(),
-			)
-			SnippetRegistry.registerPluginSnippets(
-				pluginId,
-				contribution.language,
-				contribution.scope,
-				listOf(snippet),
-			)
+		registerContributions(pluginId, contributions)
+	}
+
+	private fun registerContributions(pluginId: String, contributions: List<SnippetContribution>) {
+		contributions.groupBy { it.language to it.scope }.forEach { (key, group) ->
+			val (language, scope) = key
+			val snippets = group.map { DefaultSnippet(it.prefix, it.description, it.body.toTypedArray()) }
+			SnippetRegistry.registerPluginSnippets(pluginId, language, scope, snippets)
 		}
 	}
 
