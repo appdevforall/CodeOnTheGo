@@ -357,4 +357,16 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
         refreshStatus()
     }
 
+    fun abortMerge(onSuccess: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            try {
+                currentRepository?.abortMerge()
+                refreshStatus()
+                onSuccess?.invoke()
+            } catch (e: Exception) {
+                log.error("Failed to abort merge", e)
+            }
+        }
+    }
+
 }

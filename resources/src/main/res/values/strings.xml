@@ -1279,4 +1279,6 @@
     <string name="repo_authorization_error">Authentication failed. Ensure your Personal Access Token has \'repo\' permissions, or try clearing and re-entering credentials.</string>
     <string name="info_merge_conflicts">Pull completed with conflicts!\nPlease select the conflicted files from the list, resolve the highlighted issues in the editor, save file(s) and then commit your changes.</string>
     <string name="merge_conflicts">Merge Conflicts</string>
+    <string name="abort_merge">Abort Merge</string>
+    <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
 </resources>

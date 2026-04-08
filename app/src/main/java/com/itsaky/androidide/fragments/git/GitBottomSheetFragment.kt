@@ -106,6 +106,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         commitSection.visibility = View.GONE
                         authorWarning.visibility = View.GONE
                         commitHistoryButton.visibility = View.GONE
+                        btnAbortMerge.visibility = View.GONE
                     }
                     allChanges.isEmpty() -> binding.apply {
                         emptyView.visibility = View.VISIBLE
@@ -114,6 +115,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         commitSection.visibility = View.GONE
                         authorWarning.visibility = View.GONE
                         commitHistoryButton.visibility = View.VISIBLE
+                        btnAbortMerge.visibility = View.GONE
                     }
                     else -> {
                         binding.apply {
@@ -122,6 +124,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             commitSection.visibility = View.VISIBLE
                             authorWarning.visibility = if (hasAuthorInfo()) View.GONE else View.VISIBLE
                             commitHistoryButton.visibility = View.VISIBLE
+                            btnAbortMerge.visibility = if (status.isMerging) View.VISIBLE else View.GONE
                         }
                         fileChangeAdapter.submitList(allChanges)
                     }
@@ -158,6 +161,22 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     private fun setupCommitUI() {
         binding.commitSummary.doAfterTextChanged { validateCommitButton() }
         binding.commitDescription.doAfterTextChanged { validateCommitButton() }
+
+        binding.btnAbortMerge.setOnClickListener {
+            val dialog = MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.abort_merge)
+                .setMessage(R.string.confirm_abort_merge)
+                .setPositiveButton(R.string.abort_merge) { _, _ ->
+                    viewModel.abortMerge {
+                        val activity = requireActivity()
+                        if (activity is EditorHandlerActivity) {
+                            activity.checkForExternalFileChanges()
+                        }
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
 
         binding.authorAvatar.setOnClickListener {
             showAuthorPopup()
