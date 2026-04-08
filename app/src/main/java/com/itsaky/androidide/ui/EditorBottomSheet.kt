@@ -436,7 +436,16 @@ constructor(
 		suppressedGradleWarnings.any { msg.contains(it) }
 
 	fun clearBuildOutput() {
-		pagerAdapter.buildOutputFragment?.clearOutput()
+		// Always clear the persistent build output state via the bottom sheet's
+		// activity-scoped ViewModel.
+		buildOutputViewModel.clear()
+
+		// `clearOutput()` on the fragment may touch additional UI state, so only call it when
+		// the fragment is currently attached to an activity.
+		val fragment = pagerAdapter.buildOutputFragment
+		if (fragment != null && fragment.isAdded && !fragment.isDetached) {
+			fragment.clearOutput()
+		}
 	}
 
 	fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {

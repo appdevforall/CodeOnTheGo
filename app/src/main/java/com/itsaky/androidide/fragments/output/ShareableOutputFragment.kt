@@ -29,6 +29,12 @@ interface ShareableOutputFragment {
 	/** Get the name of the file to which the output will be written. */
 	fun getShareableFilename(): String
 
-	/** Clear the output of this fragment. */
+	/**
+	 * Clear the output of this fragment.
+	 *
+	 * Note: Callers may invoke this while the fragment is detached (for example, from a
+	 * build/service callback). Implementations that use activity-scoped ViewModels must
+	 * guard against `!isAdded || isDetached` before touching them.
+	 */
 	fun clearOutput()
 }
