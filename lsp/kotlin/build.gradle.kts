@@ -25,6 +25,10 @@ plugins {
 
 android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
+
+	kotlin.compilerOptions {
+		freeCompilerArgs.add("-Xcontext-receivers")
+	}
 }
 
 kapt {

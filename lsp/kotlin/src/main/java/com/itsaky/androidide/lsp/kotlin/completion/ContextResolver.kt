@@ -35,13 +35,19 @@ data class CursorContext(
 	val ktFile: KtFile,
 	val ktElement: KtElement,
 	val scopeContext: KaScopeContext,
-	val compositeScope: KaScope,
+	val scope: KaScope,
 	val completionContext: CompletionContext,
 	val declarationContext: DeclarationContext,
 	val declarationKind: DeclarationKind,
 	val existingModifiers: Set<KtModifierKeywordToken>,
 	val isInsideModifierList: Boolean,
-)
+	val partial: String,
+) {
+	private val importFqns: List<String> by lazy {
+		ktFile.importDirectives
+			.mapNotNull { it.importedFqName?.asString() }
+	}
+}
 
 
 private val logger = LoggerFactory.getLogger("ContextResolver")
@@ -49,7 +55,7 @@ private val logger = LoggerFactory.getLogger("ContextResolver")
 /**
  * Resolves [CursorContext] at the given offset in the given [KtFile].
  */
-fun KaSession.resolveCursorContext(ktFile: KtFile, offset: Int): CursorContext? {
+fun KaSession.resolveCursorContext(ktFile: KtFile, offset: Int, partial: String): CursorContext? {
 	val psiElement = ktFile.findElementAt(offset)
 	if (psiElement == null) {
 		logger.error("Unable to find PSI element at offset {} in file {}", offset, ktFile)
@@ -83,12 +89,13 @@ fun KaSession.resolveCursorContext(ktFile: KtFile, offset: Int): CursorContext? 
 		ktFile = ktFile,
 		ktElement = ktElement,
 		scopeContext = scopeContext,
-		compositeScope = compositeScope,
+		scope = compositeScope,
 		completionContext = completionContext,
 		declarationContext = declarationContext,
 		declarationKind = declarationKind,
 		existingModifiers = existingModifiers,
 		isInsideModifierList = modifierList != null,
+		partial = partial,
 	)
 }
 
