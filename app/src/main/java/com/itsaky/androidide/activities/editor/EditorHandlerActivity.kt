@@ -450,7 +450,8 @@ open class EditorHandlerActivity :
 					TooltipManager.showIdeCategoryTooltip(
 						context = this@EditorHandlerActivity,
 						anchorView = anchor,
-						tag = action.retrieveTooltipTag(false)
+						tag = action.retrieveTooltipTag(false),
+						requestFocus = false,
 					)
 				},
 				onHoverExit = {

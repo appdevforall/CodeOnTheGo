@@ -20,6 +20,10 @@ class ProjectActionsToolbar @JvmOverloads constructor(
     var onNavIconLongClick: (() -> Unit)? = null
 ) : MaterialToolbar(context, attrs) {
 
+    companion object {
+        private const val TOOLTIP_HOVER_SHOW_DELAY_MS = 600L
+    }
+
     init {
         // Navigation icon is no longer used in ProjectActionsToolbar
         // It's now handled by the title toolbar
@@ -71,7 +75,7 @@ class ProjectActionsToolbar @JvmOverloads constructor(
                     MotionEvent.ACTION_HOVER_ENTER -> {
                         hoverRunnable?.let { view.removeCallbacks(it) }
                         hoverRunnable = Runnable { onHover?.invoke(view) }
-                        view.postDelayed(hoverRunnable, 600L)
+                        view.postDelayed(hoverRunnable, TOOLTIP_HOVER_SHOW_DELAY_MS)
                     }
                     MotionEvent.ACTION_HOVER_EXIT -> {
                         hoverRunnable?.let { view.removeCallbacks(it) }
@@ -102,4 +106,3 @@ class ProjectActionsToolbar @JvmOverloads constructor(
         this.onNavIconLongClick = listener
     }
 }
-
