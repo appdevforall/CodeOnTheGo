@@ -14,7 +14,6 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
-
 package com.itsaky.androidide.desugaring
 
 import com.android.build.api.instrumentation.InstrumentationParameters
@@ -32,33 +31,36 @@ import org.gradle.api.tasks.Input
  */
 interface DesugarParams : InstrumentationParameters {
 
-  /**
-   * Whether the desugaring is enabled.
-   */
-  @get:Input
-  val enabled: Property<Boolean>
+	/** Whether desugaring is enabled. */
+	@get:Input
+	val enabled: Property<Boolean>
 
-  /**
-   * The replacement instructions.
-   */
-  @get:Input
-  val replacements: MapProperty<ReplaceMethodInsnKey, ReplaceMethodInsn>
+	/** Fine-grained method-call replacement instructions. */
+	@get:Input
+	val replacements: MapProperty<ReplaceMethodInsnKey, ReplaceMethodInsn>
 
-  @get:Input
-  val includedPackages: SetProperty<String>
+	/** Packages to scan for method-level replacements (empty = all packages). */
+	@get:Input
+	val includedPackages: SetProperty<String>
 
-  companion object {
+	/**
+	 * Class-level replacement map: dot-notation source class → dot-notation
+	 * target class. Any class may be instrumented when this is non-empty.
+	 */
+	@get:Input
+	val classReplacements: MapProperty<String, String>
 
-    /**
-     * Sets [DesugarParams] properties from [DesugarExtension].
-     */
-    fun DesugarParams.setFrom(extension: DesugarExtension) {
-      replacements.convention(emptyMap())
-      includedPackages.convention(emptySet())
+	companion object {
 
-      enabled.set(extension.enabled)
-      replacements.set(extension.replacements.instructions)
-      includedPackages.set(extension.replacements.includePackages)
-    }
-  }
+		fun DesugarParams.setFrom(extension: DesugarExtension) {
+			replacements.convention(emptyMap())
+			includedPackages.convention(emptySet())
+			classReplacements.convention(emptyMap())
+
+			enabled.set(extension.enabled)
+			replacements.set(extension.replacements.instructions)
+			includedPackages.set(extension.replacements.includePackages)
+			classReplacements.set(extension.replacements.classReplacements)
+		}
+	}
 }
