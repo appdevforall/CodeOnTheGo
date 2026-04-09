@@ -47,7 +47,7 @@ class JavaLanguage(context: Context) :
   }
 
   override val languageServer: ILanguageServer?
-    get() = ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
+    get() = ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
 
   override fun checkIsCompletionChar(c: Char): Boolean {
     return MyCharacter.isJavaIdentifierPart(c) || c == '.'

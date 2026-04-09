@@ -20,9 +20,10 @@ package com.itsaky.androidide.activities
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.viewModels
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -33,6 +34,7 @@ import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorActivityKt
+import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
@@ -50,8 +52,16 @@ import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
+import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
+import com.itsaky.androidide.roomData.recentproject.RecentProject
+import com.itsaky.androidide.shortcuts.IdeShortcutActions
+import com.itsaky.androidide.shortcuts.ShortcutContext
+import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
+import com.itsaky.androidide.shortcuts.ShortcutManager
+import com.itsaky.androidide.utils.getCreatedTime
+import com.itsaky.androidide.utils.getLastModifiedTime
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_CLONE_REPO
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -68,17 +78,19 @@ import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
+import com.itsaky.androidide.utils.hasVisibleDialog
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 	private val log = LoggerFactory.getLogger(MainActivity::class.java)
 
-	private val viewModel by viewModels<MainViewModel>()
+	private val viewModel by viewModel<MainViewModel>()
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: ActivityMainBinding? = null
 	private val analyticsManager: IAnalyticsManager by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 	private var webServer: WebServer? = null
+	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -106,8 +118,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val binding: ActivityMainBinding
 		get() = checkNotNull(_binding)
 
-	override fun onCreate(savedInstanceState: Bundle?) {
+		override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		MainScreenActions.register(this)
 
 		// Start WebServer after installation is complete
 		startWebServer()
@@ -157,6 +170,39 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		}
 	}
 
+	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+		return shortcutManager.dispatch(
+			event = event,
+			context = ShortcutContext.MAIN,
+			focusView = currentFocus,
+			hasModal = supportFragmentManager.hasVisibleDialog(),
+			executionContext = mainShortcutExecutionContext,
+		) || super.dispatchKeyEvent(event)
+	}
+
+	private val mainShortcutExecutionContext by lazy {
+		ShortcutExecutionContext(
+			ideShortcutActions = IdeShortcutActions {
+				ActionData.create(this)
+			},
+		)
+	}
+
+	fun showCreateProject(): Boolean {
+		viewModel.setScreen(SCREEN_TEMPLATE_LIST)
+		return true
+	}
+
+	fun showOpenProject(): Boolean {
+		viewModel.setScreen(SCREEN_SAVED_PROJECTS)
+		return true
+	}
+
+	fun showCloneRepository(): Boolean {
+		viewModel.setScreen(SCREEN_CLONE_REPO)
+		return true
+	}
+
 	private fun showWarningDialog() {
 		val builder = DialogUtils.newMaterialDialogBuilder(this)
 
@@ -181,7 +227,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	override fun onResume() {
 		super.onResume()
+		MainScreenActions.register(this)
 		feedbackButtonManager?.loadFabPosition()
+	}
+
+	override fun onPause() {
+		MainScreenActions.clear()
+		super.onPause()
 	}
 
 	/**
@@ -348,12 +400,23 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
-	internal fun openProject(root: File) {
+	internal fun openProject(root: File, project: RecentProject? = null, hasTemplateIssues: Boolean = false) {
 		ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-		GeneralPreferences.lastOpenedProject = root.absolutePath
+        GeneralPreferences.lastOpenedProject = root.absolutePath
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            val location = root.absolutePath
+            val recentProject = project ?: RecentProject(
+                name = root.name,
+                location = location,
+                createdAt = getCreatedTime(location).toString(),
+                lastModified = getLastModifiedTime(location).toString()
+            )
+            viewModel.saveProjectToRecents(recentProject)
+        }
 
 		// Track project open in Firebase Analytics
-		analyticsManager.trackProjectOpened(root.absolutePath)
+        analyticsManager.trackProjectOpened(root.absolutePath)
 
 		if (isFinishing) {
 			return
@@ -362,6 +425,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		val intent =
 			Intent(this, EditorActivityKt::class.java).apply {
 				putExtra("PROJECT_PATH", root.absolutePath)
+                if (hasTemplateIssues) {
+                    putExtra("HAS_TEMPLATE_ISSUES", true)
+                }
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 			}
 

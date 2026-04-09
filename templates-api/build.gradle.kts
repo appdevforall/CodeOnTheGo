@@ -39,4 +39,6 @@ dependencies {
 	api(libs.androidx.annotation)
 	api(libs.androidx.appcompat)
 	api(libs.google.material)
+
+    implementation(libs.google.gson)
 }

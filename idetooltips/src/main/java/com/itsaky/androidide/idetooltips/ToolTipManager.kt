@@ -22,6 +22,10 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import android.os.Handler
+import android.os.Looper
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.itsaky.androidide.activities.editor.HelpActivity
@@ -41,6 +45,10 @@ import java.io.File
 
 object TooltipManager {
     private const val TAG = "TooltipManager"
+    private const val DEFAULT_HOVER_DISMISS_DELAY_MS = 800L
+    private var activePopupWindow: PopupWindow? = null
+    private val dismissHandler = Handler(Looper.getMainLooper())
+    private var pendingDismiss: Runnable? = null
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/documentation.db")
@@ -149,19 +157,52 @@ object TooltipManager {
         }
     }
 
+    fun dismissActiveTooltip() {
+        cancelScheduledDismiss()
+        activePopupWindow?.dismiss()
+        activePopupWindow = null
+    }
+
+    fun scheduleActiveTooltipDismiss(delayMs: Long = DEFAULT_HOVER_DISMISS_DELAY_MS) {
+        cancelScheduledDismiss()
+        val popup = activePopupWindow ?: return
+        pendingDismiss = Runnable {
+            if (activePopupWindow === popup) {
+                popup.dismiss()
+            }
+        }.also { dismissHandler.postDelayed(it, delayMs) }
+    }
+
+    fun cancelScheduledDismiss() {
+        pendingDismiss?.let { dismissHandler.removeCallbacks(it) }
+        pendingDismiss = null
+    }
+
     // Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
     // (An Activity, Fragment, Dialog etc)
-    fun showIdeCategoryTooltip(context: Context, anchorView: View, tag: String) {
+    fun showIdeCategoryTooltip(
+        context: Context,
+        anchorView: View,
+        tag: String,
+        requestFocus: Boolean = true,
+    ) {
         showTooltip(
             context = context,
             anchorView = anchorView,
             category = TooltipCategory.CATEGORY_IDE,
-            tag = tag
+            tag = tag,
+            requestFocus = requestFocus,
         )
     }
 
     // Displays a tooltip in a particular context with a specific category
-    fun showTooltip(context: Context, anchorView: View, category: String, tag: String) {
+    fun showTooltip(
+        context: Context,
+        anchorView: View,
+        category: String,
+        tag: String,
+        requestFocus: Boolean = true,
+    ) {
         CoroutineScope(Dispatchers.Main).launch {
             val tooltipItem = getTooltip(
                 context,
@@ -174,6 +215,7 @@ object TooltipManager {
                     anchorView = anchorView,
                     level = 0,
                     tooltipItem = tooltipItem,
+                    requestFocus = requestFocus,
                     onHelpLinkClicked = { context, url, title ->
                         val intent =
                             Intent(context, HelpActivity::class.java).apply {
@@ -200,6 +242,7 @@ object TooltipManager {
         anchorView: View,
         level: Int,
         tooltipItem: IDETooltipItem,
+        requestFocus: Boolean,
         onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
     ) {
         setupAndShowTooltipPopup(
@@ -207,13 +250,14 @@ object TooltipManager {
             anchorView = anchorView,
             level = level,
             tooltipItem = tooltipItem,
+            requestFocus = requestFocus,
             onActionButtonClick = { popupWindow, urlContent ->
                 popupWindow.dismiss()
                 onHelpLinkClicked(context, urlContent.first, urlContent.second)
             },
             onSeeMoreClicked = { popupWindow, nextLevel, item ->
                 popupWindow.dismiss()
-                showTooltipPopup(context, anchorView, nextLevel, item, onHelpLinkClicked)
+                showTooltipPopup(context, anchorView, nextLevel, item, requestFocus, onHelpLinkClicked)
             }
         )
     }
@@ -250,6 +294,7 @@ object TooltipManager {
         anchorView: View,
         level: Int,
         tooltipItem: IDETooltipItem,
+        requestFocus: Boolean,
         onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit,
         onSeeMoreClicked: (popupWindow: PopupWindow, nextLevel: Int, tooltipItem: IDETooltipItem) -> Unit,
     ) {
@@ -355,7 +400,17 @@ object TooltipManager {
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
-        popupWindow.isFocusable = true
+        dismissActiveTooltip()
+
+        activePopupWindow = popupWindow
+        popupWindow.setOnDismissListener {
+            cancelScheduledDismiss()
+            if (activePopupWindow === popupWindow) {
+                activePopupWindow = null
+            }
+        }
+
+        popupWindow.isFocusable = requestFocus
         popupWindow.isOutsideTouchable = true
         if (anchorView.isInOverlayWindow()) {
             showOverlayTooltip(popupWindow, popupView, anchorView)
@@ -391,6 +446,31 @@ object TooltipManager {
             }
             setColorFilter(iconTintColor)
         }
+
+        val hoverGuard: (MotionEvent) -> Unit = label@{ event ->
+            if (!event.isFromSource(InputDevice.SOURCE_MOUSE)) return@label
+            when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_ENTER,
+                MotionEvent.ACTION_HOVER_MOVE -> cancelScheduledDismiss()
+                MotionEvent.ACTION_HOVER_EXIT -> scheduleActiveTooltipDismiss()
+            }
+        }
+
+        val hoverListener = View.OnHoverListener { _, event ->
+            hoverGuard(event)
+            false
+        }
+
+        installHoverGuard(
+            hoverListener = hoverListener,
+            popupView = popupView,
+            webView = webView,
+            seeMore = seeMore,
+            infoButton = infoButton,
+            feedbackButton = feedbackButton,
+        )
+
+        cancelScheduledDismiss()
     }
 
     /**
@@ -506,6 +586,21 @@ object TooltipManager {
         val y = (screenHeight - popupHeight) / 2
 
         popupWindow.showAtLocation(parentView, Gravity.NO_GRAVITY, x, y)
+    }
+
+    private fun installHoverGuard(
+        hoverListener: View.OnHoverListener,
+        popupView: View,
+        webView: WebView,
+        seeMore: View,
+        infoButton: View,
+        feedbackButton: View,
+    ) {
+        popupView.setOnHoverListener(hoverListener)
+        webView.setOnHoverListener(hoverListener)
+        seeMore.setOnHoverListener(hoverListener)
+        infoButton.setOnHoverListener(hoverListener)
+        feedbackButton.setOnHoverListener(hoverListener)
     }
 
 }

@@ -20,10 +20,7 @@ package com.itsaky.androidide.fragments
 import android.os.Bundle
 import android.view.View
 import android.content.res.Configuration
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
-import androidx.fragment.app.viewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.recyclerview.widget.GridLayoutManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.TemplateListAdapter
@@ -32,6 +29,8 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.ProjectTemplate
+import com.itsaky.androidide.templates.impl.TemplateProviderImpl
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.MainViewModel
 import org.slf4j.LoggerFactory
 
@@ -47,7 +46,7 @@ class TemplateListFragment :
 	) {
 	private var adapter: TemplateListAdapter? = null
 
-	private val viewModel by viewModels<MainViewModel>(ownerProducer = { requireActivity() })
+	private val viewModel by activityViewModel<MainViewModel>()
 
 	companion object {
 		private val log = LoggerFactory.getLogger(TemplateListFragment::class.java)
@@ -118,14 +117,9 @@ class TemplateListFragment :
 
 		log.debug("Reloading templates...")
 
-		// Show only project templates
-		// reloading the templates also makes sure that the resources are
-		// released from template parameter widgets
-		val templates =
-			ITemplateProvider
-				.getInstance(reload = true)
-				.getTemplates()
-				.filterIsInstance<ProjectTemplate>()
+        val provider = ITemplateProvider.getInstance(reload = true)
+        val templates = provider.getTemplates().filterIsInstance<ProjectTemplate>()
+		val warnings = (provider as? TemplateProviderImpl)?.warnings.orEmpty()
 
 		adapter =
 			TemplateListAdapter(
@@ -146,5 +140,9 @@ class TemplateListFragment :
 			)
 		binding.list.adapter = adapter
 		updateSpanCount()
-	}
+
+		if (warnings.isNotEmpty()) {
+			requireActivity().flashError(warnings.joinToString("\n"))
+		}
+    }
 }

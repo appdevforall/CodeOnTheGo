@@ -104,10 +104,6 @@ class ClassRefReplacingMethodVisitor(
 		super.visitTryCatchBlock(start, end, handler, type?.let { replace(it) })
 	}
 
-	// -------------------------------------------------------------------------
-	// Helpers
-	// -------------------------------------------------------------------------
-
 	/** Replaces a bare internal class name (slash-notation). */
 	private fun replace(internalName: String): String =
 		classReplacements[internalName] ?: internalName
