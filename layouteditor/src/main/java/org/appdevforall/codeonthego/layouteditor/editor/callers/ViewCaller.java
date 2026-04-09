@@ -17,13 +17,17 @@ public class ViewCaller {
   }
 
   public static void setLayoutWidth(View target, String value, Context context) {
-    target.getLayoutParams().width = (int) DimensionUtil.parse(value, context);
-    target.requestLayout();
+    if (target.getLayoutParams() != null) {
+      target.getLayoutParams().width = (int) DimensionUtil.parse(value, context);
+      target.requestLayout();
+    }
   }
 
   public static void setLayoutHeight(View target, String value, Context context) {
-    target.getLayoutParams().height = (int) DimensionUtil.parse(value, context);
-    target.requestLayout();
+    if (target.getLayoutParams() != null) {
+      target.getLayoutParams().height = (int) DimensionUtil.parse(value, context);
+      target.requestLayout();
+    }
   }
 
   public static void setBackground(View target, String value, Context context) {

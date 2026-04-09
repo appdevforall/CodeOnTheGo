@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -38,8 +37,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import java.io.File
 
 
@@ -217,19 +214,11 @@ object TooltipManager {
                     tooltipItem = tooltipItem,
                     requestFocus = requestFocus,
                     onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, context.getString(R.string.back_to_cogo))
-                                if (context !is android.app.Activity) {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            }
-                        context.startActivity(intent)
+                        HelpActivity.launch(context, url, title)
                     }
                 )
             } else {
-                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+                Log.e(TAG, "Tooltip item $tooltipItem is null")
             }
         }
     }

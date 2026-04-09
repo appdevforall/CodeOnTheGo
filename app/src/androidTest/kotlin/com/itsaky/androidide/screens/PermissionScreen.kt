@@ -22,6 +22,8 @@ object PermissionScreen : KScreen<PermissionScreen>() {
         itemTypeBuilder = { itemType(::PermissionItem) }
     )
 
+    val finishInstallationButton = KButton { withId(R.id.finish_installation_button) }
+
     class PermissionItem(matcher: Matcher<View>) : KRecyclerItem<PermissionItem>(matcher) {
 
         val grantButton = KButton(matcher) { withId(R.id.grant_button) }
