@@ -83,6 +83,16 @@ private val OPERATORS: List<String> =
         "}",
     )
 
+private val OPERATOR_SET: Set<String> = OPERATORS.toSet()
+
+/**
+ * Returns true when [text] is exactly one supported Java/Kotlin operator token.
+ */
+fun isOperatorToken(text: CharSequence): Boolean {
+    if (text.isEmpty()) return false
+    return OPERATOR_SET.contains(text.toString())
+}
+
 /**
  * Returns the column range of the operator at the given position, if any.
  * Columns are 0-based; endColumn is exclusive (one past the last character).
