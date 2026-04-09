@@ -332,9 +332,9 @@ private suspend fun KaSession.collectUnimportedSymbols(
 
 				in JvmSymbolKind.CLASSIFIER_KINDS -> {
 					val classInfo = symbol.data as JvmClassInfo
-					item.detail = symbol.fqName
+					item.detail = symbol.name
 					item.setClassCompletionData(
-						className = symbol.fqName,
+						className = symbol.name,
 						isNested = classInfo.isInner,
 						topLevelClass = classInfo.containingClassFqName,
 					)

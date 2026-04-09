@@ -8,7 +8,7 @@ option java_multiple_files = false;
 
 message JvmSymbolData {
 
-  string fq_name = 1;
+  string name = 1;
   string short_name = 2;
   string package_name = 3;
   string source_id = 4;
@@ -30,10 +30,10 @@ message JvmSymbolData {
 message ClassData {
 
   // FQN of the enclosing class (empty for top-level classes)
-  string containing_class_fq_name = 1;
+  string containing_class_name = 1;
 
   // Direct supertypes
-  repeated string supertype_fq_names = 2;
+  repeated string supertype_names = 2;
 
   // Type parameters: ["T", "R : Comparable<R>"]
   repeated string type_parameters = 3;
@@ -66,11 +66,11 @@ message KotlinClassData {
 message FunctionData {
 
   // FQN of the containing class (empty for top-level functions)
-  string containing_class_fq_name = 1;
+  string containing_class_name = 1;
 
   // Return type
-  string return_type_fq_name = 2;
-  string return_type_display = 3;
+  string return_type_name = 2;
+  string return_type_display_name = 3;
 
   // Parameters
   int32 parameter_count = 4;
@@ -92,8 +92,8 @@ message FunctionData {
 
 message ParameterData {
   string name = 1;
-  string type_fq_name = 2;
-  string type_display = 3;
+  string type_name = 2;
+  string type_display_name = 3;
   bool has_default_value = 4;
 
   bool is_crossinline = 5;
@@ -103,8 +103,8 @@ message ParameterData {
 
 message KotlinFunctionData {
   // Extension receiver type
-  string receiver_type_fq_name = 1;
-  string receiver_type_display = 2;
+  string receiver_type_name = 1;
+  string receiver_type_display_name = 2;
 
   // Modifiers
   bool is_suspend = 3;
@@ -122,11 +122,11 @@ message KotlinFunctionData {
 message FieldData {
 
   // FQN of the containing class (empty for top-level properties)
-  string containing_class_fq_name = 1;
+  string containing_class_name = 1;
 
   // Type of the field/property
-  string type_fq_name = 2;
-  string type_display = 3;
+  string type_name = 2;
+  string type_display_name = 3;
 
   // Modifiers
   bool is_static = 4;
@@ -140,8 +140,8 @@ message FieldData {
 
 message KotlinPropertyData {
   // Extension receiver type
-  string receiver_type_fq_name = 1;
-  string receiver_type_display = 2;
+  string receiver_type_name = 1;
+  string receiver_type_display_name = 2;
 
   bool is_const = 3;
   bool is_lateinit = 4;
@@ -157,7 +157,7 @@ message KotlinPropertyData {
 
 message EnumEntryData {
   // FQN of the containing enum class
-  string containing_enum_fq_name = 1;
+  string containing_enum_name = 1;
 
   // Ordinal position
   int32 ordinal = 2;
@@ -165,8 +165,8 @@ message EnumEntryData {
 
 message TypeAliasData {
   // The type this alias expands to
-  string expanded_type_fq_name = 1;
-  string expanded_type_display = 2;
+  string expanded_type_name = 1;
+  string expanded_type_display_name = 2;
 
   // Type parameters: ["T"]
   repeated string type_parameters = 3;
