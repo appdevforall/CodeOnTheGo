@@ -21,17 +21,18 @@ import io.github.rosemoe.sora.text.Content
 
 /**
  * Java/Kotlin operators for long-press selection, ordered by length descending
- * so longer matches are tried first (e.g. `>>>` before `>>` before `>`).
+ * so longer matches are tried first (e.g. `>>>=` before `>>>` before `>>` before `>`).
  */
 private val OPERATORS: List<String> =
     listOf(
+        // 4-char (`>>>=` must precede `>>>` — the latter is a prefix)
+        ">>>=",
         // 3-char (=== and !== before 2-char == and !=)
         "===",
         "!==",
         ">>>",
         "<<=",
         ">>=",
-        ">>>=",
         // 2-char
         "==",
         "!=",
