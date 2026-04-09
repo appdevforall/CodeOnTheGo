@@ -1,5 +1,8 @@
-package com.itsaky.androidide.lsp.kotlin.completion
+package com.itsaky.androidide.lsp.kotlin.utils
 
+import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.completion.DeclarationContext
+import com.itsaky.androidide.lsp.kotlin.completion.DeclarationKind
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.components.KaScopeContext
 import org.jetbrains.kotlin.analysis.api.scopes.KaScope
@@ -11,58 +14,60 @@ import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtClassBody
 import org.jetbrains.kotlin.psi.KtConstructor
 import org.jetbrains.kotlin.psi.KtDeclaration
-import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtModifierList
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtProperty
-import org.jetbrains.kotlin.psi.KtQualifiedExpression
-import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
 import org.jetbrains.kotlin.psi.KtTypeAlias
 import org.jetbrains.kotlin.psi.psiUtil.getNonStrictParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.parents
-import org.jetbrains.kotlin.psi.psiUtil.startOffset
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
+
+private val logger = LoggerFactory.getLogger("ContextResolver")
 
 /**
  * Defines context at the cursor position.
  */
-data class CursorContext(
+internal data class AnalysisContext(
+	val env: CompilationEnvironment,
+	val file: Path,
 	val psiElement: PsiElement,
 	val ktFile: KtFile,
 	val ktElement: KtElement,
 	val scopeContext: KaScopeContext,
 	val scope: KaScope,
-	val completionContext: CompletionContext,
 	val declarationContext: DeclarationContext,
 	val declarationKind: DeclarationKind,
 	val existingModifiers: Set<KtModifierKeywordToken>,
 	val isInsideModifierList: Boolean,
 	val partial: String,
-) {
-	private val importFqns: List<String> by lazy {
-		ktFile.importDirectives
-			.mapNotNull { it.importedFqName?.asString() }
-	}
-}
-
-
-private val logger = LoggerFactory.getLogger("ContextResolver")
+)
 
 /**
- * Resolves [CursorContext] at the given offset in the given [KtFile].
+ * Resolves [AnalysisContext] at the given offset in the given [KtFile].
+ *
+ * @param env The compilation environment.
+ * @param ktFile The Kotlin file.
+ * @param offset The offset to resolve context at.
+ * @param partial The partial identifier at the cursor position.
  */
-fun KaSession.resolveCursorContext(ktFile: KtFile, offset: Int, partial: String): CursorContext? {
+internal fun KaSession.resolveAnalysisContext(
+	env: CompilationEnvironment,
+	file: Path,
+	ktFile: KtFile,
+	offset: Int,
+	partial: String
+): AnalysisContext? {
 	val psiElement = ktFile.findElementAt(offset)
 	if (psiElement == null) {
 		logger.error("Unable to find PSI element at offset {} in file {}", offset, ktFile)
 		return null
 	}
 
-	val completionContext = determineCompletionContext(psiElement)
 	val ktElement = psiElement.getParentOfType<KtElement>(strict = false)
 	if (ktElement == null) {
 		logger.error("Cannot find parent of element {}", psiElement)
@@ -84,43 +89,20 @@ fun KaSession.resolveCursorContext(ktFile: KtFile, offset: Int, partial: String)
 	val declarationKind = resolveDeclarationKind(ktElement)
 	val declarationContext = resolveDeclarationContext(ktElement)
 
-	return CursorContext(
+	return AnalysisContext(
+		env = env,
+		file = file,
 		psiElement = psiElement,
 		ktFile = ktFile,
 		ktElement = ktElement,
 		scopeContext = scopeContext,
 		scope = compositeScope,
-		completionContext = completionContext,
 		declarationContext = declarationContext,
 		declarationKind = declarationKind,
 		existingModifiers = existingModifiers,
 		isInsideModifierList = modifierList != null,
 		partial = partial,
 	)
-}
-
-private fun determineCompletionContext(element: PsiElement): CompletionContext {
-	// Walk up to find a qualified expression where we're the selector
-	val dotExpr = element.getParentOfType<KtDotQualifiedExpression>(strict = false)
-	if (dotExpr != null && isInSelectorPosition(element, dotExpr)) {
-		return CompletionContext.Member
-	}
-
-	val safeExpr = element.getParentOfType<KtSafeQualifiedExpression>(strict = false)
-	if (safeExpr != null && isInSelectorPosition(element, safeExpr)) {
-		return CompletionContext.Member
-	}
-
-	return CompletionContext.Scope
-}
-
-private fun isInSelectorPosition(
-	element: PsiElement,
-	qualifiedExpr: KtQualifiedExpression,
-): Boolean {
-	val selector = qualifiedExpr.selectorExpression ?: return false
-	val elementOffset = element.startOffset
-	return elementOffset >= selector.startOffset
 }
 
 private fun resolveDeclarationContext(element: KtElement): DeclarationContext {

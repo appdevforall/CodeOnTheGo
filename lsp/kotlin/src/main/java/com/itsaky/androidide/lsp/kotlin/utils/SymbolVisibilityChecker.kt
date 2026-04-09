@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.kotlin.completion
+package com.itsaky.androidide.lsp.kotlin.utils
 
 import com.itsaky.androidide.lsp.kotlin.compiler.ModuleResolver
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol

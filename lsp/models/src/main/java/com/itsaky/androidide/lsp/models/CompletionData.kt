@@ -34,19 +34,19 @@ interface ICompletionData
 data class ClassCompletionData
 @JvmOverloads
 constructor(val className: String, val isNested: Boolean = false, val topLevelClass: String = "") :
-  ICompletionData {
-  val simpleName: String
-    get() {
-      return className.substringAfterLast(delimiter = '.')
-    }
+	ICompletionData {
+	val simpleName: String
+		get() {
+			return className.substringAfterLast(delimiter = '.')
+		}
 
-  val nameWithoutTopLevel: String
-    get() {
-      if (!isNested) {
-        return className
-      }
-      return className.substring(topLevelClass.length + 1)
-    }
+	val nameWithoutTopLevel: String
+		get() {
+			if (!isNested) {
+				return className
+			}
+			return className.substring(topLevelClass.length + 1)
+		}
 }
 
 /**
@@ -56,14 +56,14 @@ constructor(val className: String, val isNested: Boolean = false, val topLevelCl
  * @property classInfo Information about the class [memberName] is a member of.
  */
 interface MemberCompletionData : ICompletionData {
-  val memberName: String
-  val classInfo: ClassCompletionData
+	val memberName: String
+	val classInfo: ClassCompletionData
 }
 
 /** Information about a field-related completion item. */
 data class FieldCompletionData(
-  override val memberName: String,
-  override val classInfo: ClassCompletionData
+	override val memberName: String,
+	override val classInfo: ClassCompletionData
 ) : MemberCompletionData
 
 /**
@@ -73,9 +73,9 @@ data class FieldCompletionData(
  * @property plusOverloads The number of existing overloaded versions of this method.
  */
 data class MethodCompletionData(
-  override val memberName: String,
-  override val classInfo: ClassCompletionData,
-  val parameterTypes: List<String>,
-  val erasedParameterTypes: List<String>,
-  val plusOverloads: Int
+	override val memberName: String,
+	override val classInfo: ClassCompletionData,
+	val parameterTypes: List<String>,
+	val erasedParameterTypes: List<String>,
+	val plusOverloads: Int
 ) : MemberCompletionData

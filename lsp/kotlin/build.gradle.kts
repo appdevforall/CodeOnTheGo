@@ -27,7 +27,7 @@ android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
 
 	kotlin.compilerOptions {
-		freeCompilerArgs.add("-Xcontext-receivers")
+		freeCompilerArgs.addAll("-Xcontext-parameters")
 	}
 }
 

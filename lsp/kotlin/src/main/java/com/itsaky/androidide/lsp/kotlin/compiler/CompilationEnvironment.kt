@@ -1,7 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.lsp.kotlin.KtFileManager
-import com.itsaky.androidide.lsp.kotlin.completion.SymbolVisibilityChecker
+import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibrarySymbolIndex
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory

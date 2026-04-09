@@ -1,5 +1,7 @@
-package com.itsaky.androidide.lsp.kotlin.completion
+package com.itsaky.androidide.lsp.kotlin.utils
 
+import com.itsaky.androidide.lsp.kotlin.completion.DeclarationContext
+import com.itsaky.androidide.lsp.kotlin.completion.DeclarationKind
 import org.jetbrains.kotlin.com.intellij.psi.tree.TokenSet
 import org.jetbrains.kotlin.lexer.KtModifierKeywordToken
 import org.jetbrains.kotlin.lexer.KtTokens.*
@@ -7,16 +9,18 @@ import org.jetbrains.kotlin.lexer.KtTokens.*
 /**
  * Helper for filtering modifier keywords for keyword completions.
  */
-object ModifierFilter {
+internal object ModifierFilter {
 
 	/**
 	 * Returns which modifier keywords are valid to suggest given the
 	 * current context, declaration kind, and already-present modifiers.
 	 */
 	fun validModifiers(
-		ctx: CursorContext,
+		ctx: AnalysisContext,
 	): Set<KtModifierKeywordToken> {
-		val (_, _, _, _, _, _, declCtx, declKind, existing, _) = ctx
+		val existing = ctx.existingModifiers
+		val declCtx = ctx.declarationContext
+		val declKind = ctx.declarationKind
 
 		val candidates = MODIFIER_KEYWORDS_ARRAY.toMutableSet()
 		candidates -= existing
