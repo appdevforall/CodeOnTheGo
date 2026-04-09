@@ -50,6 +50,8 @@ import org.jetbrains.kotlin.analysis.api.symbols.receiverType
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
@@ -303,8 +305,22 @@ private suspend fun KaSession.collectUnimportedSymbols(
 				return@collect
 			}
 
-			// TODO: filter-out callables with a receiver type whose receiver
-			//       is not an implicit receiver at the current use-site
+			if (symbol.isExtension) {
+				val receiverTypeName = symbol.receiverTypeName
+				if (receiverTypeName != null) {
+					val receiverClassId = internalNameToClassId(receiverTypeName)
+					val receiverType = findClass(receiverClassId)
+					if (receiverType != null) {
+						val satisfiesImplicitReceivers = ctx.scopeContext.implicitReceivers.any { receiver ->
+							receiver.type.isSubtypeOf(receiverType)
+						}
+
+						// the extension property/function's receiver type
+						// is not available in current context, so ignore this sym
+						if (!satisfiesImplicitReceivers) return@collect
+					} else return@collect
+				}
+			}
 
 			val item = ktCompletionItem(
 				name = symbol.shortName,
@@ -346,6 +362,17 @@ private suspend fun KaSession.collectUnimportedSymbols(
 			logger.debug("Adding completion item: {}", item)
 			to += item
 		}
+}
+
+private fun internalNameToClassId(internalName: String): ClassId {
+	val isLocal = false
+	val packageName = internalName.substringBeforeLast('/')
+	val relativeName = internalName.substringAfterLast('/')
+	return ClassId(
+		packageFqName = FqName.fromSegments(packageName.split('.')),
+		relativeClassName = FqName.fromSegments(relativeName.split('$')),
+		isLocal = isLocal
+	)
 }
 
 context(ctx: AnalysisContext)
