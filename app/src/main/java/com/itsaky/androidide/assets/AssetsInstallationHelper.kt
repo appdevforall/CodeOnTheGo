@@ -20,8 +20,10 @@ import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.slf4j.LoggerFactory
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.flashError
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -113,7 +115,8 @@ object AssetsInstallationHelper {
 				BOOTSTRAP_ENTRY_NAME,
 				GRADLE_API_NAME_JAR_ZIP,
                 LLAMA_AAR,
-                PLUGIN_ARTIFACTS_ZIP
+                PLUGIN_ARTIFACTS_ZIP,
+                TEMPLATE_CORE_ARCHIVE,
 			)
 
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
@@ -129,7 +132,7 @@ object AssetsInstallationHelper {
 				true
 			} catch (e: FileNotFoundException) {
 				logger.error("ZIP file not found: {}", e.message)
-				onProgress(Progress("${e.message}"))
+                flashError("File not found - ${e.message}")
 				false
 			} catch (e: ZipException) {
 				logger.error("Invalid ZIP format: {}", e.message)

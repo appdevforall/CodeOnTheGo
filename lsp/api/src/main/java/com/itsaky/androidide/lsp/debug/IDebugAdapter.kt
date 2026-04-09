@@ -15,12 +15,18 @@ import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
  * @author Akash Yadav
  */
 interface IDebugAdapter {
+
+	/**
+	 * Whether the debug adapter is ready for a debug session.
+	 */
+	val isReady: Boolean
+
     /**
      * Connect the debug adapter to the given client.
      *
      * @param client The client to connect to.
      */
-    fun connectDebugClient(client: IDebugClient)
+    suspend fun connectDebugClient(client: IDebugClient): DebugClientConnectionResult
 
     /**
      * Get the remote clients connected to this debug adapter.

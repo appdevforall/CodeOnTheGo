@@ -21,16 +21,14 @@ import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.Template
-import com.itsaky.androidide.templates.impl.basicActivity.basicActivityProject
-import com.itsaky.androidide.templates.impl.bottomNavActivity.bottomNavActivityProject
-import com.itsaky.androidide.templates.impl.composeActivity.composeActivityProject
-import com.itsaky.androidide.templates.impl.emptyActivity.emptyActivityProject
-import com.itsaky.androidide.templates.impl.navDrawerActivity.navDrawerActivityProject
-import com.itsaky.androidide.templates.impl.noActivity.noActivityProjectTemplate
-import com.itsaky.androidide.templates.impl.noAndroidXActivity.noAndroidXActivityProject
-import com.itsaky.androidide.templates.impl.pluginProject.pluginProjectTemplate
-import com.itsaky.androidide.templates.impl.tabbedActivity.tabbedActivityProject
-import com.itsaky.androidide.templates.impl.ndkActivity.ndkActivityProject
+import com.itsaky.androidide.templates.impl.zip.ZipRecipeExecutor
+import com.itsaky.androidide.templates.impl.zip.ZipTemplateReader
+
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
+import com.itsaky.androidide.utils.Environment.TEMPLATES_DIR
+
+import org.slf4j.LoggerFactory
+import java.util.zip.ZipFile
 
 /**
  * Default implementation of the [ITemplateProvider].
@@ -41,49 +39,53 @@ import com.itsaky.androidide.templates.impl.ndkActivity.ndkActivityProject
 @AutoService(ITemplateProvider::class)
 class TemplateProviderImpl : ITemplateProvider {
 
-  private val templates = mutableMapOf<String, Template<*>>()
-
-  init {
-    initializeTemplates()
-  }
-
-  private fun templates() =
-    //@formatter:off
-    listOfNotNull(
-      noActivityProjectTemplate(),
-      emptyActivityProject(),
-      basicActivityProject(),
-      navDrawerActivityProject(),
-      bottomNavActivityProject(),
-      tabbedActivityProject(),
-      noAndroidXActivityProject(),
-      composeActivityProject(),
-      pluginProjectTemplate(),
-      ndkActivityProject()
-    )
-
-  private fun initializeTemplates() {
-    templates().forEach { template ->
-      templates[template.templateId] = template
+    companion object {
+        private val log = LoggerFactory.getLogger(TemplateProviderImpl::class.java)
     }
-  }
-  //@formatter:on
 
-  override fun getTemplates(): List<Template<*>> {
-    return ImmutableList.copyOf(templates.values)
-  }
+    private val templates = mutableMapOf<String, Template<*>>()
+    val warnings: MutableList<String> = mutableListOf()
 
-  override fun getTemplate(templateId: String): Template<*>? {
-    return templates[templateId]
-  }
+    init {
+        reload()
+    }
 
-  override fun reload() {
-    release()
-    initializeTemplates()
-  }
+    private fun initializeTemplates() {
+        val folder = TEMPLATES_DIR
+        val list = folder.listFiles { file -> file.extension == TEMPLATE_ARCHIVE_EXTENSION } ?: return
 
-  override fun release() {
-    templates.forEach { it.value.release() }
-    templates.clear()
-  }
+        for (zipFile in list) {
+            try {
+                val zipTemplates = ZipTemplateReader.read(zipFile, warnings) { json, params, path, data, defModule ->
+                    ZipRecipeExecutor({ ZipFile(zipFile) }, json, params, path, data, defModule)
+                }
+
+                for (t in zipTemplates) {
+                    templates[t.templateId] = t
+                }
+            } catch (e: Exception) {
+                warnings.add("Failed to load template archive $zipFile error: ${e.message}")
+                log.error("Failed to load template from archive: $zipFile", e)
+            }
+        }
+    }
+
+    override fun getTemplates(): List<Template<*>> {
+        return ImmutableList.copyOf(templates.values)
+    }
+
+    override fun getTemplate(templateId: String): Template<*>? {
+        return templates[templateId]
+    }
+
+    override fun reload() {
+        release()
+        warnings.clear()
+        initializeTemplates()
+    }
+
+    override fun release() {
+        templates.forEach { it.value.release() }
+        templates.clear()
+    }
 }

@@ -9,16 +9,25 @@ import com.itsaky.androidide.plugins.extensions.MenuItem
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.EditorTabItem
 import com.itsaky.androidide.plugins.extensions.NavigationItem
+import com.itsaky.androidide.plugins.extensions.FileOpenExtension
+import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
+import com.example.sampleplugin.R
 import com.example.sampleplugin.fragments.ApkAnalyzerFragment
+import java.io.File
 
 /**
  * APK Viewer Plugin
  * Provides APK analysis functionality via main menu toolbar and bottom sheet
  */
-class ApkViewer : IPlugin, UIExtension, EditorTabExtension {
+class ApkViewer : IPlugin, UIExtension, EditorTabExtension, FileOpenExtension {
 
     private lateinit var context: PluginContext
+    private var pendingAnalysisFile: File? = null
+
+    companion object {
+        private const val TAB_ID = "apk_analyzer_main_tab"
+    }
 
     override fun initialize(context: PluginContext): Boolean {
         return try {
@@ -86,7 +95,7 @@ class ApkViewer : IPlugin, UIExtension, EditorTabExtension {
             NavigationItem(
                 id = "apk_analyzer_sidebar",
                 title = "APK Analyzer",
-                icon = android.R.drawable.ic_menu_info_details,
+                icon = R.drawable.ic_apk_analyzer,
                 isEnabled = true,
                 isVisible = true,
                 group = "tools",
@@ -101,9 +110,9 @@ class ApkViewer : IPlugin, UIExtension, EditorTabExtension {
         return listOf(
 
             EditorTabItem(
-                id = "apk_analyzer_main_tab",
+                id = TAB_ID,
                 title = "APK Analyzer",
-                icon = android.R.drawable.ic_menu_info_details,
+                icon = R.drawable.ic_apk_analyzer,
                 fragmentFactory = {
                     context.logger.debug("Creating ApkAnalyzerFragment")
                     ApkAnalyzerFragment()
@@ -120,6 +129,11 @@ class ApkViewer : IPlugin, UIExtension, EditorTabExtension {
 
     override fun onEditorTabSelected(tabId: String, fragment: Fragment) {
         context.logger.info("Editor tab selected: $tabId")
+        val file = pendingAnalysisFile ?: return
+        pendingAnalysisFile = null
+        if (tabId == TAB_ID && fragment is ApkAnalyzerFragment) {
+            fragment.analyzeFile(file)
+        }
     }
 
     override fun onEditorTabClosed(tabId: String) {
@@ -128,6 +142,44 @@ class ApkViewer : IPlugin, UIExtension, EditorTabExtension {
 
     override fun canCloseEditorTab(tabId: String): Boolean {
         return true
+    }
+
+    override fun canHandleFileOpen(file: File): Boolean {
+        return file.extension.equals("apk", ignoreCase = true)
+    }
+
+    override fun handleFileOpen(file: File): Boolean {
+        pendingAnalysisFile = file
+        openApkAnalyzerTab()
+        return true
+    }
+
+    override fun onFileOpened(file: File) {
+        if (file.extension.equals("apk", ignoreCase = true)) {
+            context.logger.info("APK file opened: ${file.name}")
+        }
+    }
+
+    override fun getFileTabMenuItems(file: File): List<FileTabMenuItem> {
+        if (!file.extension.equals("apk", ignoreCase = true)) return emptyList()
+
+        return listOf(
+            FileTabMenuItem(
+                id = "apk_viewer.analyze",
+                title = "Analyze APK",
+                order = 0,
+                action = {
+                    pendingAnalysisFile = file
+                    openApkAnalyzerTab()
+                }
+            )
+        )
+    }
+
+    override fun onFileClosed(file: File) {
+        if (file.extension.equals("apk", ignoreCase = true)) {
+            context.logger.info("APK file closed: ${file.name}")
+        }
     }
 
     private fun openApkAnalyzerTab() {
@@ -145,7 +197,7 @@ class ApkViewer : IPlugin, UIExtension, EditorTabExtension {
         }
 
         try {
-            if (editorTabService.selectPluginTab("apk_analyzer_main_tab")) {
+            if (editorTabService.selectPluginTab(TAB_ID)) {
                 context.logger.info("Successfully opened APK Analyzer tab")
             } else {
                 context.logger.warn("Failed to open APK Analyzer tab")

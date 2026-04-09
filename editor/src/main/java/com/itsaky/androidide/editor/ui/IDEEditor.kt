@@ -26,6 +26,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
 import com.blankj.utilcode.util.FileUtils
@@ -216,6 +217,7 @@ constructor(
     companion object {
         private const val TAG = "TrackpadScrollDebug"
         private const val SELECTION_CHANGE_DELAY = 500L
+        private const val LARGE_FILE_LINE_THRESHOLD = 10000
 
         internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
 
@@ -562,6 +564,20 @@ constructor(
     }
 
     override fun getSearcher(): EditorSearcher = this.searcher
+
+    /**
+     * Disables IME text extraction for large files (exceeding [LARGE_FILE_LINE_THRESHOLD] lines) to prevent massive
+     * IPC (Binder) payloads, fixing "oneway spamming" errors and UI lag during typing.
+     */
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        val connection = super.onCreateInputConnection(outAttrs)
+
+        if (this.lineCount > LARGE_FILE_LINE_THRESHOLD) {
+            outAttrs.imeOptions = outAttrs.imeOptions or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        }
+
+        return connection
+    }
 
     override fun getExtraArguments(): Bundle =
         super.getExtraArguments().apply {

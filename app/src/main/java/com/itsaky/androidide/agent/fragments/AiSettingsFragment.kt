@@ -21,6 +21,7 @@ import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.itsaky.androidide.R
 import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.Util.getCurrentBackend
 import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
 import com.itsaky.androidide.agent.viewmodel.EngineState
 import com.itsaky.androidide.agent.viewmodel.ModelLoadingState
@@ -76,7 +77,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         )
         binding.backendAutocomplete.setAdapter(adapter)
 
-        val currentBackend = viewModel.getCurrentBackend()
+        val currentBackend = getCurrentBackend()
         binding.backendAutocomplete.setText(currentBackend.name, false)
         updateBackendSpecificUi(currentBackend)
 

@@ -43,6 +43,15 @@ class TsBracketPairs(private val tree: TSTree, private val languageSpec: TsLangu
 
   }
 
+  /**
+   * Frees the native TreeSitter object. Must run on the UI thread
+   * to avoid crashing if a query is active.
+   */
+  fun close() {
+    if (!tree.canAccess()) return
+    tree.close()
+  }
+
   override fun getPairedBracketAt(text: Content, index: Int): PairedBracket? {
     if (!languageSpec.bracketsQuery.canAccess() || languageSpec.bracketsQuery.patternCount <= 0 || !tree.canAccess()) {
       return null
