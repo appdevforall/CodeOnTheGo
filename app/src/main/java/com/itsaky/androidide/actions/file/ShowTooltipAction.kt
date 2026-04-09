@@ -23,7 +23,8 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.BaseEditorAction
-import com.itsaky.androidide.editor.utils.isOperatorToken
+import com.itsaky.androidide.editor.utils.isJavaOperatorToken
+import com.itsaky.androidide.editor.utils.isKotlinOperatorToken
 import com.itsaky.androidide.editor.utils.isXmlAttribute
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -106,7 +107,8 @@ internal fun resolveTooltipTag(
     return when {
         !editorTag.isNullOrEmpty() -> editorTag
         category == TooltipCategory.CATEGORY_XML && isXmlAttribute -> textToUse.substringAfterLast(":")
-        category == TooltipCategory.CATEGORY_KOTLIN && isOperatorToken(textToUse) -> "kotlin.operator.$textToUse"
+        category == TooltipCategory.CATEGORY_KOTLIN && isKotlinOperatorToken(textToUse) -> "kotlin.operator.$textToUse"
+        category == TooltipCategory.CATEGORY_JAVA && isJavaOperatorToken(textToUse) -> "java.operator.$textToUse"
         else -> textToUse
     }
 }
