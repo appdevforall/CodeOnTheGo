@@ -282,7 +282,7 @@
   <string name="xml_formatting_options">XML biçimlendirme seçenekleri</string>
   <string name="xml_formatting_options_summary">XML biçimlendiriciyi yapılandır</string>
   <string name="idepref_customFont_title">Kişisel yazı tipi kullan</string>
-  <string name="idepref_customFont_summary">Eğer etkinleştirilmişse \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" konumundaki dosya Düzenleyici yazı tipi olarak kullanılacak.</string>
+  <string name="idepref_customFont_summary">Eğer etkinleştirilmişse \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" konumundaki dosya Düzenleyici yazı tipi olarak kullanılacak.</string>
   <string name="msg_installing_apk">APK kuruluyor...</string>
   <string name="msg_action_open_application">Uygulamayı açmak ister misiniz?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle inşa servisi</string>
@@ -399,7 +399,7 @@
   <string name="idepref_devOptions_summary">Code on the Go için deneysel/hata ayıklama seçenekleri</string>
   <string name="idepref_group_debugging">Hata ayıklama</string>
   <string name="idepref_devOptions_dumpLogs_title">Günlükleri kaydet</string>
-  <string name="idepref_devOptions_dumpLogs_summary">$HOME/.androidide/logs içine Code on the Go günlüklerini kaydet</string>
+  <string name="idepref_devOptions_dumpLogs_summary">$HOME/.cg/logs içine Code on the Go günlüklerini kaydet</string>
   <string name="msg_emptyview_applogs">Uygulamanızın günlüklerini burada görüntülemek için debug varyantını çalıştırın.</string>
   <string name="msg_logsender_disabled">LogSender devre dışı. Ayarlardan etkinleştirebilirsiniz.</string>
   <string name="msg_emptyview_idelogs">IDE\'den günlükler burada görünür.</string>
