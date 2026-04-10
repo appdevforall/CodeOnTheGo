@@ -3,10 +3,13 @@ package org.appdevforall.codeonthego.computervision.utils
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.RectF
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
 object BitmapUtils {
+
+    private const val EDGE_DETECTION_THRESHOLD = 30
 
     fun preprocessForOcr(bitmap: Bitmap, blockSize: Int = 31, c: Int = 15): Bitmap {
         val width = bitmap.width
@@ -36,6 +39,35 @@ object BitmapUtils {
         val h = bottom - top
         if (w <= 0 || h <= 0) return bitmap
         return Bitmap.createBitmap(bitmap, left, top, w, h)
+    }
+
+    fun calculateVerticalProjection(bitmap: Bitmap): FloatArray {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val projection = FloatArray(width)
+        if (width < 3 || height == 0) {
+            return projection
+        }
+
+        for (y in 0 until height) {
+            val rowOffset = y * width
+            for (x in 1 until width - 1) {
+                val leftPixel = pixels[rowOffset + x - 1]
+                val rightPixel = pixels[rowOffset + x + 1]
+
+                val rLeft = (leftPixel shr 16) and 0xFF
+                val rRight = (rightPixel shr 16) and 0xFF
+
+                val diff = abs(rLeft - rRight)
+                if (diff > EDGE_DETECTION_THRESHOLD) {
+                    projection[x] += 1f
+                }
+            }
+        }
+        return projection
     }
 
     private fun toGrayscale(pixels: IntArray): IntArray {
