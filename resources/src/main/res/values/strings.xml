@@ -717,6 +717,7 @@
 	<string name="permission_desc_install_packages">Allow Code on the Go to install the apps that you build on this device.</string>
 	<string name="permission_title_overlay_window">Floating debugger</string>
 	<string name="permission_desc_overlay_window">Allow Code on the Go to display floating debugger controls to inspect your code while it runs.</string>
+	<string name="permission_overlay_unsupported_hint">Floating debugger is not available on this device.</string>
 	<string name="permission_overlay_restricted_settings_hint">If you can\'t enable this permission, display App info for Code on the Go, tap the three-dot menu, and enable restricted settings.</string>
 	<string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to display notifications.</string>
