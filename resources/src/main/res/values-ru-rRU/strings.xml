@@ -281,7 +281,7 @@
   <string name="xml_formatting_options">Настройки форматирования XML</string>
   <string name="xml_formatting_options_summary">Настройте форматтер XML</string>
   <string name="idepref_customFont_title">Использовать сторонний шрифт</string>
-  <string name="idepref_customFont_summary">Если активно, файл \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" будет использован в качестве шрифта редактора.</string>
+  <string name="idepref_customFont_summary">Если активно, файл \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" будет использован в качестве шрифта редактора.</string>
   <string name="msg_installing_apk">Установка APK...</string>
   <string name="msg_action_open_application">Хотите открыть установленное приложение?</string>
   <string name="title_gradle_service_notification_channel">Служба сборки Code on the Go Gradle</string>
@@ -401,7 +401,7 @@
   <string name="idepref_devOptions_summary">Экспериментальные/отладочные опции для Code on the Go</string>
   <string name="idepref_group_debugging">Отладка</string>
   <string name="idepref_devOptions_dumpLogs_title">Дамп логов</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Дамп логов Code on the Go в $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Дамп логов Code on the Go в $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">Запустите отладочный вариант вашего приложения, чтобы увидеть его логи здесь.</string>
   <string name="msg_logsender_disabled">LogSender отключен. Вы можете включить его в настройках.</string>
   <string name="msg_emptyview_idelogs">Логи IDE отображаются здесь.</string>
