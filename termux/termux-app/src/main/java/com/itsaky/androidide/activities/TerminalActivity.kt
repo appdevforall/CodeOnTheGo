@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities
 
 import android.content.ComponentName
+import android.content.Intent
 import android.os.Bundle
 import android.os.IBinder
 import androidx.core.content.ContextCompat
@@ -25,6 +26,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.utils.Environment
 import com.termux.app.TermuxActivity
+import com.termux.shared.termux.TermuxConstants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -52,4 +54,30 @@ class TerminalActivity : TermuxActivity() {
       Environment.mkdirIfNotExists(Environment.TMP_DIR)
     }
   }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent == null) return
+
+        val newWorkingDir = intent.getStringExtra(TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY.EXTRA_SESSION_WORKING_DIR)
+        val newSessionName = intent.getStringExtra(TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY.EXTRA_SESSION_NAME)
+        val isFailsafe = intent.getBooleanExtra(TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, false)
+
+        val service = mTermuxService
+        if (service != null) {
+            val newSession = service.createTermuxSession(
+                null,
+                null,
+                null,
+                newWorkingDir,
+                isFailsafe,
+                newSessionName
+            )
+
+            if (newSession != null) {
+                mTermuxTerminalSessionActivityClient.setCurrentSession(newSession.terminalSession)
+            }
+        }
+    }
 }
