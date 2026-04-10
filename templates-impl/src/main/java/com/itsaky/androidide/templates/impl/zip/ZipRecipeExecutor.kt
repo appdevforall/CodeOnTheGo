@@ -70,6 +70,7 @@ class ZipRecipeExecutor(
                 .build()
 
             val pebbleEngine = PebbleEngine.Builder()
+                .strictVariables(true)
                 .loader(StringLoader())
                 .syntax(customSyntax)
                 .build()
