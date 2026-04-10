@@ -7,6 +7,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.SpannableStringBuilder
@@ -17,6 +18,7 @@ import androidx.core.content.ContextCompat.startForegroundService
 import androidx.core.view.setPadding
 import com.google.android.material.textview.MaterialTextView
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
@@ -26,6 +28,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.appendHtmlWithLinks
 import com.itsaky.androidide.utils.appendOrderedList
 import com.itsaky.androidide.utils.flashError
@@ -99,6 +102,15 @@ class DebugAction(
 			return false
 		}
 
+        val overlayState = withContext(Dispatchers.Main.immediate) {
+            PermissionsHelper.getOverlayPermissionState(activity)
+        }
+
+        if (overlayState != PermissionsHelper.OverlayPermissionState.GRANTED) {
+            handleMissingOverlayPermission(activity, overlayState)
+            return false
+        }
+
 		if (!Shizuku.pingBinder()) {
 			log.error("Shizuku service is not running")
 			withContext(Dispatchers.Main.immediate) {
@@ -109,6 +121,32 @@ class DebugAction(
 
 		return Shizuku.pingBinder()
 	}
+
+	private suspend fun handleMissingOverlayPermission(
+        activity: EditorHandlerActivity,
+        state: PermissionsHelper.OverlayPermissionState
+    ) {
+        withContext(Dispatchers.Main.immediate) {
+            when (state) {
+                PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
+                    activity.flashError(activity.getString(R.string.permission_overlay_unsupported_hint))
+                }
+                PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)
+                        setData(Uri.fromParts("package", activity.packageName, null))
+                    }
+                    try {
+                        activity.startActivity(intent)
+                    } catch (e: Exception) {
+                        log.error("Failed to launch overlay settings", e)
+                        activity.flashError(activity.getString(R.string.err_no_activity_to_handle_action, Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                    }
+                }
+                else -> {}
+            }
+        }
+    }
 
 	@RequiresApi(Build.VERSION_CODES.R)
 	private fun showPairingDialog(context: Context): AlertDialog? {
