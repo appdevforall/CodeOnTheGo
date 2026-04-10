@@ -282,8 +282,16 @@ class JGitRepository(override val rootDir: File) : GitRepository {
     }
 
     override suspend fun abortMerge(): Unit = withContext(Dispatchers.IO) {
-        if (repository.repositoryState == RepositoryState.MERGING) {
-            git.reset().setMode(ResetType.HARD).call()
+        // Reset working tree and index to HEAD
+        git.reset().setMode(ResetType.HARD).setRef(Constants.ORIG_HEAD).call()
+        
+        // Explicitly clear merge-related files to exit the MERGING state
+        repository.apply {
+            writeMergeHeads(null)
+            writeMergeCommitMsg(null)
+            writeCherryPickHead(null)
+            writeRevertHead(null)
+            writeSquashCommitMsg(null)
         }
     }
 

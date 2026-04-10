@@ -58,7 +58,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             viewLifecycleOwner.lifecycleScope.launch {
                                 val repo = viewModel.currentRepository
                                 repo?.let {
-                                    activity.checkForExternalFileChanges()
+                                    activity.checkForExternalFileChanges(force = true)
                                     activity.openFile(File(repo.rootDir, change.path))
                                     bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
                                 }
@@ -163,7 +163,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         binding.commitDescription.doAfterTextChanged { validateCommitButton() }
 
         binding.btnAbortMerge.setOnClickListener {
-            val dialog = MaterialAlertDialogBuilder(requireContext())
+            MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.abort_merge)
                 .setMessage(R.string.confirm_abort_merge)
                 .setPositiveButton(R.string.abort_merge) { _, _ ->
