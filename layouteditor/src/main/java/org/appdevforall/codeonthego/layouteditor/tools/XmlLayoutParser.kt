@@ -227,7 +227,13 @@ class XmlLayoutParser(
 								throw result
 							} else {
 								view = result as? View
-								view?.let { listViews.add(it) }
+								view?.let {
+									it.layoutParams = ViewGroup.LayoutParams(
+										ViewGroup.LayoutParams.WRAP_CONTENT,
+										ViewGroup.LayoutParams.WRAP_CONTENT,
+									)
+									listViews.add(it)
+								}
 							}
 						}
 					}
