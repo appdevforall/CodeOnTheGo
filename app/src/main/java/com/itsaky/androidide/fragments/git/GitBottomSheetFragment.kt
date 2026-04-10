@@ -170,7 +170,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     viewModel.abortMerge {
                         val activity = requireActivity()
                         if (activity is EditorHandlerActivity) {
-                            activity.checkForExternalFileChanges()
+                            activity.checkForExternalFileChanges(force = true)
                         }
                     }
                 }
