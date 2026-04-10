@@ -27,6 +27,13 @@ object SmartBoundaryDetector {
         val rightZoneStart = (width * RIGHT_ZONE_START_PERCENT).toInt()
         val rightZoneEnd = width - ignoredEdgePixels
 
+        if (ignoredEdgePixels >= leftZoneEnd || rightZoneStart >= rightZoneEnd) {
+            return Pair(
+                (width * LEFT_FALLBACK_BOUND_PERCENT).toInt(),
+                (width * RIGHT_FALLBACK_BOUND_PERCENT).toInt()
+            )
+        }
+
         val leftSignal = projection.copyOfRange(ignoredEdgePixels, leftZoneEnd)
         var (leftBound, leftGapLength) = findBestGapMidpoint(leftSignal, offset = ignoredEdgePixels)
         if (leftBound == null || leftGapLength < minimumGapWidth) {
