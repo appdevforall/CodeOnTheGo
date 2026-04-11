@@ -27,6 +27,7 @@ import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.utils.applyMultiWindowFlags
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import java.util.Objects
 import kotlin.reflect.KClass
@@ -71,7 +72,7 @@ class TerminalSidebarAction(
 							?.name,
 					)
 					putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, isFailsafe)
-				}
+			}.applyMultiWindowFlags(context)
 			context.startActivity(intent)
 		}
 	}
