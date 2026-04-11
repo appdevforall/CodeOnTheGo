@@ -106,7 +106,7 @@ class TemplateDetailsFragment :
 
             viewModel.creatingProject.value = true
             executeAsyncProvideError({
-                template.recipe.execute(TemplateRecipeExecutor())
+                template.recipe.execute(TemplateRecipeExecutor(requireContext()))
             }) { result, err ->
 
                 viewModel.creatingProject.value = false

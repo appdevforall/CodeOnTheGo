@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.utils
 
+import android.content.Context
 import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import com.blankj.utilcode.util.ResourceUtils
@@ -33,7 +34,9 @@ import java.io.InputStream
  *
  * @author Akash Yadav
  */
-class TemplateRecipeExecutor : RecipeExecutor {
+class TemplateRecipeExecutor (
+    override val context: Context
+) : RecipeExecutor {
 
     private val application: IDEApplication
         get() = IDEApplication.instance
