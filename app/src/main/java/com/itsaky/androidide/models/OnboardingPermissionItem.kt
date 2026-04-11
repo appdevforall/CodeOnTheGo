@@ -32,5 +32,6 @@ data class OnboardingPermissionItem(
   val description: Int,
   var isGranted: Boolean,
 
-  var isOptional: Boolean = false
+  var isOptional: Boolean = false,
+  var isSupportedOnDevice: Boolean = true
 )

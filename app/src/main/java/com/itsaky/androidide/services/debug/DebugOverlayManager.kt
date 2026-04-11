@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.widget.Toast
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.R
@@ -16,7 +17,7 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.PermissionsHelper
 import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
@@ -111,9 +112,18 @@ class DebugOverlayManager private constructor(
             return
         }
 
-        if (!Settings.canDrawOverlays(binding.root.context)) {
+        val ctx = binding.root.context
+
+        if (!Settings.canDrawOverlays(ctx)) {
             logger.warn("Overlay permission denied. Skipping debugger overlay window.")
-            flashError(binding.root.context.getString(R.string.permission_overlay_restricted_settings_hint))
+
+            val state = PermissionsHelper.getOverlayPermissionState(ctx)
+            val message = if (state == PermissionsHelper.OverlayPermissionState.UNSUPPORTED) {
+                ctx.getString(R.string.permission_overlay_unsupported_hint)
+            } else {
+                ctx.getString(R.string.permission_overlay_restricted_settings_hint)
+            }
+            Toast.makeText(ctx, message, Toast.LENGTH_LONG).show()
             return
         }
 
@@ -139,10 +149,10 @@ class DebugOverlayManager private constructor(
         }
     }
 
-	fun refreshActions() {
-		// noinspection NotifyDataSetChanged
-		binding.actions.adapter?.notifyDataSetChanged()
-	}
+    fun refreshActions() {
+        // noinspection NotifyDataSetChanged
+        binding.actions.adapter?.notifyDataSetChanged()
+    }
 
     companion object {
 
@@ -172,8 +182,8 @@ class DebugOverlayManager private constructor(
             layout.actions.adapter = adapter
 
             return DebugOverlayManager(
-				windowManager = windowManager,
-				binding = layout,
+                windowManager = windowManager,
+                binding = layout,
             )
         }
     }
