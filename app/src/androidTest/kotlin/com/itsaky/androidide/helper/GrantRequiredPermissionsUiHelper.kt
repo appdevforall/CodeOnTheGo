@@ -1,6 +1,7 @@
 package com.itsaky.androidide.helper
 
 import android.Manifest
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.R
 import com.itsaky.androidide.screens.PermissionScreen
@@ -9,29 +10,29 @@ import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 
 /**
  * Drives the onboarding permission list and system Settings UIs for every entry in
- * [PermissionsHelper.getRequiredPermissions]. Matches [com.itsaky.androidide.PermissionsScreenTest]
- * so scenarios like [com.itsaky.androidide.scenarios.NavigateToMainScreenScenario] stay in sync
- * with API-level permission sets (e.g. notifications + overlay on API 33+).
+ * [PermissionsHelper.getRequiredPermissions].
  */
 fun TestContext<Unit>.grantAllRequiredPermissionsThroughOnboardingUi() {
     val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
     val required = PermissionsHelper.getRequiredPermissions(targetContext)
-    val appLabel =
-        targetContext.applicationInfo.loadLabel(targetContext.packageManager).toString()
 
     required.forEachIndexed { index, item ->
         step("Grant: ${targetContext.getString(item.title)}") {
-            flakySafely(timeoutMs = 120_000) {
+            flakySafely(timeoutMs = 10_000) {
+                // Scroll to the permission item and click its grant button via accessibility
+                // ACTION_CLICK. The button may be in the gesture exclusion zone where
+                // coordinate-based clicks (Espresso) get swallowed by the OS.
                 PermissionScreen {
                     rvPermissions {
                         childAt<PermissionScreen.PermissionItem>(index) {
                             grantButton {
                                 isVisible()
-                                click()
                             }
                         }
                     }
                 }
+                clickFirstGrantButton()
+
                 when (item.permission) {
                     Manifest.permission.POST_NOTIFICATIONS -> {
                         device.grantPostNotificationsUi()
@@ -43,14 +44,7 @@ fun TestContext<Unit>.grantAllRequiredPermissionsThroughOnboardingUi() {
                         device.grantInstallUnknownAppsUi()
                     }
                     Manifest.permission.SYSTEM_ALERT_WINDOW -> {
-                        device.grantDisplayOverOtherAppsUi(
-                            listOf(
-                                appLabel,
-                                targetContext.getString(R.string.app_name),
-                                targetContext.packageName,
-                            ),
-                            targetContext,
-                        )
+                        device.grantDisplayOverOtherAppsUi()
                     }
                     else -> {
                         throw IllegalStateException("Unknown permission row: ${item.permission}")
@@ -58,5 +52,42 @@ fun TestContext<Unit>.grantAllRequiredPermissionsThroughOnboardingUi() {
                 }
             }
         }
+    }
+}
+
+/**
+ * Clicks the first visible, enabled "Allow" grant button using accessibility ACTION_CLICK.
+ *
+ * We always click the FIRST "Allow" button because permissions are granted in order.
+ * After each grant, the button text changes (e.g. to a checkmark), so the first remaining
+ * "Allow" is always the next permission to grant.
+ */
+private fun clickFirstGrantButton() {
+    val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
+    val root = uiAutomation.rootInActiveWindow
+        ?: throw AssertionError("No active window for accessibility")
+
+    val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+    val grantText = ctx.getString(R.string.title_grant)
+
+    val nodes = root.findAccessibilityNodeInfosByText(grantText)
+    var clicked = false
+    for (node in nodes) {
+        if (node.text?.toString().equals(grantText, ignoreCase = true)
+            && node.isClickable
+            && node.isEnabled
+            && node.isVisibleToUser
+        ) {
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            clicked = true
+            node.recycle()
+            break
+        }
+        node.recycle()
+    }
+    root.recycle()
+
+    if (!clicked) {
+        throw AssertionError("No '$grantText' button found")
     }
 }

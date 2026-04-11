@@ -6,9 +6,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.SplashActivity
+import com.itsaky.androidide.helper.advancePastWelcomeScreen
 import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
 import com.itsaky.androidide.helper.passPermissionsInfoSlideWithPrivacyDialog
-import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
@@ -35,20 +35,10 @@ class PermissionsScreenTest : TestCase() {
     @Test
     fun test_permissionsScreen_greenCheckMarksAppearCorrectly() = run {
         step("Wait for app to start") {
-            flakySafely(timeoutMs = 10_000) {
-                device.uiDevice.waitForIdle(5000)
-            }
+            device.uiDevice.waitForIdle()
         }
 
-        step("Click continue button on the Welcome Screen") {
-            flakySafely(timeoutMs = 15_000) {
-                OnboardingScreen.nextButton {
-                    isVisible()
-                    isClickable()
-                    click()
-                }
-            }
-        }
+        advancePastWelcomeScreen()
 
         passPermissionsInfoSlideWithPrivacyDialog()
 
@@ -56,33 +46,18 @@ class PermissionsScreenTest : TestCase() {
         val required = PermissionsHelper.getRequiredPermissions(targetContext)
 
         step("Verify items on the Permission Screen") {
-            PermissionScreen {
-                flakySafely(timeoutMs = 10_000) {
-                    title {
-                        isVisible()
-                    }
-                }
-
-                flakySafely(timeoutMs = 8000) {
-                    subTitle {
-                        isVisible()
-                    }
-                }
-
-                flakySafely(timeoutMs = 15_000) {
+            flakySafely(timeoutMs = 3_000) {
+                PermissionScreen {
+                    title { isVisible() }
+                    subTitle { isVisible() }
                     rvPermissions {
                         isVisible()
                         isDisplayed()
                     }
-                }
-
-                flakySafely(timeoutMs = 15_000) {
                     assertEquals(required.size, rvPermissions.getSize())
-                }
 
-                rvPermissions {
-                    required.forEachIndexed { index, item ->
-                        flakySafely(timeoutMs = 10_000) {
+                    rvPermissions {
+                        required.forEachIndexed { index, item ->
                             childAt<PermissionScreen.PermissionItem>(index) {
                                 title {
                                     isVisible()
@@ -107,21 +82,19 @@ class PermissionsScreenTest : TestCase() {
         grantAllRequiredPermissionsThroughOnboardingUi()
 
         step("Confirm Android reports all required permissions granted") {
-            flakySafely(timeoutMs = 20_000) {
+            flakySafely(timeoutMs = 3_000) {
                 assertTrue(PermissionsHelper.areAllPermissionsGranted(targetContext))
             }
         }
 
         step("Confirm that all grant actions are complete (buttons disabled)") {
-            flakySafely(timeoutMs = 15_000) {
-                device.uiDevice.waitForIdle(2000)
-                PermissionScreen {
-                    rvPermissions {
-                        required.indices.forEach { index ->
-                            childAt<PermissionScreen.PermissionItem>(index) {
-                                grantButton {
-                                    isNotEnabled()
-                                }
+            device.uiDevice.waitForIdle()
+            PermissionScreen {
+                rvPermissions {
+                    required.indices.forEach { index ->
+                        childAt<PermissionScreen.PermissionItem>(index) {
+                            grantButton {
+                                isNotEnabled()
                             }
                         }
                     }
