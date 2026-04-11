@@ -426,7 +426,7 @@ class ZipRecipeExecutor(
             }
         } catch (e: Throwable) {
             error("ServiceLoader iteration failed for ${entry.name}",
-                Exception("FServiceLoader iteration failed", e))
+                Exception("ServiceLoader iteration failed", e))
         }
 
         return extensions
