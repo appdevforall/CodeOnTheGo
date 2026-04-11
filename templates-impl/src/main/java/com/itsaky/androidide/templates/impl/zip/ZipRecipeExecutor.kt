@@ -80,9 +80,14 @@ class ZipRecipeExecutor(
 
             val extensionsEntry = zip.getEntry(META_EXTENSION_JAR)
             if (extensionsEntry != null) {
-                val extensions = loadExtensionFromArchive(extensionsEntry, executor.context!!)
-                for (ext in extensions) {
-                    builder.extension(ext)
+                val context = executor.context
+                if (context == null) {
+                    warn("Skipping $META_EXTENSION_JAR because TemplateRecipeExecutor.context is unavailable")
+                } else {
+                    val extensions = loadExtensionFromArchive(zip, extensionsEntry, context)
+                    for (ext in extensions) {
+                        builder.extension(ext)
+                    }
                 }
             }
 
@@ -350,6 +355,7 @@ class ZipRecipeExecutor(
 
     @SuppressLint("SetWorldReadable")
     private fun loadExtensionFromArchive(
+        zip: ZipFile,
         entry: ZipEntry,
         context: Context,
     ): List<Extension> {
@@ -357,7 +363,7 @@ class ZipRecipeExecutor(
         val tempJar = File.createTempFile("ext_", ".jar", context.codeCacheDir)
 
         try {
-            zipProvider().getInputStream(entry).use { input ->
+            zip.getInputStream(entry).use { input ->
                 tempJar.outputStream().use { output ->
                     input.copyTo(output)
                 }
