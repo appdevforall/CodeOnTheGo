@@ -63,6 +63,7 @@ import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
@@ -423,11 +424,14 @@ open class EditorHandlerActivity :
 		content.projectActionsToolbar.clearMenu()
 
 		val actions = getInstance().getActions(EDITOR_TOOLBAR)
+		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds()
 		actions.onEachIndexed { index, entry ->
 			val action = entry.value
 			val isLast = index == actions.size - 1
 
 			action.prepare(data)
+
+			if (action.id in hiddenIds || !action.visible) return@onEachIndexed
 
 			action.icon?.apply {
 				colorFilter = action.createColorFilter(data)
