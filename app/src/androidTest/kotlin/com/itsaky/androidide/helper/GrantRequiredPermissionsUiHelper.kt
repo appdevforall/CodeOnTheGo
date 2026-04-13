@@ -80,8 +80,7 @@ private fun clickFirstGrantButton() {
                 && node.isEnabled
                 && node.isVisibleToUser
             ) {
-                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                clicked = true
+                clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             }
             node.recycle()
         }

@@ -22,15 +22,20 @@ fun TestContext<Unit>.passPermissionsInfoSlideWithPrivacyDialog() {
                 .rootInActiveWindow
             if (root != null) {
                 val nodes = root.findAccessibilityNodeInfosByText(accept)
-                for (node in nodes) {
-                    if (node.text?.toString().equals(accept, ignoreCase = true)) {
-                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                var clicked = false
+                try {
+                    for (node in nodes) {
+                        if (!clicked && node.text?.toString().equals(accept, ignoreCase = true)) {
+                            clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        }
                         node.recycle()
-                        break
                     }
-                    node.recycle()
+                } finally {
+                    root.recycle()
                 }
-                root.recycle()
+                if (!clicked) {
+                    throw AssertionError("Failed to click '$accept' button via accessibility")
+                }
             }
             d.waitForIdle()
         }
