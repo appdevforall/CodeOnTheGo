@@ -26,6 +26,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.utils.Environment
 import com.termux.app.TermuxActivity
+import com.termux.app.TermuxService
 import com.termux.shared.termux.TermuxConstants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,26 +35,37 @@ import kotlinx.coroutines.launch
  * @author Akash Yadav
  */
 class TerminalActivity : TermuxActivity() {
+    private var pendingWorkingDir: String? = null
+    private var pendingSessionName: String? = null
+    private var pendingIsFailsafe: Boolean = false
 
-  override val navigationBarColor: Int
-    get() = ContextCompat.getColor(this, android.R.color.black)
-  override val statusBarColor: Int
-    get() = ContextCompat.getColor(this, android.R.color.black)
+    override val navigationBarColor: Int
+        get() = ContextCompat.getColor(this, android.R.color.black)
+    override val statusBarColor: Int
+        get() = ContextCompat.getColor(this, android.R.color.black)
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    val controller = WindowCompat.getInsetsController(
-      window, window.decorView)
-    controller.isAppearanceLightNavigationBars = false
-    controller.isAppearanceLightStatusBars = false
-    super.onCreate(savedInstanceState)
-  }
-
-  override fun onServiceConnected(componentName: ComponentName?, service: IBinder?) {
-    super.onServiceConnected(componentName, service)
-    lifecycleScope.launch(Dispatchers.IO) {
-      Environment.mkdirIfNotExists(Environment.TMP_DIR)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.isAppearanceLightNavigationBars = false
+        controller.isAppearanceLightStatusBars = false
+        super.onCreate(savedInstanceState)
     }
-  }
+
+    override fun onServiceConnected(componentName: ComponentName?, service: IBinder?) {
+        super.onServiceConnected(componentName, service)
+        lifecycleScope.launch(Dispatchers.IO) {
+            Environment.mkdirIfNotExists(Environment.TMP_DIR)
+        }
+
+        val termuxService = mTermuxService
+        if (termuxService != null && (pendingWorkingDir != null || pendingSessionName != null)) {
+            createAndSetSession(termuxService, pendingWorkingDir, pendingSessionName, pendingIsFailsafe)
+
+            pendingWorkingDir = null
+            pendingSessionName = null
+            pendingIsFailsafe = false
+        }
+    }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
@@ -66,18 +78,31 @@ class TerminalActivity : TermuxActivity() {
 
         val service = mTermuxService
         if (service != null) {
-            val newSession = service.createTermuxSession(
-                null,
-                null,
-                null,
-                newWorkingDir,
-                isFailsafe,
-                newSessionName
-            )
+            createAndSetSession(service, newWorkingDir, newSessionName, isFailsafe)
+        } else {
+            pendingWorkingDir = newWorkingDir
+            pendingSessionName = newSessionName
+            pendingIsFailsafe = isFailsafe
+        }
+    }
 
-            if (newSession != null) {
-                mTermuxTerminalSessionActivityClient.setCurrentSession(newSession.terminalSession)
-            }
+    private fun createAndSetSession(
+        service: TermuxService,
+        workingDir: String?,
+        sessionName: String?,
+        isFailsafe: Boolean
+    ) {
+        val newSession = service.createTermuxSession(
+            null,
+            null,
+            null,
+            workingDir,
+            isFailsafe,
+            sessionName
+        )
+
+        if (newSession != null) {
+            mTermuxTerminalSessionActivityClient.setCurrentSession(newSession.terminalSession)
         }
     }
 }
