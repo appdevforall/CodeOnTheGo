@@ -3,6 +3,7 @@ package com.itsaky.androidide.git.core
 import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
+import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.api.PullResult
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.CredentialsProvider
@@ -41,4 +42,8 @@ interface GitRepository : Closeable {
         credentialsProvider: CredentialsProvider? = null,
         progressMonitor: ProgressMonitor? = null
     ): PullResult
+
+    // Merge Operations
+    suspend fun merge(branchName: String): MergeResult
+    suspend fun abortMerge()
 }
