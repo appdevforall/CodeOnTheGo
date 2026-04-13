@@ -73,12 +73,22 @@ class PluginBuildActionManager private constructor() {
     fun getHiddenActionIds(): Set<String> {
         val hidden = mutableSetOf<String>()
 
-        for ((_, extension) in pluginExtensions) {
+        for ((pluginId, extension) in pluginExtensions) {
             runCatching {
                 val requested = extension.toolbarActionsToHide()
-                hidden.addAll(requested.intersect(ToolbarActionIds.ALL))
+                val allowed = requested.intersect(ToolbarActionIds.BUILD_HIDEABLE)
+                hidden.addAll(allowed)
+
+                val rejected = requested - ToolbarActionIds.BUILD_HIDEABLE
+                if (rejected.isNotEmpty()) {
+                    Log.w(
+                        TAG,
+                        "Plugin $pluginId requested to hide non-build toolbar actions " +
+                            "$rejected; ignored. Only ${ToolbarActionIds.BUILD_HIDEABLE} are hideable."
+                    )
+                }
             }.onFailure { e ->
-                Log.w(TAG, "Failed to get hidden action ids from plugin", e)
+                Log.w(TAG, "Failed to get hidden action ids from plugin $pluginId", e)
             }
         }
 
