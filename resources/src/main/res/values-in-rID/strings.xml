@@ -282,7 +282,7 @@
   <string name="xml_formatting_options">Opsi pemformatan XML</string>
   <string name="xml_formatting_options_summary">Konfigurasikan pemformatan XML</string>
   <string name="idepref_customFont_title">Gunakan custom font</string>
-  <string name="idepref_customFont_summary">Jika diaktifkan, file di \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" akan digunakan sebagai font Editor.</string>
+  <string name="idepref_customFont_summary">Jika diaktifkan, file di \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" akan digunakan sebagai font Editor.</string>
   <string name="msg_installing_apk">Menginstal APK...</string>
   <string name="msg_action_open_application">Apakah Anda ingin membuka aplikasi?</string>
   <string name="title_gradle_service_notification_channel">Layanan Build Gradle Code on the Go</string>
@@ -399,7 +399,7 @@
   <string name="idepref_devOptions_summary">Opsi eksperimental/debug untuk Code on the Go</string>
   <string name="idepref_group_debugging">Men-debug</string>
   <string name="idepref_devOptions_dumpLogs_title">Dump log</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Dump log Code on the Go ke $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Dump log Code on the Go ke $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">Jalankan varian debug aplikasi Anda untuk melihat lognya di sini.</string>
   <string name="msg_logsender_disabled">LogSender dinonaktifkan. Anda dapat mengaktifkannya di preferensi.</string>
   <string name="msg_emptyview_idelogs">Log dari IDE ditampilkan di sini.</string>

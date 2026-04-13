@@ -1,15 +1,21 @@
 package com.itsaky.androidide.templates.impl.zip
 
-import com.itsaky.androidide.templates.Language
+import android.annotation.SuppressLint
+import android.content.Context
+import dalvik.system.DexClassLoader
+
 import java.io.File
 import java.io.StringWriter
 import java.util.zip.ZipFile
+import java.util.ServiceLoader
 
-import org.slf4j.LoggerFactory
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
 import io.pebbletemplates.pebble.lexer.Syntax
+import io.pebbletemplates.pebble.error.PebbleException
+import io.pebbletemplates.pebble.extension.Extension
 
+import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.ModuleTemplateData
 import com.itsaky.androidide.templates.Parameter
 import com.itsaky.androidide.templates.ProjectTemplateData
@@ -18,11 +24,12 @@ import com.itsaky.androidide.templates.RecipeExecutor
 import com.itsaky.androidide.templates.TemplateRecipe
 import com.itsaky.androidide.templates.impl.base.ProjectTemplateRecipeResultImpl
 import com.itsaky.androidide.utils.Environment
-import io.pebbletemplates.pebble.error.PebbleException
 
+import org.slf4j.LoggerFactory
 import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
 import org.adfa.constants.KOTLIN_VERSION
 import org.adfa.constants.Sdk
+import java.util.zip.ZipEntry
 
 class ZipRecipeExecutor(
     private val zipProvider: () -> ZipFile,
@@ -69,10 +76,26 @@ class ZipRecipeExecutor(
                 .setCommentCloseDelimiter(DELIM_COMMENT_CLOSE)
                 .build()
 
-            val pebbleEngine = PebbleEngine.Builder()
-                .loader(StringLoader())
+            val builder = PebbleEngine.Builder()
+
+            val extensionsEntry = zip.getEntry(META_EXTENSION_JAR)
+            if (extensionsEntry != null) {
+                val context = executor.context
+                if (context == null) {
+                    warn("Skipping $META_EXTENSION_JAR because TemplateRecipeExecutor.context is unavailable")
+                } else {
+                    val extensions = loadExtensionFromArchive(zip, extensionsEntry, context)
+                    for (ext in extensions) {
+                        builder.extension(ext)
+                    }
+                }
+            }
+
+            val pebbleEngine = builder.loader(StringLoader())
+                .strictVariables(true)
                 .syntax(customSyntax)
                 .build()
+
 
             val className = data.name.replace(CLASS_NAME_PATTERN, "")
             val (baseIdentifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
@@ -288,10 +311,10 @@ class ZipRecipeExecutor(
         else ResolvedParam(value, false)
     }
 
-      private fun resolveBoolean(raw: Boolean?, default: Boolean): ResolvedParam<Boolean> {
+    private fun resolveBoolean(raw: Boolean?, default: Boolean): ResolvedParam<Boolean> {
         return if (raw == null) ResolvedParam(default, true)
         else ResolvedParam(raw, false)
-      }
+    }
 
     private fun filterAndNormalizeZipEntry(
         entryName: String,
@@ -329,4 +352,83 @@ class ZipRecipeExecutor(
 
     private fun Exception.wrap(msg: String): RuntimeException =
         RuntimeException(msg, this)
+
+    @SuppressLint("SetWorldReadable")
+    private fun loadExtensionFromArchive(
+        zip: ZipFile,
+        entry: ZipEntry,
+        context: Context,
+    ): List<Extension> {
+
+        val tempJar = File.createTempFile("ext_", ".jar", context.codeCacheDir)
+
+        try {
+            zip.getInputStream(entry).use { input ->
+                tempJar.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } catch (e: Exception) {
+            error("Failed to extract ${entry.name} to ${tempJar.absolutePath}", e)
+            return emptyList()
+        }
+
+        try {
+            tempJar.setReadable(true, false)
+            tempJar.setWritable(false)
+            tempJar.setExecutable(false)
+        } catch (e: SecurityException) {
+            warn("Could not adjust permissions on ${tempJar.absolutePath} $e")
+        }
+
+        val optimizedDir = File(
+            Environment.TEMPLATES_DIR,
+            "$DEX_OPT_FOLDER/${basePath}"
+        )
+
+        if (!optimizedDir.exists() && !optimizedDir.mkdirs()) {
+            error("Failed to create optimized dex directory: ${optimizedDir.absolutePath}",
+                IllegalStateException("mkdirs() failed for ${optimizedDir.absolutePath}"))
+            return emptyList()
+        }
+
+        val classLoader = try {
+            DexClassLoader(
+                tempJar.absolutePath,
+                optimizedDir.absolutePath,
+                null,
+                context.classLoader
+            )
+        } catch (e: Exception) {
+            error("Failed to create DexClassLoader for ${entry.name}", e)
+            return emptyList()
+        }
+
+        val serviceLoader = try {
+            ServiceLoader.load(Extension::class.java, classLoader)
+        } catch (e: Throwable) {
+            error("ServiceLoader failed for ${entry.name}",
+                Exception("ServiceLoader failed", e))
+            return emptyList()
+        }
+
+        val extensions = mutableListOf<Extension>()
+
+        try {
+            for (ext in serviceLoader) {
+                try {
+                    log.debug("Loading ${ext::class.java.name}")
+                    extensions += ext
+                } catch (e: Throwable) {
+                    error("Failed to instantiate extension from ${entry.name}",
+                        Exception("Failed to instantiate extension", e))
+                }
+            }
+        } catch (e: Throwable) {
+            error("ServiceLoader iteration failed for ${entry.name}",
+                Exception("ServiceLoader iteration failed", e))
+        }
+
+        return extensions
+    }
 }
