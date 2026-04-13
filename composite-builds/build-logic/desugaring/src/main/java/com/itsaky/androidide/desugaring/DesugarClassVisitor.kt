@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.desugaring
 
-import DesugarParams
 import com.android.build.api.instrumentation.ClassContext
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.FieldVisitor
