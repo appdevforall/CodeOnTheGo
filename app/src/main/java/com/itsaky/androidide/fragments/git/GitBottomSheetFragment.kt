@@ -271,6 +271,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         binding.pullProgress.visibility = View.GONE
                         flashSuccess(R.string.pull_successful)
                         viewModel.resetPullState()
+                        refreshEditorContent()
                     }
                     is PullUiState.Conflicts -> {
                         binding.btnPull.isEnabled = true
@@ -282,6 +283,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             .setPositiveButton(android.R.string.ok, null)
                             .show()
                         viewModel.resetPullState()
+                        refreshEditorContent()
                     }
                     is PullUiState.Error -> {
                         binding.btnPull.isEnabled = true
@@ -333,6 +335,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun refreshEditorContent(force: Boolean = false) {
+        val activity = requireActivity()
+        if (activity is EditorHandlerActivity) {
+            activity.checkForExternalFileChanges(force)
+        }
     }
 
     override fun onDestroyView() {
