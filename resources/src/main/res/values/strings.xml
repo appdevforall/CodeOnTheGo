@@ -482,7 +482,7 @@
 	<string name="xml_formatting_options">XML formatting options</string>
 	<string name="xml_formatting_options_summary">Set formatting preferences for XML files.</string>
 	<string name="idepref_customFont_title">Use custom font</string>
-	<string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
+	<string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" will be used as Editor font.</string>
 	<string name="msg_installing_apk">Installing APK…</string>
 	<string name="msg_action_open_application">Your app is installed. Do you want to launch the app?</string>
 	<string name="msg_action_open_title_application">App installed</string>
@@ -663,7 +663,7 @@
 	<string name="idepref_devOptions_summary">Experimental/debugging options for Code on the Go</string>
 	<string name="idepref_group_debugging">Debugging</string>
 	<string name="idepref_devOptions_dumpLogs_title">Dump logs</string>
-	<string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.androidide/logs</string>
+	<string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.cg/logs</string>
 	<string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
 	<string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
 	<string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
@@ -717,6 +717,7 @@
 	<string name="permission_desc_install_packages">Allow Code on the Go to install the apps that you build on this device.</string>
 	<string name="permission_title_overlay_window">Floating debugger</string>
 	<string name="permission_desc_overlay_window">Allow Code on the Go to display floating debugger controls to inspect your code while it runs.</string>
+	<string name="permission_overlay_unsupported_hint">Floating debugger is not available on this device.</string>
 	<string name="permission_overlay_restricted_settings_hint">If you can\'t enable this permission, display App info for Code on the Go, tap the three-dot menu, and enable restricted settings.</string>
 	<string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to display notifications.</string>

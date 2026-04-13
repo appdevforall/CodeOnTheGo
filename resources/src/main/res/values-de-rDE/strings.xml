@@ -281,7 +281,7 @@
   <string name="xml_formatting_options">XML-Formatierungsoptionen</string>
   <string name="xml_formatting_options_summary">XML-Formatierer konfigurieren</string>
   <string name="idepref_customFont_title">Eigene Schriftart verwenden</string>
-  <string name="idepref_customFont_summary">Wenn aktiviert, wird die Datei unter \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" als Editor Schriftart verwendet.</string>
+  <string name="idepref_customFont_summary">Wenn aktiviert, wird die Datei unter \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" als Editor Schriftart verwendet.</string>
   <string name="msg_installing_apk">Installiere APK...</string>
   <string name="msg_action_open_application">Möchtest du die Applikation öffnen?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle-Build-Service</string>
@@ -398,7 +398,7 @@
   <string name="idepref_devOptions_summary">Experimentelle/Debugging Optionen für Code on the Go</string>
   <string name="idepref_group_debugging">Debugging</string>
   <string name="idepref_devOptions_dumpLogs_title">Protokolle ausgeben</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go-Logs in $HOME/.androidide/logs ausgeben</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go-Logs in $HOME/.cg/logs ausgeben</string>
   <string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
   <string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
   <string name="msg_emptyview_idelogs">Protokolle der IDE werden hier angezeigt.</string>

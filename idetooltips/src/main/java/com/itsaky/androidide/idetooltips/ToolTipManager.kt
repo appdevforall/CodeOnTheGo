@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -38,8 +37,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import java.io.File
 
 
@@ -180,17 +177,29 @@ object TooltipManager {
 
     // Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
     // (An Activity, Fragment, Dialog etc)
-    fun showIdeCategoryTooltip(context: Context, anchorView: View, tag: String) {
+    fun showIdeCategoryTooltip(
+        context: Context,
+        anchorView: View,
+        tag: String,
+        requestFocus: Boolean = true,
+    ) {
         showTooltip(
             context = context,
             anchorView = anchorView,
             category = TooltipCategory.CATEGORY_IDE,
-            tag = tag
+            tag = tag,
+            requestFocus = requestFocus,
         )
     }
 
     // Displays a tooltip in a particular context with a specific category
-    fun showTooltip(context: Context, anchorView: View, category: String, tag: String) {
+    fun showTooltip(
+        context: Context,
+        anchorView: View,
+        category: String,
+        tag: String,
+        requestFocus: Boolean = true,
+    ) {
         CoroutineScope(Dispatchers.Main).launch {
             val tooltipItem = getTooltip(
                 context,
@@ -203,20 +212,13 @@ object TooltipManager {
                     anchorView = anchorView,
                     level = 0,
                     tooltipItem = tooltipItem,
+                    requestFocus = requestFocus,
                     onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, context.getString(R.string.back_to_cogo))
-                                if (context !is android.app.Activity) {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            }
-                        context.startActivity(intent)
+                        HelpActivity.launch(context, url, title)
                     }
                 )
             } else {
-                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+                Log.e(TAG, "Tooltip item $tooltipItem is null")
             }
         }
     }
@@ -229,6 +231,7 @@ object TooltipManager {
         anchorView: View,
         level: Int,
         tooltipItem: IDETooltipItem,
+        requestFocus: Boolean,
         onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
     ) {
         setupAndShowTooltipPopup(
@@ -236,13 +239,14 @@ object TooltipManager {
             anchorView = anchorView,
             level = level,
             tooltipItem = tooltipItem,
+            requestFocus = requestFocus,
             onActionButtonClick = { popupWindow, urlContent ->
                 popupWindow.dismiss()
                 onHelpLinkClicked(context, urlContent.first, urlContent.second)
             },
             onSeeMoreClicked = { popupWindow, nextLevel, item ->
                 popupWindow.dismiss()
-                showTooltipPopup(context, anchorView, nextLevel, item, onHelpLinkClicked)
+                showTooltipPopup(context, anchorView, nextLevel, item, requestFocus, onHelpLinkClicked)
             }
         )
     }
@@ -279,6 +283,7 @@ object TooltipManager {
         anchorView: View,
         level: Int,
         tooltipItem: IDETooltipItem,
+        requestFocus: Boolean,
         onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit,
         onSeeMoreClicked: (popupWindow: PopupWindow, nextLevel: Int, tooltipItem: IDETooltipItem) -> Unit,
     ) {
@@ -394,7 +399,7 @@ object TooltipManager {
             }
         }
 
-        popupWindow.isFocusable = true
+        popupWindow.isFocusable = requestFocus
         popupWindow.isOutsideTouchable = true
         if (anchorView.isInOverlayWindow()) {
             showOverlayTooltip(popupWindow, popupView, anchorView)
