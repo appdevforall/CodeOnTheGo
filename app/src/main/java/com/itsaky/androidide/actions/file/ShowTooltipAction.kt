@@ -42,7 +42,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
 
     init {
         label = context.getString(R.string.title_show_tooltip)
-        val drawable = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
+        val drawable = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
         icon = drawable?.let { tintDrawable(context, it) }
     }
 
