@@ -5,6 +5,9 @@ const val ARCHIVE_JSON = "templates.json"
 const val META_FOLDER = "template"
 const val META_JSON = "template.json"
 const val META_THUMBNAIL = "thumb.png"
+const val META_EXTENSION_JAR = "extensions.jar"
+
+const val DEX_OPT_FOLDER = "dex_opt"
 
 const val TEMPLATE_EXTENSION = ".peb"
 

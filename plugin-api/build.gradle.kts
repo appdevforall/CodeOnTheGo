@@ -29,6 +29,8 @@ dependencies {
     compileOnly("androidx.appcompat:appcompat:1.6.1")
     compileOnly("androidx.fragment:fragment-ktx:1.6.2")
     compileOnly("com.google.android.material:material:1.11.0")
+
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 }
 
 tasks.register<Copy>("createPluginApiJar") {

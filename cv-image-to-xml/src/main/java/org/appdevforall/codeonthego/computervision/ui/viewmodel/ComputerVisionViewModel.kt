@@ -9,7 +9,7 @@ import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
 import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
 import org.appdevforall.codeonthego.computervision.domain.MarginAnnotationParser
 import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.computervision.R
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil
+import org.appdevforall.codeonthego.computervision.utils.SmartBoundaryDetector
 
 class ComputerVisionViewModel(
     private val repository: ComputerVisionRepository,
@@ -107,22 +109,36 @@ class ComputerVisionViewModel(
     private fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
             try {
-                val bitmap = uriToBitmap(uri)
-                if (bitmap != null) {
+                val result = withContext(Dispatchers.Default) {
+                    val bitmap = uriToBitmap(uri) ?: return@withContext null
+
                     val rotatedBitmap = handleImageRotation(uri, bitmap)
-                    _uiState.update {
-                        it.copy(
-                            currentBitmap = rotatedBitmap,
-                            imageUri = uri,
-                            detections = emptyList(),
-                            visualizedBitmap = null,
-                            leftGuidePct = 0.2f, // Reset to default
-                            rightGuidePct = 0.8f,  // Reset to default
-                            parsedAnnotations = emptyMap() // Reset on new image
-                        )
-                    }
-                } else {
+                    val (leftBoundPx, rightBoundPx) = SmartBoundaryDetector.detectSmartBoundaries(rotatedBitmap)
+
+                    val widthFloat = rotatedBitmap.width.toFloat()
+                    val leftPct = leftBoundPx / widthFloat
+                    val rightPct = rightBoundPx / widthFloat
+
+                    Triple(rotatedBitmap, leftPct, rightPct)
+                }
+
+                if (result == null) {
                     _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_no_image_selected))
+                    return@launch
+                }
+
+                val (rotatedBitmap, leftPct, rightPct) = result
+
+                _uiState.update {
+                    it.copy(
+                        currentBitmap = rotatedBitmap,
+                        imageUri = uri,
+                        detections = emptyList(),
+                        visualizedBitmap = null,
+                        leftGuidePct = leftPct,
+                        rightGuidePct = rightPct,
+                        parsedAnnotations = emptyMap() // Reset on new image
+                    )
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading image from URI", e)

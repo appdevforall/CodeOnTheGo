@@ -56,6 +56,7 @@ object XmlParserUtils {
         attributeMap: MutableMap<View, AttributeMap>,
         marker: String
     ): View = View(context).also {
+        it.layoutParams = ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
         val attrs = AttributeMap().apply { putValue(marker, "true") }
         attributeMap[it] = attrs
     }
