@@ -36,27 +36,35 @@ fun TestContext<Unit>.passPermissionsInfoSlideWithPrivacyDialog() {
         }
     }
     step("Continue from permissions information slide") {
-        flakySafely(timeoutMs = 3_000) {
-            // The Next button is in the system gesture exclusion zone. Use accessibility
-            // ACTION_CLICK to bypass coordinate-based touch injection.
-            val root = InstrumentationRegistry.getInstrumentation().uiAutomation
-                .rootInActiveWindow
-                ?: throw AssertionError("No active window for accessibility")
-            val nodes = root.findAccessibilityNodeInfosByText("NEXT")
-            var clicked = false
+        // After dismissing the dialog, the accessibility tree transitions from 2 windows
+        // to 1. Use UIAutomator's waitForExists (which handles window transitions) to
+        // wait for the NEXT button to become reachable, then click via accessibility.
+        val d = device.uiDevice
+        val nextObj = d.findObject(UiSelector().descriptionContains("NEXT"))
+        if (!nextObj.waitForExists(3_000)) {
+            throw AssertionError("NEXT button not found on permissions info slide")
+        }
+
+        val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val root = uiAutomation.rootInActiveWindow
+            ?: throw AssertionError("No active window for accessibility")
+        val nodes = root.findAccessibilityNodeInfosByText("NEXT")
+        var clicked = false
+        try {
             for (node in nodes) {
-                if (node.contentDescription?.toString()?.contains("NEXT", ignoreCase = true) == true) {
+                val desc = node.contentDescription?.toString() ?: ""
+                val text = node.text?.toString() ?: ""
+                if (!clicked && (desc.contains("NEXT", ignoreCase = true) || text.contains("NEXT", ignoreCase = true))) {
                     clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    node.recycle()
-                    break
                 }
                 node.recycle()
             }
+        } finally {
             root.recycle()
-            if (!clicked) {
-                throw AssertionError("NEXT button not found on permissions info slide")
-            }
-            device.uiDevice.waitForIdle()
         }
+        if (!clicked) {
+            throw AssertionError("NEXT button found by UIAutomator but accessibility click failed")
+        }
+        d.waitForIdle()
     }
 }

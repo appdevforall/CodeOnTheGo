@@ -52,17 +52,18 @@ class PermissionsInfoScreenTest : TestCase() {
         val root = InstrumentationRegistry.getInstrumentation().uiAutomation
             .rootInActiveWindow ?: return false
         val nodes = root.findAccessibilityNodeInfosByText(text)
-        for (node in nodes) {
-            if (node.text?.toString().equals(text, ignoreCase = true)) {
-                val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        var result = false
+        try {
+            for (node in nodes) {
+                if (!result && node.text?.toString().equals(text, ignoreCase = true)) {
+                    result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                }
                 node.recycle()
-                root.recycle()
-                return result
             }
-            node.recycle()
+        } finally {
+            root.recycle()
         }
-        root.recycle()
-        return false
+        return result
     }
 
     @Test
@@ -101,7 +102,7 @@ class PermissionsInfoScreenTest : TestCase() {
     }
 
     @Test
-    fun test_privacyDialog_notShownOnSecondVisit() = run {
+    fun test_privacyDialog_dismissedAfterAccept() = run {
         step("Wait for app") {
             device.uiDevice.waitForIdle()
         }

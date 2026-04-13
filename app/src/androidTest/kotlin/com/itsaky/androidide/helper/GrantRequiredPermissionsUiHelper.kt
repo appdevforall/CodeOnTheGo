@@ -72,20 +72,22 @@ private fun clickFirstGrantButton() {
 
     val nodes = root.findAccessibilityNodeInfosByText(grantText)
     var clicked = false
-    for (node in nodes) {
-        if (node.text?.toString().equals(grantText, ignoreCase = true)
-            && node.isClickable
-            && node.isEnabled
-            && node.isVisibleToUser
-        ) {
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            clicked = true
+    try {
+        for (node in nodes) {
+            if (!clicked
+                && node.text?.toString().equals(grantText, ignoreCase = true)
+                && node.isClickable
+                && node.isEnabled
+                && node.isVisibleToUser
+            ) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                clicked = true
+            }
             node.recycle()
-            break
         }
-        node.recycle()
+    } finally {
+        root.recycle()
     }
-    root.recycle()
 
     if (!clicked) {
         throw AssertionError("No '$grantText' button found")
