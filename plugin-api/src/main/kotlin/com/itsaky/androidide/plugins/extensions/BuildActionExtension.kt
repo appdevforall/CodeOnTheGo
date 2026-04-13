@@ -31,6 +31,10 @@ object ToolbarActionIds {
         FIND, FIND_IN_FILE, FIND_IN_PROJECT,
         LAUNCH_APP, DISCONNECT_LOG_SENDERS, GENERATE_XML
     )
+
+    val BUILD_HIDEABLE: Set<String> = setOf(
+        QUICK_RUN, PROJECT_SYNC, DEBUG, RUN_TASKS, LAUNCH_APP
+    )
 }
 
 data class PluginBuildAction(

@@ -759,6 +759,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		initialSetup()
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
+		invalidateOptionsMenu()
 
 		if (mFindInProjectDialog?.isShowing == true) {
 			mFindInProjectDialog!!.dismiss()
