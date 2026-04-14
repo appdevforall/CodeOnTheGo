@@ -7,7 +7,6 @@ import android.view.ViewGroup
 import android.widget.EditText
 import androidx.core.widget.doAfterTextChanged
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -24,12 +23,13 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.forEachViewRecursively
 import kotlinx.coroutines.launch
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import java.io.File
 
 class CloneRepositoryFragment : BaseFragment() {
 
     private var binding: FragmentCloneRepositoryBinding? = null
-    private val viewModel: CloneRepositoryViewModel by viewModels()
+    private val viewModel: CloneRepositoryViewModel by viewModel()
     private val mainViewModel: MainViewModel by activityViewModel()
 
     override fun onCreateView(
