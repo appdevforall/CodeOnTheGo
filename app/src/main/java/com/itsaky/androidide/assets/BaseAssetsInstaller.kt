@@ -22,6 +22,7 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
 			"aapt",
 			"aapt2",
 			"aidl",
+            "d8",
 			"dexdump",
 			"split-select",
 			"zipalign",
