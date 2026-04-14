@@ -76,6 +76,27 @@ fun clickFirstAccessibilityNodeByText(
     }
 }
 
+/** Appops that are granted via [grantViaAppOpsAndBack] and must be explicitly revoked in cleanup. */
+private val APPOPS_PERMISSIONS = listOf(
+    "MANAGE_EXTERNAL_STORAGE",
+    "REQUEST_INSTALL_PACKAGES",
+    "SYSTEM_ALERT_WINDOW",
+)
+
+/**
+ * Resets appops permissions back to default and clears app data.
+ *
+ * `pm clear` / `pm reset-permissions` only handle runtime permissions;
+ * appops granted via `appops set ... allow` survive those commands.
+ */
+fun resetAppPermissionsAndClear(pkg: String) {
+    val ua = InstrumentationRegistry.getInstrumentation().uiAutomation
+    for (op in APPOPS_PERMISSIONS) {
+        ua.executeShellCommand("appops set $pkg $op default")
+    }
+    ua.executeShellCommand("pm clear $pkg && pm reset-permissions $pkg")
+}
+
 private fun Device.grantViaAppOpsAndBack(appOp: String) {
     val pkg = InstrumentationRegistry.getInstrumentation().targetContext.packageName
     InstrumentationRegistry.getInstrumentation().uiAutomation
