@@ -1,6 +1,5 @@
 package com.itsaky.androidide
 
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -10,6 +9,7 @@ import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.advancePastWelcomeScreen
 import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
 import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
+import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.resources.R as ResourcesR
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
@@ -43,24 +43,6 @@ class EndToEndTest : TestCase() {
 
     private val dialogTitle: String
         get() = targetContext.getString(ResourcesR.string.privacy_disclosure_title)
-
-    private fun accessibilityClickByText(text: String): Boolean {
-        val root = InstrumentationRegistry.getInstrumentation().uiAutomation
-            .rootInActiveWindow ?: return false
-        val nodes = root.findAccessibilityNodeInfosByText(text)
-        var result = false
-        try {
-            for (node in nodes) {
-                if (!result && node.text?.toString().equals(text, ignoreCase = true)) {
-                    result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                }
-                node.recycle()
-            }
-        } finally {
-            root.recycle()
-        }
-        return result
-    }
 
     @Test
     fun test_endToEnd() = run {
@@ -98,7 +80,7 @@ class EndToEndTest : TestCase() {
         }
 
         step("Accept privacy disclosure") {
-            assertTrue("Click failed", accessibilityClickByText(acceptText))
+            clickFirstAccessibilityNodeByText(acceptText)
             device.uiDevice.waitForIdle()
         }
 
@@ -207,7 +189,7 @@ class EndToEndTest : TestCase() {
         }
 
         step("Wait for IDE setup to complete") {
-            com.itsaky.androidide.helper.waitForMainHomeOrEditorUi(
+            waitForMainHomeOrEditorUi(
                 device.uiDevice,
                 maxWaitMs = 60_000L,
             )

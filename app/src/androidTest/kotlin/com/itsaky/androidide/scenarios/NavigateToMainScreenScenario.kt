@@ -93,7 +93,7 @@ class NavigateToMainScreenScenario : Scenario() {
                 val grantText = ctx.getString(com.itsaky.androidide.R.string.title_grant)
                 val grantBtn = d.findObject(UiSelector().text(grantText))
                 if (grantBtn.exists()) {
-                    logOnboardingNavigation("Permission list visible with unganted permissions — granting")
+                    logOnboardingNavigation("Permission list visible with ungranted permissions — granting")
                     grantAllRequiredPermissionsThroughOnboardingUi()
                 }
             }
