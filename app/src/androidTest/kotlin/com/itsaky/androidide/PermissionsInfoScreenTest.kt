@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.advancePastWelcomeScreen
+import com.itsaky.androidide.resources.R as ResourcesR
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionsInfoScreen
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
@@ -28,17 +29,17 @@ class PermissionsInfoScreenTest : TestCase() {
 
     private val acceptText: String
         get() = targetContext.getString(
-            com.itsaky.androidide.resources.R.string.privacy_disclosure_accept,
+            ResourcesR.string.privacy_disclosure_accept,
         )
 
     private val learnMoreText: String
         get() = targetContext.getString(
-            com.itsaky.androidide.resources.R.string.privacy_disclosure_learn_more,
+            ResourcesR.string.privacy_disclosure_learn_more,
         )
 
     private val dialogTitle: String
         get() = targetContext.getString(
-            com.itsaky.androidide.resources.R.string.privacy_disclosure_title,
+            ResourcesR.string.privacy_disclosure_title,
         )
 
     @After

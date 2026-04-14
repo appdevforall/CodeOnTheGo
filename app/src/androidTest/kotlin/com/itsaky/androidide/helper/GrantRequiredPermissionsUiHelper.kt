@@ -1,7 +1,6 @@
 package com.itsaky.androidide.helper
 
 import android.Manifest
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.R
 import com.itsaky.androidide.screens.PermissionScreen
@@ -63,32 +62,7 @@ fun TestContext<Unit>.grantAllRequiredPermissionsThroughOnboardingUi() {
  * "Allow" is always the next permission to grant.
  */
 private fun clickFirstGrantButton() {
-    val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
-    val root = uiAutomation.rootInActiveWindow
-        ?: throw AssertionError("No active window for accessibility")
-
     val ctx = InstrumentationRegistry.getInstrumentation().targetContext
     val grantText = ctx.getString(R.string.title_grant)
-
-    val nodes = root.findAccessibilityNodeInfosByText(grantText)
-    var clicked = false
-    try {
-        for (node in nodes) {
-            if (!clicked
-                && node.text?.toString().equals(grantText, ignoreCase = true)
-                && node.isClickable
-                && node.isEnabled
-                && node.isVisibleToUser
-            ) {
-                clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            }
-            node.recycle()
-        }
-    } finally {
-        root.recycle()
-    }
-
-    if (!clicked) {
-        throw AssertionError("No '$grantText' button found")
-    }
+    clickFirstAccessibilityNodeByText(grantText)
 }

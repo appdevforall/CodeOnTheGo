@@ -1,6 +1,7 @@
 package com.itsaky.androidide.helper
 
 import android.Manifest
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.platform.app.InstrumentationRegistry
 import com.kaspersky.kaspresso.device.Device
 
@@ -35,6 +36,44 @@ fun Device.grantInstallUnknownAppsUi() {
 
 fun Device.grantDisplayOverOtherAppsUi() {
     grantViaAppOpsAndBack("SYSTEM_ALERT_WINDOW")
+}
+
+/**
+ * Finds accessibility nodes matching [searchText] and clicks the first one accepted by [matchBy].
+ *
+ * Handles root-window acquisition, node iteration, recycling, and throws
+ * [AssertionError] if no matching node was clicked.
+ */
+fun clickFirstAccessibilityNodeByText(
+    searchText: String,
+    errorLabel: String = searchText,
+    matchBy: (AccessibilityNodeInfo) -> Boolean = { node ->
+        node.text?.toString().equals(searchText, ignoreCase = true) == true
+            && node.isClickable
+            && node.isEnabled
+            && node.isVisibleToUser
+    },
+) {
+    val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
+    val root = uiAutomation.rootInActiveWindow
+        ?: throw AssertionError("No active window for accessibility")
+
+    val nodes = root.findAccessibilityNodeInfosByText(searchText)
+    var clicked = false
+    try {
+        for (node in nodes) {
+            if (!clicked && matchBy(node)) {
+                clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+            node.recycle()
+        }
+    } finally {
+        root.recycle()
+    }
+
+    if (!clicked) {
+        throw AssertionError("No '$errorLabel' button found via accessibility")
+    }
 }
 
 private fun Device.grantViaAppOpsAndBack(appOp: String) {
