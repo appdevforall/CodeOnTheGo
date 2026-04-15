@@ -38,25 +38,25 @@ dependencyResolutionManagement {
 	val dependencySubstitutions =
 		mapOf(
 			"build-deps" to
-				arrayOf(
-					"appintro",
-					"fuzzysearch",
-					"google-java-format",
-					"java-compiler",
-					"javac",
-					"javapoet",
-					"jaxp",
-					"jdk-compiler",
-					"jdk-jdeps",
-					"jdt",
-					"layoutlib-api",
-					"treeview",
-				),
+					arrayOf(
+						"appintro",
+						"fuzzysearch",
+						"google-java-format",
+						"java-compiler",
+						"javac",
+						"javapoet",
+						"jaxp",
+						"jdk-compiler",
+						"jdk-jdeps",
+						"jdt",
+						"layoutlib-api",
+						"treeview",
+					),
 			"build-deps-common" to
-				arrayOf(
-					"constants",
-					"desugaring-core",
-				),
+					arrayOf(
+						"constants",
+						"desugaring-core",
+					),
 		)
 
 	for ((build, modules) in dependencySubstitutions) {
@@ -123,7 +123,7 @@ include(
 	":eventbus",
 	":eventbus-android",
 	":eventbus-events",
-    ":git-core",
+	":git-core",
 	":gradle-plugin",
 	":gradle-plugin-config",
 	":idetooltips",
@@ -155,6 +155,7 @@ include(
 	":subprojects:flashbar",
 	":subprojects:framework-stubs",
 	":subprojects:javac-services",
+	":subprojects:kotlin-analysis-api",
 	":subprojects:libjdwp",
 	":subprojects:projects",
 	":subprojects:project-models",
@@ -185,12 +186,12 @@ include(
 	":plugin-api",
 	":plugin-api:plugin-builder",
 	":plugin-manager",
-    ":llama-api",
-    ":llama-impl",
-    ":cv-image-to-xml",
-    ":llama-api",
-    ":llama-impl",
-    ":compose-preview"
+	":llama-api",
+	":llama-impl",
+	":cv-image-to-xml",
+	":llama-api",
+	":llama-impl",
+	":compose-preview"
 )
 
 object FDroidConfig {
