@@ -43,6 +43,7 @@ import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -356,7 +357,9 @@ class PermissionsFragment :
 
     private fun enableFinishButton() {
         finishButton?.isEnabled = true
-        finishButton?.startAnimation(pulseAnimation)
+        if (!isTestMode()) {
+            finishButton?.startAnimation(pulseAnimation)
+        }
     }
 
     private fun disableFinishButton() {
