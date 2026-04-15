@@ -13,11 +13,6 @@ object YoloToXmlConverter {
     private const val TAG = "YoloToXmlConverter"
     private const val MIN_W_ANY = 8
     private const val MIN_H_ANY = 8
-    private const val DEFAULT_SPACING_DP = 16
-
-    private const val HORIZONTAL_ALIGN_THRESHOLD = 20
-    private const val VERTICAL_ALIGN_THRESHOLD = 20
-    private const val RADIO_GROUP_GAP_THRESHOLD = 24
     private const val OVERLAP_THRESHOLD = 0.6
 
     private val TAG_REGEX = Regex("^(B|P|D|T|C|R|SW|S)-\\d+$")
@@ -71,53 +66,50 @@ object YoloToXmlConverter {
         targetDpHeight: Int,
         wrapInScroll: Boolean = true
     ): String {
+        val widgets = detections.filter { it.isYolo && it.label != "widget_tag" }
+        var scaledBoxes = widgets.map { scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight) }
 
-        val widgetTags = detections.filter {
-            it.label == "widget_tag" || (!it.isYolo && isTag(it.text))
-        }
-        val widgets = detections.filter { it.isYolo }.filter { it.label != "widget_tag" }
-
-        var scaledBoxes = widgets.map {
-            scaleDetection(
-                it,
-                sourceImageWidth,
-                sourceImageHeight,
-                targetDpWidth,
-                targetDpHeight
-            )
-        }
-
-        val parents = scaledBoxes.filter { it.label != "text" && !isTag(it.text) }.toMutableList()
+        val parents = scaledBoxes.filter { it.label != "text" && !isTag(it.text) }
         val texts = scaledBoxes.filter { it.label == "text" && !isTag(it.text) }
+
+        scaledBoxes = assignTextToParents(parents, texts, scaledBoxes)
+
+        val uiElements = scaledBoxes.filter { !isTag(it.text) }
+        val widgetTags = detections.filter { it.label == "widget_tag" || (!it.isYolo && isTag(it.text)) }
+        val canvasTags = widgetTags.map { scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight) }
+
+        val finalAnnotations = matchAnnotationsToElements(canvasTags, uiElements, annotations)
+
+        val sortedBoxes = uiElements.sortedWith(compareBy({ it.y }, { it.x }))
+        return buildXml(sortedBoxes, finalAnnotations, targetDpWidth, targetDpHeight, wrapInScroll)
+    }
+
+    private fun assignTextToParents(parents: List<ScaledBox>, texts: List<ScaledBox>, allBoxes: List<ScaledBox>): List<ScaledBox> {
         val consumedTexts = mutableSetOf<ScaledBox>()
 
         for (parent in parents) {
             texts.firstOrNull { text ->
                 !consumedTexts.contains(text) &&
-                        Rect(parent.rect).let { intersection ->
-                            intersection.intersect(text.rect) &&
-                                    (intersection.width() * intersection.height()).let { intersectionArea ->
-                                        val textArea = text.w * text.h
-                                        textArea > 0 && (intersectionArea.toFloat() / textArea.toFloat()) > OVERLAP_THRESHOLD
-                                    }
-                        }
+                    Rect(parent.rect).let { intersection ->
+                        intersection.intersect(text.rect) &&
+                            (intersection.width() * intersection.height()).let { intersectionArea ->
+                                val textArea = text.w * text.h
+                                textArea > 0 && (intersectionArea.toFloat() / textArea.toFloat()) > OVERLAP_THRESHOLD
+                            }
+                    }
             }?.let {
                 parent.text = it.text
                 consumedTexts.add(it)
             }
         }
-        scaledBoxes = scaledBoxes.filter { !consumedTexts.contains(it) }
+        return allBoxes.filter { !consumedTexts.contains(it) }
+    }
 
-        val uiElements = scaledBoxes.filter { !isTag(it.text) }
-        val canvasTags = widgetTags.map {
-            scaleDetection(
-                it,
-                sourceImageWidth,
-                sourceImageHeight,
-                targetDpWidth,
-                targetDpHeight
-            )
-        }
+    private fun matchAnnotationsToElements(
+        canvasTags: List<ScaledBox>,
+        uiElements: List<ScaledBox>,
+        annotations: Map<String, String>
+    ): Map<ScaledBox, String> {
         val finalAnnotations = mutableMapOf<ScaledBox, String>()
         val claimedWidgets = mutableSetOf<ScaledBox>()
         val appliedAnnotationKeys = mutableSetOf<String>()
@@ -156,8 +148,7 @@ object YoloToXmlConverter {
             }
         }
 
-        val sortedBoxes = uiElements.sortedWith(compareBy({ it.y }, { it.x }))
-        return buildXml(sortedBoxes, finalAnnotations, targetDpWidth, targetDpHeight, wrapInScroll)
+        return finalAnnotations
     }
 
     private fun scaleDetection(
@@ -255,8 +246,8 @@ object YoloToXmlConverter {
 
         val parsedAttrs = parseMarginAnnotations(annotations[box], tag)
 
-        val width = parsedAttrs["android:layout_width"] ?: "wrap_content"
-        val height = parsedAttrs["android:layout_height"] ?: "wrap_content"
+        val width = parsedAttrs["android:layout_width"] ?: "${box.w}dp"
+        val height = parsedAttrs["android:layout_height"] ?: "${box.h}dp"
         val id = parsedAttrs["android:id"]?.substringAfterLast('/') ?: defaultId
 
         val writtenAttrs = mutableSetOf(
@@ -269,65 +260,99 @@ object YoloToXmlConverter {
         xml.append("$indent    android:layout_height=\"${escapeXmlAttr(height)}\"\n")
 
         when (tag) {
-            "TextView", "Button", "CheckBox", "RadioButton", "Switch" -> {
-                val viewText = parsedAttrs["android:text"]
-                    ?: box.text.takeIf { it.isNotEmpty() && it != box.label }
-                    ?: box.label
-                xml.append("$indent    android:text=\"${escapeXmlAttr(viewText)}\"\n")
-                writtenAttrs.add("android:text")
-                if (tag == "TextView") {
-                    val textSize = parsedAttrs["android:textSize"] ?: "16sp"
-                    xml.append("$indent    android:textSize=\"${escapeXmlAttr(textSize)}\"\n")
-                    writtenAttrs.add("android:textSize")
-                }
-                if (label.contains("_checked") || label.contains("_on")) {
-                    val checked = parsedAttrs["android:checked"] ?: "true"
-                    xml.append("$indent    android:checked=\"${escapeXmlAttr(checked)}\"\n")
-                    writtenAttrs.add("android:checked")
-                }
-                xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
-                writtenAttrs.add("tools:ignore")
-            }
+            "TextView", "Button", "CheckBox", "RadioButton", "Switch" ->
+                appendTextViewAttributes(xml, indent, parsedAttrs, box, label, tag, writtenAttrs)
 
-            "EditText" -> {
-                val hint = parsedAttrs["android:hint"]
-                    ?: box.text.ifEmpty { "Enter text..." }
-                xml.append("$indent    android:hint=\"${escapeXmlAttr(hint)}\"\n")
-                writtenAttrs.add("android:hint")
-                val inputType = parsedAttrs["android:inputType"] ?: "text"
-                xml.append("$indent    android:inputType=\"${escapeXmlAttr(inputType)}\"\n")
-                writtenAttrs.add("android:inputType")
-                xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
-                writtenAttrs.add("tools:ignore")
-            }
+            "EditText" ->
+                appendEditTextAttributes(xml, indent, parsedAttrs, box, writtenAttrs)
 
-            "ImageView" -> {
-                xml.append("$indent    android:contentDescription=\"${escapeXmlAttr(label)}\"\n")
-                writtenAttrs.add("android:contentDescription")
-                val scaleType = parsedAttrs["android:scaleType"] ?: "centerCrop"
-                xml.append("$indent    android:scaleType=\"${escapeXmlAttr(scaleType)}\"\n")
-                writtenAttrs.add("android:scaleType")
-                val bg = parsedAttrs["android:background"] ?: "#E0E0E0"
-                xml.append("$indent    android:background=\"${escapeXmlAttr(bg)}\"\n")
-                writtenAttrs.add("android:background")
-            }
+            "ImageView" ->
+                appendImageViewAttributes(xml, indent, parsedAttrs, label, writtenAttrs)
         }
 
         parsedAttrs.forEach { (key, value) ->
             if (key !in writtenAttrs) {
-                // Add this logic to handle specific attribute value casing
-                val finalValue = when (key) {
-                    "android:layout_gravity" -> value.lowercase()
-                    else -> value
-                }
-                xml.append("$indent    $key=\"${escapeXmlAttr(finalValue)}\"\n")
+                xml.append("$indent    $key=\"${escapeXmlAttr(value)}\"\n")
                 writtenAttrs.add(key)
             }
-
         }
         xml.append("$indent/>")
 
         Log.d(TAG, "appendSimpleView: $xml")
+    }
+
+    private fun appendTextViewAttributes(
+        xml: StringBuilder,
+        indent: String,
+        parsedAttrs: Map<String, String>,
+        box: ScaledBox,
+        label: String,
+        tag: String,
+        writtenAttrs: MutableSet<String>
+    ) {
+        val rawViewText = parsedAttrs["android:text"]
+            ?: box.text.takeIf { it.isNotEmpty() && it != box.label }
+            ?: when (tag) {
+                "Switch" -> "Switch"
+                "CheckBox" -> "CheckBox"
+                "RadioButton" -> "RadioButton"
+                else -> box.label
+            }
+
+        val viewText = FuzzyAttributeParser.sanitizeOpenText(rawViewText)
+
+        xml.append("$indent    android:text=\"${escapeXmlAttr(viewText)}\"\n")
+        writtenAttrs.add("android:text")
+        if (tag == "TextView") {
+            val textSize = parsedAttrs["android:textSize"] ?: "16sp"
+            xml.append("$indent    android:textSize=\"${escapeXmlAttr(textSize)}\"\n")
+            writtenAttrs.add("android:textSize")
+        }
+        if (label.contains("_checked") || label.contains("_on")) {
+            val checked = parsedAttrs["android:checked"] ?: "true"
+            xml.append("$indent    android:checked=\"${escapeXmlAttr(checked)}\"\n")
+            writtenAttrs.add("android:checked")
+        }
+        xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
+        writtenAttrs.add("tools:ignore")
+    }
+
+    private fun appendEditTextAttributes(
+        xml: StringBuilder,
+        indent: String,
+        parsedAttrs: Map<String, String>,
+        box: ScaledBox,
+        writtenAttrs: MutableSet<String>
+    ) {
+        val rawHint = parsedAttrs["android:hint"] ?: box.text.ifEmpty { "Enter text..." }
+        val hint = FuzzyAttributeParser.sanitizeOpenText(rawHint)
+
+        xml.append("$indent    android:hint=\"${escapeXmlAttr(hint)}\"\n")
+        writtenAttrs.add("android:hint")
+
+        val inputType = parsedAttrs["android:inputType"] ?: "text"
+        xml.append("$indent    android:inputType=\"${escapeXmlAttr(inputType)}\"\n")
+        writtenAttrs.add("android:inputType")
+
+        xml.append("$indent    tools:ignore=\"HardcodedText\"\n")
+        writtenAttrs.add("tools:ignore")
+    }
+
+    private fun appendImageViewAttributes(
+        xml: StringBuilder,
+        indent: String,
+        parsedAttrs: Map<String, String>,
+        label: String,
+        writtenAttrs: MutableSet<String>
+    ) {
+        xml.append("$indent    android:contentDescription=\"${escapeXmlAttr(label)}\"\n")
+        writtenAttrs.add("android:contentDescription")
+        val scaleType = parsedAttrs["android:scaleType"] ?: "centerCrop"
+        xml.append("$indent    android:scaleType=\"${escapeXmlAttr(scaleType)}\"\n")
+        writtenAttrs.add("android:scaleType")
+        val bg = parsedAttrs["android:background"] ?: "#E0E0E0"
+        xml.append("$indent    android:background=\"${escapeXmlAttr(bg)}\"\n")
+        writtenAttrs.add("android:background")
     }
 
     private fun parseMarginAnnotations(annotation: String?, tag: String): Map<String, String> {

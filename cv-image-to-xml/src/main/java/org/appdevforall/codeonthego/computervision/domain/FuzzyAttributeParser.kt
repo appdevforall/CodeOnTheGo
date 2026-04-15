@@ -140,12 +140,42 @@ object FuzzyAttributeParser {
         "transparent" to "@android:color/transparent"
     )
 
+    private val nonAlphanumericRegex = Regex("[^a-z0-9_]")
+    private val multipleUnderscoresRegex = Regex("_+")
+    private val trailingLetterRegex = Regex("_[a-z]$")
+    private val numberExtractionRegex = Regex("-?\\d+")
+
+    private val ocrLetterOToZeroRegex = Regex("[oO]")
+    private val ocrLetterIToOneRegex = Regex("[lI]")
+    private val ocrLetterZToTwoRegex = Regex("[zZ]")
+    private val ocrLetterSToFiveRegex = Regex("[sS]")
+    private val ocrLetterBToSixRegex = Regex("[bB]")
+
+    private val commonUiTextTypos = listOf(
+        Regex("(?i)\\bour name\\b") to "User name",
+        Regex("(?i)\\bfintsh\\b") to "Finish",
+        Regex("(?i)\\bpassworo\\b") to "Password",
+        Regex("(?i)\\busemame\\b") to "Username"
+    )
+
+    private val validInputTypes = listOf(
+        "text", "textPassword", "number", "numberDecimal",
+        "textEmailAddress", "textUri", "phone"
+    )
+
+    private val validGravities = listOf(
+        "top", "bottom", "left", "right", "center",
+        "center_vertical", "center_horizontal", "start", "end"
+    )
+
+    private val validTextStyles = listOf("normal", "bold", "italic")
+
     private fun normalizeOcrKey(raw: String): String =
         raw.lowercase()
             .replace("-", "_")
             .replace(".", "_")
             .replace(" ", "_")
-            .replace(Regex("_+"), "_")
+            .replace(multipleUnderscoresRegex, "_")
             .replace(Regex("lay[ao0]ut"), "layout")
             .replace(Regex("(?<=^|_)[lt]d(?=$|_)"), "id")
 
@@ -157,6 +187,19 @@ object FuzzyAttributeParser {
         } else {
             parseByColonScanning(annotation, tag)
         }
+    }
+
+    private fun matchCategoricalValue(rawValue: String, allowedValues: List<String>, threshold: Int = 70): String {
+        val result = FuzzySearch.extractOne(rawValue, allowedValues)
+        return if (result.score >= threshold) result.string else rawValue
+    }
+
+    fun sanitizeOpenText(text: String): String {
+        var cleanedText = text
+        commonUiTextTypos.forEach { (regex, correction) ->
+            cleanedText = regex.replace(cleanedText, correction)
+        }
+        return cleanedText
     }
 
     private fun parseDelimited(annotation: String, tag: String): Map<String, String> {
@@ -181,7 +224,7 @@ object FuzzyAttributeParser {
         val rawValue: String
 
         if (colonIndex != -1) {
-            rawKey = chunk.substring(0, colonIndex).trim()
+            rawKey = chunk.take(colonIndex).trim()
             rawValue = chunk.substring(colonIndex + 1).trim()
         } else {
             val splitResult = inferKeyValueBoundary(chunk) ?: return null
@@ -212,7 +255,7 @@ object FuzzyAttributeParser {
         val matchedKeys = mutableListOf<MatchedKey>()
 
         for (colonPos in colonPositions) {
-            val textBefore = annotation.substring(0, colonPos)
+            val textBefore = annotation.take(colonPos)
             val words = textBefore.trimEnd().split(Regex("\\s+"))
 
             var bestMatch: Pair<AttributeKey, Int>? = null
@@ -246,10 +289,10 @@ object FuzzyAttributeParser {
 
             if (bestMatch != null) {
                 val alreadyClaimed = matchedKeys.any { existing ->
-                    bestMatch!!.second >= existing.keyStart && bestMatch!!.second < existing.valueStart
+                    bestMatch.second >= existing.keyStart && bestMatch.second < existing.valueStart
                 }
                 if (!alreadyClaimed) {
-                    matchedKeys.add(MatchedKey(bestMatch!!.first, bestMatch!!.second, colonPos + 1))
+                    matchedKeys.add(MatchedKey(bestMatch.first, bestMatch.second, colonPos + 1))
                 }
             }
         }
@@ -378,6 +421,13 @@ object FuzzyAttributeParser {
     private fun cleanValue(rawValue: String, key: AttributeKey): String {
         val trimmed = rawValue.trim()
 
+        when (key) {
+            AttributeKey.INPUT_TYPE -> return matchCategoricalValue(trimmed, validInputTypes)
+            AttributeKey.GRAVITY, AttributeKey.LAYOUT_GRAVITY -> return matchCategoricalValue(trimmed, validGravities)
+            AttributeKey.TEXT_STYLE -> return matchCategoricalValue(trimmed, validTextStyles)
+            else -> {}
+        }
+
         return when (key.valueType) {
             ValueType.DIMENSION -> cleanDimension(trimmed)
             ValueType.SP_DIMENSION -> cleanSpDimension(trimmed)
@@ -429,12 +479,19 @@ object FuzzyAttributeParser {
     }
 
     private fun cleanId(value: String): String {
-        return value.lowercase()
-            .replace(Regex("[^a-z0-9_]"), "_")
-            .replace(Regex("_+"), "_")
+        val cleaned = value.lowercase()
+            .replace(nonAlphanumericRegex, "_")
+            .replace(multipleUnderscoresRegex, "_")
+            .replace("btm", "btn") // OCR typo: btm_finish -> btn_finish
             .trimEnd('_')
             .trimStart('_')
-            .replace(Regex("_[a-z]$"), "")
+            .replace(trailingLetterRegex, "")
+
+        if (FuzzySearch.ratio(cleaned, "match_parent") > 75 || FuzzySearch.ratio(cleaned, "wrap_content") > 75) {
+            return "view_${(Math.random() * 1000).toInt()}"
+        }
+
+        return cleaned
     }
 
     private fun denoiseOcrIdentifier(value: String): String =
@@ -458,10 +515,15 @@ object FuzzyAttributeParser {
     }
 
     private fun extractOcrNumber(value: String): String? {
-        val match = Regex("-?\\d[\\doOlIaA]*").find(value) ?: return null
+        val normalized = value
+            .replace(ocrLetterOToZeroRegex, "0")
+            .replace(ocrLetterIToOneRegex, "1")
+            .replace(ocrLetterZToTwoRegex, "2")
+            .replace(ocrLetterSToFiveRegex, "5")
+            .replace(ocrLetterBToSixRegex, "6")
+
+        val match = numberExtractionRegex.find(normalized) ?: return null
         return match.value
-            .replace(Regex("[oOaA]"), "0")
-            .replace(Regex("[lI]"), "1")
     }
 
     private fun resolveXmlAttribute(
