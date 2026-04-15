@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
+import java.util.concurrent.atomic.AtomicInteger
 
 object FuzzyAttributeParser {
 
@@ -12,6 +13,7 @@ object FuzzyAttributeParser {
         else -> 65
     }
     private const val PIPE_DELIMITER = "|"
+    private val fallbackIdCounter = AtomicInteger(0)
 
     enum class AttributeKey(
         val xmlName: String,
@@ -473,7 +475,7 @@ object FuzzyAttributeParser {
             .replace(trailingLetterRegex, "")
 
         if (FuzzySearch.ratio(cleaned, "match_parent") > 75 || FuzzySearch.ratio(cleaned, "wrap_content") > 75) {
-            return "view_${(Math.random() * 1000).toInt()}"
+            return "view_${fallbackIdCounter.getAndIncrement()}"
         }
 
         return cleaned
@@ -500,15 +502,15 @@ object FuzzyAttributeParser {
     }
 
     private fun extractOcrNumber(value: String): String? {
-        val normalized = value
+        val numberCandidateRegex = Regex("-?[\\doOlIzZsSbB]+")
+        val match = numberCandidateRegex.find(value) ?: return null
+
+        return match.value
             .replace(ocrLetterOToZeroRegex, "0")
             .replace(ocrLetterIToOneRegex, "1")
             .replace(ocrLetterZToTwoRegex, "2")
             .replace(ocrLetterSToFiveRegex, "5")
             .replace(ocrLetterBToSixRegex, "6")
-
-        val match = numberExtractionRegex.find(normalized) ?: return null
-        return match.value
     }
 
     private fun resolveXmlAttribute(
