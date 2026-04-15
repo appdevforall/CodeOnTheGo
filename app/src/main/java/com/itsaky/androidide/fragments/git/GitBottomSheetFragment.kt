@@ -12,24 +12,31 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.PreferencesActivity
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.databinding.DialogGitCredentialsBinding
 import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
+import com.itsaky.androidide.git.core.models.ChangeType
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
+import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.PullUiState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
+import java.io.File
 
 class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
     private val viewModel: GitBottomSheetViewModel by activityViewModel()
+    private val bottomSheetViewModel: BottomSheetViewModel by activityViewModel()
     private lateinit var fileChangeAdapter: GitFileChangeAdapter
     private lateinit var credentialsManager: GitCredentialsManager
 
@@ -43,9 +50,27 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
         fileChangeAdapter = GitFileChangeAdapter(
             onFileClicked = { change ->
-                // Show diff in a dialog when changed file is clicked
-                val dialog = GitDiffViewerDialog.newInstance(change.path)
-                dialog.show(childFragmentManager, "GitDiffViewerDialog")
+                when (change.type) {
+                    ChangeType.CONFLICTED -> {
+                        // Open conflicted file in editor
+                        val activity = requireActivity()
+                        if (activity is EditorHandlerActivity) {
+                            viewLifecycleOwner.lifecycleScope.launch {
+                                val repo = viewModel.currentRepository
+                                repo?.let {
+                                    activity.checkForExternalFileChanges(force = true)
+                                    activity.openFile(File(repo.rootDir, change.path))
+                                    bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        // Show diff in a dialog when changed file is clicked
+                        val dialog = GitDiffViewerDialog.newInstance(change.path)
+                        dialog.show(childFragmentManager, "GitDiffViewerDialog")
+                    }
+                }
             },
             onSelectionChanged = {
                 validateCommitButton()
@@ -81,6 +106,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         commitSection.visibility = View.GONE
                         authorWarning.visibility = View.GONE
                         commitHistoryButton.visibility = View.GONE
+                        btnAbortMerge.visibility = View.GONE
                     }
                     allChanges.isEmpty() -> binding.apply {
                         emptyView.visibility = View.VISIBLE
@@ -89,6 +115,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         commitSection.visibility = View.GONE
                         authorWarning.visibility = View.GONE
                         commitHistoryButton.visibility = View.VISIBLE
+                        btnAbortMerge.visibility = View.GONE
                     }
                     else -> {
                         binding.apply {
@@ -97,6 +124,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             commitSection.visibility = View.VISIBLE
                             authorWarning.visibility = if (hasAuthorInfo()) View.GONE else View.VISIBLE
                             commitHistoryButton.visibility = View.VISIBLE
+                            btnAbortMerge.visibility = if (status.isMerging) View.VISIBLE else View.GONE
                         }
                         fileChangeAdapter.submitList(allChanges)
                     }
@@ -133,6 +161,22 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     private fun setupCommitUI() {
         binding.commitSummary.doAfterTextChanged { validateCommitButton() }
         binding.commitDescription.doAfterTextChanged { validateCommitButton() }
+
+        binding.btnAbortMerge.setOnClickListener {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.abort_merge)
+                .setMessage(R.string.confirm_abort_merge)
+                .setPositiveButton(R.string.abort_merge) { _, _ ->
+                    viewModel.abortMerge {
+                        val activity = requireActivity()
+                        if (activity is EditorHandlerActivity) {
+                            activity.checkForExternalFileChanges(force = true)
+                        }
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
 
         binding.authorAvatar.setOnClickListener {
             showAuthorPopup()
@@ -214,25 +258,40 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.pullState.collectLatest { state ->
                 when (state) {
-                    is GitBottomSheetViewModel.PullUiState.Idle -> {
+                    is PullUiState.Idle -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                     }
-                    is GitBottomSheetViewModel.PullUiState.Pulling -> {
+                    is PullUiState.Pulling -> {
                         binding.btnPull.isEnabled = false
                         binding.pullProgress.visibility = View.VISIBLE
                     }
-                    is GitBottomSheetViewModel.PullUiState.Success -> {
+                    is PullUiState.Success -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                         flashSuccess(R.string.pull_successful)
                         viewModel.resetPullState()
+                        refreshEditorContent()
                     }
-                    is GitBottomSheetViewModel.PullUiState.Error -> {
+                    is PullUiState.Conflicts -> {
+                        binding.btnPull.isEnabled = true
+                        binding.pullProgress.visibility = View.GONE
+                        val message = state.message ?: getString(R.string.info_merge_conflicts)
+                        MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(getString(R.string.merge_conflicts))
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                        viewModel.resetPullState()
+                        refreshEditorContent()
+                    }
+                    is PullUiState.Error -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                         val message =
-                            state.errorResId?.let { getString(it) } ?: state.message
+                            state.message ?: state.errorResId?.let { resId -> 
+                                if (state.errorArgs != null) getString(resId, *state.errorArgs.toTypedArray()) else getString(resId)
+                            }
                         MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.pull_failed)
                             .setMessage(message)
@@ -276,6 +335,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun refreshEditorContent(force: Boolean = false) {
+        val activity = requireActivity()
+        if (activity is EditorHandlerActivity) {
+            activity.checkForExternalFileChanges(force)
+        }
     }
 
     override fun onDestroyView() {
