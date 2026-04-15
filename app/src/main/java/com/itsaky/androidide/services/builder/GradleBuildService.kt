@@ -47,10 +47,10 @@ import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOGSENDER_AAR
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOGSENDER_ENABLED
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
@@ -457,8 +457,8 @@ class GradleBuildService :
 		// The one downloaded from Maven is not built for Android
 		extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
 		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=$enableLogSender")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
+		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
 		if (BuildPreferences.isStacktraceEnabled) {
 			extraArgs.add("--stacktrace")

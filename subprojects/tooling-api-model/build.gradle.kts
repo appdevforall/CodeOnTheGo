@@ -34,7 +34,7 @@ dependencies {
 
 tasks.register<Copy>("copyToTestDir") {
 	from(project.layout.buildDirectory.file("libs/tooling-api-model.jar"))
-	into(project.rootProject.mkdir("tests/test-home/.androidide/init"))
+	into(project.rootProject.mkdir("tests/test-home/.cg/init"))
 	rename { "model.jar" }
 
 	outputs.upToDateWhen { false }

@@ -12,6 +12,7 @@ import com.itsaky.androidide.plugins.extensions.NavigationItem
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
+import com.example.sampleplugin.R
 import com.example.sampleplugin.fragments.ApkAnalyzerFragment
 import java.io.File
 
@@ -94,7 +95,7 @@ class ApkViewer : IPlugin, UIExtension, EditorTabExtension, FileOpenExtension {
             NavigationItem(
                 id = "apk_analyzer_sidebar",
                 title = "APK Analyzer",
-                icon = android.R.drawable.ic_menu_info_details,
+                icon = R.drawable.ic_apk_analyzer,
                 isEnabled = true,
                 isVisible = true,
                 group = "tools",
@@ -111,7 +112,7 @@ class ApkViewer : IPlugin, UIExtension, EditorTabExtension, FileOpenExtension {
             EditorTabItem(
                 id = TAB_ID,
                 title = "APK Analyzer",
-                icon = android.R.drawable.ic_menu_info_details,
+                icon = R.drawable.ic_apk_analyzer,
                 fragmentFactory = {
                     context.logger.debug("Creating ApkAnalyzerFragment")
                     ApkAnalyzerFragment()

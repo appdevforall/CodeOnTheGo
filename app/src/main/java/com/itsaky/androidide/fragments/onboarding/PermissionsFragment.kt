@@ -114,7 +114,7 @@ class PermissionsFragment :
 		permissionsBinding?.let { b ->
 			recyclerView = b.onboardingItems
 			finishButton = b.finishInstallationButton
-            pulseAnimation = AnimationUtils.loadAnimation(requireContext(), R.anim.pulse_animation)
+			pulseAnimation = AnimationUtils.loadAnimation(requireContext(), R.anim.pulse_animation)
 
 			b.onboardingItems.adapter = createAdapter()
 
@@ -217,17 +217,19 @@ class PermissionsFragment :
 		viewModel.onPermissionsUpdated(allGranted)
 	}
 
-	private fun handlePostOverlayPermissionState() {
-		if (!awaitingOverlayGrantResult) {
-			return
-		}
-		awaitingOverlayGrantResult = false
-		if (PermissionsHelper.canDrawOverlays(requireContext())) {
-			return
-		}
-		flashError(getString(R.string.permission_overlay_restricted_settings_hint))
-		openAppInfoSettings()
-	}
+    private fun handlePostOverlayPermissionState() {
+       if (!awaitingOverlayGrantResult) {
+          return
+       }
+       awaitingOverlayGrantResult = false
+
+       if (PermissionsHelper.canDrawOverlays(requireContext())) {
+          return
+       }
+
+       flashError(getString(R.string.permission_overlay_restricted_settings_hint))
+       requestSettingsTogglePermission(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+    }
 
 	private fun startIdeSetup() {
 		val shouldProceed = viewModel.checkStorageAndNotify(requireContext())
@@ -294,13 +296,19 @@ class PermissionsFragment :
 		}
 	}
 
-	private fun requestOverlayPermission() {
-		awaitingOverlayGrantResult = requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-	}
+    private fun requestOverlayPermission() {
+       val state = PermissionsHelper.getOverlayPermissionState(requireContext())
 
-	private fun openAppInfoSettings() {
-		requestSettingsTogglePermission(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-	}
+       when (state) {
+           PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
+               flashError(getString(R.string.permission_overlay_unsupported_hint))
+           }
+           PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
+               awaitingOverlayGrantResult = requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+           }
+           PermissionsHelper.OverlayPermissionState.GRANTED -> {}
+       }
+    }
 
 	private fun requestStoragePermission() {
 		if (isAtLeastR()) {

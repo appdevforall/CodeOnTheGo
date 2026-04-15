@@ -22,6 +22,7 @@ import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
+import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.context.PluginContextImpl
 import com.itsaky.androidide.plugins.manager.context.PluginLoggerImpl
@@ -29,6 +30,9 @@ import com.itsaky.androidide.plugins.manager.context.PluginRegistry
 import com.itsaky.androidide.plugins.manager.context.ResourceManagerImpl
 import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
 import com.itsaky.androidide.plugins.manager.documentation.PluginDocumentationManager
+import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
+import com.itsaky.androidide.plugins.manager.services.IdeTemplateServiceImpl
+import com.itsaky.androidide.plugins.services.IdeTemplateService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeFileService
@@ -37,6 +41,12 @@ import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
+import com.itsaky.androidide.plugins.services.IdeFeatureFlagService
+import com.itsaky.androidide.plugins.manager.services.IdeFeatureFlagServiceImpl
+import com.itsaky.androidide.plugins.services.IdeCommandService
+import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
+import com.itsaky.androidide.plugins.extensions.BuildActionExtension
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.SidebarSlotExceededException
 import kotlinx.coroutines.CoroutineScope
@@ -101,6 +111,12 @@ class PluginManager private constructor(
     
     private val pluginsDir = File(context.filesDir, "plugins")
     private val documentationManager = PluginDocumentationManager(context)
+    private var templateReloadListener: (() -> Unit)? = null
+
+    fun setTemplateReloadListener(listener: (() -> Unit)?) {
+        this.templateReloadListener = listener
+        PluginProjectManager.getInstance().setTemplateReloadListener(listener)
+    }
 
     // Helper methods for cleaner error handling
     private fun <T> executeWithErrorHandling(
@@ -312,8 +328,25 @@ class PluginManager private constructor(
                 }.toSet()
             }.getOrElse { emptySet() }
 
-            // Load plugin classes
-            val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!)
+            var nativeLibPath: String? = try {
+                pluginLoader.extractNativeLibs(manifest.id)?.absolutePath
+            } catch (e: Exception) {
+                logger.warn("Failed to extract native libs for plugin: ${manifest.id}", e)
+                null
+            }
+
+            if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
+                File(nativeLibPath).deleteRecursively()
+                if (manifest.sidebarItems > 0) {
+                    SidebarSlotManager.releasePluginSlots(manifest.id)
+                }
+                return Result.failure(SecurityException(
+                    "Plugin '${manifest.name}' bundles native libraries but does not declare " +
+                    "'native.code' permission. Add 'native.code' to plugin.permissions in the manifest."
+                ))
+            }
+
+            val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!, nativeLibPath)
             if (classLoader == null) {
                 if (manifest.sidebarItems > 0) {
                     SidebarSlotManager.releasePluginSlots(manifest.id)
@@ -342,7 +375,7 @@ class PluginManager private constructor(
             }
 
             // Create plugin context with  resources
-            val ctx = pluginLoader.createPluginContext()
+            val ctx = pluginLoader.createPluginContext(manifest.id)
             if (ctx == null) {
                 if (manifest.sidebarItems > 0) {
                     SidebarSlotManager.releasePluginSlots(manifest.id)
@@ -365,8 +398,9 @@ class PluginManager private constructor(
 
             if (initResult) {
                 // Register the plugin's resource context for UI components
-                PluginFragmentHelper.registerPluginContext(manifest.id, ctx)
-                logger.debug("Registered resource context for plugin: ${manifest.id}")
+                val isLegacy = (ctx as? PluginResourceContext)?.let { !it.usesCustomPackageId() } ?: true
+                PluginFragmentHelper.registerPluginContext(manifest.id, ctx, isLegacy)
+                logger.debug("Registered resource context for plugin: ${manifest.id} (legacy=$isLegacy)")
                 // Register the service registry for fragments to access services
                 PluginFragmentHelper.registerServiceRegistry(manifest.id, pluginContext.services)
                 logger.debug("Registered service registry for plugin: ${manifest.id}")
@@ -394,6 +428,13 @@ class PluginManager private constructor(
                                 }
                             }
                         }
+
+                        val buildActionManager = PluginBuildActionManager.getInstance()
+                        if (plugin is BuildActionExtension) {
+                            buildActionManager.registerPlugin(manifest.id, manifest.name, plugin)
+                            logger.info("Registered build actions for plugin: ${manifest.id}")
+                        }
+                        buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
                     } catch (e: Exception) {
                         logger.error("Failed to activate  plugin: ${manifest.id}", e)
                         loadedPlugin.isEnabled = false
@@ -440,6 +481,19 @@ class PluginManager private constructor(
                 }
             }
 
+            PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+
+            PluginBuildActionManager.getInstance().cleanupPlugin(pluginId)
+            val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
+            if (commandService is IdeCommandServiceImpl) {
+                commandService.cancelAllCommands()
+            }
+
+            val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
+            if (templateService is IdeTemplateServiceImpl) {
+                templateService.cleanupAllTemplates()
+            }
+
             loadedPlugin.plugin.deactivate()
             loadedPlugin.plugin.dispose()
 
@@ -451,8 +505,11 @@ class PluginManager private constructor(
             // Unregister the plugin's resource context
             PluginFragmentHelper.unregisterPluginContext(pluginId)
 
-            // Unregister all fragment classloaders for this plugin to avoid leaks
             PluginFragmentFactory.unregisterAllClassLoadersForPlugin(pluginId)
+
+            File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
+                if (dir.exists()) dir.deleteRecursively()
+            }
 
             logger.info("Unloaded plugin: $pluginId")
             return true
@@ -559,7 +616,11 @@ class PluginManager private constructor(
             .filter { it.isEnabled }
             .map { it.plugin }
     }
-    
+
+    fun getLoadedPlugin(pluginId: String): LoadedPlugin? {
+        return loadedPlugins[pluginId]?.takeIf { it.isEnabled }
+    }
+
     /**
      * Get all enabled plugins that implement UI extensions
      */
@@ -640,6 +701,7 @@ class PluginManager private constructor(
             loadedPlugin.plugin.activate()
             loadedPlugin.isEnabled = true
             savePluginState(pluginId, true)
+
             logger.info("Enabled plugin: $pluginId")
             true
         } catch (e: Exception) {
@@ -647,19 +709,20 @@ class PluginManager private constructor(
             false
         }
     }
-    
+
     fun disablePlugin(pluginId: String): Boolean {
         val loadedPlugin = loadedPlugins[pluginId] ?: return false
-        
+
         if (!loadedPlugin.isEnabled) {
             logger.info("Plugin $pluginId is already disabled")
             return true
         }
-        
+
         return try {
             loadedPlugin.plugin.deactivate()
             loadedPlugin.isEnabled = false
             savePluginState(pluginId, false)
+
             logger.info("Disabled plugin: $pluginId")
             true
         } catch (e: Exception) {
@@ -676,6 +739,8 @@ class PluginManager private constructor(
     fun setActivityProvider(provider: ActivityProvider?) {
         this.activityProvider = provider
     }
+
+    fun getCurrentActivity(): Activity? = activityProvider?.getCurrentActivity()
     
     /**
      * Set the path validator for validating plugin file access
@@ -876,6 +941,42 @@ class PluginManager private constructor(
             IdeThemeServiceImpl(context)
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFeatureFlagService::class.java,
+            pluginId,
+            "feature_flag"
+        ) {
+            IdeFeatureFlagServiceImpl()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTemplateService::class.java,
+            pluginId,
+            "template"
+        ) {
+            IdeTemplateServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                onTemplatesChanged = { templateReloadListener?.invoke() }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeCommandService::class.java,
+            pluginId,
+            "command"
+        ) {
+            IdeCommandServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+                appFilesDir = context.filesDir
+            )
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -887,127 +988,6 @@ class PluginManager private constructor(
         )
     }
 
-    private fun createPluginContext(
-        pluginId: String,
-        classLoader: ClassLoader,
-        permissions: Set<PluginPermission>
-    ): PluginContext {
-        // Create a plugin-specific service registry with permission-validated services
-        val pluginServiceRegistry = ServiceRegistryImpl()
-        
-        logger.debug("Creating IDE services for plugin: $pluginId")
-        
-        // Only create services if providers are available, otherwise plugins will get null services
-        // This prevents crashes but plugins should handle null service gracefully
-
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeProjectService::class.java,
-            pluginId,
-            "project"
-        ) {
-            IdeProjectServiceImpl(
-                pluginId = pluginId,
-                permissions = permissions,
-                projectProvider = projectProvider,
-                requiredPermissions = projectServicePermissions,
-                pathValidator = pathValidator?.let { validator ->
-                    object : IdeProjectServiceImpl.PathValidator {
-                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
-                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-                    }
-                }
-            )
-        }
-
-
-        // UI service is always created, even if activityProvider is null
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeUIService::class.java,
-            pluginId,
-            "UI"
-        ) {
-            IdeUIServiceImpl(activityProvider)
-        }
-
-        // Build service is always created to provide build status information
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeBuildService::class.java,
-            pluginId,
-            "build"
-        ) {
-            IdeBuildServiceImpl.getInstance()
-        }
-
-        // Tooltip service for showing documentation tooltips
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeTooltipService::class.java,
-            pluginId,
-            "tooltip"
-        ) {
-            IdeTooltipServiceImpl(context, pluginId, activityProvider)
-        }
-
-        // Editor tab service for plugin editor tab integration
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeEditorTabService::class.java,
-            pluginId,
-            "editor_tab"
-        ) {
-            IdeEditorTabServiceImpl(activityProvider)
-        }
-
-        // File service for editing project files
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeFileService::class.java,
-            pluginId,
-            "file"
-        ) {
-            IdeFileServiceImpl(
-                pluginId = pluginId,
-                permissions = permissions,
-                pathValidator = pathValidator?.let { validator ->
-                    object : IdeFileServiceImpl.PathValidator {
-                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
-                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-                    }
-                }
-            )
-        }
-
-        // Sidebar service for plugin sidebar slot management
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeSidebarService::class.java,
-            pluginId,
-            "sidebar"
-        ) {
-            IdeSidebarServiceImpl(pluginId)
-        }
-
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeThemeService::class.java,
-            pluginId,
-            "theme"
-        ) {
-            IdeThemeServiceImpl(context)
-        }
-
-        return PluginContextImpl(
-            androidContext = context,
-            services = pluginServiceRegistry,
-            eventBus = eventBus,
-            logger = PluginLoggerImpl(pluginId, logger),
-            resources = ResourceManagerImpl(pluginId, pluginsDir, classLoader),
-            pluginId = pluginId
-        )
-    }
 
     /**
      * Clean up ALL plugin files and cache directories
@@ -1016,11 +996,14 @@ class PluginManager private constructor(
         executeWithErrorHandling("cleanup plugin cache files", pluginId) {
             logger.debug("Cleaning up ALL files and cache for plugin: $pluginId")
 
-            // Clean up plugin's own directory if it exists
             val pluginDir = File(pluginsDir, pluginId)
             if (pluginDir.exists()) {
                 val deleted = pluginDir.deleteRecursively()
                 logger.debug("Deleted plugin directory: ${pluginDir.absolutePath} (success: $deleted)")
+            }
+
+            File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
+                if (dir.exists()) dir.deleteRecursively()
             }
 
             // Clean up ART cache files in oat directory
