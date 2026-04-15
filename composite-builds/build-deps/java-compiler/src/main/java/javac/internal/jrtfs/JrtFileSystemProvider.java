@@ -25,6 +25,8 @@
 
 package javac.internal.jrtfs;
 
+import com.google.auto.service.AutoService;
+
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -53,6 +55,7 @@ import java.util.concurrent.ExecutorService;
  * but also compiled and delivered as part of the jrtfs.jar to support access
  * to the jimage file provided by the shipped JDK by tools running on JDK 8.
  */
+@AutoService(FileSystemProvider.class)
 public final class JrtFileSystemProvider extends FileSystemProvider {
 
     private volatile FileSystem theFileSystem;
