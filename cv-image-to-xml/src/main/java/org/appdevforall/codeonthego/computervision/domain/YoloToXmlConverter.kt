@@ -299,9 +299,7 @@ object YoloToXmlConverter {
                 else -> box.label
             }
 
-        val viewText = FuzzyAttributeParser.sanitizeOpenText(rawViewText)
-
-        xml.append("$indent    android:text=\"${escapeXmlAttr(viewText)}\"\n")
+        xml.append("$indent    android:text=\"${escapeXmlAttr(rawViewText)}\"\n")
         writtenAttrs.add("android:text")
         if (tag == "TextView") {
             val textSize = parsedAttrs["android:textSize"] ?: "16sp"
@@ -325,9 +323,8 @@ object YoloToXmlConverter {
         writtenAttrs: MutableSet<String>
     ) {
         val rawHint = parsedAttrs["android:hint"] ?: box.text.ifEmpty { "Enter text..." }
-        val hint = FuzzyAttributeParser.sanitizeOpenText(rawHint)
 
-        xml.append("$indent    android:hint=\"${escapeXmlAttr(hint)}\"\n")
+        xml.append("$indent    android:hint=\"${escapeXmlAttr(rawHint)}\"\n")
         writtenAttrs.add("android:hint")
 
         val inputType = parsedAttrs["android:inputType"] ?: "text"

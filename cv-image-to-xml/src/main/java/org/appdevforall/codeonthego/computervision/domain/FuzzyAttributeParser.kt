@@ -151,13 +151,6 @@ object FuzzyAttributeParser {
     private val ocrLetterSToFiveRegex = Regex("[sS]")
     private val ocrLetterBToSixRegex = Regex("[bB]")
 
-    private val commonUiTextTypos = listOf(
-        Regex("(?i)\\bour name\\b") to "User name",
-        Regex("(?i)\\bfintsh\\b") to "Finish",
-        Regex("(?i)\\bpassworo\\b") to "Password",
-        Regex("(?i)\\busemame\\b") to "Username"
-    )
-
     private val validInputTypes = listOf(
         "text", "textPassword", "number", "numberDecimal",
         "textEmailAddress", "textUri", "phone"
@@ -192,14 +185,6 @@ object FuzzyAttributeParser {
     private fun matchCategoricalValue(rawValue: String, allowedValues: List<String>, threshold: Int = 70): String {
         val result = FuzzySearch.extractOne(rawValue, allowedValues)
         return if (result.score >= threshold) result.string else rawValue
-    }
-
-    fun sanitizeOpenText(text: String): String {
-        var cleanedText = text
-        commonUiTextTypos.forEach { (regex, correction) ->
-            cleanedText = regex.replace(cleanedText, correction)
-        }
-        return cleanedText
     }
 
     private fun parseDelimited(annotation: String, tag: String): Map<String, String> {
