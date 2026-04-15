@@ -14,6 +14,7 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 package com.itsaky.androidide.desugaring
 
 import com.android.build.api.instrumentation.ClassContext
@@ -23,19 +24,6 @@ import org.objectweb.asm.MethodVisitor
 
 /**
  * [ClassVisitor] implementation for desugaring.
- *
- * Applies two transformations to every method body, in priority order:
- *
- * 1. **[DesugarMethodVisitor]** (outermost / highest priority) — fine-grained
- *    per-method-call replacement defined via [DesugarReplacementsContainer.replaceMethod].
- *    Its output flows into the next layer.
- *
- * 2. **[ClassRefReplacingMethodVisitor]** (innermost) — bulk class-reference
- *    replacement defined via [DesugarReplacementsContainer.replaceClass].
- *    Handles every site where a class name can appear in a method body.
- *
- * Class references that appear in field and method *declarations* (descriptors
- * and generic signatures at the class-structure level) are also rewritten here.
  *
  * @author Akash Yadav
  */
