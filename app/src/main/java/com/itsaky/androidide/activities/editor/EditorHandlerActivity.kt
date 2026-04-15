@@ -63,6 +63,7 @@ import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
@@ -279,25 +280,28 @@ open class EditorHandlerActivity :
 	 * [onPause] snapshot **and** the in-memory buffer is still clean ([CodeEditorView.isModified] is
 	 * false). A clean buffer may still have undo history after [IDEEditor.markUnmodified] / save; we
 	 * reload anyway so external edits are not ignored. Never replaces buffers with unsaved edits.
+	 *
+	 * @param force If true, reloads even if the buffer is modified or the timestamp hasn't changed.
 	 */
-	private fun checkForExternalFileChanges() {
+	fun checkForExternalFileChanges(force: Boolean = false) {
 		val openFiles = editorViewModel.getOpenedFiles()
-		if (openFiles.isEmpty() || fileTimestamps.isEmpty()) return
+		if (openFiles.isEmpty() || (fileTimestamps.isEmpty() && !force)) return
 
 		lifecycleScope.launch(Dispatchers.IO) {
 			openFiles.forEach { file ->
-				val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: return@forEach
+				val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: 0L
 				val currentTimestamp = file.lastModified()
 
-				if (currentTimestamp > lastKnownTimestamp) {
+				if (currentTimestamp > lastKnownTimestamp || force) {
 					val newContent = runCatching { file.readText() }.getOrNull() ?: return@forEach
 					withContext(Dispatchers.Main) {
 						val editorView = getEditorForFile(file) ?: return@withContext
-						if (editorView.isModified) return@withContext
+						if (editorView.isModified && !force) return@withContext
 						val ideEditor = editorView.editor ?: return@withContext
 
 						ideEditor.setText(newContent)
 						editorView.markAsSaved()
+						fileTimestamps[file.absolutePath] = currentTimestamp
 						updateTabs()
 					}
 				}
@@ -423,11 +427,14 @@ open class EditorHandlerActivity :
 		content.projectActionsToolbar.clearMenu()
 
 		val actions = getInstance().getActions(EDITOR_TOOLBAR)
+		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds()
 		actions.onEachIndexed { index, entry ->
 			val action = entry.value
 			val isLast = index == actions.size - 1
 
 			action.prepare(data)
+
+			if (action.id in hiddenIds || !action.visible) return@onEachIndexed
 
 			action.icon?.apply {
 				colorFilter = action.createColorFilter(data)

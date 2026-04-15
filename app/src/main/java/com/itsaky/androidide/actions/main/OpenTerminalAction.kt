@@ -10,6 +10,7 @@ import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.applyMultiWindowFlags
 
 class OpenTerminalAction(context: Context) : ActionItem {
 
@@ -38,7 +39,9 @@ class OpenTerminalAction(context: Context) : ActionItem {
 
     override suspend fun execAction(data: ActionData): Any {
         val context = data.get(Context::class.java) ?: return false
-        context.startActivity(Intent(context, TerminalActivity::class.java))
+        val intent = Intent(context, TerminalActivity::class.java)
+            .applyMultiWindowFlags(context)
+        context.startActivity(intent)
         return true
     }
 }

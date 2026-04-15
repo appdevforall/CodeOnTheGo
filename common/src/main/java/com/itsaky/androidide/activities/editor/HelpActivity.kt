@@ -33,6 +33,7 @@ import com.itsaky.androidide.common.databinding.ActivityHelpBinding
 import com.itsaky.androidide.utils.DeviceFormFactorUtils
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.applyMultiWindowFlags
 import org.adfa.constants.CONTENT_TITLE_KEY
 
 class HelpActivity : BaseIDEActivity() {
@@ -46,20 +47,10 @@ class HelpActivity : BaseIDEActivity() {
                 putExtra(CONTENT_KEY, url)
                 putExtra(CONTENT_TITLE_KEY, title)
 
-                val formFactor = DeviceFormFactorUtils.getCurrent(context)
-
-                if (formFactor.isLargeScreenLike) {
-                    addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_NEW_DOCUMENT or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                        Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
-                    )
+                if (DeviceFormFactorUtils.getCurrent(context).isLargeScreenLike) {
                     data = MULTI_WINDOW_URI.toUri()
-                } else if (context !is Activity) {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-            }
+            }.applyMultiWindowFlags(context)
             context.startActivity(intent)
         }
     }

@@ -105,8 +105,9 @@ class TemplateDetailsFragment :
             }
 
             viewModel.creatingProject.value = true
+            val appContext = requireContext().applicationContext
             executeAsyncProvideError({
-                template.recipe.execute(TemplateRecipeExecutor())
+                template.recipe.execute(TemplateRecipeExecutor(appContext))
             }) { result, err ->
 
                 viewModel.creatingProject.value = false
