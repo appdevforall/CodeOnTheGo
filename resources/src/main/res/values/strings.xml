@@ -619,6 +619,7 @@
 	<!-- GitHub -->
 	<string name="title_warning">Warning</string>
 	<string name="title_github" translatable="false">GitHub</string>
+	<string name="checkout_conflict_message">Checkout conflict: Please commit or stash your local changes before pulling. Conflicting files:\n%1$s</string>
 	<string name="choose_different_location">Choose a different location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
@@ -1268,6 +1269,7 @@
     <string name="pushing">Pushing…</string>
     <string name="push_successful">Push successful!</string>
     <string name="push_failed">Push failed</string>
+    <string name="push_rejected_nonfastforward">Push rejected: Your branch is behind the remote. Please pull to resolve conflicts before pushing.</string>
     <string name="pull">Pull</string>
     <string name="pulling">Pulling…</string>
     <string name="pull_successful">Pull successful!</string>
@@ -1276,4 +1278,8 @@
     <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
     <string name="git_credentials_clear">Clear Credentials</string>
     <string name="repo_authorization_error">Authentication failed. Ensure your Personal Access Token has \'repo\' permissions, or try clearing and re-entering credentials.</string>
+    <string name="info_merge_conflicts">Pull completed with conflicts!\nPlease select the conflicted files from the list, resolve the highlighted issues in the editor, save file(s) and then commit your changes.</string>
+    <string name="merge_conflicts">Merge Conflicts</string>
+    <string name="abort_merge">Abort Merge</string>
+    <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
 </resources>
