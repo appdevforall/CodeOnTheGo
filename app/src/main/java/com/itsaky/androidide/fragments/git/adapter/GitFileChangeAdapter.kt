@@ -44,6 +44,12 @@ class GitFileChangeAdapter(
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     val change = getItem(pos)
+                    // Conflicted files should not be selectable
+                    if (change.type == ChangeType.CONFLICTED) {
+                        binding.checkbox.isChecked = false
+                        return@setOnCheckedChangeListener
+                    }
+                    
                     if (isChecked) {
                         selectedFiles.add(change.path)
                     } else {
@@ -57,7 +63,18 @@ class GitFileChangeAdapter(
         fun bind(change: FileChange) {
             binding.filePath.text = change.path
 
+            val isConflicted = change.type == ChangeType.CONFLICTED
+            binding.checkbox.isEnabled = !isConflicted
+            
+            // Ensure conflicted files are never in selectedFiles
+            if (isConflicted) {
+                selectedFiles.remove(change.path)
+            }
+            
             binding.checkbox.isChecked = selectedFiles.contains(change.path)
+            
+            // Dim the entry if it's conflicted to show it's disabled for staging
+            binding.root.alpha = if (isConflicted) 0.5f else 1.0f
 
             val (imageRes, descRes) = when (change.type) {
                 ChangeType.ADDED -> R.drawable.ic_file_added to R.string.desc_file_added
