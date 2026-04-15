@@ -239,6 +239,7 @@ class OnboardingActivity : AppIntro2() {
             !nextButton.isVisible -> nextButton.clearAnimation()
             !isTestMode() && nextButton.animation == null -> nextButton.startAnimation(pulseAnimation)
         }
+	}
 
 	private fun checkToolsIsInstalled(): Boolean =
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
