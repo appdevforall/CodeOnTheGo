@@ -235,14 +235,10 @@ class OnboardingActivity : AppIntro2() {
 	override fun onPageSelected(position: Int) {
 		super.onPageSelected(position)
 
-        if (nextButton.isVisible) {
-            if (!isTestMode() && nextButton.animation == null) {
-                nextButton.startAnimation(pulseAnimation)
-            }
-        } else {
-            nextButton.clearAnimation()
+        when {
+            !nextButton.isVisible -> nextButton.clearAnimation()
+            !isTestMode() && nextButton.animation == null -> nextButton.startAnimation(pulseAnimation)
         }
-	}
 
 	private fun checkToolsIsInstalled(): Boolean =
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
