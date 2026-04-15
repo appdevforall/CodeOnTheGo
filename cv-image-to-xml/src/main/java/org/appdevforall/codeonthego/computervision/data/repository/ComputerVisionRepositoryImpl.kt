@@ -10,6 +10,7 @@ import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import com.google.mlkit.vision.text.Text
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.computervision.domain.GenericBoxResolver
 
 class ComputerVisionRepositoryImpl(
     private val assetManager: AssetManager,
@@ -26,7 +27,8 @@ class ComputerVisionRepositoryImpl(
     override suspend fun runYoloInference(bitmap: Bitmap): Result<List<DetectionResult>> =
         withContext(Dispatchers.Default) {
             runCatching {
-                yoloModelSource.runInference(bitmap)
+                val rawDetections = yoloModelSource.runInference(bitmap)
+                GenericBoxResolver().resolve(rawDetections)
             }
         }
 
