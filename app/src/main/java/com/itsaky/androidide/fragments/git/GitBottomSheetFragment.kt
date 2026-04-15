@@ -22,6 +22,7 @@ import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.ChangeType
+import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
@@ -183,19 +184,21 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         }
 
         binding.commitButton.setOnClickListener {
-            val summary = binding.commitSummary.text?.toString()?.trim() ?: ""
-            val description = binding.commitDescription.text?.toString()?.trim()
+            checkUnsavedChangesAndProceed {
+                val summary = binding.commitSummary.text?.toString()?.trim() ?: ""
+                val description = binding.commitDescription.text?.toString()?.trim()
 
-            if (summary.isNotEmpty() && fileChangeAdapter.selectedFiles.isNotEmpty() && hasAuthorInfo()) {
-                viewModel.commitChanges(
-                    summary = summary,
-                    description = description,
-                    selectedPaths = fileChangeAdapter.selectedFiles.toList()
-                ) {
-                    // Clear the inputs on successful commit
-                    binding.commitSummary.text?.clear()
-                    binding.commitDescription.text?.clear()
-                    fileChangeAdapter.selectedFiles.clear()
+                if (summary.isNotEmpty() && fileChangeAdapter.selectedFiles.isNotEmpty() && hasAuthorInfo()) {
+                    viewModel.commitChanges(
+                        summary = summary,
+                        description = description,
+                        selectedPaths = fileChangeAdapter.selectedFiles.toList()
+                    ) {
+                        // Clear the inputs on successful commit
+                        binding.commitSummary.text?.clear()
+                        binding.commitDescription.text?.clear()
+                        fileChangeAdapter.selectedFiles.clear()
+                    }
                 }
             }
         }
@@ -303,12 +306,14 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         }
 
         binding.btnPull.setOnClickListener {
-            val username = credentialsManager.getUsername()
-            val token = credentialsManager.getToken()
-            if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                viewModel.pull(username, token)
-            } else {
-                showCredentialsDialog()
+            checkUnsavedChangesAndProceed {
+                val username = credentialsManager.getUsername()
+                val token = credentialsManager.getToken()
+                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    viewModel.pull(username, token)
+                } else {
+                    showCredentialsDialog()
+                }
             }
         }
     }
@@ -341,6 +346,25 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         val activity = requireActivity()
         if (activity is EditorHandlerActivity) {
             activity.checkForExternalFileChanges(force)
+        }
+    }
+
+    private fun checkUnsavedChangesAndProceed(action: () -> Unit) {
+        val handler = requireActivity() as? IEditorHandler
+        if (handler?.areFilesModified() == true) {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.title_files_unsaved)
+                .setMessage(R.string.msg_save_before_git_action)
+                .setPositiveButton(R.string.save_before_git_action) { _, _ ->
+                    handler.saveAllAsync { action() }
+                }
+                .setNegativeButton(R.string.no_save_before_git_action) { _, _ ->
+                    action()
+                }
+                .setNeutralButton(android.R.string.cancel, null)
+                .show()
+        } else {
+            action()
         }
     }
 
