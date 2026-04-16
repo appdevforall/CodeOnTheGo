@@ -54,26 +54,10 @@ fun clickFirstAccessibilityNodeByText(
             && node.isVisibleToUser
     },
 ) {
-    val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
-    val root = uiAutomation.rootInActiveWindow
-        ?: throw AssertionError("No active window for accessibility")
-
-    val nodes = root.findAccessibilityNodeInfosByText(searchText)
-    var clicked = false
-    try {
-        for (node in nodes) {
-            if (!clicked && matchBy(node)) {
-                clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            }
-            node.recycle()
-        }
-    } finally {
-        root.recycle()
+    val success = findAndActOnAccessibilityNode(searchText) { node ->
+        if (matchBy(node)) node.performAction(AccessibilityNodeInfo.ACTION_CLICK) else false
     }
-
-    if (!clicked) {
-        throw AssertionError("No '$errorLabel' button found via accessibility")
-    }
+    check(success) { "No '$errorLabel' button found via accessibility" }
 }
 
 /**
@@ -84,27 +68,13 @@ fun clickFirstAccessibilityNodeByDescription(
     searchText: String,
     errorLabel: String = searchText,
 ) {
-    val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
-    val root = uiAutomation.rootInActiveWindow
-        ?: throw AssertionError("No active window for accessibility")
-
-    val nodes = root.findAccessibilityNodeInfosByText(searchText)
-    var clicked = false
-    try {
-        for (node in nodes) {
-            val desc = node.contentDescription?.toString() ?: ""
-            if (!clicked && desc.contains(searchText, ignoreCase = true) && node.isClickable) {
-                clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            }
-            node.recycle()
-        }
-    } finally {
-        root.recycle()
+    val success = findAndActOnAccessibilityNode(searchText) { node ->
+        val desc = node.contentDescription?.toString() ?: ""
+        if (desc.contains(searchText, ignoreCase = true) && node.isClickable) {
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        } else false
     }
-
-    if (!clicked) {
-        throw AssertionError("No '$errorLabel' button found via accessibility (by description)")
-    }
+    check(success) { "No '$errorLabel' button found via accessibility (by description)" }
 }
 
 /**
@@ -115,32 +85,18 @@ fun clickFirstAccessibilityNodeParentByText(
     searchText: String,
     errorLabel: String = searchText,
 ) {
-    val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
-    val root = uiAutomation.rootInActiveWindow
-        ?: throw AssertionError("No active window for accessibility")
-
-    val nodes = root.findAccessibilityNodeInfosByText(searchText)
-    var clicked = false
-    try {
-        for (node in nodes) {
-            if (clicked) { node.recycle(); continue }
-            var current: AccessibilityNodeInfo? = node
-            while (current != null) {
-                if (current.isClickable) {
-                    clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    break
-                }
-                current = current.parent
+    val success = findAndActOnAccessibilityNode(searchText) { node ->
+        var current: AccessibilityNodeInfo? = node
+        var clicked = false
+        while (current != null && !clicked) {
+            if (current.isClickable) {
+                clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             }
-            node.recycle()
+            current = current.parent
         }
-    } finally {
-        root.recycle()
+        clicked
     }
-
-    if (!clicked) {
-        throw AssertionError("No clickable parent found for '$errorLabel' via accessibility")
-    }
+    check(success) { "No clickable parent found for '$errorLabel' via accessibility" }
 }
 
 /**
@@ -152,30 +108,44 @@ fun setAccessibilityEditText(
     newText: String,
     errorLabel: String = searchText,
 ) {
+    val args = android.os.Bundle().apply {
+        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+    }
+    val success = findAndActOnAccessibilityNode(searchText) { node ->
+        if (node.className?.toString() == "android.widget.EditText") {
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        } else false
+    }
+    check(success) { "Failed to set text on '$errorLabel' via accessibility" }
+}
+
+/**
+ * Searches the accessibility tree for nodes matching [searchText], applies [action] to each
+ * until one returns true. Handles root-window acquisition, node iteration, and recycling.
+ *
+ * @return true if [action] returned true for any node.
+ */
+private fun findAndActOnAccessibilityNode(
+    searchText: String,
+    action: (AccessibilityNodeInfo) -> Boolean,
+): Boolean {
     val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
     val root = uiAutomation.rootInActiveWindow
         ?: throw AssertionError("No active window for accessibility")
 
     val nodes = root.findAccessibilityNodeInfosByText(searchText)
-    var set = false
+    var success = false
     try {
         for (node in nodes) {
-            if (!set && node.className?.toString() == "android.widget.EditText") {
-                val args = android.os.Bundle()
-                args.putCharSequence(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText
-                )
-                set = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            if (!success) {
+                success = action(node)
             }
             node.recycle()
         }
     } finally {
         root.recycle()
     }
-
-    if (!set) {
-        throw AssertionError("Failed to set text on '$errorLabel' via accessibility")
-    }
+    return success
 }
 
 /** Appops that are granted via [grantViaAppOpsAndBack] and must be explicitly revoked in cleanup. */
