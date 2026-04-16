@@ -40,6 +40,7 @@ kapt {
 dependencies {
 	kapt(projects.annotationProcessors)
 
+	implementation(projects.actions)
 	implementation(projects.lsp.api)
 	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.lsp.models)

@@ -43,6 +43,7 @@ import com.itsaky.androidide.lsp.models.ReferenceParams
 import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
+import com.itsaky.androidide.lsp.util.LSPEditorActions
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -128,6 +129,8 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override fun setupWithProject(workspace: Workspace) {
 		logger.info("setupWithProject called, initialized={}", initialized)
+
+		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
 
 		val context = BaseApplication.baseInstance
 		val indexingServiceManager = ProjectManagerImpl.getInstance()
