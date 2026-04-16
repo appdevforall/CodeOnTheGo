@@ -42,6 +42,8 @@ import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.app.EditorEvents
+import com.itsaky.androidide.app.EditorProviderImpl
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
 import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
@@ -117,6 +119,8 @@ open class EditorHandlerActivity :
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
+	private var pluginEditorProvider: EditorProviderImpl? = null
+
 	private fun getTabPositionForFileIndex(fileIndex: Int): Int {
 		val safeContent = contentOrNull ?: return -1
 		val totalTabs = safeContent.tabs.tabCount
@@ -171,6 +175,10 @@ open class EditorHandlerActivity :
 		super.preDestroy()
 		TSLanguageRegistry.instance.destroy()
 		editorViewModel.removeAllFiles()
+
+		IDEApplication.getPluginManager()?.setEditorProvider(null)
+		pluginEditorProvider?.dispose()
+		pluginEditorProvider = null
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -185,6 +193,11 @@ open class EditorHandlerActivity :
 			if (tabPosition >= 0) {
 				this.content.editorContainer.displayedChild = tabPosition
 			}
+			EditorEvents.notifyFileChanged(editorViewModel.getCurrentFile())
+		}
+
+		pluginEditorProvider = EditorProviderImpl(this).also { provider ->
+			IDEApplication.getPluginManager()?.setEditorProvider(provider)
 		}
 		editorViewModel._startDrawerOpened.observe(this) { opened ->
 			this.binding.editorDrawerLayout.apply {
