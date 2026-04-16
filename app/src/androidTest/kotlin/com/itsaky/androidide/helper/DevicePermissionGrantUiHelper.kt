@@ -41,8 +41,8 @@ fun Device.grantDisplayOverOtherAppsUi() {
 /**
  * Finds accessibility nodes matching [searchText] and clicks the first one accepted by [matchBy].
  *
- * Handles root-window acquisition, node iteration, recycling, and throws
- * [AssertionError] if no matching node was clicked.
+ * Handles root-window acquisition, node iteration, and recycling.
+ * @throws IllegalStateException if no matching node was clicked.
  */
 fun clickFirstAccessibilityNodeByText(
     searchText: String,
