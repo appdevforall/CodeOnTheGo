@@ -61,7 +61,7 @@ class UncommentLineAction(
 		}
 
 		val context = data.requireContext()
-		label = context.getString(R.string.action_comment_line)
+		label = context.getString(R.string.action_uncomment_line)
 
 		val file = data.requireFile()
 		if (file.extension !in targetFileExtensions) {
