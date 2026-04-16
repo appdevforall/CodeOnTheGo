@@ -12,6 +12,10 @@ import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticWithPsi
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
+import org.jetbrains.kotlin.com.intellij.openapi.util.TextRange
+import org.jetbrains.kotlin.com.intellij.psi.PsiErrorElement
+import org.jetbrains.kotlin.com.intellij.psi.PsiFile
+import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.math.log
@@ -44,9 +48,24 @@ private fun CompilationEnvironment.doAnalyze(file: Path): DiagnosticResult {
 	}
 
 	val diagnostics = project.read {
-		analyze(ktFile) {
-			ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
-				.map { it.toDiagnosticItem() }
+		buildList {
+			PsiTreeUtil.collectElementsOfType(ktFile, PsiErrorElement::class.java)
+				.forEach { errorElement ->
+					add(
+						diagnosticItem(
+							file = ktFile,
+							message = errorElement.errorDescription,
+							range = errorElement.textRange,
+							severity = DiagnosticSeverity.ERROR,
+						)
+					)
+				}
+
+			analyze(ktFile) {
+				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+					.forEach { add(it.toDiagnosticItem()) }
+			}
+
 		}
 	}
 
@@ -59,16 +78,27 @@ private fun CompilationEnvironment.doAnalyze(file: Path): DiagnosticResult {
 }
 
 private fun KaDiagnosticWithPsi<*>.toDiagnosticItem(): DiagnosticItem {
-	val range = psi.textRange.toRange(psi.containingFile)
 	val severity = severity.toDiagnosticSeverity()
-	return DiagnosticItem(
+	return diagnosticItem(
+		file = psi.containingFile,
 		message = defaultMessage,
-		code = "",
-		range = range,
-		source = "Kotlin",
+		range = psi.textRange,
 		severity = severity,
 	)
 }
+
+private fun diagnosticItem(
+	file: PsiFile,
+	message: String,
+	range: TextRange,
+	severity: DiagnosticSeverity,
+) = DiagnosticItem(
+	message = message,
+	code = "",
+	range = range.toRange(file),
+	source = "kotlin",
+	severity = severity,
+)
 
 private fun KaSeverity.toDiagnosticSeverity(): DiagnosticSeverity {
 	return when (this) {
