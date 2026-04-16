@@ -68,12 +68,13 @@ class InitializationProjectAndCancelingBuildScenario : Scenario() {
             d.pressBack()
             d.waitForIdle()
 
-            val saveBtn = d.findObject(UiSelector().text("Save files and close project"))
-            if (!saveBtn.waitForExists(3_000)) {
-                // Maybe need another back press
+            val selector = UiSelector().text("Save files and close project")
+            if (!d.findObject(selector).waitForExists(3_000)) {
                 d.pressBack()
                 d.waitForIdle()
-                check(saveBtn.waitForExists(3_000)) { "Close project dialog not found" }
+                check(d.findObject(selector).waitForExists(3_000)) {
+                    "Close project dialog not found"
+                }
             }
             clickFirstAccessibilityNodeByText("Save files and close project")
             d.waitForIdle()
