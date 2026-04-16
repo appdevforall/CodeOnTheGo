@@ -51,14 +51,31 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
         fileChangeAdapter = GitFileChangeAdapter(
             onFileClicked = { change ->
-                if (change.type != ChangeType.CONFLICTED) {
-                    // Show diff in a dialog when changed file is clicked
-                    val dialog = GitDiffViewerDialog.newInstance(change.path)
-                    dialog.show(childFragmentManager, "GitDiffViewerDialog")
+                when (change.type) {
+                    ChangeType.CONFLICTED -> {
+                        val activity = requireActivity()
+                        if (activity is EditorHandlerActivity) {
+                            viewLifecycleOwner.lifecycleScope.launch {
+                                val repo = viewModel.currentRepository
+                                repo?.let {
+                                    activity.checkForExternalFileChanges(force = true)
+                                    activity.openFile(File(repo.rootDir, change.path))
+                                    bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        val dialog = GitDiffViewerDialog.newInstance(change.path)
+                        dialog.show(childFragmentManager, "GitDiffViewerDialog")
+                    }
                 }
             },
             onSelectionChanged = {
                 validateCommitButton()
+            },
+            onResolveConflict = { change ->
+                viewModel.resolveConflict(change.path)
             }
         )
 

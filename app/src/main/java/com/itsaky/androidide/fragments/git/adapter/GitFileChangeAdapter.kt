@@ -1,6 +1,7 @@
 package com.itsaky.androidide.fragments.git.adapter
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -12,7 +13,8 @@ import com.itsaky.androidide.git.core.models.FileChange
 
 class GitFileChangeAdapter(
     private val onFileClicked: (FileChange) -> Unit,
-    private val onSelectionChanged: (Int) -> Unit = {}
+    private val onSelectionChanged: (Int) -> Unit = {},
+    private val onResolveConflict: (FileChange) -> Unit = {}
 ) : ListAdapter<FileChange, GitFileChangeAdapter.ViewHolder>(DiffCallback()) {
 
     // Keep track of which files are selected to be committed
@@ -58,13 +60,24 @@ class GitFileChangeAdapter(
                     onSelectionChanged(selectedFiles.size)
                 }
             }
+            
+            binding.btnMarkResolved.setOnClickListener {
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onResolveConflict(getItem(pos))
+                }
+            }
         }
 
         fun bind(change: FileChange) {
             binding.filePath.text = change.path
 
             val isConflicted = change.type == ChangeType.CONFLICTED
-            binding.checkbox.isEnabled = !isConflicted
+            binding.checkbox.apply {
+                isEnabled = !isConflicted
+                visibility = if (isConflicted) View.INVISIBLE else View.VISIBLE
+            }
+            binding.btnMarkResolved.visibility = if (isConflicted) View.VISIBLE else View.GONE
             
             // Ensure conflicted files are never in selectedFiles
             if (isConflicted) {
@@ -73,8 +86,10 @@ class GitFileChangeAdapter(
             
             binding.checkbox.isChecked = selectedFiles.contains(change.path)
             
-            // Dim the entry if it's conflicted to show it's disabled for staging
-            binding.root.alpha = if (isConflicted) 0.5f else 1.0f
+            val contentAlpha = if (isConflicted) 0.5f else 1.0f
+            binding.filePath.alpha = contentAlpha
+            binding.statusIcon.alpha = contentAlpha
+            binding.root.alpha = 1.0f
 
             val (imageRes, descRes) = when (change.type) {
                 ChangeType.ADDED -> R.drawable.ic_file_added to R.string.desc_file_added

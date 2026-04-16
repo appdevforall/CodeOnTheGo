@@ -1285,6 +1285,7 @@
     <string name="msg_save_before_git_action">You have unsaved changes. Would you like to save them before proceeding?</string>
     <string name="no_save_before_git_action">Proceed without saving</string>
     <string name="save_before_git_action">Save before proceeding</string>
+    <string name="mark_as_resolved">Mark Resolved</string>
 
 
 </resources>
