@@ -33,13 +33,14 @@ import java.io.File
 
 /** @author Akash Yadav */
 class CommentLineAction(
+	lang: String,
 	private val targetFileExtensions: List<String>,
 	private val lineCommentToken: String,
 ) : EditorActionItem {
 
-	constructor(extension: String, lineCommentToken: String) :
-			this(listOf(extension), lineCommentToken)
-	override val id: String = "ide.editor.lsp.java.commentLine"
+	constructor(lang: String, extension: String, lineCommentToken: String) :
+			this(lang, listOf(extension), lineCommentToken)
+	override val id: String = "ide.editor.lsp.$lang.commentLine"
 	override var label: String = ""
 
 	override var visible = true

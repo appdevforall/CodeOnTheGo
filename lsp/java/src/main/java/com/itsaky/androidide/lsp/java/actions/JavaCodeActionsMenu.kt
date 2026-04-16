@@ -48,10 +48,14 @@ import com.itsaky.androidide.lsp.java.actions.generators.OverrideSuperclassMetho
  */
 object JavaCodeActionsMenu : IActionsMenuProvider {
 
+	private const val LANG = "java"
+	private const val EXT = "java"
+	private const val LINE_COMMENT_TOKEN = "//"
+
 	override val actions: List<ActionItem> =
 		listOf(
-			CommentLineAction("java", "//"),
-			UncommentLineAction("java", "//"),
+			CommentLineAction(LANG, EXT, LINE_COMMENT_TOKEN),
+			UncommentLineAction(LANG, EXT, LINE_COMMENT_TOKEN),
 			GoToDefinitionAction(),
 			FindReferencesAction(),
 			AddImportAction(),

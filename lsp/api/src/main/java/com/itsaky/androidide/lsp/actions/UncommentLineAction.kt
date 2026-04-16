@@ -33,14 +33,15 @@ import java.io.File
 
 /** @author Akash Yadav */
 class UncommentLineAction(
+	lang: String,
 	private val targetFileExtensions: List<String>,
 	private val lineCommentToken: String,
 ) : EditorActionItem {
 
-	constructor(extension: String, lineCommentToken: String) :
-			this(listOf(extension), lineCommentToken)
+	constructor(lang: String, extension: String, lineCommentToken: String) :
+			this(lang, listOf(extension), lineCommentToken)
 
-	override val id: String = "ide.editor.lsp.java.uncommentLine"
+	override val id: String = "ide.editor.lsp.$lang.uncommentLine"
 	override var label: String = ""
 
 	override var visible = true

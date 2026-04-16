@@ -7,12 +7,13 @@ import com.itsaky.androidide.lsp.actions.UncommentLineAction
 
 object KotlinCodeActionsMenu : IActionsMenuProvider {
 
+	private const val KT_LANG = "kt"
 	private val KT_EXTS = listOf("kt", "kts")
 	private const val KT_LINE_COMMENT_TOKEN = "//"
 
 	override val actions: List<ActionItem> =
 		listOf(
-			CommentLineAction(KT_EXTS, KT_LINE_COMMENT_TOKEN),
-			UncommentLineAction(KT_EXTS, KT_LINE_COMMENT_TOKEN)
+			CommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN),
+			UncommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN)
 		)
 }
