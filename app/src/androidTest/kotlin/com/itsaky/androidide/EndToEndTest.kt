@@ -8,10 +8,16 @@ import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.advancePastWelcomeScreen
 import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
+import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
+import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
+import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.resources.R as ResourcesR
+import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.OnboardingScreen
+import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
+import com.itsaky.androidide.screens.ProjectSettingsScreen.setProjectName
 import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.screens.PermissionsInfoScreen
 import com.itsaky.androidide.utils.PermissionsHelper
@@ -195,6 +201,36 @@ class EndToEndTest : TestCase() {
             )
         }
 
-        // ── Future phases (project creation, builds, preferences) go here ──
+        // ── Phase 2: Project creation + build for first 3 templates ──
+
+        ensureOnHomeScreenBeforeCreateProject()
+
+        data class TemplateConfig(
+            val label: String,
+            val templateResId: Int,
+            val projectName: String,
+        )
+
+        val templates = listOf(
+            TemplateConfig("No Activity", R.string.template_no_activity, "TestNoActivity"),
+            TemplateConfig("Empty Activity", R.string.template_empty, "TestEmptyActivity"),
+            TemplateConfig("Basic Activity", R.string.template_basic, "TestBasicActivity"),
+        )
+
+        for ((index, config) in templates.withIndex()) {
+            step("Create+build template ${index + 1}/${templates.size}: ${config.label}") {
+                clickCreateProjectHomeScreen()
+            }
+            selectProjectTemplate("Select ${config.label} template", config.templateResId)
+            setProjectName(config.projectName)
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+
+            if (index < templates.lastIndex) {
+                ensureOnHomeScreenBeforeCreateProject()
+            }
+        }
+
+        // ── Future phases (preferences, more templates, etc.) go here ──
     }
 }
