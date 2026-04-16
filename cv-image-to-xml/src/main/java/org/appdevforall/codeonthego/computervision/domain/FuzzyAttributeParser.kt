@@ -5,12 +5,12 @@ import java.util.concurrent.atomic.AtomicInteger
 
 object FuzzyAttributeParser {
 
-    private const val FUZZY_VALUE_THRESHOLD = 60
+    private const val FUZZY_VALUE_THRESHOLD = 75
 
     private fun fuzzyKeyThreshold(keyLength: Int): Int = when {
-        keyLength <= 3 -> 50
-        keyLength == 4 -> 55
-        else -> 65
+        keyLength <= 3 -> 65
+        keyLength == 6 -> 75
+        else -> 80
     }
     private const val PIPE_DELIMITER = "|"
     private val fallbackIdCounter = AtomicInteger(0)
@@ -31,8 +31,8 @@ object FuzzyAttributeParser {
         CONTENT_DESCRIPTION("android:contentDescription", listOf("contentdescription", "content_description")),
 
         TEXT_SIZE("android:textSize", listOf("textsize", "text_size"), ValueType.SP_DIMENSION),
-        TEXT_COLOR("android:textColor", listOf("textcolor", "text_color"), ValueType.COLOR),
-        TEXT_STYLE("android:textStyle", listOf("textstyle", "text_style")),
+        TEXT_COLOR("android:textColor", listOf("textcolor", "text_color", "color", "text_colar", "textcolar"), ValueType.COLOR),
+        TEXT_STYLE("android:textStyle", listOf("textstyle", "text_style", "style"), ValueType.RAW),
         TEXT_ALIGNMENT("android:textAlignment", listOf("textalignment", "text_alignment")),
         TEXT_ALL_CAPS("android:textAllCaps", listOf("textallcaps", "text_all_caps")),
         FONT_FAMILY("android:fontFamily", listOf("fontfamily", "font_family", "font")),
@@ -132,7 +132,7 @@ object FuzzyAttributeParser {
     }
 
     internal val colorMap = mapOf(
-        "red" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
+        "red" to "#FF0000", "rel" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
         "black" to "#000000", "white" to "#FFFFFF", "gray" to "#808080",
         "grey" to "#808080", "dark_gray" to "#A9A9A9", "yellow" to "#FFFF00",
         "cyan" to "#00FFFF", "magenta" to "#FF00FF", "purple" to "#800080",
@@ -174,13 +174,28 @@ object FuzzyAttributeParser {
             .replace(Regex("lay[ao0]ut"), "layout")
             .replace(Regex("(?<=^|_)[lt]d(?=$|_)"), "id")
 
+    private fun denoiseOcrText(text: String): String {
+        return text
+            .replace(Regex("\\s+:"), ":")
+            .replace(Regex("(?i)wrap[\\s_]*c[ao]n?t[eo]nt|wrapcan"), "wrap_content")
+            .replace(Regex("(?i)match[\\s_]*p[ao]r[eo]nt"), "match_parent")
+            .replace(Regex("(?i)lay[ao]c?t"), "layout")
+            .replace(Regex("(?i)magin"), "margin")
+            .replace(Regex("(?i)text\\s*c[ao]l[ao]r"), "textColor")
+            .replace(Regex("(?i)text\\s*style"), "textStyle")
+            .replace(Regex("(?i)\\bRel\\b"), "Red")
+            .replace(Regex("(?i)b[ao]ld"), "bold")
+    }
+
     fun parse(annotation: String?, tag: String): Map<String, String> {
         if (annotation.isNullOrBlank()) return emptyMap()
 
-        return if (annotation.contains(PIPE_DELIMITER)) {
-            parseDelimited(annotation, tag)
+        val denoised = denoiseOcrText(annotation)
+
+        return if (denoised.contains(PIPE_DELIMITER)) {
+            parseDelimited(denoised, tag)
         } else {
-            parseByColonScanning(annotation, tag)
+            parseByColonScanning(denoised, tag)
         }
     }
 
@@ -430,20 +445,30 @@ object FuzzyAttributeParser {
     private fun cleanDimension(value: String): String {
         val normalized = value.lowercase().replace(" ", "_")
 
-        val matchParent = FuzzySearch.ratio(normalized, "match_parent")
-        if (matchParent >= FUZZY_VALUE_THRESHOLD) return "match_parent"
+        if ("match" in normalized || "parent" in normalized) return "match_parent"
+        if ("wrap" in normalized || "content" in normalized || "wrapcan" in normalized) return "wrap_content"
 
-        val wrapContent = FuzzySearch.ratio(normalized, "wrap_content")
-        if (wrapContent >= FUZZY_VALUE_THRESHOLD) return "wrap_content"
+        val fixedUnit = normalized
+            .replace(Regex("0p$"), "dp")
+            .replace(Regex("op$"), "dp")
+            .replace(Regex("olp$"), "dp")
 
-        val numericPart = extractOcrNumber(value.replace(" ", ""))
+        val numericString = fixedUnit.replace(Regex("[a-z]+$"), "")
+        val numericPart = extractOcrNumber(numericString)
+
         if (numericPart != null) return "${numericPart}dp"
 
         return value
     }
 
     private fun cleanSpDimension(value: String): String {
-        val numericPart = extractOcrNumber(value)
+        val fixedUnit = value.lowercase()
+            .replace(" ", "")
+            .replace(Regex("5p$"), "sp")
+
+        val numericString = fixedUnit.replace(Regex("[a-z]+$"), "")
+        val numericPart = extractOcrNumber(numericString)
+
         if (numericPart != null) return "${numericPart}sp"
         return value
     }

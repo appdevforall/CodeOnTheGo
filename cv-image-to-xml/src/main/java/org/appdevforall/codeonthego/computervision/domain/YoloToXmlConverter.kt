@@ -4,9 +4,7 @@ import android.graphics.Rect
 import android.util.Log
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import kotlin.math.max
-import kotlin.math.pow
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 object YoloToXmlConverter {
 
@@ -15,29 +13,33 @@ object YoloToXmlConverter {
     private const val MIN_H_ANY = 8
     private const val OVERLAP_THRESHOLD = 0.6
 
-    private val TAG_REGEX = Regex("^(B|P|D|T|C|R|SW|S)-\\d+$")
-    private val TAG_EXTRACT_REGEX = Regex("^([BPDTCRS8]W?)[^a-zA-Z0-9]*([\\dlIoO!]+)$")
+    private val TAG_REGEX = Regex("^(?i)(B|P|D|T|C|R|SW|S)-\\d+$")
+    private val TAG_EXTRACT_REGEX = Regex("^(?i)([BPDTCRS8]\\s*W?)[^a-zA-Z0-9]*([\\dlIoO!]+)$")
 
     private fun normalizeOcrDigits(raw: String): String =
         raw.replace('l', '1').replace('I', '1').replace('!', '1')
             .replace('o', '0').replace('O', '0')
 
-    private data class ScaledBox(
+    private class ScaledBox(
         val label: String, var text: String, val x: Int, val y: Int, val w: Int, val h: Int,
         val centerX: Int, val centerY: Int, val rect: Rect
     )
 
     private fun normalizeTagText(text: String): String {
         val trimmed = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
-        val match = TAG_EXTRACT_REGEX.find(trimmed) ?: return trimmed
-        var prefix = match.groupValues[1]
+        val match = TAG_EXTRACT_REGEX.find(trimmed) ?: return trimmed.uppercase()
+
+        var prefix = match.groupValues[1].replace(Regex("\\s+"), "").uppercase()
         if (prefix == "8") prefix = "B"
+        if (prefix == "8W" || prefix == "S8") prefix = "SW"
+
         return "$prefix-${normalizeOcrDigits(match.groupValues[2])}"
     }
 
     private fun isTag(text: String): Boolean = normalizeTagText(text).matches(TAG_REGEX)
 
     private fun getTagType(tag: String): String? {
+        val upperTag = tag.uppercase()
         return when {
             tag.startsWith("B-") -> "button"
             tag.startsWith("P-") -> "image_placeholder"
@@ -51,12 +53,6 @@ object YoloToXmlConverter {
         }
     }
 
-    private fun distance(box1: ScaledBox, box2: ScaledBox): Float {
-        val dx = (box1.centerX - box2.centerX).toFloat()
-        val dy = (box1.centerY - box2.centerY).toFloat()
-        return sqrt(dx.pow(2) + dy.pow(2))
-    }
-
     fun generateXmlLayout(
         detections: List<DetectionResult>,
         annotations: Map<String, String>,
@@ -66,7 +62,15 @@ object YoloToXmlConverter {
         targetDpHeight: Int,
         wrapInScroll: Boolean = true
     ): String {
-        val widgets = detections.filter { it.isYolo && it.label != "widget_tag" }
+        val widgets = detections
+            .filter { it.isYolo && it.label != "widget_tag" }
+            .distinctBy {
+                if (it.label.startsWith("switch")) {
+                    "${((it.boundingBox.top + it.boundingBox.bottom) / 2f).toInt() / 50}"
+                } else {
+                    "${it.label}:${it.boundingBox.left}:${it.boundingBox.top}:${it.boundingBox.right}:${it.boundingBox.bottom}"
+                }
+            }
         var scaledBoxes = widgets.map { scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight) }
 
         val parents = scaledBoxes.filter { it.label != "text" && !isTag(it.text) }
@@ -81,7 +85,7 @@ object YoloToXmlConverter {
         val finalAnnotations = matchAnnotationsToElements(canvasTags, uiElements, annotations)
 
         val sortedBoxes = uiElements.sortedWith(compareBy({ it.y }, { it.x }))
-        return buildXml(sortedBoxes, finalAnnotations, targetDpWidth, targetDpHeight, wrapInScroll)
+        return buildXml(sortedBoxes, finalAnnotations, targetDpHeight, wrapInScroll)
     }
 
     private fun assignTextToParents(parents: List<ScaledBox>, texts: List<ScaledBox>, allBoxes: List<ScaledBox>): List<ScaledBox> {
@@ -112,43 +116,112 @@ object YoloToXmlConverter {
     ): Map<ScaledBox, String> {
         val finalAnnotations = mutableMapOf<ScaledBox, String>()
         val claimedWidgets = mutableSetOf<ScaledBox>()
-        val appliedAnnotationKeys = mutableSetOf<String>()
 
         val deduplicatedTags = canvasTags
             .groupBy { normalizeTagText(it.text) }
             .map { (_, group) -> group.first() }
 
-        for (tagBox in deduplicatedTags) {
-            val normalizedText = normalizeTagText(tagBox.text)
-            val tagType = getTagType(normalizedText) ?: continue
-            val annotation = annotations[normalizedText] ?: continue
+        val tagsByWidgetType = annotations
+            .mapNotNull { (tagText, annotationText) ->
+                val normalizedTag = normalizeTagText(tagText)
+                val widgetType = getTagType(normalizedTag) ?: return@mapNotNull null
 
-            val closestElement = uiElements
-                .filter { it.label.startsWith(tagType) && it !in claimedWidgets }
-                .minByOrNull { distance(tagBox, it) }
+                val matchingTagBox = deduplicatedTags.find { normalizeTagText(it.text) == normalizedTag }
 
-            if (closestElement != null) {
-                finalAnnotations[closestElement] = annotation
-                claimedWidgets.add(closestElement)
-                appliedAnnotationKeys.add(normalizedText)
+                TaggedAnnotation(
+                    normalizedTag = normalizedTag,
+                    widgetType = widgetType,
+                    annotation = annotationText,
+                    tagBox = matchingTagBox
+                )
             }
-        }
+            .groupBy { it.widgetType }
 
-        for ((tagText, annotation) in annotations) {
-            val normalizedTagText = normalizeTagText(tagText)
-            if (normalizedTagText in appliedAnnotationKeys) continue
-            val tagType = getTagType(normalizedTagText) ?: continue
-            val unclaimed = uiElements
-                .filter { it.label.startsWith(tagType) && it !in claimedWidgets }
-                .sortedWith(compareBy({ it.y }, { it.x }))
-                .firstOrNull()
-            if (unclaimed != null) {
-                finalAnnotations[unclaimed] = annotation
-                claimedWidgets.add(unclaimed)
+        val widgetsByType = uiElements.groupBy { normalizeWidgetType(it.label) }
+
+        for ((widgetType, taggedAnnotations) in tagsByWidgetType) {
+            val candidateWidgets = widgetsByType[widgetType]
+                ?.sortedWith(compareBy({ it.y }, { it.x }))
+                ?: continue
+
+            val sortedTags = taggedAnnotations.sortedWith(
+                compareBy(
+                    { extractTagOrdinal(it.normalizedTag) ?: Int.MAX_VALUE },
+                    { it.tagBox?.y ?: Int.MAX_VALUE },
+                    { it.tagBox?.x ?: Int.MAX_VALUE }
+                )
+            )
+
+            for (taggedAnnotation in sortedTags) {
+                val ordinal = extractTagOrdinal(taggedAnnotation.normalizedTag)
+                val matchedWidget = findWidgetByOrdinalOrFallback(
+                    ordinal = ordinal,
+                    tagBox = taggedAnnotation.tagBox,
+                    candidates = candidateWidgets,
+                    claimedWidgets = claimedWidgets
+                ) ?: continue
+
+                finalAnnotations[matchedWidget] = taggedAnnotation.annotation
+                claimedWidgets.add(matchedWidget)
             }
         }
 
         return finalAnnotations
+    }
+
+    private data class TaggedAnnotation(
+        val normalizedTag: String,
+        val widgetType: String,
+        val annotation: String,
+        val tagBox: ScaledBox?
+    )
+
+    private fun normalizeWidgetType(label: String): String = when {
+        label.startsWith("text_entry_box") -> "text_entry_box"
+        label.startsWith("button") -> "button"
+        label.startsWith("switch") -> "switch"
+        label.startsWith("checkbox") -> "checkbox"
+        label.startsWith("radio") -> "radio"
+        label.startsWith("dropdown") -> "dropdown"
+        label.startsWith("slider") -> "slider"
+        label.startsWith("image_placeholder") -> "image_placeholder"
+        else -> label
+    }
+
+    private fun extractTagOrdinal(tag: String): Int? {
+        return tag.substringAfter('-', "").toIntOrNull()
+    }
+
+    private fun findWidgetByOrdinalOrFallback(
+        ordinal: Int?,
+        tagBox: ScaledBox?,
+        candidates: List<ScaledBox>,
+        claimedWidgets: Set<ScaledBox>
+    ): ScaledBox? {
+        val available = candidates.filter { it !in claimedWidgets }
+        if (available.isEmpty()) return null
+
+        if (ordinal != null) {
+            val zeroBasedMatch = candidates.getOrNull(ordinal)
+            if (zeroBasedMatch != null && zeroBasedMatch !in claimedWidgets) {
+                return zeroBasedMatch
+            }
+
+            val oneBasedMatch = candidates.getOrNull(ordinal - 1)
+            if (oneBasedMatch != null && oneBasedMatch !in claimedWidgets) {
+                return oneBasedMatch
+            }
+        }
+
+        if (tagBox != null) {
+            return available.minByOrNull { candidate ->
+                val verticalDistance = kotlin.math.abs(tagBox.centerY - candidate.centerY)
+                val horizontalDistance = kotlin.math.abs(tagBox.centerX - candidate.centerX)
+                (verticalDistance * 2) + horizontalDistance
+            }
+        }
+
+        return available.minByOrNull { it.y }
     }
 
     private fun scaleDetection(
@@ -158,10 +231,10 @@ object YoloToXmlConverter {
             return ScaledBox(detection.label, detection.text, 0, 0, MIN_W_ANY, MIN_H_ANY, MIN_W_ANY / 2, MIN_H_ANY / 2, Rect(0, 0, MIN_W_ANY, MIN_H_ANY))
         }
         val rect = detection.boundingBox
-        val normCx = rect.centerX() / sourceWidth
-        val normCy = rect.centerY() / sourceHeight
-        val normW = rect.width() / sourceWidth
-        val normH = rect.height() / sourceHeight
+        val normCx = ((rect.left + rect.right) / 2f) / sourceWidth
+        val normCy = ((rect.top + rect.bottom) / 2f) / sourceHeight
+        val normW = (rect.right - rect.left) / sourceWidth
+        val normH = (rect.bottom - rect.top) / sourceHeight
         val x = max(0, ((normCx - normW / 2.0) * targetW).roundToInt())
         val y = max(0, ((normCy - normH / 2.0) * targetH).roundToInt())
         val w = max(MIN_W_ANY, (normW * targetW).roundToInt())
@@ -180,7 +253,9 @@ object YoloToXmlConverter {
     }
 
     private fun escapeXmlAttr(value: String): String =
-        value.replace("&", "&amp;")
+        value.replace("|", "")
+            .trim()
+            .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
@@ -191,7 +266,7 @@ object YoloToXmlConverter {
         "button" -> "Button"
         "image_placeholder", "icon" -> "ImageView"
         "checkbox_unchecked", "checkbox_checked" -> "CheckBox"
-        "radio_unchecked", "radio_checked" -> "RadioButton"
+        "radio_button_unchecked", "radio_button_checked" -> "RadioButton"
         "switch_off", "switch_on" -> "Switch"
         "text_entry_box" -> "EditText"
         "dropdown" -> "Spinner"
@@ -203,7 +278,6 @@ object YoloToXmlConverter {
     private fun buildXml(
         boxes: List<ScaledBox>,
         annotations: Map<ScaledBox, String>,
-        targetDpWidth: Int,
         targetDpHeight: Int,
         wrapInScroll: Boolean
     ): String {
