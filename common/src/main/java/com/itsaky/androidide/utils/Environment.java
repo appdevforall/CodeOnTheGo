@@ -121,6 +121,7 @@ public final class Environment {
 	public static File NDK_DIR;
 
 	public static File TEMPLATES_DIR;
+	public static File SNIPPETS_DIR;
 
 	public static String getArchitecture() {
 		return IDEBuildConfigProvider.getInstance().getCpuAbiName();
@@ -197,6 +198,7 @@ public final class Environment {
 		NDK_DIR = new File(ANDROID_HOME, "ndk");
 
 		TEMPLATES_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "templates"));
+		SNIPPETS_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "snippets"));
 
 		isInitialized.set(true);
 	}
