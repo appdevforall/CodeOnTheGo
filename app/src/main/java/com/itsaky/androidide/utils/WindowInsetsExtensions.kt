@@ -96,11 +96,12 @@ fun View.applyRootSystemInsetsAsPadding(
 fun ContentEditorBinding.applyImmersiveModeInsets(systemBars: Insets) {
     val baseMargin = SizeUtils.dp2px(16f)
     val isRtl = root.layoutDirection == View.LAYOUT_DIRECTION_RTL
-    val endInset = if (isRtl) systemBars.left else systemBars.right
+
+    val startInset = if (isRtl) systemBars.right else systemBars.left
 
     btnFullscreenToggle.updateLayoutParams<ViewGroup.MarginLayoutParams> {
         bottomMargin = baseMargin + systemBars.bottom
-        marginEnd = baseMargin + endInset
+        marginStart = baseMargin + startInset
     }
 
     bottomSheet.updatePadding(top = systemBars.top)
