@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand.ListMode
+import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.dircache.DirCacheIterator
 import org.eclipse.jgit.lib.BranchConfig
@@ -22,6 +23,8 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 import org.eclipse.jgit.transport.CredentialsProvider
 import org.eclipse.jgit.transport.PushResult
 import org.eclipse.jgit.api.PullResult
+import org.eclipse.jgit.api.ResetCommand.ResetType
+import org.eclipse.jgit.lib.RepositoryState
 import org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.eclipse.jgit.treewalk.EmptyTreeIterator
@@ -76,11 +79,12 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         
         jgitStatus.conflicting.forEach { conflicted.add(FileChange(it, ChangeType.CONFLICTED)) }
 
-
+        val isMerging = repository.repositoryState == RepositoryState.MERGING
 
         GitStatus(
             isClean = jgitStatus.isClean,
             hasConflicts = jgitStatus.conflicting.isNotEmpty(),
+            isMerging = isMerging,
             staged = staged,
             unstaged = unstaged,
             untracked = untracked,
@@ -272,6 +276,25 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         pullCommand.call()
     }
     
+    override suspend fun merge(branchName: String): MergeResult = withContext(Dispatchers.IO) {
+        val branchRef = repository.findRef(branchName) ?: throw IllegalArgumentException("Branch $branchName not found")
+        git.merge().include(branchRef).call()
+    }
+
+    override suspend fun abortMerge(): Unit = withContext(Dispatchers.IO) {
+        // Reset working tree and index to HEAD
+        git.reset().setMode(ResetType.HARD).setRef(Constants.HEAD).call()
+        
+        // Explicitly clear merge-related files to exit the MERGING state
+        repository.apply {
+            writeMergeHeads(null)
+            writeMergeCommitMsg(null)
+            writeCherryPickHead(null)
+            writeRevertHead(null)
+            writeSquashCommitMsg(null)
+        }
+    }
+
     override fun close() {
         repository.close()
         git.close()

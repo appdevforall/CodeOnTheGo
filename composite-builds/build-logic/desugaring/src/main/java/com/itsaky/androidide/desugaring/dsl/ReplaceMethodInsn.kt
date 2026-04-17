@@ -29,182 +29,189 @@ import java.lang.reflect.Modifier
  */
 interface ReplaceMethodInsn {
 
-  /**
-   * The owner class name for the method to be replaced. The class name must be
-   * in the form of a fully qualified name or in the binary name format.
-   */
-  var fromClass: String
+	/**
+	 * The owner class name for the method to be replaced. The class name must be
+	 * in the form of a fully qualified name or in the binary name format.
+	 */
+	var fromClass: String
 
-  /**
-   * The name of the method to be replaced.
-   */
-  var methodName: String
+	/**
+	 * The name of the method to be replaced.
+	 */
+	var methodName: String
 
-  /**
-   * The descriptor of the method to be replaced. This is the method signature
-   * as it appears in the bytecode.
-   */
-  var methodDescriptor: String
+	/**
+	 * The descriptor of the method to be replaced. This is the method signature
+	 * as it appears in the bytecode.
+	 */
+	var methodDescriptor: String
 
-  /**
-   * The opcode for the method to be replaced. If this is specified, then the
-   * opcode for the invoked method will be checked against this and the invocation
-   * will only be replaced of the opcode matches.
-   *
-   * This is optional. By default, the invocation will always be replaced.
-   */
-  var requireOpcode: MethodOpcode?
+	/**
+	 * The opcode for the method to be replaced. If this is specified, then the
+	 * opcode for the invoked method will be checked against this and the invocation
+	 * will only be replaced of the opcode matches.
+	 *
+	 * This is optional. By default, the invocation will always be replaced.
+	 */
+	var requireOpcode: MethodOpcode?
 
-  /**
-   * The owner class name for the method which will replace the [methodName].
-   * The class name must be in the form of a fully qualified name or in the
-   * binary name format.
-   */
-  var toClass: String
+	/**
+	 * The owner class name for the method which will replace the [methodName].
+	 * The class name must be in the form of a fully qualified name or in the
+	 * binary name format.
+	 */
+	var toClass: String
 
-  /**
-   * The name of the method in [toClass] which will replace the [methodName].
-   */
-  var toMethod: String
+	/**
+	 * The name of the method in [toClass] which will replace the [methodName].
+	 */
+	var toMethod: String
 
-  /**
-   * The descriptor of the method in [toClass] which will replace the [methodName].
-   */
-  var toMethodDescriptor: String
+	/**
+	 * The descriptor of the method in [toClass] which will replace the [methodName].
+	 */
+	var toMethodDescriptor: String
 
-  /**
-   * The opcode for invoking [toMethod] in [toClass].
-   */
-  var toOpcode: MethodOpcode
+	/**
+	 * The opcode for invoking [toMethod] in [toClass].
+	 */
+	var toOpcode: MethodOpcode
 
-  class Builder {
+	class Builder {
 
-    @JvmField
-    var fromClass: String = ""
+		@JvmField
+		var fromClass: String = ""
 
-    @JvmField
-    var methodName: String = ""
+		@JvmField
+		var methodName: String = ""
 
-    @JvmField
-    var methodDescriptor: String = ""
+		@JvmField
+		var methodDescriptor: String = ""
 
-    @JvmField
-    var requireOpcode: MethodOpcode? = null
+		@JvmField
+		var requireOpcode: MethodOpcode? = null
 
-    @JvmField
-    var toClass: String = ""
+		@JvmField
+		var toClass: String = ""
 
-    @JvmField
-    var toMethod: String = ""
+		@JvmField
+		var toMethod: String = ""
 
-    @JvmField
-    var toMethodDescriptor: String = ""
+		@JvmField
+		var toMethodDescriptor: String = ""
 
-    @JvmField
-    var toOpcode: MethodOpcode = MethodOpcode.ANY
+		@JvmField
+		var toOpcode: MethodOpcode = MethodOpcode.ANY
 
-    fun fromMethod(method: Method) = apply {
-      fromClass(method.declaringClass)
-      methodName(method.name)
-      methodDescriptor(ReflectionUtils.describe(method))
+		fun fromMethod(method: Method) = apply {
+			fromClass(method.declaringClass)
+			methodName(method.name)
+			methodDescriptor(ReflectionUtils.describe(method))
 
-      if (Modifier.isStatic(method.modifiers)) {
-        requireOpcode(MethodOpcode.INVOKESTATIC)
-      } else {
-        requireOpcode(MethodOpcode.INVOKEVIRTUAL)
-      }
-    }
+			if (Modifier.isStatic(method.modifiers)) {
+				requireOpcode(MethodOpcode.INVOKESTATIC)
+			} else {
+				requireOpcode(MethodOpcode.INVOKEVIRTUAL)
+			}
+		}
 
-    fun fromClass(fromClass: String) = apply {
-      this.fromClass = fromClass
-    }
+		fun fromClass(fromClass: String) = apply {
+			this.fromClass = fromClass
+		}
 
-    fun fromClass(klass: Class<*>): Builder {
-      if (klass.isArray || klass.isPrimitive) {
-        throw UnsupportedOperationException(
-          "Array and primitive types are not supported for desugaring")
-      }
+		fun fromClass(klass: Class<*>): Builder {
+			if (klass.isArray || klass.isPrimitive) {
+				throw UnsupportedOperationException(
+					"Array and primitive types are not supported for desugaring"
+				)
+			}
 
-      return fromClass(klass.name)
-    }
+			return fromClass(klass.name)
+		}
 
-    fun methodName(methodName: String) = apply {
-      this.methodName = methodName
-    }
+		fun methodName(methodName: String) = apply {
+			this.methodName = methodName
+		}
 
-    fun methodDescriptor(methodDescriptor: String) = apply {
-      this.methodDescriptor = methodDescriptor
-    }
+		fun methodDescriptor(methodDescriptor: String) = apply {
+			this.methodDescriptor = methodDescriptor
+		}
 
-    fun requireOpcode(requireOpcode: MethodOpcode) = apply {
-      this.requireOpcode = requireOpcode
-    }
+		fun requireOpcode(requireOpcode: MethodOpcode) = apply {
+			this.requireOpcode = requireOpcode
+		}
 
-    fun toClass(toClass: String) = apply {
-      this.toClass = toClass
-    }
+		fun toClass(toClass: String) = apply {
+			this.toClass = toClass
+		}
 
-    fun toClass(klass: Class<*>): Builder {
-      if (klass.isArray || klass.isPrimitive) {
-        throw UnsupportedOperationException(
-          "Array and primitive types are not supported for desugaring")
-      }
+		fun toClass(klass: Class<*>): Builder {
+			if (klass.isArray || klass.isPrimitive) {
+				throw UnsupportedOperationException(
+					"Array and primitive types are not supported for desugaring"
+				)
+			}
 
-      return toClass(klass.name)
-    }
+			return toClass(klass.name)
+		}
 
-    fun toMethod(toMethod: String) = apply {
-      this.toMethod = toMethod
-    }
+		fun toMethod(toMethod: String) = apply {
+			this.toMethod = toMethod
+		}
 
-    fun toMethodDescriptor(toMethodDescriptor: String) = apply {
-      this.toMethodDescriptor = toMethodDescriptor
-    }
+		fun toMethodDescriptor(toMethodDescriptor: String) = apply {
+			this.toMethodDescriptor = toMethodDescriptor
+		}
 
-    fun toMethod(method: Method) = apply {
-      toClass(method.declaringClass)
-      toMethod(method.name)
-      toMethodDescriptor(ReflectionUtils.describe(method))
+		fun toMethod(method: Method) = apply {
+			toClass(method.declaringClass)
+			toMethod(method.name)
+			toMethodDescriptor(ReflectionUtils.describe(method))
 
-      if (Modifier.isStatic(method.modifiers)) {
-        toOpcode(MethodOpcode.INVOKESTATIC)
-      } else {
-        toOpcode(MethodOpcode.INVOKEVIRTUAL)
-      }
-    }
+			if (Modifier.isStatic(method.modifiers)) {
+				toOpcode(MethodOpcode.INVOKESTATIC)
+			} else {
+				toOpcode(MethodOpcode.INVOKEVIRTUAL)
+			}
+		}
 
-    fun toOpcode(toOpcode: MethodOpcode) = apply {
-      this.toOpcode = toOpcode
-    }
+		fun toOpcode(toOpcode: MethodOpcode) = apply {
+			this.toOpcode = toOpcode
+		}
 
-    fun build(): DefaultReplaceMethodInsn {
-      require(fromClass.isNotBlank()) { "fromClass cannot be blank." }
-      require(methodName.isNotBlank()) { "methodName cannot be blank." }
-      require(
-        methodDescriptor.isNotBlank()) { "methodDescriptor cannot be blank." }
-      require(toClass.isNotBlank()) { "toClass cannot be blank." }
-      require(toMethod.isNotBlank()) { "toMethod cannot be blank." }
-      require(
-        toMethodDescriptor.isNotBlank()) { "toMethodDescriptor cannot be blank." }
-      require(toOpcode != MethodOpcode.ANY) { "toOpcode cannot be ANY." }
+		fun build(): DefaultReplaceMethodInsn {
+			require(fromClass.isNotBlank()) { "fromClass cannot be blank." }
+			require(methodName.isNotBlank()) { "methodName cannot be blank." }
+			require(
+				methodDescriptor.isNotBlank()
+			) { "methodDescriptor cannot be blank." }
+			require(toClass.isNotBlank()) { "toClass cannot be blank." }
+			require(toMethod.isNotBlank()) { "toMethod cannot be blank." }
+			require(
+				toMethodDescriptor.isNotBlank()
+			) { "toMethodDescriptor cannot be blank." }
+			require(toOpcode != MethodOpcode.ANY) { "toOpcode cannot be ANY." }
 
-      return DefaultReplaceMethodInsn(fromClass, methodName, methodDescriptor,
-        requireOpcode, toClass, toMethod, toMethodDescriptor, toOpcode)
-    }
-  }
+			return DefaultReplaceMethodInsn(
+				fromClass, methodName, methodDescriptor,
+				requireOpcode, toClass, toMethod, toMethodDescriptor, toOpcode
+			)
+		}
+	}
 
-  companion object {
+	companion object {
 
-    @JvmStatic
-    fun builder(): Builder = Builder()
+		@JvmStatic
+		fun builder(): Builder = Builder()
 
-    /**
-     * Creates a [Builder] for the given source and target method.
-     */
-    @JvmStatic
-    fun forMethods(fromMethod: Method, toMethod: Method
-    ): Builder {
-      return builder().fromMethod(fromMethod).toMethod(toMethod)
-    }
-  }
+		/**
+		 * Creates a [Builder] for the given source and target method.
+		 */
+		@JvmStatic
+		fun forMethods(
+			fromMethod: Method, toMethod: Method
+		): Builder {
+			return builder().fromMethod(fromMethod).toMethod(toMethod)
+		}
+	}
 }

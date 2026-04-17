@@ -47,6 +47,10 @@ import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeFeatureFlagService
 import com.itsaky.androidide.plugins.manager.services.IdeFeatureFlagServiceImpl
+import com.itsaky.androidide.plugins.services.IdeCommandService
+import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
+import com.itsaky.androidide.plugins.extensions.BuildActionExtension
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.SidebarSlotExceededException
 import kotlinx.coroutines.CoroutineScope
@@ -436,6 +440,13 @@ class PluginManager private constructor(
                                 }
                             }
                         }
+
+                        val buildActionManager = PluginBuildActionManager.getInstance()
+                        if (plugin is BuildActionExtension) {
+                            buildActionManager.registerPlugin(manifest.id, manifest.name, plugin)
+                            logger.info("Registered build actions for plugin: ${manifest.id}")
+                        }
+                        buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
                     } catch (e: Exception) {
                         logger.error("Failed to activate  plugin: ${manifest.id}", e)
                         loadedPlugin.isEnabled = false
@@ -485,6 +496,12 @@ class PluginManager private constructor(
             PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
             PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
             snippetRefreshListener?.invoke(pluginId)
+
+            PluginBuildActionManager.getInstance().cleanupPlugin(pluginId)
+            val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
+            if (commandService is IdeCommandServiceImpl) {
+                commandService.cancelAllCommands()
+            }
 
             val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
             if (templateService is IdeTemplateServiceImpl) {
@@ -613,7 +630,11 @@ class PluginManager private constructor(
             .filter { it.isEnabled }
             .map { it.plugin }
     }
-    
+
+    fun getLoadedPlugin(pluginId: String): LoadedPlugin? {
+        return loadedPlugins[pluginId]?.takeIf { it.isEnabled }
+    }
+
     /**
      * Get all enabled plugins that implement UI extensions
      */
@@ -969,6 +990,20 @@ class PluginManager private constructor(
             }
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeCommandService::class.java,
+            pluginId,
+            "command"
+        ) {
+            IdeCommandServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+                appFilesDir = context.filesDir
+            )
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -985,13 +1020,9 @@ class PluginManager private constructor(
         classLoader: ClassLoader,
         permissions: Set<PluginPermission>
     ): PluginContext {
-        // Create a plugin-specific service registry with permission-validated services
         val pluginServiceRegistry = ServiceRegistryImpl()
-        
+
         logger.debug("Creating IDE services for plugin: $pluginId")
-        
-        // Only create services if providers are available, otherwise plugins will get null services
-        // This prevents crashes but plugins should handle null service gracefully
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
@@ -1013,8 +1044,6 @@ class PluginManager private constructor(
             )
         }
 
-
-        // UI service is always created, even if activityProvider is null
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
             IdeUIService::class.java,
@@ -1024,7 +1053,6 @@ class PluginManager private constructor(
             IdeUIServiceImpl(activityProvider)
         }
 
-        // Build service is always created to provide build status information
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
             IdeBuildService::class.java,
@@ -1034,7 +1062,6 @@ class PluginManager private constructor(
             IdeBuildServiceImpl.getInstance()
         }
 
-        // Tooltip service for showing documentation tooltips
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
             IdeTooltipService::class.java,
@@ -1044,7 +1071,6 @@ class PluginManager private constructor(
             IdeTooltipServiceImpl(context, pluginId, activityProvider)
         }
 
-        // Editor tab service for plugin editor tab integration
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
             IdeEditorTabService::class.java,
@@ -1054,7 +1080,6 @@ class PluginManager private constructor(
             IdeEditorTabServiceImpl(activityProvider)
         }
 
-        // File service for editing project files
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
             IdeFileService::class.java,
@@ -1073,7 +1098,6 @@ class PluginManager private constructor(
             )
         }
 
-        // Sidebar service for plugin sidebar slot management
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
             IdeSidebarService::class.java,
