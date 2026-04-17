@@ -23,6 +23,8 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.BaseEditorAction
+import com.itsaky.androidide.editor.utils.isJavaOperatorToken
+import com.itsaky.androidide.editor.utils.isKotlinOperatorToken
 import com.itsaky.androidide.editor.utils.isXmlAttribute
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -40,7 +42,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
 
     init {
         label = context.getString(R.string.title_show_tooltip)
-        val drawable = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
+        val drawable = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
         icon = drawable?.let { tintDrawable(context, it) }
     }
 
@@ -58,29 +60,19 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         val anchorView = target.getAnchorView() ?: return false
         val editor = getEditor(data)
 
-        val category: String
-        val tag: String
-
-        if (editor != null) {
-            val selectedText = target.getSelectedText()
-            category = when (editor.file?.extension) {
-                "java" -> TooltipCategory.CATEGORY_JAVA
-                "kt" -> TooltipCategory.CATEGORY_KOTLIN
-                "xml" -> TooltipCategory.CATEGORY_XML
-                else -> TooltipCategory.CATEGORY_IDE
+        val categoryAndTag =
+            if (editor != null) {
+                val category = tooltipCategoryForExtension(editor.file?.extension)
+                resolveTooltipTag(
+                    category = category,
+                    selectedText = target.getSelectedText(),
+                    editorTag = editor.tag?.toString(),
+                    isXmlAttribute = category == TooltipCategory.CATEGORY_XML && editor.isXmlAttribute(),
+                ).let { tag -> category to tag }
+            } else {
+                TooltipCategory.CATEGORY_IDE to TooltipTag.DIALOG_FIND_IN_PROJECT
             }
-
-            val useEditorTag = editor.tag != null
-            val textToUse = selectedText ?: ""
-            tag = when {
-                useEditorTag -> editor.tag.toString()
-                category == TooltipCategory.CATEGORY_XML && editor.isXmlAttribute() -> textToUse.substringAfterLast(":")
-                else -> textToUse
-            }
-        } else {
-            category = TooltipCategory.CATEGORY_IDE
-            tag = TooltipTag.DIALOG_FIND_IN_PROJECT
-        }
+        val (category, tag) = categoryAndTag
 
         if (tag.isEmpty()) return false
 
@@ -95,4 +87,28 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     }
 
     override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
+}
+
+internal fun tooltipCategoryForExtension(extension: String?): String =
+    when (extension) {
+        "java" -> TooltipCategory.CATEGORY_JAVA
+        "kt" -> TooltipCategory.CATEGORY_KOTLIN
+        "xml" -> TooltipCategory.CATEGORY_XML
+        else -> TooltipCategory.CATEGORY_IDE
+    }
+
+internal fun resolveTooltipTag(
+    category: String,
+    selectedText: String?,
+    editorTag: String?,
+    isXmlAttribute: Boolean,
+): String {
+    val textToUse = selectedText ?: ""
+    return when {
+        !editorTag.isNullOrEmpty() -> editorTag
+        category == TooltipCategory.CATEGORY_XML && isXmlAttribute -> textToUse.substringAfterLast(":")
+        category == TooltipCategory.CATEGORY_KOTLIN && isKotlinOperatorToken(textToUse) -> "kotlin.operator.$textToUse"
+        category == TooltipCategory.CATEGORY_JAVA && isJavaOperatorToken(textToUse) -> "java.operator.$textToUse"
+        else -> textToUse
+    }
 }

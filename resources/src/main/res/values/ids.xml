@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="tag_initial_padding" type="id" />
+    <item name="filetree_drop_target_tag" type="id" />
+</resources>

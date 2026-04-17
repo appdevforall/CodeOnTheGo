@@ -97,7 +97,7 @@ android {
 
     defaultConfig {
         applicationId = "${data.packageName}"
-        minSdk = ${data.versions.minSdk.api}
+        minSdk = ${data.versions.minSdk?.api}
         targetSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api} 
         versionCode = 1
         versionName = "1.0"
@@ -188,7 +188,7 @@ android {
 
     defaultConfig {
         applicationId = "${data.packageName}"
-        minSdk = ${data.versions.minSdk.api}
+        minSdk = ${data.versions.minSdk?.api}
         targetSdk = ${data.versions.targetSdk.api}
         versionCode = 1
         versionName = "1.0"
@@ -448,7 +448,7 @@ android {
 
     defaultConfig {
         applicationId = "${data.packageName}"
-        minSdk = ${data.versions.minSdk.api}
+        minSdk = ${data.versions.minSdk?.api}
         targetSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api} 
         versionCode = 1
         versionName = "1.0"
@@ -558,7 +558,7 @@ android {
 
     defaultConfig {
         applicationId = "${data.packageName}"
-        minSdk = ${data.versions.minSdk.api}
+        minSdk = ${data.versions.minSdk?.api}
         targetSdk = ${data.versions.targetSdk.api}
         versionCode = 1
         versionName = "1.0"

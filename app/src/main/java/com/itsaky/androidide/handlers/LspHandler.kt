@@ -31,28 +31,28 @@ import com.itsaky.androidide.utils.FeatureFlags
  */
 object LspHandler {
 
-  fun registerLanguageServers() {
-    ILanguageServerRegistry.getDefault().apply {
-      getServer(JavaLanguageServer.SERVER_ID) ?: register(JavaLanguageServer())
-      if (FeatureFlags.isExperimentsEnabled) {
-        getServer(KotlinLanguageServer.SERVER_ID) ?: register(KotlinLanguageServer())
-      }
-      getServer(XMLLanguageServer.SERVER_ID) ?: register(XMLLanguageServer())
-    }
-  }
-  
-  fun connectClient(client: ILanguageClient) {
-    ILanguageServerRegistry.getDefault().connectClient(client)
-  }
+	fun registerLanguageServers() {
+		ILanguageServerRegistry.default.apply {
+			getServer(JavaLanguageServer.SERVER_ID) ?: register(JavaLanguageServer())
+			if (FeatureFlags.isExperimentsEnabled) {
+				getServer(KotlinLanguageServer.SERVER_ID) ?: register(KotlinLanguageServer())
+			}
+			getServer(XMLLanguageServer.SERVER_ID) ?: register(XMLLanguageServer())
+		}
+	}
 
-  fun connectDebugClient(client: IDebugClient) {
-    ILanguageServerRegistry.getDefault().connectDebugClient(client)
-  }
+	fun connectClient(client: ILanguageClient) {
+		ILanguageServerRegistry.default.connectClient(client)
+	}
 
-  fun destroyLanguageServers(isConfigurationChange: Boolean) {
-    if (isConfigurationChange) {
-      return
-    }
-    ILanguageServerRegistry.getDefault().destroy()
-  }
+	@Throws(Throwable::class)
+	suspend fun connectDebugClient(client: IDebugClient) =
+		ILanguageServerRegistry.default.connectDebugClient(client)
+
+	fun destroyLanguageServers(isConfigurationChange: Boolean) {
+		if (isConfigurationChange) {
+			return
+		}
+		ILanguageServerRegistry.default.destroy()
+	}
 }
