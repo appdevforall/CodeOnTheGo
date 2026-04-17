@@ -18,8 +18,8 @@ dependencies {
 }
 
 tasks.register<Copy>("createPluginApiJar") {
-	dependsOn("assembleRelease")
-	from(layout.buildDirectory.file("intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar"))
-	into(layout.buildDirectory.dir("libs"))
-	rename { "plugin-api-1.0.0.jar" }
+    dependsOn("assembleRelease")
+    from(layout.buildDirectory.file("intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar"))
+    into(layout.buildDirectory.dir("libs"))
+    rename { "plugin-api-1.0.0.jar" }
 }
