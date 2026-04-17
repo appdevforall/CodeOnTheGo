@@ -3,10 +3,10 @@
     android:height="108dp"
     android:viewportWidth="1600"
     android:viewportHeight="1600">
-  <group android:scaleX="2.581"
-      android:scaleY="2.581"
-      android:translateX="513"
-      android:translateY="267">
+  <group android:scaleX="2.35"
+      android:scaleY="2.35"
+      android:translateX="539"
+      android:translateY="314">
 
     <!-- Phone body (blue rounded rect) -->
     <path
