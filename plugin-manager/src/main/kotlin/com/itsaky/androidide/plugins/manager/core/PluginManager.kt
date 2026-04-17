@@ -18,6 +18,10 @@ import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
+import com.itsaky.androidide.plugins.extensions.SnippetExtension
+import com.itsaky.androidide.plugins.manager.services.IdeSnippetServiceImpl
+import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
+import com.itsaky.androidide.plugins.services.IdeSnippetService
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
@@ -112,10 +116,15 @@ class PluginManager private constructor(
     private val pluginsDir = File(context.filesDir, "plugins")
     private val documentationManager = PluginDocumentationManager(context)
     private var templateReloadListener: (() -> Unit)? = null
+    private var snippetRefreshListener: ((String) -> Unit)? = null
 
     fun setTemplateReloadListener(listener: (() -> Unit)?) {
         this.templateReloadListener = listener
         PluginProjectManager.getInstance().setTemplateReloadListener(listener)
+    }
+
+    fun setSnippetRefreshListener(listener: ((String) -> Unit)?) {
+        this.snippetRefreshListener = listener
     }
 
     // Helper methods for cleaner error handling
@@ -410,10 +419,13 @@ class PluginManager private constructor(
                 loadedPlugins[manifest.id] = loadedPlugin
                 if (isEnabled) {
                     try {
+                        if (plugin is SnippetExtension) {
+                            PluginSnippetManager.getInstance().registerPlugin(manifest.id, plugin)
+                        }
+
                         plugin.activate()
                         logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
 
-                        // Verify and install/recreate documentation if plugin implements DocumentationExtension
                         if (plugin is DocumentationExtension) {
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
@@ -482,6 +494,8 @@ class PluginManager private constructor(
             }
 
             PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+            PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
+            snippetRefreshListener?.invoke(pluginId)
 
             PluginBuildActionManager.getInstance().cleanupPlugin(pluginId)
             val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
@@ -965,6 +979,19 @@ class PluginManager private constructor(
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
+            IdeSnippetService::class.java,
+            pluginId,
+            "snippet"
+        ) {
+            IdeSnippetServiceImpl().apply {
+                setRefreshCallback { pid ->
+                    snippetRefreshListener?.invoke(pid)
+                }
+            }
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
             IdeCommandService::class.java,
             pluginId,
             "command"
@@ -988,6 +1015,151 @@ class PluginManager private constructor(
         )
     }
 
+    private fun createPluginContext(
+        pluginId: String,
+        classLoader: ClassLoader,
+        permissions: Set<PluginPermission>
+    ): PluginContext {
+        val pluginServiceRegistry = ServiceRegistryImpl()
+
+        logger.debug("Creating IDE services for plugin: $pluginId")
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeProjectService::class.java,
+            pluginId,
+            "project"
+        ) {
+            IdeProjectServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                projectProvider = projectProvider,
+                requiredPermissions = projectServicePermissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeProjectServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeUIService::class.java,
+            pluginId,
+            "UI"
+        ) {
+            IdeUIServiceImpl(activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeBuildService::class.java,
+            pluginId,
+            "build"
+        ) {
+            IdeBuildServiceImpl.getInstance()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTooltipService::class.java,
+            pluginId,
+            "tooltip"
+        ) {
+            IdeTooltipServiceImpl(context, pluginId, activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeEditorTabService::class.java,
+            pluginId,
+            "editor_tab"
+        ) {
+            IdeEditorTabServiceImpl(activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFileService::class.java,
+            pluginId,
+            "file"
+        ) {
+            IdeFileServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeFileServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSidebarService::class.java,
+            pluginId,
+            "sidebar"
+        ) {
+            IdeSidebarServiceImpl(pluginId)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeThemeService::class.java,
+            pluginId,
+            "theme"
+        ) {
+            IdeThemeServiceImpl(context)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFeatureFlagService::class.java,
+            pluginId,
+            "feature_flag"
+        ) {
+            IdeFeatureFlagServiceImpl()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTemplateService::class.java,
+            pluginId,
+            "template"
+        ) {
+            IdeTemplateServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                onTemplatesChanged = { templateReloadListener?.invoke() }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSnippetService::class.java,
+            pluginId,
+            "snippet"
+        ) {
+            IdeSnippetServiceImpl().apply {
+                setRefreshCallback { pid ->
+                    snippetRefreshListener?.invoke(pid)
+                }
+            }
+        }
+
+        return PluginContextImpl(
+            androidContext = context,
+            services = pluginServiceRegistry,
+            eventBus = eventBus,
+            logger = PluginLoggerImpl(pluginId, logger),
+            resources = ResourceManagerImpl(pluginId, pluginsDir, classLoader),
+            pluginId = pluginId
+        )
+    }
 
     /**
      * Clean up ALL plugin files and cache directories
