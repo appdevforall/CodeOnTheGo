@@ -1,13 +1,9 @@
 package org.appdevforall.codeonthego.computervision.domain
 
-import android.util.Log
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 object MarginAnnotationParser {
-
-    private const val TAG = "MarginAnnotationParser"
     private const val GAP_MULTIPLIER = 1.5f
     private const val HEIGHT_FRACTION = 0.8f
 
@@ -61,13 +57,6 @@ object MarginAnnotationParser {
         val canvasTags = canvasDetections.mapNotNull { det ->
             extractTag(det.text)?.let { (tag, _) -> tag to det }
         }
-        Log.d(
-            TAG,
-            "Canvas OCR tags detected: ${
-                canvasTags.joinToString(", ") { (tag, det) -> "$tag from '${det.text}'" }
-                    .ifBlank { "none" }
-            }"
-        )
 
         val canvasMidX = imageWidth * (leftGuidePct + rightGuidePct) / 2f
         val leftCanvasTags = canvasTags.filter { (_, det) -> centerX(det) < canvasMidX }
@@ -77,18 +66,7 @@ object MarginAnnotationParser {
         annotationMap.putAll(parseMarginGroup(leftMarginDetections, leftCanvasTags))
         annotationMap.putAll(parseMarginGroup(rightMarginDetections, rightCanvasTags))
 
-        val correctedCanvasDetections = canvasDetections
-
-        val finalAnnotationLog = annotationMap.entries.joinToString(", ") { "'${it.key}' -> '${it.value}'" }
-        Log.d(TAG, "Processed Margin Annotations: {$finalAnnotationLog}")
-
-        val canvasLogOutput = correctedCanvasDetections.joinToString(", ") {
-            val box = it.boundingBox
-            "'${it.text}', [left:${box.left.roundToInt()}, top:${box.top.roundToInt()}, width:${(box.right - box.left).roundToInt()}, height:${(box.bottom - box.top).roundToInt()}]"
-        }
-        Log.d(TAG, "Parsed Canvas Content (Corrected): $canvasLogOutput")
-
-        return Pair(correctedCanvasDetections, annotationMap)
+        return Pair(canvasDetections, annotationMap)
     }
 
     private data class ParsedBlock(
@@ -110,15 +88,12 @@ object MarginAnnotationParser {
         val gapBlocks = clusterIntoBlocks(sorted)
         val refinedBlocks = gapBlocks.flatMap { splitAtTags(it, validPrefixes) }
 
-        Log.d(TAG, "Spatial clustering: ${detections.size} lines -> ${gapBlocks.size} gap-blocks -> ${refinedBlocks.size} refined-blocks")
-
-        val parsedBlocks = refinedBlocks.mapIndexed { i, block ->
+        val parsedBlocks = refinedBlocks.mapIndexed { _, block ->
             val result = parseBlock(block)
             val centerY = block.map { centerY(it) }.average().toFloat()
             val annotationText = result?.second
                 ?: block.joinToString(" ") { it.text.trim() }.trim()
 
-            Log.d(TAG, "Block $i: tag=${result?.first ?: "none"}, ${block.size} lines, text='${annotationText.take(40)}'")
             ParsedBlock(result?.first, annotationText, centerY, block.size)
         }
 
@@ -140,17 +115,13 @@ object MarginAnnotationParser {
             val tag = block.tag ?: continue
             if (canvasTags.isEmpty() || canvasTags.any { (canvasTag, _) -> canvasTag == tag }) {
                 annotationMap[tag] = block.annotationText
-                Log.d(TAG, "Pass1: explicit tag match '$tag'")
             }
         }
 
-        if (canvasTags.isEmpty()) {
-            Log.d(TAG, "No canvas OCR tags detected; keeping explicit margin annotations only: ${annotationMap.keys}")
-            return annotationMap
-        }
+        if (canvasTags.isEmpty()) return annotationMap
 
         val unresolvedTagsByPrefix = canvasTagsByPrefix
-            .mapValues { (prefix, tags) ->
+            .mapValues { (_, tags) ->
                 tags.map { it.first }
                     .filter { tag -> tag !in annotationMap }
                     .sortedBy { tag -> extractOrdinal(tag) ?: Int.MAX_VALUE }
@@ -177,7 +148,6 @@ object MarginAnnotationParser {
 
             val assignedTag = unresolvedTagsByPrefix[closestPrefix]?.removeFirstOrNull() ?: continue
             annotationMap[assignedTag] = block.annotationText
-            Log.d(TAG, "Pass2: implicit block assigned to '$assignedTag'")
         }
 
         return annotationMap

@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
-import java.util.concurrent.atomic.AtomicInteger
 
 object FuzzyAttributeParser {
 
@@ -13,7 +12,6 @@ object FuzzyAttributeParser {
         else -> 80
     }
     private const val PIPE_DELIMITER = "|"
-    private val fallbackIdCounter = AtomicInteger(0)
 
     enum class AttributeKey(
         val xmlName: String,
@@ -144,14 +142,15 @@ object FuzzyAttributeParser {
 
     private val nonAlphanumericRegex = Regex("[^a-z0-9_]")
     private val multipleUnderscoresRegex = Regex("_+")
-    private val trailingLetterRegex = Regex("_[a-z]$")
-    private val numberExtractionRegex = Regex("-?\\d+")
 
     private val ocrLetterOToZeroRegex = Regex("[oO]")
     private val ocrLetterIToOneRegex = Regex("[lI]")
     private val ocrLetterZToTwoRegex = Regex("[zZ]")
     private val ocrLetterSToFiveRegex = Regex("[sS]")
     private val ocrLetterBToSixRegex = Regex("[bB]")
+
+    private val matchKeywords = setOf("match", "parent")
+    private val wrapKeywords = setOf("wrap", "content", "wrapcan")
 
     private val validInputTypes = listOf(
         "text", "textPassword", "number", "numberDecimal",
@@ -174,28 +173,15 @@ object FuzzyAttributeParser {
             .replace(Regex("lay[ao0]ut"), "layout")
             .replace(Regex("(?<=^|_)[lt]d(?=$|_)"), "id")
 
-    private fun denoiseOcrText(text: String): String {
-        return text
-            .replace(Regex("\\s+:"), ":")
-            .replace(Regex("(?i)wrap[\\s_]*c[ao]n?t[eo]nt|wrapcan"), "wrap_content")
-            .replace(Regex("(?i)match[\\s_]*p[ao]r[eo]nt"), "match_parent")
-            .replace(Regex("(?i)lay[ao]c?t"), "layout")
-            .replace(Regex("(?i)magin"), "margin")
-            .replace(Regex("(?i)text\\s*c[ao]l[ao]r"), "textColor")
-            .replace(Regex("(?i)text\\s*style"), "textStyle")
-            .replace(Regex("(?i)\\bRel\\b"), "Red")
-            .replace(Regex("(?i)b[ao]ld"), "bold")
-    }
-
     fun parse(annotation: String?, tag: String): Map<String, String> {
         if (annotation.isNullOrBlank()) return emptyMap()
 
-        val denoised = denoiseOcrText(annotation)
+        val normalizedSpacing = annotation.replace(Regex("\\s+:"), ":")
 
-        return if (denoised.contains(PIPE_DELIMITER)) {
-            parseDelimited(denoised, tag)
+        return if (normalizedSpacing.contains(PIPE_DELIMITER)) {
+            parseDelimited(normalizedSpacing, tag)
         } else {
-            parseByColonScanning(denoised, tag)
+            parseByColonScanning(normalizedSpacing, tag)
         }
     }
 
@@ -445,8 +431,8 @@ object FuzzyAttributeParser {
     private fun cleanDimension(value: String): String {
         val normalized = value.lowercase().replace(" ", "_")
 
-        if ("match" in normalized || "parent" in normalized) return "match_parent"
-        if ("wrap" in normalized || "content" in normalized || "wrapcan" in normalized) return "wrap_content"
+        if (matchKeywords.any { it in normalized }) return "match_parent"
+        if (wrapKeywords.any { it in normalized }) return "wrap_content"
 
         val fixedUnit = normalized
             .replace(Regex("0p$"), "dp")
@@ -491,19 +477,11 @@ object FuzzyAttributeParser {
     }
 
     private fun cleanId(value: String): String {
-        val cleaned = value.lowercase()
+        return value.lowercase()
             .replace(nonAlphanumericRegex, "_")
             .replace(multipleUnderscoresRegex, "_")
-            .replace("btm", "btn") // OCR typo: btm_finish -> btn_finish
             .trimEnd('_')
             .trimStart('_')
-            .replace(trailingLetterRegex, "")
-
-        if (FuzzySearch.ratio(cleaned, "match_parent") > 75 || FuzzySearch.ratio(cleaned, "wrap_content") > 75) {
-            return "view_${fallbackIdCounter.getAndIncrement()}"
-        }
-
-        return cleaned
     }
 
     private fun denoiseOcrIdentifier(value: String): String =
