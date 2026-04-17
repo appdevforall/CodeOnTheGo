@@ -74,6 +74,11 @@ class PluginManagerViewModel(
                 event.uri,
                 event.deleteSourceAfterInstall
             )
+            is PluginManagerUiEvent.ConfirmOverwrite -> installPlugin(
+                event.uri,
+                event.deleteSourceAfterInstall,
+                checkConflict = false
+            )
 
             is PluginManagerUiEvent.OpenFilePicker -> openFilePicker()
             is PluginManagerUiEvent.ShowPluginDetails -> showPluginDetails(event.plugin)
@@ -230,10 +235,7 @@ class PluginManagerViewModel(
         }
     }
 
-    /**
-     * Install a plugin from URI
-     */
-    private fun installPlugin(uri: Uri, deleteSourceAfterInstall: Boolean) {
+    private fun installPlugin(uri: Uri, deleteSourceAfterInstall: Boolean, checkConflict: Boolean = true) {
         viewModelScope.launch {
             _currentOperation.value = PluginOperation.Installing
             _uiState.update { it.copy(isInstalling = true) }
@@ -256,6 +258,42 @@ class PluginManagerViewModel(
                         Exception("Cannot open file")
                     }
                     tempFile
+                }
+
+                if (checkConflict) {
+                    val incoming = pluginRepository.getPluginMetadataFromFile(tempFile).getOrNull()
+                    if (incoming != null) {
+                        val existing = _uiState.value.plugins.find { it.metadata.id == incoming.id }
+                        if (existing != null) {
+                            val signaturesMatch = pluginRepository
+                                .haveMatchingSignatures(tempFile, existing.metadata.id)
+                                .getOrDefault(true)
+
+                            withContext(Dispatchers.IO) { tempFile.delete() }
+                            tempFile = null
+
+                            if (!signaturesMatch) {
+                                _uiEffect.trySend(
+                                    PluginManagerUiEffect.ShowError(
+                                        R.string.msg_plugin_signature_mismatch,
+                                        listOf(existing.metadata.name)
+                                    )
+                                )
+                            } else {
+                                _uiEffect.trySend(
+                                    PluginManagerUiEffect.ShowOverwriteConfirmation(
+                                        existing = existing,
+                                        incomingMetadata = incoming,
+                                        uri = uri,
+                                        deleteSourceAfterInstall = deleteSourceAfterInstall
+                                    )
+                                )
+                            }
+                            _uiState.update { it.copy(isInstalling = false) }
+                            _currentOperation.value = PluginOperation.None
+                            return@launch
+                        }
+                    }
                 }
 
                 pluginRepository.installPluginFromFile(tempFile)

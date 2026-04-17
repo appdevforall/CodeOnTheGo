@@ -2,7 +2,9 @@ package com.itsaky.androidide.repositories
 
 import android.util.Log
 import com.itsaky.androidide.plugins.PluginInfo
+import com.itsaky.androidide.plugins.PluginMetadata
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -67,6 +69,22 @@ class PluginRepositoryImpl(
             Log.e(TAG, "Failed to uninstall plugin: $pluginId", exception)
         }
     }
+
+    override suspend fun getPluginMetadataFromFile(pluginFile: File): Result<PluginMetadata> = withContext(Dispatchers.IO) {
+        runCatching {
+            val manager = pluginManager
+                ?: throw IllegalStateException("Plugin system not available")
+            manager.getPluginMetadataOnly(pluginFile).getOrThrow().toPluginMetadata()
+        }
+    }
+
+    override suspend fun haveMatchingSignatures(incomingFile: File, existingPluginId: String): Result<Boolean> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                pluginManager?.haveMatchingSignatures(incomingFile, existingPluginId)
+                    ?: throw IllegalStateException("Plugin system not available")
+            }
+        }
 
     override suspend fun installPluginFromFile(pluginFile: File): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {

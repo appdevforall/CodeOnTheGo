@@ -109,8 +109,7 @@ class PluginLoader(
             Log.i(TAG, "Successfully created DexClassLoader for plugin APK (nativeLibPath=$nativeLibPath)")
             return pluginClassLoader
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create DexClassLoader: ${e.message}", e)
-            return null
+            throw RuntimeException("Failed to load plugin classes: [${e.javaClass.simpleName}] ${e.message}", e)
         }
     }
 
@@ -246,6 +245,24 @@ class PluginLoader(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to validate APK signature: ${e.message}", e)
             return false
+        }
+    }
+
+    fun getSignatureHash(): ByteArray? {
+        return try {
+            val pm = context.packageManager
+            @Suppress("DEPRECATION")
+            val info = pm.getPackageArchiveInfo(
+                pluginApk.absolutePath,
+                PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
+            )
+            @Suppress("DEPRECATION")
+            val legacySignatures = info?.signatures
+            val signatures = info?.signingInfo?.apkContentsSigners?.takeIf { it.isNotEmpty() }
+                ?: legacySignatures
+            signatures?.firstOrNull()?.toByteArray()
+        } catch (e: Exception) {
+            null
         }
     }
 
