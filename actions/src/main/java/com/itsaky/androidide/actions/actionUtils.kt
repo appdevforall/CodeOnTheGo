@@ -24,17 +24,23 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import java.io.File
 import java.nio.file.Path
 
-fun ActionData.getContext(): Context? {
-  return get(Context::class.java)
-}
+inline fun <reified T> ActionData.get(): T?=
+	get(T::class.java)
 
-fun ActionData.requireContext(): Context {
-  return getContext() ?: throw IllegalArgumentException("No context instance provided")
-}
+inline fun <reified T> ActionData.require(): T =
+	checkNotNull(get<T>())
 
-fun ActionData.requireFile(): File {
-  return get(File::class.java) ?: throw IllegalArgumentException("No file instance provided")
-}
+inline fun <reified T> ActionData.has(): Boolean =
+	get<T>() != null
+
+fun ActionData.getContext(): Context? =
+	get<Context>()
+
+fun ActionData.requireContext(): Context =
+	require<Context>()
+
+fun ActionData.requireFile(): File =
+	require<File>()
 
 fun ActionData.requirePath(): Path {
   return requireFile().toPath()

@@ -18,9 +18,13 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import kotlin.math.log
 
 private val logger = LoggerFactory.getLogger("KotlinDiagnosticProvider")
+
+internal data class KotlinDiagnosticExtra(
+	val diagnostic: KaDiagnosticWithPsi<*>,
+	val compilationEnv: CompilationEnvironment,
+)
 
 internal fun CompilationEnvironment.collectDiagnosticsFor(file: Path): DiagnosticResult = try {
 	logger.info("Analyzing file: {}", file)
@@ -63,9 +67,12 @@ private fun CompilationEnvironment.doAnalyze(file: Path): DiagnosticResult {
 
 			analyze(ktFile) {
 				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
-					.forEach { add(it.toDiagnosticItem()) }
+					.forEach { diagnostic ->
+						add(diagnostic.toDiagnosticItem().apply {
+							extra = KotlinDiagnosticExtra(diagnostic, this@doAnalyze)
+						})
+					}
 			}
-
 		}
 	}
 

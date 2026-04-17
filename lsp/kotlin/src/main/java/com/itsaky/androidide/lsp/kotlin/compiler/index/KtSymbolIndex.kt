@@ -139,3 +139,6 @@ internal fun KtSymbolIndex.filesForPackage(packageFqn: String) =
 
 internal fun KtSymbolIndex.subpackageNames(packageFqn: String) =
 	fileIndex.getSubpackageNames(packageFqn)
+
+internal fun KtSymbolIndex.findSymbolBySimpleName(name: String, limit: Int) =
+	sourceIndex.findBySimpleName(name, limit) + libraryIndex.findBySimpleName(name, limit)
