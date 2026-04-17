@@ -262,37 +262,46 @@ class PluginManagerViewModel(
 
                 if (checkConflict) {
                     val incoming = pluginRepository.getPluginMetadataFromFile(tempFile).getOrNull()
-                    if (incoming != null) {
-                        val existing = _uiState.value.plugins.find { it.metadata.id == incoming.id }
-                        if (existing != null) {
-                            val signaturesMatch = pluginRepository
-                                .haveMatchingSignatures(tempFile, existing.metadata.id)
-                                .getOrDefault(true)
+                    if (incoming == null) {
+                        Log.w(TAG, "Failed to read plugin metadata from ${tempFile.name}; aborting install")
+                        withContext(Dispatchers.IO) { tempFile.delete() }
+                        tempFile = null
+                        _uiEffect.trySend(
+                            PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file)
+                        )
+                        _uiState.update { it.copy(isInstalling = false) }
+                        _currentOperation.value = PluginOperation.None
+                        return@launch
+                    }
+                    val existing = _uiState.value.plugins.find { it.metadata.id == incoming.id }
+                    if (existing != null) {
+                        val signaturesMatch = pluginRepository
+                            .haveMatchingSignatures(tempFile, existing.metadata.id)
+                            .getOrDefault(false)
 
-                            withContext(Dispatchers.IO) { tempFile.delete() }
-                            tempFile = null
+                        withContext(Dispatchers.IO) { tempFile.delete() }
+                        tempFile = null
 
-                            if (!signaturesMatch) {
-                                _uiEffect.trySend(
-                                    PluginManagerUiEffect.ShowError(
-                                        R.string.msg_plugin_signature_mismatch,
-                                        listOf(existing.metadata.name)
-                                    )
+                        if (!signaturesMatch) {
+                            _uiEffect.trySend(
+                                PluginManagerUiEffect.ShowError(
+                                    R.string.msg_plugin_signature_mismatch,
+                                    listOf(existing.metadata.name)
                                 )
-                            } else {
-                                _uiEffect.trySend(
-                                    PluginManagerUiEffect.ShowOverwriteConfirmation(
-                                        existing = existing,
-                                        incomingMetadata = incoming,
-                                        uri = uri,
-                                        deleteSourceAfterInstall = deleteSourceAfterInstall
-                                    )
+                            )
+                        } else {
+                            _uiEffect.trySend(
+                                PluginManagerUiEffect.ShowOverwriteConfirmation(
+                                    existing = existing,
+                                    incomingMetadata = incoming,
+                                    uri = uri,
+                                    deleteSourceAfterInstall = deleteSourceAfterInstall
                                 )
-                            }
-                            _uiState.update { it.copy(isInstalling = false) }
-                            _currentOperation.value = PluginOperation.None
-                            return@launch
+                            )
                         }
+                        _uiState.update { it.copy(isInstalling = false) }
+                        _currentOperation.value = PluginOperation.None
+                        return@launch
                     }
                 }
 

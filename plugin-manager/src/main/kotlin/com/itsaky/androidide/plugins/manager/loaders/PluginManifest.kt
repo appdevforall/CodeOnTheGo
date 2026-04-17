@@ -1,5 +1,6 @@
 package com.itsaky.androidide.plugins.manager.loaders
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.itsaky.androidide.plugins.PluginMetadata
@@ -94,6 +95,7 @@ fun PluginManifest.toPluginMetadata() = PluginMetadata(
 )
 
 object PluginManifestParser {
+    private const val TAG = "PluginManifestParser"
     private val gson = Gson()
 
     fun parseFromJar(jarFile: File): PluginManifest? {
@@ -108,7 +110,8 @@ object PluginManifestParser {
                 gson.fromJson(reader, PluginManifest::class.java)?.normalize()
             }
         } catch (e: Exception) {
-            throw RuntimeException("Failed to parse plugin.json: [${e.javaClass.simpleName}] ${e.message}", e)
+            Log.w(TAG, "Failed to parse plugin.json: [${e.javaClass.simpleName}] ${e.message}", e)
+            null
         }
     }
 
@@ -116,7 +119,8 @@ object PluginManifestParser {
         return try {
             gson.fromJson(json, PluginManifest::class.java)?.normalize()
         } catch (e: Exception) {
-            throw RuntimeException("Failed to parse plugin manifest JSON: [${e.javaClass.simpleName}] ${e.message}", e)
+            Log.w(TAG, "Failed to parse plugin manifest JSON: [${e.javaClass.simpleName}] ${e.message}", e)
+            null
         }
     }
 

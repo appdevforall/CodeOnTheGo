@@ -1017,6 +1017,7 @@
 	<string name="msg_plugin_signature_mismatch">\'%1$s\' was installed from a different build variant. Uninstall it before installing this version.</string>
 	<string name="msg_plugin_error_clip_label">Plugin error</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
+	<string name="msg_plugin_invalid_file">Invalid or corrupted plugin file. Cannot read plugin metadata.</string>
 	<string name="msg_plugin_installed">Plugin installed successfully</string>
 	<string name="msg_plugin_load_failed">Failed to load plugins: %1$s</string>
 	<string name="msg_plugin_enabled">Plugin enabled</string>

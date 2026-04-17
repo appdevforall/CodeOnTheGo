@@ -348,12 +348,6 @@ class PluginManager private constructor(
             }
 
             val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!, nativeLibPath)
-            if (classLoader == null) {
-                if (manifest.sidebarItems > 0) {
-                    SidebarSlotManager.releasePluginSlots(manifest.id)
-                }
-                return Result.failure(RuntimeException("Failed to create class loader for plugin: ${manifest.id}"))
-            }
 
             logger.debug("Loading main class: ${manifest.mainClass}")
             val pluginClass = executeWithErrorHandling("load main class ${manifest.mainClass}", manifest.id) {
@@ -526,7 +520,10 @@ class PluginManager private constructor(
         val existingFile = File(pluginsDir, "$existingPluginId.cgp")
         val incomingSig = PluginLoader(context, incomingFile).getSignatureHash()
         val existingSig = PluginLoader(context, existingFile).getSignatureHash()
-        if (incomingSig == null || existingSig == null) return true
+        if (incomingSig == null || existingSig == null) {
+            logger.warn("Could not extract signatures for $existingPluginId; treating as mismatch")
+            return false
+        }
         return incomingSig.contentEquals(existingSig)
     }
 

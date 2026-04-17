@@ -88,9 +88,9 @@ class PluginLoader(
     /**
      * Load plugin classes from APK
      */
-    fun loadPluginClasses(parentClassLoader: ClassLoader, nativeLibPath: String? = null): DexClassLoader? {
+    fun loadPluginClasses(parentClassLoader: ClassLoader, nativeLibPath: String? = null): DexClassLoader {
         if (pluginClassLoader != null) {
-            return pluginClassLoader
+            return pluginClassLoader!!
         }
 
         try {
@@ -99,15 +99,16 @@ class PluginLoader(
                 optimizedDir.mkdirs()
             }
 
-            pluginClassLoader = DexClassLoader(
+            val loader = DexClassLoader(
                 pluginApk.absolutePath,
                 optimizedDir.absolutePath,
                 nativeLibPath,
                 parentClassLoader
             )
+            pluginClassLoader = loader
 
             Log.i(TAG, "Successfully created DexClassLoader for plugin APK (nativeLibPath=$nativeLibPath)")
-            return pluginClassLoader
+            return loader
         } catch (e: Exception) {
             throw RuntimeException("Failed to load plugin classes: [${e.javaClass.simpleName}] ${e.message}", e)
         }
@@ -262,6 +263,7 @@ class PluginLoader(
                 ?: legacySignatures
             signatures?.firstOrNull()?.toByteArray()
         } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract signature hash from ${pluginApk.absolutePath}", e)
             null
         }
     }
