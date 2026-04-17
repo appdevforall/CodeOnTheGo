@@ -101,6 +101,7 @@ android {
 	defaultConfig {
 		applicationId = BuildConfig.PACKAGE_NAME
 		vectorDrawables.useSupportLibrary = true
+		testInstrumentationRunnerArguments["class"] = "com.itsaky.androidide.OrderedTestSuite"
 	}
 
 	signingConfigs {
@@ -123,8 +124,6 @@ android {
 	}
 
 	testOptions {
-		execution = "ANDROIDX_TEST_ORCHESTRATOR"
-
 		unitTests {
 			isIncludeAndroidResources = true
 			all {
@@ -341,7 +340,7 @@ dependencies {
 	androidTestImplementation(libs.tests.kaspresso)
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
-	androidTestUtil(libs.tests.orchestrator)
+	// androidTestUtil(libs.tests.orchestrator)
 	testImplementation(libs.tests.kotlinx.coroutines)
 
 	// brotli4j
