@@ -33,19 +33,21 @@ import javax.inject.Inject
  * @author Akash Yadav
  */
 abstract class DesugarReplacementsContainer @Inject constructor(
-  private val objects: ObjectFactory
+	private val objects: ObjectFactory
 ) {
 
-  internal val includePackages = TreeSet<String>()
+	internal val includePackages = TreeSet<String>()
 
-  internal val instructions =
-    mutableMapOf<ReplaceMethodInsnKey, ReplaceMethodInsn>()
+	internal val instructions =
+		mutableMapOf<ReplaceMethodInsnKey, ReplaceMethodInsn>()
 
-  companion object {
+	internal val classReplacements = mutableMapOf<String, String>()
 
-    private val PACKAGE_NAME_REGEX =
-      Regex("""^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*${'$'}""")
-  }
+	companion object {
+
+		private val PACKAGE_NAME_REGEX =
+			Regex("""^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*${'$'}""")
+	}
 
 	fun includePackage(vararg packages: String) {
 		for (pck in packages) {
