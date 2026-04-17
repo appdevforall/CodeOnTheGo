@@ -33,15 +33,13 @@
 
   <com.google.android.material.imageview.ShapeableImageView
     android:id="@+id/icon"
-    android:layout_width="64dp"
-    android:layout_height="64dp"
+    android:layout_width="48dp"
+    android:layout_height="89dp"
     android:layout_margin="16dp"
-    android:background="?attr/colorSurfaceVariant"
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent"
-    app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Full"
-    app:srcCompat="@drawable/ic_launcher_foreground" />
+    app:srcCompat="@drawable/cogo_brand_mark" />
 
   <com.google.android.material.textview.MaterialTextView
     android:id="@+id/description"
