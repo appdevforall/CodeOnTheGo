@@ -314,9 +314,14 @@ class IdeEditorServiceImpl(
         } catch (_: Exception) {
             return false
         }
-        return defaultAllowedPaths.any { canonicalPath.startsWith(it) }
+        return defaultAllowedPaths.any { root ->
+            canonicalPath == root || canonicalPath.startsWith(root + File.separator)
+        }
     }
 
+    // Canonicalised so symlinked roots don't bypass the check; anchored on File.separator at
+    // the match site so e.g. "/…/CodeOnTheGoProjects" doesn't also admit
+    // "/…/CodeOnTheGoProjectsBackup/".
     private val defaultAllowedPaths: List<String> by lazy {
         val projects = Environment.PROJECTS_FOLDER
         listOf(
@@ -324,7 +329,7 @@ class IdeEditorServiceImpl(
             "/sdcard/$projects",
             (System.getProperty("user.home") ?: "/") + "/$projects",
             "/tmp/CodeOnTheGoProject",
-        )
+        ).map { runCatching { File(it).canonicalPath }.getOrDefault(it) }
     }
 
     companion object {

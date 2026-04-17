@@ -67,6 +67,9 @@ object EditorEvents {
         if (lastActiveFile?.absolutePath == file.absolutePath) {
             Log.d(TAG, "notifyFileClosed: clearing lastActiveFile (${file.absolutePath})")
             lastActiveFile = null
+            // Clear dedupe state too, otherwise reopening the same path later could be
+            // swallowed by notifyFileChanged's "same path" short-circuit.
+            lastNotifiedPath = null
         }
     }
 }

@@ -92,10 +92,23 @@ interface IdeEditorService {
 
     fun getModifiedFiles(): List<File>
 
+    /**
+     * Schedules the given file to be opened in the editor. The open itself runs asynchronously
+     * on the IDE's editor thread — a `true` return means the request was dispatched, not that
+     * the file is already open or that it exists, is readable, or was handled by this IDE
+     * rather than delegated (image viewer, another plugin, etc.). Poll [isFileOpen] if you
+     * need to confirm completion.
+     */
     fun openFile(file: File): Boolean
 
+    /** See [openFile]. The caret is moved to the given 0-based position once the open completes. */
     fun openFileAt(file: File, line: Int, column: Int): Boolean
 
+    /**
+     * Schedules a save of the active editor tab. Runs asynchronously; a `true` return means
+     * the save was dispatched, not that the buffer has been flushed to disk. Poll
+     * [isFileModified] on the current file to confirm completion.
+     */
     fun saveCurrentFile(): Boolean
 
     fun insertTextAtCursor(text: String): Boolean

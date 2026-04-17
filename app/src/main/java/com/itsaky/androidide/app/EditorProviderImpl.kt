@@ -13,9 +13,11 @@ import com.itsaky.androidide.plugins.services.SelectionRange
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.lang.ref.WeakReference
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -295,10 +297,17 @@ class EditorProviderImpl(
         }
     }
 
-    private inline fun <T> onMain(crossinline block: () -> T): T {
+    /**
+     * Posts [block] to the main thread and blocks the caller until it finishes. If the main
+     * thread doesn't process the edit within [MAIN_EDIT_TIMEOUT_SECONDS] the call logs a
+     * warning and returns `false` rather than hanging the plugin's thread or throwing
+     * through to an uncaught-exception handler — a deadlocked UI should not be able to take
+     * the IDE down with it.
+     */
+    private inline fun onMain(crossinline block: () -> Boolean): Boolean {
         if (Looper.myLooper() === mainHandler.looper) return block()
         val latch = CountDownLatch(1)
-        val resultRef = AtomicReference<T?>(null)
+        val resultRef = AtomicReference(false)
         val errorRef = AtomicReference<Throwable?>(null)
         mainHandler.post {
             try {
@@ -309,10 +318,15 @@ class EditorProviderImpl(
                 latch.countDown()
             }
         }
-        latch.await()
+        if (!latch.await(MAIN_EDIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            log.warn(
+                "Main thread did not process plugin edit within {}s; aborting",
+                MAIN_EDIT_TIMEOUT_SECONDS,
+            )
+            return false
+        }
         errorRef.get()?.let { throw it }
-        @Suppress("UNCHECKED_CAST")
-        return resultRef.get() as T
+        return resultRef.get()
     }
 
     private fun Char.isWordChar(): Boolean = isLetterOrDigit() || this == '_'
@@ -343,6 +357,7 @@ class EditorProviderImpl(
     }
 
     companion object {
-        private const val TAG = "EditorProviderImpl"
+        private const val MAIN_EDIT_TIMEOUT_SECONDS = 5L
+        private val log = LoggerFactory.getLogger(EditorProviderImpl::class.java)
     }
 }
