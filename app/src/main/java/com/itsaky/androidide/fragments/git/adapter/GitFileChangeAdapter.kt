@@ -65,8 +65,8 @@ class GitFileChangeAdapter(
             binding.btnMarkResolved.visibility = if (isConflicted) View.VISIBLE else View.GONE
             
             // Ensure conflicted files are never in selectedFiles
-            if (isConflicted) {
-                selectedFiles.remove(change.path)
+            if (isConflicted && selectedFiles.remove(change.path)) {
+                onSelectionChanged(selectedFiles.size)
             }
             
             binding.checkbox.isChecked = selectedFiles.contains(change.path)
