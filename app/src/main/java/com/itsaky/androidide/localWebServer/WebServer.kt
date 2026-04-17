@@ -288,7 +288,7 @@ clientSocket and the catch block logic are updated accordingly.
         brotliSupported = headers["accept-encoding"]?.contains(brotliCompression) == true
 
         // Playground endpoint: POST only, handled before GET-only check
-        if (path == "playground/execute") {
+        if (false && path == "playground/execute") {
             return handlePlaygroundExecute(input, writer, output, method, headers)
         }
 
