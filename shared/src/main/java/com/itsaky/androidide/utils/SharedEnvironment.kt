@@ -7,9 +7,14 @@ package com.itsaky.androidide.utils
  */
 object SharedEnvironment {
 	/**
-	 * The name of the per-project cache directory.
+	 * The name of the per-project cache directory and app-internal IDE data under `files/home/`.
 	 */
-	const val PROJECT_CACHE_DIR_NAME = ".androidide"
+	const val PROJECT_CACHE_DIR_NAME = ".cg"
+
+	/**
+	 * Previous cache directory name (fork branding); migrated on first access.
+	 */
+	const val LEGACY_PROJECT_CACHE_DIR_NAME = ".androidide"
 
 	/**
 	 * The name of the gradle sync cache directory.

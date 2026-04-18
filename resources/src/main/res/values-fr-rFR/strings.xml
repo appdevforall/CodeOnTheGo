@@ -283,7 +283,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="xml_formatting_options">XML formatting options</string>
   <string name="xml_formatting_options_summary">Configurer le formateur XML</string>
   <string name="idepref_customFont_title">Use custom font</string>
-  <string name="idepref_customFont_summary">Si activé le font : \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" sera utilisé comme font d\'éditeur par défaut.</string>
+  <string name="idepref_customFont_summary">Si activé le font : \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" sera utilisé comme font d\'éditeur par défaut.</string>
   <string name="msg_installing_apk">Installation de l\'application...</string>
   <string name="msg_action_open_application">Voulez-vous ouvrir l\'application ?</string>
   <string name="title_gradle_service_notification_channel">Gradle Build Service d\'Code on the Go</string>
@@ -400,7 +400,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="idepref_devOptions_summary">Options Expérimental/Débogage d\'Code on the Go</string>
   <string name="idepref_group_debugging">Débogage</string>
   <string name="idepref_devOptions_dumpLogs_title">Vider les logs</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
   <string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
   <string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>

@@ -19,3 +19,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+-keep class com.itsaky.androidide.templates.impl.zip.** { *; }
+
+-keepattributes Signature
+-keepattributes *Annotation*
+
+-keepattributes InnerClasses
+-keepattributes EnclosingMethod

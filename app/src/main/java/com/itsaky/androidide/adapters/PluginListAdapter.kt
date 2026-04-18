@@ -46,7 +46,13 @@ class PluginListAdapter(
             binding.apply {
                 pluginName.text = plugin.metadata.name
                 pluginDescription.text = plugin.metadata.description
-                pluginVersion.text = "v${plugin.metadata.version}"
+                val version = plugin.metadata.version
+                val segments = version.split('.')
+                pluginVersion.text = if (segments.size > 3) {
+                    "v${segments.take(3).joinToString(".")}..."
+                } else {
+                    "v$version"
+                }
                 pluginAuthor.text = "by ${plugin.metadata.author}"
                 
                 // Set status

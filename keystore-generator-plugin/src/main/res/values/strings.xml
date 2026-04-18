@@ -30,4 +30,28 @@
     <string name="error_invalid_input">Please fill in all required fields</string>
     <string name="error_generation_failed">Failed to generate keystore</string>
     <string name="error_no_project">No project is currently open</string>
+
+    <string name="error_required">Required</string>
+    <string name="error_country_length">Must be exactly 2 characters</string>
+    <string name="generating_keystore">Generating keystore…</string>
+    <string name="form_cleared">Form cleared</string>
+    <string name="tooltip_not_available">Long press detected! Tooltip service not available.</string>
+    <string name="docs_not_available">Long press detected! Documentation not available.</string>
+    <string name="error_validation_failed">Validation failed: %s</string>
+    <string name="error_project_service_unavailable">IDE project service not available</string>
+    <string name="error_permission_denied">Permission denied: %s</string>
+    <string name="error_generation">Generation error: %s</string>
+    <string name="error_build_file">Error modifying build file: %s</string>
+    <string name="error_file_service_unavailable">IdeFileService not available</string>
+    <string name="error_no_build_gradle">No build.gradle or build.gradle.kts found in app directory</string>
+    <string name="error_signing_pattern_not_found">Could not update signing config - pattern not found</string>
+    <string name="success_signing_updated">Updated existing release signing config</string>
+    <string name="error_signing_update_failed">Failed to update signing config</string>
+    <string name="success_signing_added">Added release signing config</string>
+    <string name="error_signing_add_failed">Failed to add release config to signingConfigs block</string>
+    <string name="success_build_file_updated">Build file updated with signing config</string>
+    <string name="error_no_android_block">Could not find android block in %s</string>
+    <string name="error_build_running">Cannot generate keystore while project is building or syncing</string>
+    <string name="error_build_failed">Cannot generate keystore - please fix build errors first</string>
+    <string name="error_unavailable">Keystore generation is currently unavailable</string>
 </resources>

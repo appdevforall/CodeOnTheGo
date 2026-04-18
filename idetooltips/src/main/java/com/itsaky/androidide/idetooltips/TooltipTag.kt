@@ -18,6 +18,7 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_OUTPUT_SELECT_ALL = "output.selection.selectall"
   const val EDITOR_TOOLBAR_FORMAT_CODE = "editor.toolbar.formatcode"
 	const val EDITOR_TOOLBAR_HELP = "editor.toolbar.help"
+	const val EDITOR_TOOLBAR_AI = "editor.toolbar.ai"
 	const val PROJECT_APP_LOGS = "project.applogs"
 	const val PROJECT_IDE_LOGS = "project.idelogs"
 	const val PROJECT_SEARCH_RESULTS = "project.searchresults"
