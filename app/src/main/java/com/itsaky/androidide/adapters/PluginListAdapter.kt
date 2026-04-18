@@ -1,6 +1,8 @@
 
 package com.itsaky.androidide.adapters
 
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,6 +15,9 @@ import com.itsaky.androidide.databinding.ItemPluginBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
+import com.itsaky.androidide.utils.isSystemInDarkMode
+import java.io.File
+import androidx.core.graphics.drawable.toDrawable
 
 class PluginListAdapter(
     private val onActionClick: (PluginInfo, Action) -> Unit
@@ -54,7 +59,25 @@ class PluginListAdapter(
                     "v$version"
                 }
                 pluginAuthor.text = "by ${plugin.metadata.author}"
-                
+
+                val iconPath = if (itemView.context.isSystemInDarkMode()) {
+                    plugin.metadata.iconNightPath
+                } else {
+                    plugin.metadata.iconDayPath
+                }
+
+                val bitmap = iconPath?.let { path ->
+                    if (File(path).exists()) BitmapFactory.decodeFile(path) else null
+                }
+                if (bitmap != null) {
+                    pluginIcon.setImageDrawable(bitmap.toDrawable(itemView.context.resources))
+                    pluginIcon.background = null
+                    pluginIcon.imageTintList = null
+                } else {
+                    pluginIcon.setImageDrawable(null)
+                    pluginIcon.setBackgroundResource(R.drawable.ic_extension)
+                }
+
                 // Set status
                 val statusText = when {
                     !plugin.isLoaded -> "Not Loaded"

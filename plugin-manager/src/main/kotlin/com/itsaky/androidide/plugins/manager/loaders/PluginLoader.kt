@@ -1,6 +1,7 @@
 package com.itsaky.androidide.plugins.manager.loaders
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.res.AssetManager
@@ -178,6 +179,41 @@ class PluginLoader(
         return pluginNativeDir
     }
 
+    fun isDebuggable(): Boolean {
+        val packageInfo = pluginPackageInfo
+            ?: context.packageManager.getPackageArchiveInfo(
+                pluginApk.absolutePath,
+                PackageManager.GET_META_DATA
+            ) ?: return false
+        val appInfo = packageInfo.applicationInfo ?: return false
+        return (appInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+
+    fun extractPluginIcons(pluginId: String, manifest: PluginManifest): Pair<String?, String?> {
+        if (manifest.iconDay == null && manifest.iconNight == null) return null to null
+        val iconDir = File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId)
+        iconDir.mkdirs()
+        val targetPath = iconDir.toPath().toAbsolutePath().normalize()
+        return try {
+            ZipFile(pluginApk).use { zip ->
+                fun extractEntry(entryPath: String?): String? {
+                    entryPath ?: return null
+                    val entry = zip.getEntry(entryPath) ?: return null
+                    val outPath = targetPath.resolve(entryPath.substringAfterLast('/')).normalize()
+                    if (!outPath.startsWith(targetPath)) return null
+                    zip.getInputStream(entry).use { input ->
+                        outPath.toFile().outputStream().use { output -> input.copyTo(output) }
+                    }
+                    return outPath.toFile().absolutePath
+                }
+                extractEntry(manifest.iconDay) to extractEntry(manifest.iconNight)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract plugin icons for $pluginId", e)
+            null to null
+        }
+    }
+
     fun getPluginMetadata(): PluginManifest? {
         try {
             val packageInfo = pluginPackageInfo ?: context.packageManager.getPackageArchiveInfo(
@@ -206,6 +242,9 @@ class PluginLoader(
             // Parse sidebar items count
             val sidebarItems = metaData.getInt("plugin.sidebar_items", 0)
 
+            val iconDay = metaData.getString("plugin.icon_day")
+            val iconNight = metaData.getString("plugin.icon_night")
+
             return PluginManifest(
                 id = pluginId,
                 name = pluginName,
@@ -218,7 +257,9 @@ class PluginLoader(
                 permissions = permissions,
                 dependencies = dependencies,
                 extensions = emptyList(),
-                sidebarItems = sidebarItems
+                sidebarItems = sidebarItems,
+                iconDay = iconDay,
+                iconNight = iconNight
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract plugin metadata: ${e.message}", e)

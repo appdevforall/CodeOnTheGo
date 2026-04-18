@@ -73,17 +73,27 @@ class PluginRepositoryImpl(
             val manager = pluginManager
                 ?: throw IllegalStateException("Plugin system not available")
 
-            val metadataResult = manager.getPluginMetadataOnly(pluginFile)
-            if (metadataResult.isFailure) {
-                if (pluginFile.exists()) {
-                    pluginFile.delete()
-                }
-                throw metadataResult.exceptionOrNull()
+            val validationResult = manager.getPluginValidation(pluginFile)
+            if (validationResult.isFailure) {
+                pluginFile.delete()
+                throw validationResult.exceptionOrNull()
                     ?: Exception("Failed to read plugin metadata")
             }
 
-            val metadata = metadataResult.getOrNull()!!
+            val validation = validationResult.getOrNull()!!
+            val metadata = validation.manifest
             val pluginId = metadata.id
+
+            if (validation.isDebug && (metadata.iconDay == null || metadata.iconNight == null)) {
+                val missing = listOfNotNull(
+                    "icon_day".takeIf { metadata.iconDay == null },
+                    "icon_night".takeIf { metadata.iconNight == null }
+                ).joinToString(" and ") { "\"$it\"" }
+                pluginFile.delete()
+                throw IllegalArgumentException(
+                    "[$pluginId] Missing $missing in the manifest. Debug plugins must declare both icon_day and icon_night."
+                )
+            }
 
             try {
                 manager.uninstallPlugin(pluginId)
