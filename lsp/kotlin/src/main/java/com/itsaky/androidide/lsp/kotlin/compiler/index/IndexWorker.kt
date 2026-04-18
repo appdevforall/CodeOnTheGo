@@ -46,6 +46,7 @@ internal class IndexWorker(
 				}
 
 				is IndexCommand.IndexModifiedFile -> {
+					logger.debug("Indexing modified ktFile: {}", command.ktFile)
 					indexSourceFile(project, command.ktFile, fileIndex, sourceIndex)
 					sourceIndexCount++
 				}

@@ -84,6 +84,9 @@ data class JvmSymbol(
             else -> null
         }
 
+	val receiverTypeFqName: String?
+		get() = receiverTypeName?.toFqName()
+
     val containingClassName: String
         get() = data.containingClassName
 
@@ -238,3 +241,4 @@ data class JvmTypeAliasInfo(
 private fun String.toFqName() =
 	replace('/', '.')
 		.replace('$', '.')
+		.replace('#', '.')
