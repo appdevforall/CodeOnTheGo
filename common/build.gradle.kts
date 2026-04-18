@@ -28,6 +28,7 @@ dependencies {
 
 	api(libs.androidx.core.ktx)
 	api(libs.common.kotlin)
+	api(libs.kotlinx.coroutines.core)
 
 	api(projects.buildInfo)
 	api(projects.eventbusAndroid)
