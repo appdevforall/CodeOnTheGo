@@ -96,6 +96,11 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 	val prefix = params.requirePrefix()
 	val partial = partialIdentifier(prefix)
 
+	if (partial.isBlank()) {
+		logger.warn("cannot complete for blank partial candidate")
+		return CompletionResult.EMPTY
+	}
+
 	// insert placeholder to fix broken trees
 	val textWithPlaceholder = buildString {
 		append(originalText, 0, completionOffset)
