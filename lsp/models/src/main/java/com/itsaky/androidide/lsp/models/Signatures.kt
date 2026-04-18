@@ -21,7 +21,7 @@ import com.itsaky.androidide.lsp.CancellableRequestParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.progress.ICancelChecker
 import java.nio.file.Path
-import java.util.*
+import java.util.Collections
 
 data class ParameterInformation(var label: String, var documentation: MarkupContent) {
   constructor() : this("", MarkupContent())
@@ -39,7 +39,15 @@ data class SignatureHelp(
   var signatures: List<SignatureInformation>,
   var activeSignature: Int,
   var activeParameter: Int
-)
+) {
+	companion object {
+		fun empty() = SignatureHelp(
+			signatures = emptyList(),
+			activeSignature = -1,
+			activeParameter = -1,
+		)
+	}
+}
 
 data class SignatureHelpParams(
   var file: Path,

@@ -22,7 +22,16 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.roomData.recentproject.RecentProject
+import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.templates.Template
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -30,7 +39,9 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * @author Akash Yadav
  */
-class MainViewModel : ViewModel() {
+class MainViewModel(
+    private val recentProjectDao: RecentProjectDao
+) : ViewModel() {
 
     companion object {
 
@@ -48,16 +59,22 @@ class MainViewModel : ViewModel() {
         const val SCREEN_SAVED_PROJECTS = 4
         const val SCREEN_DELETE_PROJECTS = 5
         const val SCREEN_CLONE_REPO = 6
+
+        val logger : Logger = LoggerFactory.getLogger(MainViewModel::class.java)
     }
 
     private val _currentScreen = MutableLiveData(-1)
     private val _previousScreen = AtomicInteger(-1)
     private val _isTransitionInProgress = MutableLiveData(false)
 
+    private val cloneRepositoryEventChannel = Channel<String>(Channel.BUFFERED)
+
     internal val template = MutableLiveData<Template<*>>(null)
     internal val creatingProject = MutableLiveData(false)
 
     val currentScreen: LiveData<Int> = _currentScreen
+
+    val cloneRepositoryEvent = cloneRepositoryEventChannel.receiveAsFlow()
 
     val previousScreen: Int
         get() = _previousScreen.get()
@@ -73,6 +90,13 @@ class MainViewModel : ViewModel() {
         _currentScreen.value = screen
     }
 
+    fun requestCloneRepository(url: String) {
+        viewModelScope.launch {
+            cloneRepositoryEventChannel.send(url)
+        }
+        setScreen(SCREEN_CLONE_REPO)
+    }
+
     fun postTransition(owner: LifecycleOwner, action: Runnable) {
         if (isTransitionInProgress) {
             _isTransitionInProgress.observe(owner, object : Observer<Boolean> {
@@ -83,6 +107,16 @@ class MainViewModel : ViewModel() {
             })
         } else {
             action.run()
+        }
+    }
+
+    fun saveProjectToRecents(project: RecentProject) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                recentProjectDao.insert(project)
+            } catch (e: Exception) {
+                logger.warn("Failed to save project to recents", e)
+            }
         }
     }
 }

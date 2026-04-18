@@ -549,7 +549,7 @@ class CodeEditorView(
 				else -> return null
 			}
 
-		return ILanguageServerRegistry.getDefault().getServer(serverID)
+		return ILanguageServerRegistry.default.getServer(serverID)
 	}
 
 	private fun configureEditorIfNeeded() {
@@ -565,6 +565,15 @@ class CodeEditorView(
 		onDeleteTabsPrefChanged()
 		onStickyScrollEnabeldPrefChanged()
 		onPinLineNumbersPrefChanged()
+	}
+
+	/**
+	 * Re-applies display-related preferences (font size, typeface, flags) after a configuration change
+	 * such as system font scale, so the editor activity can handle `fontScale` without being recreated.
+	 */
+	fun reapplyEditorDisplayPreferences() {
+		if (_binding == null) return
+		configureEditorIfNeeded()
 	}
 
 	private fun onMagnifierPrefChanged() {

@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.activityViewModels
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.adapters.MainActionsListAdapter
@@ -14,14 +13,17 @@ import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.databinding.FragmentMainBinding
+import com.itsaky.androidide.dnd.handleGitUrlDrop
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
 import com.itsaky.androidide.viewmodel.MainViewModel
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
+import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 class MainFragment : BaseFragment() {
-	private val viewModel by activityViewModels<MainViewModel>()
+	private val viewModel by activityViewModel<MainViewModel>()
 	private var binding: FragmentMainBinding? = null
 
 	companion object {
@@ -81,6 +83,15 @@ class MainFragment : BaseFragment() {
 			true
 		}
 		binding!!.greetingText.setOnClickListener { ifAttached { openQuickstartPageAction() } }
+
+		handleGitUrlDrop(
+			shouldAcceptDrop = {
+				isVisible &&
+				viewModel.currentScreen.value == MainViewModel.SCREEN_MAIN &&
+				ProjectManager.instance.openedProject == null
+			},
+			onDropped = viewModel::requestCloneRepository
+		)
 	}
 
 	private fun openQuickstartPageAction() {

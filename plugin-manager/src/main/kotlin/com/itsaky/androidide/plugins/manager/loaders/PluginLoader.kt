@@ -5,12 +5,11 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Resources
+import android.os.Build
 import android.util.Log
-import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
-import com.itsaky.androidide.plugins.manager.loaders.PluginManifestParser
-import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import dalvik.system.DexClassLoader
 import java.io.File
+import java.util.zip.ZipFile
 
 /**
  * Loader for APK-based plugins with full resource support
@@ -26,6 +25,7 @@ class PluginLoader(
     private var pluginResources: Resources? = null
     private var pluginPackageInfo: PackageInfo? = null
     private var pluginClassLoader: DexClassLoader? = null
+    private var nativeLibDir: File? = null
 
     /**
      * Load plugin resources from APK
@@ -88,7 +88,7 @@ class PluginLoader(
     /**
      * Load plugin classes from APK
      */
-    fun loadPluginClasses(parentClassLoader: ClassLoader): DexClassLoader? {
+    fun loadPluginClasses(parentClassLoader: ClassLoader, nativeLibPath: String? = null): DexClassLoader? {
         if (pluginClassLoader != null) {
             return pluginClassLoader
         }
@@ -102,11 +102,11 @@ class PluginLoader(
             pluginClassLoader = DexClassLoader(
                 pluginApk.absolutePath,
                 optimizedDir.absolutePath,
-                null,
+                nativeLibPath,
                 parentClassLoader
             )
 
-            Log.i(TAG, "Successfully created DexClassLoader for plugin APK")
+            Log.i(TAG, "Successfully created DexClassLoader for plugin APK (nativeLibPath=$nativeLibPath)")
             return pluginClassLoader
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create DexClassLoader: ${e.message}", e)
@@ -117,7 +117,7 @@ class PluginLoader(
     /**
      * Create a Context with plugin resources
      */
-    fun createPluginContext(): Context? {
+    fun createPluginContext(pluginId: String): Context? {
         // Ensure we have loaded resources first
         val resources = loadPluginResources()
         if (resources == null) {
@@ -131,17 +131,53 @@ class PluginLoader(
             return null
         }
 
-        // Create the plugin context with proper theming
         return PluginResourceContext(
             context,
+            pluginId,
             resources,
-            packageInfo
+            packageInfo,
+            pluginClassLoader
         )
     }
 
-    /**
-     * Get plugin metadata from AndroidManifest
-     */
+    fun extractNativeLibs(pluginId: String): File? {
+        val pluginNativeDir = File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId)
+        if (pluginNativeDir.exists()) {
+            nativeLibDir = pluginNativeDir
+            return pluginNativeDir
+        }
+
+        val libPrefix = "lib/${Build.SUPPORTED_ABIS[0]}/"
+        val targetPath = pluginNativeDir.toPath().toAbsolutePath().normalize()
+        pluginNativeDir.mkdirs()
+
+        var found = false
+        ZipFile(pluginApk).use { zip ->
+            zip.entries().asSequence()
+                .filter { !it.isDirectory && it.name.startsWith(libPrefix) && it.name.endsWith(".so") }
+                .forEach { entry ->
+                    val outPath = targetPath.resolve(entry.name.substringAfterLast("/")).normalize()
+                    if (outPath.startsWith(targetPath)) {
+                        zip.getInputStream(entry).use { input ->
+                            outPath.toFile().outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        outPath.toFile().setExecutable(true, false)
+                        found = true
+                    }
+                }
+        }
+
+        if (!found) {
+            pluginNativeDir.deleteRecursively()
+            return null
+        }
+
+        nativeLibDir = pluginNativeDir
+        return pluginNativeDir
+    }
+
     fun getPluginMetadata(): PluginManifest? {
         try {
             val packageInfo = pluginPackageInfo ?: context.packageManager.getPackageArchiveInfo(

@@ -63,7 +63,9 @@ import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
@@ -231,6 +233,10 @@ open class EditorHandlerActivity :
 		loadPluginTabs()
 	}
 
+	/**
+	 * Persists which tabs are open (preferences only). Does **not** write project file buffers to disk;
+	 * saving is explicit or prompted (e.g. close project).
+	 */
 	override fun onPause() {
 		super.onPause()
 		// Record timestamps for all currently open files before saving the cache
@@ -245,7 +251,6 @@ open class EditorHandlerActivity :
 		if (!isOpenedFilesSaved.get()) {
 			saveOpenedFiles()
 			saveOpenedPluginTabs()
-			saveAllAsync(notify = false)
 		}
 	}
 
@@ -270,27 +275,33 @@ open class EditorHandlerActivity :
 		invalidateOptionsMenu()
 	}
 
-	private fun checkForExternalFileChanges() {
-		// Get the list of files currently managed by the ViewModel
+	/**
+	 * Reloads disk content into an open editor only when the file changed on disk since the last
+	 * [onPause] snapshot **and** the in-memory buffer is still clean ([CodeEditorView.isModified] is
+	 * false). A clean buffer may still have undo history after [IDEEditor.markUnmodified] / save; we
+	 * reload anyway so external edits are not ignored. Never replaces buffers with unsaved edits.
+	 *
+	 * @param force If true, reloads even if the buffer is modified or the timestamp hasn't changed.
+	 */
+	fun checkForExternalFileChanges(force: Boolean = false) {
 		val openFiles = editorViewModel.getOpenedFiles()
-		if (openFiles.isEmpty() || fileTimestamps.isEmpty()) return
+		if (openFiles.isEmpty() || (fileTimestamps.isEmpty() && !force)) return
 
 		lifecycleScope.launch(Dispatchers.IO) {
-			// Check each open file
 			openFiles.forEach { file ->
-				val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: return@forEach
+				val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: 0L
 				val currentTimestamp = file.lastModified()
 
-				// If the file on disk is newer.
-				if (currentTimestamp > lastKnownTimestamp) {
+				if (currentTimestamp > lastKnownTimestamp || force) {
 					val newContent = runCatching { file.readText() }.getOrNull() ?: return@forEach
 					withContext(Dispatchers.Main) {
-						// If the editor for the new file exists AND has no unsaved changes...
 						val editorView = getEditorForFile(file) ?: return@withContext
-						if (editorView.isModified) return@withContext
+						if (editorView.isModified && !force) return@withContext
+						val ideEditor = editorView.editor ?: return@withContext
 
-						editorView.editor?.setText(newContent)
+						ideEditor.setText(newContent)
 						editorView.markAsSaved()
+						fileTimestamps[file.absolutePath] = currentTimestamp
 						updateTabs()
 					}
 				}
@@ -340,12 +351,19 @@ open class EditorHandlerActivity :
 					prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
 				} ?: return@launch
 
+				if (editorViewModel.getOpenedFileCount() > 0) {
+					// Returning to an in-memory session (e.g. after onPause/onStop). Replaying the
+					// snapshot would be redundant and could interfere with dirty buffers and undo.
+					withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null) }
+					return@launch
+				}
+
 				val cache = withContext(Dispatchers.Default) {
 					Gson().fromJson(jsonCache, OpenedFilesCache::class.java)
 				}
 				onReadOpenedFilesCache(cache)
 
-				// Clear the preference so it's only loaded once on startup
+				// Clear the preference so it's only loaded once per cold restore
 				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null) }
 			} catch (err: Throwable) {
 				log.error("Failed to reopen recently opened files", err)
@@ -409,11 +427,14 @@ open class EditorHandlerActivity :
 		content.projectActionsToolbar.clearMenu()
 
 		val actions = getInstance().getActions(EDITOR_TOOLBAR)
+		val hiddenIds = PluginBuildActionManager.getInstance().getHiddenActionIds()
 		actions.onEachIndexed { index, entry ->
 			val action = entry.value
 			val isLast = index == actions.size - 1
 
 			action.prepare(data)
+
+			if (action.id in hiddenIds || !action.visible) return@onEachIndexed
 
 			action.icon?.apply {
 				colorFilter = action.createColorFilter(data)
@@ -430,6 +451,18 @@ open class EditorHandlerActivity :
 						anchorView = content.projectActionsToolbar,
 						tag = action.retrieveTooltipTag(false),
 					)
+				},
+				onHover = { anchor ->
+					TooltipManager.cancelScheduledDismiss()
+					TooltipManager.showIdeCategoryTooltip(
+						context = this@EditorHandlerActivity,
+						anchorView = anchor,
+						tag = action.retrieveTooltipTag(false),
+						requestFocus = false,
+					)
+				},
+				onHoverExit = {
+					TooltipManager.scheduleActiveTooltipDismiss()
 				},
 				shouldAddMargin = !isLast,
 			)
@@ -734,6 +767,11 @@ open class EditorHandlerActivity :
 
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
+
+		val safeContent = contentOrNull ?: return
+		for (i in 0 until safeContent.editorContainer.childCount) {
+			(safeContent.editorContainer.getChildAt(i) as? CodeEditorView)?.reapplyEditorDisplayPreferences()
+		}
 
 		getCurrentEditor()?.editor?.apply {
 			doOnNextLayout {
@@ -1057,17 +1095,20 @@ open class EditorHandlerActivity :
 				nameBuilder.addPath(it, it.path)
 			}
 
-			for (index in 0 until content.tabs.tabCount) {
-				val file = files.getOrNull(index) ?: continue
+			for (tabPos in 0 until content.tabs.tabCount) {
+				if (isPluginTab(tabPos)) continue
+				val fileIndex = getFileIndexForTabPosition(tabPos)
+				if (fileIndex < 0) continue
+				val file = files.getOrNull(fileIndex) ?: continue
 				val count = dupliCount[file.name] ?: 0
 
-				val isModified = getEditorAtIndex(index)?.isModified ?: false
+				val isModified = getEditorAtIndex(fileIndex)?.isModified ?: false
 				var name = if (count > 1) nameBuilder.getShortPath(file) else file.name
 				if (isModified) {
 					name = "*$name"
 				}
 
-				names[index] = name to FileExtension.Factory.forFile(file, file.isDirectory).icon
+				names[tabPos] = name to FileExtension.Factory.forFile(file, file.isDirectory).icon
 			}
 
 			withContext(Dispatchers.Main) {
@@ -1149,11 +1190,15 @@ open class EditorHandlerActivity :
 
 				val iconRes = pluginTab.icon
 				if (iconRes != null) {
-					tab.icon = ResourcesCompat.getDrawable(resources, iconRes, theme)
+					val pluginId = tabManager.getPluginIdForTab(pluginTab.id)
+					tab.icon = PluginDrawableResolver.resolve(iconRes, pluginId, this@EditorHandlerActivity)
+						?: ResourcesCompat.getDrawable(resources, android.R.drawable.ic_menu_info_details, theme)
 				}
 
 				val tabIndex = content.tabs.tabCount
-				content.tabs.addTab(tab)
+
+				pluginTabIndices[pluginTab.id] = tabIndex
+				tabIndexToPluginId[tabIndex] = pluginTab.id
 
 				val containerView =
 					android.widget.FrameLayout(this@EditorHandlerActivity).apply {
@@ -1162,21 +1207,17 @@ open class EditorHandlerActivity :
 					}
 				content.editorContainer.addView(containerView)
 
-				pluginTabIndices[pluginTab.id] = tabIndex
-				tabIndexToPluginId[tabIndex] = pluginTab.id
-
-
-				// Load the plugin fragment into the container
 				val fragment = tabManager.getOrCreateTabFragment(pluginTab.id)
 				if (fragment != null) {
-					val fragmentManager = supportFragmentManager
-					val transaction = fragmentManager.beginTransaction()
-					transaction.add(containerView.id, fragment, "plugin_tab_${pluginTab.id}")
-					transaction.commitAllowingStateLoss()
+					supportFragmentManager.beginTransaction()
+						.add(containerView.id, fragment, "plugin_tab_${pluginTab.id}")
+						.commitNowAllowingStateLoss()
 					Log.d("EditorHandlerActivity", "Plugin fragment added to container for tab: ${pluginTab.id}")
 				} else {
 					Log.w("EditorHandlerActivity", "Failed to create fragment for plugin tab: ${pluginTab.id}")
 				}
+
+				content.tabs.addTab(tab)
 
 				if (!tab.isSelected) {
 					tab.select()

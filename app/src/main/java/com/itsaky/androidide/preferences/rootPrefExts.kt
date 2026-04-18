@@ -38,6 +38,7 @@ class ConfigurationPreferences(
 		addPreference(EditorPreferencesScreen())
 		addPreference(BuildAndRunPreferences())
 		addPreference(TermuxPreferences())
+		addPreference(GitPreferencesScreen())
 
 		// Only show Plugin Manager when experimental features are enabled
 		if (FeatureFlags.isExperimentsEnabled) {
