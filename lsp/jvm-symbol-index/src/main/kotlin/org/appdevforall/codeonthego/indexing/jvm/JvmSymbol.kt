@@ -54,40 +54,40 @@ enum class JvmVisibility {
  * - [JvmTypeAliasInfo] for Kotlin type aliases
  */
 data class JvmSymbol(
-    override val key: String,
-    override val sourceId: String,
+	override val key: String,
+	override val sourceId: String,
 
-    val fqName: String,
-    val shortName: String,
-    val packageName: String,
-    val kind: JvmSymbolKind,
-    val language: JvmSourceLanguage,
-    val visibility: JvmVisibility = JvmVisibility.PUBLIC,
-    val isDeprecated: Boolean = false,
+	val name: String,
+	val shortName: String,
+	val packageName: String,
+	val kind: JvmSymbolKind,
+	val language: JvmSourceLanguage,
+	val visibility: JvmVisibility = JvmVisibility.PUBLIC,
+	val isDeprecated: Boolean = false,
 
-    val data: JvmSymbolInfo,
+	val data: JvmSymbolInfo,
 ) : Indexable {
 
     val isTopLevel: Boolean
-        get() = data.containingClassFqName.isEmpty()
+        get() = data.containingClassName.isEmpty()
 
     val isExtension: Boolean
         get() = kind.isExtension
 
-    val receiverTypeFqName: String?
+    val receiverTypeName: String?
         get() = when (val d = data) {
-            is JvmFunctionInfo -> d.kotlin?.receiverTypeFqName?.takeIf { it.isNotEmpty() }
-            is JvmFieldInfo -> d.kotlin?.receiverTypeFqName?.takeIf { it.isNotEmpty() }
+            is JvmFunctionInfo -> d.kotlin?.receiverTypeName?.takeIf { it.isNotEmpty() }
+            is JvmFieldInfo -> d.kotlin?.receiverTypeName?.takeIf { it.isNotEmpty() }
             else -> null
         }
 
-    val containingClassFqName: String
-        get() = data.containingClassFqName
+    val containingClassName: String
+        get() = data.containingClassName
 
     val returnTypeDisplay: String
         get() = when (val d = data) {
-            is JvmFunctionInfo -> d.returnTypeDisplay
-            is JvmFieldInfo -> d.typeDisplay
+            is JvmFunctionInfo -> d.returnTypeDisplayName
+            is JvmFieldInfo -> d.typeDisplayName
             else -> ""
         }
 
@@ -100,21 +100,32 @@ data class JvmSymbol(
 
 /**
  * Base for all type-specific symbol data.
- * Every variant provides [containingClassFqName] (empty for top-level).
+ * Every variant provides [containingClassName] (empty for top-level).
  */
 sealed interface JvmSymbolInfo {
-    val containingClassFqName: String
+
+	/**
+	 * The internal name of the containing class.
+	 */
+    val containingClassName: String
+
+	/**
+	 * The fully qualified name of the containing class, in dot format.
+	 */
+	val containingClassFqName: String
+		get() = containingClassName.toFqName()
 }
 
 data class JvmClassInfo(
-    override val containingClassFqName: String = "",
-    val supertypeFqNames: List<String> = emptyList(),
-    val typeParameters: List<String> = emptyList(),
-    val isAbstract: Boolean = false,
-    val isFinal: Boolean = false,
-    val isInner: Boolean = false,
-    val isStatic: Boolean = false,
-    val kotlin: KotlinClassInfo? = null,
+	val internalName: String = "",
+	override val containingClassName: String = "",
+	val supertypeNames: List<String> = emptyList(),
+	val typeParameters: List<String> = emptyList(),
+	val isAbstract: Boolean = false,
+	val isFinal: Boolean = false,
+	val isInner: Boolean = false,
+	val isStatic: Boolean = false,
+	val kotlin: KotlinClassInfo? = null,
 ) : JvmSymbolInfo
 
 data class KotlinClassInfo(
@@ -130,32 +141,38 @@ data class KotlinClassInfo(
 )
 
 data class JvmFunctionInfo(
-    override val containingClassFqName: String = "",
-    val returnTypeFqName: String = "",
-    val returnTypeDisplay: String = "",
-    val parameterCount: Int = 0,
-    val parameters: List<JvmParameterInfo> = emptyList(),
-    val signatureDisplay: String = "",
-    val typeParameters: List<String> = emptyList(),
-    val isStatic: Boolean = false,
-    val isAbstract: Boolean = false,
-    val isFinal: Boolean = false,
-    val kotlin: KotlinFunctionInfo? = null,
-) : JvmSymbolInfo
+	override val containingClassName: String = "",
+	val returnTypeName: String = "",
+	val returnTypeDisplayName: String = "",
+	val parameterCount: Int = 0,
+	val parameters: List<JvmParameterInfo> = emptyList(),
+	val signatureDisplay: String = "",
+	val typeParameters: List<String> = emptyList(),
+	val isStatic: Boolean = false,
+	val isAbstract: Boolean = false,
+	val isFinal: Boolean = false,
+	val kotlin: KotlinFunctionInfo? = null,
+) : JvmSymbolInfo {
+	val returnTypeFqName: String
+		get() = returnTypeName.toFqName()
+}
 
 data class JvmParameterInfo(
     val name: String,
-    val typeFqName: String,
-    val typeDisplay: String,
+    val typeName: String,
+    val typeDisplayName: String,
     val hasDefaultValue: Boolean = false,
     val isCrossinline: Boolean = false,
     val isNoinline: Boolean = false,
     val isVararg: Boolean = false,
-)
+) {
+	val typeFqName: String
+		get() = typeName.toFqName()
+}
 
 data class KotlinFunctionInfo(
-    val receiverTypeFqName: String = "",
-    val receiverTypeDisplay: String = "",
+    val receiverTypeName: String = "",
+    val receiverTypeDisplayName: String = "",
     val isSuspend: Boolean = false,
     val isInline: Boolean = false,
     val isInfix: Boolean = false,
@@ -165,21 +182,27 @@ data class KotlinFunctionInfo(
     val isExpect: Boolean = false,
     val isActual: Boolean = false,
     val isReturnTypeNullable: Boolean = false,
-)
+) {
+	val receiverTypeFqName: String
+		get() = receiverTypeName.toFqName()
+}
 
 data class JvmFieldInfo(
-    override val containingClassFqName: String = "",
-    val typeFqName: String = "",
-    val typeDisplay: String = "",
-    val isStatic: Boolean = false,
-    val isFinal: Boolean = false,
-    val constantValue: String = "",
-    val kotlin: KotlinPropertyInfo? = null,
-) : JvmSymbolInfo
+	override val containingClassName: String = "",
+	val typeName: String = "",
+	val typeDisplayName: String = "",
+	val isStatic: Boolean = false,
+	val isFinal: Boolean = false,
+	val constantValue: String = "",
+	val kotlin: KotlinPropertyInfo? = null,
+) : JvmSymbolInfo {
+	val typeFqName: String
+		get() = typeName.toFqName()
+}
 
 data class KotlinPropertyInfo(
-    val receiverTypeFqName: String = "",
-    val receiverTypeDisplay: String = "",
+    val receiverTypeName: String = "",
+    val receiverTypeDisplayName: String = "",
     val isConst: Boolean = false,
     val isLateinit: Boolean = false,
     val hasGetter: Boolean = false,
@@ -189,16 +212,26 @@ data class KotlinPropertyInfo(
     val isActual: Boolean = false,
     val isExternal: Boolean = false,
     val isTypeNullable: Boolean = false,
-)
+) {
+	val receiverTypeFqName: String
+		get() = receiverTypeName.toFqName()
+}
 
 data class JvmEnumEntryInfo(
-    override val containingClassFqName: String = "",
-    val ordinal: Int = 0,
+	override val containingClassName: String = "",
+	val ordinal: Int = 0,
 ) : JvmSymbolInfo
 
 data class JvmTypeAliasInfo(
-    override val containingClassFqName: String = "",
-    val expandedTypeFqName: String = "",
-    val expandedTypeDisplay: String = "",
-    val typeParameters: List<String> = emptyList(),
-) : JvmSymbolInfo
+	override val containingClassName: String = "",
+	val expandedTypeName: String = "",
+	val expandedTypeDisplayName: String = "",
+	val typeParameters: List<String> = emptyList(),
+) : JvmSymbolInfo {
+	val expandedTypeFqName: String
+		get() = expandedTypeName.toFqName()
+}
+
+private fun String.toFqName() =
+	replace('/', '.')
+		.replace('$', '.')
