@@ -24,12 +24,11 @@
         android:id="@+id/icon"
         android:layout_width="0dp"
         android:layout_height="150dp"
-        android:src="@drawable/app_dev_for_all_logo"
+        android:src="@drawable/cogo_brand_mark"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/title"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Full" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/title"

@@ -1029,6 +1029,8 @@
 	<string name="msg_no_file_manager">No file manager found</string>
 	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
+	<string name="action_discover_plugins">Discover plugins</string>
+	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
