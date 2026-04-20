@@ -3,8 +3,14 @@
 package com.itsaky.androidide.activities
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
+import android.widget.CheckBox
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.graphics.Insets
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -19,6 +25,8 @@ import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
+import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.getFileName
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
@@ -34,7 +42,8 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
     companion object {
-        private const val REQUEST_CODE_PICK_PLUGIN = 1001
+        private const val TAG = "PluginManagerActivity"
+        private const val PLUGIN_EXTENSION = ".cgp"
     }
 
     private var _binding: ActivityPluginManagerBinding? = null
@@ -44,8 +53,28 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     private lateinit var adapter: PluginListAdapter
     private var feedbackButtonManager: FeedbackButtonManager? = null
 
-    // ViewModel injected via Koin
     private val viewModel: PluginManagerViewModel by viewModel()
+
+    private val pluginPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        it,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Could not take persistable URI permission", e)
+                }
+
+                if (!it.isSupportedPluginFile()) {
+                    flashError(getString(R.string.msg_unsupported_plugin_file))
+                    return@let
+                }
+
+                showInstallConfirmation(it)
+            }
+        }
 
     override fun bindLayout(): View {
         _binding = ActivityPluginManagerBinding.inflate(layoutInflater)
@@ -74,7 +103,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         } catch (e: Exception) {
             // Log the error and finish the activity if something goes wrong
             e.printStackTrace()
-            flashError("Failed to initialize Plugin Manager: ${e.message}")
+            flashError(getString(R.string.msg_plugin_manager_init_failed, e.message))
             finish()
         }
     }
@@ -82,6 +111,27 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     override fun onResume() {
         super.onResume()
         feedbackButtonManager?.loadFabPosition()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_plugin_manager, menu)
+        binding.toolbar.post {
+            binding.toolbar.findViewById<View>(R.id.action_discover_plugins)?.setOnLongClickListener { view ->
+                TooltipManager.showIdeCategoryTooltip(this, view, TooltipTag.PLUGIN_MANAGER)
+                true
+            }
+        }
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_discover_plugins -> {
+                UrlManager.openUrl(getString(R.string.url_discover_plugins), null, this)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 
     override fun onDestroy() {
@@ -181,11 +231,11 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             is PluginManagerUiEffect.ShowError -> {
                 flashbarBuilder(duration = 5000L)
                     .errorIcon()
-                    .message(effect.message)
+                    .message(getString(effect.messageResId, *effect.formatArgs.toTypedArray()))
                     .showOnUiThread()
             }
             is PluginManagerUiEffect.ShowSuccess -> {
-                flashSuccess(effect.message)
+                flashSuccess(getString(effect.messageResId))
             }
             is PluginManagerUiEffect.ShowPluginDetails -> {
                 showPluginDetails(effect.plugin)
@@ -203,30 +253,28 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun openFilePicker() {
-        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-            type = "*/*"  // Accept all files to allow .cgp
-            addCategory(Intent.CATEGORY_OPENABLE)
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("*/*"))
-        }
-
         try {
-            startActivityForResult(
-                Intent.createChooser(intent, "Select Plugin File"),
-                REQUEST_CODE_PICK_PLUGIN
-            )
+            pluginPickerLauncher.launch(arrayOf("*/*"))
         } catch (_: Exception) {
-            flashError("No file manager found")
+            flashError(getString(R.string.msg_no_file_manager))
         }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
+    private fun Uri.isSupportedPluginFile(): Boolean =
+        getFileName(this@PluginManagerActivity).endsWith(PLUGIN_EXTENSION, ignoreCase = true)
 
-        if (requestCode == REQUEST_CODE_PICK_PLUGIN && resultCode == RESULT_OK) {
-            data?.data?.let { uri ->
-                viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(uri))
+    private fun showInstallConfirmation(uri: Uri) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_install_plugin, null)
+        val deleteCheckBox = dialogView.findViewById<CheckBox>(R.id.checkbox_delete_source)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.title_install_plugin)
+            .setView(dialogView)
+            .setPositiveButton(R.string.btn_install) { _, _ ->
+                viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(uri, deleteCheckBox.isChecked))
             }
-        }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun showUninstallConfirmation(plugin: PluginInfo) {

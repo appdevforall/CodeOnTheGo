@@ -24,6 +24,7 @@ import com.itsaky.androidide.tasks.executeAsyncProvideError
 import com.itsaky.androidide.utils.VMUtils
 import org.slf4j.LoggerFactory
 import java.io.IOException
+import java.io.Reader
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -56,6 +57,24 @@ object SnippetParser {
 		}
 	}
 
+	fun parseFromReader(
+		reader: Reader,
+		snippetFactory: (String, String, List<String>) -> ISnippet = { prefix, desc, body ->
+			DefaultSnippet(prefix, desc, body.toTypedArray())
+		},
+	): List<ISnippet> {
+		val snippets = mutableListOf<ISnippet>()
+		JsonReader(reader).use {
+			it.beginObject()
+			while (it.hasNext()) {
+				val prefix = it.nextName()
+				readSnippet(prefix, it, snippetFactory, snippets)
+			}
+			it.endObject()
+		}
+		return snippets
+	}
+
 	private fun readSnippets(
 		lang: String,
 		type: String,
@@ -70,18 +89,10 @@ object SnippetParser {
 						.open(assetsPath(lang, type))
 						.reader()
 				} catch (e: IOException) {
-					// snippet file probably does not exist
 					return@executeAsyncProvideError
 				}
 
-			JsonReader(content).use {
-				it.beginObject()
-				while (it.hasNext()) {
-					val prefix = it.nextName()
-					readSnippet(prefix, it, snippetFactory, snippets)
-				}
-				it.endObject()
-			}
+			snippets.addAll(parseFromReader(content, snippetFactory))
 		}) { result, err ->
 			if (result == null || err != null) {
 				log.error("Failed to load '{}' snippets", type, err)

@@ -28,6 +28,7 @@ import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clea
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.internal.model.CachedCompletion
@@ -141,13 +142,14 @@ class JavaLanguageServer : ILanguageServer {
 		this.client = client
 	}
 
-	override fun connectDebugClient(client: IDebugClient) {
+	override suspend fun connectDebugClient(client: IDebugClient): DebugClientConnectionResult {
 		if (JdwpOptions.JDWP_ENABLED) {
 			log.info("Connecting to debug client: {}", client)
-			this.debugAdapter.connectDebugClient(client)
-		} else {
-			log.info("Not connecting to debug client. JDWP disabled.")
+			return this.debugAdapter.connectDebugClient(client)
 		}
+
+		log.info("Not connecting to debug client. JDWP disabled.")
+		return DebugClientConnectionResult.Success
 	}
 
 	override fun applySettings(settings: IServerSettings?) {

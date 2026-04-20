@@ -78,18 +78,6 @@ internal class KotlinProjectModel {
 	}
 
 	/**
-	 * Called when a build completes and source files may have changed
-	 * (generated sources added/removed), but the module structure is the same.
-	 */
-	fun onSourcesChanged() {
-		if (workspace == null) {
-			logger.warn("onSourcesChanged called before project model was initialized")
-			return
-		}
-		notifyListeners(ChangeKind.SOURCES)
-	}
-
-	/**
 	 * Configures a [KtModuleProviderBuilder] with the current project structure.
 	 *
 	 * Called by [CompilationEnvironment] during session creation or rebuild.

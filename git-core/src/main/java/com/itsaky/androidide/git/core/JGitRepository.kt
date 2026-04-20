@@ -1,31 +1,45 @@
 package com.itsaky.androidide.git.core
 
-import com.itsaky.androidide.git.core.models.*
-import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.api.ListBranchCommand.ListMode
-import org.eclipse.jgit.lib.Constants
-import org.eclipse.jgit.lib.Repository
-import org.eclipse.jgit.revwalk.RevCommit
-import org.eclipse.jgit.storage.file.FileRepositoryBuilder
-import java.io.File
-
+import com.itsaky.androidide.git.core.models.ChangeType
+import com.itsaky.androidide.git.core.models.FileChange
+import com.itsaky.androidide.git.core.models.GitBranch
+import com.itsaky.androidide.git.core.models.GitCommit
+import com.itsaky.androidide.git.core.models.GitStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.eclipse.jgit.api.errors.NoHeadException
+import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.ListBranchCommand.ListMode
+import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.dircache.DirCacheIterator
+import org.eclipse.jgit.lib.BranchConfig
+import org.eclipse.jgit.lib.Constants
+import org.eclipse.jgit.lib.PersonIdent
+import org.eclipse.jgit.lib.ProgressMonitor
+import org.eclipse.jgit.lib.Repository
+import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder
+import org.eclipse.jgit.transport.CredentialsProvider
+import org.eclipse.jgit.transport.PushResult
+import org.eclipse.jgit.api.PullResult
+import org.eclipse.jgit.api.ResetCommand.ResetType
+import org.eclipse.jgit.lib.RepositoryState
 import org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.eclipse.jgit.treewalk.EmptyTreeIterator
 import org.eclipse.jgit.treewalk.FileTreeIterator
 import org.eclipse.jgit.treewalk.filter.PathFilter
+import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
  * JGit-based implementation of the [GitRepository] interface.
  */
 class JGitRepository(override val rootDir: File) : GitRepository {
+
+    private val log = LoggerFactory.getLogger(JGitRepository::class.java)
 
     private val repository: Repository = FileRepositoryBuilder()
         .setWorkTree(rootDir)
@@ -65,11 +79,12 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         
         jgitStatus.conflicting.forEach { conflicted.add(FileChange(it, ChangeType.CONFLICTED)) }
 
-
+        val isMerging = repository.repositoryState == RepositoryState.MERGING
 
         GitStatus(
             isClean = jgitStatus.isClean,
             hasConflicts = jgitStatus.conflicting.isNotEmpty(),
+            isMerging = isMerging,
             staged = staged,
             unstaged = unstaged,
             untracked = untracked,
@@ -102,10 +117,22 @@ class JGitRepository(override val rootDir: File) : GitRepository {
 
     override suspend fun getHistory(limit: Int): List<GitCommit> = withContext(Dispatchers.IO) {
         try {
-            git.log().setMaxCount(limit).call().map { revCommit ->
-                revCommit.toGitCommit()
+            val branchName = repository.branch ?: return@withContext emptyList()
+            val trackingBranch = BranchConfig(repository.config, branchName).trackingBranch
+
+            RevWalk(repository).use { walk ->
+                val remoteCommit = trackingBranch?.let { repository.resolve(it) }?.let {
+                    walk.parseCommit(it)
+                }
+
+                git.log().setMaxCount(limit).call().map { revCommit ->
+                    val commit = walk.parseCommit(revCommit.id)
+                    val isPushed = remoteCommit?.let { walk.isMergedInto(commit, it) } ?: false
+                    commit.toGitCommit(isPushed)
+                }
             }
-        } catch (_: NoHeadException) {
+        } catch (e: Exception) {
+            log.error("Error fetching commit history", e)
             emptyList()
         }
     }
@@ -130,19 +157,144 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         outputStream.toString()
     }
 
-    private fun RevCommit.toGitCommit(): GitCommit {
+    override suspend fun stageFiles(files: List<File>) = withContext(Dispatchers.IO) {
+        val addCommand = git.add()
+        val rmCommand = git.rm()
+        var hasAdds = false
+        var hasRms = false
+
+        files.forEach { file ->
+            val relativePath = file.toRelativeString(rootDir).replace('\\', '/')
+            if (file.exists()) {
+                addCommand.addFilepattern(relativePath)
+                hasAdds = true
+            } else {
+                rmCommand.addFilepattern(relativePath)
+                hasRms = true
+            }
+        }
+        if (hasAdds) addCommand.call()
+        if (hasRms) rmCommand.call()
+        Unit
+    }
+
+    override suspend fun commit(
+        message: String,
+        authorName: String?,
+        authorEmail: String?
+    ): GitCommit? = withContext(Dispatchers.IO) {
+        val commitCommand = git.commit().setMessage(message)
+
+        if (!authorName.isNullOrBlank() && !authorEmail.isNullOrBlank()) {
+            val author = PersonIdent(authorName, authorEmail)
+            commitCommand.apply {
+                setAuthor(author)
+                setCommitter(author)
+            }
+        }
+
+        val revCommit = commitCommand.call()
+        revCommit?.toGitCommit(false)
+    }
+
+    private fun RevCommit.toGitCommit(hasBeenPushed: Boolean): GitCommit {
         val author = authorIdent
         return GitCommit(
             hash = name,
             shortHash = name.take(7),
             authorName = author.name,
             authorEmail = author.emailAddress,
-            message = fullMessage,
+            message = fullMessage.trim(),
             timestamp = author.`when`.time,
-            parentHashes = parents.map { it.name }
+            parentHashes = parents.map { it.name },
+            hasBeenPushed = hasBeenPushed
         )
     }
     
+    override suspend fun push(
+        remote: String,
+        credentialsProvider: CredentialsProvider?,
+        progressMonitor: ProgressMonitor?
+    ): Iterable<PushResult> = withContext(Dispatchers.IO) {
+        val pushCommand = git.push().setRemote(remote)
+        
+        if (credentialsProvider != null) {
+            pushCommand.setCredentialsProvider(credentialsProvider)
+        }
+        
+        if (progressMonitor != null) {
+            pushCommand.setProgressMonitor(progressMonitor)
+        }
+
+        pushCommand.call()
+    }
+
+    override suspend fun getLocalCommitsCount(): Int = withContext(Dispatchers.IO) {
+        try {
+            val branchName = repository.branch ?: return@withContext 0
+            val branch = repository.resolve(Constants.HEAD) ?: return@withContext 0
+            val config = BranchConfig(repository.config, branchName)
+            val trackingBranch = config.trackingBranch
+            val remoteBranch = trackingBranch?.let { repository.resolve(it) }
+
+            RevWalk(repository).use { walk ->
+                val localCommit = walk.parseCommit(branch)
+                walk.markStart(localCommit)
+                
+                if (remoteBranch != null) {
+                    val remoteCommit = walk.parseCommit(remoteBranch)
+                    walk.markUninteresting(remoteCommit)
+                }
+
+                var count = 0
+                walk.forEach { _ ->
+                    count++
+                }
+                count
+            }
+        } catch (e: Exception) {
+            log.error("Error fetching local commits", e)
+            0
+        }
+    }
+
+    override suspend fun pull(
+        remote: String,
+        credentialsProvider: CredentialsProvider?,
+        progressMonitor: ProgressMonitor?
+    ): PullResult = withContext(Dispatchers.IO) {
+        val pullCommand = git.pull().setRemote(remote)
+        
+        if (credentialsProvider != null) {
+            pullCommand.setCredentialsProvider(credentialsProvider)
+        }
+        
+        if (progressMonitor != null) {
+            pullCommand.setProgressMonitor(progressMonitor)
+        }
+
+        pullCommand.call()
+    }
+    
+    override suspend fun merge(branchName: String): MergeResult = withContext(Dispatchers.IO) {
+        val branchRef = repository.findRef(branchName) ?: throw IllegalArgumentException("Branch $branchName not found")
+        git.merge().include(branchRef).call()
+    }
+
+    override suspend fun abortMerge(): Unit = withContext(Dispatchers.IO) {
+        // Reset working tree and index to HEAD
+        git.reset().setMode(ResetType.HARD).setRef(Constants.HEAD).call()
+        
+        // Explicitly clear merge-related files to exit the MERGING state
+        repository.apply {
+            writeMergeHeads(null)
+            writeMergeCommitMsg(null)
+            writeCherryPickHead(null)
+            writeRevertHead(null)
+            writeSquashCommitMsg(null)
+        }
+    }
+
     override fun close() {
         repository.close()
         git.close()
