@@ -101,6 +101,7 @@ android {
 	defaultConfig {
 		applicationId = BuildConfig.PACKAGE_NAME
 		vectorDrawables.useSupportLibrary = true
+		testInstrumentationRunnerArguments["class"] = "com.itsaky.androidide.OrderedTestSuite"
 	}
 
 	signingConfigs {
@@ -123,8 +124,6 @@ android {
 	}
 
 	testOptions {
-		execution = "ANDROIDX_TEST_ORCHESTRATOR"
-
 		unitTests {
 			isIncludeAndroidResources = true
 			all {
@@ -153,14 +152,29 @@ android {
 
 	packaging {
 		resources {
-			excludes.add("META-INF/DEPENDENCIES")
-			excludes.add("META-INF/gradle/incremental.annotation.processors")
+			excludes += "META-INF/DEPENDENCIES"
+			excludes += "META-INF/gradle/incremental.annotation.processors"
+
+			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
+			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"
+			pickFirsts += "kotlin/kotlin.kotlin_builtins"
+			pickFirsts += "kotlin/coroutines/coroutines.kotlin_builtins"
+			pickFirsts += "kotlin/ranges/ranges.kotlin_builtins"
+			pickFirsts += "kotlin/concurrent/atomics/atomics.kotlin_builtins"
+			pickFirsts += "kotlin/collections/collections.kotlin_builtins"
+			pickFirsts += "kotlin/annotation/annotation.kotlin_builtins"
+
+			pickFirsts += "META-INF/FastDoubleParser-LICENSE"
+			pickFirsts += "META-INF/thirdparty-LICENSE"
+			pickFirsts += "META-INF/FastDoubleParser-NOTICE"
+			pickFirsts += "META-INF/thirdparty-NOTICE"
 		}
 
 		jniLibs {
 			useLegacyPackaging = false
 		}
 	}
+
 	compileOptions {
 		sourceCompatibility = JavaVersion.VERSION_17
 		targetCompatibility = JavaVersion.VERSION_17
@@ -195,6 +209,10 @@ desugaring {
 
 configurations.matching { it.name.contains("AndroidTest") }.configureEach {
 	exclude(group = "com.google.protobuf", module = "protobuf-lite")
+}
+
+configurations.configureEach {
+	exclude(group = "org.jetbrains.kotlin", module = "kotlin-android-extensions-runtime")
 }
 
 dependencies {
@@ -278,6 +296,7 @@ dependencies {
 	implementation(projects.gradlePluginConfig)
 	implementation(projects.subprojects.aaptcompiler)
 	implementation(projects.subprojects.javacServices)
+	implementation(projects.subprojects.kotlinAnalysisApi)
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)
 	implementation(projects.subprojects.shizukuProvider)
@@ -321,7 +340,7 @@ dependencies {
 	androidTestImplementation(libs.tests.kaspresso)
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
-	androidTestUtil(libs.tests.orchestrator)
+	// androidTestUtil(libs.tests.orchestrator)
 	testImplementation(libs.tests.kotlinx.coroutines)
 
 	// brotli4j

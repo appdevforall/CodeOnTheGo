@@ -31,4 +31,8 @@ data class ReferenceParams(
   override val cancelChecker: ICancelChecker
 ) : CancellableRequestParams
 
-data class ReferenceResult(var locations: List<Location>)
+data class ReferenceResult(var locations: List<Location>) {
+	companion object {
+		fun empty() = ReferenceResult(locations = emptyList())
+	}
+}
