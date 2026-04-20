@@ -74,21 +74,21 @@ class GitFileChangeAdapter(
             // Re-set the listener after the state is initialized
             binding.checkbox.setOnCheckedChangeListener { _, isChecked ->
                 val pos = bindingAdapterPosition
-                if (pos != RecyclerView.NO_POSITION) {
-                    val changeAtPos = getItem(pos)
-                    // Conflicted files should not be selectable
-                    if (changeAtPos.type == ChangeType.CONFLICTED) {
-                        binding.checkbox.isChecked = false
-                        return@setOnCheckedChangeListener
-                    }
-                    
-                    if (isChecked) {
-                        selectedFiles.add(changeAtPos.path)
-                    } else {
-                        selectedFiles.remove(changeAtPos.path)
-                    }
-                    onSelectionChanged(selectedFiles.size)
+                if (pos == RecyclerView.NO_POSITION) return@setOnCheckedChangeListener
+
+                val changeAtPos = getItem(pos)
+                // Conflicted files should not be selectable
+                if (changeAtPos.type == ChangeType.CONFLICTED) {
+                    binding.checkbox.isChecked = false
+                    return@setOnCheckedChangeListener
                 }
+                
+                if (isChecked) {
+                    selectedFiles.add(changeAtPos.path)
+                } else {
+                    selectedFiles.remove(changeAtPos.path)
+                }
+                onSelectionChanged(selectedFiles.size)
             }
             
             val contentAlpha = if (isConflicted) 0.5f else 1.0f
