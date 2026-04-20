@@ -15,7 +15,7 @@ object SnippetHandler {
 	private val log = LoggerFactory.getLogger(SnippetHandler::class.java)
 
 	fun loadUserSnippets() {
-		loadUserSnippetsForLanguage("java", JavaSnippetScope.entries.toTypedArray())
+		loadUserSnippetsForLanguage("java", JavaSnippetScope.entries)
 		loadUserSnippetsForLanguage("xml", XML_SNIPPET_SCOPES)
 	}
 
@@ -50,7 +50,7 @@ object SnippetHandler {
 
 	private fun <S : ISnippetScope> loadUserSnippetsForLanguage(
 		language: String,
-		scopes: Array<S>,
+		scopes: Iterable<S>,
 	) {
 		SnippetRegistry.clearUserSnippets(language)
 		val userSnippets = UserSnippetLoader.loadUserSnippets(language, scopes)

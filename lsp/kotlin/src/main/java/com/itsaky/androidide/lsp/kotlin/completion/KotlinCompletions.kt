@@ -15,9 +15,9 @@ import com.itsaky.androidide.lsp.models.CompletionItemKind
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.InsertTextFormat
+import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
@@ -55,9 +55,14 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.psi.KtBlockExpression
+import org.jetbrains.kotlin.psi.KtClassBody
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
+import org.jetbrains.kotlin.psi.KtElement
+import org.jetbrains.kotlin.psi.KtFunction
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
+import org.jetbrains.kotlin.psi.KtWhenExpression
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
 import org.jetbrains.kotlin.types.Variance
@@ -143,6 +148,7 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 					}
 
 					collectKeywordCompletions(to = items)
+					collectSnippetCompletions(to = items)
 					CompletionResult(items)
 				}
 			}
@@ -418,6 +424,67 @@ private fun KaSession.collectKeywordCompletions(
 	ModifierFilter.validModifiers(ctx).mapTo(to) { kw ->
 		kwItem(kw.value)
 	}
+}
+
+context(ctx: AnalysisContext)
+private fun KaSession.collectSnippetCompletions(to: MutableList<CompletionItem>) {
+	val snippets = buildList {
+		// add global snippets, if any
+		KotlinSnippetRepository.snippets[KotlinSnippetScope.GLOBAL]?.also { addAll(it) }
+
+		val snippetScope = when (ctx.declarationKind) {
+			DeclarationKind.CLASS ,
+			DeclarationKind.INTERFACE ,
+			DeclarationKind.OBJECT ,
+			DeclarationKind.ENUM_CLASS ,
+			DeclarationKind.ANNOTATION_CLASS -> KotlinSnippetScope.MEMBER
+
+			DeclarationKind.CONSTRUCTOR,
+			DeclarationKind.FUN -> KotlinSnippetScope.LOCAL
+
+			DeclarationKind.UNKNOWN -> KotlinSnippetScope.TOP_LEVEL.takeIf { ctx.declarationContext == DeclarationContext.TOP_LEVEL }
+
+			DeclarationKind.PROPERTY_VAL -> null
+			DeclarationKind.PROPERTY_VAR -> null
+			DeclarationKind.TYPEALIAS -> null
+		}
+
+		logger.info("Adding completions for snippet scope: {} (context: {}, kind: {})", snippetScope, ctx.declarationContext, ctx.declarationKind)
+		KotlinSnippetRepository.snippets[snippetScope]?.also { addAll(it) }
+	}
+
+	val indent = computeIndentLevelAt(ctx.ktElement)
+	for (snippet in snippets) {
+		to += ktCompletionItem(snippet.prefix, CompletionItemKind.SNIPPET).apply {
+			detail = snippet.description
+			ideSortText = "00000${snippet.prefix}"
+			snippetDescription = describeSnippet(ctx.partial)
+
+			val indentation = indentationString(indent)
+			insertTextFormat = InsertTextFormat.SNIPPET
+			insertText = snippet.body.joinToString(separator = System.lineSeparator()) {
+				it.replace("\t", indentation)
+					.replace("\n", "\n${indentation}")
+			}
+		}
+	}
+}
+
+private fun computeIndentLevelAt(ktElement: KtElement): Int {
+	var indentLevel = 0
+	var current = ktElement.parent
+
+	while (current != null) {
+		if (current is KtBlockExpression ||
+			current is KtClassBody ||
+			current is KtWhenExpression ||
+			current is KtFunction) {
+			indentLevel++
+		}
+		current = current.parent
+	}
+
+	return indentLevel
 }
 
 context(ctx: AnalysisContext)
