@@ -403,10 +403,6 @@ class ZipRecipeExecutor(
         log.error(msg)
     }
 
-
-    private fun Exception.wrap(msg: String): RuntimeException =
-        RuntimeException(msg, this)
-
     private fun Exception.wrap(
         context: Context,
         @StringRes resId: Int,
