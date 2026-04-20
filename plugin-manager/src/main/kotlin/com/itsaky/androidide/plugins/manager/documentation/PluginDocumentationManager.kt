@@ -211,7 +211,14 @@ class PluginDocumentationManager(private val context: Context) {
                     asset.bytes
                 }
 
-                val basePath = "plugin/$pluginId/${asset.relativePath}"
+                val safeRelative = try {
+                    normalizeLocalDocumentationPath(asset.relativePath)
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "Skipping Tier 3 asset with invalid path '${asset.relativePath}': ${e.message}")
+                    skipped++
+                    continue
+                }
+                val basePath = "plugin/$pluginId/$safeRelative"
                 insertContentChunked(db, basePath, payload, row.id)
                 inserted++
             }
@@ -283,9 +290,10 @@ class PluginDocumentationManager(private val context: Context) {
     suspend fun isPluginTier3DocumentationInstalled(pluginId: String): Boolean = withContext(Dispatchers.IO) {
         val db = getPluginDatabase() ?: return@withContext false
         try {
+            val prefix = "plugin/$pluginId"
             db.rawQuery(
-                "SELECT 1 FROM Content WHERE path = ? OR path LIKE ? LIMIT 1",
-                arrayOf("plugin/$pluginId", "plugin/$pluginId/%")
+                "SELECT 1 FROM Content WHERE path = ? OR path LIKE ? ESCAPE '\\' LIMIT 1",
+                arrayOf(prefix, "${escapeLike(prefix)}/%")
             ).use { cursor -> cursor.moveToFirst() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -315,8 +323,8 @@ class PluginDocumentationManager(private val context: Context) {
         val prefix = "plugin/$pluginId"
         return db.delete(
             "Content",
-            "path = ? OR path LIKE ?",
-            arrayOf(prefix, "$prefix/%")
+            "path = ? OR path LIKE ? ESCAPE '\\'",
+            arrayOf(prefix, "${escapeLike(prefix)}/%")
         )
     }
 
@@ -359,7 +367,7 @@ class PluginDocumentationManager(private val context: Context) {
             put("contentTypeID", contentTypeId)
             put("languageId", 1)
         }
-        db.insert("Content", null, values)
+        db.insertOrThrow("Content", null, values)
     }
 
     private fun removePluginDocumentationInternal(db: SQLiteDatabase, pluginId: String) {
@@ -450,11 +458,26 @@ class PluginDocumentationManager(private val context: Context) {
         return db.insert("Tooltips", null, values)
     }
 
+    private fun escapeLike(value: String): String =
+        value
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+
+    private fun normalizeLocalDocumentationPath(path: String): String {
+        val segments = path.split('/').filter { it.isNotEmpty() && it != "." }
+        require(segments.none { it == ".." }) {
+            "Documentation paths must not contain '..' segments: $path"
+        }
+        return segments.joinToString("/")
+    }
+
     private fun resolvePluginButtonUri(pluginId: String, rawUri: String): String {
         if (rawUri.isEmpty()) return rawUri
         if (rawUri.contains("://")) return rawUri
-        if (rawUri.startsWith("/")) return rawUri.trimStart('/')
-        return "plugin/$pluginId/$rawUri"
+        val absolute = rawUri.startsWith("/")
+        val normalized = normalizeLocalDocumentationPath(rawUri.trimStart('/'))
+        return if (absolute) normalized else "plugin/$pluginId/$normalized"
     }
 
     private fun insertTooltipButton(
