@@ -223,7 +223,7 @@ class GradleBuildService :
 		val builder =
 			Notification
 				.Builder(this, BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE)
-				.setSmallIcon(R.drawable.ic_launcher_fg_vector)
+				.setSmallIcon(R.drawable.ic_cogo_notification)
 				.setTicker(ticker)
 				.setWhen(System.currentTimeMillis())
 				.setContentTitle(title)
