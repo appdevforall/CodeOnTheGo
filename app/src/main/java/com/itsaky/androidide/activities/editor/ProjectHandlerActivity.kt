@@ -67,6 +67,7 @@ import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
@@ -578,7 +579,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						projectDir = projectDir,
 						buildVariants = buildVariants,
 						needsGradleSync = needsSync,
-						buildId = buildService.nextBuildId(),
+						buildId = buildService.nextBuildId(BuildRunType.ProjectSync),
 					),
 			)
 
