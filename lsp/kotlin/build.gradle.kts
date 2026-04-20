@@ -38,6 +38,7 @@ dependencies {
 
 	implementation(projects.lsp.api)
 	implementation(projects.lsp.models)
+	implementation(projects.editorApi)
 	implementation(projects.eventbusEvents)
 	implementation(projects.subprojects.kotlinAnalysisApi)
 	implementation(projects.shared)
