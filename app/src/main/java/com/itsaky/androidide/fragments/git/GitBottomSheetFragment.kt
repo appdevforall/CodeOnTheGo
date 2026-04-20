@@ -8,6 +8,7 @@ import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.view.View
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -22,8 +23,11 @@ import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.ChangeType
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.PullUiState
@@ -163,7 +167,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         binding.commitDescription.doAfterTextChanged { validateCommitButton() }
 
         binding.btnAbortMerge.setOnClickListener {
-            MaterialAlertDialogBuilder(requireContext())
+            val dialog = MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.abort_merge)
                 .setMessage(R.string.confirm_abort_merge)
                 .setPositiveButton(R.string.abort_merge) { _, _ ->
@@ -175,7 +179,9 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     }
                 }
                 .setNegativeButton(android.R.string.cancel, null)
-                .show()
+                .create()
+            dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_ABORT_MERGE)
+            dialog.show()
         }
 
         binding.authorAvatar.setOnClickListener {
@@ -277,11 +283,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                         val message = state.message ?: getString(R.string.info_merge_conflicts)
-                        MaterialAlertDialogBuilder(requireContext())
+                        val dialog = MaterialAlertDialogBuilder(requireContext())
                             .setTitle(getString(R.string.merge_conflicts))
                             .setMessage(message)
                             .setPositiveButton(android.R.string.ok, null)
-                            .show()
+                            .create()
+                        dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_MERGE_CONFLICTS)
+                        dialog.show()
                         viewModel.resetPullState()
                         refreshEditorContent()
                     }
@@ -292,11 +300,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             state.message ?: state.errorResId?.let { resId -> 
                                 if (state.errorArgs != null) getString(resId, *state.errorArgs.toTypedArray()) else getString(resId)
                             }
-                        MaterialAlertDialogBuilder(requireContext())
+                        val dialog = MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.pull_failed)
                             .setMessage(message)
                             .setPositiveButton(android.R.string.ok, null)
-                            .show()
+                            .create()
+                        dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_PULL_FAIL)
+                        dialog.show()
                     }
                 }
             }
@@ -347,5 +357,16 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    fun AlertDialog.setTooltipOnDialog(tag: String) {
+        onLongPress {
+            TooltipManager.showIdeCategoryTooltip(
+                context = binding.root.context,
+                anchorView = binding.root,
+                tag = tag
+            )
+            true
+        }
     }
 }

@@ -15,7 +15,10 @@ import com.itsaky.androidide.databinding.DialogGitCredentialsBinding
 import com.itsaky.androidide.fragments.git.adapter.GitCommitHistoryAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -137,11 +140,20 @@ class GitCommitHistoryDialog : DialogFragment() {
                         } else {
                             state.message ?: getString(R.string.unknown_error)
                         }
-                        MaterialAlertDialogBuilder(requireContext())
+                        val dialog = MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.push_failed)
                             .setMessage(message)
                             .setPositiveButton(android.R.string.ok, null)
-                            .show()
+                            .create()
+                        dialog.onLongPress {
+                            TooltipManager.showIdeCategoryTooltip(
+                                context = binding.root.context,
+                                anchorView = binding.root,
+                                tag = TooltipTag.GIT_DIALOG_PUSH_FAIL
+                            )
+                            true
+                        }
+                        dialog.show()
                     }
                 }
             }

@@ -94,8 +94,12 @@ fun View.setupGestureHandling(
  *                 and should return `true` if the listener has consumed the event, `false` otherwise.
  */
 fun AlertDialog.onLongPress(listener: (View) -> Boolean) {
-	this.setOnShowListener {
+	if (this.isShowing) {
 		this.window?.decorView?.applyLongPressRecursively(listener)
+	} else {
+		this.setOnShowListener {
+			this.window?.decorView?.applyLongPressRecursively(listener)
+		}
 	}
 }
 
