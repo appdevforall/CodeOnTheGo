@@ -98,9 +98,12 @@ abstract class ModuleProject(
 	 * Get the classpaths with compile scope. This must include classpaths of transitive project
 	 * dependencies as well. This includes classpaths for this module as well.
 	 *
+	 * @param excludeSourceGeneratedClassPath Whether to exclude classpath that's generated from
+	 * source files of this module or its dependencies. Defaults to `false`.
 	 * @return The source directories.
 	 */
-	abstract fun getCompileClasspaths(): Set<File>
+	abstract fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File>
+	fun getCompileClasspaths() = getCompileClasspaths(false)
 
 	/**
 	 * Get the intermediate build output classpaths for this module.

@@ -83,7 +83,8 @@ open class AndroidModule(
 
 	override fun getClassPaths(): Set<File> = getModuleClasspaths()
 
-	fun getVariant(name: String): AndroidModels.AndroidVariant? = variantList.firstOrNull { it.name == name }
+	fun getVariant(name: String): AndroidModels.AndroidVariant? =
+		variantList.firstOrNull { it.name == name }
 
 	fun getResourceDirectories(): Set<File> {
 		if (mainSourceSet == null) {
@@ -140,14 +141,24 @@ open class AndroidModule(
 			addAll(getSelectedVariant()?.mainArtifact?.classJars ?: emptyList())
 		}
 
-	override fun getCompileClasspaths(): Set<File> {
+	override fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File> {
 		val project = IProjectManager.getInstance().workspace ?: return emptySet()
 		val result = mutableSetOf<File>()
-		result.addAll(getModuleClasspaths())
+		if (excludeSourceGeneratedClassPath) {
+			// TODO: The mainArtifact.classJars are technically generated from source files
+			// 	But they're also kind-of not and are required for resolving R.* symbols
+			// 	Should we instead split this API into more fine-tuned getters?
+			result.addAll(
+				getSelectedVariant()?.mainArtifact?.classJars ?: emptyList()
+			)
+		} else {
+			result.addAll(getModuleClasspaths())
+		}
 		collectLibraries(
 			root = project,
 			libraries = variantDependencies.mainArtifact?.compileDependencyList ?: emptyList(),
 			result = result,
+			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
 		)
 		return result
 	}
@@ -169,7 +180,10 @@ open class AndroidModule(
 				.forEach { result.add(it) }
 		}
 
-		val rClassDir = File(buildDirectory, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$variant")
+		val rClassDir = File(
+			buildDirectory,
+			"intermediates/compile_and_runtime_not_namespaced_r_class_jar/$variant"
+		)
 		if (rClassDir.exists()) {
 			rClassDir.walkTopDown()
 				.filter { it.name == "R.jar" && it.isFile }
@@ -184,7 +198,11 @@ open class AndroidModule(
 		val variant = getSelectedVariant()?.name ?: "debug"
 		val buildDirectory = delegate.buildDir
 
-		log.info("getRuntimeDexFiles: buildDir={}, variant={}", buildDirectory.absolutePath, variant)
+		log.info(
+			"getRuntimeDexFiles: buildDir={}, variant={}",
+			buildDirectory.absolutePath,
+			variant
+		)
 
 		val dexDir = File(buildDirectory, "intermediates/dex/$variant")
 		log.info("  Checking dexDir: {} (exists: {})", dexDir.absolutePath, dexDir.exists())
@@ -198,7 +216,11 @@ open class AndroidModule(
 		}
 
 		val mergeProjectDexDir = File(buildDirectory, "intermediates/project_dex_archive/$variant")
-		log.info("  Checking project_dex_archive: {} (exists: {})", mergeProjectDexDir.absolutePath, mergeProjectDexDir.exists())
+		log.info(
+			"  Checking project_dex_archive: {} (exists: {})",
+			mergeProjectDexDir.absolutePath,
+			mergeProjectDexDir.exists()
+		)
 		if (mergeProjectDexDir.exists()) {
 			mergeProjectDexDir.walkTopDown()
 				.filter { it.name.endsWith(".dex") && it.isFile }
@@ -216,6 +238,7 @@ open class AndroidModule(
 		root: Workspace,
 		libraries: List<AndroidModels.GraphItem>,
 		result: MutableSet<File>,
+		excludeSourceGeneratedClassPath: Boolean = false,
 	) {
 		val libraryMap = variantDependencies.librariesMap
 		for (library in libraries) {
@@ -226,7 +249,7 @@ open class AndroidModule(
 					continue
 				}
 
-				result.addAll(module.getCompileClasspaths())
+				result.addAll(module.getCompileClasspaths(excludeSourceGeneratedClassPath))
 			} else if (lib.type == AndroidModels.LibraryType.ExternalAndroidLibrary && lib.hasAndroidLibraryData()) {
 				result.addAll(lib.androidLibraryData.compileJarFiles)
 			} else if (lib.type == AndroidModels.LibraryType.ExternalJavaLibrary && lib.hasArtifactPath()) {
@@ -386,7 +409,8 @@ open class AndroidModule(
 			var deps: Int
 			val androidLibraries =
 				variantDependencies.librariesMap.values.mapNotNull { library ->
-					val packageName = library.androidLibraryData?.findPackageName() ?: UNKNOWN_PACKAGE
+					val packageName =
+						library.androidLibraryData?.findPackageName() ?: UNKNOWN_PACKAGE
 					if (library.type != AndroidModels.LibraryType.ExternalAndroidLibrary ||
 						!library.hasAndroidLibraryData() ||
 						!library.androidLibraryData!!.resFolder.exists() ||
@@ -563,5 +587,6 @@ open class AndroidModule(
 		return variant
 	}
 
-	private fun getPlatformDir() = bootClassPaths.firstOrNull { it.name == "android.jar" }?.parentFile
+	private fun getPlatformDir() =
+		bootClassPaths.firstOrNull { it.name == "android.jar" }?.parentFile
 }
