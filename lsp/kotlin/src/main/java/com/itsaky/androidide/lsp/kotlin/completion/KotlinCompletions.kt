@@ -38,12 +38,10 @@ import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
-import org.jetbrains.kotlin.psi.psiUtil.startOffset
 import org.jetbrains.kotlin.types.Variance
 import org.slf4j.LoggerFactory
 
@@ -58,7 +56,7 @@ private val logger = LoggerFactory.getLogger("KotlinCompletions")
  * @param params The completion parameters.
  * @return The completion result.
  */
-fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult {
+internal fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult {
 	val managedFile = fileManager.getOpenFile(params.file)
 	if (managedFile == null) {
 		logger.warn("No managed file for {}", params.file)
@@ -91,6 +89,12 @@ fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult 
 			useSiteElement = completionKtFile,
 			resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
 		) {
+			val symbolVisibilityChecker = this@complete.symbolVisibilityChecker
+			if (symbolVisibilityChecker == null) {
+				logger.error("No symbol visibility checker available!")
+				return@analyzeCopy CompletionResult.EMPTY
+			}
+
 			val cursorContext = resolveCursorContext(completionKtFile, completionOffset)
 			if (cursorContext == null) {
 				logger.error(
@@ -117,6 +121,7 @@ fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult 
 					collectScopeCompletions(
 						scopeContext = scopeContext,
 						scope = compositeScope,
+						symbolVisibilityChecker = symbolVisibilityChecker,
 						ktElement = ktElement,
 						partial = partial,
 						to = items
@@ -240,6 +245,7 @@ private fun KaSession.collectExtensionFunctions(
 private fun KaSession.collectScopeCompletions(
 	scopeContext: KaScopeContext,
 	scope: KaScope,
+	symbolVisibilityChecker: SymbolVisibilityChecker,
 	ktElement: KtElement,
 	partial: String,
 	to: MutableList<CompletionItem>,

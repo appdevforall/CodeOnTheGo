@@ -440,6 +440,12 @@ class GradleBuildService :
 					buildResult = result,
 				),
 		)
+
+		buildServiceScope.launch {
+			ProjectManagerImpl.getInstance()
+				.indexingServiceManager
+				.onBuildCompleted()
+		}
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
