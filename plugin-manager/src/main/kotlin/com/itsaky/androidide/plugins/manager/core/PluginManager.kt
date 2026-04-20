@@ -405,79 +405,31 @@ class PluginManager private constructor(
                 return Result.failure(e)
             }
 
-            if (initResult) {
-                // Register the plugin's resource context for UI components
-                val isLegacy = (ctx as? PluginResourceContext)?.let { !it.usesCustomPackageId() } ?: true
-                PluginFragmentHelper.registerPluginContext(manifest.id, ctx, isLegacy)
-                logger.debug("Registered resource context for plugin: ${manifest.id} (legacy=$isLegacy)")
-                // Register the service registry for fragments to access services
-                PluginFragmentHelper.registerServiceRegistry(manifest.id, pluginContext.services)
-                logger.debug("Registered service registry for plugin: ${manifest.id}")
-
-                val isEnabled = getPluginState(manifest.id)
-                val loadedPlugin = LoadedPlugin(plugin, manifest, classLoader, pluginContext, file.absolutePath, isEnabled)
-                loadedPlugins[manifest.id] = loadedPlugin
-                if (isEnabled) {
-                    try {
-                        if (plugin is SnippetExtension) {
-                            PluginSnippetManager.getInstance().registerPlugin(manifest.id, plugin)
-                        }
-
-                        plugin.activate()
-                        logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
-
-                        if (plugin is DocumentationExtension) {
-                            val pluginApkPath = file.absolutePath
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    val docResult = documentationManager.verifyAndRecreateDocumentation(manifest.id, plugin)
-                                    if (docResult) {
-                                        logger.info("Documentation verified/installed for plugin: ${manifest.id}")
-                                    } else {
-                                        logger.warn("Failed to verify/install documentation for plugin: ${manifest.id}")
-                                    }
-                                } catch (e: Exception) {
-                                    logger.error("Error verifying/installing documentation for plugin: ${manifest.id}", e)
-                                }
-
-                                try {
-                                    val tier3Result = documentationManager.verifyAndRecreateTier3Documentation(
-                                        manifest.id, plugin, pluginApkPath
-                                    )
-                                    if (tier3Result) {
-                                        logger.info("Tier 3 docs verified/installed for plugin: ${manifest.id}")
-                                    } else {
-                                        logger.warn("Failed to verify/install Tier 3 docs for plugin: ${manifest.id}")
-                                    }
-                                } catch (e: Exception) {
-                                    logger.error("Error verifying/installing Tier 3 docs for plugin: ${manifest.id}", e)
-                                }
-                            }
-                        }
-
-                        val buildActionManager = PluginBuildActionManager.getInstance()
-                        if (plugin is BuildActionExtension) {
-                            buildActionManager.registerPlugin(manifest.id, manifest.name, plugin)
-                            logger.info("Registered build actions for plugin: ${manifest.id}")
-                        }
-                        buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
-                    } catch (e: Exception) {
-                        logger.error("Failed to activate  plugin: ${manifest.id}", e)
-                        loadedPlugin.isEnabled = false
-                        savePluginState(manifest.id, false)
-                    }
-                } else {
-                    logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
-                }
-
-                Result.success(plugin)
-            } else {
+            if (!initResult) {
                 logger.warn(" plugin initialization returned false for: ${manifest.id}")
                 if (manifest.sidebarItems > 0) {
                     SidebarSlotManager.releasePluginSlots(manifest.id)
                 }
-                Result.failure(RuntimeException(" plugin initialization failed for: ${manifest.id}"))
+                return Result.failure(RuntimeException(" plugin initialization failed for: ${manifest.id}"))
             }
+
+            val isLegacy = (ctx as? PluginResourceContext)?.let { !it.usesCustomPackageId() } ?: true
+            PluginFragmentHelper.registerPluginContext(manifest.id, ctx, isLegacy)
+            logger.debug("Registered resource context for plugin: ${manifest.id} (legacy=$isLegacy)")
+            PluginFragmentHelper.registerServiceRegistry(manifest.id, pluginContext.services)
+            logger.debug("Registered service registry for plugin: ${manifest.id}")
+
+            val isEnabled = getPluginState(manifest.id)
+            val loadedPlugin = LoadedPlugin(plugin, manifest, classLoader, pluginContext, file.absolutePath, isEnabled)
+            loadedPlugins[manifest.id] = loadedPlugin
+
+            if (!isEnabled) {
+                logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
+                return Result.success(plugin)
+            }
+
+            activateLoadedPlugin(loadedPlugin)
+            Result.success(plugin)
         } catch (e: Exception) {
             reservedSlotsPluginId?.let { pluginId ->
                 SidebarSlotManager.releasePluginSlots(pluginId)
@@ -485,6 +437,67 @@ class PluginManager private constructor(
             logger.error("Failed to load  plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
             Result.failure(RuntimeException("Error loading  plugin: ${e.message}", e))
         }
+    }
+
+    private fun activateLoadedPlugin(loadedPlugin: LoadedPlugin) {
+        val plugin = loadedPlugin.plugin
+        val manifest = loadedPlugin.manifest
+        runCatching {
+            if (plugin is SnippetExtension) {
+                PluginSnippetManager.getInstance().registerPlugin(manifest.id, plugin)
+            }
+
+            plugin.activate()
+            logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
+
+            if (plugin is DocumentationExtension) {
+                installPluginDocumentationAsync(manifest.id, plugin, loadedPlugin.apkPath)
+            }
+
+            val buildActionManager = PluginBuildActionManager.getInstance()
+            if (plugin is BuildActionExtension) {
+                buildActionManager.registerPlugin(manifest.id, manifest.name, plugin)
+                logger.info("Registered build actions for plugin: ${manifest.id}")
+            }
+            buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
+        }.onFailure { e ->
+            logger.error("Failed to activate  plugin: ${manifest.id}", e)
+            loadedPlugin.isEnabled = false
+            savePluginState(manifest.id, false)
+        }
+    }
+
+    private fun installPluginDocumentationAsync(
+        pluginId: String,
+        plugin: DocumentationExtension,
+        apkPath: String
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            runDocStep("documentation", pluginId) {
+                documentationManager.verifyAndRecreateDocumentation(pluginId, plugin)
+            }
+            runDocStep("Tier 3 docs", pluginId) {
+                documentationManager.verifyAndRecreateTier3Documentation(pluginId, plugin, apkPath)
+            }
+        }
+    }
+
+    private suspend fun runDocStep(
+        label: String,
+        pluginId: String,
+        block: suspend () -> Boolean
+    ) {
+        runCatching { block() }
+            .onSuccess { result ->
+                if (result) {
+                    logger.info("$label verified/installed for plugin: $pluginId")
+                } else {
+                    logger.warn("Failed to verify/install $label for plugin: $pluginId")
+                }
+            }
+            .onFailure { e ->
+                logger.error("Error verifying/installing $label for plugin: $pluginId", e)
+            }
     }
 
     fun unloadPlugin(pluginId: String): Boolean {
