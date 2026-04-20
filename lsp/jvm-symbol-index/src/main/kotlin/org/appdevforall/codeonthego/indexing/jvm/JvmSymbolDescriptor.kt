@@ -42,8 +42,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
         KEY_NAME to entry.shortName,
         KEY_PACKAGE to entry.packageName,
         KEY_KIND to entry.kind.name,
-        KEY_RECEIVER_TYPE to entry.receiverTypeFqName,
-        KEY_CONTAINING_CLASS to entry.containingClassFqName.ifEmpty { null },
+        KEY_RECEIVER_TYPE to entry.receiverTypeName,
+        KEY_CONTAINING_CLASS to entry.containingClassName.ifEmpty { null },
         KEY_LANGUAGE to entry.language.name,
     )
 
@@ -55,7 +55,7 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 
     private fun toProto(s: JvmSymbol): JvmSymbolData {
         val builder = JvmSymbolData.newBuilder()
-            .setFqName(s.fqName)
+            .setName(s.name)
             .setShortName(s.shortName)
             .setPackageName(s.packageName)
             .setSourceId(s.sourceId)
@@ -77,8 +77,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 
     private fun classInfoToProto(d: JvmClassInfo): JvmSymbolProtos.ClassData {
         val builder = JvmSymbolProtos.ClassData.newBuilder()
-            .setContainingClassFqName(d.containingClassFqName)
-            .addAllSupertypeFqNames(d.supertypeFqNames)
+            .setContainingClassName(d.containingClassName)
+            .addAllSupertypeNames(d.supertypeNames)
             .addAllTypeParameters(d.typeParameters)
             .setIsAbstract(d.isAbstract)
             .setIsFinal(d.isFinal)
@@ -105,9 +105,9 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 
     private fun functionInfoToProto(d: JvmFunctionInfo): JvmSymbolProtos.FunctionData {
         val builder = JvmSymbolProtos.FunctionData.newBuilder()
-            .setContainingClassFqName(d.containingClassFqName)
-            .setReturnTypeFqName(d.returnTypeFqName)
-            .setReturnTypeDisplay(d.returnTypeDisplay)
+            .setContainingClassName(d.containingClassName)
+            .setReturnTypeName(d.returnTypeName)
+            .setReturnTypeDisplayName(d.returnTypeDisplayName)
             .setParameterCount(d.parameterCount)
             .addAllParameters(d.parameters.map { paramToProto(it) })
             .setSignatureDisplay(d.signatureDisplay)
@@ -119,8 +119,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
         d.kotlin?.let { kd ->
             builder.setKotlin(
                 JvmSymbolProtos.KotlinFunctionData.newBuilder()
-                    .setReceiverTypeFqName(kd.receiverTypeFqName)
-                    .setReceiverTypeDisplay(kd.receiverTypeDisplay)
+                    .setReceiverTypeName(kd.receiverTypeName)
+                    .setReceiverTypeDisplayName(kd.receiverTypeDisplayName)
                     .setIsSuspend(kd.isSuspend)
                     .setIsInline(kd.isInline)
                     .setIsInfix(kd.isInfix)
@@ -139,8 +139,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
     private fun paramToProto(p: JvmParameterInfo): JvmSymbolProtos.ParameterData =
         JvmSymbolProtos.ParameterData.newBuilder()
             .setName(p.name)
-            .setTypeFqName(p.typeFqName)
-            .setTypeDisplay(p.typeDisplay)
+            .setTypeName(p.typeName)
+            .setTypeDisplayName(p.typeDisplayName)
             .setHasDefaultValue(p.hasDefaultValue)
             .setIsCrossinline(p.isCrossinline)
             .setIsNoinline(p.isNoinline)
@@ -149,9 +149,9 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 
     private fun fieldInfoToProto(d: JvmFieldInfo): JvmSymbolProtos.FieldData {
         val builder = JvmSymbolProtos.FieldData.newBuilder()
-            .setContainingClassFqName(d.containingClassFqName)
-            .setTypeFqName(d.typeFqName)
-            .setTypeDisplay(d.typeDisplay)
+            .setContainingClassName(d.containingClassName)
+            .setTypeName(d.typeName)
+            .setTypeDisplayName(d.typeDisplayName)
             .setIsStatic(d.isStatic)
             .setIsFinal(d.isFinal)
             .setConstantValue(d.constantValue)
@@ -159,8 +159,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
         d.kotlin?.let { kd ->
             builder.setKotlin(
                 JvmSymbolProtos.KotlinPropertyData.newBuilder()
-                    .setReceiverTypeFqName(kd.receiverTypeFqName)
-                    .setReceiverTypeDisplay(kd.receiverTypeDisplay)
+                    .setReceiverTypeName(kd.receiverTypeName)
+                    .setReceiverTypeDisplayName(kd.receiverTypeDisplayName)
                     .setIsConst(kd.isConst)
                     .setIsLateinit(kd.isLateinit)
                     .setHasGetter(kd.hasGetter)
@@ -178,14 +178,14 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 
     private fun enumEntryToProto(d: JvmEnumEntryInfo): JvmSymbolProtos.EnumEntryData =
         JvmSymbolProtos.EnumEntryData.newBuilder()
-            .setContainingEnumFqName(d.containingClassFqName)
+            .setContainingEnumName(d.containingClassName)
             .setOrdinal(d.ordinal)
             .build()
 
     private fun typeAliasToProto(d: JvmTypeAliasInfo): JvmSymbolProtos.TypeAliasData =
         JvmSymbolProtos.TypeAliasData.newBuilder()
-            .setExpandedTypeFqName(d.expandedTypeFqName)
-            .setExpandedTypeDisplay(d.expandedTypeDisplay)
+            .setExpandedTypeName(d.expandedTypeName)
+            .setExpandedTypeDisplayName(d.expandedTypeDisplayName)
             .addAllTypeParameters(d.typeParameters)
             .build()
 
@@ -199,17 +199,17 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
                     && kind != JvmSymbolKind.FIELD -> {
                 val params = (data as? JvmFunctionInfo)
                     ?.parameters
-                    ?.joinToString(",") { it.typeFqName }
+                    ?.joinToString(",") { it.typeName }
                     ?: ""
-                "${p.fqName}($params)"
+                "${p.name}($params)"
             }
-            else -> p.fqName
+            else -> p.name
         }
 
         return JvmSymbol(
             key = key,
             sourceId = p.sourceId,
-            fqName = p.fqName,
+            name = p.name,
             shortName = p.shortName,
             packageName = p.packageName,
             kind = kind,
@@ -246,8 +246,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
         } else null
 
         return JvmClassInfo(
-            containingClassFqName = p.containingClassFqName,
-            supertypeFqNames = p.supertypeFqNamesList.toList(),
+            containingClassName = p.containingClassName,
+            supertypeNames = p.supertypeNamesList.toList(),
             typeParameters = p.typeParametersList.toList(),
             isAbstract = p.isAbstract,
             isFinal = p.isFinal,
@@ -261,8 +261,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
         val kotlin = if (p.hasKotlin()) {
             val kd = p.kotlin
             KotlinFunctionInfo(
-                receiverTypeFqName = kd.receiverTypeFqName,
-                receiverTypeDisplay = kd.receiverTypeDisplay,
+                receiverTypeName = kd.receiverTypeName,
+                receiverTypeDisplayName = kd.receiverTypeDisplayName,
                 isSuspend = kd.isSuspend,
                 isInline = kd.isInline,
                 isInfix = kd.isInfix,
@@ -276,9 +276,9 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
         } else null
 
         return JvmFunctionInfo(
-            containingClassFqName = p.containingClassFqName,
-            returnTypeFqName = p.returnTypeFqName,
-            returnTypeDisplay = p.returnTypeDisplay,
+            containingClassName = p.containingClassName,
+            returnTypeName = p.returnTypeName,
+            returnTypeDisplayName = p.returnTypeDisplayName,
             parameterCount = p.parameterCount,
             parameters = p.parametersList.map { paramFromProto(it) },
             signatureDisplay = p.signatureDisplay,
@@ -293,8 +293,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
     private fun paramFromProto(p: JvmSymbolProtos.ParameterData): JvmParameterInfo =
         JvmParameterInfo(
             name = p.name,
-            typeFqName = p.typeFqName,
-            typeDisplay = p.typeDisplay,
+            typeName = p.typeName,
+            typeDisplayName = p.typeDisplayName,
             hasDefaultValue = p.hasDefaultValue,
             isCrossinline = p.isCrossinline,
             isNoinline = p.isNoinline,
@@ -305,8 +305,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
         val kotlin = if (p.hasKotlin()) {
             val kd = p.kotlin
             KotlinPropertyInfo(
-                receiverTypeFqName = kd.receiverTypeFqName,
-                receiverTypeDisplay = kd.receiverTypeDisplay,
+                receiverTypeName = kd.receiverTypeName,
+                receiverTypeDisplayName = kd.receiverTypeDisplayName,
                 isConst = kd.isConst,
                 isLateinit = kd.isLateinit,
                 hasGetter = kd.hasGetter,
@@ -320,9 +320,9 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
         } else null
 
         return JvmFieldInfo(
-            containingClassFqName = p.containingClassFqName,
-            typeFqName = p.typeFqName,
-            typeDisplay = p.typeDisplay,
+            containingClassName = p.containingClassName,
+            typeName = p.typeName,
+            typeDisplayName = p.typeDisplayName,
             isStatic = p.isStatic,
             isFinal = p.isFinal,
             constantValue = p.constantValue,
@@ -332,14 +332,14 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 
     private fun enumEntryFromProto(p: JvmSymbolProtos.EnumEntryData): JvmEnumEntryInfo =
         JvmEnumEntryInfo(
-            containingClassFqName = p.containingEnumFqName,
+            containingClassName = p.containingEnumName,
             ordinal = p.ordinal,
         )
 
     private fun typeAliasFromProto(p: JvmSymbolProtos.TypeAliasData): JvmTypeAliasInfo =
         JvmTypeAliasInfo(
-            expandedTypeFqName = p.expandedTypeFqName,
-            expandedTypeDisplay = p.expandedTypeDisplay,
+            expandedTypeName = p.expandedTypeName,
+            expandedTypeDisplayName = p.expandedTypeDisplayName,
             typeParameters = p.typeParametersList.toList(),
         )
 

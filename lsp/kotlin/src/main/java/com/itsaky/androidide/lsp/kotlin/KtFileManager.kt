@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin
 
+import com.itsaky.androidide.projects.FileManager
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.analyzeCopy
@@ -125,7 +126,6 @@ class KtFileManager(
 
 		updateDocumentContent(entry, content)
 		logger.debug("File opened and managed: {}", path)
-		return
 	}
 
 	override fun onFileContentChanged(path: Path, content: String) {
@@ -150,7 +150,22 @@ class KtFileManager(
 		logger.debug("File closed: {}", path)
 	}
 
-	fun getOpenFile(path: Path): ManagedFile? = entries[path]
+	fun getOpenFile(path: Path): ManagedFile? {
+		val managed = entries[path]
+		if (managed != null) {
+			return managed
+		}
+
+		val activeDocument = FileManager.getActiveDocument(path)
+		if (activeDocument != null) {
+			// document is active, but we were not notified
+			// open it now
+			onFileOpened(path, activeDocument.content)
+			return entries[path]
+		}
+
+		return null
+	}
 
 	fun allOpenFiles(): Collection<ManagedFile> =
 		entries.values.toList()

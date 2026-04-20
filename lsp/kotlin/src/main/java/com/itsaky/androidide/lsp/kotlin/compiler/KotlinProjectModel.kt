@@ -1,6 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
-import com.itsaky.androidide.lsp.kotlin.completion.SymbolVisibilityChecker
+import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
