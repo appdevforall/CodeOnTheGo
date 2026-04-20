@@ -1,18 +1,18 @@
 package com.itsaky.androidide.lsp.kotlin.completion
 
-import com.itsaky.androidide.lsp.kotlin.KtFileManager
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.insertImport
 import com.itsaky.androidide.lsp.models.ClassCompletionData
 import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.util.RewriteHelper
 import io.github.rosemoe.sora.widget.CodeEditor
+import org.jetbrains.kotlin.psi.KtFile
 
 internal class KotlinClassImportEditHandler(
 	analysisContext: AnalysisContext,
 ) : AdvancedKotlinEditHandler(analysisContext) {
 	override fun performEdits(
-		managedFile: KtFileManager.ManagedFile,
+		ktFile: KtFile,
 		editor: CodeEditor,
 		item: CompletionItem
 	) {

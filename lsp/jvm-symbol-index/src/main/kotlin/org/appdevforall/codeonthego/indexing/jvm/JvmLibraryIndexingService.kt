@@ -27,36 +27,41 @@ import kotlin.io.path.extension
  * Both the Kotlin and Java LSPs use this key to retrieve the
  * shared index from the [IndexRegistry].
  */
-val JVM_LIBRARY_SYMBOL_INDEX = IndexKey<JvmLibrarySymbolIndex>("jvm-library-symbols")
+val JVM_LIBRARY_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-library-symbols")
 
 /**
  * [IndexingService] that scans classpath JARs/AARs and builds
- * a [JvmLibrarySymbolIndex].
+ * a [JvmSymbolIndex].
  *
  * Thread safety: all methods are called from the
  * [IndexingServiceManager][org.appdevforall.codeonthego.indexing.service.IndexingServiceManager]'s
- * coroutine scope. The [JvmLibrarySymbolIndex] handles its own internal thread safety.
+ * coroutine scope. The [JvmSymbolIndex] handles its own internal thread safety.
  */
-class JvmIndexingService(
+class JvmLibraryIndexingService(
 	private val context: Context,
 ) : IndexingService {
 
 	companion object {
 		const val ID = "jvm-indexing-service"
-		private val log = LoggerFactory.getLogger(JvmIndexingService::class.java)
+		private val log = LoggerFactory.getLogger(JvmLibraryIndexingService::class.java)
 	}
 
 	override val id = ID
 
 	override val providedKeys = listOf(JVM_LIBRARY_SYMBOL_INDEX)
 
-	private var index: JvmLibrarySymbolIndex? = null
+	private var libraryIndex: JvmSymbolIndex? = null
 	private var indexingMutex = Mutex()
 	private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val jvmIndex = JvmLibrarySymbolIndex.create(context)
-		this.index = jvmIndex
+		val jvmIndex = JvmSymbolIndex.createSqliteIndex(
+			context = context,
+			dbName = JvmSymbolIndex.DB_NAME_DEFAULT,
+			indexName = JvmSymbolIndex.INDEX_NAME_LIBRARY
+		)
+
+		this.libraryIndex = jvmIndex
 		registry.register(JVM_LIBRARY_SYMBOL_INDEX, jvmIndex)
 		log.info("JVM symbol index initialized")
 	}
@@ -76,7 +81,7 @@ class JvmIndexingService(
 	}
 
 	private suspend fun reindexLibraries() {
-		val index = this.index ?: run {
+		val index = this.libraryIndex ?: run {
 			log.warn("Not indexing libraries. Index not initialized.")
 			return
 		}
@@ -110,7 +115,7 @@ class JvmIndexingService(
 		// JARs not in the set become invisible to queries.
 		// JARs in the set that are already cached become
 		// visible immediately.
-		index.setActiveLibraries(currentJars)
+		index.setActiveSources(currentJars)
 
 		// Step 2: Index any JARs not yet in the cache.
 		// Already-cached JARs are skipped (cheap existence check).
@@ -118,9 +123,9 @@ class JvmIndexingService(
 		// they're already in the active set.
 		var newCount = 0
 		for (jarPath in currentJars) {
-			if (!index.isLibraryCached(jarPath)) {
+			if (!index.isCached(jarPath)) {
 				newCount++
-				index.indexLibrary(jarPath) { sourceId ->
+				index.indexSource(jarPath, skipIfExists = true) { sourceId ->
 					CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
 				}
 			}
@@ -135,8 +140,8 @@ class JvmIndexingService(
 
 	override fun close() {
 		coroutineScope.cancelIfActive("indexing service closed")
-		index?.close()
-		index = null
+		libraryIndex?.close()
+		libraryIndex = null
 	}
 
 	private fun isIndexableJar(path: Path): Boolean {

@@ -1,7 +1,5 @@
 package org.appdevforall.codeonthego.indexing
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
@@ -54,17 +52,12 @@ class InMemoryIndex<T : Indexable>(
         }
     }
 
-    override fun query(query: IndexQuery): Flow<T> = flow {
+    override fun query(query: IndexQuery): Sequence<T> {
         val keys = resolveMatchingKeys(query)
-        var emitted = 0
         val limit = if (query.limit <= 0) Int.MAX_VALUE else query.limit
-
-        for (key in keys) {
-            if (emitted >= limit) break
-            val entry = primaryMap[key] ?: continue
-            emit(entry)
-            emitted++
-        }
+        return keys
+            .mapNotNull { primaryMap[it] }
+            .take(limit)
     }
 
     override suspend fun get(key: String): T? = primaryMap[key]
@@ -72,17 +65,9 @@ class InMemoryIndex<T : Indexable>(
     override suspend fun containsSource(sourceId: String): Boolean =
         sourceMap.containsKey(sourceId)
 
-    override fun distinctValues(fieldName: String): Flow<String> = flow {
-        val fieldMap = fieldMaps[fieldName] ?: return@flow
-        lock.read {
-            for (value in fieldMap.keys) {
-                emit(value)
-            }
-        }
-    }
-
-    override suspend fun insert(entries: Flow<T>) {
-        entries.collect { entry -> insertSingle(entry) }
+    override fun distinctValues(fieldName: String): Sequence<String> {
+        val fieldMap = fieldMaps[fieldName] ?: return emptySequence()
+        return lock.read { fieldMap.keys.toList() }.asSequence()
     }
 
     override suspend fun insertAll(entries: Sequence<T>) {
@@ -93,7 +78,7 @@ class InMemoryIndex<T : Indexable>(
         }
     }
 
-    override suspend fun insert(entry: T) = insertSingle(entry)
+    override suspend fun insert(entry: T) = lock.write { insertSingleLocked(entry) }
 
     override suspend fun removeBySource(sourceId: String) = lock.write {
         val keys = sourceMap.remove(sourceId) ?: return@write
@@ -174,10 +159,6 @@ class InMemoryIndex<T : Indexable>(
         if (other == null) return current
         if (current == null) return other
         return current.intersect(other)
-    }
-
-    private fun insertSingle(entry: T) = lock.write {
-        insertSingleLocked(entry)
     }
 
     private fun insertSingleLocked(entry: T) {
