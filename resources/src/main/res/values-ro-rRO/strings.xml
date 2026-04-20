@@ -282,7 +282,7 @@
   <string name="xml_formatting_options">XML opțiune de formatares</string>
   <string name="xml_formatting_options_summary">Configurarea formatterului XML</string>
   <string name="idepref_customFont_title">Folosește fontul particularizat</string>
-  <string name="idepref_customFont_summary">Dacă este activat, fișierul din \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" va fi folosit ca font în Editor.</string>
+  <string name="idepref_customFont_summary">Dacă este activat, fișierul din \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" va fi folosit ca font în Editor.</string>
   <string name="msg_installing_apk">Instalez APK…</string>
   <string name="msg_action_open_application">Doriți să deschideți aplicația?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle build service</string>
@@ -399,7 +399,7 @@
   <string name="idepref_devOptions_summary">Experimental/debugging options for Code on the Go</string>
   <string name="idepref_group_debugging">Debugging</string>
   <string name="idepref_devOptions_dumpLogs_title">Dump logs</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
   <string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
   <string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>

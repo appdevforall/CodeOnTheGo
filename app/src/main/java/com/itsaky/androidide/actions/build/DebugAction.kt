@@ -7,6 +7,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.SpannableStringBuilder
@@ -17,13 +18,17 @@ import androidx.core.content.ContextCompat.startForegroundService
 import androidx.core.view.setPadding
 import com.google.android.material.textview.MaterialTextView
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
+import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.appendHtmlWithLinks
 import com.itsaky.androidide.utils.appendOrderedList
 import com.itsaky.androidide.utils.flashError
@@ -44,10 +49,10 @@ class DebugAction(
 	context: Context,
 	override val order: Int,
 ) : AbstractRunAction(
-		context = context,
-		labelRes = R.string.action_start_debugger,
-		iconRes = R.drawable.ic_db_startdebugger,
-	) {
+	context = context,
+	labelRes = R.string.action_start_debugger,
+	iconRes = R.drawable.ic_db_startdebugger,
+) {
 	override val id = ID
 
 	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_DEBUG
@@ -80,12 +85,31 @@ class DebugAction(
 			return false
 		}
 
+		val javaLsp = ILanguageServerRegistry.default
+			.getServer(JavaLanguageServer.SERVER_ID)
+		if (javaLsp?.debugAdapter?.isReady != true
+		) {
+			withContext(Dispatchers.Main.immediate) {
+				showDebuggerNotReadyMessage(activity)
+			}
+			return false
+		}
+
 		if (!canShowPairingNotification(activity)) {
 			withContext(Dispatchers.Main.immediate) {
 				showNotificationPermissionDialog(activity)
 			}
 			return false
 		}
+
+        val overlayState = withContext(Dispatchers.Main.immediate) {
+            PermissionsHelper.getOverlayPermissionState(activity)
+        }
+
+        if (overlayState != PermissionsHelper.OverlayPermissionState.GRANTED) {
+            handleMissingOverlayPermission(activity, overlayState)
+            return false
+        }
 
 		if (!Shizuku.pingBinder()) {
 			log.error("Shizuku service is not running")
@@ -97,6 +121,32 @@ class DebugAction(
 
 		return Shizuku.pingBinder()
 	}
+
+	private suspend fun handleMissingOverlayPermission(
+        activity: EditorHandlerActivity,
+        state: PermissionsHelper.OverlayPermissionState
+    ) {
+        withContext(Dispatchers.Main.immediate) {
+            when (state) {
+                PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
+                    activity.flashError(activity.getString(R.string.permission_overlay_unsupported_hint))
+                }
+                PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)
+                        setData(Uri.fromParts("package", activity.packageName, null))
+                    }
+                    try {
+                        activity.startActivity(intent)
+                    } catch (e: Exception) {
+                        log.error("Failed to launch overlay settings", e)
+                        activity.flashError(activity.getString(R.string.err_no_activity_to_handle_action, Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                    }
+                }
+                else -> {}
+            }
+        }
+    }
 
 	@RequiresApi(Build.VERSION_CODES.R)
 	private fun showPairingDialog(context: Context): AlertDialog? {
@@ -190,7 +240,7 @@ class DebugAction(
 		val nm = context.getSystemService(NotificationManager::class.java)
 		val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
 		return nm.areNotificationsEnabled() &&
-			(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+				(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
 	}
 
 	private fun showNotificationPermissionDialog(context: Context): AlertDialog? =
@@ -215,4 +265,14 @@ class DebugAction(
 			}.setNegativeButton(android.R.string.cancel) { dialog, _ ->
 				dialog.dismiss()
 			}.show()
+
+	private fun showDebuggerNotReadyMessage(context: Context) =
+		DialogUtils
+			.newMaterialDialogBuilder(context)
+			.setMessage(
+				context.getString(R.string.debugger_not_ready) + System.lineSeparator()
+					.repeat(2) + context.getString(R.string.debugger_error_suggestion_network_restriction)
+			)
+			.setPositiveButton(android.R.string.ok, null)
+			.show()
 }

@@ -1,24 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Sample Plugin</string>
-    <string name="plugin_title">Sample Plugin</string>
-    <string name="plugin_description">A comprehensive sample plugin demonstrating all Code on the Go plugin capabilities</string>
+    <string name="app_name">APK Analyzer</string>
+    <string name="plugin_title">APK Analyzer</string>
+    <string name="plugin_description">Analyze APK structure, file sizes, and metadata</string>
 
-    <!-- UI Strings -->
-    <string name="show_toast">Show Toast</string>
-    <string name="get_project_info">Get Project Info</string>
-    <string name="show_help">Show Help</string>
-    <string name="context_action">Context Action</string>
-    <string name="main_editor_action">Main Editor Action</string>
-    <string name="bottom_sheet_action">Bottom Sheet Action</string>
-    <string name="tools_action">Tools Action</string>
+    <string name="apk_analyzer">APK Analyzer</string>
+    <string name="apk_analyzer_tooltip">Analyze APK structure and contents</string>
+    <string name="analyze_apk">Analyze APK</string>
+    <string name="select_apk">Select APK to Analyze</string>
 
-    <!-- Status Messages -->
-    <string name="loading_services">Loading services…</string>
-    <string name="no_project_available">No project available</string>
-    <string name="help_not_available">Help not available - tooltip service not found</string>
+    <string name="analyzing_apk">Analyzing APK\u2026</string>
+    <string name="analysis_failed">Failed to analyze APK: %s</string>
 
-    <!-- Plugin Capabilities -->
-    <string name="plugin_capabilities">Plugin Capabilities</string>
-    <string name="capabilities_list">• Main Editor Tabs\n• Bottom Sheet Integration\n• Sidebar Navigation\n• Documentation System\n• Service Integration</string>
+    <string name="section_apk_structure">APK Structure</string>
+    <string name="section_key_files">Key Files</string>
+    <string name="section_native_libraries">Native Libraries (%d)</string>
+    <string name="section_resource_directories">Resource Directories (%d)</string>
+    <string name="section_large_files">Large Files (&gt;100KB)</string>
+    <string name="section_apk_metadata">APK Metadata</string>
+
+    <string name="header_property">Property</string>
+    <string name="header_value">Value</string>
+    <string name="header_file">File</string>
+    <string name="header_raw">Raw</string>
+    <string name="header_compressed">Compressed</string>
+    <string name="header_ratio">Ratio</string>
+    <string name="header_name">Name</string>
+    <string name="header_count">Count</string>
+    <string name="header_directory">Directory</string>
+    <string name="header_files">Files</string>
+
+    <string name="label_apk_file_size">APK File Size</string>
+    <string name="label_total_entries">Total Entries</string>
+    <string name="label_uncompressed_size">Uncompressed Size</string>
+    <string name="label_compressed_size">Compressed Size</string>
+    <string name="label_compression_ratio">Compression Ratio</string>
+    <string name="label_directories">Directories</string>
+    <string name="label_files">Files</string>
+    <string name="label_signature_scheme">Signature Scheme</string>
+    <string name="label_multi_dex">Multi-DEX</string>
+    <string name="label_code_obfuscation">Code Obfuscation</string>
+
+    <string name="value_yes">Yes</string>
+    <string name="value_no">No</string>
+    <string name="value_detected">Detected</string>
+    <string name="value_none_detected">None detected</string>
+    <string name="value_v1_signing">v1 (JAR signing)</string>
+    <string name="value_v2_or_unsigned">v2+ or unsigned</string>
+    <string name="value_na">N/A</string>
+    <string name="action_show_all">Show all (%d)</string>
 </resources>

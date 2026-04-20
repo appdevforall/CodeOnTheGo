@@ -209,7 +209,10 @@ interface ActionItem {
     EDITOR_FILE_TREE("ide.editor.fileTree"),
 
     /** Location marker for action items shown in UI Designer activity's toolbar. */
-    UI_DESIGNER_TOOLBAR("ide.uidesigner.toolbar");
+    UI_DESIGNER_TOOLBAR("ide.uidesigner.toolbar"),
+
+    /** Location marker for action items shown on the main screen. */
+    MAIN_SCREEN("ide.main.screen");
 
     override fun toString(): String {
       return id

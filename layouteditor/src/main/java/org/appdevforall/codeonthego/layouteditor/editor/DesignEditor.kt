@@ -4,6 +4,8 @@ import android.animation.LayoutTransition
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.AttributeSet
 import android.view.DragEvent
 import android.view.View
@@ -12,7 +14,6 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -21,6 +22,7 @@ import androidx.core.view.isEmpty
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.VibrateUtils
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -32,6 +34,8 @@ import com.itsaky.androidide.utils.displayTooltipOnLongPress
 import com.itsaky.androidide.utils.handleLongClicksAndDrag
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.adapters.AppliedAttributesAdapter
+import org.appdevforall.codeonthego.layouteditor.adapters.AvailableAttributesAdapter
+import org.appdevforall.codeonthego.layouteditor.databinding.DialogAvailableAttributesBinding
 import org.appdevforall.codeonthego.layouteditor.databinding.ShowAttributesDialogBinding
 import org.appdevforall.codeonthego.layouteditor.editor.dialogs.AttributeDialog
 import org.appdevforall.codeonthego.layouteditor.editor.dialogs.BooleanDialog
@@ -46,12 +50,10 @@ import org.appdevforall.codeonthego.layouteditor.editor.dialogs.StringDialog
 import org.appdevforall.codeonthego.layouteditor.editor.dialogs.ViewDialog
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
-import org.appdevforall.codeonthego.layouteditor.editor.palette.containers.HorizontalScrollViewDesign
-import org.appdevforall.codeonthego.layouteditor.editor.palette.containers.ScrollViewDesign
-import org.appdevforall.codeonthego.layouteditor.editor.palette.containers.ToolbarDesign
-import org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.FrameLayoutDesign
 import org.appdevforall.codeonthego.layouteditor.editor.positioning.positionAtDrop
 import org.appdevforall.codeonthego.layouteditor.editor.positioning.restoreSingleViewPosition
+import org.appdevforall.codeonthego.layouteditor.editor.validation.HierarchyResult
+import org.appdevforall.codeonthego.layouteditor.editor.validation.HierarchyValidator
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addId
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.getViewId
@@ -331,10 +333,10 @@ class DesignEditor : LinearLayout {
 						val dragData = event.localState as? HashMap<*, *>
 						val className = dragData?.get(Constants.KEY_CLASS_NAME).toString()
 						if (draggedView == null && dragData != null) {
-							if (isIncompatibleHierarchy(className, parent)) {
-								showIncompatibilityError(childName = className, parent = parent)
-								return@OnDragListener true
-							}
+							val shouldBlock = HierarchyValidator(context)
+								.validate(className, parent)
+								.handle(context)
+							if (shouldBlock) return@OnDragListener true
 						}
 
 						if (childCount >= 1) {
@@ -676,141 +678,125 @@ class DesignEditor : LinearLayout {
 		val allKeysAndValues = viewAttributeMap[target] ?: return
 		val allAttrs = initializer.getAllAttributesForView(target)
 
-		val displayKeys: MutableList<String> = ArrayList()
-		val displayValues: MutableList<String> = ArrayList()
-		val displayAttrs: MutableList<HashMap<String, Any>> = ArrayList()
+		val displayKeys = mutableListOf<String>()
+		val displayValues = mutableListOf<String>()
+		val displayAttrs = mutableListOf<HashMap<String, Any>>()
 
-		val originalKeys = allKeysAndValues.keySet()
-		val originalValues = allKeysAndValues.values()
-
-		for (i in originalKeys.indices) {
-			val key = originalKeys[i]
-
+		allKeysAndValues.keySet().forEachIndexed { i, key ->
 			val foundAttrDef = allAttrs.find { it[Constants.KEY_ATTRIBUTE_NAME].toString() == key }
 
 			if (foundAttrDef != null) {
 				displayKeys.add(key)
-				displayValues.add(originalValues[i])
+				displayValues.add(allKeysAndValues.values()[i])
 				displayAttrs.add(foundAttrDef)
 			}
 		}
 
-		val dialog = BottomSheetDialog(context)
+		val dialog = BottomSheetDialog(context).apply {
+			behavior.isFitToContents = true
+			behavior.state = BottomSheetBehavior.STATE_EXPANDED
+			behavior.skipCollapsed = true
+		}
+
 		val binding = ShowAttributesDialogBinding.inflate(dialog.layoutInflater)
 		dialog.setContentView(binding.root)
+
 		TooltipCompat.setTooltipText(binding.btnAdd, "Add attribute")
 		TooltipCompat.setTooltipText(binding.btnDelete, "Delete")
 
-		// Now, we use our new, guaranteed-to-be-in-sync lists.
-		val appliedAttributesAdapter = AppliedAttributesAdapter(displayAttrs, displayValues)
+		val appliedAttributesAdapter = AppliedAttributesAdapter(displayAttrs, displayValues).apply {
+			onClick = { position ->
+				showAttributeEdit(target, displayKeys[position])
+				dialog.dismiss()
+			}
 
-		appliedAttributesAdapter.onClick = { position ->
-			showAttributeEdit(target, displayKeys[position])
-			dialog.dismiss()
+			onRemoveButtonClick = { position ->
+				dialog.dismiss()
+				val updatedView = removeAttribute(target, displayKeys[position])
+				showDefinedAttributes(updatedView)
+			}
 		}
 
-		appliedAttributesAdapter.onRemoveButtonClick = { position ->
-			dialog.dismiss()
-			val view = removeAttribute(target, displayKeys[position])
-			showDefinedAttributes(view)
+		binding.attributesList.apply {
+			adapter = appliedAttributesAdapter
+			layoutManager = LinearLayoutManager(context, RecyclerView.VERTICAL, false)
 		}
 
-		binding.attributesList.adapter = appliedAttributesAdapter
-		binding.attributesList.layoutManager =
-			LinearLayoutManager(context, RecyclerView.VERTICAL, false)
-		binding.viewLayout.apply {
-			displayTooltipOnLongPress(
-				context = this.context,
-				anchorView = this,
-				tooltipCategory = TooltipCategory.CATEGORY_XML,
-				tooltipTag = target.javaClass.superclass.simpleName,
-			)
-		}
+		binding.viewLayout.displayTooltipOnLongPress(
+			context = context,
+			anchorView = binding.viewLayout,
+			tooltipCategory = TooltipCategory.CATEGORY_XML,
+			tooltipTag = target.javaClass.superclass.simpleName,
+		)
+
 		binding.viewName.text = target.javaClass.superclass.simpleName
 		binding.viewFullName.text = target.javaClass.superclass.name
+
 		binding.btnAdd.setOnClickListener {
 			showAvailableAttributes(target)
 			dialog.dismiss()
 		}
 
 		binding.btnDelete.setOnClickListener {
-			MaterialAlertDialogBuilder(context)
-				.setTitle(R.string.delete_view)
-				.setMessage(R.string.msg_delete_view)
-				.setNegativeButton(
-					R.string.no,
-				) { d, _ ->
-					d.dismiss()
-				}.setPositiveButton(
-					R.string.yes,
-				) { _, _ ->
-					removeId(target, target is ViewGroup)
-					removeViewAttributes(target)
-					removeWidget(target)
-					updateStructure()
-					updateUndoRedoHistory()
-					dialog.dismiss()
-				}.show()
+			confirmViewDeletion(target, dialog)
 		}
 
 		dialog.show()
 	}
 
 	private fun showAvailableAttributes(target: View) {
-		val availableAttrs =
-			initializer.getAvailableAttributesForView(target)
-		val names: MutableList<String> = ArrayList()
-
-		for (attr: HashMap<String, Any> in availableAttrs) {
-			names.add(attr["name"].toString())
+		val availableAttrs = initializer.getAvailableAttributesForView(target)
+		val names = availableAttrs.map { it["name"].toString() }.toMutableList()
+		val dialog = BottomSheetDialog(context).apply {
+			behavior.isFitToContents = true
+			behavior.state = BottomSheetBehavior.STATE_EXPANDED
+			behavior.skipCollapsed = true
 		}
 
-		val dialog = BottomSheetDialog(context)
-		val binding =
-			org.appdevforall.codeonthego.layouteditor.databinding.DialogAvailableAttributesBinding
-				.inflate(dialog.layoutInflater)
+		val binding = DialogAvailableAttributesBinding.inflate(dialog.layoutInflater)
 
 		dialog.setContentView(binding.root)
 
-		val adapter =
-			org.appdevforall.codeonthego.layouteditor.adapters.AvailableAttributesAdapter(names) { attributeName ->
-				// Find the attribute by name
-				for (attr in availableAttrs) {
-					if (attr["name"].toString() == attributeName) {
-						showAttributeEdit(target, attr[Constants.KEY_ATTRIBUTE_NAME].toString())
-						break
-					}
-				}
-				dialog.dismiss()
-			}
+		val adapter = AvailableAttributesAdapter(names) { attributeName ->
+            availableAttrs.find { it["name"].toString() == attributeName }?.let { attr ->
+                showAttributeEdit(target, attr[Constants.KEY_ATTRIBUTE_NAME].toString())
+            }
+            dialog.dismiss()
+        }
 
-		binding.attributesList.adapter = adapter
-		binding.attributesList.layoutManager = LinearLayoutManager(context, RecyclerView.VERTICAL, false)
+		binding.attributesList.apply {
+			this.adapter = adapter
+			layoutManager = LinearLayoutManager(context, RecyclerView.VERTICAL, false)
+		}
 
-		// Set up search functionality
 		binding.searchEditText.addTextChangedListener(
-			object : android.text.TextWatcher {
-				override fun beforeTextChanged(
-					s: CharSequence?,
-					start: Int,
-					count: Int,
-					after: Int,
-				) {}
-
-				override fun onTextChanged(
-					s: CharSequence?,
-					start: Int,
-					before: Int,
-					count: Int,
-				) {}
-
-				override fun afterTextChanged(s: android.text.Editable?) {
+			object : TextWatcher {
+				override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+				override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+				override fun afterTextChanged(s: Editable?) {
 					adapter.filter(s?.toString() ?: "")
 				}
-			},
+			}
 		)
 
 		dialog.show()
+	}
+
+	private fun confirmViewDeletion(target: View, dialog: BottomSheetDialog) {
+		MaterialAlertDialogBuilder(context)
+			.setTitle(R.string.delete_view)
+			.setMessage(R.string.msg_delete_view)
+			.setNegativeButton(R.string.no) { d, _ ->
+				d.dismiss()
+			}
+			.setPositiveButton(R.string.yes) { _, _ ->
+				removeId(target, target is ViewGroup)
+				removeViewAttributes(target)
+				removeWidget(target)
+				updateStructure()
+				updateUndoRedoHistory()
+				dialog.dismiss()
+			}.show()
 	}
 
 	private fun showAttributeEdit(
@@ -1075,57 +1061,20 @@ class DesignEditor : LinearLayout {
 		)
 	}
 
-	private fun isIncompatibleHierarchy(childClassName: String, parent: ViewGroup): Boolean {
-		return when {
-			childClassName.contains("DrawerLayout", ignoreCase = true) -> parent.isRestrictiveParent()
+	fun HierarchyResult.handle(context: Context): Boolean {
+		return when (this) {
+			is HierarchyResult.Invalid -> {
+				Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+				true
+			}
 
-			childClassName.contains("ScrollView", ignoreCase = true) -> parent is ScrollView
+			is HierarchyResult.Warning -> {
+				Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+				false
+			}
 
-			else -> false
+			HierarchyResult.Valid -> false
 		}
-	}
-
-	private fun ViewGroup.isRestrictiveParent(): Boolean {
-		return this is ToolbarDesign ||
-			this is ScrollViewDesign ||
-			this is FrameLayoutDesign ||
-			this is HorizontalScrollViewDesign
-	}
-
-	/**
-	 * Extracts the simple class name from a string (fully qualified or simple)
-	 * and removes the "Design" suffix.
-	 *
-	 * Usage:
-	 * "com.example.DrawerLayoutDesign".cleanWidgetName() // Returns "DrawerLayout"
-	 */
-	private fun String.cleanWidgetName(): String {
-	    return this.substringAfterLast('.').removeSuffix("Design")
-	}
-
-	/**
-	 * Returns the object's simple class name, stripping the "Design" suffix if present.
-	 * This is a convenience wrapper that delegates to [String.cleanWidgetName].
-	 *
-	 * Usage:
-	 * myToolbarInstance.cleanWidgetName() // Returns "Toolbar"
-	 */
-	private fun Any.cleanWidgetName(): String {
-	    return this.javaClass.name.cleanWidgetName()
-	}
-
-	/**
-	 * Displays a Toast error indicating that the [childName] is incompatible with the [parent].
-	 */
-	private fun showIncompatibilityError(childName: String, parent: ViewGroup) {
-		val cleanChild = childName.cleanWidgetName()
-		val cleanParent = parent.cleanWidgetName()
-
-		Toast.makeText(
-			parent.context,
-			context.getString(R.string.error_incompatible_hierarchy, cleanChild, cleanParent),
-			Toast.LENGTH_LONG
-		).show()
 	}
 
 	enum class ViewType {

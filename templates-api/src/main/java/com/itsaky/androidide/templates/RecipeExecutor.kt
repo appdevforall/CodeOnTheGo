@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates
 
+import android.content.Context
 import java.io.File
 import java.io.InputStream
 
@@ -26,6 +27,8 @@ import java.io.InputStream
  * @author Akash Yadav
  */
 interface RecipeExecutor {
+
+    val context: Context? get() = null
 
     /**
      * Get the project template data. This is available only while creating modules in an existing project.

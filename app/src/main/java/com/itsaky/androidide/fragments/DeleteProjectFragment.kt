@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -34,7 +35,7 @@ class DeleteProjectFragment : BaseFragment() {
     private val binding get() = _binding!!
 
     private val recentProjectsViewModel: RecentProjectsViewModel by activityViewModels()
-    private val mainViewModel: MainViewModel by activityViewModels()
+    private val mainViewModel: MainViewModel by activityViewModel()
     private var adapter: DeleteProjectListAdapter? = null
     private var isDeleteButtonClickable = false
 

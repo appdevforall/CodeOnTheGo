@@ -281,7 +281,7 @@
   <string name="xml_formatting_options">XML फोर्मटिंग विकल्प</string>
   <string name="xml_formatting_options_summary">XML फॉर्मेटर को कॉन्फ़िगर करें |</string>
   <string name="idepref_customFont_title">कस्टम फ़ॉन्ट का प्रयोग करें</string>
-  <string name="idepref_customFont_summary">सक्षम होने पर, \"/data/data/com.itsaky.android/files/home/.androidide/ui/font.ttf\" पर मौजूद फ़ाइल का उपयोग एडिटर फ़ॉन्ट के रूप में किया जाएगा।</string>
+  <string name="idepref_customFont_summary">सक्षम होने पर, \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" पर मौजूद फ़ाइल का उपयोग एडिटर फ़ॉन्ट के रूप में किया जाएगा।</string>
   <string name="msg_installing_apk">APK इंस्टॉल हो रहा है...</string>
   <string name="msg_action_open_application">क्या आप एप्लिकेशन खोलना चाहते हैं?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go ग्रेडल बिल्ड सर्विस</string>
@@ -398,7 +398,7 @@
   <string name="idepref_devOptions_summary">Code on the Go के लिए प्रायोगिक/डिबगिंग विकल्प</string>
   <string name="idepref_group_debugging">डिबगिंग</string>
   <string name="idepref_devOptions_dumpLogs_title">लॉग डंप करें</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go लॉग को $HOME/.androidide/logs डायरेक्टरी में डंप करें</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go लॉग को $HOME/.cg/logs डायरेक्टरी में डंप करें</string>
   <string name="msg_emptyview_applogs">अपने एप्लिकेशन के लॉग यहां देखने के लिए उसका डिबग संस्करण चलाएँ।</string>
   <string name="msg_logsender_disabled">लॉगसेंडर अक्षम है. आप इसे प्रेफरेन्सेस में सक्षम कर सकते हैं.</string>
   <string name="msg_emptyview_idelogs">आईडीई के लॉग यहां दिखाए जाते हैं।</string>

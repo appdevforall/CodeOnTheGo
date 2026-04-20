@@ -25,7 +25,8 @@ import com.itsaky.androidide.templates.base.ModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 data class ProjectTemplateRecipeResultImpl(
-  override val data: ProjectTemplateData
+    override val data: ProjectTemplateData,
+    override val hasErrorsWarnings: Boolean = false
 ) : ProjectTemplateRecipeResult
 
 data class ModuleTemplateRecipeResultImpl(override val data: ModuleTemplateData
@@ -33,9 +34,9 @@ data class ModuleTemplateRecipeResultImpl(override val data: ModuleTemplateData
 
 
 internal fun ProjectTemplateBuilder.recipeResult(): ProjectTemplateRecipeResult {
-  return ProjectTemplateRecipeResultImpl(data)
+    return ProjectTemplateRecipeResultImpl(data)
 }
 
 internal fun ModuleTemplateBuilder.recipeResult(): ModuleTemplateRecipeResult {
-  return ModuleTemplateRecipeResultImpl(data)
+    return ModuleTemplateRecipeResultImpl(data)
 }

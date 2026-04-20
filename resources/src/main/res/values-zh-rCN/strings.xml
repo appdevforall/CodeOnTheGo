@@ -281,7 +281,7 @@
   <string name="xml_formatting_options">XML 格式化选项</string>
   <string name="xml_formatting_options_summary">配置 XML 格式化程序</string>
   <string name="idepref_customFont_title">使用自定义字体</string>
-  <string name="idepref_customFont_summary">如果启用，文件“/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf”将用作编辑器字体。</string>
+  <string name="idepref_customFont_summary">如果启用，文件“/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf”将用作编辑器字体。</string>
   <string name="msg_installing_apk">正在安装 APK …</string>
   <string name="msg_action_open_application">您想打开该应用吗？</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle 构建服务</string>
@@ -398,7 +398,7 @@
   <string name="idepref_devOptions_summary">Code on the Go 的实验和调试选项</string>
   <string name="idepref_group_debugging">调试</string>
   <string name="idepref_devOptions_dumpLogs_title">转储日志</string>
-  <string name="idepref_devOptions_dumpLogs_summary">将 Code on the Go 日志转储到 $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">将 Code on the Go 日志转储到 $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">运行应用的 debug 变体以在此处查看其日志。</string>
   <string name="msg_logsender_disabled">LogSender 已禁用。您可以在首选项中启用它。</string>
   <string name="msg_emptyview_idelogs">IDE 中的日志显示在这里。</string>

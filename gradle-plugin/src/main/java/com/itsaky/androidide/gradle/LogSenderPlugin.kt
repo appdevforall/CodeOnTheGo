@@ -21,7 +21,7 @@ import com.android.build.api.component.analytics.AnalyticsEnabledApplicationVari
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.ApplicationVariant
 import com.android.build.api.variant.impl.ApplicationVariantImpl
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOGSENDER_AAR
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -53,8 +53,8 @@ class LogSenderPlugin : Plugin<Project> {
 		}
 
 		val logsenderAar =
-			target.findProperty(PROPERTY_LOGSENDER_AAR)?.let { aarPath -> File(aarPath.toString()) }
-				?: throw GradleException("LogSenderPlugin has been applied but no property '$PROPERTY_LOGSENDER_AAR' is set")
+			target.findProperty(PROPERTY_LOG_SENDER_AAR)?.let { aarPath -> File(aarPath.toString()) }
+				?: throw GradleException("LogSenderPlugin has been applied but no property '$PROPERTY_LOG_SENDER_AAR' is set")
 
 		if (!logsenderAar.exists()) {
 			throw FileNotFoundException("LogSender AAR file not found at '${logsenderAar.absolutePath}'")
