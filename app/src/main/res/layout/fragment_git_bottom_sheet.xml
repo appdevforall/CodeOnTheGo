@@ -140,7 +140,7 @@
         android:layout_marginBottom="8dp"
         android:enabled="false"
         android:text="@string/commit"
-        app:layout_constraintBottom_toTopOf="@id/commitHistoryButton" />
+        app:layout_constraintBottom_toTopOf="@id/btnAbortMerge" />
 
     <androidx.constraintlayout.widget.Group
         android:id="@+id/commit_section"
@@ -148,6 +148,18 @@
         android:layout_height="wrap_content"
         android:visibility="gone"
         app:constraint_referenced_ids="authorAvatar, commitSummaryLayout, commitDescriptionLayout, commitButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnAbortMerge"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="@string/abort_merge"
+        android:textColor="?attr/colorError"
+        app:strokeColor="?attr/colorError"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/commitHistoryButton" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/commitHistoryButton"
