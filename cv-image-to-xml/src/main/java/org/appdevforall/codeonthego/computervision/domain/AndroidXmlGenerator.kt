@@ -80,8 +80,7 @@ class AndroidXmlGenerator(
     }
 
     private fun escapeXmlAttr(value: String): String =
-        value.replace("|", "")
-            .trim()
+        value.trim()
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")

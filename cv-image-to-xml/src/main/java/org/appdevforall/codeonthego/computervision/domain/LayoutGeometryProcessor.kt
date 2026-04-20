@@ -96,8 +96,8 @@ class LayoutGeometryProcessor {
             return ScaledBox(detection.label, detection.text, 0, 0, MIN_W_ANY, MIN_H_ANY, MIN_W_ANY / 2, MIN_H_ANY / 2, Rect(0, 0, MIN_W_ANY, MIN_H_ANY))
         }
         val rect = detection.boundingBox
-        val normCx = ((rect.left + rect.right) / 2f) / sourceWidth
-        val normCy = ((rect.top + rect.bottom) / 2f) / sourceHeight
+        val normCx = ((rect.left + rect.right) / 2f) / sourceWidth.toFloat()
+        val normCy = ((rect.top + rect.bottom) / 2f) / sourceHeight.toFloat()
         val normW = (rect.right - rect.left) / sourceWidth
         val normH = (rect.bottom - rect.top) / sourceHeight
         val x = max(0, ((normCx - normW / 2.0) * targetW).roundToInt())
