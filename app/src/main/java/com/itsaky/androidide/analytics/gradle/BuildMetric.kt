@@ -19,5 +19,6 @@ abstract class BuildMetric : Metric {
 		Bundle().apply {
 			putString("build_session_id", buildId.buildSessionId)
 			putLong("build_id", buildId.buildId)
+			putString("run_type", buildId.runType.typeName)
 		}
 }

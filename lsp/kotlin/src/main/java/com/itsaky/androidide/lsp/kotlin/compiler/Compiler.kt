@@ -17,13 +17,15 @@ import java.nio.file.Paths
 import kotlin.io.path.pathString
 
 class Compiler(
+	projectModel: KotlinProjectModel,
 	intellijPluginRoot: Path,
 	jdkHome: Path,
 	jdkRelease: Int,
 	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
-	configureSession: StandaloneAnalysisAPISessionBuilder.() -> Unit = {},
 ) : AutoCloseable {
 	private val logger = LoggerFactory.getLogger(Compiler::class.java)
+
+	@Suppress("JoinDeclarationAndAssignment")
 	private val defaultCompilationEnv: CompilationEnvironment
 
 	val fileSystem: VirtualFileSystem
@@ -33,12 +35,12 @@ class Compiler(
 
 	init {
 		defaultCompilationEnv = CompilationEnvironment(
+			projectModel = projectModel,
 			intellijPluginRoot = intellijPluginRoot,
 			jdkHome = jdkHome,
 			jdkRelease = jdkRelease,
 			languageVersion = languageVersion,
 			enableParserEventSystem = true,
-			configureSession = configureSession,
 		)
 
 		// must be initialized AFTER the compilation env has been initialized

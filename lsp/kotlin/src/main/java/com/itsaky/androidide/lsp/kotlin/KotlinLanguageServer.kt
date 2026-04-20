@@ -27,6 +27,7 @@ import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
+import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.diagnostic.KotlinDiagnosticProvider
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -40,10 +41,7 @@ import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
-import com.itsaky.androidide.projects.api.AndroidModule
-import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
-import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.CoroutineName
@@ -58,9 +56,6 @@ import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
-import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryModule
-import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModule
 import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
@@ -79,6 +74,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 	private val scope =
 		CoroutineScope(SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!))
+	private var projectModel: KotlinProjectModel? = null
 	private var compiler: Compiler? = null
 	private var diagnosticProvider: KotlinDiagnosticProvider? = null
 	private var analyzeJob: Job? = null
@@ -96,7 +92,7 @@ class KotlinLanguageServer : ILanguageServer {
 		private val ANALYZE_DEBOUNCE_DELAY = 400.milliseconds
 
 		const val SERVER_ID = "ide.lsp.kotlin"
-		private val log = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
+		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 	}
 
 	init {
@@ -110,6 +106,7 @@ class KotlinLanguageServer : ILanguageServer {
 	override fun shutdown() {
 		EventBus.getDefault().unregister(this)
 		scope.cancel("LSP is being shut down")
+		diagnosticProvider?.close()
 		compiler?.close()
 		initialized = false
 	}
@@ -123,14 +120,7 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	override fun setupWithProject(workspace: Workspace) {
-		log.info("setupWithProject called, initialized={}", initialized)
-		recreateSession(workspace)
-		initialized = true
-	}
-
-	private fun recreateSession(workspace: Workspace) {
-		diagnosticProvider?.close()
-		compiler?.close()
+		logger.info("setupWithProject called, initialized={}", initialized)
 
 		val jdkHome = Environment.JAVA_HOME.toPath()
 		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE
@@ -144,98 +134,31 @@ class KotlinLanguageServer : ILanguageServer {
 
 		val jvmPlatform = JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget)
 
-		compiler = Compiler(
-			intellijPluginRoot = intellijPluginRoot,
-			jdkHome = jdkHome,
-			jdkRelease = jdkRelease,
-			languageVersion = LanguageVersion.LATEST_STABLE
-		) {
-			buildKtModuleProvider {
-				platform = jvmPlatform
+		if (!initialized) {
+			logger.info("Creating initial analysis session")
 
-				val moduleProjects =
-					workspace.subProjects
-						.filterIsInstance<ModuleProject>()
-						.filter { it.path != workspace.rootProject.path }
+			val model = KotlinProjectModel()
+			model.update(workspace, jvmPlatform)
+			this.projectModel = model
 
-				val bootClassPaths =
-					moduleProjects
-						.filterIsInstance<AndroidModule>()
-						.flatMap { project ->
-							project.bootClassPaths
-								.map { bootClassPath ->
-									addModule(buildKtLibraryModule {
-										this.platform = jvmPlatform
-										this.libraryName = bootClassPath.nameWithoutExtension
-										addBinaryRoot(bootClassPath.toPath())
-									})
-								}
-						}
+			val compiler = Compiler(
+				projectModel = model,
+				intellijPluginRoot = intellijPluginRoot,
+				jdkHome = jdkHome,
+				jdkRelease = jdkRelease,
+				languageVersion = LanguageVersion.LATEST_STABLE,
+			)
 
-				val libraryDependencies =
-					moduleProjects
-						.flatMap { it.getCompileClasspaths() }
-						.associateWith { library ->
-							addModule(buildKtLibraryModule {
-								this.platform = jvmPlatform
-								this.libraryName = library.nameWithoutExtension
-								addBinaryRoot(library.toPath())
-							})
-						}
+			this.compiler = compiler
+			this.diagnosticProvider = KotlinDiagnosticProvider(compiler, scope)
+		} else {
+			logger.info("Updating project model")
 
-				val subprojectsAsModules = mutableMapOf<ModuleProject, KaSourceModule>()
-
-				fun getOrCreateModule(project: ModuleProject): KaSourceModule {
-					subprojectsAsModules[project]?.also { module ->
-						// a source module already exists for this project
-						return module
-					}
-
-					val module = buildKtSourceModule {
-						this.platform = jvmPlatform
-						this.moduleName = project.name
-						addSourceRoots(
-							project.getSourceDirectories().map { it.toPath() })
-
-						// always dependent on boot class paths, if any
-						bootClassPaths.forEach { bootClassPathModule ->
-							addRegularDependency(bootClassPathModule)
-						}
-
-						project.getCompileClasspaths(excludeSourceGeneratedClassPath = true)
-							.forEach { classpath ->
-								val libDependency = libraryDependencies[classpath]
-								if (libDependency == null) {
-									log.error(
-										"Unable to locate library module for classpath: {}",
-										libDependency
-									)
-									return@forEach
-								}
-
-								addRegularDependency(libDependency)
-							}
-
-						project.getCompileModuleProjects()
-							.forEach { dependencyModule ->
-								addRegularDependency(getOrCreateModule(dependencyModule))
-							}
-					}
-
-					subprojectsAsModules[project] = module
-					return module
-				}
-
-				moduleProjects.forEach { project ->
-					addModule(getOrCreateModule(project))
-				}
-			}
+			projectModel?.update(workspace, jvmPlatform)
 		}
 
-		diagnosticProvider = KotlinDiagnosticProvider(
-			compiler = compiler!!,
-			scope = scope,
-		)
+		initialized = true
+		logger.info("Kotlin project initialized")
 	}
 
 	override fun complete(params: CompletionParams?): CompletionResult {
@@ -283,10 +206,10 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	override suspend fun analyze(file: Path): DiagnosticResult {
-		log.debug("analyze(file={})", file)
+		logger.debug("analyze(file={})", file)
 
 		if (!settings.diagnosticsEnabled() || !settings.codeAnalysisEnabled()) {
-			log.debug(
+			logger.debug(
 				"analyze() skipped: diagnosticsEnabled={}, codeAnalysisEnabled={}",
 				settings.diagnosticsEnabled(), settings.codeAnalysisEnabled()
 			)
@@ -294,7 +217,7 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		if (!DocumentUtils.isKotlinFile(file)) {
-			log.debug("analyze() skipped: not a Kotlin file")
+			logger.debug("analyze() skipped: not a Kotlin file")
 			return DiagnosticResult.NO_UPDATE
 		}
 
@@ -366,6 +289,6 @@ class KotlinLanguageServer : ILanguageServer {
 		selectedFile = event.selectedFile
 		val uri = event.selectedFile.toUri().toString()
 
-		log.debug("onDocumentSelected: uri={}", uri)
+		logger.debug("onDocumentSelected: uri={}", uri)
 	}
 }

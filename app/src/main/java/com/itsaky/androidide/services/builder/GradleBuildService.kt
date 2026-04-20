@@ -52,6 +52,7 @@ import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
@@ -162,10 +163,11 @@ class GradleBuildService :
 			}
 		} ?: "unknown"
 
-	internal fun nextBuildId(): BuildId =
+	internal fun nextBuildId(runType: BuildRunType): BuildId =
 		BuildId(
 			buildSessionId = buildSessionId,
 			buildId = buildId.incrementAndGet(),
+			runType = runType,
 		)
 
 	companion object {
@@ -360,7 +362,8 @@ class GradleBuildService :
 			var newTuningConfig: GradleTuningConfig? = null
 
 			@Suppress("SimplifyBooleanWithConstants")
-			val extraArgs = getGradleExtraArgs(enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild)
+			val extraArgs =
+				getGradleExtraArgs(enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild)
 
 			var buildParams =
 				if (FeatureFlags.isExperimentsEnabled) {
@@ -412,33 +415,31 @@ class GradleBuildService :
 	override fun onBuildSuccessful(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_sucess), false)
 
-		val buildType = getBuildType(result.tasks)
-		analyticsManager.trackBuildCompleted(
-			metric =
-				BuildCompletedMetric(
-					buildId = result.buildId,
-					isSuccess = true,
-					buildType = buildType,
-					buildResult = result,
-				),
-		)
+		dispatchBuildResult(result, true)
 		eventListener?.onBuildSuccessful(result.tasks)
 	}
 
 	override fun onBuildFailed(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_failed), false)
 
+		dispatchBuildResult(result, false)
+		eventListener?.onBuildFailed(result.tasks)
+	}
+
+	private fun dispatchBuildResult(
+		result: BuildResult,
+		isSuccess: Boolean,
+	) {
 		val buildType = getBuildType(result.tasks)
 		analyticsManager.trackBuildCompleted(
 			metric =
 				BuildCompletedMetric(
 					buildId = result.buildId,
-					isSuccess = false,
+					isSuccess = isSuccess,
 					buildType = buildType,
 					buildResult = result,
 				),
 		)
-		eventListener?.onBuildFailed(result.tasks)
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
@@ -574,7 +575,7 @@ class GradleBuildService :
 			message =
 				TaskExecutionMessage(
 					tasks = tasks,
-					buildId = nextBuildId(),
+					buildId = nextBuildId(BuildRunType.TaskRun),
 				),
 		)
 
@@ -610,9 +611,9 @@ class GradleBuildService :
 				} catch (e: Throwable) {
 					if (BuildPreferences.isScanEnabled &&
 						(
-							e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
-								e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
-						)
+								e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+										e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE)
+								)
 					) {
 						BuildPreferences.isScanEnabled = false
 
