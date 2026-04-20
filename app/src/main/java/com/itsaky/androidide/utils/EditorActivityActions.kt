@@ -29,6 +29,7 @@ import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.build.RunTasksAction
 import com.itsaky.androidide.actions.editor.CopyAction
 import com.itsaky.androidide.actions.editor.CutAction
+import com.itsaky.androidide.actions.agent.ExplainSelectionAction
 import com.itsaky.androidide.actions.editor.ExpandSelectionAction
 import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
@@ -56,9 +57,12 @@ import com.itsaky.androidide.actions.filetree.RenameAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
+import com.itsaky.androidide.actions.build.PluginBuildActionItem
 import com.itsaky.androidide.actions.etc.GenerateXMLAction
 import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+
 
 /**
  * Takes care of registering actions to the actions registry for the editor activity.
@@ -103,6 +107,7 @@ class EditorActivityActions {
 
             // Plugin contributions
             order = registerPluginActions(context, registry, order)
+            order = registerPluginBuildActions(context, registry, order)
 
             // editor text actions
             registry.registerAction(ExpandSelectionAction(context, order++))
@@ -110,6 +115,7 @@ class EditorActivityActions {
             registry.registerAction(LongSelectAction(context, order++))
             registry.registerAction(CutAction(context, order++))
             registry.registerAction(CopyAction(context, order++))
+            registry.registerAction(ExplainSelectionAction(context, order++))
             registry.registerAction(PasteAction(context, order++))
             registry.registerAction(FormatCodeAction(context, order++))
             registry.registerAction(ShowTooltipAction(context, order++))
@@ -155,7 +161,8 @@ class EditorActivityActions {
             registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
                 action.id == QuickRunAction.ID ||
                         action.id == RunTasksAction.ID ||
-                        action.id == ProjectSyncAction.ID
+                        action.id == ProjectSyncAction.ID ||
+                        action.id.startsWith("plugin.build.")
       }
     }
 
@@ -183,13 +190,28 @@ class EditorActivityActions {
                         registry.registerAction(action)
                     }
                 } catch (e: Exception) {
-                    // Continue with other plugins if one fails
-                    System.err.println("")
-                    Log.d("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName} - ${e.message}")
+                    Log.w("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName}", e)
                 }
             }
 
         return order
     }
+
+    @JvmStatic
+    private fun registerPluginBuildActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
+        var order = startOrder
+
+        PluginBuildActionManager.getInstance().getAllBuildActions().forEach { registered ->
+            runCatching {
+                registry.registerAction(PluginBuildActionItem(context, registered, order++))
+                Log.d("plugin_debug", "Registered build action: ${registered.action.id} from plugin: ${registered.pluginId}")
+            }.onFailure { e ->
+                Log.w("plugin_debug", "Failed to register build action: ${registered.action.id}", e)
+            }
+        }
+
+        return order
+    }
+
   }
 }

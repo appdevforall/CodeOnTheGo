@@ -16,8 +16,9 @@ dependencies {
 	implementation(libs.common.kotlin.coroutines.core)
 	implementation(libs.common.kotlin.coroutines.android)
 	implementation(libs.androidx.lifecycle.viewmodel.ktx)
+	implementation(libs.androidx.security.crypto)
 
-	testImplementation(libs.tests.junit)
-	androidTestImplementation(libs.tests.androidx.junit)
-	androidTestImplementation(libs.tests.androidx.espresso.core)
+    testImplementation(libs.tests.junit)
+    androidTestImplementation(libs.tests.androidx.junit)
+    androidTestImplementation(libs.tests.androidx.espresso.core)
 }

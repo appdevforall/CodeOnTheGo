@@ -116,6 +116,13 @@ class PluginEditorTabManager {
         }
     }
 
+    fun getPluginIdForTab(tabId: String): String? {
+        return synchronized(this) {
+            val tabInfo = pluginTabs[tabId] ?: return null
+            pluginManagerRef?.getPluginIdForInstance(tabInfo.extension)
+        }
+    }
+
     /**
      * Create or get the fragment for a plugin tab.
      */
