@@ -32,7 +32,7 @@
       android:layout_height="50dp"
       android:layout_marginBottom="8dp"
       android:importantForAccessibility="no"
-      android:src="@drawable/ic_launcher_main" />
+      android:src="@drawable/cogo_brand_mark" />
 
     <TextView
       android:id="@+id/getStarted"
