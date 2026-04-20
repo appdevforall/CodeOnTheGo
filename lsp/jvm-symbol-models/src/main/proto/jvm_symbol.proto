@@ -208,3 +208,12 @@ enum JvmVisibility {
   VISIBILITY_PRIVATE = 4;
   VISIBILITY_PACKAGE_PRIVATE = 5;
 }
+
+message KtFileData {
+  string path = 1;
+  string packageFqName = 2;
+  int64 lastModified = 3;
+  int64 modificationStamp = 4;
+  bool indexed = 5;
+  repeated string symbolKeys = 6;
+}

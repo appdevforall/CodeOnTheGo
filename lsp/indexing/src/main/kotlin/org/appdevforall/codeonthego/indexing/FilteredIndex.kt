@@ -1,7 +1,5 @@
 package org.appdevforall.codeonthego.indexing
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.appdevforall.codeonthego.indexing.api.ReadableIndex
@@ -77,13 +75,12 @@ open class FilteredIndex<T : Indexable>(
 	suspend fun isCached(sourceId: String): Boolean =
 		backing.containsSource(sourceId)
 
-	override fun query(query: IndexQuery): Flow<T> {
-		// If the query already specifies a sourceId, check if it's active
+	override fun query(query: IndexQuery): Sequence<T> {
 		if (query.sourceId != null && query.sourceId !in activeSources) {
-			return kotlinx.coroutines.flow.emptyFlow()
+			return emptySequence()
 		}
-
-		return backing.query(query).filter { it.sourceId in activeSources }
+		val original = backing.query(query)
+		return original.filter { it.sourceId in activeSources }
 	}
 
 	override suspend fun get(key: String): T? {
@@ -95,7 +92,7 @@ open class FilteredIndex<T : Indexable>(
 		return sourceId in activeSources && backing.containsSource(sourceId)
 	}
 
-	override fun distinctValues(fieldName: String): Flow<String> {
+	override fun distinctValues(fieldName: String): Sequence<String> {
 		// This is imprecise — the backing index may return values
 		// from inactive sources. For exact results, we'd need to
 		// query all entries and filter. For package enumeration
