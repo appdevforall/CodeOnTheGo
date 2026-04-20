@@ -17,6 +17,7 @@
 package com.itsaky.androidide.lsp.java
 
 import androidx.annotation.RestrictTo
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
@@ -44,7 +45,7 @@ import com.itsaky.androidide.lsp.java.providers.JavaDiagnosticProvider
 import com.itsaky.androidide.lsp.java.providers.JavaSelectionProvider
 import com.itsaky.androidide.lsp.java.providers.ReferenceProvider
 import com.itsaky.androidide.lsp.java.providers.SignatureProvider
-import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetRepository.init
+import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetRepository
 import com.itsaky.androidide.lsp.java.utils.AnalyzeTimer
 import com.itsaky.androidide.lsp.java.utils.CancelChecker.Companion.isCancelled
 import com.itsaky.androidide.lsp.models.CodeFormatResult
@@ -74,6 +75,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.jvm.JvmIndexingService
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -118,7 +120,12 @@ class JavaLanguageServer : ILanguageServer {
 			EventBus.getDefault().register(this)
 		}
 
-		init()
+		val projectManager = ProjectManagerImpl.getInstance()
+		projectManager.indexingServiceManager.register(
+			service = JvmIndexingService(context = BaseApplication.baseInstance)
+		)
+
+		JavaSnippetRepository.init()
 	}
 
 	override fun shutdown() {
@@ -151,6 +158,11 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun setupWithProject(workspace: Workspace) {
 		LSPEditorActions.ensureActionsMenuRegistered(JavaCodeActionsMenu)
+
+		(ProjectManagerImpl.getInstance()
+			.indexingServiceManager
+			.getService(JvmIndexingService.ID) as? JvmIndexingService?)
+			?.refresh()
 
 		// Once we have project initialized
 		// Destory the NO_MODULE_COMPILER instance
@@ -249,7 +261,8 @@ class JavaLanguageServer : ILanguageServer {
 		}
 	}
 
-	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = CodeFormatProvider(settings).format(params)
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult =
+		CodeFormatProvider(settings).format(params)
 
 	override fun handleFailure(failure: LSPFailure?): Boolean {
 		return when (failure!!.type) {

@@ -1,9 +1,11 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
+import com.itsaky.androidide.lsp.kotlin.completion.SymbolVisibilityChecker
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.bootClassPaths
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaLibraryModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
 import org.jetbrains.kotlin.analysis.project.structure.builder.KtModuleProviderBuilder
 import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryModule
@@ -11,6 +13,8 @@ import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModu
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
+import kotlin.io.path.nameWithoutExtension
 
 /**
  * Holds the project structure derived from a [Workspace].
@@ -23,14 +27,22 @@ import org.slf4j.LoggerFactory
  * (build complete), it notifies registered listeners so they can
  * refresh their sessions.
  */
-class KotlinProjectModel {
+internal class KotlinProjectModel {
 
 	private val logger = LoggerFactory.getLogger(KotlinProjectModel::class.java)
 
 	private var workspace: Workspace? = null
 	private var platform: TargetPlatform = JvmPlatforms.defaultJvmPlatform
+	private var _moduleResolver: ModuleResolver? = null
+	private var _symbolVisibilityChecker: SymbolVisibilityChecker? = null
 
 	private val listeners = mutableListOf<ProjectModelListener>()
+
+	val moduleResolver: ModuleResolver?
+		get() = _moduleResolver
+
+	val symbolVisibilityChecker: SymbolVisibilityChecker?
+		get() = _symbolVisibilityChecker
 
 	/**
 	 * The kind of change that occurred.
@@ -80,49 +92,55 @@ class KotlinProjectModel {
 			this.platform = this@KotlinProjectModel.platform
 
 			val moduleProjects = workspace.subProjects
+				.asSequence()
 				.filterIsInstance<ModuleProject>()
 				.filter { it.path != workspace.rootProject.path }
+
+			val jarToModMap = mutableMapOf<Path, KaLibraryModule>()
+
+			fun addLibrary(path: Path): KaLibraryModule {
+				val module = addModule(buildKtLibraryModule {
+					this.platform = this@KotlinProjectModel.platform
+					this.libraryName = path.nameWithoutExtension
+					addBinaryRoot(path)
+				})
+				
+				jarToModMap[path] = module
+				return module
+			}
 
 			val bootClassPaths = moduleProjects
 				.filterIsInstance<AndroidModule>()
 				.flatMap { project ->
 					project.bootClassPaths
+						.asSequence()
 						.filter { it.exists() }
-						.map { bootClassPath ->
-							addModule(buildKtLibraryModule {
-								this.platform = this@KotlinProjectModel.platform
-								this.libraryName = bootClassPath.nameWithoutExtension
-								addBinaryRoot(bootClassPath.toPath())
-							})
-						}
+						.map { it.toPath() }
+						.map(::addLibrary)
 				}
 
 			val libraryDependencies = moduleProjects
 				.flatMap { it.getCompileClasspaths() }
 				.filter { it.exists() }
-				.associateWith { library ->
-					addModule(buildKtLibraryModule {
-						this.platform = this@KotlinProjectModel.platform
-						this.libraryName = library.nameWithoutExtension
-						addBinaryRoot(library.toPath())
-					})
-				}
+				.map { it.toPath() }
+				.associateWith(::addLibrary)
 
 			val subprojectsAsModules = mutableMapOf<ModuleProject, KaSourceModule>()
 
 			fun getOrCreateModule(project: ModuleProject): KaSourceModule {
 				subprojectsAsModules[project]?.let { return it }
 
+				val sourceRoots = project.getSourceDirectories().map { it.toPath() }
 				val module = buildKtSourceModule {
 					this.platform = this@KotlinProjectModel.platform
 					this.moduleName = project.name
-					addSourceRoots(project.getSourceDirectories().map { it.toPath() })
+					addSourceRoots(sourceRoots)
 
 					bootClassPaths.forEach { addRegularDependency(it) }
 
 					project.getCompileClasspaths(excludeSourceGeneratedClassPath = true)
 						.forEach { classpath ->
-							val libDep = libraryDependencies[classpath]
+							val libDep = libraryDependencies[classpath.toPath()]
 							if (libDep == null) {
 								logger.error(
 									"Skipping non-existent classpath classpath: {}",
@@ -143,6 +161,10 @@ class KotlinProjectModel {
 			}
 
 			moduleProjects.forEach { addModule(getOrCreateModule(it)) }
+
+			val moduleResolver = ModuleResolver(jarMap = jarToModMap)
+			_moduleResolver = moduleResolver
+			_symbolVisibilityChecker = SymbolVisibilityChecker(moduleResolver)
 		}
 	}
 
