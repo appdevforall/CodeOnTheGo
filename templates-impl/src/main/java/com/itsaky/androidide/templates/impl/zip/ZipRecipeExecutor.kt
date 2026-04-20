@@ -52,7 +52,7 @@ class ZipRecipeExecutor(
     override fun execute(
     executor: RecipeExecutor
     ): ProjectTemplateRecipeResult {
-        val ctx = executor.context!!
+        val ctx = requireNotNull(executor.context) { "context null" }
 
         info(ctx, R.string.template_exec_info_basepath, basePath)
 
