@@ -300,7 +300,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     protected open fun onGetActionLocation() = location
 
     protected open fun onCreateActionData(): ActionData {
-		val languageServerRegistry = ILanguageServerRegistry.getDefault()
+		val languageServerRegistry = ILanguageServerRegistry.default
         val data = ActionData.create(editor.context)
 
         data.put(IDEEditor::class.java, this.editor)
