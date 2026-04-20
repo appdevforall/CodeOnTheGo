@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
+import com.itsaky.androidide.lsp.kotlin.FileEventConsumer
+import com.itsaky.androidide.lsp.kotlin.KtFileManager
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
@@ -61,7 +63,11 @@ class CompilationEnvironment(
 
 	var session: StandaloneAnalysisAPISession
 		private set
+
 	var parser: KtPsiFactory
+		private set
+
+	var fileManager: KtFileManager
 		private set
 
 	val psiManager: PsiManager
@@ -101,6 +107,7 @@ class CompilationEnvironment(
 	init {
 		session = buildSession()
 		parser = KtPsiFactory(session.project, eventSystemEnabled = enableParserEventSystem)
+		fileManager = KtFileManager(parser, psiManager, psiDocumentManager)
 
 		projectModel.addListener(this)
 	}
@@ -225,6 +232,7 @@ class CompilationEnvironment(
 	}
 
 	override fun close() {
+		fileManager.close()
 		projectModel.removeListener(this)
 		disposable.dispose()
 	}
