@@ -101,6 +101,7 @@ android {
 	defaultConfig {
 		applicationId = BuildConfig.PACKAGE_NAME
 		vectorDrawables.useSupportLibrary = true
+		testInstrumentationRunnerArguments["class"] = "com.itsaky.androidide.OrderedTestSuite"
 	}
 
 	signingConfigs {
@@ -123,8 +124,6 @@ android {
 	}
 
 	testOptions {
-		execution = "ANDROIDX_TEST_ORCHESTRATOR"
-
 		unitTests {
 			isIncludeAndroidResources = true
 			all {
@@ -341,7 +340,7 @@ dependencies {
 	androidTestImplementation(libs.tests.kaspresso)
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
-	androidTestUtil(libs.tests.orchestrator)
+	// androidTestUtil(libs.tests.orchestrator)
 	testImplementation(libs.tests.kotlinx.coroutines)
 
 	// brotli4j
@@ -561,6 +560,7 @@ fun createAssetsZip(arch: String) {
 			"documentation.db",
 			bootstrapName,
 			"plugin-artifacts.zip",
+            "core.cgt"
 		).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
 			if (!filePath.exists()) {
@@ -1079,6 +1079,12 @@ val debugAssets =
 			"localMvnRepository.zip",
 			"debug",
 		),
+        Asset(
+          "assets/core.cgt",
+          "https://appdevforall.org/dev-assets/debug/core.cgt",
+          "core.cgt",
+          "debug",
+        ),
 	)
 
 val releaseAssets =
@@ -1131,6 +1137,12 @@ val releaseAssets =
 			"v8/bootstrap.zip.br",
 			"release",
 		),
+        Asset(
+          "assets/release/common/data/common/core.cgt.br",
+          "https://appdevforall.org/dev-assets/release/core.cgt.br",
+          "core.cgt.br",
+          "release",
+        ),
 	)
 
 fun assetsBatch(

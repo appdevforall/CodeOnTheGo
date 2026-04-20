@@ -1,227 +1,120 @@
 package com.itsaky.androidide
 
 import android.annotation.SuppressLint
-import android.content.Context
-import android.graphics.Rect
-import android.view.GestureDetector
-import android.view.MotionEvent
-import android.view.ViewConfiguration
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
-import com.blankj.utilcode.util.SizeUtils
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.FeedbackManager
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
-import kotlin.math.sqrt
 
+/**
+ * Handles a draggable FAB with position persistence.
+ *
+ * Uses normalized ratios instead of absolute coordinates to keep the FAB correctly
+ * positioned across layout size changes (e.g. resizing, multi-window, DeX).
+ */
 class FeedbackButtonManager(
-    val activity: AppCompatActivity,
-    val feedbackFab: FloatingActionButton?,
+    private val activity: AppCompatActivity,
+    private val feedbackFab: FloatingActionButton?,
     private val getLogContent: (() -> String?)? = null,
 ) {
-	companion object {
-        const val FAB_PREFS = "FabPrefs"
-        const val KEY_FAB_X = "fab_x"
-        const val KEY_FAB_Y = "fab_y"
-	}
+    private val repository = FabPositionRepository(activity.applicationContext)
+    private val calculator = FabPositionCalculator()
 
-	// This function is called in the onCreate method of the activity that contains the FAB
-	fun setupDraggableFab() {
-        if (feedbackFab != null) {
-            loadFabPosition()
-
-            var initialX = 0f
-            var initialY = 0f
-            var initialTouchX = 0f
-            var initialTouchY = 0f
-            var isDragging = false
-            var isLongPressed = false
-
-            val gestureDetector =
-                GestureDetector(
-                    activity,
-                    object : GestureDetector.SimpleOnGestureListener() {
-                        override fun onLongPress(e: MotionEvent) {
-                            if (!isDragging) {
-                                isLongPressed = true
-                                TooltipManager.showIdeCategoryTooltip(
-                                    context = activity,
-                                    anchorView = feedbackFab,
-                                    tag = TooltipTag.FEEDBACK,
-                                )
-                            }
-                        }
-                    },
-                )
-
-            @SuppressLint("ClickableViewAccessibility")
-            feedbackFab.setOnTouchListener { v, event ->
-                val parentView = v.parent as? ViewGroup ?: return@setOnTouchListener false
-
-                gestureDetector.onTouchEvent(event)
-
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = v.x
-                        initialY = v.y
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isDragging = false
-                        isLongPressed = false
-                        true
-                    }
-
-                    MotionEvent.ACTION_MOVE -> {
-                        val dX = event.rawX - initialTouchX
-                        val dY = event.rawY - initialTouchY
-
-                        if (!isDragging &&
-                            sqrt((dX * dX + dY * dY).toDouble()) >
-                            ViewConfiguration
-                                .get(
-                                    v.context,
-                                ).scaledTouchSlop
-                        ) {
-                            isDragging = true
-                        }
-
-                        if (isDragging) {
-                            // Get safe dragging bounds that account for system UI
-                            val safeBounds = getSafeDraggingBounds(parentView, v as FloatingActionButton)
-
-                            v.x = (initialX + dX).coerceIn(
-                                safeBounds.left.toFloat(),
-                                safeBounds.right.toFloat()
-                            )
-                            v.y = (initialY + dY).coerceIn(
-                                safeBounds.top.toFloat(),
-                                safeBounds.bottom.toFloat()
-                            )
-                        }
-                        true
-                    }
-
-                    MotionEvent.ACTION_UP -> {
-                        if (isDragging) {
-                            saveFabPosition(v.x, v.y)
-                        } else if (!isLongPressed) {
-                            v.performClick()
-                        }
-                        true
-                    }
-
-                    else -> false
-                }
-            }
-
-            feedbackFab.setOnClickListener {
-                performFeedbackAction()
-            }
-        }
+    // This function is called in the onCreate method of the activity that contains the FAB
+    fun setupDraggableFab() {
+        val fab = feedbackFab ?: return
+        loadFabPosition()
+        setupLayoutChangeListener(fab)
+        setupTouchAndClickListeners(fab)
     }
-
-    private fun performFeedbackAction() {
-        val currentLogContent = getLogContent?.invoke()
-        FeedbackManager.showFeedbackDialog(
-            activity = activity,
-            logContent = currentLogContent
-        )
-    }
-
-	private fun saveFabPosition(
-		x: Float,
-		y: Float,
-	) {
-		activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE).edit().apply {
-			putFloat(KEY_FAB_X, x)
-			putFloat(KEY_FAB_Y, y)
-			apply()
-		}
-	}
-
-	/**
-	 * Calculate safe bounds for FAB positioning, accounting for system UI elements.
-	 * Returns a Rect with the safe dragging area (left, top, right, bottom).
-	 */
-	private fun getSafeDraggingBounds(parentView: ViewGroup, fabView: FloatingActionButton): Rect {
-		val bounds = Rect()
-
-		// Get margin from layout params, or use default 16dp if not available
-		val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
-		val fabMarginPx = layoutParams?.topMargin?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
-
-		// Get system window insets (status bar, navigation bar, etc.)
-		val insets = ViewCompat.getRootWindowInsets(parentView)
-		val systemBarsInsets = insets?.getInsets(WindowInsetsCompat.Type.systemBars())
-
-		// Calculate safe minimum Y position
-		// Start with system bars top inset (status bar), add a safety margin
-		val minY = (systemBarsInsets?.top?.toFloat() ?: 0f) + fabMarginPx
-
-		// Calculate safe bounds
-		bounds.left = 0
-		bounds.top = minY.toInt()
-		bounds.right = (parentView.width - fabView.width).coerceAtLeast(0)
-		bounds.bottom = (parentView.height - fabView.height).coerceAtLeast(0)
-
-		return bounds
-	}
-
-	/**
-	 * Validates if the given position is within safe bounds.
-	 * If not, returns a safe default position (bottom-left with margins).
-	 */
-	private fun validateAndCorrectPosition(x: Float, y: Float, parentView: ViewGroup, fabView: FloatingActionButton): Pair<Float, Float> {
-		val safeBounds = getSafeDraggingBounds(parentView, fabView)
-
-		// Check if position is within safe bounds
-		val isXValid = x >= safeBounds.left && x <= safeBounds.right
-		val isYValid = y >= safeBounds.top && y <= safeBounds.bottom
-
-		return if (isXValid && isYValid) {
-			// Position is valid, return as-is
-			Pair(x, y)
-		} else {
-			// Get margins from layout params, or use default 16dp if not available
-			val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
-			val marginStart = layoutParams?.marginStart?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
-			val marginBottom = layoutParams?.bottomMargin?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
-
-			// Position is invalid, return default position (bottom-left)
-			val defaultX = marginStart
-			val defaultY = parentView.height - fabView.height - marginBottom
-			Pair(defaultX, defaultY)
-		}
-	}
 
     // Called in onResume for returning activities to reload FAB position
     fun loadFabPosition() {
         val fab = feedbackFab ?: return
         activity.lifecycleScope.launch {
-            val (x, y) = withContext(Dispatchers.IO) {
-                val prefs = activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)
-                prefs.getFloat(KEY_FAB_X, -1f) to prefs.getFloat(KEY_FAB_Y, -1f)
-            }
-            if (x == -1f || y == -1f) return@launch
-            fab.post {
-                val parentView = fab.parent as? ViewGroup
-                if (parentView != null) {
-                    val (validX, validY) = validateAndCorrectPosition(x, y, parentView, fab)
-                    fab.x = validX
-                    fab.y = validY
-                    if (validX != x || validY != y) saveFabPosition(validX, validY)
-                } else {
-                    fab.x = x
-                    fab.y = y
+            val (xRatio, yRatio) = repository.readPositionRatios()
+            if (xRatio == -1f || yRatio == -1f) return@launch
+
+            fab.post { applySavedPosition(fab, xRatio, yRatio) }
+        }
+    }
+
+    private fun applySavedPosition(fab: FloatingActionButton, xRatio: Float, yRatio: Float) {
+        val parentView = fab.parent as? ViewGroup ?: return
+        val safeBounds = calculator.getSafeDraggingBounds(parentView, fab)
+        val availableWidth = (safeBounds.right - safeBounds.left).toFloat()
+        val availableHeight = (safeBounds.bottom - safeBounds.top).toFloat()
+
+        val x = calculator.fromRatio(xRatio, safeBounds.left, availableWidth)
+        val y = calculator.fromRatio(yRatio, safeBounds.top, availableHeight)
+        val (validX, validY) = calculator.validateAndCorrectPosition(x, y, parentView, fab)
+
+        fab.x = validX
+        fab.y = validY
+
+        if (validX != x || validY != y) {
+            saveFabPosition(fab, validX, validY)
+        }
+    }
+
+    private fun setupLayoutChangeListener(fab: FloatingActionButton) {
+        fab.post {
+            val parentView = fab.parent as? ViewGroup ?: return@post
+
+            parentView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+                val newWidth = right - left
+                val newHeight = bottom - top
+                val oldWidth = oldRight - oldLeft
+                val oldHeight = oldBottom - oldTop
+                if (newWidth != oldWidth || newHeight != oldHeight) {
+                    loadFabPosition()
                 }
             }
         }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupTouchAndClickListeners(fab: FloatingActionButton) {
+        val touchListener = DraggableTouchListener(
+            context = activity,
+            calculator = calculator,
+            onSavePosition = { x, y -> saveFabPosition(fab, x, y) },
+            onShowTooltip = { showTooltip(fab) }
+        )
+
+        fab.setOnTouchListener(touchListener)
+        fab.setOnClickListener { performFeedbackAction() }
+    }
+
+    private fun saveFabPosition(fab: FloatingActionButton, x: Float, y: Float) {
+        val parentView = fab.parent as? ViewGroup ?: return
+        // Get safe dragging bounds that account for system UI
+        val safeBounds = calculator.getSafeDraggingBounds(parentView, fab)
+        val availableWidth = (safeBounds.right - safeBounds.left).toFloat()
+        val availableHeight = (safeBounds.bottom - safeBounds.top).toFloat()
+
+        val xRatio = calculator.toRatio(x, safeBounds.left, availableWidth)
+        val yRatio = calculator.toRatio(y, safeBounds.top, availableHeight)
+
+        repository.savePositionRatios(xRatio, yRatio)
+    }
+
+    private fun showTooltip(fab: FloatingActionButton) {
+        TooltipManager.showIdeCategoryTooltip(
+            context = activity,
+            anchorView = fab,
+            tag = TooltipTag.FEEDBACK,
+        )
+    }
+
+    private fun performFeedbackAction() {
+        FeedbackManager.showFeedbackDialog(
+            activity = activity,
+            logContent = getLogContent?.invoke()
+        )
     }
 }

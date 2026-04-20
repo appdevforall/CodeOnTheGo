@@ -17,9 +17,7 @@
 
 package com.itsaky.androidide.activities
 
-import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -51,6 +49,7 @@ import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -78,12 +77,8 @@ class OnboardingActivity : AppIntro2() {
 			"ide.archConfig.experimentalWarning.isShown"
 	}
 
-	@SuppressLint("SourceLockedOrientationActivity")
 	override fun onCreate(savedInstanceState: Bundle?) {
 		IThemeManager.getInstance().applyTheme(this)
-		setOrientationFunction {
-			requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-		}
 
 		super.onCreate(savedInstanceState)
 
@@ -214,9 +209,11 @@ class OnboardingActivity : AppIntro2() {
 	override fun onResume() {
 		super.onResume()
 
-		lifecycleScope.launch {
-			reloadJdkDistInfo {
-				tryNavigateToMainIfSetupIsCompleted()
+		if (!isTestMode()) {
+			lifecycleScope.launch {
+				reloadJdkDistInfo {
+					tryNavigateToMainIfSetupIsCompleted()
+				}
 			}
 		}
 	}
@@ -238,12 +235,9 @@ class OnboardingActivity : AppIntro2() {
 	override fun onPageSelected(position: Int) {
 		super.onPageSelected(position)
 
-        if (nextButton.isVisible) {
-            if (nextButton.animation == null) {
-                nextButton.startAnimation(pulseAnimation)
-            }
-        } else {
-            nextButton.clearAnimation()
+        when {
+            !nextButton.isVisible -> nextButton.clearAnimation()
+            !isTestMode() && nextButton.animation == null -> nextButton.startAnimation(pulseAnimation)
         }
 	}
 

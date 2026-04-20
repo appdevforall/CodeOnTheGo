@@ -19,6 +19,7 @@ package com.itsaky.androidide.gradle
 
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.utils.FileProvider
+import com.itsaky.androidide.utils.SharedEnvironment
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.internal.PluginUnderTestMetadataReading
@@ -35,7 +36,8 @@ internal fun buildProject(
   vararg plugins: String
 ): BuildResult {
   val projectRoot = openProject(agpVersion, useApplyPluginGroovySyntax, *plugins)
-  val initScript = FileProvider.testHomeDir().resolve(".androidide/init/androidide.init.gradle")
+  val initScript = FileProvider.testHomeDir()
+    .resolve("${SharedEnvironment.PROJECT_CACHE_DIR_NAME}/init/androidide.init.gradle")
   val mavenLocal = FileProvider.projectRoot().resolve("gradle-plugin/build/maven-local/repos.txt").toFile()
 
   if (!(mavenLocal.exists() && mavenLocal.isFile)) {

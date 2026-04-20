@@ -8,7 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 
-@Database(entities = [RecentProject::class], version = 3, exportSchema = false)
+@Database(entities = [RecentProject::class], version = 4, exportSchema = false)
 abstract class RecentProjectRoomDatabase : RoomDatabase() {
 
     abstract fun recentProjectDao(): RecentProjectDao
@@ -51,6 +51,26 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Delete duplicate entries, keeping the one with the highest ID (most recent)
+                db.execSQL(
+                    "DELETE FROM recent_project_table " +
+                    "WHERE id NOT IN (" +
+                    "SELECT MAX(id) " +
+                    "FROM recent_project_table " +
+                    "GROUP BY location" +
+                    ")"
+                )
+                
+                // Create the unique index on location
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_recent_project_table_location` " +
+                    "ON `recent_project_table` (`location`)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): RecentProjectRoomDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -59,7 +79,7 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
                     "RecentProject_database"
                 )
                     .addCallback(RecentProjectRoomDatabaseCallback(context, scope))
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }
