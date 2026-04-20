@@ -112,9 +112,11 @@ object KotlinMetadataScanner {
 		klass: KmClass, sourceId: String,
 	): List<JvmSymbol> {
 		val symbols = mutableListOf<JvmSymbol>()
-		val classFqName = klass.name.replace('/', '.')
-		val packageName = classFqName.substringBeforeLast('.', "")
-		val shortName = classFqName.substringAfterLast('.')
+		val className = klass.name
+		val packageName = className.substringBeforeLast('/')
+			.replace('/', '.')
+		val shortName = className.substringAfterLast('/')
+			.substringAfterLast('$')
 
 		val kind = when (klass.kind) {
 			ClassKind.INTERFACE -> JvmSymbolKind.INTERFACE
@@ -128,23 +130,23 @@ object KotlinMetadataScanner {
 
 		val supertypes = klass.supertypes.mapNotNull { supertype ->
 			when (val c = supertype.classifier) {
-				is KmClassifier.Class -> c.name.replace('/', '.')
+				is KmClassifier.Class -> c.name
 				else -> null
 			}
 		}
 
 		symbols.add(
 			JvmSymbol(
-				key = classFqName,
+				key = className,
 				sourceId = sourceId,
-				fqName = classFqName,
+				name = className,
 				shortName = shortName,
 				packageName = packageName,
 				kind = kind,
 				language = JvmSourceLanguage.KOTLIN,
 				visibility = kmVisibility(klass.visibility),
 				data = JvmClassInfo(
-					supertypeFqNames = supertypes,
+					supertypeNames = supertypes,
 					typeParameters = klass.typeParameters.map { it.name },
 					isAbstract = klass.modality == Modality.ABSTRACT,
 					isFinal = klass.modality == Modality.FINAL,
@@ -157,26 +159,26 @@ object KotlinMetadataScanner {
 		)
 
 		for (fn in klass.functions) {
-			extractFunction(fn, classFqName, packageName, sourceId)?.let { symbols.add(it) }
+			extractFunction(fn, className, packageName, sourceId)?.let { symbols.add(it) }
 		}
 
 		for (prop in klass.properties) {
-			extractProperty(prop, classFqName, packageName, sourceId)?.let { symbols.add(it) }
+			extractProperty(prop, className, packageName, sourceId)?.let { symbols.add(it) }
 		}
 
 		if (kind == JvmSymbolKind.ENUM) {
 			klass.kmEnumEntries.forEachIndexed { ordinal, entry ->
 				symbols.add(
 					JvmSymbol(
-						key = "$classFqName.$entry",
+						key = "$className#$entry",
 						sourceId = sourceId,
-						fqName = "$classFqName.$entry",
+						name = "$className#$entry",
 						shortName = entry.name,
 						packageName = packageName,
 						kind = JvmSymbolKind.ENUM_ENTRY,
 						language = JvmSourceLanguage.KOTLIN,
 						data = JvmEnumEntryInfo(
-							containingClassFqName = classFqName,
+							containingClassName = className,
 							ordinal = ordinal,
 						),
 					)
@@ -208,15 +210,15 @@ object KotlinMetadataScanner {
 				JvmSymbol(
 					key = fqName,
 					sourceId = sourceId,
-					fqName = fqName,
+					name = fqName,
 					shortName = alias.name,
 					packageName = packageName,
 					kind = JvmSymbolKind.TYPE_ALIAS,
 					language = JvmSourceLanguage.KOTLIN,
 					visibility = kmVisibility(alias.visibility),
 					data = JvmTypeAliasInfo(
-						expandedTypeFqName = kmTypeToFqName(alias.expandedType),
-						expandedTypeDisplay = kmTypeToDisplay(alias.expandedType),
+						expandedTypeName = kmTypeToName(alias.expandedType),
+						expandedTypeDisplayName = kmTypeToDisplayName(alias.expandedType),
 						typeParameters = alias.typeParameters.map { it.name },
 					),
 				)
@@ -242,44 +244,44 @@ object KotlinMetadataScanner {
 		val parameters = fn.valueParameters.map { param ->
 			JvmParameterInfo(
 				name = param.name,
-				typeFqName = kmTypeToFqName(param.type),
-				typeDisplay = kmTypeToDisplay(param.type),
+				typeName = kmTypeToName(param.type),
+				typeDisplayName = kmTypeToDisplayName(param.type),
 				hasDefaultValue = param.declaresDefaultValue,
 				isVararg = param.varargElementType != null,
 			)
 		}
 
-		val baseFqName = if (containingClass.isNotEmpty())
-			"$containingClass.${fn.name}" else "$packageName.${fn.name}"
-		val key = "$baseFqName(${parameters.joinToString(",") { it.typeFqName }})"
+		val name = if (containingClass.isNotEmpty())
+			"$containingClass#${fn.name}" else "$packageName#${fn.name}"
+		val key = "$name(${parameters.joinToString(",") { it.typeFqName }})"
 
 		val signatureDisplay = buildString {
 			append("(")
-			append(parameters.joinToString(", ") { "${it.name}: ${it.typeDisplay}" })
+			append(parameters.joinToString(", ") { "${it.name}: ${it.typeDisplayName}" })
 			append("): ")
-			append(kmTypeToDisplay(fn.returnType))
+			append(kmTypeToDisplayName(fn.returnType))
 		}
 
 		return JvmSymbol(
 			key = key,
 			sourceId = sourceId,
-			fqName = baseFqName,
+			name = name,
 			shortName = fn.name,
 			packageName = packageName,
 			kind = kind,
 			language = JvmSourceLanguage.KOTLIN,
 			visibility = vis,
 			data = JvmFunctionInfo(
-				containingClassFqName = containingClass,
-				returnTypeFqName = kmTypeToFqName(fn.returnType),
-				returnTypeDisplay = kmTypeToDisplay(fn.returnType),
+				containingClassName = containingClass,
+				returnTypeName = kmTypeToName(fn.returnType),
+				returnTypeDisplayName = kmTypeToDisplayName(fn.returnType),
 				parameterCount = parameters.size,
 				parameters = parameters,
 				signatureDisplay = signatureDisplay,
 				typeParameters = fn.typeParameters.map { it.name },
 				kotlin = KotlinFunctionInfo(
-					receiverTypeFqName = receiverType?.let { kmTypeToFqName(it) } ?: "",
-					receiverTypeDisplay = receiverType?.let { kmTypeToDisplay(it) } ?: "",
+					receiverTypeName = receiverType?.let { kmTypeToName(it) } ?: "",
+					receiverTypeDisplayName = receiverType?.let { kmTypeToDisplayName(it) } ?: "",
 					isSuspend = fn.isSuspend,
 					isInline = fn.isInline,
 					isInfix = fn.isInfix,
@@ -306,25 +308,25 @@ object KotlinMetadataScanner {
 		val isExtension = receiverType != null
 		val kind = if (isExtension) JvmSymbolKind.EXTENSION_PROPERTY else JvmSymbolKind.PROPERTY
 
-		val fqName = if (containingClass.isNotEmpty())
-			"$containingClass.${prop.name}" else "$packageName.${prop.name}"
+		val name = if (containingClass.isNotEmpty())
+			"$containingClass#${prop.name}" else "$packageName#${prop.name}"
 
 		return JvmSymbol(
-			key = fqName,
+			key = name,
 			sourceId = sourceId,
-			fqName = fqName,
+			name = name,
 			shortName = prop.name,
 			packageName = packageName,
 			kind = kind,
 			language = JvmSourceLanguage.KOTLIN,
 			visibility = vis,
 			data = JvmFieldInfo(
-				containingClassFqName = containingClass,
-				typeFqName = kmTypeToFqName(prop.returnType),
-				typeDisplay = kmTypeToDisplay(prop.returnType),
+				containingClassName = containingClass,
+				typeName = kmTypeToName(prop.returnType),
+				typeDisplayName = kmTypeToDisplayName(prop.returnType),
 				kotlin = KotlinPropertyInfo(
-					receiverTypeFqName = receiverType?.let { kmTypeToFqName(it) } ?: "",
-					receiverTypeDisplay = receiverType?.let { kmTypeToDisplay(it) } ?: "",
+					receiverTypeName = receiverType?.let { kmTypeToName(it) } ?: "",
+					receiverTypeDisplayName = receiverType?.let { kmTypeToDisplayName(it) } ?: "",
 					isConst = prop.isConst,
 					isLateinit = prop.isLateinit,
 					hasGetter = prop.getter != null,
@@ -336,15 +338,15 @@ object KotlinMetadataScanner {
 		)
 	}
 
-	private fun kmTypeToFqName(type: KmType): String = when (val c = type.classifier) {
-		is KmClassifier.Class -> c.name.replace('/', '.')
-		is KmClassifier.TypeAlias -> c.name.replace('/', '.')
+	private fun kmTypeToName(type: KmType): String = when (val c = type.classifier) {
+		is KmClassifier.Class -> c.name
+		is KmClassifier.TypeAlias -> c.name
 		is KmClassifier.TypeParameter -> "T${c.id}"
 	}
 
-	private fun kmTypeToDisplay(type: KmType): String {
-		val base = kmTypeToFqName(type).substringAfterLast('.')
-		val args = type.arguments.mapNotNull { it.type?.let { t -> kmTypeToDisplay(t) } }
+	private fun kmTypeToDisplayName(type: KmType): String {
+		val base = kmTypeToDisplayName(type).substringAfterLast('.')
+		val args = type.arguments.mapNotNull { it.type?.let { t -> kmTypeToDisplayName(t) } }
 		return buildString {
 			append(base)
 			if (args.isNotEmpty()) append("<${args.joinToString(", ")}>")

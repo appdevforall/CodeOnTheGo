@@ -122,20 +122,20 @@ object JarSymbolScanner {
 
             val supertypes = buildList {
                 superName?.let {
-                    if (it != "java/lang/Object") add(it.replace('/', '.'))
+                    if (it != "java/lang/Object") add(it)
                 }
-                interfaces?.forEach { add(it.replace('/', '.')) }
+                interfaces?.forEach { add(it) }
             }
 
             val containingClass = if (isInnerClass) {
-                classFqName.split('.').dropLast(1).joinToString(".")
+				className.substringBeforeLast('$')
             } else ""
 
             symbols.add(
                 JvmSymbol(
-                    key = classFqName,
+                    key = className,
                     sourceId = sourceId,
-                    fqName = classFqName,
+                    name = classFqName,
                     shortName = shortClassName.split('.').last(),
                     packageName = packageName,
                     kind = kind,
@@ -143,8 +143,9 @@ object JarSymbolScanner {
                     visibility = visibilityFromAccess(classAccess),
                     isDeprecated = classDeprecated,
                     data = JvmClassInfo(
-                        containingClassFqName = containingClass,
-                        supertypeFqNames = supertypes,
+						internalName = className,
+                        containingClassName = containingClass,
+                        supertypeNames = supertypes,
                         isAbstract = hasFlag(classAccess, Opcodes.ACC_ABSTRACT),
                         isFinal = hasFlag(classAccess, Opcodes.ACC_FINAL),
                         isInner = isInnerClass && !hasFlag(classAccess, Opcodes.ACC_STATIC),
@@ -177,21 +178,21 @@ object JarSymbolScanner {
             val parameters = paramTypes.map { type ->
                 JvmParameterInfo(
                     name = "",  // not available without -parameters flag
-                    typeFqName = typeToFqName(type),
-                    typeDisplay = typeToDisplay(type),
+                    typeName = typeToName(type),
+                    typeDisplayName = typeToDisplayName(type),
                 )
             }
 
-            val fqName = "$classFqName.$methodName"
-            val key = "$fqName(${parameters.joinToString(",") { it.typeFqName }})"
+            val fqName = "$className#$methodName"
+            val key = "$fqName(${parameters.joinToString(",") { it.typeName }})"
 
             val signatureDisplay = buildString {
                 append("(")
-                append(parameters.joinToString(", ") { it.typeDisplay })
+                append(parameters.joinToString(", ") { it.typeDisplayName })
                 append(")")
                 if (!isConstructor) {
                     append(": ")
-                    append(typeToDisplay(returnType))
+                    append(typeToDisplayName(returnType))
                 }
             }
 
@@ -199,7 +200,7 @@ object JarSymbolScanner {
                 JvmSymbol(
                     key = key,
                     sourceId = sourceId,
-                    fqName = fqName,
+                    name = fqName,
                     shortName = methodName,
                     packageName = packageName,
                     kind = kind,
@@ -207,9 +208,9 @@ object JarSymbolScanner {
                     visibility = visibilityFromAccess(access),
                     isDeprecated = classDeprecated,
                     data = JvmFunctionInfo(
-                        containingClassFqName = classFqName,
-                        returnTypeFqName = typeToFqName(returnType),
-                        returnTypeDisplay = typeToDisplay(returnType),
+                        containingClassName = className,
+                        returnTypeName = typeToName(returnType),
+                        returnTypeDisplayName = typeToDisplayName(returnType),
                         parameterCount = paramTypes.size,
                         parameters = parameters,
                         signatureDisplay = signatureDisplay,
@@ -234,13 +235,13 @@ object JarSymbolScanner {
             val fieldType = Type.getType(descriptor)
             val kind = if (isKotlinClass) JvmSymbolKind.PROPERTY else JvmSymbolKind.FIELD
             val language = if (isKotlinClass) JvmSourceLanguage.KOTLIN else JvmSourceLanguage.JAVA
-            val fqName = "$classFqName.$name"
+            val iName = "$className#$name"
 
             symbols.add(
                 JvmSymbol(
-                    key = fqName,
+                    key = iName,
                     sourceId = sourceId,
-                    fqName = fqName,
+                    name = iName,
                     shortName = name,
                     packageName = packageName,
                     kind = kind,
@@ -248,9 +249,9 @@ object JarSymbolScanner {
                     visibility = visibilityFromAccess(access),
                     isDeprecated = classDeprecated,
                     data = JvmFieldInfo(
-                        containingClassFqName = classFqName,
-                        typeFqName = typeToFqName(fieldType),
-                        typeDisplay = typeToDisplay(fieldType),
+                        containingClassName = className,
+                        typeName = typeToName(fieldType),
+                        typeDisplayName = typeToDisplayName(fieldType),
                         isStatic = hasFlag(access, Opcodes.ACC_STATIC),
                         isFinal = hasFlag(access, Opcodes.ACC_FINAL),
                         constantValue = value?.toString() ?: "",
@@ -280,26 +281,34 @@ object JarSymbolScanner {
             else -> JvmVisibility.PACKAGE_PRIVATE
         }
 
-        private fun typeToFqName(type: Type): String = when (type.sort) {
-            Type.VOID -> "void"
-            Type.BOOLEAN -> "boolean"
-            Type.BYTE -> "byte"
-            Type.CHAR -> "char"
-            Type.SHORT -> "short"
-            Type.INT -> "int"
-            Type.LONG -> "long"
-            Type.FLOAT -> "float"
-            Type.DOUBLE -> "double"
-            Type.ARRAY -> typeToFqName(type.elementType) + "[]".repeat(type.dimensions)
-            Type.OBJECT -> type.className
-            else -> type.className
+        private fun typeToName(type: Type): String = when (type.sort) {
+            Type.VOID -> "V"
+            Type.BOOLEAN -> "Z"
+            Type.BYTE -> "B"
+            Type.CHAR -> "C"
+            Type.SHORT -> "S"
+            Type.INT -> "I"
+            Type.LONG -> "J"
+            Type.FLOAT -> "F"
+            Type.DOUBLE -> "D"
+            Type.ARRAY -> "[".repeat(type.dimensions) + typeToName(type.elementType)
+            Type.OBJECT -> type.internalName
+            else -> type.internalName
         }
 
-        private fun typeToDisplay(type: Type): String = when (type.sort) {
+        private fun typeToDisplayName(type: Type): String = when (type.sort) {
+			Type.BOOLEAN -> "boolean"
+			Type.BYTE -> "byte"
+			Type.CHAR -> "char"
+			Type.SHORT -> "short"
+			Type.INT -> "int"
+			Type.LONG -> "long"
+			Type.FLOAT -> "float"
+			Type.DOUBLE -> "double"
             Type.VOID -> "void"
-            Type.ARRAY -> typeToDisplay(type.elementType) + "[]".repeat(type.dimensions)
+            Type.ARRAY -> typeToDisplayName(type.elementType) + "[]".repeat(type.dimensions)
             Type.OBJECT -> type.className.substringAfterLast('.')
-            else -> typeToFqName(type)
+            else -> typeToName(type)
         }
     }
 }

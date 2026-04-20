@@ -1,7 +1,8 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.lsp.kotlin.KtFileManager
-import com.itsaky.androidide.lsp.kotlin.completion.SymbolVisibilityChecker
+import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
+import org.appdevforall.codeonthego.indexing.jvm.JvmLibrarySymbolIndex
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
@@ -84,6 +85,15 @@ internal class CompilationEnvironment(
 
 	val symbolVisibilityChecker: SymbolVisibilityChecker?
 		get() = project.symbolVisibilityChecker
+
+	val requireSymbolVisibilityChecker: SymbolVisibilityChecker
+		get() = checkNotNull(symbolVisibilityChecker)
+
+	val libraryIndex: JvmLibrarySymbolIndex?
+		get() = project.libraryIndex
+
+	val requireLibraryIndex: JvmLibrarySymbolIndex
+		get() = checkNotNull(libraryIndex)
 
 	private val envMessageCollector = object : MessageCollector {
 		override fun clear() {

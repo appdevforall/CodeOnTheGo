@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.diagnostic
 
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.utils.toRange
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DiagnosticResult
 import com.itsaky.androidide.lsp.models.DiagnosticSeverity
@@ -83,22 +84,3 @@ private fun KaSeverity.toDiagnosticSeverity(): DiagnosticSeverity {
 	}
 }
 
-private fun TextRange.toRange(containingFile: PsiFile): Range {
-	val doc = PsiDocumentManager.getInstance(containingFile.project).getDocument(containingFile)
-		?: return Range.NONE
-	val startLine = doc.getLineNumber(startOffset)
-	val startCol = startOffset - doc.getLineStartOffset(startLine)
-	val endLine = doc.getLineNumber(endOffset)
-	val endCol = endOffset - doc.getLineStartOffset(endLine)
-	return Range(
-		start = Position(
-			line = startLine,
-			column = startCol,
-			index = startOffset,
-		), end = Position(
-			line = endLine,
-			column = endCol,
-			index = endOffset,
-		)
-	)
-}
