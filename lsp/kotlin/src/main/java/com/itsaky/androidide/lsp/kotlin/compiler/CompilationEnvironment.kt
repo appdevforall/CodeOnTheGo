@@ -40,6 +40,7 @@ class CompilationEnvironment(
 	jdkHome: Path,
 	jdkRelease: Int,
 	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
+	enableParserEventSystem: Boolean = true,
 	configureSession: StandaloneAnalysisAPISessionBuilder.() -> Unit = {}
 ) : AutoCloseable {
 	private val disposable = Disposer.newDisposable()
@@ -99,7 +100,7 @@ class CompilationEnvironment(
 			init = configureSession
 		)
 
-		parser = KtPsiFactory(session.project)
+		parser = KtPsiFactory(session.project, eventSystemEnabled = enableParserEventSystem)
 		psiManager = PsiManager.getInstance(session.project)
 		psiDocumentManager = PsiDocumentManager.getInstance(session.project)
 	}

@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiFileFactory
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.idea.KotlinLanguage
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -27,12 +28,16 @@ class Compiler(
 
 	val fileSystem: VirtualFileSystem
 
+	val defaultKotlinParser: KtPsiFactory
+		get() = defaultCompilationEnv.parser
+
 	init {
 		defaultCompilationEnv = CompilationEnvironment(
 			intellijPluginRoot = intellijPluginRoot,
 			jdkHome = jdkHome,
 			jdkRelease = jdkRelease,
 			languageVersion = languageVersion,
+			enableParserEventSystem = true,
 			configureSession = configureSession,
 		)
 

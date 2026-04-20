@@ -434,7 +434,7 @@ open class EditorHandlerActivity :
 
 			action.prepare(data)
 
-			if (action.id in hiddenIds || !action.visible) return@onEachIndexed
+			if (action.id in hiddenIds) return@onEachIndexed
 
 			action.icon?.apply {
 				colorFilter = action.createColorFilter(data)

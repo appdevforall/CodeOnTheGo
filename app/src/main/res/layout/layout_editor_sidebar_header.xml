@@ -31,6 +31,6 @@
     android:layout_marginTop="@dimen/sidebar_header_logo_margin_top"
     android:adjustViewBounds="true"
     android:scaleType="fitCenter"
-    app:srcCompat="@drawable/app_dev_for_all_logo" />
+    app:srcCompat="@drawable/cogo_brand_mark" />
 
 </FrameLayout>
