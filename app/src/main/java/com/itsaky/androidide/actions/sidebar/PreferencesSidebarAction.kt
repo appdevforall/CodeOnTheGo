@@ -35,7 +35,11 @@ import kotlin.reflect.KClass
  */
 class PreferencesSidebarAction(context: Context, override val order: Int) : AbstractSidebarAction() {
 
-  override val id: String = "ide.editor.sidebar.preferences"
+  override val id: String = ID
+
+  companion object {
+    const val ID = "ide.editor.sidebar.preferences"
+  }
 
   // TODO : Should we show the preferences in the sidebar itself?
   override val fragmentClass: KClass<out Fragment>? = null

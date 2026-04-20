@@ -2,6 +2,7 @@
 
 package com.itsaky.androidide.agent.repository
 
+import com.itsaky.androidide.app.BaseApplication
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -52,6 +53,12 @@ object Util {
             log.error("FAILURE: Unable to parse tool call JSON: {}", e.message)
             null
         }
+    }
+
+    fun getCurrentBackend(): AiBackend {
+        val prefs = BaseApplication.baseInstance.prefManager
+        val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
+        return AiBackend.valueOf(backendName ?: AiBackend.GEMINI.name)
     }
 
     private fun findPotentialJsonObjectString(responseText: String): String? {

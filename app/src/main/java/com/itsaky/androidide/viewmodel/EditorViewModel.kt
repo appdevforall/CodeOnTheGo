@@ -35,6 +35,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -44,6 +45,10 @@ import java.util.Collections
 /** ViewModel for data used in [com.itsaky.androidide.activities.editor.EditorActivityKt] */
 @Suppress("PropertyName")
 class EditorViewModel : ViewModel() {
+
+    data class UiState(
+        val isFullscreen: Boolean = false,
+    )
 
     internal val _isBuildInProgress = MutableLiveData(false)
     internal val _isInitializing = MutableLiveData(false)
@@ -58,9 +63,12 @@ class EditorViewModel : ViewModel() {
     private val _openedFiles = MutableLiveData<OpenedFilesCache>()
     private val _isBoundToBuildService = MutableLiveData(false)
     private val _files = MutableLiveData<MutableList<File>>(ArrayList())
+    private val _uiState = MutableStateFlow(UiState())
 
     private val _searchResults = MutableStateFlow<Map<File, List<SearchResult>>>(emptyMap())
     val searchResults: StateFlow<Map<File, List<SearchResult>>> = _searchResults.asStateFlow()
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
     fun onSearchResultsReady(results: Map<File, List<SearchResult>>) {
         _searchResults.value = results
     }
@@ -136,6 +144,30 @@ class EditorViewModel : ViewModel() {
         set(value) {
             _isSyncNeeded.value = value
         }
+
+    var isFullscreen: Boolean
+        get() = uiState.value.isFullscreen
+        set(value) {
+            updateFullscreen(value)
+        }
+
+    fun updateFullscreen(value: Boolean) {
+        _uiState.update { current ->
+            if (current.isFullscreen == value) {
+                current
+            } else {
+                current.copy(isFullscreen = value)
+            }
+        }
+    }
+
+    fun toggleFullscreen() {
+        updateFullscreen(!uiState.value.isFullscreen)
+    }
+
+    fun exitFullscreen() {
+        updateFullscreen(false)
+    }
 
     internal var files: MutableList<File>
         get() = this._files.value ?: Collections.emptyList()

@@ -2,45 +2,61 @@ package com.example.sampleplugin.fragments
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.TableLayout
+import android.widget.TableRow
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.sampleplugin.R
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.example.sampleplugin.viewmodel.ApkAnalyzerViewModel
+import com.example.sampleplugin.viewmodel.ApkParseResult
+import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
-import com.itsaky.androidide.plugins.services.IdeBuildService
-import com.itsaky.androidide.plugins.services.IdeFileService
-import com.itsaky.androidide.plugins.services.IdeProjectService
-import com.itsaky.androidide.plugins.services.IdeTooltipService
-import com.itsaky.androidide.plugins.services.IdeUIService
-import java.util.zip.ZipFile
+import kotlinx.coroutines.launch
+
+data class TableSection(
+    val title: String,
+    val headers: List<String>,
+    val rows: List<List<String>>,
+    val showAllAction: String? = null
+)
 
 class ApkAnalyzerFragment : Fragment() {
+
     companion object {
         private const val PLUGIN_ID = "com.example.apkviewer"
+        private const val MAX_LARGE_FILES_DISPLAYED = 10
+        private const val FALLBACK_SURFACE = 0xFFFFFBFE.toInt()
+        private const val FALLBACK_SURFACE_VARIANT = 0xFFE7E0EC.toInt()
     }
 
-    private var contextText: TextView? = null
+    private val viewModel by viewModels<ApkAnalyzerViewModel>()
+    private var showAllLargeFiles = false
+    private var pendingAnalysisFile: java.io.File? = null
+
+    private var statusText: TextView? = null
     private var btnStart: Button? = null
     private var progressBar: ProgressBar? = null
-    private var deferredFile: java.io.File? = null
+    private var resultsContainer: LinearLayout? = null
 
-    private val pickApkLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    private val pickApkLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val uri = result.data?.data
-            if (uri != null) {
-                analyzeApkInBackground(uri)
-            }
+            result.data?.data?.let { viewModel.analyzeApk(it, requireContext().applicationContext) }
         }
     }
 
@@ -51,17 +67,11 @@ class ApkAnalyzerFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Register services from the plugin's service registry
         runCatching {
-            val serviceRegistry = PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
-            serviceRegistry?.get(IdeProjectService::class.java)
-            serviceRegistry?.get(IdeUIService::class.java)
-            serviceRegistry?.get(IdeTooltipService::class.java)
-            serviceRegistry?.get(IdeFileService::class.java)
-            serviceRegistry?.get(IdeBuildService::class.java)
+            PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
         }
     }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -72,27 +82,54 @@ class ApkAnalyzerFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        statusText = view.findViewById(R.id.tv_context)
+        btnStart = view.findViewById(R.id.btnStart)
+        progressBar = view.findViewById(R.id.progressBar)
+        resultsContainer = view.findViewById(R.id.resultsContainer)
 
-        contextText = view.findViewById<TextView>(R.id.tv_context)
-        btnStart = view.findViewById<Button>(R.id.btnStart)
-        progressBar = view.findViewById<ProgressBar>(R.id.progressBar)
+        btnStart?.setOnClickListener { openFilePicker() }
 
-        updateContent()
-        setupClickListeners()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { state -> renderState(state) }
+            }
+        }
 
-        deferredFile?.let { file ->
-            deferredFile = null
-            analyzeFile(file)
+        val file = pendingAnalysisFile ?: viewModel.pendingFile
+        if (file != null) {
+            pendingAnalysisFile = null
+            viewModel.pendingFile = null
+            viewModel.analyzeApk(file)
         }
     }
 
-    private fun updateContent() {
-        contextText?.text = "This is a test fragment for the APK Analyzer plugin."
-    }
-
-    private fun setupClickListeners() {
-        btnStart?.setOnClickListener {
-            openFilePicker()
+    private fun renderState(state: ApkAnalyzerViewModel.UiState) {
+        resultsContainer?.removeAllViews()
+        when (state) {
+            is ApkAnalyzerViewModel.UiState.Idle -> {
+                progressBar?.visibility = View.GONE
+                statusText?.visibility = View.GONE
+                btnStart?.isEnabled = true
+            }
+            is ApkAnalyzerViewModel.UiState.Analyzing -> {
+                showAllLargeFiles = false
+                progressBar?.visibility = View.VISIBLE
+                statusText?.visibility = View.VISIBLE
+                statusText?.text = getString(R.string.analyzing_apk)
+                btnStart?.isEnabled = false
+            }
+            is ApkAnalyzerViewModel.UiState.Success -> {
+                progressBar?.visibility = View.GONE
+                statusText?.visibility = View.GONE
+                btnStart?.isEnabled = true
+                renderSections(mapToSections(state.data))
+            }
+            is ApkAnalyzerViewModel.UiState.Error -> {
+                progressBar?.visibility = View.GONE
+                statusText?.visibility = View.VISIBLE
+                statusText?.text = getString(R.string.analysis_failed, state.message)
+                btnStart?.isEnabled = true
+            }
         }
     }
 
@@ -106,234 +143,189 @@ class ApkAnalyzerFragment : Fragment() {
 
     fun analyzeFile(file: java.io.File) {
         if (!isAdded || view == null) {
-            deferredFile = file
+            pendingAnalysisFile = file
             return
         }
-        runAnalysis { analyzeApkFromFile(file) }
+        viewModel.analyzeApk(file)
     }
 
-    private fun analyzeApkInBackground(uri: Uri) {
-        runAnalysis { analyzeApkFromUri(uri) }
+    private fun formatRatio(compressed: Long, raw: Long): String {
+        return if (raw > 0) {
+            String.format("%.1f%%", (compressed.toDouble() / raw.toDouble()) * 100)
+        } else getString(R.string.value_na)
     }
 
-    private fun runAnalysis(block: suspend () -> String) {
-        progressBar?.visibility = View.VISIBLE
-        btnStart?.isEnabled = false
-        contextText?.text = "Analyzing APK..."
+    private fun mapToSections(data: ApkParseResult): List<TableSection> {
+        val sections = mutableListOf<TableSection>()
 
-        viewLifecycleOwner.lifecycleScope.launch {
-            val result = runCatching {
-                withContext(Dispatchers.IO) { block() }
-            }.getOrElse { e ->
-                "Failed to analyze APK: ${e.message}"
-            }
-
-            progressBar?.visibility = View.GONE
-            btnStart?.isEnabled = true
-            contextText?.text = result
-        }
-    }
-
-    private fun analyzeApkFromUri(uri: Uri): String {
-        val tempFile = java.io.File.createTempFile("apk_", ".apk", requireContext().cacheDir)
-        return try {
-            requireContext().contentResolver.openInputStream(uri)?.use { input ->
-                tempFile.outputStream().use { output -> input.copyTo(output) }
-            }
-            analyzeApkFromFile(tempFile)
-        } finally {
-            tempFile.delete()
-        }
-    }
-
-    private fun analyzeApkFromFile(file: java.io.File): String {
-        val result = StringBuilder()
-
-        return runCatching {
-            ZipFile(file).use { zipFile ->
-
-            result.append(" APK STRUCTURE:\n")
-
-            val entries = zipFile.entries().toList().sortedBy { it.name }
-            val entryMap = entries.associateBy { it.name }
-            val explicitDirectories = mutableSetOf<String>()
-            val implicitDirectories = mutableSetOf<String>()
-            val files = mutableListOf<String>()
-            val nativeLibs = mutableListOf<String>()
-
-            var totalUncompressedSize = 0L
-            var totalCompressedSize = 0L
-            var totalEntries = 0
-            val apkFileSize = file.length()
-
-            entries.forEach { entry ->
-                totalEntries++
-                totalUncompressedSize += entry.size
-                totalCompressedSize += entry.compressedSize
-
-                if (entry.isDirectory) {
-                    explicitDirectories.add(entry.name)
-                } else {
-                    files.add(entry.name)
-
-                    // Add implicit directories from file paths
-                    val pathParts = entry.name.split("/")
-                    if (pathParts.size > 1) {
-                        for (i in 1 until pathParts.size) {
-                            val dirPath = pathParts.subList(0, i).joinToString("/") + "/"
-                            implicitDirectories.add(dirPath)
-                        }
-                    }
-
-                    // Check for native libraries
-                    if (entry.name.startsWith("lib/") && entry.name.endsWith(".so")) {
-                        nativeLibs.add(entry.name)
-                    }
-                }
-            }
-
-            // Calculate total directories (explicit + implicit, removing duplicates)
-            val allDirectories = explicitDirectories.union(implicitDirectories)
-
-            result.append("• APK File Size: ${formatFileSize(apkFileSize)}\n")
-            result.append("• Total Entries: $totalEntries\n")
-            result.append("• Total Uncompressed Size: ${formatFileSize(totalUncompressedSize)}\n")
-            result.append("• Total Compressed Size: ${formatFileSize(totalCompressedSize)}\n")
-            result.append("• Compression Ratio: ${String.format("%.1f%%", (totalCompressedSize.toDouble() / totalUncompressedSize.toDouble()) * 100)}\n")
-            result.append("• Directories: ${allDirectories.size} (${explicitDirectories.size} explicit, ${implicitDirectories.size} implicit)\n")
-            result.append("• Files: ${files.size}\n\n")
-
-            // Key files with both compressed and uncompressed sizes
-            result.append(" KEY FILES:\n")
-            val keyFiles = listOf(
-                "AndroidManifest.xml",
-                "classes.dex",
-                "classes2.dex",
-                "classes3.dex",
-                "resources.arsc",
-                "META-INF/MANIFEST.MF"
+        sections.add(TableSection(
+            title = getString(R.string.section_apk_structure),
+            headers = listOf(getString(R.string.header_property), getString(R.string.header_value)),
+            rows = listOf(
+                listOf(getString(R.string.label_apk_file_size), formatFileSize(data.apkSize)),
+                listOf(getString(R.string.label_total_entries), "${data.totalEntries}"),
+                listOf(getString(R.string.label_uncompressed_size), formatFileSize(data.totalUncompressed)),
+                listOf(getString(R.string.label_compressed_size), formatFileSize(data.totalCompressed)),
+                listOf(getString(R.string.label_compression_ratio), formatRatio(data.totalCompressed, data.totalUncompressed)),
+                listOf(getString(R.string.label_directories), "${data.directoryCount}"),
+                listOf(getString(R.string.label_files), "${data.fileCount}")
             )
+        ))
 
-            keyFiles.forEach { keyFile ->
-                val entry = entryMap[keyFile]
-                if (entry != null) {
-                    val uncompressedSize = formatFileSize(entry.size)
-                    val compressedSize = formatFileSize(entry.compressedSize)
-                    val compressionRatio = if (entry.size > 0) {
-                        String.format("%.1f%%", (entry.compressedSize.toDouble() / entry.size.toDouble()) * 100)
-                    } else "N/A"
-                    result.append("• $keyFile: ✓ Raw: $uncompressedSize, Compressed: $compressedSize ($compressionRatio)\n")
-                } else {
-                    result.append("• $keyFile: ✗\n")
+        val keyFileRows = data.keyFiles.map { kf ->
+            if (kf.exists) {
+                listOf(kf.name, "\u2713", formatFileSize(kf.rawSize), formatFileSize(kf.compressedSize), formatRatio(kf.compressedSize, kf.rawSize))
+            } else {
+                listOf(kf.name, "\u2717", "\u2014", "\u2014", "\u2014")
+            }
+        }
+        sections.add(TableSection(
+            title = getString(R.string.section_key_files),
+            headers = listOf(getString(R.string.header_file), "", getString(R.string.header_raw), getString(R.string.header_compressed), getString(R.string.header_ratio)),
+            rows = keyFileRows
+        ))
+
+        if (data.nativeLibArchitectures.isNotEmpty()) {
+            val totalNativeLibs = data.nativeLibArchitectures.values.sumOf { it.size }
+            val nativeRows = mutableListOf<List<String>>()
+            data.nativeLibArchitectures.forEach { (arch, libs) ->
+                val archRaw = libs.sumOf { it.rawSize }
+                val archCompressed = libs.sumOf { it.compressedSize }
+                nativeRows.add(listOf(
+                    "\u25B8 $arch",
+                    "${libs.size}",
+                    formatFileSize(archRaw),
+                    formatFileSize(archCompressed)
+                ))
+                libs.sortedByDescending { it.rawSize }.take(3).forEach { lib ->
+                    nativeRows.add(listOf(
+                        "    ${lib.name}",
+                        "",
+                        formatFileSize(lib.rawSize),
+                        formatFileSize(lib.compressedSize)
+                    ))
+                }
+                if (libs.size > 3) {
+                    nativeRows.add(listOf("    +${libs.size - 3} more", "", "", ""))
                 }
             }
+            sections.add(TableSection(
+                title = getString(R.string.section_native_libraries, totalNativeLibs),
+                headers = listOf(getString(R.string.header_name), getString(R.string.header_count), getString(R.string.header_raw), getString(R.string.header_compressed)),
+                rows = nativeRows
+            ))
+        }
 
-            result.append("\n")
-
-            // Native libraries with detailed size analysis
-            if (nativeLibs.isNotEmpty()) {
-                result.append(" NATIVE LIBRARIES (${nativeLibs.size}):\n")
-                val archMap = mutableMapOf<String, MutableList<Pair<String, Pair<Long, Long>>>>()
-
-                nativeLibs.forEach { lib ->
-                    val parts = lib.split("/")
-                    if (parts.size >= 3) {
-                        val arch = parts[1]
-                        val libName = parts.last()
-                        val entry = entryMap[lib]
-                        val sizes = Pair(entry?.size ?: 0L, entry?.compressedSize ?: 0L)
-                        archMap.getOrPut(arch) { mutableListOf() }.add(Pair(libName, sizes))
-                    }
+        if (data.resourceDirs.isNotEmpty()) {
+            val resDirRows = data.resourceDirs.map { dir ->
+                if (dir.rawSize > 0) {
+                    listOf(dir.path, "${dir.fileCount}", formatFileSize(dir.rawSize), formatFileSize(dir.compressedSize))
+                } else {
+                    listOf(dir.path, "0", "\u2014", "\u2014")
                 }
+            }
+            sections.add(TableSection(
+                title = getString(R.string.section_resource_directories, data.resourceDirs.size),
+                headers = listOf(getString(R.string.header_directory), getString(R.string.header_files), getString(R.string.header_raw), getString(R.string.header_compressed)),
+                rows = resDirRows
+            ))
+        }
 
-                archMap.forEach { (arch, libs) ->
-                    val totalUncompressed = libs.sumOf { it.second.first }
-                    val totalCompressed = libs.sumOf { it.second.second }
-                    result.append("• $arch (${libs.size} libs) - Raw: ${formatFileSize(totalUncompressed)}, Compressed: ${formatFileSize(totalCompressed)}\n")
+        if (data.largeFiles.isNotEmpty()) {
+            val displayedFiles = if (showAllLargeFiles) data.largeFiles else data.largeFiles.take(MAX_LARGE_FILES_DISPLAYED)
+            val largeFileRows = displayedFiles.map { lf ->
+                listOf(lf.name, formatFileSize(lf.rawSize), formatFileSize(lf.compressedSize), formatRatio(lf.compressedSize, lf.rawSize))
+            }
+            sections.add(TableSection(
+                title = getString(R.string.section_large_files),
+                headers = listOf(getString(R.string.header_file), getString(R.string.header_raw), getString(R.string.header_compressed), getString(R.string.header_ratio)),
+                rows = largeFileRows,
+                showAllAction = if (!showAllLargeFiles && data.largeFiles.size > MAX_LARGE_FILES_DISPLAYED) {
+                    getString(R.string.action_show_all, data.largeFiles.size)
+                } else null
+            ))
+        }
 
-                    // Show largest libraries for this architecture
-                    libs.sortedByDescending { it.second.first }.take(3).forEach { (libName, sizes) ->
-                        if (sizes.first > 0) {
-                            result.append("  • $libName: ${formatFileSize(sizes.first)} / ${formatFileSize(sizes.second)}\n")
-                        } else {
-                            result.append("  • $libName\n")
+        val sigText = if (data.hasV1Signature) getString(R.string.value_v1_signing) else getString(R.string.value_v2_or_unsigned)
+        sections.add(TableSection(
+            title = getString(R.string.section_apk_metadata),
+            headers = listOf(getString(R.string.header_property), getString(R.string.header_value)),
+            rows = listOf(
+                listOf(getString(R.string.label_signature_scheme), sigText),
+                listOf(getString(R.string.label_multi_dex), if (data.hasMultiDex) getString(R.string.value_yes) else getString(R.string.value_no)),
+                listOf(getString(R.string.label_code_obfuscation), if (data.hasProguard) getString(R.string.value_detected) else getString(R.string.value_none_detected))
+            )
+        ))
+
+        return sections
+    }
+
+    private fun renderSections(sections: List<TableSection>) {
+        val container = resultsContainer ?: return
+        val inflater = layoutInflater
+        val ctx = requireContext()
+
+        val surfaceColor = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorSurface, FALLBACK_SURFACE)
+        val surfaceVariantColor = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorSurfaceVariant, FALLBACK_SURFACE_VARIANT)
+        val altRowColor = ColorUtils.blendARGB(surfaceColor, surfaceVariantColor, 0.4f)
+
+        sections.forEach { section ->
+            val cardView = inflater.inflate(R.layout.item_section_card, container, false)
+            val cardCtx = cardView.context
+
+            cardView.findViewById<TextView>(R.id.sectionTitle).text = section.title
+            val table = cardView.findViewById<TableLayout>(R.id.sectionTable)
+
+            if (section.headers.isNotEmpty()) {
+                val headerRow = TableRow(cardCtx).apply {
+                    setBackgroundColor(surfaceVariantColor)
+                }
+                section.headers.forEach { header ->
+                    headerRow.addView(
+                        TextView(cardCtx, null, 0, R.style.TableHeaderCell).apply {
+                            text = header
+                        }
+                    )
+                }
+                table.addView(headerRow)
+            }
+
+            section.rows.forEachIndexed { index, row ->
+                val dataRow = TableRow(cardCtx).apply {
+                    if (index % 2 == 1) setBackgroundColor(altRowColor)
+                }
+                row.forEachIndexed { colIndex, cellText ->
+                    dataRow.addView(
+                        TextView(cardCtx, null, 0, R.style.TableDataCell).apply {
+                            text = cellText
+                            if (colIndex > 0 && section.headers.size > 2) {
+                                gravity = Gravity.END
+                            }
+                        }
+                    )
+                }
+                table.addView(dataRow)
+            }
+
+            if (section.showAllAction != null) {
+                val actionText = TextView(cardCtx).apply {
+                    text = section.showAllAction
+                    setPadding(16, 12, 16, 12)
+                    setTextColor(MaterialColors.getColor(cardCtx, com.google.android.material.R.attr.colorPrimary, 0))
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        showAllLargeFiles = true
+                        val currentState = viewModel.uiState.value
+                        if (currentState is ApkAnalyzerViewModel.UiState.Success) {
+                            renderState(currentState)
                         }
                     }
-                    if (libs.size > 3) {
-                        result.append("  • ... and ${libs.size - 3} more libraries\n")
-                    }
                 }
-                result.append("\n")
+                (cardView as ViewGroup).addView(actionText)
             }
 
-            // Resource directories with sizes
-            val resourceDirs = allDirectories.filter { it.startsWith("res/") }.sorted()
-            if (resourceDirs.isNotEmpty()) {
-                result.append(" RESOURCE DIRECTORIES (${resourceDirs.size}):\n")
-                resourceDirs.forEach { dir ->
-                    // Calculate total size for files in this directory
-                    val dirFiles = files.filter { it.startsWith(dir) && it.count { c -> c == '/' } == dir.count { c -> c == '/' } }
-                    val dirUncompressedSize = dirFiles.sumOf { fileName -> entryMap[fileName]?.size ?: 0L }
-                    val dirCompressedSize = dirFiles.sumOf { fileName -> entryMap[fileName]?.compressedSize ?: 0L }
-
-                    if (dirUncompressedSize > 0) {
-                        result.append("• $dir (${dirFiles.size} files) - Raw: ${formatFileSize(dirUncompressedSize)}, Compressed: ${formatFileSize(dirCompressedSize)}\n")
-                    } else {
-                        result.append("• $dir\n")
-                    }
-                }
-                result.append("\n")
-            }
-
-            // Large files analysis (files > 100KB)
-            val largeFiles = files.mapNotNull { fileName ->
-                entryMap[fileName]?.let { entry ->
-                    if (entry.size > 100 * 1024) {
-                        Triple(fileName, entry.size, entry.compressedSize)
-                    } else null
-                }
-            }.sortedByDescending { it.second }
-
-            if (largeFiles.isNotEmpty()) {
-                result.append(" LARGE FILES (>100KB, ${largeFiles.size} files):\n")
-                largeFiles.take(10).forEach { (fileName, uncompressed, compressed) ->
-                    val compressionRatio = if (uncompressed > 0) {
-                        String.format("%.1f%%", (compressed.toDouble() / uncompressed.toDouble()) * 100)
-                    } else "N/A"
-                    result.append("• $fileName - Raw: ${formatFileSize(uncompressed)}, Compressed: ${formatFileSize(compressed)} ($compressionRatio)\n")
-                }
-                if (largeFiles.size > 10) {
-                    result.append("• ... and ${largeFiles.size - 10} more large files\n")
-                }
-                result.append("\n")
-            }
-
-            // APK metadata analysis
-            result.append(" APK METADATA:\n")
-
-            // Check for APK signature scheme
-            val hasV1Signature = files.any { it.startsWith("META-INF/") && (it.endsWith(".RSA") || it.endsWith(".DSA")) }
-            // Note: APK v2/v3 signatures are stored in the APK Signing Block, not as ZIP entries
-            // We can only reliably detect v1 signatures from ZIP file entries
-            result.append("• APK Signature Scheme: ")
-            if (hasV1Signature) {
-                result.append("v1 (JAR signing) detected\n")
-            } else {
-                result.append("v2+ or unsigned (v2+ signatures not detectable from ZIP entries)\n")
-            }
-
-            // Check for multi-APK indicators
-            val hasMultipleDex = files.count { it.matches(Regex("classes\\d*\\.dex")) } > 1
-            result.append("• Multi-DEX: ${if (hasMultipleDex) "Yes" else "No"}\n")
-
-            // Check for common optimization indicators
-            val hasProguard = files.any { it == "proguard/mappings.txt" } || files.any { it.contains("mapping.txt") }
-            result.append("• Code Obfuscation: ${if (hasProguard) "Detected" else "None detected"}\n")
-
-            result.toString()
-            }
-        }.getOrElse { e ->
-            "Failed to analyze APK: ${e.message}"
+            container.addView(cardView)
         }
     }
 
@@ -341,13 +333,10 @@ class ApkAnalyzerFragment : Fragment() {
         val units = arrayOf("B", "KB", "MB", "GB")
         var size = bytes.toDouble()
         var unitIndex = 0
-
         while (size >= 1024 && unitIndex < units.size - 1) {
             size /= 1024
             unitIndex++
         }
-
         return String.format("%.2f %s", size, units[unitIndex])
     }
 }
-

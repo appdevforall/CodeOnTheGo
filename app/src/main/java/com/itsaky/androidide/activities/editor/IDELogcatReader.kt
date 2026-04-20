@@ -74,7 +74,7 @@ class IDELogcatReader {
     val date = Date()
     val dateFormat = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss.SSS", Locale.US)
     val outputFile = File(Environment.ANDROIDIDE_HOME,
-      "logs/AndroidIDE-LOG-${dateFormat.format(date)}.txt")
+      "logs/CodeOnTheGo-LOG-${dateFormat.format(date)}.txt")
 
     log.debug("Creating output file: {}", outputFile)
 
