@@ -84,15 +84,21 @@ class PluginRepositoryImpl(
             val metadata = validation.manifest
             val pluginId = metadata.id
 
-            if (validation.isDebug && (metadata.iconDay == null || metadata.iconNight == null)) {
+            if (validation.isDebug) {
                 val missing = listOfNotNull(
-                    "icon_day".takeIf { metadata.iconDay == null },
-                    "icon_night".takeIf { metadata.iconNight == null }
+                    "icon_day".takeIf {
+                        metadata.iconDay == null || !validation.iconDayEntryExists
+                    },
+                    "icon_night".takeIf {
+                        metadata.iconNight == null || !validation.iconNightEntryExists
+                    }
                 ).joinToString(" and ") { "\"$it\"" }
-                pluginFile.delete()
-                throw IllegalArgumentException(
-                    "[$pluginId] Missing $missing in the manifest. Debug plugins must declare both icon_day and icon_night."
-                )
+                if (missing.isNotEmpty()) {
+                    pluginFile.delete()
+                    throw IllegalArgumentException(
+                        "[$pluginId] Missing $missing for debug plugin. Debug plugins must declare and ship both icon_day and icon_night assets."
+                    )
+                }
             }
 
             try {

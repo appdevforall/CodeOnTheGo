@@ -189,24 +189,34 @@ class PluginLoader(
         return (appInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     }
 
+    fun hasEntry(entryPath: String): Boolean =
+        try {
+            ZipFile(pluginApk).use { it.getEntry(entryPath) != null }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to inspect plugin APK for entry '$entryPath'", e)
+            false
+        }
+
     fun extractPluginIcons(pluginId: String, manifest: PluginManifest): Pair<String?, String?> {
         if (manifest.iconDay == null && manifest.iconNight == null) return null to null
         val iconDir = File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId)
+        iconDir.deleteRecursively()
         iconDir.mkdirs()
         val targetPath = iconDir.toPath().toAbsolutePath().normalize()
         return try {
             ZipFile(pluginApk).use { zip ->
-                fun extractEntry(entryPath: String?): String? {
+                fun extractEntry(role: String, entryPath: String?): String? {
                     entryPath ?: return null
                     val entry = zip.getEntry(entryPath) ?: return null
-                    val outPath = targetPath.resolve(entryPath.substringAfterLast('/')).normalize()
+                    val ext = entryPath.substringAfterLast('.', "").ifEmpty { "png" }
+                    val outPath = targetPath.resolve("$role.$ext").normalize()
                     if (!outPath.startsWith(targetPath)) return null
                     zip.getInputStream(entry).use { input ->
                         outPath.toFile().outputStream().use { output -> input.copyTo(output) }
                     }
                     return outPath.toFile().absolutePath
                 }
-                extractEntry(manifest.iconDay) to extractEntry(manifest.iconNight)
+                extractEntry("icon_day", manifest.iconDay) to extractEntry("icon_night", manifest.iconNight)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract plugin icons for $pluginId", e)

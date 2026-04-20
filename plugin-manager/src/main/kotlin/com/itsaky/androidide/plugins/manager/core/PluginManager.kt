@@ -237,7 +237,14 @@ class PluginManager private constructor(
         loadAndValidate(pluginFile).map { it.first }
 
     fun getPluginValidation(pluginFile: File): Result<PluginValidation> =
-        loadAndValidate(pluginFile).map { (manifest, loader) -> PluginValidation(manifest, loader.isDebuggable()) }
+        loadAndValidate(pluginFile).map { (manifest, loader) ->
+            PluginValidation(
+                manifest = manifest,
+                isDebug = loader.isDebuggable(),
+                iconDayEntryExists = manifest.iconDay?.let(loader::hasEntry) ?: false,
+                iconNightEntryExists = manifest.iconNight?.let(loader::hasEntry) ?: false
+            )
+        }
 
     /**
      * Load plugin and return both the plugin instance and its metadata
@@ -1257,7 +1264,12 @@ class PluginManager private constructor(
 
 }
 
-data class PluginValidation(val manifest: PluginManifest, val isDebug: Boolean)
+data class PluginValidation(
+    val manifest: PluginManifest,
+    val isDebug: Boolean,
+    val iconDayEntryExists: Boolean,
+    val iconNightEntryExists: Boolean
+)
 
 data class LoadedPlugin(
     val plugin: IPlugin,

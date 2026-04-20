@@ -1,8 +1,6 @@
 
 package com.itsaky.androidide.adapters
 
-import android.graphics.BitmapFactory
-import android.graphics.drawable.BitmapDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,6 +8,7 @@ import android.widget.PopupMenu
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.ItemPluginBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -17,7 +16,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import java.io.File
-import androidx.core.graphics.drawable.toDrawable
 
 class PluginListAdapter(
     private val onActionClick: (PluginInfo, Action) -> Unit
@@ -66,16 +64,18 @@ class PluginListAdapter(
                     plugin.metadata.iconDayPath
                 }
 
-                val bitmap = iconPath?.let { path ->
-                    if (File(path).exists()) BitmapFactory.decodeFile(path) else null
-                }
-                if (bitmap != null) {
-                    pluginIcon.setImageDrawable(bitmap.toDrawable(itemView.context.resources))
-                    pluginIcon.background = null
-                    pluginIcon.imageTintList = null
+                pluginIcon.background = null
+                pluginIcon.imageTintList = null
+                val iconFile = iconPath?.let(::File)?.takeIf { it.exists() }
+                if (iconFile != null) {
+                    Glide.with(pluginIcon)
+                        .load(iconFile)
+                        .placeholder(R.drawable.ic_extension)
+                        .error(R.drawable.ic_extension)
+                        .into(pluginIcon)
                 } else {
-                    pluginIcon.setImageDrawable(null)
-                    pluginIcon.setBackgroundResource(R.drawable.ic_extension)
+                    Glide.with(pluginIcon).clear(pluginIcon)
+                    pluginIcon.setImageResource(R.drawable.ic_extension)
                 }
 
                 // Set status
