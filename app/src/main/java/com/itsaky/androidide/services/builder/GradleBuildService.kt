@@ -33,6 +33,8 @@ import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
 import com.itsaky.androidide.analytics.gradle.BuildStartedMetric
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.eventbus.events.BuildCompletedEvent
+import com.itsaky.androidide.eventbus.events.BuildStartedEvent
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.managers.ToolsManager
@@ -78,6 +80,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -405,6 +408,11 @@ class GradleBuildService :
 					),
 			)
 
+			EventBus.getDefault()
+				.post(
+					BuildStartedEvent(buildInfo)
+				)
+
 			eventListener?.prepareBuild(buildInfo)
 
 			return@supplyAsync ClientGradleBuildConfig(
@@ -446,6 +454,13 @@ class GradleBuildService :
 				.indexingServiceManager
 				.onBuildCompleted()
 		}
+
+		EventBus.getDefault()
+			.post(
+				BuildCompletedEvent(
+					result = result,
+				)
+			)
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
