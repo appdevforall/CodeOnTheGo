@@ -21,4 +21,7 @@ dependencies {
 	api(projects.lsp.jvmSymbolModels)
 	api(projects.subprojects.kotlinAnalysisApi)
 	api(projects.subprojects.projects)
+
+	testImplementation(projects.testing.unit)
+	testImplementation(libs.tests.kotlinx.coroutines)
 }
