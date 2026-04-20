@@ -32,6 +32,23 @@ interface DocumentationExtension : IPlugin {
      * Called when the plugin's documentation is being removed.
      */
     fun onDocumentationUninstall() {}
+
+    /**
+     * Subdirectory inside the plugin APK's assets/ that contains a Tier 3
+     * documentation bundle (HTML/CSS/JS/images/etc.). Return null to skip Tier 3.
+     *
+     * Every file under this directory is inserted into documentation.db under
+     * the reserved path namespace "plugin/<pluginId>/<relative-path>". The
+     * plugin owns collision-avoidance within its own subtree.
+     *
+     * Link from a Tier 1/2 [PluginTooltipButton] using the relative path of
+     * the asset (e.g. uri = "index.html"). The documentation manager scopes it
+     * into the plugin's namespace at install time and the tooltip system
+     * prefixes the final URL with "http://localhost:6174/".
+     *
+     * Example: returning "docs" walks the assets/docs/ tree and inserts each file.
+     */
+    fun getTier3DocsAssetPath(): String? = null
 }
 
 /**
@@ -74,9 +91,14 @@ data class PluginTooltipButton(
     val description: String,
 
     /**
-     * URI path for the button action.
-     * This will be prefixed with "http://localhost:6174/" by the tooltip system.
-     * Example: "plugin/sampleplugin/docs/json-converter"
+     * URI for the button action. Resolved at install time:
+     *  - Relative paths ("index.html", "docs/foo.html") are scoped into
+     *    the plugin's own Tier 3 namespace → "plugin/<pluginId>/<path>".
+     *  - Paths with a leading "/" ("/some/shared/page") are treated as
+     *    absolute within the local web server (slash stripped).
+     *  - Anything containing "://" is passed through unchanged.
+     * The stored path is then prefixed with "http://localhost:6174/" by the
+     * tooltip system when the button is rendered.
      */
     val uri: String,
 

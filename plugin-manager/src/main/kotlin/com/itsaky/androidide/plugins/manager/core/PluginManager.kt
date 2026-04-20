@@ -415,7 +415,7 @@ class PluginManager private constructor(
                 logger.debug("Registered service registry for plugin: ${manifest.id}")
 
                 val isEnabled = getPluginState(manifest.id)
-                val loadedPlugin = LoadedPlugin(plugin, manifest, classLoader, pluginContext, isEnabled)
+                val loadedPlugin = LoadedPlugin(plugin, manifest, classLoader, pluginContext, file.absolutePath, isEnabled)
                 loadedPlugins[manifest.id] = loadedPlugin
                 if (isEnabled) {
                     try {
@@ -427,6 +427,7 @@ class PluginManager private constructor(
                         logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
 
                         if (plugin is DocumentationExtension) {
+                            val pluginApkPath = file.absolutePath
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
                                     val docResult = documentationManager.verifyAndRecreateDocumentation(manifest.id, plugin)
@@ -437,6 +438,19 @@ class PluginManager private constructor(
                                     }
                                 } catch (e: Exception) {
                                     logger.error("Error verifying/installing documentation for plugin: ${manifest.id}", e)
+                                }
+
+                                try {
+                                    val tier3Result = documentationManager.verifyAndRecreateTier3Documentation(
+                                        manifest.id, plugin, pluginApkPath
+                                    )
+                                    if (tier3Result) {
+                                        logger.info("Tier 3 docs verified/installed for plugin: ${manifest.id}")
+                                    } else {
+                                        logger.warn("Failed to verify/install Tier 3 docs for plugin: ${manifest.id}")
+                                    }
+                                } catch (e: Exception) {
+                                    logger.error("Error verifying/installing Tier 3 docs for plugin: ${manifest.id}", e)
                                 }
                             }
                         }
@@ -489,6 +503,17 @@ class PluginManager private constructor(
                         }
                     } catch (e: Exception) {
                         logger.error("Error removing documentation for plugin: $pluginId", e)
+                    }
+
+                    try {
+                        val tier3Result = documentationManager.removePluginTier3Documentation(pluginId)
+                        if (tier3Result) {
+                            logger.info("Removed Tier 3 docs for plugin: $pluginId")
+                        } else {
+                            logger.warn("Failed to remove Tier 3 docs for plugin: $pluginId")
+                        }
+                    } catch (e: Exception) {
+                        logger.error("Error removing Tier 3 docs for plugin: $pluginId", e)
                     }
                 }
             }
@@ -1243,5 +1268,6 @@ data class LoadedPlugin(
     val manifest: PluginManifest,
     val classLoader: ClassLoader,
     val context: PluginContext,
+    val apkPath: String,
     var isEnabled: Boolean = true
 )
