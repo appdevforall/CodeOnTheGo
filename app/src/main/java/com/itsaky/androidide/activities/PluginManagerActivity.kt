@@ -6,6 +6,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.CheckBox
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +25,7 @@ import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
+import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.getFileName
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -108,6 +111,27 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     override fun onResume() {
         super.onResume()
         feedbackButtonManager?.loadFabPosition()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_plugin_manager, menu)
+        binding.toolbar.post {
+            binding.toolbar.findViewById<View>(R.id.action_discover_plugins)?.setOnLongClickListener { view ->
+                TooltipManager.showIdeCategoryTooltip(this, view, TooltipTag.PLUGIN_MANAGER)
+                true
+            }
+        }
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_discover_plugins -> {
+                UrlManager.openUrl(getString(R.string.url_discover_plugins), null, this)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 
     override fun onDestroy() {
