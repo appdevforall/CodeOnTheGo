@@ -143,7 +143,7 @@ class TemplateListFragment :
 
 		if (warnings.isNotEmpty()) {
             requireActivity().flashError(
-                warnings.joinToString("\n") { w ->
+                warnings.joinToString(System.lineSeparator()) { w ->
                     requireContext().getString(w.resId, *w.args.toTypedArray())
                 }
             )
