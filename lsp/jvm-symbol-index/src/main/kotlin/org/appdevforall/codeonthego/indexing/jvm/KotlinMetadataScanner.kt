@@ -4,6 +4,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
+import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor
 import org.jetbrains.org.objectweb.asm.ClassReader
 import org.jetbrains.org.objectweb.asm.ClassVisitor
@@ -49,6 +52,23 @@ import kotlin.metadata.visibility
 object KotlinMetadataScanner {
 
 	private val log = LoggerFactory.getLogger(KotlinMetadataScanner::class.java)
+
+	@OptIn(KaImplementationDetail::class)
+	fun scan(rootVf: VirtualFile, sourceId: String = rootVf.path): Flow<JvmSymbol> = flow {
+		val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
+		for (vf in allFiles) {
+			if (!vf.name.endsWith(".class")) continue
+			if (vf.name == "module-info.class") continue
+			try {
+				vf.contentsToByteArray().inputStream().use { input ->
+					parseKotlinClass(input, sourceId)?.forEach { emit(it) }
+				}
+			} catch (e: Exception) {
+				log.debug("Failed to parse {}: {}", vf.path, e.message)
+			}
+		}
+	}
+		.flowOn(Dispatchers.IO)
 
 	fun scan(jarPath: Path, sourceId: String = jarPath.pathString): Flow<JvmSymbol> = flow {
 		val jar = try {
@@ -109,7 +129,8 @@ object KotlinMetadataScanner {
 	}
 
 	private fun extractFromClass(
-		klass: KmClass, sourceId: String,
+		klass: KmClass,
+		sourceId: String,
 	): List<JvmSymbol> {
 		val symbols = mutableListOf<JvmSymbol>()
 		val className = klass.name
@@ -345,7 +366,8 @@ object KotlinMetadataScanner {
 	}
 
 	private fun kmTypeToDisplayName(type: KmType): String {
-		val base = kmTypeToDisplayName(type).substringAfterLast('.')
+		val base = kmTypeToName(type).substringAfterLast('/')
+			.substringAfterLast('$')
 		val args = type.arguments.mapNotNull { it.type?.let { t -> kmTypeToDisplayName(t) } }
 		return buildString {
 			append(base)
@@ -392,6 +414,7 @@ object KotlinMetadataScanner {
 								metadataVersion = value.copyOf()
 							}
 						}
+
 						"k" -> metadataKind = value as? Int
 						"xi" -> extraInt = value as? Int
 						"xs" -> extraString = value as? String

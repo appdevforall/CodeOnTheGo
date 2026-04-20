@@ -34,6 +34,14 @@ interface IndexingService : Closeable {
 	suspend fun initialize(registry: IndexRegistry)
 
 	/**
+	 * Called after a build completes.
+	 *
+	 * Implementations should re-index any build outputs that may have changed
+	 * (e.g. generated JARs). The default is a no-op.
+	 */
+	suspend fun onBuildCompleted() {}
+
+	/**
 	 * Called when the project is closed or the IDE shuts down.
 	 * Release all resources.
 	 */

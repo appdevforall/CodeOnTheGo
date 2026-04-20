@@ -26,6 +26,7 @@ fun createJavaProjectProtoModel(
 	contentRootList = ideaModule.contentRoots.map { it.asProtoModel() },
 	dependencyList = ideaModule.dependencies.map { it.asProtoModel(moduleNameToPath) },
 	javaCompilerSettings = createCompilerSettings(ideaProject, ideaModule),
+	kotlinCompilerSettings = null, // TODO: read kotlin compiler settings
 )
 
 private fun createCompilerSettings(

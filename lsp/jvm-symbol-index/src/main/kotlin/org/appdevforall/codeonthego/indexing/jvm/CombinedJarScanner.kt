@@ -1,9 +1,8 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
+import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor
 import org.jetbrains.org.objectweb.asm.ClassReader
 import org.jetbrains.org.objectweb.asm.ClassVisitor
@@ -22,12 +21,32 @@ object CombinedJarScanner {
 
 	private val log = LoggerFactory.getLogger(CombinedJarScanner::class.java)
 
-	fun scan(jarPath: Path, sourceId: String = jarPath.pathString): Flow<JvmSymbol> = flow {
+	@OptIn(KaImplementationDetail::class)
+	fun scan(rootVf: VirtualFile, sourceId: String = rootVf.path): Sequence<JvmSymbol> = sequence {
+		val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
+		for (vf in allFiles) {
+			if (!vf.name.endsWith(".class")) continue
+			if (vf.name == "module-info.class" || vf.name == "package-info.class") continue
+			try {
+				val bytes = vf.contentsToByteArray()
+				val symbols = if (hasKotlinMetadata(bytes)) {
+					KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
+				} else {
+					JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
+				}
+				symbols?.forEach { yield(it) }
+			} catch (e: Exception) {
+				log.debug("Failed to parse {}: {}", vf.path, e.message)
+			}
+		}
+	}
+
+	fun scan(jarPath: Path, sourceId: String = jarPath.pathString): Sequence<JvmSymbol> = sequence {
 		val jar = try {
 			JarFile(jarPath.toFile())
 		} catch (e: Exception) {
 			log.warn("Failed to open JAR: {}", jarPath, e)
-			return@flow
+			return@sequence
 		}
 
 		jar.use {
@@ -50,14 +69,13 @@ object CombinedJarScanner {
 						JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
 					}
 
-					symbols?.forEach { emit(it) }
+					symbols?.forEach { yield(it) }
 				} catch (e: Exception) {
 					log.debug("Failed to parse {}: {}", entry.name, e.message)
 				}
 			}
 		}
 	}
-		.flowOn(Dispatchers.IO)
 
 	private fun hasKotlinMetadata(classBytes: ByteArray): Boolean {
 		var found = false

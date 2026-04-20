@@ -21,4 +21,5 @@ dependencies {
 	api(projects.lsp.jvmSymbolModels)
 	api(projects.subprojects.kotlinAnalysisApi)
 	api(projects.subprojects.projects)
+	api(projects.lsp.kotlinCore)
 }

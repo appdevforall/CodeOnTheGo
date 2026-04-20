@@ -1,25 +1,20 @@
 package com.itsaky.androidide.lsp.kotlin.diagnostic
 
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DiagnosticResult
 import com.itsaky.androidide.lsp.models.DiagnosticSeverity
-import com.itsaky.androidide.models.Position
-import com.itsaky.androidide.models.Range
-import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticWithPsi
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
-import org.jetbrains.kotlin.com.intellij.openapi.util.TextRange
-import org.jetbrains.kotlin.com.intellij.psi.PsiDocumentManager
-import org.jetbrains.kotlin.com.intellij.psi.PsiFile
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import kotlin.time.Clock
-import kotlin.time.toKotlinInstant
+import kotlin.math.log
 
 private val logger = LoggerFactory.getLogger("KotlinDiagnosticProvider")
 
@@ -37,31 +32,30 @@ internal fun CompilationEnvironment.collectDiagnosticsFor(file: Path): Diagnosti
 
 @OptIn(KaExperimentalApi::class)
 private fun CompilationEnvironment.doAnalyze(file: Path): DiagnosticResult {
-	val managed = fileManager.getOpenFile(file)
-	if (managed == null) {
-		logger.warn("Attempt to analyze non-open file: {}", file)
+	var ktFile = ktSymbolIndex.getOpenedKtFile(file)
+	if (ktFile == null) {
+		onFileOpen(file)
+		ktFile = ktSymbolIndex.getOpenedKtFile(file)
+	}
+
+	if (ktFile == null) {
+		logger.warn("File {} is not accessible", file)
 		return DiagnosticResult.NO_UPDATE
 	}
 
-	val analyzedAt = managed.analyzeTimestamp
-	val modifiedAt = FileManager.getLastModified(file)
-	if (analyzedAt > modifiedAt.toKotlinInstant()) {
-		logger.debug("Skipping analysis. File unmodified.")
-		return DiagnosticResult.NO_UPDATE
+	val diagnostics = project.read {
+		analyze(ktFile) {
+			ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+				.map { it.toDiagnosticItem() }
+		}
 	}
 
-	val rawDiagnostics = managed.analyze { ktFile ->
-		ktFile.collectDiagnostics(filter = KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS)
-	}
-
-	logger.info("Found {} diagnostics", rawDiagnostics.size)
+	logger.info("Found {} diagnostics", diagnostics.size)
 
 	return DiagnosticResult(
-		file = file, diagnostics = rawDiagnostics.map { rawDiagnostic ->
-			rawDiagnostic.toDiagnosticItem()
-		}).also {
-		managed.analyzeTimestamp = Clock.System.now()
-	}
+		file = file,
+		diagnostics = diagnostics
+	)
 }
 
 private fun KaDiagnosticWithPsi<*>.toDiagnosticItem(): DiagnosticItem {

@@ -7,9 +7,6 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
@@ -18,7 +15,7 @@ import org.appdevforall.codeonthego.indexing.api.Indexable
 import kotlin.collections.iterator
 
 /**
- * A persistent [Index] backed by SQLite via AndroidX.
+ * An [Index] backed by SQLite via AndroidX.
  *
  * Creates a table dynamically based on the [IndexDescriptor]:
  * ```
@@ -41,18 +38,24 @@ import kotlin.collections.iterator
  * Uses WAL journal mode for concurrent read/write performance.
  * Inserts are batched inside transactions for throughput.
  *
+ * [query] and [distinctValues] eagerly collect results and return a
+ * [Sequence] backed by a list. The cursor is always closed before
+ * returning; callers are responsible for running on an appropriate
+ * thread (typically [Dispatchers.IO] via the suspend insert paths).
+ *
  * @param T The indexed entry type.
  * @param descriptor Defines fields and serialization.
  * @param context Android context (for database file location).
- * @param dbName Database file name. Different index types can share
+ * @param dbName Database file name. Pass `null` to create an in-memory database
+ *               that is discarded when closed. Different index types can share
  *               a database (each gets its own table) or use separate files.
  * @param batchSize Number of rows per INSERT transaction.
  */
-class PersistentIndex<T : Indexable>(
+class SQLiteIndex<T : Indexable>(
     override val descriptor: IndexDescriptor<T>,
     context: Context,
-    dbName: String,
-    override val name: String = "persistent:${descriptor.name}",
+    dbName: String?,
+    override val name: String = "sqlite:${descriptor.name}",
     private val batchSize: Int = 500,
 ) : Index<T> {
 
@@ -99,18 +102,18 @@ class PersistentIndex<T : Indexable>(
         createTable(db)
     }
 
-    override fun query(query: IndexQuery): Flow<T> = flow {
+    override fun query(query: IndexQuery): Sequence<T> {
         val (sql, args) = buildSelectQuery(query)
         val cursor = db.query(sql, args.toTypedArray())
-
-        cursor.use {
+        return cursor.use {
             val payloadIdx = it.getColumnIndexOrThrow("_payload")
-            while (it.moveToNext()) {
-                val bytes = it.getBlob(payloadIdx)
-                emit(descriptor.deserialize(bytes))
+            buildList {
+                while (it.moveToNext()) {
+                    add(descriptor.deserialize(it.getBlob(payloadIdx)))
+                }
             }
-        }
-    }.flowOn(Dispatchers.IO)
+        }.asSequence()
+    }
 
     override suspend fun get(key: String): T? = withContext(Dispatchers.IO) {
         val cursor = db.query(
@@ -133,41 +136,17 @@ class PersistentIndex<T : Indexable>(
             cursor.use { it.moveToFirst() }
         }
 
-    override fun distinctValues(fieldName: String): Flow<String> = flow {
+    override fun distinctValues(fieldName: String): Sequence<String> {
         val col = fieldColumns[fieldName]
             ?: throw IllegalArgumentException("Unknown field: $fieldName")
-
         val cursor = db.query("SELECT DISTINCT $col FROM $tableName WHERE $col IS NOT NULL")
-        cursor.use {
-            val idx = 0
-            while (it.moveToNext()) {
-                emit(it.getString(idx))
+        return cursor.use {
+            buildList {
+                while (it.moveToNext()) {
+                    add(it.getString(0))
+                }
             }
-        }
-    }.flowOn(Dispatchers.IO)
-
-    /**
-     * Streaming insert from a [Flow].
-     *
-     * Collects entries from the flow and inserts them in batched
-     * transactions. Each batch is a single SQLite transaction -
-     * this is orders of magnitude faster than one transaction per row.
-     *
-     * The flow is collected on [Dispatchers.IO].
-     */
-    override suspend fun insert(entries: Flow<T>) = withContext(Dispatchers.IO) {
-        val batch = mutableListOf<T>()
-        entries.collect { entry ->
-            batch.add(entry)
-            if (batch.size >= batchSize) {
-                insertBatch(batch)
-                batch.clear()
-            }
-        }
-        // Flush remaining
-        if (batch.isNotEmpty()) {
-            insertBatch(batch)
-        }
+        }.asSequence()
     }
 
     override suspend fun insertAll(entries: Sequence<T>) = withContext(Dispatchers.IO) {
