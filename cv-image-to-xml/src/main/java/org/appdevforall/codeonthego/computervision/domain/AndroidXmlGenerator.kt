@@ -6,6 +6,10 @@ import kotlin.text.substringAfterLast
 class AndroidXmlGenerator(
     private val geometryProcessor: LayoutGeometryProcessor
 ) {
+    companion object {
+        private val WIDGET_TAGS = setOf("Switch", "CheckBox", "RadioButton")
+    }
+
     internal fun buildXml(
         boxes: List<ScaledBox>,
         annotations: Map<ScaledBox, String>,
@@ -133,7 +137,7 @@ class AndroidXmlGenerator(
 
         when (tag) {
             "TextView", "Button", "CheckBox", "RadioButton", "Switch" ->
-                appendTextViewAttributes(xml, indent, parsedAttrs, box, label, tag, writtenAttrs)
+                appendTextWidgetAttributes(xml, indent, parsedAttrs, box, label, tag, writtenAttrs)
 
             "EditText" ->
                 appendEditTextAttributes(xml, indent, parsedAttrs, box, writtenAttrs)
@@ -151,7 +155,7 @@ class AndroidXmlGenerator(
         xml.append("$indent/>")
     }
 
-    private fun appendTextViewAttributes(
+    private fun appendTextWidgetAttributes(
         xml: StringBuilder,
         indent: String,
         parsedAttrs: Map<String, String>,
@@ -162,12 +166,7 @@ class AndroidXmlGenerator(
     ) {
         val rawViewText = parsedAttrs["android:text"]
             ?: box.text.takeIf { it.isNotEmpty() && it != box.label }
-            ?: when (tag) {
-                "Switch" -> "Switch"
-                "CheckBox" -> "CheckBox"
-                "RadioButton" -> "RadioButton"
-                else -> box.label
-            }
+            ?: if (tag in WIDGET_TAGS) tag else box.label
 
         xml.append("$indent    android:text=\"${escapeXmlAttr(rawViewText)}\"\n")
         writtenAttrs.add("android:text")
