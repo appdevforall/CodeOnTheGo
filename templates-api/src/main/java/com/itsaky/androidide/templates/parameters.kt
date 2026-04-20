@@ -86,7 +86,9 @@ abstract class Parameter<T>(
     @StringRes val name: Int,
     @StringRes val description: Int?, val default: T,
     val tooltipTag: String? = null,
-    var constraints: List<ParameterConstraint>
+    var constraints: List<ParameterConstraint>,
+    var id: Int? = null,
+    val nameStr: String? = null
 ) {
 
     private val observers = hashSetOf<Observer<T>>()
@@ -252,8 +254,12 @@ abstract class ParameterBuilder<T> {
 
     var constraints: List<ParameterConstraint> = emptyList()
 
+    var id: Int? = null
+    var nameStr: String? = null
+
     protected open fun validate() {
-        checkNotNull(name) { "Parameter must have a name" }
+        val nameAll: Any? = if (name != null) name else nameStr
+        checkNotNull(nameAll) { "Parameter must have a name" }
         checkNotNull(default) { "Parameter must have a default value" }
     }
 
@@ -262,13 +268,14 @@ abstract class ParameterBuilder<T> {
 
 class BooleanParameter(
     @StringRes name: Int, @StringRes description: Int?,
-    default: Boolean, tooltipTag: String?, constraints: List<ParameterConstraint>
-) : Parameter<Boolean>(name, description, default, tooltipTag, constraints)
+    default: Boolean, tooltipTag: String?, constraints: List<ParameterConstraint>,
+    id: Int? = null, nameStr: String? = null
+) : Parameter<Boolean>(name, description, default, tooltipTag, constraints, id, nameStr)
 
 class BooleanParameterBuilder : ParameterBuilder<Boolean>() {
 
     override fun build(): BooleanParameter {
-        return BooleanParameter(name!!, description, default!!, tooltipTag, constraints)
+        return BooleanParameter(name!!, description, default!!, tooltipTag, constraints, id, nameStr)
     }
 
 }
@@ -292,8 +299,9 @@ abstract class TextFieldParameter<T>(
     val onEndIconClick: View.OnClickListener?,
     val inputType: Int?,
     @StyleableRes val imeOptions: Int?,
-    val maxLines: Int?, tooltipTag: String?, constraints: List<ParameterConstraint>
-) : Parameter<T>(name, description, default, tooltipTag, constraints)
+    val maxLines: Int?, tooltipTag: String?, constraints: List<ParameterConstraint>,
+    id: Int?, nameStr: String?
+) : Parameter<T>(name, description, default, tooltipTag, constraints, id, nameStr)
 
 abstract class TextFieldParameterBuilder<T>(
     var startIcon: ((TextFieldParameter<T>) -> Int)? = null,
@@ -302,7 +310,7 @@ abstract class TextFieldParameterBuilder<T>(
     var onEndIconClick: View.OnClickListener? = null,
     var inputType: Int? = null,
     var imeOptions: Int? = null,
-    var maxLines: Int? = null
+    var maxLines: Int? = null,
 ) : ParameterBuilder<T>()
 
 class StringParameter(
@@ -316,10 +324,13 @@ class StringParameter(
     @StyleableRes imeOptions: Int? = null,
     maxLines: Int? = null,
     tooltipTag: String?,
-    constraints: List<ParameterConstraint>
+    constraints: List<ParameterConstraint>,
+    id: Int?,
+    nameStr: String?
 ) : TextFieldParameter<String>(
     name, description, default, startIcon, endIcon,
-    onStartIconClick, onEndIconClick, inputType, imeOptions, maxLines, tooltipTag, constraints
+    onStartIconClick, onEndIconClick, inputType, imeOptions, maxLines, tooltipTag, constraints,
+    id, nameStr
 )
 
 class StringParameterBuilder : TextFieldParameterBuilder<String>() {
@@ -338,6 +349,8 @@ class StringParameterBuilder : TextFieldParameterBuilder<String>() {
             maxLines = maxLines,
             tooltipTag = tooltipTag,
             constraints = constraints,
+            id = id,
+            nameStr = nameStr
         )
     }
 }
@@ -351,10 +364,12 @@ class EnumParameter<T : Enum<*>>(
     onEndIconClick: View.OnClickListener?,
     tooltipTag: String?, constraints: List<ParameterConstraint>,
     val displayName: ((T) -> String)? = null,
-    val filter: ((T) -> Boolean)? = null
+    val filter: ((T) -> Boolean)? = null,
+    id: Int? = null, nameStr: String? = null
 ) : TextFieldParameter<T>(
     name, description, default, startIcon, endIcon, onStartIconClick,
-    onEndIconClick, null, null, null, tooltipTag, constraints
+    onEndIconClick, null, null, null, tooltipTag, constraints,
+    id, nameStr
 ) {
 
     /**

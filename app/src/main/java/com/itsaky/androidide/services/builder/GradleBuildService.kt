@@ -33,8 +33,6 @@ import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
 import com.itsaky.androidide.analytics.gradle.BuildStartedMetric
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.IDEApplication
-import com.itsaky.androidide.eventbus.events.BuildCompletedEvent
-import com.itsaky.androidide.eventbus.events.BuildStartedEvent
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.managers.ToolsManager
@@ -49,10 +47,10 @@ import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOGSENDER_AAR
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOGSENDER_ENABLED
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
@@ -80,7 +78,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.greenrobot.eventbus.EventBus
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -228,7 +225,7 @@ class GradleBuildService :
 		val builder =
 			Notification
 				.Builder(this, BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE)
-				.setSmallIcon(R.drawable.ic_launcher_fg_vector)
+				.setSmallIcon(R.drawable.ic_cogo_notification)
 				.setTicker(ticker)
 				.setWhen(System.currentTimeMillis())
 				.setContentTitle(title)
@@ -408,11 +405,6 @@ class GradleBuildService :
 					),
 			)
 
-			EventBus.getDefault()
-				.post(
-					BuildStartedEvent(buildInfo)
-				)
-
 			eventListener?.prepareBuild(buildInfo)
 
 			return@supplyAsync ClientGradleBuildConfig(
@@ -448,13 +440,6 @@ class GradleBuildService :
 					buildResult = result,
 				),
 		)
-
-		EventBus.getDefault()
-			.post(
-				BuildCompletedEvent(
-					result = result,
-				)
-			)
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
@@ -473,8 +458,8 @@ class GradleBuildService :
 		// The one downloaded from Maven is not built for Android
 		extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
 		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=$enableLogSender")
-		extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
+		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
 		if (BuildPreferences.isStacktraceEnabled) {
 			extraArgs.add("--stacktrace")

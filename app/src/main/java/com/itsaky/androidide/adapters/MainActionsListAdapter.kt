@@ -22,8 +22,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.databinding.LayoutMainActionItemBinding
-import com.itsaky.androidide.models.MainScreenAction
 
 /**
  * Adapter for the actions available on the main screen.
@@ -32,7 +32,11 @@ import com.itsaky.androidide.models.MainScreenAction
  */
 class MainActionsListAdapter
 @JvmOverloads
-constructor(val actions: List<MainScreenAction> = emptyList()) :
+constructor(
+    val actions: List<ActionItem> = emptyList(),
+    private val onClick: ((ActionItem, View) -> Unit)? = null,
+    private val onLongClick: ((ActionItem, View) -> Boolean)? = null,
+) :
     RecyclerView.Adapter<MainActionsListAdapter.VH>() {
     inner class VH(val binding: LayoutMainActionItemBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -46,22 +50,19 @@ constructor(val actions: List<MainScreenAction> = emptyList()) :
     override fun onBindViewHolder(holder: VH, position: Int) {
         val action = getAction(index = position)
         val binding = holder.binding
-        val button = binding.root
 
         binding.root.apply {
-            val originalText = context.getString(action.text)
+            val originalText = action.label
             text = originalText
-            setText(originalText)
-            setIconResource(action.icon)
+            isEnabled = action.enabled
+            icon = action.icon
             contentDescription = originalText
             setOnClickListener {
-                action.onClick?.invoke(action, it)
+                onClick?.invoke(action, it)
             }
             setOnLongClickListener {
-                action.onLongClick?.invoke(action, it)
-                true
+                onLongClick?.invoke(action, it) ?: true
             }
-            action.view = button
         }
         (binding.root as? MaterialButton)?.findViewById<View>(com.google.android.material.R.id.icon)
             ?.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO

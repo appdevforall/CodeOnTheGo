@@ -8,7 +8,6 @@ import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
 import org.jetbrains.kotlin.analysis.project.structure.builder.KtModuleProviderBuilder
 import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryModule
 import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModule
-import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
@@ -64,18 +63,6 @@ class KotlinProjectModel {
 		this.workspace = workspace
 		this.platform = platform
 		notifyListeners(ChangeKind.STRUCTURE)
-	}
-
-	/**
-	 * Called when a build completes and source files may have changed
-	 * (generated sources added/removed), but the module structure is the same.
-	 */
-	fun onSourcesChanged() {
-		if (workspace == null) {
-			logger.warn("onSourcesChanged called before project model was initialized")
-			return
-		}
-		notifyListeners(ChangeKind.SOURCES)
 	}
 
 	/**

@@ -137,7 +137,7 @@
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>
-	<string name="download_git_project">Download a Git project</string>
+	<string name="clone_git_project">Clone a Git project</string>
 	<string name="msg_delete_existing_project_failed">Failed to delete existing project.</string>
 	<string name="title_confirm_project_close">Close project</string>
 	<string name="cancel_project_text">Cancel</string>
@@ -145,6 +145,7 @@
 	<string name="save_and_close">Save files and close project</string>
 	<string name="search_projects_hint">Search projects by name…</string>
     <string name="sort_projects_label">Sort projects</string>
+    <string name="toggle_sorting">Toggle sorting</string>
     <string name="reset_sorting">Reset</string>
     <string name="apply_sorting">Sort</string>
     <string name="sort_by_hint">Sort by</string>
@@ -169,6 +170,11 @@
 	<string name="project_info_gradle_v">Gradle version</string>
 	<string name="project_info_kotlin_v">Kotlin version</string>
 	<string name="project_info_java_v">Java version</string>
+	<string name="msg_file_tree_drag_failed">Failed to start dragging the file</string>
+    <string name="msg_file_tree_drag_error">Error preparing file for drag</string>
+    <string name="msg_file_tree_drag_file_not_found">File not found</string>
+    <string name="msg_file_tree_drag_not_a_file">Only files can be dragged</string>
+
 	<!-- Templates -->
 	<string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
 	<string name="template_basic">Basic Activity</string>
@@ -183,10 +189,10 @@
 	<string name="template_ndk">NDK Activity</string>
 
 	<!-- Plugin Template Wizard -->
-	<string name="wizard_plugin_name">Plugin Name</string>
-	<string name="wizard_plugin_id">Plugin ID (Package Name)</string>
+	<string name="wizard_plugin_name">Plugin name</string>
+	<string name="wizard_plugin_id">Plugin ID (package name)</string>
 	<string name="wizard_plugin_description">Plugin description</string>
-	<string name="wizard_plugin_author">Author Name</string>
+	<string name="wizard_plugin_author">Author name</string>
 	<string name="wizard_include_sample_code">Include sample code</string>
 	<string name="wizard_plugin_permissions">Permissions</string>
 	<string name="wizard_plugin_extensions">Extensions</string>
@@ -244,7 +250,7 @@
 	<string name="new_folder">New folder</string>
 	<string name="title_confirm_delete">Confirm delete</string>
 	<string name="msg_confirm_delete">Are you sure you want to delete: \n%s?</string>
-	<string name="copied">Copied successfully!</string>
+	<string name="copied">Copied successfully</string>
 	<string name="msg_rename_file">Enter a new name for the file/folder.</string>
 	<string name="renamed">Renamed successfully</string>
 	<string name="rename_failed">Unable to rename file</string>
@@ -272,6 +278,24 @@
 	<string name="lang_kotlin">Kotlin</string>
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
+	<string name="msg_file_tree_drop_import_failed">Failed to import dropped files</string>
+	<string name="msg_file_tree_drop_no_files">No external files were dropped</string>
+	<string name="msg_file_tree_drop_destination_missing">Destination folder does not exist</string>
+	<string name="msg_file_tree_drop_destination_unresolved">Cannot resolve the destination folder</string>
+	<string name="msg_file_tree_drop_default_name">Dropped file</string>
+	<string name="msg_file_tree_drop_read_failed">Unable to read dropped file: %1$s</string>
+	<string name="msg_file_tree_drop_imported_single">Imported 1 file</string>
+	<string name="msg_file_tree_drop_imported_multiple">Imported %1$d files</string>
+
+	<!-- Shortcuts -->
+	<string name="shortcut_close_current_file">Close current file</string>
+	<string name="shortcut_create_project">Create project</string>
+    <string name="shortcut_open_project">Open project</string>
+    <string name="shortcut_clone_repository">Clone repository</string>
+    <string name="shortcut_close_file">Close file</string>
+    <string name="shortcut_open_preferences">Open preferences</string>
+    <string name="shortcut_find_in_project">Find in project</string>
+    <string name="shortcut_open_terminal">Open terminal</string>
 
 	<!-- Code Editor -->
 	<string name="open_with">Open with…</string>
@@ -349,6 +373,9 @@
 
 	<string name="title_translations">Translations</string>
 	<string name="action_expand_selection">Expand selection</string>
+	<string name="action_explain_selection">Explain selection</string>
+	<string name="msg_ai_gemini_api_key_missing">Gemini API key is missing. Add it in AI Settings.</string>
+	<string name="msg_ai_local_model_not_loaded">Local model is not loaded. Load a model in AI Settings.</string>
 	<string name="idepref_java_matchLower_title">Match completions in lower case</string>
 	<string name="title_common">Common</string>
 	<string name="idepref_editor_category_common" translatable="false">@string/title_common</string>
@@ -393,7 +420,7 @@
 
 	<string name="build_status_idle">No builds in progress</string>
 	<string name="build_status_in_progress">Build in progress…</string>
-	<string name="build_status_failed">Build failed. See the build output panel for more details.</string>
+	<string name="build_status_failed">Build failed. See the Build Output panel for more details.</string>
 	<string name="build_status_sucess">Build successful</string>
 	<string name="msg_output_text_extraction_failed">Failed to get text from editor</string>
 	<string name="err_invalid_data_by_intent">Intent returned invalid data</string>
@@ -455,7 +482,7 @@
 	<string name="xml_formatting_options">XML formatting options</string>
 	<string name="xml_formatting_options_summary">Set formatting preferences for XML files.</string>
 	<string name="idepref_customFont_title">Use custom font</string>
-	<string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
+	<string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" will be used as Editor font.</string>
 	<string name="msg_installing_apk">Installing APK…</string>
 	<string name="msg_action_open_application">Your app is installed. Do you want to launch the app?</string>
 	<string name="msg_action_open_title_application">App installed</string>
@@ -592,6 +619,7 @@
 	<!-- GitHub -->
 	<string name="title_warning">Warning</string>
 	<string name="title_github" translatable="false">GitHub</string>
+	<string name="checkout_conflict_message">Checkout conflict: Please commit or stash your local changes before pulling. Conflicting files:\n%1$s</string>
 	<string name="choose_different_location">Choose a different location</string>
 	<string name="new_directory_name">New directory name</string>
 	<string name="error">Error</string>
@@ -628,7 +656,7 @@
 	<string name="title_device">Device</string>
 	<string name="title_app_version">App version</string>
 	<string name="title_country">Country</string>
-	<string name="title_cpu_arch">CPU Arch</string>
+	<string name="title_cpu_arch">CPU arch</string>
 	<string name="title_preview_data">Preview data</string>
 	<string name="title_android_version">Android version</string>
 	<string name="btn_opt_in">Opt-in</string>
@@ -636,7 +664,7 @@
 	<string name="idepref_devOptions_summary">Experimental/debugging options for Code on the Go</string>
 	<string name="idepref_group_debugging">Debugging</string>
 	<string name="idepref_devOptions_dumpLogs_title">Dump logs</string>
-	<string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.androidide/logs</string>
+	<string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.cg/logs</string>
 	<string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
 	<string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
 	<string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
@@ -685,14 +713,15 @@
 	<string name="greeting_subtitle">No computer? No Internet? No problem.</string>
 	<string name="title_grant">Allow</string>
 	<string name="permission_title_storage">Storage</string>
-	<string name="permission_desc_storage">Allow Code on the Go to access files.</string>
+	<string name="permission_desc_storage">Allow Code on the Go to open and save files on this device.</string>
 	<string name="permission_title_install_packages">Install packages</string>
-	<string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
-	<string name="permission_title_overlay_window">Overlay window</string>
-	<string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
-	<string name="permission_overlay_restricted_settings_hint">Overlay access is still denied. On Pixel, open App info, use the top-right menu to enable restricted settings, then allow Display over other apps.</string>
+	<string name="permission_desc_install_packages">Allow Code on the Go to install the apps that you build on this device.</string>
+	<string name="permission_title_overlay_window">Floating debugger</string>
+	<string name="permission_desc_overlay_window">Allow Code on the Go to display floating debugger controls to inspect your code while it runs.</string>
+	<string name="permission_overlay_unsupported_hint">Floating debugger is not available on this device.</string>
+	<string name="permission_overlay_restricted_settings_hint">If you can\'t enable this permission, display App info for Code on the Go, tap the three-dot menu, and enable restricted settings.</string>
 	<string name="permission_title_notifications">Notifications</string>
-	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
+	<string name="permission_desc_notifications">Allow Code on the Go to display notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
 	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
 	<string name="permissions_info_intro">Next page: permissions</string>
@@ -767,6 +796,19 @@
 	<string name="debugger_dialog_button_set">Set</string>
 	<string name="debugger_variable_value_invalid">Invalid value for this variable</string>
 	<string name="debugger_error_immutable_variable">The value of variable \'%1$s\' cannot be updated.</string>
+	<string name="debugger_error_network_access_error">Network access error</string>
+	<string name="debugger_error_errno">Unable to listen for JDWP connections. Operation failed with error %1$d.</string>
+	<string name="debugger_error_errno_eperm">Code On the Go is not allowed to open or bind a network socket on the local network.</string>
+	<string name="debugger_error_errno_econnrefused">Network access for Code On the Go is blocked by the system. The app is not allowed to use the network or the service is unavailable.</string>
+	<string name="debugger_error_debugger_startup_failure">Unable to start Code On the Go debugger.</string>
+	<string name="debugger_not_ready">The debugger is not ready for a debug session.</string>
+	<string name="debugger_error_suggestion_network_restriction">Please ensure Code On the Go has permissions to access the local network. This can be checked by
+		going to the "App info" screen of Code On the Go in your device\'s settings, and checking if
+		network access is allowed under \"Data usage\" (exact name might differ between devices).
+
+		If network access is allowed and the issue still persists, please file a bug report with the
+		logs attached.
+	</string>
 
 	<string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
@@ -822,6 +864,8 @@
 	<string name="breakpoint">Breakpoint</string>
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
+	<string name="desc_enter_fullscreen">Enter full screen</string>
+    <string name="desc_exit_fullscreen">Exit full screen</string>
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
@@ -949,7 +993,7 @@
 	<string name="cd_drawer_close">Close project menu</string>
 
 	<string name="unknown_error">"An unknown error occurred."</string>
-	<string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
+	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>
 	<string name="error_build_service_not_found">Build service not found.</string>
 	<string name="error_task_execution_failed">Task execution failed.</string>
 	<string name="error_no_output_listing_file">No output listing file found in project model.</string>
@@ -964,12 +1008,32 @@
 	<string name="btn_install">Install</string>
 	<string name="btn_later">Later</string>
 	<string name="msg_plugin_installed_restart">Plugin installed. Restart the app to activate it.</string>
-	<string name="title_restart_required">Restart Required</string>
+	<string name="title_restart_required">Restart required</string>
 	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
-	<string name="btn_restart_now">Restart Now</string>
+	<string name="btn_restart_now">Restart now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
+	<string name="msg_plugin_installed">Plugin installed successfully</string>
+	<string name="msg_plugin_load_failed">Failed to load plugins: %1$s</string>
+	<string name="msg_plugin_enabled">Plugin enabled</string>
+	<string name="msg_plugin_enable_failed">Failed to enable plugin</string>
+	<string name="msg_plugin_enable_error">Error enabling plugin: %1$s</string>
+	<string name="msg_plugin_disabled">Plugin disabled</string>
+	<string name="msg_plugin_disable_failed">Failed to disable plugin</string>
+	<string name="msg_plugin_disable_error">Error disabling plugin: %1$s</string>
+	<string name="msg_plugin_uninstalled">Plugin uninstalled successfully</string>
+	<string name="msg_plugin_uninstall_failed">Failed to uninstall plugin</string>
+	<string name="msg_plugin_uninstall_error">Error uninstalling plugin: %1$s</string>
+	<string name="msg_source_delete_failed">Could not delete the installation file</string>
+	<string name="msg_unsupported_plugin_file">Unsupported file type. Please select a .cgp file</string>
+	<string name="msg_no_file_manager">No file manager found</string>
+	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
+	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
+	<string name="action_discover_plugins">Discover plugins</string>
+	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
+
+	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
 	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
@@ -993,7 +1057,7 @@
 	<string name="notification_adb_pairing_succeed_title">Pairing successful</string>
 
 	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-	<string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+	<string name="notification_adb_pairing_succeed_text">Tap the Back button to return to Code on the Go.</string>
 
 	<!-- Title for the notification when wireless debugging pairing has failed. -->
 	<string name="notification_adb_pairing_failed_title">Pairing failed</string>
@@ -1157,7 +1221,7 @@
     <string name="use_authentication">Use Authentication</string>
     <string name="username">Username</string>
     <string name="personal_access_token">Personal access token</string>
-    <string name="download_project">Download project</string>
+    <string name="clone_project">Clone project</string>
     <string name="destination_directory_not_empty">Destination directory is not empty</string>
     <string name="clone_successful">Clone successful!</string>
     <string name="clone_failed">Clone failed: %1$s</string>
@@ -1168,4 +1232,56 @@
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>
     <string name="diff_loading">Loading Git Diff…</string>
+    <string name="commit_summary">Summary (required)</string>
+    <string name="commit_description_optional">Description</string>
+    <string name="commit">Commit</string>
+    <string name="view_commit_history">View Commit History</string>
+    <string name="git_commit_history">Git Commit History</string>
+    <string name="no_commit_history">No commit history</string>
+    <string name="commit_not_pushed">This commit has not been pushed to the remote repository</string>
+    <string name="commit_pushed">This commit has been pushed to the remote repository</string>
+    <string name="no_internet_connection">No internet connection. Please check your network and try again.</string>
+    <string name="connection_lost">Connection lost during download. Please check your internet connection and try again.</string>
+    <string name="desc_file_added">File added</string>
+    <string name="desc_file_modified">File modified</string>
+    <string name="desc_file_deleted">File deleted</string>
+    <string name="desc_file_untracked">File untracked</string>
+    <string name="desc_file_renamed">File renamed</string>
+    <string name="desc_file_conflicted">File conflicted</string>
+    <string name="cancel_clone">Cancel clone</string>
+    <string name="initialising_clone">Initialising clone…</string>
+    <string name="cancelling_clone">Cancelling clone…</string>
+
+    <!-- Git Preferences -->
+    <string name="idepref_git_summary">Set and update Git configuration</string>
+    <string name="idepref_git_author_title">Author Identity</string>
+    <string name="idepref_git_author_summary">Set the name and email used for commits</string>
+    <string name="idepref_git_user_name_title">User Name</string>
+    <string name="idepref_git_user_name_summary">Used as author name in commits</string>
+    <string name="idepref_git_user_email_title">User Email</string>
+    <string name="idepref_git_user_email_summary">Used as author email in commits</string>
+    <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nClick on the avatar for more info.</string>
+    <string name="git_committing_as">Committing as %1$s</string>
+    <string name="git_committing_email">Email - %1$s</string>
+    <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>
+    <string name="author_not_set">Not set</string>
+    <string name="not_a_git_repo">This project is not a Git repository</string>
+    <string name="current_branch_name">Current Branch: %1$s</string>
+    <string name="push">Push</string>
+    <string name="pushing">Pushing…</string>
+    <string name="push_successful">Push successful!</string>
+    <string name="push_failed">Push failed</string>
+    <string name="push_rejected_nonfastforward">Push rejected: Your branch is behind the remote. Please pull to resolve conflicts before pushing.</string>
+    <string name="pull">Pull</string>
+    <string name="pulling">Pulling…</string>
+    <string name="pull_successful">Pull successful!</string>
+    <string name="pull_failed">Pull failed</string>
+    <string name="git_credentials_title">Git Credentials</string>
+    <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
+    <string name="git_credentials_clear">Clear Credentials</string>
+    <string name="repo_authorization_error">Authentication failed. Ensure your Personal Access Token has \'repo\' permissions, or try clearing and re-entering credentials.</string>
+    <string name="info_merge_conflicts">Pull completed with conflicts!\nPlease select the conflicted files from the list, resolve the highlighted issues in the editor, save file(s) and then commit your changes.</string>
+    <string name="merge_conflicts">Merge Conflicts</string>
+    <string name="abort_merge">Abort Merge</string>
+    <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
 </resources>

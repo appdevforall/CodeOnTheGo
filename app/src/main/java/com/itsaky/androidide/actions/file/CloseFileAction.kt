@@ -30,7 +30,11 @@ import com.itsaky.androidide.activities.editor.EditorHandlerActivity
  */
 class CloseFileAction(context: Context, override val order: Int) : FileTabAction() {
 
-  override val id: String = "ide.editor.fileTab.close.current"
+  override val id: String = ID
+
+  companion object {
+    const val ID = "ide.editor.fileTab.close.current"
+  }
 
   init {
     label = context.getString(R.string.action_closeThis)

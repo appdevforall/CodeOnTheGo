@@ -3,6 +3,7 @@ package com.itsaky.androidide.ui
 import android.content.Context
 import android.util.AttributeSet
 import androidx.core.widget.NestedScrollView
+import com.google.android.material.navigation.NavigationBarMenuView
 import com.google.android.material.navigationrail.NavigationRailView
 
 class IdeNavigationRailView @JvmOverloads constructor(
@@ -24,9 +25,12 @@ class IdeNavigationRailView @JvmOverloads constructor(
 
     private fun enableMenuScrolling() {
         post {
-            val menuView = getChildAt(0) ?: return@post
+            val menuView = (0 until childCount)
+                .map { getChildAt(it) }
+                .firstOrNull { it is NavigationBarMenuView }
+                ?: return@post
 
-            if (menuView is NestedScrollView) return@post
+            if (menuView.parent is NestedScrollView) return@post
 
             removeView(menuView)
 
