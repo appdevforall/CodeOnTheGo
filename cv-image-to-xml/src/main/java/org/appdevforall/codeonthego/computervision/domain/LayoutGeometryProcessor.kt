@@ -45,6 +45,7 @@ class LayoutGeometryProcessor {
 
     internal fun assignTextToParents(parents: List<ScaledBox>, texts: List<ScaledBox>, allBoxes: List<ScaledBox>): List<ScaledBox> {
         val consumedTexts = mutableSetOf<ScaledBox>()
+        val updatedParents = mutableMapOf<ScaledBox, ScaledBox>()
 
         for (parent in parents) {
             texts.firstOrNull { text ->
@@ -57,11 +58,18 @@ class LayoutGeometryProcessor {
                             }
                     }
             }?.let {
-                parent.text = it.text
+                updatedParents[parent] = parent.copy(text = it.text)
                 consumedTexts.add(it)
             }
         }
-        return allBoxes.filter { !consumedTexts.contains(it) }
+
+        return allBoxes.mapNotNull { box ->
+            when {
+                consumedTexts.contains(box) -> null
+                updatedParents.containsKey(box) -> updatedParents[box]
+                else -> box
+            }
+        }
     }
 
     internal fun groupIntoRows(boxes: List<ScaledBox>): List<List<ScaledBox>> {

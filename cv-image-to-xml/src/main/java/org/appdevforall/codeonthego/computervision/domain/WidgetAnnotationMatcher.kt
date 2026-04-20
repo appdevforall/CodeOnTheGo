@@ -106,7 +106,7 @@ class WidgetAnnotationMatcher {
         label.startsWith("radio") -> "radio"
         label.startsWith("dropdown") -> "dropdown"
         label.startsWith("slider") -> "slider"
-        label.startsWith("image_placeholder") -> "image_placeholder"
+        label.startsWith("image_placeholder") || label.startsWith("icon") -> "image_placeholder"
         else -> label
     }
 
@@ -124,14 +124,14 @@ class WidgetAnnotationMatcher {
         if (available.isEmpty()) return null
 
         if (ordinal != null) {
-            val zeroBasedMatch = candidates.getOrNull(ordinal)
-            if (zeroBasedMatch != null && zeroBasedMatch !in claimedWidgets) {
-                return zeroBasedMatch
-            }
-
             val oneBasedMatch = candidates.getOrNull(ordinal - 1)
             if (oneBasedMatch != null && oneBasedMatch !in claimedWidgets) {
                 return oneBasedMatch
+            }
+
+            val zeroBasedMatch = candidates.getOrNull(ordinal)
+            if (zeroBasedMatch != null && zeroBasedMatch !in claimedWidgets) {
+                return zeroBasedMatch
             }
         }
 
