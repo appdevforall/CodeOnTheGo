@@ -142,7 +142,11 @@ class TemplateListFragment :
 		updateSpanCount()
 
 		if (warnings.isNotEmpty()) {
-			requireActivity().flashError(warnings.joinToString("\n"))
+            requireActivity().flashError(
+                warnings.joinToString(System.lineSeparator()) { w ->
+                    requireContext().getString(w.resId, *w.args.toTypedArray())
+                }
+            )
 		}
     }
 }
