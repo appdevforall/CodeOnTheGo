@@ -8,7 +8,7 @@ import androidx.room.Query
 @Dao
 interface RecentProjectDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(project: RecentProject)
 
     @Query("DELETE FROM recent_project_table WHERE name = :name")

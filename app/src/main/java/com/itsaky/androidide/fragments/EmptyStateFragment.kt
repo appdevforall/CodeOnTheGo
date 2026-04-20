@@ -54,7 +54,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 
 	open fun onFragmentLongPressed() {
 		val currentEditor = currentEditor ?: return
-		currentEditor.selectCurrentWord()
+		currentEditor.selectWordOrOperatorAtCursor()
 	}
 
 	private val gestureListener =

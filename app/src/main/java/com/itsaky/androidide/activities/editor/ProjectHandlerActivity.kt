@@ -55,6 +55,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
+import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
@@ -96,13 +97,16 @@ import com.itsaky.androidide.viewmodel.BuildViewModel
 import io.github.rosemoe.sora.text.ICUUtils
 import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.koin.android.ext.android.inject
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
+import java.net.SocketException
 import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
@@ -171,6 +175,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	private val buildServiceConnection = GradleBuildServiceConnnection()
 
 	companion object {
+		private val logger = LoggerFactory.getLogger(ProjectHandlerActivity::class.java)
+
 		const val STATE_KEY_FROM_SAVED_INSTANACE = "ide.editor.isFromSavedInstance"
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
 	}
@@ -209,6 +215,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		observeStates()
 		startServices()
+
+        if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
+            flashError(getString(string.msg_template_warnings))
+        }
+
 	}
 
 	private fun observeStates() {
@@ -450,7 +461,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			log.error("Gradle build service doesn't exist or the IDE is not allowed to access it.")
 		}
 
-		initLspClient()
+		lifecycleScope.launch {
+			initLspClient()
+		}
 	}
 
 	fun initializeProject(forceSync: Boolean = false) {
@@ -747,6 +760,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		initialSetup()
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
+		invalidateOptionsMenu()
 
 		if (mFindInProjectDialog?.isShowing == true) {
 			mFindInProjectDialog!!.dismiss()
@@ -957,12 +971,67 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		startActivity(intent)
 	}
 
-	private fun initLspClient() {
+	private suspend fun initLspClient() {
 		if (!IDELanguageClientImpl.isInitialized()) {
 			IDELanguageClientImpl.initialize(this as EditorHandlerActivity)
 		}
+
 		connectClient(IDELanguageClientImpl.getInstance())
-		connectDebugClient(debuggerViewModel.debugClient)
+
+		val results = try {
+			connectDebugClient(debuggerViewModel.debugClient).values
+		} catch (e: Throwable) {
+			if (e is CancellationException) {
+				throw e
+			}
+
+			Sentry.captureException(e)
+			logger.error("Unable to connect LSP servers with debug client", e)
+			listOf(DebugClientConnectionResult.Failure(cause = e))
+		}
+
+		if (results.any { it is DebugClientConnectionResult.Failure }) {
+			// one or more debug adapters failed to initialize
+			val message = buildString {
+				results.filterIsInstance<DebugClientConnectionResult.Failure>().forEach { result ->
+					val msg = result.contextRes?.let(::getString)
+						?: result.context
+						?: (result.cause as? SocketException?).let { err ->
+							val msg = err?.message ?: ""
+							when {
+								msg.contains("EPERM") -> getString(string.debugger_error_errno_eperm)
+								msg.contains("ECONNREFUSED") -> getString(string.debugger_error_errno_econnrefused)
+								else -> null
+							}
+						}
+						?: (result.cause as? ErrnoException? ?: result.cause?.cause as? ErrnoException?)?.let { err ->
+							when (err.errno) {
+								OsConstants.EPERM -> getString(string.debugger_error_errno_eperm)
+								OsConstants.ECONNREFUSED -> getString(string.debugger_error_errno_econnrefused)
+								else -> getString(R.string.debugger_error_errno, err.errno)
+							}
+						}
+						?: getString(R.string.debugger_error_debugger_startup_failure)
+
+					append(msg)
+					append(System.lineSeparator())
+				}
+
+				if (isNotBlank()) {
+					append(System.lineSeparator())
+				}
+
+				append(getString(R.string.debugger_error_suggestion_network_restriction))
+			}
+
+			withContext(Dispatchers.Main) {
+				newMaterialDialogBuilder(this@ProjectHandlerActivity)
+					.setTitle(R.string.debugger_error_network_access_error)
+					.setMessage(message)
+					.setPositiveButton(android.R.string.ok, null)
+					.show()
+			}
+		}
 	}
 
 	open fun getProgressSheet(msg: Int): ProgressSheet? {

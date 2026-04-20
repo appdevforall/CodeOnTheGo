@@ -1,11 +1,11 @@
-dropdown
+generic_box
+dropdown_symbol
 image_placeholder
 button
 checkbox_checked
+checkbox_unchecked
 radio_button_unchecked
 radio_button_checked
-text_entry_box
-checkbox_unchecked
 slider
 switch_off
 switch_on
