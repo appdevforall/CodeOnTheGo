@@ -260,6 +260,7 @@ object KotlinMetadataScanner {
 
 		val receiverType = fn.receiverParameterType
 		val isExtension = receiverType != null
+		val receiverTypeDisplayName = receiverType?.let { kmTypeToDisplayName(it) } ?: ""
 		val kind = if (isExtension) JvmSymbolKind.EXTENSION_FUNCTION else JvmSymbolKind.FUNCTION
 
 		val parameters = fn.valueParameters.map { param ->
@@ -277,6 +278,11 @@ object KotlinMetadataScanner {
 		val key = "$name(${parameters.joinToString(",") { it.typeFqName }})"
 
 		val signatureDisplay = buildString {
+			if (isExtension) {
+				append(receiverTypeDisplayName)
+				append('.')
+			}
+
 			append("(")
 			append(parameters.joinToString(", ") { "${it.name}: ${it.typeDisplayName}" })
 			append("): ")
@@ -302,7 +308,7 @@ object KotlinMetadataScanner {
 				typeParameters = fn.typeParameters.map { it.name },
 				kotlin = KotlinFunctionInfo(
 					receiverTypeName = receiverType?.let { kmTypeToName(it) } ?: "",
-					receiverTypeDisplayName = receiverType?.let { kmTypeToDisplayName(it) } ?: "",
+					receiverTypeDisplayName = receiverTypeDisplayName,
 					isSuspend = fn.isSuspend,
 					isInline = fn.isInline,
 					isInfix = fn.isInfix,

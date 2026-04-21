@@ -29,12 +29,16 @@ internal abstract class AdvancedKotlinEditHandler(
 			return
 		}
 
-		performEdits(managedFile, editor, item)
+		context(analysisContext) {
+			performEdits(managedFile, editor, item)
+		}
+
 		if (item.command != null) {
 			executeCommand(editor, item.command)
 		}
 	}
 
+	context(ctx: AnalysisContext)
 	abstract fun performEdits(
 		ktFile: KtFile,
 		editor: CodeEditor,
