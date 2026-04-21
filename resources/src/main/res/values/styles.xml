@@ -160,4 +160,9 @@
 		<item name="cornerSizeBottomLeft">0dp</item>
 		<item name="cornerSizeBottomRight">0dp</item>
 	</style>
+
+	<style name="AppTheme.ShapeAppearance.Circle" parent="">
+		<item name="cornerFamily">rounded</item>
+		<item name="cornerSize">50%</item>
+	</style>
 </resources>

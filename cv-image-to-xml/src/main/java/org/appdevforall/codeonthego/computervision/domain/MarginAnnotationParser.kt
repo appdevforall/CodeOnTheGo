@@ -1,18 +1,14 @@
 package org.appdevforall.codeonthego.computervision.domain
 
-import android.util.Log
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 object MarginAnnotationParser {
-
-    private const val TAG = "MarginAnnotationParser"
     private const val GAP_MULTIPLIER = 1.5f
     private const val HEIGHT_FRACTION = 0.8f
 
-    private val TAG_REGEX = Regex("^(B|P|D|T|C|R|SW|S)-\\d+$")
-    private val TAG_EXTRACT_REGEX = Regex("^([BPDTCRS8]W?)[^a-zA-Z0-9]*([\\dlIoO!]+)(?:\\s+(.+))?$")
+    private val TAG_REGEX = Regex("^(?i)(B|P|D|T|C|R|SW|S)-\\d+$")
+    private val TAG_EXTRACT_REGEX = Regex("^(?i)([BPDTCRS8]\\s*W?)[^a-zA-Z0-9]*([\\dlIoO!]+)(?:\\s+(.+))?$")
 
     private fun normalizeOcrDigits(raw: String): String =
         raw.replace('l', '1').replace('I', '1').replace('!', '1')
@@ -23,11 +19,15 @@ object MarginAnnotationParser {
     private fun extractTag(text: String): Pair<String, String?>? {
         val trimmed = text.trim().trimEnd('.', ',', ';', '_', '|')
         val match = TAG_EXTRACT_REGEX.find(trimmed) ?: return null
-        var prefix = match.groupValues[1]
+
+        var prefix = match.groupValues[1].replace(Regex("\\s+"), "").uppercase()
         if (prefix == "8") prefix = "B"
+        if (prefix == "8W" || prefix == "S8") prefix = "SW"
+
         val digit = normalizeOcrDigits(match.groupValues[2])
         val remaining = match.groupValues[3].takeIf { it.isNotBlank() }
         val tag = "$prefix-$digit"
+
         if (isTag(tag)) return tag to remaining
         return null
     }
@@ -46,7 +46,7 @@ object MarginAnnotationParser {
         val rightMarginDetections = mutableListOf<DetectionResult>()
 
         for (detection in detections) {
-            val centerX = detection.boundingBox.centerX()
+            val centerX = centerX(detection)
             when {
                 centerX > leftMarginPx && centerX < rightMarginPx -> canvasDetections.add(detection)
                 centerX <= leftMarginPx -> leftMarginDetections.add(detection)
@@ -59,25 +59,14 @@ object MarginAnnotationParser {
         }
 
         val canvasMidX = imageWidth * (leftGuidePct + rightGuidePct) / 2f
-        val leftCanvasTags = canvasTags.filter { (_, det) -> det.boundingBox.centerX() < canvasMidX }
-        val rightCanvasTags = canvasTags.filter { (_, det) -> det.boundingBox.centerX() >= canvasMidX }
+        val leftCanvasTags = canvasTags.filter { (_, det) -> centerX(det) < canvasMidX }
+        val rightCanvasTags = canvasTags.filter { (_, det) -> centerX(det) >= canvasMidX }
 
         val annotationMap = mutableMapOf<String, String>()
         annotationMap.putAll(parseMarginGroup(leftMarginDetections, leftCanvasTags))
         annotationMap.putAll(parseMarginGroup(rightMarginDetections, rightCanvasTags))
 
-        val correctedCanvasDetections = canvasDetections
-
-        val finalAnnotationLog = annotationMap.entries.joinToString(", ") { "'${it.key}' -> '${it.value}'" }
-        Log.d(TAG, "Processed Margin Annotations: {$finalAnnotationLog}")
-
-        val canvasLogOutput = correctedCanvasDetections.joinToString(", ") {
-            val box = it.boundingBox
-            "'${it.text}', [left:${box.left.roundToInt()}, top:${box.top.roundToInt()}, width:${box.width().roundToInt()}, height:${box.height().roundToInt()}]"
-        }
-        Log.d(TAG, "Parsed Canvas Content (Corrected): $canvasLogOutput")
-
-        return Pair(correctedCanvasDetections, annotationMap)
+        return Pair(canvasDetections, annotationMap)
     }
 
     private data class ParsedBlock(
@@ -99,64 +88,87 @@ object MarginAnnotationParser {
         val gapBlocks = clusterIntoBlocks(sorted)
         val refinedBlocks = gapBlocks.flatMap { splitAtTags(it, validPrefixes) }
 
-        Log.d(TAG, "Spatial clustering: ${detections.size} lines -> ${gapBlocks.size} gap-blocks -> ${refinedBlocks.size} refined-blocks")
-
-        val parsedBlocks = refinedBlocks.mapIndexed { i, block ->
+        val parsedBlocks = refinedBlocks.mapIndexed { _, block ->
             val result = parseBlock(block)
-            val centerY = block.map { it.boundingBox.centerY() }.average().toFloat()
+            val centerY = block.map { centerY(it) }.average().toFloat()
             val annotationText = result?.second
                 ?: block.joinToString(" ") { it.text.trim() }.trim()
 
-            Log.d(TAG, "Block $i: tag=${result?.first ?: "none"}, ${block.size} lines, text='${annotationText.take(40)}'")
             ParsedBlock(result?.first, annotationText, centerY, block.size)
         }
 
         val annotationMap = mutableMapOf<String, String>()
-        val matchedBlockIndices = mutableSetOf<Int>()
 
-        val tagCounts = parsedBlocks
-            .mapNotNull { it.tag }
-            .groupingBy { it }
-            .eachCount()
+        val canvasTagsByPrefix = canvasTags
+            .groupBy { (tag, _) -> tag.substringBefore('-') }
+            .mapValues { (_, tags) ->
+                tags.sortedBy { (_, det) -> centerY(det) }
+            }
 
-        for ((i, parsed) in parsedBlocks.withIndex()) {
-            if (parsed.tag == null || parsed.annotationText.isBlank()) continue
-            val isUnique = tagCounts[parsed.tag] == 1
-            if (isUnique && canvasTags.any { (tag, _) -> tag == parsed.tag }) {
-                annotationMap[parsed.tag] = parsed.annotationText
-                matchedBlockIndices.add(i)
-                Log.d(TAG, "Pass1: tag='${parsed.tag}' matched by unique tag text")
-            } else if (!isUnique) {
-                Log.d(TAG, "Pass1: tag='${parsed.tag}' duplicated ${tagCounts[parsed.tag]} times, deferring to Pass2")
+        val explicitBlocks = parsedBlocks
+            .filter { it.tag != null && it.annotationText.isNotBlank() }
+
+        val implicitBlocks = parsedBlocks
+            .filter { it.tag == null && it.annotationText.length >= 5 }
+
+        for (block in explicitBlocks) {
+            val tag = block.tag ?: continue
+            if (canvasTags.isEmpty() || canvasTags.any { (canvasTag, _) -> canvasTag == tag }) {
+                annotationMap[tag] = block.annotationText
             }
         }
 
-        val remainingBlocks = parsedBlocks.indices
-            .filter { it !in matchedBlockIndices }
-            .map { it to parsedBlocks[it] }
-            .filter { (_, parsed) -> parsed.annotationText.length >= 5 }
-            .sortedBy { (_, parsed) -> parsed.centerY }
+        if (canvasTags.isEmpty()) return annotationMap
 
-        val usedCanvasTags = mutableSetOf<String>()
-        for ((idx, parsed) in remainingBlocks) {
-            val matchingTag = canvasTags
-                .filter { (tag, _) -> tag !in annotationMap && tag !in usedCanvasTags }
-                .minByOrNull { (_, det) -> abs(det.boundingBox.centerY() - parsed.centerY) }
-
-            if (matchingTag != null) {
-                Log.d(TAG, "Pass2: Y-matched block $idx (${parsed.lineCount} lines) -> '${matchingTag.first}'")
-                annotationMap[matchingTag.first] = parsed.annotationText
-                usedCanvasTags.add(matchingTag.first)
+        val unresolvedTagsByPrefix = canvasTagsByPrefix
+            .mapValues { (_, tags) ->
+                tags.map { it.first }
+                    .filter { tag -> tag !in annotationMap }
+                    .sortedBy { tag -> extractOrdinal(tag) ?: Int.MAX_VALUE }
+                    .toMutableList()
             }
+            .toMutableMap()
+
+        val implicitBlocksSorted = implicitBlocks.sortedBy { it.centerY }
+
+        for (block in implicitBlocksSorted) {
+            val closestPrefix = unresolvedTagsByPrefix
+                .filterValues { it.isNotEmpty() }
+                .minByOrNull { (prefix, remainingTags) ->
+                    val nearestTagY = canvasTagsByPrefix[prefix]
+                        ?.firstOrNull { (tag, _) -> tag == remainingTags.firstOrNull() }
+                        ?.second
+                        ?.let { centerY(it) }
+                        ?: Float.MAX_VALUE
+
+                    abs(nearestTagY - block.centerY)
+                }
+                ?.key
+                ?: continue
+
+            val assignedTag = unresolvedTagsByPrefix[closestPrefix]?.removeFirstOrNull() ?: continue
+            annotationMap[assignedTag] = block.annotationText
         }
 
         return annotationMap
     }
 
+    private fun extractOrdinal(tag: String): Int? {
+        return tag.substringAfter('-', "").toIntOrNull()
+    }
+
+    private fun centerX(detection: DetectionResult): Float {
+        return (detection.boundingBox.left + detection.boundingBox.right) / 2f
+    }
+
+    private fun centerY(detection: DetectionResult): Float {
+        return (detection.boundingBox.top + detection.boundingBox.bottom) / 2f
+    }
+
     private fun clusterIntoBlocks(sorted: List<DetectionResult>): List<List<DetectionResult>> {
         if (sorted.size <= 1) return listOf(sorted)
 
-        val avgHeight = sorted.map { it.boundingBox.height() }.average().toFloat()
+        val avgHeight = sorted.map { it.boundingBox.bottom - it.boundingBox.top }.average().toFloat()
         val gaps = (0 until sorted.size - 1).map { i ->
             sorted[i + 1].boundingBox.top - sorted[i].boundingBox.bottom
         }
@@ -205,32 +217,33 @@ object MarginAnnotationParser {
 
     private fun parseBlock(block: List<DetectionResult>): Pair<String, String>? {
         var tag: String? = null
-        var tagFoundAtIndex = -1
         val annotationLines = mutableListOf<String>()
 
         for ((index, detection) in block.withIndex()) {
-            val text = detection.text.trim()
-            if (tag == null && index <= 1) {
-                val tagExtraction = extractTag(text)
-                if (tagExtraction != null) {
-                    tag = tagExtraction.first
-                    tagFoundAtIndex = index
-                    tagExtraction.second?.let { annotationLines.add(it) }
-                    continue
-                }
+            val text = detection.text
+                .trim()
+                .trimStart('|', ':', ';', '.', ',', '_')
+
+            val tagExtraction = extractTag(text)
+
+            if (tag == null && tagExtraction != null && index <= 2) {
+                tag = tagExtraction.first
+                tagExtraction.second
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(annotationLines::add)
+                continue
             }
+
             annotationLines.add(text)
         }
 
-        if (tag != null && tagFoundAtIndex == 1 && annotationLines.isNotEmpty()) {
-            val firstLine = annotationLines.first()
-            val tagPrefix = tag.substringBefore('-')
-            if (firstLine.length <= 2 && firstLine.uppercase().startsWith(tagPrefix)) {
-                annotationLines.removeAt(0)
-            }
-        }
+        val cleanedAnnotation = annotationLines
+            .joinToString(" ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
 
         if (tag == null) return null
-        return tag to annotationLines.joinToString(" ").trim()
+        return tag to cleanedAnnotation
     }
 }

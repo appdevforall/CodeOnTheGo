@@ -20,8 +20,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/realContainer"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:animateLayoutChanges="true">
+    android:layout_height="match_parent">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/editor_appBarLayout"
@@ -31,65 +30,73 @@
         android:fitsSystemWindows="false"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior">
 
-        <!-- Landscape: project name and project actions toolbar in one row; long name truncates so toolbar stays visible -->
-        <com.google.android.flexbox.FlexboxLayout
+        <LinearLayout
+            android:id="@+id/editor_appbar_content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:flexWrap="wrap"
-            app:alignItems="center">
+            android:orientation="vertical"
+            app:layout_scrollFlags="scroll|enterAlways|snap">
 
-            <com.google.android.material.appbar.MaterialToolbar
-                android:id="@+id/title_toolbar"
-                android:layout_width="wrap_content"
+            <!-- Landscape: project name and project actions toolbar in one row; long name truncates so toolbar stays visible -->
+            <com.google.android.flexbox.FlexboxLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:layout_flexGrow="1"
-                app:layout_flexShrink="0"
-                android:minHeight="0dp"
-                android:padding="0dp"
-                app:contentInsetStartWithNavigation="0dp"
-                app:contentInsetStart="0dp"
-                app:contentInsetEnd="0dp">
+                app:flexWrap="wrap"
+                app:alignItems="center">
 
-                <TextView
-                    android:id="@+id/title_text"
-                    style="@style/TextAppearance.Material3.TitleMedium"
-                    android:layout_width="match_parent"
+                <com.google.android.material.appbar.MaterialToolbar
+                    android:id="@+id/title_toolbar"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
+                    app:layout_flexGrow="1"
+                    app:layout_flexShrink="0"
+                    android:minHeight="0dp"
+                    android:padding="0dp"
+                    app:contentInsetStartWithNavigation="0dp"
+                    app:contentInsetStart="0dp"
+                    app:contentInsetEnd="0dp">
+
+                    <TextView
+                        android:id="@+id/title_text"
+                        style="@style/TextAppearance.Material3.TitleMedium"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:layout_marginEnd="8dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp"
+                        android:gravity="start|center_vertical"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+
+                </com.google.android.material.appbar.MaterialToolbar>
+
+                <com.itsaky.androidide.ui.ProjectActionsToolbar
+                    android:id="@+id/project_actions_toolbar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_marginEnd="8dp"
+                    app:layout_flexShrink="0"
+                    android:minHeight="0dp"
                     android:paddingTop="0dp"
-                    android:paddingBottom="0dp"
-                    android:gravity="start|center_vertical"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
+                    android:paddingBottom="0dp" />
 
-            </com.google.android.material.appbar.MaterialToolbar>
+            </com.google.android.flexbox.FlexboxLayout>
 
-            <com.itsaky.androidide.ui.ProjectActionsToolbar
-                android:id="@+id/project_actions_toolbar"
-                android:layout_width="wrap_content"
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/progress_indicator"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                app:layout_flexShrink="0"
-                android:minHeight="0dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp" />
+                android:indeterminate="true" />
 
-        </com.google.android.flexbox.FlexboxLayout>
-
-        <com.google.android.material.progressindicator.LinearProgressIndicator
-            android:id="@+id/progress_indicator"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:indeterminate="true" />
-
-        <com.google.android.material.tabs.TabLayout
+            <com.google.android.material.tabs.TabLayout
             android:id="@+id/tabs"
             style="@style/AppTheme.TabLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingHorizontal="8dp"
             app:tabGravity="start" />
+        </LinearLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -105,7 +112,7 @@
             android:id="@+id/editor_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginBottom="@dimen/editor_sheet_peek_height" />
+            android:layout_marginBottom="@dimen/editor_sheet_collapsed_height" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/no_editor_layout"
@@ -151,11 +158,24 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:behavior_hideable="false"
-        app:behavior_peekHeight="@dimen/editor_sheet_peek_height"
+        app:behavior_peekHeight="@dimen/editor_sheet_collapsed_height"
         app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior" />
 
     <include
         android:id="@+id/diagnosticInfo"
         layout="@layout/layout_diagnostic_info" />
+
+    <ImageButton
+        android:id="@+id/btn_fullscreen_toggle"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginBottom="16dp"
+        android:layout_marginStart="16dp"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_fullscreen"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/desc_enter_fullscreen" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

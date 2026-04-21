@@ -2,6 +2,8 @@ package com.itsaky.androidide.screens
 
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.R
+import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
+import com.itsaky.androidide.helper.setAccessibilityEditText
 import com.kaspersky.kaspresso.screens.KScreen
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import io.github.kakaocup.kakao.check.KCheckBox
@@ -105,10 +107,19 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     fun TestContext<Unit>.clickCreateProjectProjectSettings() {
         step("Click create project on the Settings Page") {
-            createProjectButton {
-                isVisible()
-                click()
-            }
+            val createText = device.targetContext.getString(R.string.create_project)
+            clickFirstAccessibilityNodeByText(createText)
+            device.uiDevice.waitForIdle()
+        }
+    }
+
+    fun TestContext<Unit>.setProjectName(name: String) {
+        step("Set project name to '$name'") {
+            val d = device.uiDevice
+            val byText = d.findObject(UiSelector().textStartsWith("My Application"))
+            check(byText.waitForExists(3_000)) { "Project name field not found" }
+            setAccessibilityEditText("My Application", name, "project name")
+            d.waitForIdle()
         }
     }
 

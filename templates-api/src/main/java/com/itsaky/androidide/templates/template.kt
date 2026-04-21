@@ -58,7 +58,10 @@ val data: D
 /**
  * Result of recipe execution for a [ProjectTemplate].
  */
-interface ProjectTemplateRecipeResult : TemplateRecipeResultWithData<ProjectTemplateData>
+interface ProjectTemplateRecipeResult : TemplateRecipeResultWithData<ProjectTemplateData> {
+    val hasErrorsWarnings: Boolean
+        get() = false
+}
 
 /**
  * Result of recipe execution for a [ModuleTemplate].
@@ -106,7 +109,7 @@ typealias TemplateRecipeFinalizer = RecipeExecutor.() -> Unit
  * @property language The source language for the module.
  * @property useKts Whether to use Kotlin DSL for Gradle build scripts.
  */
-abstract class BaseTemplateData(val name: String, val projectDir: File, val language: Language,
+abstract class BaseTemplateData(val name: String, val projectDir: File, var language: Language?,
 val useKts: Boolean, val useToml: Boolean = false) : TemplateData() {
 
 /**
@@ -176,7 +179,7 @@ open class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_V
  * @property targetSdk The target SDK version for modules.
  * @property buildTools The build tools version for modules.
  */
-data class ModuleVersionData(val minSdk: Sdk,
+data class ModuleVersionData(val minSdk: Sdk?,
 							val targetSdk: Sdk = TARGET_SDK_VERSION,
 							val compileSdk: Sdk = COMPILE_SDK_VERSION,
 							val javaSource: String = JAVA_SOURCE_VERSION,
@@ -203,7 +206,7 @@ private fun javaVersionPrefix(version: String): String = "JavaVersion.VERSION_${
  * @property version The version information for this project.
  */
 class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVersionData,
-language: Language, useKts: Boolean, useToml: Boolean = false) : BaseTemplateData(name, projectDir, language, useKts, useToml)
+language: Language?, useKts: Boolean, useToml: Boolean = false) : BaseTemplateData(name, projectDir, language, useKts, useToml)
 
 /**
  * Data for creating module projects.
@@ -217,7 +220,7 @@ language: Language, useKts: Boolean, useToml: Boolean = false) : BaseTemplateDat
  * So in future we would not get confused.
  */
 open class ModuleTemplateData(name: String, val appName: String?, val packageName: String,
-							projectDir: File, val type: ModuleType, language: Language, useKts: Boolean = true, minSdk: Sdk,
+							projectDir: File, val type: ModuleType, language: Language?, useKts: Boolean = true, minSdk: Sdk?,
 							val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false) :
 BaseTemplateData(name, projectDir, language, useKts, useToml) {
 
@@ -233,12 +236,14 @@ fun srcFolder(srcSet: SrcSet): File {
 /**
  * Model for a template.
  *
- * @property templateName The name of the template.
+ * @property templateName The name id of the template.
+ * @property templateNameStr The name of the template.
  * @property thumb The thumbnail for the template.
  */
 open class Template<R : TemplateRecipeResult>(@StringRes open val templateName: Int,
-@DrawableRes open val thumb: Int, open val tooltipTag: String?, open val widgets: List<Widget<*>>,
-open val recipe: TemplateRecipe<R>) {
+  @DrawableRes open val thumb: Int, open val tooltipTag: String?, open val widgets: List<Widget<*>>,
+  open val recipe: TemplateRecipe<R>, open val templateNameStr: String = "", open val thumbData: ByteArray? = null
+) {
 
 /**
 * The ID for this template.
@@ -263,8 +268,8 @@ companion object {
 
 open class ProjectTemplate(val moduleTemplates: List<Template<*>>, @StringRes templateName: Int,
 @DrawableRes thumb: Int, tooltipTag: String?, widgets: List<Widget<*>>,
-recipe: TemplateRecipe<ProjectTemplateRecipeResult>) :
-Template<ProjectTemplateRecipeResult>(templateName, thumb, tooltipTag, widgets, recipe) {
+recipe: TemplateRecipe<ProjectTemplateRecipeResult>, templateNameStr: String, thumbData: ByteArray?) :
+Template<ProjectTemplateRecipeResult>(templateName, thumb, tooltipTag, widgets, recipe, templateNameStr, thumbData) {
 
 override val parameters: Collection<Parameter<*>>
 	get() = if (moduleTemplates.isEmpty()) super.parameters else super.parameters.toMutableList()
@@ -319,7 +324,9 @@ widgets: List<Widget<*>>, recipe: TemplateRecipe<R>) : Template<R>(name, thumb, 
 abstract class TemplateBuilder<R : TemplateRecipeResult>(
 @StringRes open var templateName: Int? = null,
 @DrawableRes open var thumb: Int? = null, open var tooltipTag: String? = null,
-open var widgets: List<Widget<*>>? = null, open var recipe: TemplateRecipe<R>? = null) {
+open var widgets: List<Widget<*>>? = null, open var recipe: TemplateRecipe<R>? = null,
+open var templateNameStr: String? = null, open var thumbData: ByteArray? = null
+) {
 
 /**
 * Adds the given widgets to the widgets list.
@@ -338,9 +345,10 @@ fun widgets(vararg widgets: Widget<*>) {
 }
 
 fun build(): Template<R> {
-	requireNotNull(templateName) { "Template must have a name" }
+	requireNotNull(templateName) { "Template must have a name id" }
 	requireNotNull(thumb) { "Template must have a thumbnail" }
 	requireNotNull(recipe) { "Template must have a recipe" }
+  requireNotNull(templateNameStr) {"Template must have a name"}
 
 	this.widgets = this.widgets ?: emptyList()
 

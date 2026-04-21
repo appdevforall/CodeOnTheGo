@@ -2,12 +2,15 @@ package com.itsaky.androidide.lsp.kotlin.completion
 
 import com.itsaky.androidide.lsp.snippets.ISnippet
 import com.itsaky.androidide.lsp.snippets.SnippetParser
+import com.itsaky.androidide.lsp.snippets.SnippetRegistry
 
 object KotlinSnippetRepository {
-	lateinit var snippets: Map<KotlinSnippetScope, List<ISnippet>>
-		private set
+	val snippets: Map<KotlinSnippetScope, List<ISnippet>>
+		get() = KotlinSnippetScope.entries.associateWith { scope ->
+			SnippetRegistry.getSnippets("kt", scope.filename)
+		}
 
 	fun init() {
-		snippets = SnippetParser.parse("kt", KotlinSnippetScope.entries)
+		SnippetRegistry.initBuiltIn("kt", KotlinSnippetScope.entries)
 	}
 }

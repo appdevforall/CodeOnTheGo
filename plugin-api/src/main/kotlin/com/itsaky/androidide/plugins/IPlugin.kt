@@ -20,7 +20,9 @@ data class PluginMetadata(
     val author: String,
     val minIdeVersion: String,
     val permissions: List<String> = emptyList(),
-    val dependencies: List<String> = emptyList()
+    val dependencies: List<String> = emptyList(),
+    val iconDayPath: String? = null,
+    val iconNightPath: String? = null
 ) : Parcelable
 
 enum class PluginPermission(val key: String, val description: String) {
@@ -29,7 +31,8 @@ enum class PluginPermission(val key: String, val description: String) {
     NETWORK_ACCESS("network.access", "Access network resources"),
     SYSTEM_COMMANDS("system.commands", "Execute system commands"),
     IDE_SETTINGS("ide.settings", "Modify IDE settings"),
-    PROJECT_STRUCTURE("project.structure", "Modify project structure")
+    PROJECT_STRUCTURE("project.structure", "Modify project structure"),
+    NATIVE_CODE("native.code", "Execute native machine code")
 }
 
 data class PluginInfo(

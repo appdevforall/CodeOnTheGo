@@ -45,7 +45,7 @@ public class LogReader extends Thread {
   }
 
   public LogReader(String senderId, String packageName, int port, String[] cmd) {
-    super("AndroidIDE-LogReader");
+    super("CodeOnTheGo-LogReader");
     this.senderId = senderId;
     this.packageName = packageName;
     this.port = port;

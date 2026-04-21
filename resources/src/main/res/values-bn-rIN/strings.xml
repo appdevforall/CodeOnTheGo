@@ -282,7 +282,7 @@
   <string name="xml_formatting_options">XML ফর্ম্যাটিং অপশনগুলি</string>
   <string name="xml_formatting_options_summary">XML ফর্ম্যাটার কনফিগার করুন</string>
   <string name="idepref_customFont_title">কাস্টম ফন্ট ব্যবহার করুন</string>
-  <string name="idepref_customFont_summary">সক্রিয় থাকলে, \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" ফাইলটিকে এডিটর-এর ফন্ট হিসেবে ব্যবহার করা হবে।</string>
+  <string name="idepref_customFont_summary">সক্রিয় থাকলে, \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" ফাইলটিকে এডিটর-এর ফন্ট হিসেবে ব্যবহার করা হবে।</string>
   <string name="msg_installing_apk">APK ইনস্টল করা হচ্ছে...</string>
   <string name="msg_action_open_application">তুমি কি অ্যাপ্লিকেশনটি খুলতে চাও?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle build পরিষেবা</string>
@@ -399,7 +399,7 @@
   <string name="idepref_devOptions_summary">Code on the Go-এর জন্য পরীক্ষামূলক/ডিবাগিং অপশনগুলি</string>
   <string name="idepref_group_debugging">ডিবাগিং</string>
   <string name="idepref_devOptions_dumpLogs_title">ডাম্প লগ</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go লগ ডাম্প করুন $HOME/.androidide/logs এ</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go লগ ডাম্প করুন $HOME/.cg/logs এ</string>
   <string name="msg_emptyview_applogs">এখানে লগগুলি দেখার জন্য আপনার অ্যাপ্লিকেশনটির ডিবাগ ভ্যারিয়েন্ট টি রান করুন৷</string>
   <string name="msg_logsender_disabled">LogSender নিষ্ক্রিয় করা হয়েছে। আপনি Preferences-এ গিয়ে এটিকে সক্রিয় করতে পারেন।</string>
   <string name="msg_emptyview_idelogs">IDE লগস্ এখানে দেখানো হয়.</string>

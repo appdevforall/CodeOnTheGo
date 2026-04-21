@@ -136,6 +136,16 @@
 ## Prevent R8 from moving what it thinks as unused classes
 -dontshrink
 
+## Plugin SPI
+## Plugins are loaded dynamically via DexClassLoader, so R8 cannot see their
+## implementations of these interfaces. Without these rules, R8 narrows the
+## return types of default interface methods (e.g. UIExtension.getEditorTabs
+## returning emptyList()) to EmptyList, then inserts CHECKCAST at call sites.
+## When a plugin returns a non-EmptyList (listOf(x), mutableListOf(), etc),
+## the cast fails at runtime.
+-keep class com.itsaky.androidide.plugins.** { *; }
+-keep interface com.itsaky.androidide.plugins.** { *; }
+
 ## Initial rules to enable when R8 is shrinking to address exceptions
 #-keep class com.sun.tools.jdi.** { *; }
 #-keep class com.sun.jdi.** { *; }

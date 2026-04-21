@@ -17,23 +17,42 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
+import com.itsaky.androidide.utils.DeviceFormFactorUtils
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.applyMultiWindowFlags
 import org.adfa.constants.CONTENT_TITLE_KEY
 
 class HelpActivity : BaseIDEActivity() {
 
     companion object {
         private val EXTERNAL_SCHEMES = listOf("mailto:", "tel:", "sms:")
+        private const val MULTI_WINDOW_URI = "cogo-help://tooltip/active-window"
+
+        fun launch(context: Context, url: String, title: String) {
+            val intent = Intent(context, HelpActivity::class.java).apply {
+                putExtra(CONTENT_KEY, url)
+                putExtra(CONTENT_TITLE_KEY, title)
+
+                if (DeviceFormFactorUtils.getCurrent(context).isLargeScreenLike) {
+                    data = MULTI_WINDOW_URI.toUri()
+                }
+            }.applyMultiWindowFlags(context)
+            context.startActivity(intent)
+        }
     }
 
     private var _binding: ActivityHelpBinding? = null
@@ -113,6 +132,22 @@ class HelpActivity : BaseIDEActivity() {
                 handleBackNavigation()
             }
         })
+        updateUIFromIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        updateUIFromIntent(intent)
+    }
+
+    private fun updateUIFromIntent(currentIntent: Intent) {
+        val pageTitle = currentIntent.getStringExtra(CONTENT_TITLE_KEY)
+        supportActionBar?.title = pageTitle ?: getString(R.string.help)
+
+        currentIntent.getStringExtra(CONTENT_KEY)?.let { url ->
+            binding.webView.loadUrl(url)
+        }
     }
 
     private fun handleUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {

@@ -20,12 +20,15 @@ package com.itsaky.androidide.fragments
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.GestureDetector
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.LayoutManager
-import com.itsaky.androidide.databinding.FragmentRecyclerviewBinding
+import androidx.viewbinding.ViewBinding
+import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipManager
 
 /**
@@ -34,7 +37,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
  * @author Akash Yadav
  */
 abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
-	EmptyStateFragment<FragmentRecyclerviewBinding>(FragmentRecyclerviewBinding::inflate) {
+	EmptyStateFragment<FragmentRecyclerviewManualBinding>(FragmentRecyclerviewManualBinding::inflate) {
 	protected abstract val fragmentTooltipTag: String?
 
 	private var unsavedAdapter: A? = null
@@ -86,7 +89,7 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 	 * Sets up the recycler view in the fragment.
 	 */
 	protected open fun onSetupRecyclerView() {
-		binding.root.apply {
+		binding.list.apply {
 			layoutManager = onCreateLayoutManager()
 			adapter = unsavedAdapter ?: onCreateAdapter()
 		}
@@ -107,7 +110,7 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 
 		onSetupRecyclerView()
 
-		binding.root.addOnItemTouchListener(touchListener)
+		binding.list.addOnItemTouchListener(touchListener)
 
 		unsavedAdapter = null
 
@@ -123,7 +126,7 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 	 * Set the adapter for the [RecyclerView].
 	 */
 	fun setAdapter(adapter: A) {
-		_binding?.root?.let { list -> list.adapter = adapter } ?: run { unsavedAdapter = adapter }
+		_binding?.list?.let { list -> list.adapter = adapter } ?: run { unsavedAdapter = adapter }
         if (isAdded && view != null) {
             checkIsEmpty()
         }
@@ -142,6 +145,33 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
 
 	private fun checkIsEmpty() {
         if (!isAdded || isDetached) return
-        isEmpty = _binding?.root?.adapter?.itemCount == 0
+        isEmpty = _binding?.list?.adapter?.itemCount == 0
+	}
+}
+
+/**
+ * Manual [ViewBinding] for [R.layout.fragment_recyclerview] so annotation processors (kapt) do not
+ * depend on generated `FragmentRecyclerviewBinding` during stub analysis.
+ *
+ * Public (not internal/file-private): [RecyclerViewFragment] is public and Kotlin forbids a public
+ * class from using a non-public type as a [EmptyStateFragment] type argument.
+ *
+ * [getRoot] returns [RecyclerView] (covariant override), matching generated view binding so
+ * subclasses can use `binding.root.adapter` and other [RecyclerView] APIs.
+ */
+class FragmentRecyclerviewManualBinding(
+	val list: RecyclerView,
+) : ViewBinding {
+	override fun getRoot(): RecyclerView = list
+
+	companion object {
+		fun inflate(
+			inflater: LayoutInflater,
+			parent: ViewGroup?,
+			attachToParent: Boolean,
+		): FragmentRecyclerviewManualBinding {
+			val root = inflater.inflate(R.layout.fragment_recyclerview, parent, false) as RecyclerView
+			return FragmentRecyclerviewManualBinding(root)
+		}
 	}
 }
