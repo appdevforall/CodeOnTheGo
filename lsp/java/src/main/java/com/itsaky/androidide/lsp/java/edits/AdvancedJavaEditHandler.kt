@@ -32,32 +32,33 @@ import java.nio.file.Path
  */
 abstract class AdvancedJavaEditHandler(protected val file: Path) : BaseJavaEditHandler() {
 
-  override fun performEdits(
-    item: CompletionItem,
-    editor: CodeEditor,
-    text: Content,
-    line: Int,
-    column: Int,
-    index: Int
-  ) {
-    val compiler = JavaCompilerProvider.get(
-      IProjectManager.getInstance().findModuleForFile(file, false) ?: return)
-    performEdits(compiler, editor, item)
+	override fun performEdits(
+		item: CompletionItem,
+		editor: CodeEditor,
+		text: Content,
+		line: Int,
+		column: Int,
+		index: Int
+	) {
+		val compiler = JavaCompilerProvider.get(
+			IProjectManager.getInstance().findModuleForFile(file, false) ?: return
+		)
+		performEdits(compiler, editor, item)
 
-    executeCommand(editor, item.command)
-  }
+		executeCommand(editor, item.command)
+	}
 
-  /**
-   * Java edit handlers which require instance of the compiler should override this method instead
-   * of [performEdits].
-   *
-   * @param compiler The compiler service instance.
-   * @param editor The editor to perform edits on.
-   * @param completionItem The completion item which contains required data.
-   */
-  abstract fun performEdits(
-    compiler: JavaCompilerService,
-    editor: CodeEditor,
-    completionItem: CompletionItem
-  )
+	/**
+	 * Java edit handlers which require instance of the compiler should override this method instead
+	 * of [performEdits].
+	 *
+	 * @param compiler The compiler service instance.
+	 * @param editor The editor to perform edits on.
+	 * @param completionItem The completion item which contains required data.
+	 */
+	abstract fun performEdits(
+		compiler: JavaCompilerService,
+		editor: CodeEditor,
+		completionItem: CompletionItem
+	)
 }
