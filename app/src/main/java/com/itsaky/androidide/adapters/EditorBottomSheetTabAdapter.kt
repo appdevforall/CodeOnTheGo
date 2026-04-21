@@ -128,6 +128,7 @@ class EditorBottomSheetTabAdapter(
                         title = fragmentActivity.getString(R.string.git_title),
                         fragmentClass = GitBottomSheetFragment::class.java,
                         itemId = TAB_GIT,
+                        tooltipTag = TooltipTag.PROJECT_GIT
                     ),
                 )
 			}

@@ -178,5 +178,6 @@ object TooltipTag {
     const val GIT_DIALOG_PULL_FAIL = "git.dialog.pullfail"
     const val GIT_DIALOG_PUSH_FAIL = "git.dialog.pushfail"
     const val GIT_DIALOG_ABORT_MERGE = "git.dialog.abortmerge"
-
+    const val GIT_PUSH = "git.action.push"
+    const val GIT_PULL = "git.action.pull"
 }

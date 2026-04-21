@@ -1,13 +1,16 @@
 package com.itsaky.androidide.fragments.git
 
 import android.os.Bundle
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
@@ -17,6 +20,7 @@ import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
@@ -55,6 +59,24 @@ class GitCommitHistoryDialog : DialogFragment() {
             binding.rvCommitHistory.context,
             linearLayoutManager.orientation
         )
+
+        binding.root.applyLongPressRecursively(listOf(binding.btnPush)) {
+            TooltipManager.showIdeCategoryTooltip(
+                context = binding.root.context,
+                anchorView = binding.root,
+                tag = TooltipTag.GIT_COMMIT_HISTORY
+            )
+            true
+        }
+
+        binding.rvCommitHistory.onLongPress {
+            TooltipManager.showIdeCategoryTooltip(
+                context = binding.root.context,
+                anchorView = binding.root,
+                tag = TooltipTag.GIT_COMMIT_HISTORY
+            )
+        }
+
         binding.rvCommitHistory.apply {
             layoutManager = linearLayoutManager
             addItemDecoration(dividerItemDecoration)
@@ -97,13 +119,23 @@ class GitCommitHistoryDialog : DialogFragment() {
     }
 
     private fun setupPushUI() {
-        binding.btnPush.setOnClickListener {
-            val username = credentialsManager.getUsername()
-            val token = credentialsManager.getToken()
-            if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                viewModel.push(username, token)
-            } else {
-                showCredentialsDialog()
+        binding.btnPush.apply {
+            setOnClickListener {
+                val username = credentialsManager.getUsername()
+                val token = credentialsManager.getToken()
+                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    viewModel.push(username, token)
+                } else {
+                    showCredentialsDialog()
+                }
+            }
+            setOnLongClickListener {
+                TooltipManager.showIdeCategoryTooltip(
+                    context = binding.root.context,
+                    anchorView = binding.root,
+                    tag = TooltipTag.GIT_PUSH
+                )
+                true
             }
         }
 

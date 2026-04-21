@@ -6,8 +6,6 @@ import android.text.SpannableString
 import android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
-import android.view.GestureDetector
-import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -15,7 +13,6 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
@@ -93,26 +90,14 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerView.adapter = fileChangeAdapter
-        
-        val emptySpaceGestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
-            override fun onLongPress(e: MotionEvent) {
-                val child = binding.recyclerView.findChildViewUnder(e.x, e.y)
-                if (child == null) {
-                    TooltipManager.showIdeCategoryTooltip(
-                        context = requireContext(),
-                        anchorView = binding.recyclerView,
-                        tag = TooltipTag.PROJECT_GIT_FILES,
-                    )
-                }
-            }
-        })
 
-        binding.recyclerView.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
-            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                emptySpaceGestureDetector.onTouchEvent(e)
-                return false
-            }
-        })
+        binding.recyclerView.onLongPress { e ->
+            TooltipManager.showIdeCategoryTooltip(
+                context = requireContext(),
+                anchorView = binding.recyclerView,
+                tag = TooltipTag.PROJECT_GIT_FILES,
+            )
+        }
 
         viewLifecycleOwner.lifecycleScope.launch {
             launch {
@@ -168,9 +153,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
         setupCommitUI()
 
-        binding.commitHistoryButton.setOnClickListener {
-            val dialog = GitCommitHistoryDialog()
-            dialog.show(childFragmentManager, "CommitHistoryDialog")
+        binding.commitHistoryButton.apply {
+            setOnClickListener {
+                val dialog = GitCommitHistoryDialog()
+                dialog.show(childFragmentManager, "CommitHistoryDialog")
+            }
+            setTooltipOnView(TooltipTag.PROJECT_GIT_COMMIT_HISTORY)
         }
 
         setupPullUI()
@@ -196,44 +184,51 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         binding.commitSummary.doAfterTextChanged { validateCommitButton() }
         binding.commitDescription.doAfterTextChanged { validateCommitButton() }
 
-        binding.btnAbortMerge.setOnClickListener {
-            val dialog = MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.abort_merge)
-                .setMessage(R.string.confirm_abort_merge)
-                .setPositiveButton(R.string.abort_merge) { _, _ ->
-                    viewModel.abortMerge {
-                        val activity = requireActivity()
-                        if (activity is EditorHandlerActivity) {
-                            activity.checkForExternalFileChanges(force = true)
+        binding.btnAbortMerge.apply {
+            setOnClickListener {
+                val dialog = MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.abort_merge)
+                    .setMessage(R.string.confirm_abort_merge)
+                    .setPositiveButton(R.string.abort_merge) { _, _ ->
+                        viewModel.abortMerge {
+                            val activity = requireActivity()
+                            if (activity is EditorHandlerActivity) {
+                                activity.checkForExternalFileChanges(force = true)
+                            }
                         }
                     }
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .create()
-            dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_ABORT_MERGE)
-            dialog.show()
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .create()
+                dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_ABORT_MERGE)
+                dialog.show()
+            }
+            setTooltipOnView(TooltipTag.PROJECT_GIT_ABORT)
         }
 
-        binding.authorAvatar.setOnClickListener {
-            showAuthorPopup()
+        binding.authorAvatar.apply {
+            setOnClickListener { showAuthorPopup() }
+            setTooltipOnView(TooltipTag.PROJECT_GIT_ID)
         }
 
-        binding.commitButton.setOnClickListener {
-            val summary = binding.commitSummary.text?.toString()?.trim() ?: ""
-            val description = binding.commitDescription.text?.toString()?.trim()
+        binding.commitButton.apply {
+            setOnClickListener {
+                val summary = binding.commitSummary.text?.toString()?.trim() ?: ""
+                val description = binding.commitDescription.text?.toString()?.trim()
 
-            if (summary.isNotEmpty() && fileChangeAdapter.selectedFiles.isNotEmpty() && hasAuthorInfo()) {
-                viewModel.commitChanges(
-                    summary = summary,
-                    description = description,
-                    selectedPaths = fileChangeAdapter.selectedFiles.toList()
-                ) {
-                    // Clear the inputs on successful commit
-                    binding.commitSummary.text?.clear()
-                    binding.commitDescription.text?.clear()
-                    fileChangeAdapter.selectedFiles.clear()
+                if (summary.isNotEmpty() && fileChangeAdapter.selectedFiles.isNotEmpty() && hasAuthorInfo()) {
+                    viewModel.commitChanges(
+                        summary = summary,
+                        description = description,
+                        selectedPaths = fileChangeAdapter.selectedFiles.toList()
+                    ) {
+                        // Clear the inputs on successful commit
+                        binding.commitSummary.text?.clear()
+                        binding.commitDescription.text?.clear()
+                        fileChangeAdapter.selectedFiles.clear()
+                    }
                 }
             }
+            setTooltipOnView(TooltipTag.PROJECT_GIT_COMMIT)
         }
     }
 
@@ -391,6 +386,17 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
     fun AlertDialog.setTooltipOnDialog(tag: String) {
         onLongPress {
+            TooltipManager.showIdeCategoryTooltip(
+                context = binding.root.context,
+                anchorView = binding.root,
+                tag = tag
+            )
+            true
+        }
+    }
+
+    fun View.setTooltipOnView(tag: String) {
+        setOnLongClickListener {
             TooltipManager.showIdeCategoryTooltip(
                 context = binding.root.context,
                 anchorView = binding.root,
