@@ -293,12 +293,8 @@ public class ZipFileSystem extends FileSystem {
                 sync();
                 return null;
             });
-            try {
-                ch.close();              // close the ch just in case no update
-                // and sync didn't close the ch
-            } catch (IOException | UncheckedIOException ignored) {
-                // EIO on close is non-fatal — the channel is being released regardless
-            }
+            closeChannelQuietly(ch); // close the ch just in case no update
+                                     // and sync didn't close the ch
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getException();
         } finally {
@@ -1079,6 +1075,18 @@ public class ZipFileSystem extends FileSystem {
         return zc.toString(name);
     }
 
+    /**
+     * Closes a channel, swallowing I/O errors that can occur on devices with
+     * flaky storage (e.g. EIO wrapped in UncheckedIOException). This prevents
+     * an exception during cleanup from killing the FinalizerDaemon thread.
+     */
+    private static void closeChannelQuietly(SeekableByteChannel channel) {
+        try {
+            channel.close();
+        } catch (IOException | UncheckedIOException ignored) {
+        }
+    }
+
     @SuppressWarnings("deprecation")
     protected void finalize() throws IOException {
         try {
@@ -1511,7 +1519,7 @@ public class ZipFileSystem extends FileSystem {
             exChClosers.add(ecc);
             streams = Collections.synchronizedSet(new HashSet<>());
         } else {
-            ch.close();
+            closeChannelQuietly(ch);
             Files.delete(zfpath);
         }
 
@@ -2841,7 +2849,7 @@ public class ZipFileSystem extends FileSystem {
          */
         public boolean closeAndDeleteIfDone() throws IOException {
             if (streams.isEmpty()) {
-                ch.close();
+                closeChannelQuietly(ch);
                 Files.delete(path);
                 return true;
             }
