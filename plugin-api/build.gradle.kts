@@ -1,11 +1,27 @@
 plugins {
-	id("com.android.library")
-	id("kotlin-android")
-	id("kotlin-parcelize")
+    id("com.android.library")
+    id("kotlin-android")
+    id("kotlin-parcelize")
 }
 
 android {
-	namespace = "com.itsaky.androidide.plugins.api"
+    namespace = "com.itsaky.androidide.plugins.api"
+    compileSdk = 36
+
+    defaultConfig {
+        minSdk = 28
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 dependencies {
@@ -14,7 +30,7 @@ dependencies {
     compileOnly("androidx.fragment:fragment-ktx:1.6.2")
     compileOnly("com.google.android.material:material:1.11.0")
 
-	api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 }
 
 tasks.register<Copy>("createPluginApiJar") {
