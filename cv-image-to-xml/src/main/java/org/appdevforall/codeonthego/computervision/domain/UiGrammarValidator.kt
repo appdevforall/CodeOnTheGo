@@ -2,15 +2,14 @@ package org.appdevforall.codeonthego.computervision.domain
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
 
-
 private val allowedAttributesByWidget = mapOf(
-    "Spinner" to setOf("android:layout_width", "android:layout_height", "android:id", "android:text", "tools:entries"),
+    "Spinner" to setOf("android:layout_width", "android:layout_height", "android:id", "android:text", "android:entries"),
     "ImageView" to setOf("android:layout_width", "android:layout_height", "android:id", "android:src", "android:layout_gravity"),
     "EditText" to setOf("android:layout_width", "android:layout_height", "android:id", "android:text", "android:inputType", "android:hint"),
     "Button" to setOf("android:layout_width", "android:layout_height", "android:id", "android:text", "app:backgroundTint", "android:background"),
     "CheckBox" to setOf("android:layout_width", "android:layout_height", "android:id", "android:text", "android:textColor"),
     "RadioButton" to setOf("android:layout_width", "android:layout_height", "android:id", "android:text", "android:textColor", "android:textSize"),
-    "com.google.android.material.slider.Slider" to setOf("android:layout_width", "android:layout_height", "android:id", "style", "android:layout_weight"),
+    "com.google.android.material.slider.Slider" to setOf("android:layout_width", "android:layout_height", "android:id", "android:text", "style", "android:layout_weight"),
     "Switch" to setOf("android:layout_width", "android:layout_height", "android:id", "android:text", "android:textColor", "android:textSize", "android:layout_marginTop", "android:textStyle")
 )
 
@@ -20,8 +19,16 @@ private val inputTypeValues = listOf("text", "textPassword", "number", "numberDe
 private val textStyleValues = listOf("normal", "bold", "italic")
 private val sliderStyles = listOf("continuous", "discrete", "material", "thick")
 
+private val styleResourceMapping = mapOf(
+    "continuous" to "@style/Widget.MaterialComponents.Slider",
+    "discrete" to "@style/Widget.MaterialComponents.Slider.Discrete",
+    "material" to "@style/Widget.MaterialComponents.Slider",
+    "thick" to "@style/Widget.App.Slider.Thick"
+)
+
 fun enforceGrammar(rawParsedAttributes: Map<String, String>, tag: String): Map<String, String> {
-    val allowedKeys = allowedAttributesByWidget[tag] ?: return emptyMap()
+    val allowedKeys = allowedAttributesByWidget[tag] ?: return rawParsedAttributes
+
     val filteredMap = mutableMapOf<String, String>()
 
     for ((key, rawValue) in rawParsedAttributes) {
@@ -45,7 +52,10 @@ private fun enforceValueGrammar(key: String, rawValue: String): String? {
         "android:layout_gravity" -> matchCategoricalValue(trimmed, gravityValues)
         "android:inputType" -> matchCategoricalValue(trimmed, inputTypeValues)
         "android:textStyle" -> matchCategoricalValue(trimmed, textStyleValues)
-        "style" -> matchCategoricalValue(trimmed, sliderStyles)
+        "style" -> {
+            val matchedCategory = matchCategoricalValue(trimmed, sliderStyles)
+            matchedCategory?.let { styleResourceMapping[it] ?: "@style/Slider.${it.replaceFirstChar { c -> c.uppercase() }}" }
+        }
         else -> trimmed
     }
 }
