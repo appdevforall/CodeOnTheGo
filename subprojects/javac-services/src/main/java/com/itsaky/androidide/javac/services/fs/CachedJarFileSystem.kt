@@ -53,6 +53,8 @@ class CachedJarFileSystem(
       super.close()
     } catch (e: IOException) {
       log.warn("IOException during CachedJarFileSystem close", e)
+    } catch (e: java.io.UncheckedIOException) {
+      log.warn("UncheckedIOException during CachedJarFileSystem close", e)
     }
   }
 
