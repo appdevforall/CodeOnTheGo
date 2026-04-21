@@ -54,6 +54,7 @@ dependencies {
 	api(projects.lookup)
 	api(projects.lsp.models)
 	api(projects.preferences)
+	api(projects.idetooltips)
 
 	compileOnly(projects.actions)
 	compileOnly(projects.common)

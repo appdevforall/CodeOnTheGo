@@ -67,7 +67,7 @@ object SnippetRegistry {
 		return scopes.flatMap { getSnippets(language, it) }
 	}
 
-	fun <S : ISnippetScope> initBuiltIn(language: String, scopes: Array<S>) {
+	fun <S : ISnippetScope> initBuiltIn(language: String, scopes: Iterable<S>) {
 		val parsed = SnippetParser.parse(language, scopes)
 		lock.write {
 			parsed.forEach { (scope, snippets) ->

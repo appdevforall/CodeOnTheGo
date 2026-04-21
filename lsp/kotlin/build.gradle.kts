@@ -25,6 +25,10 @@ plugins {
 
 android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
+
+	kotlin.compilerOptions {
+		freeCompilerArgs.addAll("-Xcontext-parameters")
+	}
 }
 
 kapt {
@@ -36,8 +40,11 @@ kapt {
 dependencies {
 	kapt(projects.annotationProcessors)
 
+	implementation(projects.actions)
 	implementation(projects.lsp.api)
+	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.lsp.models)
+	implementation(projects.editorApi)
 	implementation(projects.eventbusEvents)
 	implementation(projects.subprojects.kotlinAnalysisApi)
 	implementation(projects.shared)
@@ -52,4 +59,5 @@ dependencies {
 	compileOnly(projects.common)
 
 	testImplementation(projects.testing.lsp)
+	testImplementation(libs.tests.kotlinx.coroutines)
 }
