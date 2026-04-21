@@ -224,18 +224,27 @@ class PluginManager private constructor(
         verifyDocumentationForLoadedPlugins()
     }
 
-    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> {
-        if (!pluginFile.exists()) {
-            return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
-        }
-        if (!pluginFile.canRead()) {
-            return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
-        }
-        val pluginLoader = PluginLoader(context, pluginFile)
-        val manifest = pluginLoader.getPluginMetadata()
+    private fun loadAndValidate(pluginFile: File): Result<Pair<PluginManifest, PluginLoader>> {
+        if (!pluginFile.exists()) return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
+        if (!pluginFile.canRead()) return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
+        val loader = PluginLoader(context, pluginFile)
+        val manifest = loader.getPluginMetadata()
             ?: return Result.failure(IllegalArgumentException("Plugin manifest not found in: ${pluginFile.name}"))
-        return Result.success(manifest)
+        return Result.success(manifest to loader)
     }
+
+    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> =
+        loadAndValidate(pluginFile).map { it.first }
+
+    fun getPluginValidation(pluginFile: File): Result<PluginValidation> =
+        loadAndValidate(pluginFile).map { (manifest, loader) ->
+            PluginValidation(
+                manifest = manifest,
+                isDebug = loader.isDebuggable(),
+                iconDayEntryExists = manifest.iconDay?.let(loader::hasEntry) ?: false,
+                iconNightEntryExists = manifest.iconNight?.let(loader::hasEntry) ?: false
+            )
+        }
 
     /**
      * Load plugin and return both the plugin instance and its metadata
@@ -344,6 +353,13 @@ class PluginManager private constructor(
                 null
             }
 
+            val (iconDayPath, iconNightPath) = try {
+                pluginLoader.extractPluginIcons(manifest.id, manifest)
+            } catch (e: Exception) {
+                logger.warn("Failed to extract icons for plugin: ${manifest.id}", e)
+                null to null
+            }
+
             if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
                 File(nativeLibPath).deleteRecursively()
                 if (manifest.sidebarItems > 0) {
@@ -415,7 +431,11 @@ class PluginManager private constructor(
                 logger.debug("Registered service registry for plugin: ${manifest.id}")
 
                 val isEnabled = getPluginState(manifest.id)
-                val loadedPlugin = LoadedPlugin(plugin, manifest, classLoader, pluginContext, isEnabled)
+                val loadedPlugin = LoadedPlugin(
+                    plugin, manifest, classLoader, pluginContext, isEnabled,
+                    iconDayPath = iconDayPath,
+                    iconNightPath = iconNightPath
+                )
                 loadedPlugins[manifest.id] = loadedPlugin
                 if (isEnabled) {
                     try {
@@ -614,7 +634,9 @@ class PluginManager private constructor(
                     author = loadedPlugin.manifest.author,
                     minIdeVersion = loadedPlugin.manifest.minIdeVersion,
                     dependencies = loadedPlugin.manifest.dependencies,
-                    permissions = loadedPlugin.manifest.permissions
+                    permissions = loadedPlugin.manifest.permissions,
+                    iconDayPath = loadedPlugin.iconDayPath,
+                    iconNightPath = loadedPlugin.iconNightPath
                 ),
                 isEnabled = loadedPlugin.isEnabled,
                 isLoaded = true
@@ -1178,6 +1200,10 @@ class PluginManager private constructor(
                 if (dir.exists()) dir.deleteRecursively()
             }
 
+            File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId).let { dir ->
+                if (dir.exists()) dir.deleteRecursively()
+            }
+
             // Clean up ART cache files in oat directory
             try {
                 val oatDir = File(pluginsDir, "oat")
@@ -1238,10 +1264,19 @@ class PluginManager private constructor(
 
 }
 
+data class PluginValidation(
+    val manifest: PluginManifest,
+    val isDebug: Boolean,
+    val iconDayEntryExists: Boolean,
+    val iconNightEntryExists: Boolean
+)
+
 data class LoadedPlugin(
     val plugin: IPlugin,
     val manifest: PluginManifest,
     val classLoader: ClassLoader,
     val context: PluginContext,
-    var isEnabled: Boolean = true
+    var isEnabled: Boolean = true,
+    val iconDayPath: String? = null,
+    val iconNightPath: String? = null
 )
