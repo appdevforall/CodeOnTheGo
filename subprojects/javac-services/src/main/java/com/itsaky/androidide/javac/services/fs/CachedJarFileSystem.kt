@@ -51,8 +51,8 @@ class CachedJarFileSystem(
   fun doClose() {
     try {
       super.close()
-    } catch (e: IOException) {
-      log.warn("IOException during CachedJarFileSystem close", e)
+    } catch (e: Exception) {
+      log.warn("Exception during CachedJarFileSystem close", e)
     }
   }
 

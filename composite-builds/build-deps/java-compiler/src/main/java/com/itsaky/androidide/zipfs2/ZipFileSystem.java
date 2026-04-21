@@ -31,6 +31,7 @@ import java.io.EOFException;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
@@ -292,8 +293,12 @@ public class ZipFileSystem extends FileSystem {
                 sync();
                 return null;
             });
-            ch.close();              // close the ch just in case no update
-            // and sync didn't close the ch
+            try {
+                ch.close();              // close the ch just in case no update
+                // and sync didn't close the ch
+            } catch (IOException | UncheckedIOException ignored) {
+                // EIO on close is non-fatal — the channel is being released regardless
+            }
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getException();
         } finally {
@@ -1078,7 +1083,10 @@ public class ZipFileSystem extends FileSystem {
     protected void finalize() throws IOException {
         try {
             close();
-        } catch (IOException ignored) {
+        } catch (Throwable ignored) {
+            // On devices with flaky storage, close() can throw UncheckedIOException
+            // wrapping EIO. Swallow all errors during finalization to prevent
+            // killing the FinalizerDaemon thread.
         }
     }
 
