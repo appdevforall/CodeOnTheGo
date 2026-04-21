@@ -68,6 +68,9 @@ data class JvmSymbol(
 	val data: JvmSymbolInfo,
 ) : Indexable {
 
+	val fqName: String
+		get() = name.toFqName()
+
     val isTopLevel: Boolean
         get() = data.containingClassName.isEmpty()
 

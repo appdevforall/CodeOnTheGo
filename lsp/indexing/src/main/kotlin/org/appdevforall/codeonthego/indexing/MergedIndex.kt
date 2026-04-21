@@ -1,16 +1,16 @@
 package org.appdevforall.codeonthego.indexing
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.appdevforall.codeonthego.indexing.api.ReadableIndex
 import java.io.Closeable
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Merges query results from multiple [ReadableIndex] instances.
+ *
+ * Indexes are queried sequentially in the order they are provided.
+ * Duplicate keys (same entry present in more than one backing index)
+ * are deduplicated — the first occurrence wins.
  *
  * @param T The indexed type.
  * @param indexes The indexes to merge, in priority order.
@@ -21,28 +21,17 @@ class MergedIndex<T : Indexable>(
 
     constructor(vararg indexes: ReadableIndex<T>) : this(indexes.toList())
 
-    override fun query(query: IndexQuery): Flow<T> = channelFlow {
-        val seen = ConcurrentHashMap.newKeySet<String>()
+    override fun query(query: IndexQuery): Sequence<T> = sequence {
         val limit = if (query.limit <= 0) Int.MAX_VALUE else query.limit
-        val emitted = java.util.concurrent.atomic.AtomicInteger(0)
-
-        // Launch a producer coroutine per index.
-        // channelFlow provides structured concurrency: when the
-        // collector stops (limit reached), all producers are cancelled.
+        val seen = mutableSetOf<String>()
+        var total = 0
         for (index in indexes) {
-            launch {
-                index.query(query).collect { entry ->
-                    if (emitted.get() >= limit) {
-                        return@collect
-                    }
-                    if (seen.add(entry.key)) {
-                        send(entry)
-                        if (emitted.incrementAndGet() >= limit) {
-                            // Close the channel - cancels other producers
-                            channel.close()
-                            return@collect
-                        }
-                    }
+            if (total >= limit) break
+            for (entry in index.query(query)) {
+                if (total >= limit) break
+                if (seen.add(entry.key)) {
+                    yield(entry)
+                    total++
                 }
             }
         }
@@ -61,15 +50,11 @@ class MergedIndex<T : Indexable>(
         return indexes.any { it.containsSource(sourceId) }
     }
 
-    override fun distinctValues(fieldName: String): Flow<String> = channelFlow {
-        val seen = ConcurrentHashMap.newKeySet<String>()
+    override fun distinctValues(fieldName: String): Sequence<String> = sequence {
+        val seen = mutableSetOf<String>()
         for (index in indexes) {
-            launch {
-                index.distinctValues(fieldName).collect { value ->
-                    if (seen.add(value)) {
-                        send(value)
-                    }
-                }
+            for (value in index.distinctValues(fieldName)) {
+                if (seen.add(value)) yield(value)
             }
         }
     }

@@ -20,6 +20,7 @@ package com.itsaky.androidide.templates.impl
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
 import com.itsaky.androidide.templates.ITemplateProvider
+import com.itsaky.androidide.templates.R
 import com.itsaky.androidide.templates.Template
 import com.itsaky.androidide.templates.impl.zip.ZipRecipeExecutor
 import com.itsaky.androidide.templates.impl.zip.ZipTemplateReader
@@ -44,7 +45,7 @@ class TemplateProviderImpl : ITemplateProvider {
     }
 
     private val templates = mutableMapOf<String, Template<*>>()
-    val warnings: MutableList<String> = mutableListOf()
+    val warnings: MutableList<TemplateWarning> = mutableListOf()
 
     init {
         reload()
@@ -64,7 +65,9 @@ class TemplateProviderImpl : ITemplateProvider {
                     templates[t.templateId] = t
                 }
             } catch (e: Exception) {
-                warnings.add("Failed to load template archive $zipFile error: ${e.message}")
+                warnings.add(TemplateWarning(
+                    R.string.template_read_error_archive_load,
+                    listOf(zipFile, e.message)))
                 log.error("Failed to load template from archive: $zipFile", e)
             }
         }

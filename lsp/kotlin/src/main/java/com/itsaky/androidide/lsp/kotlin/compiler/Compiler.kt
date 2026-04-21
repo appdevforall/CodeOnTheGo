@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
+import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import org.jetbrains.kotlin.com.intellij.lang.Language
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
@@ -17,6 +18,7 @@ import java.nio.file.Paths
 import kotlin.io.path.pathString
 
 internal class Compiler(
+	workspace: Workspace,
 	projectModel: KotlinProjectModel,
 	intellijPluginRoot: Path,
 	jdkHome: Path,
@@ -35,7 +37,8 @@ internal class Compiler(
 
 	init {
 		defaultCompilationEnv = CompilationEnvironment(
-			project = projectModel,
+			workspace = workspace,
+			ktProject = projectModel,
 			intellijPluginRoot = intellijPluginRoot,
 			jdkHome = jdkHome,
 			jdkRelease = jdkRelease,
@@ -66,7 +69,7 @@ internal class Compiler(
 		}
 
 	fun psiFileFactoryFor(compilationKind: CompilationKind): PsiFileFactory =
-		PsiFileFactory.getInstance(compilationEnvironmentFor(compilationKind).session.project)
+		PsiFileFactory.getInstance(compilationEnvironmentFor(compilationKind).project)
 
 	fun createPsiFileFor(
 		content: String,

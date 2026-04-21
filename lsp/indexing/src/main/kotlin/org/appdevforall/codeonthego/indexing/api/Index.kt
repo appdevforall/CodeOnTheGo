@@ -1,28 +1,26 @@
 package org.appdevforall.codeonthego.indexing.api
 
-import kotlinx.coroutines.flow.Flow
 import java.io.Closeable
 
 /**
  * Read-only view of an index.
  *
- * All query methods return [Flow]s and results are produced lazily.
- * The consumer decides how many to take, which dispatcher to
- * collect on, and whether to buffer.
+ * All query methods return [Sequence]s and results are produced lazily.
+ * The consumer decides how many to take and which thread to run on.
  *
  * @param T The indexed type.
  */
 interface ReadableIndex<T : Indexable> {
 
     /**
-     * Query the index. Returns a lazy [Flow] of matching entries.
+     * Query the index. Returns a lazy [Sequence] of matching entries.
      *
      * Results are not guaranteed to be in any particular order
      * unless the implementation specifies otherwise.
      *
      * If [IndexQuery.limit] is 0, all matches are emitted.
      */
-    fun query(query: IndexQuery): Flow<T>
+    fun query(query: IndexQuery): Sequence<T>
 
     /**
      * Point lookup by key. Returns null if not found.
@@ -43,32 +41,20 @@ interface ReadableIndex<T : Indexable> {
      * @param fieldName Must be one of the fields declared in the
      *                  [IndexDescriptor].
      */
-    fun distinctValues(fieldName: String): Flow<String>
+    fun distinctValues(fieldName: String): Sequence<String>
 }
 
 /**
  * Write interface for mutating an index.
- *
- * Accepts [Flow]s for streaming inserts so that the producer can
- * yield entries one at a time without holding the entire set
- * in memory.
  */
 interface WritableIndex<T : Indexable> {
 
     /**
-     * Insert entries from a [Flow].
+     * Insert entries from a [Sequence].
      *
-     * Entries are consumed lazily from the flow and batched
+     * Entries are consumed lazily from the sequence and batched
      * internally for throughput. If an entry with the same key
      * already exists, it is replaced.
-     *
-     * The flow is collected on the caller's dispatcher; the
-     * implementation handles its own threading for storage I/O.
-     */
-    suspend fun insert(entries: Flow<T>)
-
-    /**
-     * Convenience: insert a sequence (also lazy).
      */
     suspend fun insertAll(entries: Sequence<T>)
 

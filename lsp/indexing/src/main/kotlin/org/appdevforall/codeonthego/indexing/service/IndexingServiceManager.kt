@@ -40,11 +40,6 @@ class IndexingServiceManager(
 	 * @throws IllegalStateException if called after initialization.
 	 */
 	fun register(service: IndexingService) {
-		check(!initialized) {
-			"Cannot register services after initialization. " +
-					"Register all services before the first onProjectSynced call."
-		}
-
 		if (services.putIfAbsent(service.id, service) != null) {
 			log.warn("Attempt to re-register service with ID: {}", service.id)
 			return
@@ -74,11 +69,25 @@ class IndexingServiceManager(
 
 	/**
 	 * Called after a build completes.
+	 *
+	 * Forwards the event to all registered services concurrently.
+	 * Failures in one service don't affect others (SupervisorJob).
 	 */
 	fun onBuildCompleted() {
 		if (!initialized) {
 			log.warn("onBuildCompleted called before initialization, ignoring")
 			return
+		}
+		scope.launch {
+			services.values.forEach { service ->
+				launch {
+					try {
+						service.onBuildCompleted()
+					} catch (e: Exception) {
+						log.error("Service '{}' failed in onBuildCompleted", service.id, e)
+					}
+				}
+			}
 		}
 	}
 

@@ -40,6 +40,7 @@ kapt {
 dependencies {
 	kapt(projects.annotationProcessors)
 
+	implementation(projects.actions)
 	implementation(projects.lsp.api)
 	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.lsp.models)
@@ -58,4 +59,5 @@ dependencies {
 	compileOnly(projects.common)
 
 	testImplementation(projects.testing.lsp)
+	testImplementation(libs.tests.kotlinx.coroutines)
 }

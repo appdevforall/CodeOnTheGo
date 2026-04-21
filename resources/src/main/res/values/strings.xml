@@ -1284,4 +1284,35 @@
     <string name="merge_conflicts">Merge Conflicts</string>
     <string name="abort_merge">Abort Merge</string>
     <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
+
+	<!-- Templates -->
+	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>
+	<string name="template_exec_warn_identifiers">Identifier warnings: %1$s</string>
+	<string name="template_exec_warn_suspicious_entry">Skipping suspicious template entry outside project dir: %1$s</string>
+	<string name="template_exec_info_processing">Processing template %1$s</string>
+	<string name="template_exec_error_read_fail">Failed to read template %1$s</string>
+	<string name="template_exec_error_parse_line">Pebble parse error in %1$s at line %2$d: %3$s</string>
+	<string name="template_exec_error_parse">Unexpected Pebble parse error in %1$s</string>
+	<string name="template_exec_error_evaluate_line">Pebble evaluation error in %1$s at line %2$d: %3$s</string>
+	<string name="template_exec_error_evaluate">Unexpected Pebble evaluation error in %1$s %2$s</string>
+	<string name="template_exec_error_write">Failed writing output file: %1$s %2$s</string>
+	<string name="template_exec_error_copy">Failed copying binary entry: %1$s %2$s</string>
+	<string name="template_exec_error_process">Failed to process template entry: %1$s %2$s</string>
+
+	<string name="template_exec_warn_map_appname">Missing appName, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_pkgname">Missing packageName, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_location">Missing saveLocation, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_agp">Missing agpVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_kotlin">Missing kotlinVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_gradle">Missing gradleVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_compilesdk">Missing compileSdk, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_targetsdk">Missing targetSdk, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javasource_compat">Missing javaSourceCompat, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javatarget_compat">Missing javaTargetCompat, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javatarget">Missing javaTarget, defaulted to %1$s</string>
+
+	<string name="template_read_error_archive_json">%1$s does not contain %2$s</string>
+	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
+	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
+
 </resources>
