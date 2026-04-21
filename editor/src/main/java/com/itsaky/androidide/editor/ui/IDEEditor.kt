@@ -45,6 +45,7 @@ import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
 import com.itsaky.androidide.editor.processing.ProcessContext
 import com.itsaky.androidide.editor.processing.TextProcessorEngine
+import com.itsaky.androidide.editor.utils.getOperatorRangeAt
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.snippets.AbstractSnippetVariableResolver
@@ -1230,5 +1231,22 @@ constructor(
         } catch (e: Exception) {
             log.error("Error setting selection from point", e)
         }
+    }
+
+    /**
+     * Selects the word at the cursor, or if none (e.g. on an operator), selects
+     * the operator at the cursor so the code-action toolbar can be shown.
+     */
+    fun selectWordOrOperatorAtCursor() {
+        if (isReleased) return
+        selectCurrentWord()
+        if (cursor.isSelected) return
+        val line = cursor.leftLine
+        val column = cursor.leftColumn
+        val columnCount = text.getColumnCount(line)
+        if (column < 0 || column >= columnCount) return
+        val range = text.getOperatorRangeAt(line, column) ?: return
+        val (startCol, endCol) = range
+        setSelectionRegion(line, startCol, line, endCol)
     }
 }

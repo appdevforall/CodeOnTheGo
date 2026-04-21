@@ -21,9 +21,11 @@ import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.SizeUtils
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutOnboardingPermissionItemBinding
 import com.itsaky.androidide.models.OnboardingPermissionItem
@@ -36,7 +38,12 @@ class OnboardingPermissionsAdapter(private val permissions: List<OnboardingPermi
   RecyclerView.Adapter<OnboardingPermissionsAdapter.ViewHolder>() {
 
   class ViewHolder(val binding: LayoutOnboardingPermissionItemBinding) :
-    RecyclerView.ViewHolder(binding.root)
+    RecyclerView.ViewHolder(binding.root) {
+      val titleColor: Int = MaterialColors.getColor(binding.root, R.attr.colorOnSurface)
+      val descriptionColor: Int = MaterialColors.getColor(binding.root, R.attr.colorOnSurfaceVariant)
+      val disabledTitleColor: Int = ColorUtils.setAlphaComponent(titleColor, (255 * 0.38f).toInt())
+      val disabledDescriptionColor: Int = ColorUtils.setAlphaComponent(descriptionColor, (255 * 0.38f).toInt())
+  }
 
   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
     return ViewHolder(
@@ -47,10 +54,23 @@ class OnboardingPermissionsAdapter(private val permissions: List<OnboardingPermi
   override fun onBindViewHolder(holder: ViewHolder, position: Int) {
     val binding = holder.binding
     val permission = permissions[position]
+    val context = binding.root.context
 
     binding.infoContent.apply {
       title.setText(permission.title)
       description.setText(permission.description)
+      title.setTextColor(if (permission.isSupportedOnDevice) holder.titleColor else holder.disabledTitleColor)
+      description.setTextColor(if (permission.isSupportedOnDevice) holder.descriptionColor else holder.disabledDescriptionColor)
+    }
+
+    binding.grantButton.apply {
+      isEnabled = permission.isSupportedOnDevice
+      text = context.getString(R.string.title_grant)
+      icon = null
+      iconTint = null
+      iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
+      iconPadding = 0
+      iconSize = 0
     }
 
     binding.grantButton.setOnClickListener {
@@ -61,9 +81,9 @@ class OnboardingPermissionsAdapter(private val permissions: List<OnboardingPermi
       binding.grantButton.apply {
         isEnabled = false
         text = ""
-        icon = ContextCompat.getDrawable(binding.root.context, R.drawable.ic_ok)
+        icon = ContextCompat.getDrawable(context, R.drawable.ic_ok)
         iconTint = ColorStateList.valueOf(
-          ContextCompat.getColor(binding.root.context, R.color.green_500))
+          ContextCompat.getColor(context, R.color.green_500))
         iconGravity = MaterialButton.ICON_GRAVITY_TEXT_TOP
         iconPadding = 0
         iconSize = SizeUtils.dp2px(28f)

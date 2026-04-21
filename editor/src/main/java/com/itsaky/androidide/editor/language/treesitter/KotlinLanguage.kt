@@ -20,7 +20,6 @@ package com.itsaky.androidide.editor.language.treesitter
 import android.content.Context
 import com.itsaky.androidide.editor.language.newline.TSBracketsHandler
 import com.itsaky.androidide.editor.language.newline.TSCStyleBracketsHandler
-import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage.Factory
 import com.itsaky.androidide.editor.language.utils.CommonSymbolPairs
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
@@ -46,7 +45,7 @@ open class KotlinLanguage(context: Context) :
   }
 
   override val languageServer: ILanguageServer?
-    get() = ILanguageServerRegistry.getDefault().getServer(KotlinLanguageServer.SERVER_ID)
+    get() = ILanguageServerRegistry.default.getServer(KotlinLanguageServer.SERVER_ID)
 
   override fun checkIsCompletionChar(c: Char): Boolean {
     return MyCharacter.isJavaIdentifierPart(c) || c == '.'

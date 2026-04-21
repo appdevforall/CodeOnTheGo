@@ -3,7 +3,7 @@
 
     <application
         android:label="Markdown Previewer"
-        android:theme="@style/Theme.AppCompat">
+        android:theme="@style/Theme.MarkdownPreviewer">
 
         <!-- Plugin metadata -->
         <meta-data
@@ -16,7 +16,7 @@
 
         <meta-data
             android:name="plugin.version"
-            android:value="1.0.0" />
+            android:value="${pluginVersion}" />
 
         <meta-data
             android:name="plugin.description"
