@@ -2,6 +2,7 @@ package com.itsaky.androidide.plugins.manager.documentation
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.res.AssetManager
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
@@ -98,7 +99,8 @@ class PluginDocumentationManager(private val context: Context) {
             for (entry in entries) {
                 val tooltipId = insertTooltip(db, categoryId, entry)
                 entry.buttons.sortedBy { it.order }.forEachIndexed { index, button ->
-                    insertTooltipButton(db, tooltipId, button.description, button.uri, index)
+                    val resolvedUri = resolvePluginButtonUri(pluginId, button.uri)
+                    insertTooltipButton(db, tooltipId, button.description, resolvedUri, index)
                 }
             }
 
@@ -145,6 +147,227 @@ class PluginDocumentationManager(private val context: Context) {
             db.endTransaction()
             db.close()
         }
+    }
+
+    /**
+     * Install Tier 3 documentation (full help pages) contributed by a plugin.
+     *
+     * Walks the plugin-declared asset subdirectory, compresses each file per
+     * the existing ContentTypes.compression column, chunks blobs at 1 MB to
+     * match WebServer's read loop, and inserts everything under the reserved
+     * path namespace "plugin/<pluginId>/..." inside a single transaction.
+     */
+    suspend fun installPluginTier3Documentation(
+        pluginId: String,
+        plugin: DocumentationExtension,
+        pluginApkPath: String
+    ): Boolean = withContext(Dispatchers.IO) {
+
+        val assetPath = plugin.getTier3DocsAssetPath()
+        if (assetPath.isNullOrBlank()) {
+            return@withContext true
+        }
+
+        val pluginAssets = try {
+            openPluginOnlyAssets(pluginApkPath)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "Failed to open plugin APK assets for $pluginId", e)
+            return@withContext false
+        }
+
+        val db = getPluginDatabase()
+        if (db == null) {
+            Log.w(TAG, "Cannot install Tier 3 docs for $pluginId - database not available")
+            pluginAssets.close()
+            return@withContext false
+        }
+
+        val resolver = ExtensionToContentTypeResolver()
+        var inserted = 0
+        var skipped = 0
+
+        db.beginTransaction()
+        try {
+            removePluginTier3Internal(db, pluginId)
+
+            for (asset in Tier3AssetWalker.walk(pluginAssets, assetPath)) {
+                val ext = asset.relativePath.substringAfterLast('.', "")
+                if (ext.isEmpty()) {
+                    Log.w(TAG, "Skipping Tier 3 asset without extension: ${asset.relativePath}")
+                    skipped++
+                    continue
+                }
+                val row = resolver.resolve(db, ext)
+                if (row == null) {
+                    Log.w(TAG, "No ContentType for .$ext (${asset.relativePath}); skipping")
+                    skipped++
+                    continue
+                }
+
+                val payload = if (row.compression == "brotli") {
+                    BrotliCompressor.compress(asset.bytes)
+                } else {
+                    asset.bytes
+                }
+
+                val safeRelative = try {
+                    normalizeLocalDocumentationPath(asset.relativePath)
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "Skipping Tier 3 asset with invalid path '${asset.relativePath}': ${e.message}")
+                    skipped++
+                    continue
+                }
+                val basePath = "plugin/$pluginId/$safeRelative"
+                insertContentChunked(db, basePath, payload, row.id)
+                inserted++
+            }
+
+            db.setTransactionSuccessful()
+            Log.d(TAG, "Installed $inserted Tier 3 documents for plugin $pluginId (skipped=$skipped)")
+            true
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "Failed to install Tier 3 docs for plugin $pluginId", e)
+            false
+        } finally {
+            db.endTransaction()
+            db.close()
+            pluginAssets.close()
+        }
+    }
+
+    /**
+     * Remove all Tier 3 documentation rows owned by the given plugin.
+     */
+    suspend fun removePluginTier3Documentation(
+        pluginId: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        val db = getPluginDatabase() ?: return@withContext false
+        db.beginTransaction()
+        try {
+            val deleted = removePluginTier3Internal(db, pluginId)
+            db.setTransactionSuccessful()
+            Log.d(TAG, "Removed $deleted Tier 3 rows for plugin $pluginId")
+            true
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "Failed to remove Tier 3 docs for plugin $pluginId", e)
+            false
+        } finally {
+            db.endTransaction()
+            db.close()
+        }
+    }
+
+    /**
+     * Verify that Tier 3 content exists for this plugin; reinstall if missing.
+     * Mirrors [verifyAndRecreateDocumentation] for the Tier 1/2 pipeline.
+     */
+    suspend fun verifyAndRecreateTier3Documentation(
+        pluginId: String,
+        plugin: DocumentationExtension,
+        pluginApkPath: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (plugin.getTier3DocsAssetPath().isNullOrBlank()) {
+            return@withContext true
+        }
+        if (!isDatabaseAvailable()) {
+            Log.d(TAG, "documentation.db not available yet for Tier 3 verify of $pluginId")
+            return@withContext false
+        }
+        if (isPluginTier3DocumentationInstalled(pluginId)) {
+            Log.d(TAG, "Tier 3 docs already present for $pluginId")
+            return@withContext true
+        }
+        Log.d(TAG, "Tier 3 docs missing for $pluginId, installing...")
+        installPluginTier3Documentation(pluginId, plugin, pluginApkPath)
+    }
+
+    /**
+     * Check if any Tier 3 content rows exist for this plugin.
+     */
+    suspend fun isPluginTier3DocumentationInstalled(pluginId: String): Boolean = withContext(Dispatchers.IO) {
+        val db = getPluginDatabase() ?: return@withContext false
+        try {
+            val prefix = "plugin/$pluginId"
+            db.rawQuery(
+                "SELECT 1 FROM Content WHERE path = ? OR path LIKE ? ESCAPE '\\' LIMIT 1",
+                arrayOf(prefix, "${escapeLike(prefix)}/%")
+            ).use { cursor -> cursor.moveToFirst() }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "Failed to probe Tier 3 installation for $pluginId", e)
+            false
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * Build an AssetManager that sees ONLY the plugin APK, so walking a top-level
+     * asset directory cannot pick up collisions with the host app's assets.
+     */
+    private fun openPluginOnlyAssets(pluginApkPath: String): AssetManager {
+        @Suppress("DEPRECATION")
+        val am = AssetManager::class.java.getDeclaredConstructor().newInstance()
+        val addAssetPath = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
+        val cookie = addAssetPath.invoke(am, pluginApkPath) as? Int ?: 0
+        if (cookie == 0) {
+            throw IllegalStateException("addAssetPath returned 0 for $pluginApkPath")
+        }
+        return am
+    }
+
+    private fun removePluginTier3Internal(db: SQLiteDatabase, pluginId: String): Int {
+        val prefix = "plugin/$pluginId"
+        return db.delete(
+            "Content",
+            "path = ? OR path LIKE ? ESCAPE '\\'",
+            arrayOf(prefix, "${escapeLike(prefix)}/%")
+        )
+    }
+
+    private fun insertContentChunked(
+        db: SQLiteDatabase,
+        basePath: String,
+        payload: ByteArray,
+        contentTypeId: Long
+    ) {
+        val chunkSize = 1024 * 1024
+        if (payload.size < chunkSize) {
+            insertContentRow(db, basePath, payload, contentTypeId)
+            return
+        }
+
+        var offset = 0
+        var fragment = 0
+        while (offset < payload.size) {
+            val end = minOf(offset + chunkSize, payload.size)
+            val slice = payload.copyOfRange(offset, end)
+            val path = if (fragment == 0) basePath else "$basePath-$fragment"
+            insertContentRow(db, path, slice, contentTypeId)
+            offset = end
+            fragment++
+        }
+        if (payload.size % chunkSize == 0) {
+            insertContentRow(db, "$basePath-$fragment", ByteArray(0), contentTypeId)
+        }
+    }
+
+    private fun insertContentRow(
+        db: SQLiteDatabase,
+        path: String,
+        blob: ByteArray,
+        contentTypeId: Long
+    ) {
+        val values = ContentValues().apply {
+            put("path", path)
+            put("content", blob)
+            put("contentTypeID", contentTypeId)
+            put("languageId", 1)
+        }
+        db.insertOrThrow("Content", null, values)
     }
 
     private fun removePluginDocumentationInternal(db: SQLiteDatabase, pluginId: String) {
@@ -233,6 +456,28 @@ class PluginDocumentationManager(private val context: Context) {
             put("detail", if (entry.detail.isNotBlank()) entry.detail + disclaimer else "")
         }
         return db.insert("Tooltips", null, values)
+    }
+
+    private fun escapeLike(value: String): String =
+        value
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+
+    private fun normalizeLocalDocumentationPath(path: String): String {
+        val segments = path.split('/').filter { it.isNotEmpty() && it != "." }
+        require(segments.none { it == ".." }) {
+            "Documentation paths must not contain '..' segments: $path"
+        }
+        return segments.joinToString("/")
+    }
+
+    private fun resolvePluginButtonUri(pluginId: String, rawUri: String): String {
+        if (rawUri.isEmpty()) return rawUri
+        if (rawUri.contains("://")) return rawUri
+        val absolute = rawUri.startsWith("/")
+        val normalized = normalizeLocalDocumentationPath(rawUri.trimStart('/'))
+        return if (absolute) normalized else "plugin/$pluginId/$normalized"
     }
 
     private fun insertTooltipButton(
