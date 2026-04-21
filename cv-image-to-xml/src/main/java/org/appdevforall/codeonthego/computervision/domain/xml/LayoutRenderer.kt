@@ -85,12 +85,19 @@ class LayoutRenderer(
         context.appendLine("$indent>")
 
         radios.forEach { radio ->
+            val safeAttrs = radio.attrs.toMutableMap()
+            if (radio.id == checkedId) {
+                safeAttrs["android:checked"] = "true"
+            } else {
+                safeAttrs["android:checked"] = "false"
+            }
+
             renderSimpleView(
                 box = radio.box,
                 indent = "$indent    ",
                 extraAttrs = radio.extra,
                 idOverride = radio.id,
-                parsedAttrsOverride = radio.attrs
+                parsedAttrsOverride = safeAttrs
             )
             context.appendLine()
         }

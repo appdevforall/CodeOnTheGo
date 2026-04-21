@@ -17,7 +17,13 @@ sealed class AndroidWidget(
         extraAttrs: Map<String, String> = emptyMap(),
         idOverride: String? = null
     ) {
-        val id = idOverride ?: parsedAttrs["android:id"]?.substringAfterLast('/') ?: context.nextId(box.label)
+        val manualId = idOverride ?: parsedAttrs["android:id"]?.substringAfterLast('/')
+        val id = if (manualId != null) {
+            context.registerId(manualId)
+            manualId
+        } else {
+            context.nextId(box.label)
+        }
         val width = parsedAttrs["android:layout_width"] ?: extraAttrs["android:layout_width"] ?: "wrap_content"
         val height = parsedAttrs["android:layout_height"] ?: extraAttrs["android:layout_height"] ?: "wrap_content"
 
@@ -61,7 +67,6 @@ sealed class AndroidWidget(
             "switch_off", "switch_on" -> "Switch"
             "text_entry_box" -> "EditText"
             "dropdown" -> "Spinner"
-            "card" -> "androidx.cardview.widget.CardView"
             "slider" -> "com.google.android.material.slider.Slider"
             else -> "View"
         }

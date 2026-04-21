@@ -4,10 +4,27 @@ class XmlContext(
     val builder: StringBuilder = StringBuilder(),
     private val counters: MutableMap<String, Int> = mutableMapOf()
 ) {
+    private val usedIds = mutableSetOf<String>()
+
     fun nextId(label: String): String {
-        val count = counters.getOrPut(label) { 0 } + 1
-        counters[label] = count
-        return "${label.replace(Regex("[^a-zA-Z0-9_]"), "_")}_$count"
+        val safeLabel = label.replace(Regex("[^a-zA-Z0-9_]"), "_")
+
+        var count = counters.getOrDefault(safeLabel, 0)
+        var newId: String
+
+        do {
+            count++
+            newId = "${safeLabel}_$count"
+        } while (usedIds.contains(newId))
+
+        counters[safeLabel] = count
+        usedIds.add(newId)
+
+        return newId
+    }
+
+    fun registerId(id: String) {
+        usedIds.add(id)
     }
 
     fun appendLine(text: String = "") {
