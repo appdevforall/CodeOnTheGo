@@ -67,7 +67,7 @@ sealed class AndroidWidget(
             "switch_off", "switch_on" -> "Switch"
             "text_entry_box" -> "EditText"
             "dropdown" -> "Spinner"
-            "slider" -> "com.google.android.material.slider.Slider"
+            "slider" -> "SeekBar"
             else -> "View"
         }
     }
