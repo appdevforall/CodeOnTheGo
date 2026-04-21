@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.activityViewModels
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -50,7 +51,7 @@ class RecentProjectsFragment : BaseFragment() {
     private val binding get() = _binding!!
 
 	private val viewModel: RecentProjectsViewModel by activityViewModels()
-	private val mainViewModel: MainViewModel by activityViewModels()
+	private val mainViewModel: MainViewModel by activityViewModel()
 	private lateinit var adapter: RecentProjectsAdapter
 	private var selectedCriteria: SortCriteria? = null
 	private var selectedAsc = true
@@ -282,11 +283,6 @@ class RecentProjectsFragment : BaseFragment() {
 			// Is the current folder a valid android project?
 			// Yes: Then open it.
 			if (isValidProjectDirectory(directory)) {
-				viewModel.insertProjectFromFolder(
-					name = directory.name,
-					location = directory.absolutePath
-				)
-
 				openProject(root = directory)
 				return
 			}

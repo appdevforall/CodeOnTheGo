@@ -122,12 +122,17 @@ public final class Environment {
 	public static final String NDK_TAR_XZ = "ndk-cmake.tar.xz";
 	public static File NDK_DIR;
 
+	public static File TEMPLATES_DIR;
+	public static File SNIPPETS_DIR;
+
 	public static String getArchitecture() {
 		return IDEBuildConfigProvider.getInstance().getCpuAbiName();
 	}
 
 	public static File getProjectCacheDir(File projectDir) {
-		return new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
+		File current = new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
+		File legacy = new File(projectDir, SharedEnvironment.LEGACY_PROJECT_CACHE_DIR_NAME);
+		return LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacy, current);
 	}
 
 	public static void init(Context context) {
@@ -142,7 +147,11 @@ public final class Environment {
 		ROOT = mkdirIfNotExists(new File(DEFAULT_ROOT));
 		PREFIX = mkdirIfNotExists(new File(ROOT, "usr"));
 		HOME = mkdirIfNotExists(new File(ROOT, "home"));
-		ANDROIDIDE_HOME = mkdirIfNotExists(new File(HOME, ".androidide"));
+		File ideHomeCandidate = new File(HOME, SharedEnvironment.PROJECT_CACHE_DIR_NAME);
+		File legacyIdeHome = new File(HOME, SharedEnvironment.LEGACY_PROJECT_CACHE_DIR_NAME);
+		File ideHomeResolved =
+				LegacyIdeDataDirMigration.migrateLegacyIdeDataDirIfNeeded(legacyIdeHome, ideHomeCandidate);
+		ANDROIDIDE_HOME = mkdirIfNotExists(ideHomeResolved);
 		TMP_DIR = mkdirIfNotExists(new File(PREFIX, "tmp"));
 		BIN_DIR = mkdirIfNotExists(new File(PREFIX, "bin"));
 		OPT_DIR = mkdirIfNotExists(new File(PREFIX, "opt"));
@@ -189,6 +198,9 @@ public final class Environment {
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
 
 		NDK_DIR = new File(ANDROID_HOME, "ndk");
+
+		TEMPLATES_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "templates"));
+		SNIPPETS_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "snippets"));
 
 		// required by Java and Kotlin LSP
 		System.setProperty(JavacConfigProvider.PROP_ANDROIDIDE_JAVA_HOME, JAVA_HOME.getAbsolutePath());

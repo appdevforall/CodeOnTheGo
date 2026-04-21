@@ -34,9 +34,12 @@ const val ANDROID_SDK_ZIP = "android-sdk.zip"
 const val GRADLE_DISTRIBUTION_NAME = "gradle-$GRADLE_DISTRIBUTION_VERSION"
 const val GRADLE_DISTRIBUTION_ARCHIVE_NAME = "$GRADLE_DISTRIBUTION_NAME-bin.zip"
 
-// .androidide folder
+// App-internal IDE data under files/home/ (matches SharedEnvironment.PROJECT_CACHE_DIR_NAME)
 @Suppress("SdCardPath")
-const val ANDROIDIDE_HOME = "/data/data/com.itsaky.androidide/files/home/.androidide"
+const val IDE_DATA_DIR_NAME = ".cg"
+
+@Suppress("SdCardPath")
+const val ANDROIDIDE_HOME = "/data/data/com.itsaky.androidide/files/home/$IDE_DATA_DIR_NAME"
 
 // Code On the Go gradle plugin
 const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
@@ -76,3 +79,8 @@ const val LOGSENDER_AAR_NAME = "logsender.aar"
 const val GRADLE_API_NAME_JAR = "gradle-api-$GRADLE_DISTRIBUTION_VERSION.jar"
 const val GRADLE_API_NAME_JAR_ZIP = "${GRADLE_API_NAME_JAR}.zip"
 const val GRADLE_API_NAME_JAR_BR = "${GRADLE_API_NAME_JAR}.br"
+
+// Templates archive
+const val TEMPLATE_ARCHIVE_EXTENSION = "cgt"
+const val TEMPLATE_CORE_ARCHIVE = "core.$TEMPLATE_ARCHIVE_EXTENSION"
+const val TEMPLATE_CORE_ARCHIVE_BR = "${TEMPLATE_CORE_ARCHIVE}.br"

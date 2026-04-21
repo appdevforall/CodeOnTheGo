@@ -110,7 +110,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 				.map { (symbol, edits) ->
 					CodeActionItem(
 						title = symbol.fqName,
-						changes = edits.map { DocumentChange(file = nioPath, edits = edits) },
+						changes = listOf(DocumentChange(file = nioPath, edits = edits)),
 						kind = CodeActionKind.QuickFix,
 						command = Command.CMD_FORMAT_CODE,
 					)
