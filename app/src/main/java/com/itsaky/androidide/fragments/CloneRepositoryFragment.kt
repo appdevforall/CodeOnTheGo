@@ -21,6 +21,8 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.dnd.handleGitUrlDrop
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.forEachViewRecursively
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -31,6 +33,7 @@ class CloneRepositoryFragment : BaseFragment() {
     private var binding: FragmentCloneRepositoryBinding? = null
     private val viewModel: CloneRepositoryViewModel by viewModel()
     private val mainViewModel: MainViewModel by activityViewModel()
+    private var lastStatusResId: Int? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -161,7 +164,7 @@ class CloneRepositoryFragment : BaseFragment() {
                                     isEnabled = state.isCloneButtonEnabled
                                     refreshStatus(isForRetry = false)
                                 }
-                                statusText.text = ""
+                                lastStatusResId = null
                             }
 
                             is CloneRepoUiState.Cloning -> {
@@ -169,8 +172,13 @@ class CloneRepositoryFragment : BaseFragment() {
                                     isEnabled = false
                                     refreshStatus(isForRetry = false)
                                 }
-                                statusText.text = state.statusTextResId?.let { getString(it) }
-                                    ?: getString(R.string.cloning_repo)
+                                
+                                if (state.statusTextResId != lastStatusResId) {
+                                    lastStatusResId = state.statusTextResId
+                                    val message = state.statusTextResId?.let { getString(it) }
+                                        ?: getString(R.string.cloning_repo)
+                                    flashInfo(message)
+                                }
                             }
 
                             is CloneRepoUiState.Error -> {
@@ -180,12 +188,12 @@ class CloneRepositoryFragment : BaseFragment() {
                                 }
                                 val statusMessage =
                                     state.errorResId?.let { getString(it) } ?: state.errorMessage
-                                statusText.text = statusMessage
+                                flashError(statusMessage)
                             }
 
                             is CloneRepoUiState.Success -> {
                                 cloneButton.isEnabled = true
-                                statusText.text = getString(R.string.clone_successful)
+                                flashInfo(getString(R.string.clone_successful))
                                 val destDir = File(state.localPath)
                                 if (destDir.exists()) {
                                     mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
