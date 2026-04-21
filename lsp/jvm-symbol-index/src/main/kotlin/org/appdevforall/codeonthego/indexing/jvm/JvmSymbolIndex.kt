@@ -126,6 +126,12 @@ class JvmSymbolIndex(
 		this.limit = limit
 	})
 
+	fun findBySimpleName(name: String, limit: Int = 200) =
+		query(indexQuery {
+			eq(KEY_NAME, name)
+			this.limit = limit
+		})
+
 	suspend fun findByKey(key: String): JvmSymbol? = get(key)
 
 	fun allPackages(): Sequence<String> = distinctValues(KEY_PACKAGE)
