@@ -87,8 +87,6 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import kotlin.io.path.extension
-import kotlin.io.path.isDirectory
 import kotlin.io.path.pathString
 
 /**
@@ -388,6 +386,7 @@ internal class CompilationEnvironment(
 		provider.registerInMemoryFile(path.pathString, newKtFile.virtualFile)
 
 		ktSymbolIndex.openKtFile(path, newKtFile)
+		ktSymbolIndex.queueOnFileChangedAsync(newKtFile)
 		project.write {
 			KaSourceModificationService.getInstance(project)
 				.handleElementModification(newKtFile, KaElementModificationType.Unknown)
