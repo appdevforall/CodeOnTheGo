@@ -7,6 +7,7 @@ appcompatVersion = "1.7.1"
 bcprovJdk18on = "1.80"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
+tukaaniXz = "1.9"
 commonsText = "1.11.0"
 commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
@@ -104,6 +105,7 @@ bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bc
 bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprovJdk18on" }
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
+tukaani-xz = { module = "org.tukaani:xz", version.ref = "tukaaniXz" }
 commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
 commons-text-v1140 = { module = "org.apache.commons:commons-text", version.ref = "commonsTextVersion" }
 composite-appintro = { module = "com.itsaky.androidide.build:appintro" }

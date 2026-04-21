@@ -28,4 +28,6 @@ dependencies {
 
 	implementation(libs.androidx.appcompat)
 	implementation(libs.gson.v2101)
+	implementation(libs.commons.compress)
+	implementation(libs.tukaani.xz)
 }

@@ -1,0 +1,263 @@
+package com.itsaky.androidide.plugins.manager.services
+
+import com.itsaky.androidide.plugins.PluginPermission
+import com.itsaky.androidide.plugins.services.ArchiveFormat
+import com.itsaky.androidide.plugins.services.ExtractResult
+import com.itsaky.androidide.plugins.services.IdeArchiveService
+import com.itsaky.androidide.utils.Environment
+import org.apache.commons.compress.archivers.ArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
+import java.io.BufferedInputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
+
+class IdeArchiveServiceImpl(
+    private val pluginId: String,
+    private val permissions: Set<PluginPermission>,
+    private val pathValidator: IdeFileServiceImpl.PathValidator? = null
+) : IdeArchiveService {
+
+    override fun extract(
+        source: InputStream,
+        format: ArchiveFormat,
+        destination: File,
+        onProgress: ((bytesProcessed: Long, currentEntry: String?) -> Unit)?
+    ): ExtractResult {
+        return try {
+            ensureWritePermission()
+            ensurePathAllowed(destination)
+
+            val buffered = BufferedInputStream(source)
+            when (format) {
+                ArchiveFormat.XZ -> extractSingleStream(
+                    XZCompressorInputStream(buffered),
+                    destination,
+                    onProgress
+                )
+                ArchiveFormat.GZIP -> extractSingleStream(
+                    GzipCompressorInputStream(buffered),
+                    destination,
+                    onProgress
+                )
+                ArchiveFormat.TAR -> extractTar(buffered, destination, onProgress)
+                ArchiveFormat.TAR_XZ -> extractTar(
+                    XZCompressorInputStream(buffered),
+                    destination,
+                    onProgress
+                )
+                ArchiveFormat.TAR_GZ -> extractTar(
+                    GzipCompressorInputStream(buffered),
+                    destination,
+                    onProgress
+                )
+                ArchiveFormat.ZIP -> extractZip(buffered, destination, onProgress)
+            }
+        } catch (e: Exception) {
+            ExtractResult.Failure(e)
+        }
+    }
+
+    private fun extractSingleStream(
+        input: InputStream,
+        destination: File,
+        onProgress: ((Long, String?) -> Unit)?
+    ): ExtractResult {
+        destination.parentFile?.mkdirs()
+        if (destination.isDirectory) {
+            return ExtractResult.Failure(
+                IllegalArgumentException("destination must be a file for single-stream formats: ${destination.absolutePath}")
+            )
+        }
+        val written = input.use { stream ->
+            FileOutputStream(destination).use { out ->
+                copyInterruptible(stream, out, onProgress, entryName = destination.name)
+            }
+        }
+        return ExtractResult.Success(bytesWritten = written, filesExtracted = 1)
+    }
+
+    private fun extractTar(
+        input: InputStream,
+        destination: File,
+        onProgress: ((Long, String?) -> Unit)?
+    ): ExtractResult {
+        ensureDirectory(destination)
+        val destRoot = destination.canonicalFile
+        var totalBytes = 0L
+        var fileCount = 0
+
+        TarArchiveInputStream(input).use { tar ->
+            while (true) {
+                if (Thread.interrupted()) throw InterruptedException("extract interrupted")
+                val entry = tar.nextEntry ?: break
+                if (!tar.canReadEntryData(entry)) {
+                    throw SecurityException("unreadable tar entry: ${entry.name}")
+                }
+                if (entry.isSymbolicLink || entry.isLink) {
+                    throw SecurityException("tar entry is a link, refusing: ${entry.name}")
+                }
+                val target = resolveEntryTarget(destRoot, entry)
+                if (entry.isDirectory) {
+                    target.mkdirs()
+                } else {
+                    target.parentFile?.mkdirs()
+                    FileOutputStream(target).use { out ->
+                        totalBytes += copyInterruptible(tar, out, onProgress, entryName = entry.name, alreadyWritten = totalBytes)
+                    }
+                    fileCount += 1
+                    applyTarMode(entry, target)
+                }
+            }
+        }
+
+        return ExtractResult.Success(bytesWritten = totalBytes, filesExtracted = fileCount)
+    }
+
+    private fun extractZip(
+        input: InputStream,
+        destination: File,
+        onProgress: ((Long, String?) -> Unit)?
+    ): ExtractResult {
+        ensureDirectory(destination)
+        val destRoot = destination.canonicalFile
+        var totalBytes = 0L
+        var fileCount = 0
+
+        ZipArchiveInputStream(input).use { zip ->
+            while (true) {
+                if (Thread.interrupted()) throw InterruptedException("extract interrupted")
+                val entry = zip.nextEntry ?: break
+                if (!zip.canReadEntryData(entry)) {
+                    throw SecurityException("unreadable zip entry: ${entry.name}")
+                }
+                val target = resolveEntryTarget(destRoot, entry)
+                if (entry.isDirectory) {
+                    target.mkdirs()
+                } else {
+                    target.parentFile?.mkdirs()
+                    FileOutputStream(target).use { out ->
+                        totalBytes += copyInterruptible(zip, out, onProgress, entryName = entry.name, alreadyWritten = totalBytes)
+                    }
+                    fileCount += 1
+                }
+            }
+        }
+
+        return ExtractResult.Success(bytesWritten = totalBytes, filesExtracted = fileCount)
+    }
+
+    private fun resolveEntryTarget(destRoot: File, entry: ArchiveEntry): File {
+        val target = File(destRoot, entry.name).canonicalFile
+        val rootPath = destRoot.path
+        if (target.path != rootPath && !target.path.startsWith(rootPath + File.separator)) {
+            throw SecurityException("archive entry escapes destination: ${entry.name}")
+        }
+        return target
+    }
+
+    private fun applyTarMode(entry: TarArchiveEntry, target: File) {
+        val mode = entry.mode
+        if (mode and OWNER_EXECUTE_BIT != 0) {
+            target.setExecutable(true, false)
+        }
+    }
+
+    private fun ensureDirectory(destination: File) {
+        if (destination.exists() && !destination.isDirectory) {
+            throw IllegalArgumentException("destination exists and is not a directory: ${destination.absolutePath}")
+        }
+        destination.mkdirs()
+    }
+
+    private fun copyInterruptible(
+        input: InputStream,
+        output: OutputStream,
+        onProgress: ((Long, String?) -> Unit)?,
+        entryName: String?,
+        alreadyWritten: Long = 0L
+    ): Long {
+        val buffer = ByteArray(COPY_BUFFER_SIZE)
+        var written = 0L
+        var sinceReport = 0L
+        while (true) {
+            if (Thread.interrupted()) throw InterruptedException("extract interrupted")
+            val read = input.read(buffer)
+            if (read <= 0) break
+            output.write(buffer, 0, read)
+            written += read
+            sinceReport += read
+            if (onProgress != null && sinceReport >= PROGRESS_REPORT_INTERVAL) {
+                onProgress(alreadyWritten + written, entryName)
+                sinceReport = 0L
+            }
+        }
+        output.flush()
+        onProgress?.invoke(alreadyWritten + written, entryName)
+        return written
+    }
+
+    private fun ensureWritePermission() {
+        if (writePermissions.none { it in permissions }) {
+            throw SecurityException(
+                "Plugin $pluginId does not have required permissions: ${writePermissions.joinToString(", ") { it.name }}"
+            )
+        }
+    }
+
+    private fun ensurePathAllowed(path: File) {
+        val validator = pathValidator
+        val canonical = try {
+            path.canonicalPath
+        } catch (e: Exception) {
+            throw SecurityException("Plugin $pluginId cannot canonicalize destination: ${path.absolutePath}")
+        }
+
+        val allowed = if (validator != null) {
+            validator.isPathAllowed(path)
+        } else {
+            defaultAllowedPaths().any { canonical.startsWith(it) }
+        }
+
+        if (!allowed) {
+            throw SecurityException("Plugin $pluginId does not have access to path: ${path.absolutePath}")
+        }
+    }
+
+    private fun defaultAllowedPaths(): List<String> {
+        val paths = mutableListOf(
+            "/storage/emulated/0/${Environment.PROJECTS_FOLDER}",
+            "/sdcard/${Environment.PROJECTS_FOLDER}",
+            System.getProperty("user.home", "/") + "/${Environment.PROJECTS_FOLDER}",
+            "/tmp/CodeOnTheGoProject"
+        )
+        if (PluginPermission.IDE_ENVIRONMENT_WRITE in permissions) {
+            paths += canonicalOrSelf(Environment.ANDROID_HOME)
+            paths += canonicalOrSelf(Environment.TMP_DIR)
+            paths += canonicalOrSelf(File(File(Environment.ANDROIDIDE_HOME, PLUGIN_DATA_ROOT), pluginId))
+        }
+        return paths
+    }
+
+    private fun canonicalOrSelf(file: File): String = try {
+        file.canonicalPath
+    } catch (e: Exception) {
+        file.absolutePath
+    }
+
+    private companion object {
+        const val COPY_BUFFER_SIZE = 64 * 1024
+        const val PROGRESS_REPORT_INTERVAL = 1L * 1024 * 1024
+        const val OWNER_EXECUTE_BIT = 0b001_000_000
+        const val PLUGIN_DATA_ROOT = "plugins"
+        val writePermissions = setOf(
+            PluginPermission.FILESYSTEM_WRITE,
+            PluginPermission.IDE_ENVIRONMENT_WRITE
+        )
+    }
+}

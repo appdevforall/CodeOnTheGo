@@ -41,7 +41,11 @@ import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeFileService
 import com.itsaky.androidide.plugins.services.IdeSidebarService
+import com.itsaky.androidide.plugins.services.IdeEnvironmentService
+import com.itsaky.androidide.plugins.services.IdeArchiveService
 import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeEnvironmentServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
@@ -936,6 +940,33 @@ class PluginManager private constructor(
             )
         }
 
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeEnvironmentService::class.java,
+            pluginId,
+            "environment"
+        ) {
+            IdeEnvironmentServiceImpl(pluginId)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeArchiveService::class.java,
+            pluginId,
+            "archive"
+        ) {
+            IdeArchiveServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeFileServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
+
         // Sidebar service for plugin sidebar slot management
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
@@ -1010,7 +1041,12 @@ class PluginManager private constructor(
             services = pluginServiceRegistry,
             eventBus = eventBus,
             logger = PluginLoggerImpl(pluginId, logger),
-            resources = ResourceManagerImpl(pluginId, pluginsDir, classLoader),
+            resources = ResourceManagerImpl(
+                pluginId = pluginId,
+                pluginsDir = pluginsDir,
+                classLoader = classLoader,
+                assetManager = resourceContext.assets
+            ),
             pluginId = pluginId
         )
     }
@@ -1087,6 +1123,33 @@ class PluginManager private constructor(
             "file"
         ) {
             IdeFileServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeFileServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeEnvironmentService::class.java,
+            pluginId,
+            "environment"
+        ) {
+            IdeEnvironmentServiceImpl(pluginId)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeArchiveService::class.java,
+            pluginId,
+            "archive"
+        ) {
+            IdeArchiveServiceImpl(
                 pluginId = pluginId,
                 permissions = permissions,
                 pathValidator = pathValidator?.let { validator ->
