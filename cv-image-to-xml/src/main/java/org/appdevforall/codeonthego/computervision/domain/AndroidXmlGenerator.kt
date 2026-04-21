@@ -213,13 +213,5 @@ class AndroidXmlGenerator(
         val contentDescription = parsedAttrs["android:contentDescription"] ?: label
         xml.append("$indent    android:contentDescription=\"${escapeXmlAttr(contentDescription)}\"\n")
         writtenAttrs.add("android:contentDescription")
-
-        val scaleType = parsedAttrs["android:scaleType"] ?: "centerCrop"
-        xml.append("$indent    android:scaleType=\"${escapeXmlAttr(scaleType)}\"\n")
-        writtenAttrs.add("android:scaleType")
-
-        val bg = parsedAttrs["android:background"] ?: "#E0E0E0"
-        xml.append("$indent    android:background=\"${escapeXmlAttr(bg)}\"\n")
-        writtenAttrs.add("android:background")
     }
 }
