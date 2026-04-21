@@ -41,281 +41,286 @@ import java.util.function.Consumer
 const val DEFAULT_MIN_MATCH_RATIO = 59
 
 data class CompletionParams(
-  var position: Position,
-  var file: Path,
-  override val cancelChecker: ICancelChecker
+	var position: Position,
+	var file: Path,
+	override val cancelChecker: ICancelChecker
 ) : CancellableRequestParams {
-  var content: CharSequence? = null
-  var prefix: String? = null
+	var content: CharSequence? = null
+	var prefix: String? = null
 
-  fun requirePrefix(): String {
-    if (prefix == null) {
-      throw IllegalArgumentException("Prefix is required but none was provided")
-    }
+	fun requirePrefix(): String {
+		if (prefix == null) {
+			throw IllegalArgumentException("Prefix is required but none was provided")
+		}
 
-    return prefix as String
-  }
+		return prefix as String
+	}
 
-  fun requireContents(): CharSequence {
-    if (content == null) {
-      throw IllegalArgumentException("Content is required but no content was provided!")
-    }
-    return content as CharSequence
-  }
+	fun requireContents(): CharSequence {
+		if (content == null) {
+			throw IllegalArgumentException("Content is required but no content was provided!")
+		}
+		return content as CharSequence
+	}
 }
 
 open class CompletionResult(items: Collection<CompletionItem>) {
-  val items: List<CompletionItem> = run {
-    var temp = items.toMutableList()
-    temp.sort()
-    if (TRIM_TO_MAX && temp.size > MAX_ITEMS) {
-      temp = temp.subList(0, MAX_ITEMS)
-    }
-    return@run temp
-  }
+	val items: List<CompletionItem> = run {
+		var temp = items.toMutableList()
+		temp.sort()
+		if (TRIM_TO_MAX && temp.size > MAX_ITEMS) {
+			temp = temp.subList(0, MAX_ITEMS)
+		}
+		return@run temp
+	}
 
-  var isIncomplete = this.items.size < items.size
-  var isCached = false
+	var isIncomplete = this.items.size < items.size
+	var isCached = false
 
-  companion object {
-    const val MAX_ITEMS = 50
-    @JvmField val EMPTY = CompletionResult(listOf())
+	companion object {
+		const val MAX_ITEMS = 50
+		@JvmField
+		val EMPTY = CompletionResult(listOf())
 
-    var TRIM_TO_MAX = true
+		var TRIM_TO_MAX = true
 
-    @JvmStatic
-    @JvmOverloads
-    fun mapAndFilter(
-      src: CompletionResult,
-      partial: String,
-      map: Consumer<CompletionItem> = Consumer {}
-    ): CompletionResult {
-      val newItems = src.items.toMutableList()
-      newItems.forEach(map)
-      newItems.removeIf { !it.ideLabel.startsWith(partial) }
-      return CompletionResult(newItems)
-    }
-  }
+		@JvmStatic
+		@JvmOverloads
+		fun mapAndFilter(
+			src: CompletionResult,
+			partial: String,
+			map: Consumer<CompletionItem> = Consumer {}
+		): CompletionResult {
+			val newItems = src.items.toMutableList()
+			newItems.forEach(map)
+			newItems.removeIf { !it.ideLabel.startsWith(partial) }
+			return CompletionResult(newItems)
+		}
+	}
 
-  constructor() : this(listOf())
+	constructor() : this(listOf())
 
-  fun add(item: CompletionItem) {
-    if (isIncomplete) {
-      // Max limit has been reached
-      return
-    }
+	fun add(item: CompletionItem) {
+		if (isIncomplete) {
+			// Max limit has been reached
+			return
+		}
 
-    if (items is MutableList) {
-      this.items.add(item)
-    }
-    this.isIncomplete = this.items.size >= MAX_ITEMS
-  }
+		if (items is MutableList) {
+			this.items.add(item)
+		}
+		this.isIncomplete = this.items.size >= MAX_ITEMS
+	}
 
-  fun markCached() {
-    this.isCached = true
-  }
+	fun markCached() {
+		this.isCached = true
+	}
 
-  override fun toString(): String {
-    return android.text.TextUtils.join("\n", items)
-  }
+	override fun toString(): String {
+		return android.text.TextUtils.join("\n", items)
+	}
 }
 
 open class CompletionItem(
-  var ideLabel: String,
-  var detail: String,
-  insertText: String?,
-  insertTextFormat: InsertTextFormat?,
-  sortText: String?,
-  var command: Command?,
-  var completionKind: CompletionItemKind,
-  var matchLevel: MatchLevel,
-  var additionalTextEdits: List<TextEdit>?,
-  var data: ICompletionData?,
-  var editHandler: IEditHandler = DefaultEditHandler()
+	var ideLabel: String,
+	var detail: String,
+	insertText: String?,
+	insertTextFormat: InsertTextFormat?,
+	sortText: String?,
+	var command: Command?,
+	var completionKind: CompletionItemKind,
+	var matchLevel: MatchLevel,
+	var additionalTextEdits: List<TextEdit>?,
+	var data: ICompletionData?,
+	var editHandler: IEditHandler = DefaultEditHandler()
 ) :
-  io.github.rosemoe.sora.lang.completion.CompletionItem(ideLabel, detail), Comparable<CompletionItem> {
+	io.github.rosemoe.sora.lang.completion.CompletionItem(ideLabel, detail),
+	Comparable<CompletionItem> {
 
-  var ideSortText: String? = sortText
-    get() {
-      if (field == null) {
-        return ideLabel
-      }
+	var ideSortText: String? = sortText
+		get() {
+			if (field == null) {
+				return ideLabel
+			}
 
-      return field
-    }
+			return field
+		}
 
-  var insertText: String = insertText ?: ""
-    get() {
-      if (field.isEmpty()) {
-        return this.ideLabel
-      }
+	var insertText: String = insertText ?: ""
+		get() {
+			if (field.isEmpty()) {
+				return this.ideLabel
+			}
 
-      return field
-    }
+			return field
+		}
 
-  var insertTextFormat: InsertTextFormat = insertTextFormat ?: PLAIN_TEXT
-  var additionalEditHandler: IEditHandler? = null
-  var snippetDescription: SnippetDescription? = null
-  var overrideTypeText: String? = null
+	var insertTextFormat: InsertTextFormat = insertTextFormat ?: PLAIN_TEXT
+	var additionalEditHandler: IEditHandler? = null
+	var snippetDescription: SnippetDescription? = null
+	var overrideTypeText: String? = null
 
-  constructor() :
-    this(
-      "", // label
-      "", // detail
-      null, // insertText
-      null, // insertTextFormat
-      null, // sortText
-      null, // command
-      NONE, // kind
-      NO_MATCH, // match level
-      ArrayList(), // additionalEdits
-      null // data
-    )
+	constructor() :
+			this(
+				"", // label
+				"", // detail
+				null, // insertText
+				null, // insertTextFormat
+				null, // sortText
+				null, // command
+				NONE, // kind
+				NO_MATCH, // match level
+				ArrayList(), // additionalEdits
+				null // data
+			)
 
-  companion object {
+	companion object {
 
-    @JvmStatic
-    @JvmOverloads
-    fun matchLevel(
-      candidate: String,
-      partial: String,
-      minMatchRatio: Int = DEFAULT_MIN_MATCH_RATIO
-    ): MatchLevel {
-      if (candidate.startsWith(partial)) {
-        return if (candidate.length == partial.length) {
-          CASE_SENSITIVE_EQUAL
-        } else {
-          CASE_SENSITIVE_PREFIX
-        }
-      }
+		@JvmStatic
+		@JvmOverloads
+		fun matchLevel(
+			candidate: String,
+			partial: String,
+			minMatchRatio: Int = DEFAULT_MIN_MATCH_RATIO
+		): MatchLevel {
+			if (candidate.startsWith(partial)) {
+				return if (candidate.length == partial.length) {
+					CASE_SENSITIVE_EQUAL
+				} else {
+					CASE_SENSITIVE_PREFIX
+				}
+			}
 
-      val lowerCandidate = candidate.lowercase()
-      val lowerPartial = partial.lowercase()
-      if (lowerCandidate.startsWith(lowerPartial)) {
-        return if (lowerCandidate.length == lowerPartial.length) {
-          CASE_INSENSITIVE_EQUAL
-        } else {
-          CASE_INSENSITIVE_PREFIX
-        }
-      }
+			val lowerCandidate = candidate.lowercase()
+			val lowerPartial = partial.lowercase()
+			if (lowerCandidate.startsWith(lowerPartial)) {
+				return if (lowerCandidate.length == lowerPartial.length) {
+					CASE_INSENSITIVE_EQUAL
+				} else {
+					CASE_INSENSITIVE_PREFIX
+				}
+			}
 
-      val ratio = FuzzySearch.ratio(candidate, partial)
-      if (ratio > minMatchRatio) {
-        return PARTIAL_MATCH
-      }
+			val ratio = FuzzySearch.ratio(candidate, partial)
+			if (ratio > minMatchRatio) {
+				return PARTIAL_MATCH
+			}
 
-      return NO_MATCH
-    }
-  }
+			return NO_MATCH
+		}
+	}
 
-  override fun performCompletion(editor: CodeEditor, text: Content, position: CharPosition) {
-    editHandler.performEdits(this, editor, text, position.line, position.column, position.index)
-  }
+	override fun performCompletion(editor: CodeEditor, text: Content, position: CharPosition) {
+		editHandler.performEdits(this, editor, text, position.line, position.column, position.index)
+	}
 
-  override fun performCompletion(editor: CodeEditor, text: Content, line: Int, column: Int) {
-    throw UnsupportedOperationException()
-  }
+	override fun performCompletion(editor: CodeEditor, text: Content, line: Int, column: Int) {
+		throw UnsupportedOperationException()
+	}
 
-  override fun compareTo(other: CompletionItem): Int {
-    return CompletionItemComparator.compare(this, other)
-  }
+	override fun compareTo(other: CompletionItem): Int {
+		return CompletionItemComparator.compare(this, other)
+	}
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is CompletionItem) return false
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other !is CompletionItem) return false
 
-    if (ideLabel != other.ideLabel) return false
-    if (detail != other.detail) return false
-    if (command != other.command) return false
-    if (completionKind != other.completionKind) return false
-    if (matchLevel != other.matchLevel) return false
-    if (additionalTextEdits != other.additionalTextEdits) return false
-    if (data != other.data) return false
-    if (ideSortText != other.ideSortText) return false
-    if (insertText != other.insertText) return false
-    if (insertTextFormat != other.insertTextFormat) return false
-    if (editHandler != other.editHandler) return false
-    if (additionalEditHandler != other.additionalEditHandler) return false
-    if (overrideTypeText != other.overrideTypeText) return false
+		if (ideLabel != other.ideLabel) return false
+		if (detail != other.detail) return false
+		if (command != other.command) return false
+		if (completionKind != other.completionKind) return false
+		if (matchLevel != other.matchLevel) return false
+		if (additionalTextEdits != other.additionalTextEdits) return false
+		if (data != other.data) return false
+		if (ideSortText != other.ideSortText) return false
+		if (insertText != other.insertText) return false
+		if (insertTextFormat != other.insertTextFormat) return false
+		if (editHandler != other.editHandler) return false
+		if (additionalEditHandler != other.additionalEditHandler) return false
+		if (overrideTypeText != other.overrideTypeText) return false
 
-    return true
-  }
+		return true
+	}
 
-  override fun hashCode(): Int {
-    var result = ideLabel.hashCode()
-    result = 31 * result + detail.hashCode()
-    result = 31 * result + (command?.hashCode() ?: 0)
-    result = 31 * result + completionKind.hashCode()
-    result = 31 * result + matchLevel.hashCode()
-    result = 31 * result + (additionalTextEdits?.hashCode() ?: 0)
-    result = 31 * result + (data?.hashCode() ?: 0)
-    result = 31 * result + (ideSortText?.hashCode() ?: 0)
-    result = 31 * result + insertText.hashCode()
-    result = 31 * result + insertTextFormat.hashCode()
-    result = 31 * result + editHandler.hashCode()
-    result = 31 * result + (additionalEditHandler?.hashCode() ?: 0)
-    result = 31 * result + (overrideTypeText?.hashCode() ?: 0)
-    return result
-  }
+	override fun hashCode(): Int {
+		var result = ideLabel.hashCode()
+		result = 31 * result + detail.hashCode()
+		result = 31 * result + (command?.hashCode() ?: 0)
+		result = 31 * result + completionKind.hashCode()
+		result = 31 * result + matchLevel.hashCode()
+		result = 31 * result + (additionalTextEdits?.hashCode() ?: 0)
+		result = 31 * result + (data?.hashCode() ?: 0)
+		result = 31 * result + (ideSortText?.hashCode() ?: 0)
+		result = 31 * result + insertText.hashCode()
+		result = 31 * result + insertTextFormat.hashCode()
+		result = 31 * result + editHandler.hashCode()
+		result = 31 * result + (additionalEditHandler?.hashCode() ?: 0)
+		result = 31 * result + (overrideTypeText?.hashCode() ?: 0)
+		return result
+	}
 
-  override fun toString(): String {
-    return "CompletionItem(label='$ideLabel', detail='$detail', command=$command, kind=$completionKind, matchLevel=$matchLevel, additionalTextEdits=$additionalTextEdits, data=$data, sortText=$ideSortText, insertText='$insertText', insertTextFormat=$insertTextFormat, editHandler=$editHandler, additionalEditHandler=$additionalEditHandler, overrideTypeText=$overrideTypeText)"
-  }
+	override fun toString(): String {
+		return "CompletionItem(label='$ideLabel', detail='$detail', command=$command, kind=$completionKind, matchLevel=$matchLevel, additionalTextEdits=$additionalTextEdits, data=$data, sortText=$ideSortText, insertText='$insertText', insertTextFormat=$insertTextFormat, editHandler=$editHandler, additionalEditHandler=$additionalEditHandler, overrideTypeText=$overrideTypeText)"
+	}
 }
 
 data class SnippetDescription
 @JvmOverloads
 constructor(
-  val selectedLength: Int,
-  val deleteSelected: Boolean = true,
-  val snippet: CodeSnippet? = null,
-  val allowCommandExecution: Boolean = false
+	val selectedLength: Int,
+	val deleteSelected: Boolean = true,
+	val snippet: CodeSnippet? = null,
+	val allowCommandExecution: Boolean = false
 )
 
 data class Command(var title: String, var command: String) {
-  companion object {
+	companion object {
 
-    /** Action for triggering a signature help request to the language server. */
-    const val TRIGGER_PARAMETER_HINTS = "editor.action.triggerParameterHints"
+		/** Action for triggering a signature help request to the language server. */
+		const val TRIGGER_PARAMETER_HINTS = "editor.action.triggerParameterHints"
+		val CMD_TRIGGER_PARAMETER_HINTS = Command("Trigger parameter hints", TRIGGER_PARAMETER_HINTS)
 
-    /** Action for triggering a completion request to the language server. */
-    const val TRIGGER_COMPLETION = "editor.action.triggerCompletionRequest"
+		/** Action for triggering a completion request to the language server. */
+		const val TRIGGER_COMPLETION = "editor.action.triggerCompletionRequest"
+		val CMD_TRIGGER_COMPLETION = Command("Trigger completion", TRIGGER_COMPLETION)
 
-    /** Action for triggering code format action automatically. */
-    const val FORMAT_CODE = "editor.action.formatCode"
-  }
+		/** Action for triggering code format action automatically. */
+		const val FORMAT_CODE = "editor.action.formatCode"
+		val CMD_FORMAT_CODE = Command("Format code", FORMAT_CODE)
+	}
 }
 
 enum class CompletionItemKind {
-  KEYWORD,
-  VARIABLE,
-  PROPERTY,
-  FIELD,
-  ENUM_MEMBER,
-  CONSTRUCTOR,
-  METHOD,
-  FUNCTION,
-  TYPE_PARAMETER,
-  CLASS,
-  INTERFACE,
-  ENUM,
-  ANNOTATION_TYPE,
-  MODULE,
-  SNIPPET,
-  VALUE,
-  NONE
+	KEYWORD,
+	VARIABLE,
+	PROPERTY,
+	FIELD,
+	ENUM_MEMBER,
+	CONSTRUCTOR,
+	METHOD,
+	FUNCTION,
+	TYPE_PARAMETER,
+	CLASS,
+	INTERFACE,
+	ENUM,
+	ANNOTATION_TYPE,
+	MODULE,
+	SNIPPET,
+	VALUE,
+	NONE
 }
 
 enum class MatchLevel {
-  CASE_SENSITIVE_EQUAL,
-  CASE_INSENSITIVE_EQUAL,
-  CASE_SENSITIVE_PREFIX,
-  CASE_INSENSITIVE_PREFIX,
-  PARTIAL_MATCH,
-  NO_MATCH
+	CASE_SENSITIVE_EQUAL,
+	CASE_INSENSITIVE_EQUAL,
+	CASE_SENSITIVE_PREFIX,
+	CASE_INSENSITIVE_PREFIX,
+	PARTIAL_MATCH,
+	NO_MATCH
 }
 
 enum class InsertTextFormat {
-  PLAIN_TEXT,
-  SNIPPET
+	PLAIN_TEXT,
+	SNIPPET
 }
