@@ -2,6 +2,7 @@ package com.itsaky.androidide.templates.impl.zip
 
 import android.annotation.SuppressLint
 import android.content.Context
+import androidx.annotation.StringRes
 import dalvik.system.DexClassLoader
 
 import java.io.File
@@ -22,6 +23,7 @@ import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.RecipeExecutor
 import com.itsaky.androidide.templates.TemplateRecipe
+import com.itsaky.androidide.templates.impl.R
 import com.itsaky.androidide.templates.impl.base.ProjectTemplateRecipeResultImpl
 import com.itsaky.androidide.utils.Environment
 
@@ -50,8 +52,9 @@ class ZipRecipeExecutor(
     override fun execute(
     executor: RecipeExecutor
     ): ProjectTemplateRecipeResult {
+        val ctx = requireNotNull(executor.context) { "context null" }
 
-        info("Starting project creation for $basePath")
+        info(ctx, R.string.template_exec_info_basepath, basePath)
 
         val projectDir = data.projectDir
         if (projectDir.exists()) {
@@ -80,14 +83,9 @@ class ZipRecipeExecutor(
 
             val extensionsEntry = zip.getEntry(META_EXTENSION_JAR)
             if (extensionsEntry != null) {
-                val context = executor.context
-                if (context == null) {
-                    warn("Skipping $META_EXTENSION_JAR because TemplateRecipeExecutor.context is unavailable")
-                } else {
-                    val extensions = loadExtensionFromArchive(zip, extensionsEntry, context)
-                    for (ext in extensions) {
-                        builder.extension(ext)
-                    }
+                val extensions = loadExtensionFromArchive(zip, extensionsEntry, ctx)
+                for (ext in extensions) {
+                    builder.extension(ext)
                 }
             }
 
@@ -98,11 +96,11 @@ class ZipRecipeExecutor(
 
 
             val className = data.name.replace(CLASS_NAME_PATTERN, "")
-            val (baseIdentifiers, warnings) = metaJson.pebbleParams(data, defModule, params)
+            val (baseIdentifiers, warnings) = metaJson.pebbleParams(ctx, data, defModule, params)
             val identifiers = baseIdentifiers + (KEY_CLASS_NAME to className)
 
             if (warnings.isNotEmpty()) {
-                warn("Identifier warnings: ${warnings.joinToString(System.lineSeparator())}")
+                warn(ctx, R.string.template_exec_warn_identifiers, warnings.joinToString(System.lineSeparator()))
             }
 
             val packageName =
@@ -130,7 +128,7 @@ class ZipRecipeExecutor(
                 val outFile = File(projectDir, relativePath.removeSuffix(TEMPLATE_EXTENSION)).canonicalFile
 
                 if (!outFile.toPath().startsWith(projectRoot.toPath())) {
-                    warn("Skipping suspicious template entry outside project dir: ${entry.name}")
+                    warn(ctx, R.string.template_exec_warn_suspicious_entry, entry.name)
                     continue
                 }
 
@@ -141,21 +139,22 @@ class ZipRecipeExecutor(
                         outFile.parentFile?.mkdirs()
 
                         if (entry.name.endsWith(TEMPLATE_EXTENSION)) {
-                            info("Processing template ${entry.name}")
+                            info(ctx, R.string.template_exec_info_processing, entry.name)
                             val content = try {
                                 zip.getInputStream(entry).bufferedReader().use { it.readText() }
                             } catch (e: Exception) {
-                                throw e.wrap("Failed to read template ${entry.name}")
+                                throw e.wrap(ctx, R.string.template_exec_error_read_fail, entry.name)
                             }
 
                             val template = try {
                                 pebbleEngine.getTemplate(content)
                             } catch (e: PebbleException) {
                                 throw e.wrap(
-                                    "Pebble parse error in ${entry.name} at line ${e.lineNumber}: ${e.message}"
+                                    ctx, R.string.template_exec_error_parse_line,
+                                    entry.name, e.lineNumber, e.message
                                 )
                             } catch (e: Exception) {
-                                throw e.wrap("Unexpected Pebble parse error in ${entry.name}")
+                                throw e.wrap(ctx, R.string.template_exec_error_parse, entry.name)
                             }
 
                             val writer = StringWriter()
@@ -163,11 +162,15 @@ class ZipRecipeExecutor(
                                 template.evaluate(writer, identifiers)
                             } catch (e: PebbleException) {
                                 error(
-                                    "Pebble evaluation error in ${entry.name} at line ${e.lineNumber}: ${e.message}", e
+                                    ctx, R.string.template_exec_error_evaluate_line,
+                                    entry.name, e.lineNumber, e.message
                                 )
                                 null
                             } catch (e: Exception) {
-                                error("Unexpected Pebble evaluation error in ${entry.name}", e)
+                                error(
+                                    ctx, R.string.template_exec_error_evaluate,
+                                    entry.name, e.toString()
+                                )
                                 null
                             }
                             if (rendered == null) continue
@@ -175,7 +178,10 @@ class ZipRecipeExecutor(
                             try {
                                 outFile.writeText(writer.toString(), Charsets.UTF_8)
                             } catch (e: Exception) {
-                                error("Failed writing output file: ${outFile.absolutePath}", e)
+                                error(
+                                    ctx, R.string.template_exec_error_write,
+                                    outFile.absolutePath, e.toString()
+                                )
                             }
 
                         } else {
@@ -186,11 +192,17 @@ class ZipRecipeExecutor(
                                     }
                                 }
                             } catch (e: Exception) {
-                                error("Failed copying binary entry: ${entry.name}", e)
+                                error(
+                                    ctx, R.string.template_exec_error_write,
+                                    entry.name, e.toString()
+                                )
                             }
                         }
                     } catch (e: Exception) {
-                        error("Failed to process template entry: ${entry.name}", e)
+                        error(
+                            ctx, R.string.template_exec_error_process,
+                            entry.name, e.toString()
+                        )
                     }
                 }
             }
@@ -234,6 +246,7 @@ class ZipRecipeExecutor(
         minSdk?.api?.toString() ?: ""
 
     private fun TemplateJson.pebbleParams(
+        ctx: Context,
         data: ProjectTemplateData,
         defModule: ModuleTemplateData,
         params: MutableMap<String, Parameter<*>>
@@ -242,41 +255,52 @@ class ZipRecipeExecutor(
         val warnings = mutableListOf<String>()
 
         val appName = resolveString(parameters?.required?.appName?.identifier, KEY_APP_NAME)
-        if (appName.usedDefault) warnings += "Missing 'appName', defaulted to $KEY_APP_NAME"
+        if (appName.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_appname,
+            KEY_APP_NAME)
 
         val packageName = resolveString(parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
-        if (packageName.usedDefault) warnings += "Missing 'packageName', defaulted to $KEY_PACKAGE_NAME"
+        if (packageName.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_pkgname,
+            KEY_PACKAGE_NAME)
 
         val saveLocation = resolveString(parameters?.required?.saveLocation?.identifier, KEY_SAVE_LOCATION)
-        if (saveLocation.usedDefault) warnings += "Missing 'saveLocation', defaulted to $KEY_SAVE_LOCATION"
+        if (saveLocation.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_location,
+            KEY_SAVE_LOCATION)
 
         val language = resolveString(parameters?.optional?.language?.identifier, KEY_LANGUAGE)
 
         val minSdk = resolveString(parameters?.optional?.minsdk?.identifier, KEY_MIN_SDK)
 
         val agpVersion = resolveString(system?.agpVersion?.identifier, KEY_AGP_VERSION)
-        if (agpVersion.usedDefault) warnings += "Missing 'agpVersion', defaulted to $KEY_AGP_VERSION"
+        if (agpVersion.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_agp,
+            KEY_AGP_VERSION)
 
         val kotlinVersion = resolveString(system?.kotlinVersion?.identifier, KEY_KOTLIN_VERSION)
-        if (kotlinVersion.usedDefault) warnings += "Missing 'kotlinVersion', defaulted to $KEY_KOTLIN_VERSION"
+        if (kotlinVersion.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_kotlin,
+            KEY_KOTLIN_VERSION)
 
         val gradleVersion = resolveString(system?.gradleVersion?.identifier, KEY_GRADLE_VERSION)
-        if (gradleVersion.usedDefault) warnings += "Missing 'gradleVersion', defaulted to $KEY_GRADLE_VERSION"
+        if (gradleVersion.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_gradle,
+            KEY_GRADLE_VERSION)
 
         val compileSdk = resolveString(system?.compileSdk?.identifier, KEY_COMPILE_SDK)
-        if (compileSdk.usedDefault) warnings += "Missing 'compileSdk', defaulted to $KEY_COMPILE_SDK"
+        if (compileSdk.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_compilesdk,
+            KEY_COMPILE_SDK)
 
         val targetSdk = resolveString(system?.targetSdk?.identifier, KEY_TARGET_SDK)
-        if (targetSdk.usedDefault) warnings += "Missing 'targetSdk', defaulted to $KEY_TARGET_SDK"
+        if (targetSdk.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_targetsdk,
+            KEY_TARGET_SDK)
 
         val javaSourceCompat = resolveString(system?.javaSourceCompat?.identifier, KEY_JAVA_SOURCE_COMPAT)
-        if (javaSourceCompat.usedDefault) warnings += "Missing 'javaSourceCompat', defaulted to $KEY_JAVA_SOURCE_COMPAT"
+        if (javaSourceCompat.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_javasource_compat,
+            KEY_JAVA_SOURCE_COMPAT)
 
         val javaTargetCompat = resolveString(system?.javaTargetCompat?.identifier, KEY_JAVA_TARGET_COMPAT)
-        if (javaTargetCompat.usedDefault) warnings += "Missing 'javaTargetCompat', defaulted to $KEY_JAVA_TARGET_COMPAT"
+        if (javaTargetCompat.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_javatarget_compat,
+            KEY_JAVA_TARGET_COMPAT)
 
         val javaTarget = resolveString(system?.javaTarget?.identifier, KEY_JAVA_TARGET)
-        if (javaTarget.usedDefault) warnings += "Missing 'javaTarget', defaulted to $KEY_JAVA_TARGET"
+        if (javaTarget.usedDefault) warnings += ctx.getString(R.string.template_exec_warn_map_javatarget,
+            KEY_JAVA_TARGET)
 
         val baseMap = mapOf(
             appName.value to data.name,
@@ -341,17 +365,52 @@ class ZipRecipeExecutor(
         log.warn(msg)
     }
 
+    private fun warn(
+        context: Context,
+        @StringRes resId: Int,
+        vararg args: Any?
+    ) {
+        val msg = context.getString(resId, *args)
+        warn(msg)
+    }
+
     private fun info(msg: String) {
         log.info(msg)
     }
+
+    private fun info(
+        context: Context,
+        @StringRes resId: Int,
+        vararg args: Any?
+    ) {
+        val msg = context.getString(resId, *args)
+        info(msg)
+    }
+
 
     private fun error(msg: String, e: Exception) {
         hasErrorsWarnings = true
         log.error(msg, e)
     }
 
-    private fun Exception.wrap(msg: String): RuntimeException =
-        RuntimeException(msg, this)
+    private fun error(
+        context: Context,
+        @StringRes resId: Int,
+        vararg args: Any?
+    ) {
+        hasErrorsWarnings = true
+        val msg = context.getString(resId, *args)
+        log.error(msg)
+    }
+
+    private fun Exception.wrap(
+        context: Context,
+        @StringRes resId: Int,
+        vararg args: Any?
+    ): RuntimeException {
+        val msg = context.getString(resId, *args)
+        return RuntimeException(msg, this)
+    }
 
     @SuppressLint("SetWorldReadable")
     private fun loadExtensionFromArchive(

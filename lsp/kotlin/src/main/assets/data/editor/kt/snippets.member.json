@@ -1,0 +1,62 @@
+{
+  "fun": {
+    "desc": "Create a member function",
+    "body": [
+      "fun ${1:name}($2)${3:: Unit} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "pfun": {
+    "desc": "Create a private function",
+    "body": [
+      "private fun ${1:name}($2)${3:: Unit} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "ofun": {
+    "desc": "Create an override function",
+    "body": [
+      "override fun ${1:name}($2)${3:: Unit} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "val": {
+    "desc": "Create a val property",
+    "body": [
+      "val ${1:name}: ${2:Type} = ${3:value}"
+    ]
+  },
+  "var": {
+    "desc": "Create a var property",
+    "body": [
+      "var ${1:name}: ${2:Type} = ${3:value}"
+    ]
+  },
+  "lazy": {
+    "desc": "Lazy-initialized property",
+    "body": [
+      "val ${1:name} by lazy {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "comp": {
+    "desc": "Create a companion object",
+    "body": [
+      "companion object {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "init": {
+    "desc": "Create an initializer block",
+    "body": [
+      "init {",
+      "\t$0",
+      "}"
+    ]
+  }
+}

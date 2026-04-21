@@ -19,30 +19,30 @@ package com.itsaky.androidide.lsp.xml.providers.snippet
 
 import com.itsaky.androidide.lsp.snippets.ISnippetScope
 
-val XML_SNIPPET_SCOPES : Array<IXmlSnippetScope> =
-  arrayOf(
-    DefaultXmlSnippetScope(XmlResourceType.LAYOUT, XmlScope.TAG),
-    DefaultXmlSnippetScope(XmlResourceType.LAYOUT, XmlScope.INSIDE),
-    DefaultXmlSnippetScope(XmlResourceType.MANIFEST, XmlScope.INSIDE)
-  )
+val XML_SNIPPET_SCOPES =
+	listOf(
+		DefaultXmlSnippetScope(XmlResourceType.LAYOUT, XmlScope.TAG),
+		DefaultXmlSnippetScope(XmlResourceType.LAYOUT, XmlScope.INSIDE),
+		DefaultXmlSnippetScope(XmlResourceType.MANIFEST, XmlScope.INSIDE)
+	)
 
 abstract class IXmlSnippetScope : ISnippetScope {
-  abstract val type: XmlResourceType
-  abstract val scope: XmlScope
+	abstract val type: XmlResourceType
+	abstract val scope: XmlScope
 
-  override val filename: String
-    get() = "${type.name.lowercase()}-${scope.name.lowercase()}"
+	override val filename: String
+		get() = "${type.name.lowercase()}-${scope.name.lowercase()}"
 }
 
 class DefaultXmlSnippetScope(override val type: XmlResourceType, override val scope: XmlScope) :
-  IXmlSnippetScope()
+	IXmlSnippetScope()
 
 enum class XmlResourceType {
-  LAYOUT,
-  MANIFEST
+	LAYOUT,
+	MANIFEST
 }
 
 enum class XmlScope {
-  TAG,
-  INSIDE
+	TAG,
+	INSIDE
 }

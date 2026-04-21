@@ -18,10 +18,15 @@ import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
+import com.itsaky.androidide.plugins.extensions.SnippetExtension
+import com.itsaky.androidide.plugins.manager.services.IdeSnippetServiceImpl
+import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
+import com.itsaky.androidide.plugins.services.IdeSnippetService
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
+import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.context.PluginContextImpl
@@ -112,10 +117,15 @@ class PluginManager private constructor(
     private val pluginsDir = File(context.filesDir, "plugins")
     private val documentationManager = PluginDocumentationManager(context)
     private var templateReloadListener: (() -> Unit)? = null
+    private var snippetRefreshListener: ((String) -> Unit)? = null
 
     fun setTemplateReloadListener(listener: (() -> Unit)?) {
         this.templateReloadListener = listener
         PluginProjectManager.getInstance().setTemplateReloadListener(listener)
+    }
+
+    fun setSnippetRefreshListener(listener: ((String) -> Unit)?) {
+        this.snippetRefreshListener = listener
     }
 
     // Helper methods for cleaner error handling
@@ -215,18 +225,27 @@ class PluginManager private constructor(
         verifyDocumentationForLoadedPlugins()
     }
 
-    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> {
-        if (!pluginFile.exists()) {
-            return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
-        }
-        if (!pluginFile.canRead()) {
-            return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
-        }
-        val pluginLoader = PluginLoader(context, pluginFile)
-        val manifest = pluginLoader.getPluginMetadata()
+    private fun loadAndValidate(pluginFile: File): Result<Pair<PluginManifest, PluginLoader>> {
+        if (!pluginFile.exists()) return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
+        if (!pluginFile.canRead()) return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
+        val loader = PluginLoader(context, pluginFile)
+        val manifest = loader.getPluginMetadata()
             ?: return Result.failure(IllegalArgumentException("Plugin manifest not found in: ${pluginFile.name}"))
-        return Result.success(manifest)
+        return Result.success(manifest to loader)
     }
+
+    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> =
+        loadAndValidate(pluginFile).map { it.first }
+
+    fun getPluginValidation(pluginFile: File): Result<PluginValidation> =
+        loadAndValidate(pluginFile).map { (manifest, loader) ->
+            PluginValidation(
+                manifest = manifest,
+                isDebug = loader.isDebuggable(),
+                iconDayEntryExists = manifest.iconDay?.let(loader::hasEntry) ?: false,
+                iconNightEntryExists = manifest.iconNight?.let(loader::hasEntry) ?: false
+            )
+        }
 
     /**
      * Load plugin and return both the plugin instance and its metadata
@@ -335,6 +354,13 @@ class PluginManager private constructor(
                 null
             }
 
+            val (iconDayPath, iconNightPath) = try {
+                pluginLoader.extractPluginIcons(manifest.id, manifest)
+            } catch (e: Exception) {
+                logger.warn("Failed to extract icons for plugin: ${manifest.id}", e)
+                null to null
+            }
+
             if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
                 File(nativeLibPath).deleteRecursively()
                 if (manifest.sidebarItems > 0) {
@@ -347,12 +373,6 @@ class PluginManager private constructor(
             }
 
             val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!, nativeLibPath)
-            if (classLoader == null) {
-                if (manifest.sidebarItems > 0) {
-                    SidebarSlotManager.releasePluginSlots(manifest.id)
-                }
-                return Result.failure(RuntimeException("Failed to create class loader for  plugin: ${manifest.id}"))
-            }
 
             logger.debug("Loading main class: ${manifest.mainClass}")
             val pluginClass = executeWithErrorHandling("load main class ${manifest.mainClass}", manifest.id) {
@@ -396,69 +416,104 @@ class PluginManager private constructor(
                 return Result.failure(e)
             }
 
-            if (initResult) {
-                // Register the plugin's resource context for UI components
-                val isLegacy = (ctx as? PluginResourceContext)?.let { !it.usesCustomPackageId() } ?: true
-                PluginFragmentHelper.registerPluginContext(manifest.id, ctx, isLegacy)
-                logger.debug("Registered resource context for plugin: ${manifest.id} (legacy=$isLegacy)")
-                // Register the service registry for fragments to access services
-                PluginFragmentHelper.registerServiceRegistry(manifest.id, pluginContext.services)
-                logger.debug("Registered service registry for plugin: ${manifest.id}")
-
-                val isEnabled = getPluginState(manifest.id)
-                val loadedPlugin = LoadedPlugin(plugin, manifest, classLoader, pluginContext, isEnabled)
-                loadedPlugins[manifest.id] = loadedPlugin
-                if (isEnabled) {
-                    try {
-                        plugin.activate()
-                        logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
-
-                        // Verify and install/recreate documentation if plugin implements DocumentationExtension
-                        if (plugin is DocumentationExtension) {
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    val docResult = documentationManager.verifyAndRecreateDocumentation(manifest.id, plugin)
-                                    if (docResult) {
-                                        logger.info("Documentation verified/installed for plugin: ${manifest.id}")
-                                    } else {
-                                        logger.warn("Failed to verify/install documentation for plugin: ${manifest.id}")
-                                    }
-                                } catch (e: Exception) {
-                                    logger.error("Error verifying/installing documentation for plugin: ${manifest.id}", e)
-                                }
-                            }
-                        }
-
-                        val buildActionManager = PluginBuildActionManager.getInstance()
-                        if (plugin is BuildActionExtension) {
-                            buildActionManager.registerPlugin(manifest.id, manifest.name, plugin)
-                            logger.info("Registered build actions for plugin: ${manifest.id}")
-                        }
-                        buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
-                    } catch (e: Exception) {
-                        logger.error("Failed to activate  plugin: ${manifest.id}", e)
-                        loadedPlugin.isEnabled = false
-                        savePluginState(manifest.id, false)
-                    }
-                } else {
-                    logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
-                }
-
-                Result.success(plugin)
-            } else {
+            if (!initResult) {
                 logger.warn(" plugin initialization returned false for: ${manifest.id}")
                 if (manifest.sidebarItems > 0) {
                     SidebarSlotManager.releasePluginSlots(manifest.id)
                 }
-                Result.failure(RuntimeException(" plugin initialization failed for: ${manifest.id}"))
+                return Result.failure(RuntimeException(" plugin initialization failed for: ${manifest.id}"))
             }
+
+            val isLegacy = (ctx as? PluginResourceContext)?.let { !it.usesCustomPackageId() } ?: true
+            PluginFragmentHelper.registerPluginContext(manifest.id, ctx, isLegacy)
+            logger.debug("Registered resource context for plugin: ${manifest.id} (legacy=$isLegacy)")
+            PluginFragmentHelper.registerServiceRegistry(manifest.id, pluginContext.services)
+            logger.debug("Registered service registry for plugin: ${manifest.id}")
+
+            val isEnabled = getPluginState(manifest.id)
+            val loadedPlugin = LoadedPlugin(
+                plugin, manifest, classLoader, pluginContext, file.absolutePath, isEnabled,
+                iconDayPath = iconDayPath,
+                iconNightPath = iconNightPath
+            )
+            loadedPlugins[manifest.id] = loadedPlugin
+
+            if (!isEnabled) {
+                logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
+                return Result.success(plugin)
+            }
+
+            activateLoadedPlugin(loadedPlugin)
+            Result.success(plugin)
         } catch (e: Exception) {
             reservedSlotsPluginId?.let { pluginId ->
                 SidebarSlotManager.releasePluginSlots(pluginId)
             }
-            logger.error("Failed to load  plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
-            Result.failure(RuntimeException("Error loading  plugin: ${e.message}", e))
+            logger.error("Failed to load plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
+            val prefix = if (e is RuntimeException) "" else "[${e.javaClass.simpleName}] "
+            Result.failure(RuntimeException("Error loading plugin: $prefix${e.message}", e))
         }
+    }
+
+    private fun activateLoadedPlugin(loadedPlugin: LoadedPlugin) {
+        val plugin = loadedPlugin.plugin
+        val manifest = loadedPlugin.manifest
+        runCatching {
+            if (plugin is SnippetExtension) {
+                PluginSnippetManager.getInstance().registerPlugin(manifest.id, plugin)
+            }
+
+            plugin.activate()
+            logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
+
+            if (plugin is DocumentationExtension) {
+                installPluginDocumentationAsync(manifest.id, plugin, loadedPlugin.apkPath)
+            }
+
+            val buildActionManager = PluginBuildActionManager.getInstance()
+            if (plugin is BuildActionExtension) {
+                buildActionManager.registerPlugin(manifest.id, manifest.name, plugin)
+                logger.info("Registered build actions for plugin: ${manifest.id}")
+            }
+            buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
+        }.onFailure { e ->
+            logger.error("Failed to activate  plugin: ${manifest.id}", e)
+            loadedPlugin.isEnabled = false
+            savePluginState(manifest.id, false)
+        }
+    }
+
+    private fun installPluginDocumentationAsync(
+        pluginId: String,
+        plugin: DocumentationExtension,
+        apkPath: String
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            runDocStep("documentation", pluginId) {
+                documentationManager.verifyAndRecreateDocumentation(pluginId, plugin)
+            }
+            runDocStep("Tier 3 docs", pluginId) {
+                documentationManager.verifyAndRecreateTier3Documentation(pluginId, plugin, apkPath)
+            }
+        }
+    }
+
+    private suspend fun runDocStep(
+        label: String,
+        pluginId: String,
+        block: suspend () -> Boolean
+    ) {
+        runCatching { block() }
+            .onSuccess { result ->
+                if (result) {
+                    logger.info("$label verified/installed for plugin: $pluginId")
+                } else {
+                    logger.warn("Failed to verify/install $label for plugin: $pluginId")
+                }
+            }
+            .onFailure { e ->
+                logger.error("Error verifying/installing $label for plugin: $pluginId", e)
+            }
     }
 
     fun unloadPlugin(pluginId: String): Boolean {
@@ -478,10 +533,23 @@ class PluginManager private constructor(
                     } catch (e: Exception) {
                         logger.error("Error removing documentation for plugin: $pluginId", e)
                     }
+
+                    try {
+                        val tier3Result = documentationManager.removePluginTier3Documentation(pluginId)
+                        if (tier3Result) {
+                            logger.info("Removed Tier 3 docs for plugin: $pluginId")
+                        } else {
+                            logger.warn("Failed to remove Tier 3 docs for plugin: $pluginId")
+                        }
+                    } catch (e: Exception) {
+                        logger.error("Error removing Tier 3 docs for plugin: $pluginId", e)
+                    }
                 }
             }
 
             PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+            PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
+            snippetRefreshListener?.invoke(pluginId)
 
             PluginBuildActionManager.getInstance().cleanupPlugin(pluginId)
             val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
@@ -519,6 +587,17 @@ class PluginManager private constructor(
         }
     }
 
+
+    fun haveMatchingSignatures(incomingFile: File, existingPluginId: String): Boolean {
+        val existingFile = File(pluginsDir, "$existingPluginId.cgp")
+        val incomingSig = PluginLoader(context, incomingFile).getSignatureHash()
+        val existingSig = PluginLoader(context, existingFile).getSignatureHash()
+        if (incomingSig == null || existingSig == null) {
+            logger.warn("Could not extract signatures for $existingPluginId; treating as mismatch")
+            return false
+        }
+        return incomingSig.contentEquals(existingSig)
+    }
 
     fun uninstallPlugin(pluginId: String): Boolean {
         logger.info("=== Starting uninstall for plugin: $pluginId ===")
@@ -591,17 +670,7 @@ class PluginManager private constructor(
     fun getAllPlugins(): List<PluginInfo> {
         return loadedPlugins.values.map { loadedPlugin ->
             PluginInfo(
-                // Use manifest from AndroidManifest, not the plugin's hardcoded metadata
-                metadata = PluginMetadata(
-                    id = loadedPlugin.manifest.id,
-                    name = loadedPlugin.manifest.name,
-                    version = loadedPlugin.manifest.version,
-                    description = loadedPlugin.manifest.description,
-                    author = loadedPlugin.manifest.author,
-                    minIdeVersion = loadedPlugin.manifest.minIdeVersion,
-                    dependencies = loadedPlugin.manifest.dependencies,
-                    permissions = loadedPlugin.manifest.permissions
-                ),
+                metadata = loadedPlugin.manifest.toPluginMetadata(),
                 isEnabled = loadedPlugin.isEnabled,
                 isLoaded = true
             )
@@ -965,6 +1034,19 @@ class PluginManager private constructor(
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
+            IdeSnippetService::class.java,
+            pluginId,
+            "snippet"
+        ) {
+            IdeSnippetServiceImpl().apply {
+                setRefreshCallback { pid ->
+                    snippetRefreshListener?.invoke(pid)
+                }
+            }
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
             IdeCommandService::class.java,
             pluginId,
             "command"
@@ -988,6 +1070,151 @@ class PluginManager private constructor(
         )
     }
 
+    private fun createPluginContext(
+        pluginId: String,
+        classLoader: ClassLoader,
+        permissions: Set<PluginPermission>
+    ): PluginContext {
+        val pluginServiceRegistry = ServiceRegistryImpl()
+
+        logger.debug("Creating IDE services for plugin: $pluginId")
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeProjectService::class.java,
+            pluginId,
+            "project"
+        ) {
+            IdeProjectServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                projectProvider = projectProvider,
+                requiredPermissions = projectServicePermissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeProjectServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeUIService::class.java,
+            pluginId,
+            "UI"
+        ) {
+            IdeUIServiceImpl(activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeBuildService::class.java,
+            pluginId,
+            "build"
+        ) {
+            IdeBuildServiceImpl.getInstance()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTooltipService::class.java,
+            pluginId,
+            "tooltip"
+        ) {
+            IdeTooltipServiceImpl(context, pluginId, activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeEditorTabService::class.java,
+            pluginId,
+            "editor_tab"
+        ) {
+            IdeEditorTabServiceImpl(activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFileService::class.java,
+            pluginId,
+            "file"
+        ) {
+            IdeFileServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeFileServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSidebarService::class.java,
+            pluginId,
+            "sidebar"
+        ) {
+            IdeSidebarServiceImpl(pluginId)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeThemeService::class.java,
+            pluginId,
+            "theme"
+        ) {
+            IdeThemeServiceImpl(context)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFeatureFlagService::class.java,
+            pluginId,
+            "feature_flag"
+        ) {
+            IdeFeatureFlagServiceImpl()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTemplateService::class.java,
+            pluginId,
+            "template"
+        ) {
+            IdeTemplateServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                onTemplatesChanged = { templateReloadListener?.invoke() }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSnippetService::class.java,
+            pluginId,
+            "snippet"
+        ) {
+            IdeSnippetServiceImpl().apply {
+                setRefreshCallback { pid ->
+                    snippetRefreshListener?.invoke(pid)
+                }
+            }
+        }
+
+        return PluginContextImpl(
+            androidContext = context,
+            services = pluginServiceRegistry,
+            eventBus = eventBus,
+            logger = PluginLoggerImpl(pluginId, logger),
+            resources = ResourceManagerImpl(pluginId, pluginsDir, classLoader),
+            pluginId = pluginId
+        )
+    }
 
     /**
      * Clean up ALL plugin files and cache directories
@@ -1003,6 +1230,10 @@ class PluginManager private constructor(
             }
 
             File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
+                if (dir.exists()) dir.deleteRecursively()
+            }
+
+            File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId).let { dir ->
                 if (dir.exists()) dir.deleteRecursively()
             }
 
@@ -1066,10 +1297,20 @@ class PluginManager private constructor(
 
 }
 
+data class PluginValidation(
+    val manifest: PluginManifest,
+    val isDebug: Boolean,
+    val iconDayEntryExists: Boolean,
+    val iconNightEntryExists: Boolean
+)
+
 data class LoadedPlugin(
     val plugin: IPlugin,
     val manifest: PluginManifest,
     val classLoader: ClassLoader,
     val context: PluginContext,
-    var isEnabled: Boolean = true
+    val apkPath: String,
+    var isEnabled: Boolean = true,
+    val iconDayPath: String? = null,
+    val iconNightPath: String? = null
 )

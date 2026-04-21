@@ -25,6 +25,8 @@ import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
+import com.itsaky.androidide.javac.config.JavacConfigProvider;
+
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -121,6 +123,7 @@ public final class Environment {
 	public static File NDK_DIR;
 
 	public static File TEMPLATES_DIR;
+	public static File SNIPPETS_DIR;
 
 	public static String getArchitecture() {
 		return IDEBuildConfigProvider.getInstance().getCpuAbiName();
@@ -197,6 +200,10 @@ public final class Environment {
 		NDK_DIR = new File(ANDROID_HOME, "ndk");
 
 		TEMPLATES_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "templates"));
+		SNIPPETS_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "snippets"));
+
+		// required by Java and Kotlin LSP
+		System.setProperty(JavacConfigProvider.PROP_ANDROIDIDE_JAVA_HOME, JAVA_HOME.getAbsolutePath());
 
 		isInitialized.set(true);
 	}
