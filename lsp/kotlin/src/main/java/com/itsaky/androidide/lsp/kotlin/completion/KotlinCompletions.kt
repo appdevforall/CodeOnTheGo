@@ -16,6 +16,7 @@ import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.InsertTextFormat
 import com.itsaky.androidide.preferences.utils.indentationString
+import com.itsaky.androidide.project.ProjectInfo
 import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
@@ -94,6 +95,11 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 	val completionOffset = requestPosition.requireIndex()
 	val prefix = params.requirePrefix()
 	val partial = partialIdentifier(prefix)
+
+	if (partial.isBlank()) {
+		logger.warn("cannot complete for blank partial candidate")
+		return CompletionResult.EMPTY
+	}
 
 	// insert placeholder to fix broken trees
 	val textWithPlaceholder = buildString {
@@ -289,7 +295,7 @@ context(env: CompilationEnvironment, ctx: AnalysisContext)
 private fun KaSession.collectUnimportedSymbols(
 	to: MutableList<CompletionItem>
 ) {
-	val currentPackage = ctx.ktElement.containingKtFile.packageDirective?.name
+	val currentPackage = ctx.ktElement.containingKtFile.packageDirective?.fqName?.asString()
 	val useSiteModule = this.useSiteModule
 
 	// Library symbols: JAR-based, use full SymbolVisibilityChecker
@@ -361,16 +367,29 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 
 	item.overrideTypeText = symbol.returnTypeDisplay
 	when (symbol.kind) {
-		JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
+		JvmSymbolKind.EXTENSION_FUNCTION, JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
 			val data = symbol.data as JvmFunctionInfo
 			item.detail = data.signatureDisplay
 			item.setInsertTextForFunction(
 				name = symbol.shortName,
 				hasParams = data.parameterCount > 0,
 			)
+
+			item.additionalEditHandler = KotlinAutoImportEditHandler(
+				analysisContext = ctx,
+				symbolToImport = symbol
+			)
+
 			if (symbol.kind == JvmSymbolKind.CONSTRUCTOR) {
 				item.overrideTypeText = symbol.shortName
 			}
+		}
+
+		in JvmSymbolKind.CALLABLE_KINDS -> {
+			item.additionalEditHandler = KotlinAutoImportEditHandler(
+				analysisContext = ctx,
+				symbolToImport = symbol
+			)
 		}
 
 		JvmSymbolKind.TYPE_ALIAS -> {
@@ -390,7 +409,6 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 		else -> {}
 	}
 
-	logger.debug("Adding completion item: {}", item)
 	return item
 }
 
@@ -399,7 +417,7 @@ private fun internalNameToClassId(internalName: String): ClassId {
 	val packageName = internalName.substringBeforeLast('/')
 	val relativeName = internalName.substringAfterLast('/')
 	return ClassId(
-		packageFqName = FqName.fromSegments(packageName.split('.')),
+		packageFqName = FqName.fromSegments(packageName.split('/')),
 		relativeClassName = FqName.fromSegments(relativeName.split('$')),
 		isLocal = isLocal
 	)
@@ -433,10 +451,10 @@ private fun KaSession.collectSnippetCompletions(to: MutableList<CompletionItem>)
 		KotlinSnippetRepository.snippets[KotlinSnippetScope.GLOBAL]?.also { addAll(it) }
 
 		val snippetScope = when (ctx.declarationKind) {
-			DeclarationKind.CLASS ,
-			DeclarationKind.INTERFACE ,
-			DeclarationKind.OBJECT ,
-			DeclarationKind.ENUM_CLASS ,
+			DeclarationKind.CLASS,
+			DeclarationKind.INTERFACE,
+			DeclarationKind.OBJECT,
+			DeclarationKind.ENUM_CLASS,
 			DeclarationKind.ANNOTATION_CLASS -> KotlinSnippetScope.MEMBER
 
 			DeclarationKind.CONSTRUCTOR,
@@ -449,7 +467,12 @@ private fun KaSession.collectSnippetCompletions(to: MutableList<CompletionItem>)
 			DeclarationKind.TYPEALIAS -> null
 		}
 
-		logger.info("Adding completions for snippet scope: {} (context: {}, kind: {})", snippetScope, ctx.declarationContext, ctx.declarationKind)
+		logger.info(
+			"Adding completions for snippet scope: {} (context: {}, kind: {})",
+			snippetScope,
+			ctx.declarationContext,
+			ctx.declarationKind
+		)
 		KotlinSnippetRepository.snippets[snippetScope]?.also { addAll(it) }
 	}
 
@@ -478,7 +501,8 @@ private fun computeIndentLevelAt(ktElement: KtElement): Int {
 		if (current is KtBlockExpression ||
 			current is KtClassBody ||
 			current is KtWhenExpression ||
-			current is KtFunction) {
+			current is KtFunction
+		) {
 			indentLevel++
 		}
 		current = current.parent
@@ -601,7 +625,7 @@ private fun CompletionItem.setClassCompletionData(
 		topLevelClass
 	)
 
-	additionalEditHandler = KotlinClassImportEditHandler(analysisContext = ctx)
+	additionalEditHandler = KotlinAutoImportEditHandler(analysisContext = ctx)
 }
 
 context(ctx: AnalysisContext)

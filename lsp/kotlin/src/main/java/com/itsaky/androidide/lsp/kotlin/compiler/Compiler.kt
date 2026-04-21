@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
+import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import org.jetbrains.kotlin.com.intellij.lang.Language
@@ -37,6 +38,7 @@ internal class Compiler(
 
 	init {
 		defaultCompilationEnv = CompilationEnvironment(
+			name = "default",
 			workspace = workspace,
 			ktProject = projectModel,
 			intellijPluginRoot = intellijPluginRoot,
@@ -49,6 +51,11 @@ internal class Compiler(
 		// must be initialized AFTER the compilation env has been initialized
 		fileSystem =
 			VirtualFileManager.getInstance().getFileSystem(StandardFileSystems.FILE_PROTOCOL)
+	}
+
+	fun updateLanguageClient(client: ILanguageClient?) {
+		defaultCompilationEnv.languageClient = client
+		// TODO: update client for script env once we have one
 	}
 
 	fun compilationKindFor(file: Path): CompilationKind {
