@@ -175,14 +175,14 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
     fun push(username: String?, token: String?) {
         pushResetJob?.cancel()
 
-        if (!NetworkUtils.isConnected()){
-            _pushState.value = PushUiState.Error(errorResId = R.string.no_internet_connection)
-            return
-        }
-
         viewModelScope.launch {
-            _pushState.value = PushUiState.Pushing
             try {
+                if (!NetworkUtils.isConnected()){
+                    _pushState.value = PushUiState.Error(errorResId = R.string.no_internet_connection)
+                    return@launch
+                }
+
+                _pushState.value = PushUiState.Pushing
                 val repository = currentRepository ?: return@launch
                 val credentials = buildCredentials(username, token)
                 val results = repository.push(credentialsProvider = credentials)
@@ -245,14 +245,14 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
     fun pull(username: String?, token: String?) {
         pullResetJob?.cancel()
 
-        if (!NetworkUtils.isConnected()){
-            _pullState.value = PullUiState.Error(errorResId = R.string.no_internet_connection)
-            return
-        }
-
         viewModelScope.launch {
-            _pullState.value = PullUiState.Pulling
             try {
+                if (!NetworkUtils.isConnected()){
+                    _pullState.value = PullUiState.Error(errorResId = R.string.no_internet_connection)
+                    return@launch
+                }
+
+                _pullState.value = PullUiState.Pulling
                 val repository = currentRepository ?: return@launch
                 val credentials = buildCredentials(username, token)
                 val result = repository.pull(credentialsProvider = credentials)
