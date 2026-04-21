@@ -124,6 +124,11 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 	val prefix = params.requirePrefix()
 	val partial = partialIdentifier(prefix)
 
+	if (partial.isBlank()) {
+		logger.warn("cannot complete for blank partial candidate")
+		return CompletionResult.EMPTY
+	}
+
 	abortIfCancelled()
 
 	// insert placeholder to fix broken trees
