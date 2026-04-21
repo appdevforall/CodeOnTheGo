@@ -6,6 +6,8 @@ import android.text.SpannableString
 import android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -13,6 +15,7 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
@@ -78,11 +81,38 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             },
             onSelectionChanged = {
                 validateCommitButton()
+            },
+            onFileLongClicked = {
+                TooltipManager.showIdeCategoryTooltip(
+                    context = requireContext(),
+                    anchorView = binding.recyclerView,
+                    tag = TooltipTag.PROJECT_GIT_FILES,
+                )
             }
         )
 
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerView.adapter = fileChangeAdapter
+        
+        val emptySpaceGestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                val child = binding.recyclerView.findChildViewUnder(e.x, e.y)
+                if (child == null) {
+                    TooltipManager.showIdeCategoryTooltip(
+                        context = requireContext(),
+                        anchorView = binding.recyclerView,
+                        tag = TooltipTag.PROJECT_GIT_FILES,
+                    )
+                }
+            }
+        })
+
+        binding.recyclerView.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                emptySpaceGestureDetector.onTouchEvent(e)
+                return false
+            }
+        })
 
         viewLifecycleOwner.lifecycleScope.launch {
             launch {

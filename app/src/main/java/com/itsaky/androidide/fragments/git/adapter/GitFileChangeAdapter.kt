@@ -12,7 +12,8 @@ import com.itsaky.androidide.git.core.models.FileChange
 
 class GitFileChangeAdapter(
     private val onFileClicked: (FileChange) -> Unit,
-    private val onSelectionChanged: (Int) -> Unit = {}
+    private val onSelectionChanged: (Int) -> Unit = {},
+    private val onFileLongClicked: ((FileChange) -> Unit)? = null
 ) : ListAdapter<FileChange, GitFileChangeAdapter.ViewHolder>(DiffCallback()) {
 
     // Keep track of which files are selected to be committed
@@ -37,6 +38,16 @@ class GitFileChangeAdapter(
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onFileClicked(getItem(pos))
+                }
+            }
+
+            itemView.setOnLongClickListener {
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION && onFileLongClicked != null) {
+                    onFileLongClicked.invoke(getItem(pos))
+                    true
+                } else {
+                    false
                 }
             }
 
