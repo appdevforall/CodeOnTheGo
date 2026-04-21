@@ -121,6 +121,31 @@ class LayoutGeometryProcessor {
         )
     }
 
+    private fun mergeRadioLabels(row: List<ScaledBox>): List<ScaledBox> {
+        val merged = mutableListOf<ScaledBox>()
+        var i = 0
+
+        while (i < row.size) {
+            val current = row[i]
+
+            if (isRadioButton(current) && i + 1 < row.size && row[i + 1].label == "text") {
+                val nextText = row[i + 1]
+                merged.add(current.copy(text = nextText.text))
+                i += 2
+            }
+            else if (current.label == "text" && i + 1 < row.size && isRadioButton(row[i + 1])) {
+                val nextRadio = row[i + 1]
+                merged.add(nextRadio.copy(text = current.text))
+                i += 2
+            }
+            else {
+                merged.add(current)
+                i++
+            }
+        }
+        return merged
+    }
+
     internal fun buildLayoutTree(boxes: List<ScaledBox>): List<LayoutItem> {
         val rows = groupIntoRows(boxes)
         val items = mutableListOf<LayoutItem>()
@@ -133,7 +158,8 @@ class LayoutGeometryProcessor {
             }
         }
 
-        rows.forEach { row ->
+        rows.forEach { rawRow ->
+            val row = mergeRadioLabels(rawRow)
             when {
                 row.all { isRadioButton(it) } && row.size == 1 -> verticalRadioRun.add(row.first())
                 row.all { isRadioButton(it) } -> {

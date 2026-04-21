@@ -9,7 +9,7 @@ class XmlContext(
     fun nextId(label: String): String {
         val safeLabel = label.replace(Regex("[^a-zA-Z0-9_]"), "_")
 
-        var count = counters.getOrDefault(safeLabel, 0)
+        var count = counters.getOrDefault(safeLabel, -1)
         var newId: String
 
         do {
@@ -25,6 +25,15 @@ class XmlContext(
 
     fun registerId(id: String) {
         usedIds.add(id)
+    }
+
+    fun resolveId(requestedId: String?, fallbackLabel: String): String {
+        return if (requestedId != null) {
+            registerId(requestedId)
+            requestedId
+        } else {
+            nextId(fallbackLabel)
+        }
     }
 
     fun appendLine(text: String = "") {

@@ -60,7 +60,10 @@ class LayoutRenderer(
 
         val radios = boxes.mapIndexed { index, box ->
             val parsedAttrs = FuzzyAttributeParser.parse(annotations[box], "RadioButton")
-            val id = context.nextId(box.label)
+
+            val requestedId = parsedAttrs["android:id"]?.substringAfterLast('/')
+            val id = context.resolveId(requestedId, box.label)
+
             val extraAttrs = if (orientation == "horizontal" && index < boxes.lastIndex) {
                 val gap = maxOf(0, boxes[index + 1].x - (box.x + box.w))
                 mapOf("android:layout_marginEnd" to "${gap}dp")

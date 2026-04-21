@@ -17,13 +17,8 @@ sealed class AndroidWidget(
         extraAttrs: Map<String, String> = emptyMap(),
         idOverride: String? = null
     ) {
-        val manualId = idOverride ?: parsedAttrs["android:id"]?.substringAfterLast('/')
-        val id = if (manualId != null) {
-            context.registerId(manualId)
-            manualId
-        } else {
-            context.nextId(box.label)
-        }
+        val requestedId = idOverride ?: parsedAttrs["android:id"]?.substringAfterLast('/')
+        val id = context.resolveId(requestedId, box.label)
         val width = parsedAttrs["android:layout_width"] ?: extraAttrs["android:layout_width"] ?: "wrap_content"
         val height = parsedAttrs["android:layout_height"] ?: extraAttrs["android:layout_height"] ?: "wrap_content"
 
