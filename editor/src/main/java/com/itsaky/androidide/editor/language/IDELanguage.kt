@@ -69,7 +69,7 @@ abstract class IDELanguage : Language {
 	) {
 		try {
 			val cancelChecker = CompletionCancelChecker(publisher)
-			Lookup.getDefault().register(ICancelChecker::class.java, cancelChecker)
+			Lookup.getDefault().update(ICancelChecker::class.java, cancelChecker)
 			doComplete(content, position, publisher, cancelChecker, extraArguments)
 		} finally {
 			Lookup.getDefault().unregister(
