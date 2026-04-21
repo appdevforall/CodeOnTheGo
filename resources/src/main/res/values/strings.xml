@@ -1004,6 +1004,8 @@
 	<string name="status_building">Building…</string>
 	<string name="status_installing_plugin">Installing plugin…</string>
 	<string name="title_install_plugin">Install Plugin</string>
+	<string name="title_plugin_already_installed">Plugin Already Installed</string>
+	<string name="msg_plugin_overwrite_confirm">\'%1$s\' v%2$s is already installed. Replace it with v%3$s?</string>
 	<string name="msg_install_plugin_prompt">Plugin \'%1$s\' built successfully. Would you like to install it now?</string>
 	<string name="btn_install">Install</string>
 	<string name="btn_later">Later</string>
@@ -1012,7 +1014,10 @@
 	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
 	<string name="btn_restart_now">Restart now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
+	<string name="msg_plugin_signature_mismatch">\'%1$s\' was installed from a different build variant. Uninstall it before installing this version.</string>
+	<string name="msg_plugin_error_clip_label">Plugin error</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
+	<string name="msg_plugin_invalid_file">Invalid or corrupted plugin file. Cannot read plugin metadata.</string>
 	<string name="msg_plugin_installed">Plugin installed successfully</string>
 	<string name="msg_plugin_load_failed">Failed to load plugins: %1$s</string>
 	<string name="msg_plugin_enabled">Plugin enabled</string>
@@ -1029,6 +1034,8 @@
 	<string name="msg_no_file_manager">No file manager found</string>
 	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
+	<string name="action_discover_plugins">Discover plugins</string>
+	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
@@ -1282,4 +1289,35 @@
     <string name="merge_conflicts">Merge Conflicts</string>
     <string name="abort_merge">Abort Merge</string>
     <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
+
+	<!-- Templates -->
+	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>
+	<string name="template_exec_warn_identifiers">Identifier warnings: %1$s</string>
+	<string name="template_exec_warn_suspicious_entry">Skipping suspicious template entry outside project dir: %1$s</string>
+	<string name="template_exec_info_processing">Processing template %1$s</string>
+	<string name="template_exec_error_read_fail">Failed to read template %1$s</string>
+	<string name="template_exec_error_parse_line">Pebble parse error in %1$s at line %2$d: %3$s</string>
+	<string name="template_exec_error_parse">Unexpected Pebble parse error in %1$s</string>
+	<string name="template_exec_error_evaluate_line">Pebble evaluation error in %1$s at line %2$d: %3$s</string>
+	<string name="template_exec_error_evaluate">Unexpected Pebble evaluation error in %1$s %2$s</string>
+	<string name="template_exec_error_write">Failed writing output file: %1$s %2$s</string>
+	<string name="template_exec_error_copy">Failed copying binary entry: %1$s %2$s</string>
+	<string name="template_exec_error_process">Failed to process template entry: %1$s %2$s</string>
+
+	<string name="template_exec_warn_map_appname">Missing appName, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_pkgname">Missing packageName, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_location">Missing saveLocation, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_agp">Missing agpVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_kotlin">Missing kotlinVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_gradle">Missing gradleVersion, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_compilesdk">Missing compileSdk, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_targetsdk">Missing targetSdk, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javasource_compat">Missing javaSourceCompat, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javatarget_compat">Missing javaTargetCompat, defaulted to %1$s</string>
+	<string name="template_exec_warn_map_javatarget">Missing javaTarget, defaulted to %1$s</string>
+
+	<string name="template_read_error_archive_json">%1$s does not contain %2$s</string>
+	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
+	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
+
 </resources>

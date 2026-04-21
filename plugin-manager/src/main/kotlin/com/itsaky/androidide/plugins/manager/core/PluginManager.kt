@@ -26,6 +26,7 @@ import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
+import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.context.PluginContextImpl
@@ -224,18 +225,27 @@ class PluginManager private constructor(
         verifyDocumentationForLoadedPlugins()
     }
 
-    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> {
-        if (!pluginFile.exists()) {
-            return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
-        }
-        if (!pluginFile.canRead()) {
-            return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
-        }
-        val pluginLoader = PluginLoader(context, pluginFile)
-        val manifest = pluginLoader.getPluginMetadata()
+    private fun loadAndValidate(pluginFile: File): Result<Pair<PluginManifest, PluginLoader>> {
+        if (!pluginFile.exists()) return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
+        if (!pluginFile.canRead()) return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
+        val loader = PluginLoader(context, pluginFile)
+        val manifest = loader.getPluginMetadata()
             ?: return Result.failure(IllegalArgumentException("Plugin manifest not found in: ${pluginFile.name}"))
-        return Result.success(manifest)
+        return Result.success(manifest to loader)
     }
+
+    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> =
+        loadAndValidate(pluginFile).map { it.first }
+
+    fun getPluginValidation(pluginFile: File): Result<PluginValidation> =
+        loadAndValidate(pluginFile).map { (manifest, loader) ->
+            PluginValidation(
+                manifest = manifest,
+                isDebug = loader.isDebuggable(),
+                iconDayEntryExists = manifest.iconDay?.let(loader::hasEntry) ?: false,
+                iconNightEntryExists = manifest.iconNight?.let(loader::hasEntry) ?: false
+            )
+        }
 
     /**
      * Load plugin and return both the plugin instance and its metadata
@@ -344,6 +354,13 @@ class PluginManager private constructor(
                 null
             }
 
+            val (iconDayPath, iconNightPath) = try {
+                pluginLoader.extractPluginIcons(manifest.id, manifest)
+            } catch (e: Exception) {
+                logger.warn("Failed to extract icons for plugin: ${manifest.id}", e)
+                null to null
+            }
+
             if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
                 File(nativeLibPath).deleteRecursively()
                 if (manifest.sidebarItems > 0) {
@@ -356,12 +373,6 @@ class PluginManager private constructor(
             }
 
             val classLoader = pluginLoader.loadPluginClasses(this::class.java.classLoader!!, nativeLibPath)
-            if (classLoader == null) {
-                if (manifest.sidebarItems > 0) {
-                    SidebarSlotManager.releasePluginSlots(manifest.id)
-                }
-                return Result.failure(RuntimeException("Failed to create class loader for  plugin: ${manifest.id}"))
-            }
 
             logger.debug("Loading main class: ${manifest.mainClass}")
             val pluginClass = executeWithErrorHandling("load main class ${manifest.mainClass}", manifest.id) {
@@ -415,7 +426,11 @@ class PluginManager private constructor(
                 logger.debug("Registered service registry for plugin: ${manifest.id}")
 
                 val isEnabled = getPluginState(manifest.id)
-                val loadedPlugin = LoadedPlugin(plugin, manifest, classLoader, pluginContext, isEnabled)
+                val loadedPlugin = LoadedPlugin(
+                    plugin, manifest, classLoader, pluginContext, isEnabled,
+                    iconDayPath = iconDayPath,
+                    iconNightPath = iconNightPath
+                )
                 loadedPlugins[manifest.id] = loadedPlugin
                 if (isEnabled) {
                     try {
@@ -468,8 +483,9 @@ class PluginManager private constructor(
             reservedSlotsPluginId?.let { pluginId ->
                 SidebarSlotManager.releasePluginSlots(pluginId)
             }
-            logger.error("Failed to load  plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
-            Result.failure(RuntimeException("Error loading  plugin: ${e.message}", e))
+            logger.error("Failed to load plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
+            val prefix = if (e is RuntimeException) "" else "[${e.javaClass.simpleName}] "
+            Result.failure(RuntimeException("Error loading plugin: $prefix${e.message}", e))
         }
     }
 
@@ -533,6 +549,17 @@ class PluginManager private constructor(
         }
     }
 
+
+    fun haveMatchingSignatures(incomingFile: File, existingPluginId: String): Boolean {
+        val existingFile = File(pluginsDir, "$existingPluginId.cgp")
+        val incomingSig = PluginLoader(context, incomingFile).getSignatureHash()
+        val existingSig = PluginLoader(context, existingFile).getSignatureHash()
+        if (incomingSig == null || existingSig == null) {
+            logger.warn("Could not extract signatures for $existingPluginId; treating as mismatch")
+            return false
+        }
+        return incomingSig.contentEquals(existingSig)
+    }
 
     fun uninstallPlugin(pluginId: String): Boolean {
         logger.info("=== Starting uninstall for plugin: $pluginId ===")
@@ -605,17 +632,7 @@ class PluginManager private constructor(
     fun getAllPlugins(): List<PluginInfo> {
         return loadedPlugins.values.map { loadedPlugin ->
             PluginInfo(
-                // Use manifest from AndroidManifest, not the plugin's hardcoded metadata
-                metadata = PluginMetadata(
-                    id = loadedPlugin.manifest.id,
-                    name = loadedPlugin.manifest.name,
-                    version = loadedPlugin.manifest.version,
-                    description = loadedPlugin.manifest.description,
-                    author = loadedPlugin.manifest.author,
-                    minIdeVersion = loadedPlugin.manifest.minIdeVersion,
-                    dependencies = loadedPlugin.manifest.dependencies,
-                    permissions = loadedPlugin.manifest.permissions
-                ),
+                metadata = loadedPlugin.manifest.toPluginMetadata(),
                 isEnabled = loadedPlugin.isEnabled,
                 isLoaded = true
             )
@@ -1178,6 +1195,10 @@ class PluginManager private constructor(
                 if (dir.exists()) dir.deleteRecursively()
             }
 
+            File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId).let { dir ->
+                if (dir.exists()) dir.deleteRecursively()
+            }
+
             // Clean up ART cache files in oat directory
             try {
                 val oatDir = File(pluginsDir, "oat")
@@ -1238,10 +1259,19 @@ class PluginManager private constructor(
 
 }
 
+data class PluginValidation(
+    val manifest: PluginManifest,
+    val isDebug: Boolean,
+    val iconDayEntryExists: Boolean,
+    val iconNightEntryExists: Boolean
+)
+
 data class LoadedPlugin(
     val plugin: IPlugin,
     val manifest: PluginManifest,
     val classLoader: ClassLoader,
     val context: PluginContext,
-    var isEnabled: Boolean = true
+    var isEnabled: Boolean = true,
+    val iconDayPath: String? = null,
+    val iconNightPath: String? = null
 )

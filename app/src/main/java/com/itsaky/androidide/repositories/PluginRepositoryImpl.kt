@@ -2,7 +2,9 @@ package com.itsaky.androidide.repositories
 
 import android.util.Log
 import com.itsaky.androidide.plugins.PluginInfo
+import com.itsaky.androidide.plugins.PluginMetadata
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -68,22 +70,54 @@ class PluginRepositoryImpl(
         }
     }
 
+    override suspend fun getPluginMetadataFromFile(pluginFile: File): Result<PluginMetadata> = withContext(Dispatchers.IO) {
+        runCatching {
+            val manager = pluginManager
+                ?: throw IllegalStateException("Plugin system not available")
+            manager.getPluginMetadataOnly(pluginFile).getOrThrow().toPluginMetadata()
+        }
+    }
+
+    override suspend fun haveMatchingSignatures(incomingFile: File, existingPluginId: String): Result<Boolean> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                pluginManager?.haveMatchingSignatures(incomingFile, existingPluginId)
+                    ?: throw IllegalStateException("Plugin system not available")
+            }
+        }
+
     override suspend fun installPluginFromFile(pluginFile: File): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val manager = pluginManager
                 ?: throw IllegalStateException("Plugin system not available")
 
-            val metadataResult = manager.getPluginMetadataOnly(pluginFile)
-            if (metadataResult.isFailure) {
-                if (pluginFile.exists()) {
-                    pluginFile.delete()
-                }
-                throw metadataResult.exceptionOrNull()
+            val validationResult = manager.getPluginValidation(pluginFile)
+            if (validationResult.isFailure) {
+                pluginFile.delete()
+                throw validationResult.exceptionOrNull()
                     ?: Exception("Failed to read plugin metadata")
             }
 
-            val metadata = metadataResult.getOrNull()!!
+            val validation = validationResult.getOrNull()!!
+            val metadata = validation.manifest
             val pluginId = metadata.id
+
+            if (validation.isDebug) {
+                val missing = listOfNotNull(
+                    "icon_day".takeIf {
+                        metadata.iconDay == null || !validation.iconDayEntryExists
+                    },
+                    "icon_night".takeIf {
+                        metadata.iconNight == null || !validation.iconNightEntryExists
+                    }
+                ).joinToString(" and ") { "\"$it\"" }
+                if (missing.isNotEmpty()) {
+                    pluginFile.delete()
+                    throw IllegalArgumentException(
+                        "[$pluginId] Missing $missing for debug plugin. Debug plugins must declare and ship both icon_day and icon_night assets."
+                    )
+                }
+            }
 
             try {
                 manager.uninstallPlugin(pluginId)

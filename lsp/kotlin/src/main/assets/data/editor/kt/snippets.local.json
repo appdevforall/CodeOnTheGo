@@ -1,0 +1,156 @@
+{
+  "for": {
+    "desc": "For-in loop",
+    "body": [
+      "for (${1:item} in ${2:collection}) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "fori": {
+    "desc": "Indexed for loop",
+    "body": [
+      "for (${1:i} in 0 until ${2:count}) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "forr": {
+    "desc": "Reverse-indexed for loop",
+    "body": [
+      "for (${1:i} in ${2:count} - 1 downTo 0) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "while": {
+    "desc": "While loop",
+    "body": [
+      "while (${1:condition}) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "dowhile": {
+    "desc": "Do-while loop",
+    "body": [
+      "do {",
+      "\t$0",
+      "} while (${1:condition})"
+    ]
+  },
+  "if": {
+    "desc": "If statement",
+    "body": [
+      "if (${1:condition}) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "ifelse": {
+    "desc": "If-else statement",
+    "body": [
+      "if (${1:condition}) {",
+      "\t$0",
+      "} else {",
+      "\t",
+      "}"
+    ]
+  },
+  "ifnull": {
+    "desc": "If-null check",
+    "body": [
+      "if (${1:obj} == null) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "ifnotnull": {
+    "desc": "If-not-null check",
+    "body": [
+      "if (${1:obj} != null) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "when": {
+    "desc": "When expression",
+    "body": [
+      "when (${1:expr}) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "trycatch": {
+    "desc": "Try-catch statement",
+    "body": [
+      "try {",
+      "\t$0",
+      "} catch (${1:e}: ${2:Exception}) {",
+      "\t",
+      "}"
+    ]
+  },
+  "tryfinally": {
+    "desc": "Try-finally statement",
+    "body": [
+      "try {",
+      "\t$0",
+      "} finally {",
+      "\t",
+      "}"
+    ]
+  },
+  "let": {
+    "desc": "Safe-call let scope function",
+    "body": [
+      "${1:obj}?.let { ${2:it} ->",
+      "\t$0",
+      "}"
+    ]
+  },
+  "apply": {
+    "desc": "Apply scope function",
+    "body": [
+      "${1:obj}.apply {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "also": {
+    "desc": "Also scope function",
+    "body": [
+      "${1:obj}.also { ${2:it} ->",
+      "\t$0",
+      "}"
+    ]
+  },
+  "run": {
+    "desc": "Run scope function",
+    "body": [
+      "${1:obj}.run {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "with": {
+    "desc": "With scope function",
+    "body": [
+      "with(${1:obj}) {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "require": {
+    "desc": "Require precondition check",
+    "body": [
+      "require(${1:condition}) { \"${2:message}\" }"
+    ]
+  },
+  "check": {
+    "desc": "Check state assertion",
+    "body": [
+      "check(${1:condition}) { \"${2:message}\" }"
+    ]
+  }
+}

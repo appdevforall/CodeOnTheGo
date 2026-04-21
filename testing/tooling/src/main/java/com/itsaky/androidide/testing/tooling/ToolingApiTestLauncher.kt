@@ -23,6 +23,7 @@ import com.itsaky.androidide.testing.tooling.models.ToolingApiTestScope
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
@@ -93,6 +94,7 @@ object ToolingApiTestLauncher {
 					BuildId(
 						buildSessionId = UUID.randomUUID().toString(),
 						buildId = Random.nextLong(),
+						runType = BuildRunType.ProjectSync,
 					),
 			),
 		log: Logger = LoggerFactory.getLogger("BuildOutputLogger"),
