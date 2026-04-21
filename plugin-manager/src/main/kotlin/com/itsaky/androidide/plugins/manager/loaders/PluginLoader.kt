@@ -1,6 +1,7 @@
 package com.itsaky.androidide.plugins.manager.loaders
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.res.AssetManager
@@ -88,9 +89,9 @@ class PluginLoader(
     /**
      * Load plugin classes from APK
      */
-    fun loadPluginClasses(parentClassLoader: ClassLoader, nativeLibPath: String? = null): DexClassLoader? {
+    fun loadPluginClasses(parentClassLoader: ClassLoader, nativeLibPath: String? = null): DexClassLoader {
         if (pluginClassLoader != null) {
-            return pluginClassLoader
+            return pluginClassLoader!!
         }
 
         try {
@@ -99,18 +100,18 @@ class PluginLoader(
                 optimizedDir.mkdirs()
             }
 
-            pluginClassLoader = DexClassLoader(
+            val loader = DexClassLoader(
                 pluginApk.absolutePath,
                 optimizedDir.absolutePath,
                 nativeLibPath,
                 parentClassLoader
             )
+            pluginClassLoader = loader
 
             Log.i(TAG, "Successfully created DexClassLoader for plugin APK (nativeLibPath=$nativeLibPath)")
-            return pluginClassLoader
+            return loader
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create DexClassLoader: ${e.message}", e)
-            return null
+            throw RuntimeException("Failed to load plugin classes: [${e.javaClass.simpleName}] ${e.message}", e)
         }
     }
 
@@ -178,6 +179,51 @@ class PluginLoader(
         return pluginNativeDir
     }
 
+    fun isDebuggable(): Boolean {
+        val packageInfo = pluginPackageInfo
+            ?: context.packageManager.getPackageArchiveInfo(
+                pluginApk.absolutePath,
+                PackageManager.GET_META_DATA
+            ) ?: return false
+        val appInfo = packageInfo.applicationInfo ?: return false
+        return (appInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+
+    fun hasEntry(entryPath: String): Boolean =
+        try {
+            ZipFile(pluginApk).use { it.getEntry(entryPath) != null }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to inspect plugin APK for entry '$entryPath'", e)
+            false
+        }
+
+    fun extractPluginIcons(pluginId: String, manifest: PluginManifest): Pair<String?, String?> {
+        if (manifest.iconDay == null && manifest.iconNight == null) return null to null
+        val iconDir = File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId)
+        iconDir.deleteRecursively()
+        iconDir.mkdirs()
+        val targetPath = iconDir.toPath().toAbsolutePath().normalize()
+        return try {
+            ZipFile(pluginApk).use { zip ->
+                fun extractEntry(role: String, entryPath: String?): String? {
+                    entryPath ?: return null
+                    val entry = zip.getEntry(entryPath) ?: return null
+                    val ext = entryPath.substringAfterLast('.', "").ifEmpty { "png" }
+                    val outPath = targetPath.resolve("$role.$ext").normalize()
+                    if (!outPath.startsWith(targetPath)) return null
+                    zip.getInputStream(entry).use { input ->
+                        outPath.toFile().outputStream().use { output -> input.copyTo(output) }
+                    }
+                    return outPath.toFile().absolutePath
+                }
+                extractEntry("icon_day", manifest.iconDay) to extractEntry("icon_night", manifest.iconNight)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract plugin icons for $pluginId", e)
+            null to null
+        }
+    }
+
     fun getPluginMetadata(): PluginManifest? {
         try {
             val packageInfo = pluginPackageInfo ?: context.packageManager.getPackageArchiveInfo(
@@ -206,6 +252,9 @@ class PluginLoader(
             // Parse sidebar items count
             val sidebarItems = metaData.getInt("plugin.sidebar_items", 0)
 
+            val iconDay = metaData.getString("plugin.icon_day")
+            val iconNight = metaData.getString("plugin.icon_night")
+
             return PluginManifest(
                 id = pluginId,
                 name = pluginName,
@@ -218,7 +267,9 @@ class PluginLoader(
                 permissions = permissions,
                 dependencies = dependencies,
                 extensions = emptyList(),
-                sidebarItems = sidebarItems
+                sidebarItems = sidebarItems,
+                iconDay = iconDay,
+                iconNight = iconNight
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract plugin metadata: ${e.message}", e)
@@ -246,6 +297,25 @@ class PluginLoader(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to validate APK signature: ${e.message}", e)
             return false
+        }
+    }
+
+    fun getSignatureHash(): ByteArray? {
+        return try {
+            val pm = context.packageManager
+            @Suppress("DEPRECATION")
+            val info = pm.getPackageArchiveInfo(
+                pluginApk.absolutePath,
+                PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
+            )
+            @Suppress("DEPRECATION")
+            val legacySignatures = info?.signatures
+            val signatures = info?.signingInfo?.apkContentsSigners?.takeIf { it.isNotEmpty() }
+                ?: legacySignatures
+            signatures?.firstOrNull()?.toByteArray()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract signature hash from ${pluginApk.absolutePath}", e)
+            null
         }
     }
 

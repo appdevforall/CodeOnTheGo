@@ -1,0 +1,72 @@
+{
+  "class": {
+    "desc": "Create a new class",
+    "body": [
+      "class ${1:$TM_FILENAME_BASE} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "dclass": {
+    "desc": "Create a new data class",
+    "body": [
+      "data class ${1:$TM_FILENAME_BASE}(",
+      "\t${2:val prop: Type}",
+      ")"
+    ]
+  },
+  "sclass": {
+    "desc": "Create a new sealed class",
+    "body": [
+      "sealed class ${1:$TM_FILENAME_BASE} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "interface": {
+    "desc": "Create a new interface",
+    "body": [
+      "interface ${1:$TM_FILENAME_BASE} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "sinterface": {
+    "desc": "Create a new sealed interface",
+    "body": [
+      "sealed interface ${1:$TM_FILENAME_BASE} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "enum": {
+    "desc": "Create a new enum class",
+    "body": [
+      "enum class ${1:$TM_FILENAME_BASE} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "object": {
+    "desc": "Create a new object declaration",
+    "body": [
+      "object ${1:$TM_FILENAME_BASE} {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "const": {
+    "desc": "Create a compile-time constant",
+    "body": [
+      "const val ${1:NAME} = ${2:value}"
+    ]
+  },
+  "fun": {
+    "desc": "Create a top-level function",
+    "body": [
+      "fun ${1:name}($2)${3:: Unit} {",
+      "\t$0",
+      "}"
+    ]
+  }
+}

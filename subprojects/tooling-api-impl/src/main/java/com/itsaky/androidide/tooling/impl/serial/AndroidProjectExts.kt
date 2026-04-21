@@ -61,6 +61,7 @@ fun createAndroidProjectProtoModel(
 		},
 	mainSourceSet = basicAndroidProject.mainSourceSet?.asProtoModel(),
 	javaCompilerSettings = androidProject.javaCompileOptions?.asProtoModel(),
+	kotlinCompilerSettings = null, // TODO: Read kotlin compiler settings
 	viewBindingOptions = androidProject.viewBindingOptions?.asProtoModel(),
 	bootClassPathsList = basicAndroidProject.bootClasspath.map { file -> file.absolutePath },
 	variantList =

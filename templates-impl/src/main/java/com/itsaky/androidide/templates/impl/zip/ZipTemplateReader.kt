@@ -13,6 +13,7 @@ import com.itsaky.androidide.templates.TextFieldWidget
 import com.itsaky.androidide.templates.Widget
 import com.itsaky.androidide.templates.base.baseZipProject
 import com.itsaky.androidide.templates.booleanParameter
+import com.itsaky.androidide.templates.impl.TemplateWarning
 import com.itsaky.androidide.templates.projectNameParameter
 import com.itsaky.androidide.templates.stringParameter
 import com.itsaky.androidide.utils.FeatureFlags
@@ -27,7 +28,7 @@ object ZipTemplateReader {
 
     fun read(
         zipFile: File,
-        warnings: MutableList<String>,
+        warnings: MutableList<TemplateWarning>,
         recipeFactory: (TemplateJson, MutableMap<String, Parameter<*>>, String, ProjectTemplateData, ModuleTemplateData) -> TemplateRecipe<ProjectTemplateRecipeResult>
     ): List<ProjectTemplate> {
 
@@ -37,7 +38,9 @@ object ZipTemplateReader {
             ZipFile(zipFile).use { zip ->
 
                 val indexEntry = requireNotNull(zip.getEntry(ARCHIVE_JSON)) {
-                    "${zip.name} does not contain $ARCHIVE_JSON"
+                    warnings.add(TemplateWarning(R.string.template_read_error_archive_json,
+                        listOf(zip.name, ARCHIVE_JSON)))
+                    ARCHIVE_JSON
                 }
 
                 val indexJson = zip.getInputStream(indexEntry).bufferedReader().use {
@@ -118,13 +121,15 @@ object ZipTemplateReader {
 
                         templates.add(project)
                     } catch (e: Exception) {
-                        warnings.add("Failed to load template at ${templateRef.path} error: ${e.message}")
+                        warnings.add(TemplateWarning(R.string.template_read_error_template_load,
+                            listOf(templateRef.path, e.message)))
                         log.error("Failed to load template at ${templateRef.path}", e)
                     }
                 }
             }
         } catch (e: Exception) {
-            warnings.add("Failed to load template archive $zipFile error: ${e.message}")
+            warnings.add(TemplateWarning(R.string.template_read_error_archive_load,
+                listOf(zipFile, e.message)))
             log.error("Failed to read zip file $zipFile", e)
         }
 
