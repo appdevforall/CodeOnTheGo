@@ -44,7 +44,13 @@ data class PluginManifest(
     val sidebarItems: Int = 0,
 
     @SerializedName("build_actions")
-    val buildActions: List<ManifestBuildAction> = emptyList()
+    val buildActions: List<ManifestBuildAction> = emptyList(),
+
+    @SerializedName("icon_day")
+    val iconDay: String? = null,
+
+    @SerializedName("icon_night")
+    val iconNight: String? = null
 )
 
 data class ExtensionInfo(
