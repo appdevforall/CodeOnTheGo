@@ -337,14 +337,17 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             }
         }
 
-        binding.btnPull.setOnClickListener {
-            val username = credentialsManager.getUsername()
-            val token = credentialsManager.getToken()
-            if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                viewModel.pull(username, token)
-            } else {
-                showCredentialsDialog()
+        binding.btnPull.apply {
+            setOnClickListener {
+                val username = credentialsManager.getUsername()
+                val token = credentialsManager.getToken()
+                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    viewModel.pull(username, token)
+                } else {
+                    showCredentialsDialog()
+                }
             }
+            setTooltipOnView(TooltipTag.GIT_PULL)
         }
     }
 
