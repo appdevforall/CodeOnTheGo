@@ -12,7 +12,7 @@ object UserSnippetLoader {
 
 	fun <S : ISnippetScope> loadUserSnippets(
 		language: String,
-		scopes: Array<S>,
+		scopes: Iterable<S>,
 	): Map<String, List<ISnippet>> {
 		val langDir = getUserSnippetsDir(language)
 		if (!langDir.isDirectory) return emptyMap()

@@ -13,6 +13,15 @@ message JavaCompilerSettings {
   string targetCompatibility = 2;
 }
 
+// Kotlin compiler settings
+message KotlinCompilerSettings {
+	// The Kotlin API version.
+	string apiVersion = 1;
+
+	// The target JVM version.
+	string jvmTarget = 2;
+}
+
 // Info about an external library.
 message LibraryInfo {
 

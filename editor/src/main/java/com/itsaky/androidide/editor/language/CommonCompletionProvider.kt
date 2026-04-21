@@ -39,59 +39,61 @@ import java.util.concurrent.CancellationException
  * @author Akash Yadav
  */
 internal class CommonCompletionProvider(
-  private val server: ILanguageServer,
-  private val cancelChecker: CompletionCancelChecker
+	private val server: ILanguageServer,
+	private val cancelChecker: CompletionCancelChecker
 ) {
 
-  companion object {
+	companion object {
 
-    private val log = LoggerFactory.getLogger(CommonCompletionProvider::class.java)
-  }
+		private val log = LoggerFactory.getLogger(CommonCompletionProvider::class.java)
+	}
 
-  /**
-   * Computes completion items using the provided language server instance.
-   *
-   * @param content The reference to the content of the editor.
-   * @param file The file to compute completions for.
-   * @param position The position of the cursor in the content.
-   * @return The computed completion items. May return an empty list if the there was an error
-   * computing the completion items.
-   */
-  inline fun complete(
-    content: ContentReference,
-    file: Path,
-    position: CharPosition,
-    prefixMatcher: (Char) -> Boolean
-  ): List<CompletionItem> {
-    val completionResult =
-      try {
-        setupLookupForCompletion(file)
-        val prefix = CompletionHelper.computePrefix(content, position, prefixMatcher)
-        val params =
-          CompletionParams(Position(position.line, position.column, position.index), file,
-            cancelChecker)
-        params.content = content
-        params.prefix = prefix
-        server.complete(params)
-      } catch (e: Throwable) {
+	/**
+	 * Computes completion items using the provided language server instance.
+	 *
+	 * @param content The reference to the content of the editor.
+	 * @param file The file to compute completions for.
+	 * @param position The position of the cursor in the content.
+	 * @return The computed completion items. May return an empty list if the there was an error
+	 * computing the completion items.
+	 */
+	inline fun complete(
+		content: ContentReference,
+		file: Path,
+		position: CharPosition,
+		prefixMatcher: (Char) -> Boolean
+	): List<CompletionItem> {
+		val completionResult =
+			try {
+				setupLookupForCompletion(file)
+				val prefix = CompletionHelper.computePrefix(content, position, prefixMatcher)
+				val params =
+					CompletionParams(
+						Position(position.line, position.column, position.index), file,
+						cancelChecker
+					)
+				params.content = content
+				params.prefix = prefix
+				server.complete(params)
+			} catch (e: Throwable) {
 
-        if (e is CancellationException) {
-          log.debug("Completion process cancelled")
-        }
+				if (e is CancellationException) {
+					log.debug("Completion process cancelled")
+				}
 
-        // Do not log if completion was interrupted or cancelled
-        if (!(e is CancellationException || e is CompletionCancelledException)) {
-          if (!server.handleFailure(LSPFailure(COMPLETION, e))) {
-            log.error("Unable to compute completions", e)
-          }
-        }
-        CompletionResult.EMPTY
-      }
+				// Do not log if completion was interrupted or cancelled
+				if (!(e is CancellationException || e is CompletionCancelledException)) {
+					if (!server.handleFailure(LSPFailure(COMPLETION, e))) {
+						log.error("Unable to compute completions", e)
+					}
+				}
+				CompletionResult.EMPTY
+			}
 
-    if (completionResult == CompletionResult.EMPTY) {
-      return listOf()
-    }
+		if (completionResult == CompletionResult.EMPTY) {
+			return listOf()
+		}
 
-    return completionResult.items
-  }
+		return completionResult.items
+	}
 }

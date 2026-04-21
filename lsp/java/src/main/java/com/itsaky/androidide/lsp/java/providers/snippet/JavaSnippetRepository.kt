@@ -20,14 +20,19 @@ package com.itsaky.androidide.lsp.java.providers.snippet
 import com.itsaky.androidide.lsp.snippets.ISnippet
 import com.itsaky.androidide.lsp.snippets.SnippetRegistry
 
+/**
+ * Repository to store various snippets for Java.
+ *
+ * @author Akash Yadav
+ */
 object JavaSnippetRepository {
 
-  val snippets: Map<JavaSnippetScope, List<ISnippet>>
-    get() = JavaSnippetScope.entries.associateWith { scope ->
-      SnippetRegistry.getSnippets("java", scope.filename)
-    }
+	val snippets: Map<JavaSnippetScope, List<ISnippet>>
+		get() = JavaSnippetScope.entries.associateWith { scope ->
+			SnippetRegistry.getSnippets("java", scope.filename)
+		}
 
-  fun init() {
-    SnippetRegistry.initBuiltIn("java", JavaSnippetScope.entries.toTypedArray())
-  }
+	fun init() {
+		SnippetRegistry.initBuiltIn("java", JavaSnippetScope.entries)
+	}
 }

@@ -37,7 +37,7 @@ object SnippetParser {
 
 	fun <S : ISnippetScope> parse(
 		lang: String,
-		scopes: Array<S>,
+		scopes: Iterable<S>,
 		snippetFactory: (String, String, List<String>) -> ISnippet = { prefix, desc, body ->
 			DefaultSnippet(prefix, desc, body.toTypedArray())
 		},

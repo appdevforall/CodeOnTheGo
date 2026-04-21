@@ -27,7 +27,12 @@ import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
-import com.itsaky.androidide.lsp.kotlin.diagnostic.KotlinDiagnosticProvider
+import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
+import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
+import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
+import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
+import com.itsaky.androidide.lsp.kotlin.completion.complete
+import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
@@ -38,12 +43,11 @@ import com.itsaky.androidide.lsp.models.ReferenceParams
 import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
+import com.itsaky.androidide.lsp.util.LSPEditorActions
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
-import com.itsaky.androidide.projects.api.AndroidModule
-import com.itsaky.androidide.projects.api.ModuleProject
+import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
-import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.CoroutineName
@@ -55,12 +59,12 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
-import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryModule
-import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModule
 import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
@@ -79,8 +83,8 @@ class KotlinLanguageServer : ILanguageServer {
 
 	private val scope =
 		CoroutineScope(SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!))
+	private var projectModel: KotlinProjectModel? = null
 	private var compiler: Compiler? = null
-	private var diagnosticProvider: KotlinDiagnosticProvider? = null
 	private var analyzeJob: Job? = null
 
 	override val serverId: String = SERVER_ID
@@ -92,11 +96,10 @@ class KotlinLanguageServer : ILanguageServer {
 		get() = _settings ?: KotlinServerSettings.getInstance().also { _settings = it }
 
 	companion object {
-
 		private val ANALYZE_DEBOUNCE_DELAY = 400.milliseconds
 
 		const val SERVER_ID = "ide.lsp.kotlin"
-		private val log = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
+		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 	}
 
 	init {
@@ -105,6 +108,8 @@ class KotlinLanguageServer : ILanguageServer {
 		if (!EventBus.getDefault().isRegistered(this)) {
 			EventBus.getDefault().register(this)
 		}
+
+		KotlinSnippetRepository.init()
 	}
 
 	override fun shutdown() {
@@ -123,123 +128,82 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	override fun setupWithProject(workspace: Workspace) {
-		log.info("setupWithProject called, initialized={}", initialized)
-		recreateSession(workspace)
-		initialized = true
-	}
+		logger.info("setupWithProject called, initialized={}", initialized)
 
-	private fun recreateSession(workspace: Workspace) {
-		diagnosticProvider?.close()
-		compiler?.close()
+		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
+
+		val context = BaseApplication.baseInstance
+		val indexingServiceManager = ProjectManagerImpl.getInstance()
+			.indexingServiceManager
+
+		val indexingRegistry = indexingServiceManager.registry
+		indexingRegistry.register(
+			key = KT_SOURCE_FILE_INDEX_KEY,
+			index = JvmSymbolIndex.createSqliteIndex(
+				context = context,
+				dbName = KT_SOURCE_FILE_INDEX_KEY.name,
+				indexName = KT_SOURCE_FILE_INDEX_KEY.name,
+			)
+		)
+
+		indexingRegistry.register(
+			key = KT_SOURCE_FILE_META_INDEX_KEY,
+			index = KtFileMetadataIndex.create(
+				context = context,
+				dbName = KT_SOURCE_FILE_META_INDEX_KEY.name
+			)
+		)
+
+		val jvmLibraryIndexingService =
+			indexingServiceManager.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
+
+		jvmLibraryIndexingService?.refresh()
 
 		val jdkHome = Environment.JAVA_HOME.toPath()
 		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE
-		val intellijPluginRoot = Paths.get(
-			BaseApplication
-				.baseInstance.applicationInfo.sourceDir
-		)
+		val intellijPluginRoot = Paths.get(context.applicationInfo.sourceDir)
 
 		val jvmTarget = JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
 			?: JvmTarget.JVM_21
 
 		val jvmPlatform = JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget)
 
-		compiler = Compiler(
-			intellijPluginRoot = intellijPluginRoot,
-			jdkHome = jdkHome,
-			jdkRelease = jdkRelease,
-			languageVersion = LanguageVersion.LATEST_STABLE
-		) {
-			buildKtModuleProvider {
-				platform = jvmPlatform
+		if (!initialized) {
+			logger.info("Creating initial analysis session")
 
-				val moduleProjects =
-					workspace.subProjects
-						.filterIsInstance<ModuleProject>()
-						.filter { it.path != workspace.rootProject.path }
+			val model = KotlinProjectModel()
+			model.update(workspace, jvmPlatform)
+			this.projectModel = model
 
-				val bootClassPaths =
-					moduleProjects
-						.filterIsInstance<AndroidModule>()
-						.flatMap { project ->
-							project.bootClassPaths
-								.map { bootClassPath ->
-									addModule(buildKtLibraryModule {
-										this.platform = jvmPlatform
-										this.libraryName = bootClassPath.nameWithoutExtension
-										addBinaryRoot(bootClassPath.toPath())
-									})
-								}
-						}
+			val compiler = Compiler(
+				workspace = workspace,
+				projectModel = model,
+				intellijPluginRoot = intellijPluginRoot,
+				jdkHome = jdkHome,
+				jdkRelease = jdkRelease,
+				languageVersion = LanguageVersion.LATEST_STABLE,
+			)
 
-				val libraryDependencies =
-					moduleProjects
-						.flatMap { it.getCompileClasspaths() }
-						.associateWith { library ->
-							addModule(buildKtLibraryModule {
-								this.platform = jvmPlatform
-								this.libraryName = library.nameWithoutExtension
-								addBinaryRoot(library.toPath())
-							})
-						}
+			this.compiler = compiler
+		} else {
+			logger.info("Updating project model")
 
-				val subprojectsAsModules = mutableMapOf<ModuleProject, KaSourceModule>()
-
-				fun getOrCreateModule(project: ModuleProject): KaSourceModule {
-					subprojectsAsModules[project]?.also { module ->
-						// a source module already exists for this project
-						return module
-					}
-
-					val module = buildKtSourceModule {
-						this.platform = jvmPlatform
-						this.moduleName = project.name
-						addSourceRoots(
-							project.getSourceDirectories().map { it.toPath() })
-
-						// always dependent on boot class paths, if any
-						bootClassPaths.forEach { bootClassPathModule ->
-							addRegularDependency(bootClassPathModule)
-						}
-
-						project.getCompileClasspaths(excludeSourceGeneratedClassPath = true)
-							.forEach { classpath ->
-								val libDependency = libraryDependencies[classpath]
-								if (libDependency == null) {
-									log.error(
-										"Unable to locate library module for classpath: {}",
-										libDependency
-									)
-									return@forEach
-								}
-
-								addRegularDependency(libDependency)
-							}
-
-						project.getCompileModuleProjects()
-							.forEach { dependencyModule ->
-								addRegularDependency(getOrCreateModule(dependencyModule))
-							}
-					}
-
-					subprojectsAsModules[project] = module
-					return module
-				}
-
-				moduleProjects.forEach { project ->
-					addModule(getOrCreateModule(project))
-				}
-			}
+			projectModel?.update(workspace, jvmPlatform)
 		}
 
-		diagnosticProvider = KotlinDiagnosticProvider(
-			compiler = compiler!!,
-			scope = scope,
-		)
+		initialized = true
+		logger.info("Kotlin project initialized")
 	}
 
 	override fun complete(params: CompletionParams?): CompletionResult {
-		return CompletionResult.EMPTY
+		if (params == null) {
+			logger.warn("Cannot complete for null params")
+			return CompletionResult.EMPTY
+		}
+
+		logger.debug("complete(position={}, file={})", params.position, params.file)
+		return compiler?.compilationEnvironmentFor(params.file)?.complete(params)
+			?: CompletionResult.EMPTY
 	}
 
 	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
@@ -283,10 +247,10 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	override suspend fun analyze(file: Path): DiagnosticResult {
-		log.debug("analyze(file={})", file)
+		logger.debug("analyze(file={})", file)
 
 		if (!settings.diagnosticsEnabled() || !settings.codeAnalysisEnabled()) {
-			log.debug(
+			logger.debug(
 				"analyze() skipped: diagnosticsEnabled={}, codeAnalysisEnabled={}",
 				settings.diagnosticsEnabled(), settings.codeAnalysisEnabled()
 			)
@@ -294,11 +258,11 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		if (!DocumentUtils.isKotlinFile(file)) {
-			log.debug("analyze() skipped: not a Kotlin file")
+			logger.debug("analyze() skipped: not a Kotlin file")
 			return DiagnosticResult.NO_UPDATE
 		}
 
-		return diagnosticProvider?.analyze(file)
+		return compiler?.compilationEnvironmentFor(file)?.collectDiagnosticsFor(file)
 			?: DiagnosticResult.NO_UPDATE
 	}
 
@@ -307,6 +271,10 @@ class KotlinLanguageServer : ILanguageServer {
 	fun onDocumentOpen(event: DocumentOpenEvent) {
 		if (!DocumentUtils.isKotlinFile(event.openedFile)) {
 			return
+		}
+
+		compiler?.compilationEnvironmentFor(event.openedFile)?.apply {
+			onFileOpen(event.openedFile)
 		}
 
 		selectedFile = event.openedFile
@@ -339,6 +307,11 @@ class KotlinLanguageServer : ILanguageServer {
 		if (!DocumentUtils.isKotlinFile(event.changedFile)) {
 			return
 		}
+
+		compiler?.compilationEnvironmentFor(event.changedFile)?.apply {
+			onFileContentChanged(event.changedFile)
+		}
+
 		debouncingAnalyze()
 	}
 
@@ -349,7 +322,10 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		diagnosticProvider?.clearTimestamp(event.closedFile)
+		compiler?.compilationEnvironmentFor(event.closedFile)?.apply {
+			onFileClosed(event.closedFile)
+		}
+
 		if (FileManager.getActiveDocumentCount() == 0) {
 			selectedFile = null
 			analyzeJob?.cancel("No active files")
@@ -366,6 +342,6 @@ class KotlinLanguageServer : ILanguageServer {
 		selectedFile = event.selectedFile
 		val uri = event.selectedFile.toUri().toString()
 
-		log.debug("onDocumentSelected: uri={}", uri)
+		logger.debug("onDocumentSelected: uri={}", uri)
 	}
 }
