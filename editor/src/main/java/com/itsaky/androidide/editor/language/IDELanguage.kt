@@ -42,95 +42,97 @@ import java.nio.file.Paths
  */
 abstract class IDELanguage : Language {
 
-  private var formatter: Formatter? = null
+	private var formatter: Formatter? = null
 
-  protected open val languageServer: ILanguageServer?
-    get() = null
+	protected open val languageServer: ILanguageServer?
+		get() = null
 
-  open fun getTabSize(): Int {
-    return EditorPreferences.tabSize
-  }
+	open fun getTabSize(): Int {
+		return EditorPreferences.tabSize
+	}
 
-  open fun addBreakpoint(line: Int) {}
-  open fun addBreakpoints(lines: Iterable<Int>) = lines.forEach(::addBreakpoint)
-  open fun removeBreakpoint(line: Int) {}
-  open fun removeBreakpoints(lines: Iterable<Int>) = lines.forEach(::removeBreakpoint)
-  open fun removeAllBreakpoints() {}
-  open fun toggleBreakpoint(line: Int) {}
-  open fun highlightLine(line: Int) {}
-  open fun unhighlightLines() {}
+	open fun addBreakpoint(line: Int) {}
+	open fun addBreakpoints(lines: Iterable<Int>) = lines.forEach(::addBreakpoint)
+	open fun removeBreakpoint(line: Int) {}
+	open fun removeBreakpoints(lines: Iterable<Int>) = lines.forEach(::removeBreakpoint)
+	open fun removeAllBreakpoints() {}
+	open fun toggleBreakpoint(line: Int) {}
+	open fun highlightLine(line: Int) {}
+	open fun unhighlightLines() {}
 
-  @Throws(CompletionCancelledException::class)
-  override fun requireAutoComplete(
-    content: ContentReference,
-    position: CharPosition,
-    publisher: CompletionPublisher,
-    extraArguments: Bundle
-  ) {
-    try {
-      val cancelChecker = CompletionCancelChecker(publisher)
-      Lookup.getDefault().register(ICancelChecker::class.java, cancelChecker)
-      doComplete(content, position, publisher, cancelChecker, extraArguments)
-    } finally {
-      Lookup.getDefault().unregister(
-        ICancelChecker::class.java)
-    }
-  }
+	@Throws(CompletionCancelledException::class)
+	override fun requireAutoComplete(
+		content: ContentReference,
+		position: CharPosition,
+		publisher: CompletionPublisher,
+		extraArguments: Bundle
+	) {
+		try {
+			val cancelChecker = CompletionCancelChecker(publisher)
+			Lookup.getDefault().register(ICancelChecker::class.java, cancelChecker)
+			doComplete(content, position, publisher, cancelChecker, extraArguments)
+		} finally {
+			Lookup.getDefault().unregister(
+				ICancelChecker::class.java
+			)
+		}
+	}
 
-  private fun doComplete(
-    content: ContentReference,
-    position: CharPosition,
-    publisher: CompletionPublisher,
-    cancelChecker: CompletionCancelChecker,
-    extraArguments: Bundle
-  ) {
-    val server = languageServer ?: return
-    val path = extraArguments.getString(IEditor.KEY_FILE, null)
-    if (path == null) {
-      log.warn("Cannot provide completions. No file provided.")
-      return
-    }
+	private fun doComplete(
+		content: ContentReference,
+		position: CharPosition,
+		publisher: CompletionPublisher,
+		cancelChecker: CompletionCancelChecker,
+		extraArguments: Bundle
+	) {
+		val server = languageServer ?: return
+		val path = extraArguments.getString(IEditor.KEY_FILE, null)
+		if (path == null) {
+			log.warn("Cannot provide completions. No file provided.")
+			return
+		}
 
-    val completionProvider = CommonCompletionProvider(server, cancelChecker)
-    val file = Paths.get(path)
-    val completionItems = completionProvider.complete(content, file,
-      position) { checkIsCompletionChar(it) }
-    publisher.setUpdateThreshold(1)
-    (publisher as IDECompletionPublisher).addLSPItems(completionItems)
-  }
+		val completionProvider = CommonCompletionProvider(server, cancelChecker)
+		val file = Paths.get(path)
+		val completionItems =
+			completionProvider.complete(content, file, position) { checkIsCompletionChar(it) }
 
-  /**
-   * Check if the given character is a completion character.
-   *
-   * @param c The character to check.
-   * @return `true` if the character is completion char, `false` otherwise.
-   */
-  protected open fun checkIsCompletionChar(c: Char): Boolean {
-    return false
-  }
+		publisher.setUpdateThreshold(1)
+		(publisher as IDECompletionPublisher).addLSPItems(completionItems)
+	}
 
-  override fun useTab(): Boolean {
-    return !EditorPreferences.useSoftTab
-  }
+	/**
+	 * Check if the given character is a completion character.
+	 *
+	 * @param c The character to check.
+	 * @return `true` if the character is completion char, `false` otherwise.
+	 */
+	protected open fun checkIsCompletionChar(c: Char): Boolean {
+		return false
+	}
 
-  override fun getFormatter(): Formatter {
-    return formatter ?: LSPFormatter(languageServer).also { formatter = it }
-  }
+	override fun useTab(): Boolean {
+		return !EditorPreferences.useSoftTab
+	}
 
-  override fun getIndentAdvance(
-    content: ContentReference,
-    line: Int,
-    column: Int
-  ): Int {
-    return getIndentAdvance(content.getLine(line).substring(0, column))
-  }
+	override fun getFormatter(): Formatter {
+		return formatter ?: LSPFormatter(languageServer).also { formatter = it }
+	}
 
-  open fun getIndentAdvance(line: String): Int {
-    return 0
-  }
+	override fun getIndentAdvance(
+		content: ContentReference,
+		line: Int,
+		column: Int
+	): Int {
+		return getIndentAdvance(content.getLine(line).substring(0, column))
+	}
 
-  companion object {
+	open fun getIndentAdvance(line: String): Int {
+		return 0
+	}
 
-    private val log = LoggerFactory.getLogger(IDELanguage::class.java)
-  }
+	companion object {
+
+		private val log = LoggerFactory.getLogger(IDELanguage::class.java)
+	}
 }
