@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.computervision.domain
 
 import android.graphics.Rect
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.domain.model.LayoutItem
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -13,6 +14,9 @@ class LayoutGeometryProcessor {
         private const val OVERLAP_THRESHOLD = 0.6
         private const val VERTICAL_ALIGN_THRESHOLD = 20
     }
+
+    private fun isRadioButton(box: ScaledBox): Boolean =
+        box.label == "radio_button_unchecked" || box.label == "radio_button_checked"
 
     private class LayoutRow(initialBox: ScaledBox) {
         private val _boxes = mutableListOf(initialBox)
@@ -115,5 +119,65 @@ class LayoutGeometryProcessor {
             y + h / 2,
             Rect(x, y, x + w, y + h)
         )
+    }
+
+    private fun mergeRadioLabels(row: List<ScaledBox>): List<ScaledBox> {
+        val merged = mutableListOf<ScaledBox>()
+        var i = 0
+
+        while (i < row.size) {
+            val current = row[i]
+
+            if (isRadioButton(current) && i + 1 < row.size && row[i + 1].label == "text") {
+                val nextText = row[i + 1]
+                merged.add(current.copy(text = nextText.text))
+                i += 2
+            }
+            else if (current.label == "text" && i + 1 < row.size && isRadioButton(row[i + 1])) {
+                val nextRadio = row[i + 1]
+                merged.add(nextRadio.copy(text = current.text))
+                i += 2
+            }
+            else {
+                merged.add(current)
+                i++
+            }
+        }
+        return merged
+    }
+
+    internal fun buildLayoutTree(boxes: List<ScaledBox>): List<LayoutItem> {
+        val rows = groupIntoRows(boxes)
+        val items = mutableListOf<LayoutItem>()
+        val verticalRadioRun = mutableListOf<ScaledBox>()
+
+        fun flushVerticalRadioRun() {
+            if (verticalRadioRun.isNotEmpty()) {
+                items.add(LayoutItem.RadioGroup(verticalRadioRun.toList(), "vertical"))
+                verticalRadioRun.clear()
+            }
+        }
+
+        rows.forEach { rawRow ->
+            val row = mergeRadioLabels(rawRow)
+            when {
+                row.all { isRadioButton(it) } && row.size == 1 -> verticalRadioRun.add(row.first())
+                row.all { isRadioButton(it) } -> {
+                    flushVerticalRadioRun()
+                    items.add(LayoutItem.RadioGroup(row, "horizontal"))
+                }
+                else -> {
+                    flushVerticalRadioRun()
+                    if (row.size == 1) {
+                        items.add(LayoutItem.SimpleView(row.first()))
+                    } else {
+                        items.add(LayoutItem.HorizontalRow(row))
+                    }
+                }
+            }
+        }
+        flushVerticalRadioRun()
+
+        return items
     }
 }
