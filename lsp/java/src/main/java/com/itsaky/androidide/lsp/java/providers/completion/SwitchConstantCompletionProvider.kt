@@ -22,7 +22,6 @@ import com.itsaky.androidide.lsp.java.compiler.CompileTask
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.MatchLevel.NO_MATCH
-import com.itsaky.androidide.progress.ProgressManager.Companion.abortIfCancelled
 import jdkx.lang.model.element.ElementKind.ENUM
 import jdkx.lang.model.element.ElementKind.ENUM_CONSTANT
 import jdkx.lang.model.element.TypeElement
@@ -75,7 +74,6 @@ class SwitchConstantCompletionProvider(
 
     val list: MutableList<com.itsaky.androidide.lsp.models.CompletionItem> = ArrayList()
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
 
     for (member in task.task.elements.getAllMembers(element)) {
@@ -100,7 +98,6 @@ class SwitchConstantCompletionProvider(
     partial: String,
     endsWithParen: Boolean
   ): CompletionResult {
-    abortIfCancelled()
     abortCompletionIfCancelled()
     return IdentifierCompletionProvider(file, cursor, compiler, settings)
       .complete(task, path, partial, endsWithParen)
