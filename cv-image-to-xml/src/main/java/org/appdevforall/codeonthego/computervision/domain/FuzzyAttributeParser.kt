@@ -1,8 +1,10 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
+import org.appdevforall.codeonthego.computervision.domain.grammar.UiGrammarValidator
 
 object FuzzyAttributeParser {
+    private val grammarValidator = UiGrammarValidator()
 
     private const val FUZZY_VALUE_THRESHOLD = 75
 
@@ -172,7 +174,7 @@ object FuzzyAttributeParser {
             parseByColonScanning(normalizedSpacing, tag)
         }
 
-        return enforceGrammar(rawExtractedAttributes, tag)
+        return grammarValidator.enforceGrammar(rawExtractedAttributes, tag)
     }
 
     private fun parseDelimited(annotation: String, tag: String): Map<String, String> {
