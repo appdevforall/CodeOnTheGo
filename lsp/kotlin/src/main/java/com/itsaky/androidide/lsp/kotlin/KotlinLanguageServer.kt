@@ -22,7 +22,7 @@ import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
-import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
+import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
@@ -30,8 +30,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
-import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
-import com.itsaky.androidide.lsp.kotlin.completion.complete
+import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -48,17 +47,14 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
+import com.itsaky.androidide.tasks.createJobCancelChecker
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.ifNotEmpty
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -69,23 +65,19 @@ import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
-import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlin.time.Duration.Companion.milliseconds
 
 class KotlinLanguageServer : ILanguageServer {
 
 	private var _client: ILanguageClient? = null
 	private var _settings: IServerSettings? = null
-	private var selectedFile: Path? = null
 	private var initialized = false
 
 	private val scope =
 		CoroutineScope(SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!))
 	private var projectModel: KotlinProjectModel? = null
 	private var compiler: Compiler? = null
-	private var analyzeJob: Job? = null
 
 	override val serverId: String = SERVER_ID
 
@@ -96,7 +88,6 @@ class KotlinLanguageServer : ILanguageServer {
 		get() = _settings ?: KotlinServerSettings.getInstance().also { _settings = it }
 
 	companion object {
-		private val ANALYZE_DEBOUNCE_DELAY = 400.milliseconds
 
 		const val SERVER_ID = "ide.lsp.kotlin"
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
@@ -108,8 +99,6 @@ class KotlinLanguageServer : ILanguageServer {
 		if (!EventBus.getDefault().isRegistered(this)) {
 			EventBus.getDefault().register(this)
 		}
-
-		KotlinSnippetRepository.init()
 	}
 
 	override fun shutdown() {
@@ -121,6 +110,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override fun connectClient(client: ILanguageClient?) {
 		this._client = client
+		this.compiler?.updateLanguageClient(client)
 	}
 
 	override fun applySettings(settings: IServerSettings?) {
@@ -184,11 +174,20 @@ class KotlinLanguageServer : ILanguageServer {
 				languageVersion = LanguageVersion.LATEST_STABLE,
 			)
 
+			compiler.updateLanguageClient(client)
 			this.compiler = compiler
 		} else {
 			logger.info("Updating project model")
-
 			projectModel?.update(workspace, jvmPlatform)
+		}
+
+		// Open already open files
+		// we won't get an event for these
+		FileManager.activeDocuments.ifNotEmpty {
+			forEach { document ->
+				compiler?.compilationEnvironmentFor(document.file)
+					?.openFileIfNeeded(document.file)
+			}
 		}
 
 		initialized = true
@@ -202,7 +201,8 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		logger.debug("complete(position={}, file={})", params.position, params.file)
-		return compiler?.compilationEnvironmentFor(params.file)?.complete(params)
+		return compiler?.compilationEnvironmentFor(params.file)
+			?.let { context(it) { codeComplete(params) } }
 			?: CompletionResult.EMPTY
 	}
 
@@ -262,7 +262,8 @@ class KotlinLanguageServer : ILanguageServer {
 			return DiagnosticResult.NO_UPDATE
 		}
 
-		return compiler?.compilationEnvironmentFor(file)?.collectDiagnosticsFor(file)
+		return compiler?.compilationEnvironmentFor(file)
+			?.let { context(it) { collectDiagnosticsFor(file, createJobCancelChecker()) } }
 			?: DiagnosticResult.NO_UPDATE
 	}
 
@@ -273,32 +274,8 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler?.compilationEnvironmentFor(event.openedFile)?.apply {
-			onFileOpen(event.openedFile)
-		}
-
-		selectedFile = event.openedFile
-		debouncingAnalyze()
-	}
-
-	private fun debouncingAnalyze() {
-		analyzeJob?.cancel()
-		analyzeJob = scope.launch(Dispatchers.Default) {
-			delay(ANALYZE_DEBOUNCE_DELAY)
-			analyzeSelected()
-		}
-	}
-
-	private suspend fun analyzeSelected() {
-		val file = selectedFile ?: return
-		val client = _client ?: return
-
-		if (!Files.exists(file)) return
-
-		val result = analyze(file)
-		withContext(Dispatchers.Main) {
-			client.publishDiagnostics(result)
-		}
+		compiler?.compilationEnvironmentFor(event.openedFile)
+			?.onFileOpen(event.openedFile)
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
@@ -308,11 +285,9 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler?.compilationEnvironmentFor(event.changedFile)?.apply {
-			onFileContentChanged(event.changedFile)
-		}
+		compiler?.compilationEnvironmentFor(event.changedFile)
+			?.onFileContentChanged(event.changedFile)
 
-		debouncingAnalyze()
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
@@ -322,26 +297,19 @@ class KotlinLanguageServer : ILanguageServer {
 			return
 		}
 
-		compiler?.compilationEnvironmentFor(event.closedFile)?.apply {
-			onFileClosed(event.closedFile)
-		}
+		compiler?.compilationEnvironmentFor(event.closedFile)
+			?.onFileClosed(event.closedFile)
 
-		if (FileManager.getActiveDocumentCount() == 0) {
-			selectedFile = null
-			analyzeJob?.cancel("No active files")
-		}
 	}
 
 	@Subscribe(threadMode = ThreadMode.ASYNC)
 	@Suppress("unused")
-	fun onDocumentSelected(event: DocumentSelectedEvent) {
-		if (!DocumentUtils.isKotlinFile(event.selectedFile)) {
+	fun onDocumentSaved(event: DocumentSaveEvent) {
+		if (!DocumentUtils.isKotlinFile(event.savedFile)) {
 			return
 		}
 
-		selectedFile = event.selectedFile
-		val uri = event.selectedFile.toUri().toString()
-
-		logger.debug("onDocumentSelected: uri={}", uri)
+		compiler?.compilationEnvironmentFor(event.savedFile)
+			?.onFileSaved(event.savedFile)
 	}
 }

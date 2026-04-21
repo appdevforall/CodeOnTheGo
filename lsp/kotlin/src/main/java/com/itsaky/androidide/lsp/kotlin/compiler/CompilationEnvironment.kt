@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
+import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
@@ -12,9 +13,16 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
+import com.itsaky.androidide.utils.KeyedDebouncingAction
+import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.api.Workspace
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.K1Deprecation
@@ -87,9 +95,8 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import kotlin.io.path.extension
-import kotlin.io.path.isDirectory
 import kotlin.io.path.pathString
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * A compilation environment for compiling Kotlin sources.
@@ -102,16 +109,20 @@ import kotlin.io.path.pathString
 @Suppress("UnstableApiUsage")
 @OptIn(K1Deprecation::class)
 internal class CompilationEnvironment(
+	name: String,
 	workspace: Workspace,
 	val ktProject: KotlinProjectModel,
 	val intellijPluginRoot: Path,
 	val jdkHome: Path,
 	val jdkRelease: Int,
 	val languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
-	val enableParserEventSystem: Boolean = true
+	val enableParserEventSystem: Boolean = true,
+	val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + CoroutineName("CompilationEnv[$name]"))
 ) : KotlinProjectModel.ProjectModelListener, AutoCloseable {
 	private var disposable = Disposer.newDisposable()
+	private var _languageClient: ILanguageClient? = null
 
+	val fileAnalyzer: KeyedDebouncingAction<Path>
 	val projectEnv: KotlinCoreProjectEnvironment
 
 	val applicationEnv: KotlinCoreApplicationEnvironment
@@ -160,6 +171,12 @@ internal class CompilationEnvironment(
 		SymbolVisibilityChecker(provider)
 	}
 
+	var languageClient: ILanguageClient?
+		get() = _languageClient
+		set(value) {
+			_languageClient = value
+		}
+
 	val ktSymbolIndex by lazy {
 		KtSymbolIndex(
 			project = project,
@@ -191,6 +208,9 @@ internal class CompilationEnvironment(
 	}
 
 	companion object {
+
+		val DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION = 400.milliseconds
+
 		private val logger = LoggerFactory.getLogger(CompilationEnvironment::class.java)
 	}
 
@@ -343,6 +363,17 @@ internal class CompilationEnvironment(
 		commandProcessor = application.getService(CommandProcessor::class.java)
 		parser = KtPsiFactory(project, eventSystemEnabled = enableParserEventSystem)
 
+		fileAnalyzer = KeyedDebouncingAction(
+			scope = coroutineScope,
+			debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION
+		) { path, cancelChecker ->
+			val result = collectDiagnosticsFor(path, cancelChecker)
+
+			withContext(Dispatchers.Main.immediate) {
+				languageClient?.publishDiagnostics(result)
+			}
+		}
+
 		// Sync the index in the background
 		ktSymbolIndex.syncIndexInBackground()
 	}
@@ -366,12 +397,23 @@ internal class CompilationEnvironment(
 		}
 	}
 
+	fun openFileIfNeeded(path: Path) {
+		ktSymbolIndex.getOpenedKtFile(path)
+			?: onFileOpen(path)
+	}
+
 	fun onFileOpen(path: Path) {
 		val ktFile = loadKtFile(path) ?: return
 		ktSymbolIndex.openKtFile(path, ktFile)
+		fileAnalyzer.schedule(path)
+	}
+
+	fun onFileSaved(path: Path) {
+		fileAnalyzer.schedule(path)
 	}
 
 	fun onFileClosed(path: Path) {
+		fileAnalyzer.cancelPending(path)
 		ktSymbolIndex.closeKtFile(path)
 		(project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider)
 			.unregisterInMemoryFile(path.pathString)
@@ -388,6 +430,8 @@ internal class CompilationEnvironment(
 		provider.registerInMemoryFile(path.pathString, newKtFile.virtualFile)
 
 		ktSymbolIndex.openKtFile(path, newKtFile)
+		ktSymbolIndex.queueOnFileChangedAsync(newKtFile)
+		fileAnalyzer.schedule(path)
 		project.write {
 			KaSourceModificationService.getInstance(project)
 				.handleElementModification(newKtFile, KaElementModificationType.Unknown)

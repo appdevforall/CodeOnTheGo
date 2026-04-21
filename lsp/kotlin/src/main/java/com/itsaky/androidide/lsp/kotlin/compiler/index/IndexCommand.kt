@@ -8,6 +8,8 @@ internal sealed interface IndexCommand {
 	data object SourceScanningComplete: IndexCommand
 	data object IndexingComplete: IndexCommand
 	data class ScanSourceFile(val vf: VirtualFile): IndexCommand
-	data class IndexModifiedFile(val ktFile: KtFile): IndexCommand
+	data class IndexModifiedFile(val ktFile: KtFile): IndexCommand {
+
+	}
 	data class IndexSourceFile(val vf: VirtualFile): IndexCommand
 }

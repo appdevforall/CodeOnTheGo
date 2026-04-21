@@ -31,7 +31,6 @@ import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.InsertTextFormat.SNIPPET
 import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.lsp.models.MatchLevel.NO_MATCH
-import com.itsaky.androidide.progress.ProgressManager.Companion.abortIfCancelled
 import com.squareup.javapoet.MethodSpec.Builder
 import jdkx.lang.model.element.ElementKind.METHOD
 import jdkx.lang.model.element.ExecutableElement
@@ -81,7 +80,6 @@ class ScopeCompletionProvider(
         return@Predicate matchLevel(name, partial) != NO_MATCH
       }
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
     for (member in ScopeHelper.scopeMembers(task, scope, filter)) {
       var name = member.simpleName.toString()
@@ -127,7 +125,6 @@ class ScopeCompletionProvider(
       return method(task, listOf(method), !endsWithParen, matchLevel, partial)
     }
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
     val types = task.task.types
     val parentElement =
@@ -165,7 +162,6 @@ class ScopeCompletionProvider(
     val methodSpec = builder.build()
     val insertText = print(methodSpec, imports, false)
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
 
     val item = JavaCompletionItem()

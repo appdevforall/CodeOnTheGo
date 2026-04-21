@@ -24,7 +24,6 @@ import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.lsp.models.MatchLevel.NO_MATCH
-import com.itsaky.androidide.progress.ProgressManager.Companion.abortIfCancelled
 import jdkx.lang.model.element.ElementKind.METHOD
 import jdkx.lang.model.element.ExecutableElement
 import jdkx.lang.model.element.Modifier.STATIC
@@ -65,7 +64,6 @@ class MemberReferenceCompletionProvider(
     val isStatic = element is TypeElement
     val scope = trees.getScope(exprPath)
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
     return when (val type = trees.getTypeMirror(exprPath)) {
       is ArrayType -> completeArrayMemberReference(isStatic, partial)
@@ -79,7 +77,6 @@ class MemberReferenceCompletionProvider(
     isStatic: Boolean,
     partialName: CharSequence,
   ): CompletionResult {
-    abortIfCancelled()
     abortCompletionIfCancelled()
     return if (isStatic) {
       val list = mutableListOf<CompletionItem>()
@@ -97,7 +94,6 @@ class MemberReferenceCompletionProvider(
     isStatic: Boolean,
     partial: String,
   ): CompletionResult {
-    abortIfCancelled()
     abortCompletionIfCancelled()
     return when (type.upperBound) {
       is DeclaredType ->
@@ -127,7 +123,6 @@ class MemberReferenceCompletionProvider(
     isStatic: Boolean,
     partial: String,
   ): CompletionResult {
-    abortIfCancelled()
     abortCompletionIfCancelled()
     val trees = Trees.instance(task.task)
     val typeElement = type.asElement() as TypeElement
@@ -160,7 +155,6 @@ class MemberReferenceCompletionProvider(
       }
     }
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
     for ((key, value) in methods) {
       val matchLevel = matchLevels.getOrDefault(key, NO_MATCH)
