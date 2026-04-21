@@ -1,6 +1,9 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
+import com.itsaky.androidide.projects.FileManager
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFieldInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -45,9 +48,9 @@ import kotlin.io.path.pathString
 internal fun KtFile.toMetadata(project: Project, isIndexed: Boolean = false): KtFileMetadata =
 	project.read {
 		KtFileMetadata(
-			filePath = virtualFile.toNioPath().pathString,
+			filePath = (virtualFile.toNioPathOrNull() ?: backingFilePath)!!.pathString,
 			packageFqName = packageFqName.asString(),
-			lastModified = Instant.ofEpochMilli(virtualFile.timeStamp),
+			lastModified = (backingFilePath?.let { FileManager.getLastModified(it) }) ?: Instant.ofEpochMilli(virtualFile.timeStamp),
 			modificationStamp = modificationStamp,
 			isIndexed = isIndexed,
 			symbolKeys = emptyList()
