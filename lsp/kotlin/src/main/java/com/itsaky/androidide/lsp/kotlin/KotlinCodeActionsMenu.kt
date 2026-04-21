@@ -4,6 +4,7 @@ import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.lsp.actions.CommentLineAction
 import com.itsaky.androidide.lsp.actions.IActionsMenuProvider
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
+import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
 
 object KotlinCodeActionsMenu : IActionsMenuProvider {
 
@@ -14,6 +15,7 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 	override val actions: List<ActionItem> =
 		listOf(
 			CommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN),
-			UncommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN)
+			UncommentLineAction(KT_LANG, KT_EXTS, KT_LINE_COMMENT_TOKEN),
+			AddImportAction(),
 		)
 }
