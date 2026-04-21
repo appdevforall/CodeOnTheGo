@@ -21,9 +21,13 @@ import java.net.UnknownHostException
 import java.io.EOFException
 import java.io.File
 import com.blankj.utilcode.util.NetworkUtils
+import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.resources.R
 
-class CloneRepositoryViewModel(application: Application) : AndroidViewModel(application) {
+class CloneRepositoryViewModel(
+    application: Application,
+    private val credentialsManager: GitCredentialsManager
+) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow<CloneRepoUiState>(CloneRepoUiState.Idle())
     val uiState: StateFlow<CloneRepoUiState> = _uiState.asStateFlow()
@@ -182,6 +186,7 @@ class CloneRepositoryViewModel(application: Application) : AndroidViewModel(appl
                 _uiState.update {
                     CloneRepoUiState.Success(localPath = localPath)
                 }
+                credentialsManager.saveCredentialsIfNeeded(username, token)
             } catch (e: Exception) {
                 // Error handling
                 if (isCloneCancelled) {
