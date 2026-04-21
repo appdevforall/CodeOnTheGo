@@ -30,8 +30,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
-import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
-import com.itsaky.androidide.lsp.kotlin.completion.complete
+import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -100,8 +99,6 @@ class KotlinLanguageServer : ILanguageServer {
 		if (!EventBus.getDefault().isRegistered(this)) {
 			EventBus.getDefault().register(this)
 		}
-
-		KotlinSnippetRepository.init()
 	}
 
 	override fun shutdown() {
@@ -204,7 +201,8 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		logger.debug("complete(position={}, file={})", params.position, params.file)
-		return compiler?.compilationEnvironmentFor(params.file)?.complete(params)
+		return compiler?.compilationEnvironmentFor(params.file)
+			?.let { context(it) { codeComplete(params) } }
 			?: CompletionResult.EMPTY
 	}
 

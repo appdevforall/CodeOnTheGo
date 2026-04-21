@@ -21,6 +21,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.progress.ICancelChecker
+import com.itsaky.androidide.progress.ProgressManager
 import java.nio.file.Path
 
 /**
@@ -29,14 +30,15 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 abstract class BaseJavaServiceProvider(
-  protected val file: Path,
-  protected val compiler: JavaCompilerService,
-  protected val settings: IServerSettings
+	protected val file: Path,
+	protected val compiler: JavaCompilerService,
+	protected val settings: IServerSettings
 ) {
 
-  /** Abort the completion if cancelled. */
-  fun abortCompletionIfCancelled() {
-    val checker = Lookup.getDefault().lookup(ICancelChecker::class.java)
-    checker?.abortIfCancelled()
-  }
+	/** Abort the completion if cancelled. */
+	fun abortCompletionIfCancelled() {
+		ProgressManager.abortIfCancelled()
+		val checker = Lookup.getDefault().lookup(ICancelChecker::class.java)
+		checker?.abortIfCancelled()
+	}
 }
