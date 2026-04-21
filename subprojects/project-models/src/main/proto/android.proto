@@ -276,4 +276,8 @@ message AndroidProject {
 
   // The variant dependencies of this project.
   VariantDependencies variantDependencies = 10;
+
+  // The compiler settings for Kotlin sources.
+  optional KotlinCompilerSettings kotlinCompilerSettings = 11;
+
 }

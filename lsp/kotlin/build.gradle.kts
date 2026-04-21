@@ -26,19 +26,8 @@ plugins {
 android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
 
-	sourceSets {
-		named("main") {
-			resources.srcDir(
-				project(":lsp:kotlin-stdlib-generator")
-					.layout.buildDirectory.dir("generated-resources/stdlib")
-			)
-		}
-	}
-}
-
-afterEvaluate {
-	tasks.matching { it.name.startsWith("process") && it.name.endsWith("JavaRes") }.configureEach {
-		dependsOn(":lsp:kotlin-stdlib-generator:generateStdlibIndex")
+	kotlin.compilerOptions {
+		freeCompilerArgs.addAll("-Xcontext-parameters")
 	}
 }
 
@@ -51,16 +40,17 @@ kapt {
 dependencies {
 	kapt(projects.annotationProcessors)
 
-	implementation(projects.lsp.kotlinCore)
+	implementation(projects.actions)
 	implementation(projects.lsp.api)
+	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.lsp.models)
+	implementation(projects.editorApi)
 	implementation(projects.eventbusEvents)
 	implementation(projects.subprojects.kotlinAnalysisApi)
 	implementation(projects.shared)
 	implementation(projects.subprojects.projects)
 	implementation(projects.subprojects.projectModels)
 
-	implementation(libs.common.lsp4j)
 	implementation(libs.common.jsonrpc)
 	implementation(libs.common.kotlin)
 	implementation(libs.common.kotlin.coroutines.core)
@@ -69,4 +59,5 @@ dependencies {
 	compileOnly(projects.common)
 
 	testImplementation(projects.testing.lsp)
+	testImplementation(libs.tests.kotlinx.coroutines)
 }

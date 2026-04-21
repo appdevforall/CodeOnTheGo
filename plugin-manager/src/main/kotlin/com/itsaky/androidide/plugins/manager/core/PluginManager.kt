@@ -18,6 +18,10 @@ import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
+import com.itsaky.androidide.plugins.extensions.SnippetExtension
+import com.itsaky.androidide.plugins.manager.services.IdeSnippetServiceImpl
+import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
+import com.itsaky.androidide.plugins.services.IdeSnippetService
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
@@ -113,10 +117,15 @@ class PluginManager private constructor(
     private val pluginsDir = File(context.filesDir, "plugins")
     private val documentationManager = PluginDocumentationManager(context)
     private var templateReloadListener: (() -> Unit)? = null
+    private var snippetRefreshListener: ((String) -> Unit)? = null
 
     fun setTemplateReloadListener(listener: (() -> Unit)?) {
         this.templateReloadListener = listener
         PluginProjectManager.getInstance().setTemplateReloadListener(listener)
+    }
+
+    fun setSnippetRefreshListener(listener: ((String) -> Unit)?) {
+        this.snippetRefreshListener = listener
     }
 
     // Helper methods for cleaner error handling
@@ -216,18 +225,27 @@ class PluginManager private constructor(
         verifyDocumentationForLoadedPlugins()
     }
 
-    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> {
-        if (!pluginFile.exists()) {
-            return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
-        }
-        if (!pluginFile.canRead()) {
-            return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
-        }
-        val pluginLoader = PluginLoader(context, pluginFile)
-        val manifest = pluginLoader.getPluginMetadata()
+    private fun loadAndValidate(pluginFile: File): Result<Pair<PluginManifest, PluginLoader>> {
+        if (!pluginFile.exists()) return Result.failure(IllegalArgumentException("Plugin file does not exist: ${pluginFile.absolutePath}"))
+        if (!pluginFile.canRead()) return Result.failure(IllegalArgumentException("Cannot read plugin file: ${pluginFile.absolutePath}"))
+        val loader = PluginLoader(context, pluginFile)
+        val manifest = loader.getPluginMetadata()
             ?: return Result.failure(IllegalArgumentException("Plugin manifest not found in: ${pluginFile.name}"))
-        return Result.success(manifest)
+        return Result.success(manifest to loader)
     }
+
+    fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> =
+        loadAndValidate(pluginFile).map { it.first }
+
+    fun getPluginValidation(pluginFile: File): Result<PluginValidation> =
+        loadAndValidate(pluginFile).map { (manifest, loader) ->
+            PluginValidation(
+                manifest = manifest,
+                isDebug = loader.isDebuggable(),
+                iconDayEntryExists = manifest.iconDay?.let(loader::hasEntry) ?: false,
+                iconNightEntryExists = manifest.iconNight?.let(loader::hasEntry) ?: false
+            )
+        }
 
     /**
      * Load plugin and return both the plugin instance and its metadata
@@ -336,6 +354,13 @@ class PluginManager private constructor(
                 null
             }
 
+            val (iconDayPath, iconNightPath) = try {
+                pluginLoader.extractPluginIcons(manifest.id, manifest)
+            } catch (e: Exception) {
+                logger.warn("Failed to extract icons for plugin: ${manifest.id}", e)
+                null to null
+            }
+
             if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
                 File(nativeLibPath).deleteRecursively()
                 if (manifest.sidebarItems > 0) {
@@ -401,14 +426,21 @@ class PluginManager private constructor(
                 logger.debug("Registered service registry for plugin: ${manifest.id}")
 
                 val isEnabled = getPluginState(manifest.id)
-                val loadedPlugin = LoadedPlugin(plugin, manifest, classLoader, pluginContext, isEnabled)
+                val loadedPlugin = LoadedPlugin(
+                    plugin, manifest, classLoader, pluginContext, isEnabled,
+                    iconDayPath = iconDayPath,
+                    iconNightPath = iconNightPath
+                )
                 loadedPlugins[manifest.id] = loadedPlugin
                 if (isEnabled) {
                     try {
+                        if (plugin is SnippetExtension) {
+                            PluginSnippetManager.getInstance().registerPlugin(manifest.id, plugin)
+                        }
+
                         plugin.activate()
                         logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
 
-                        // Verify and install/recreate documentation if plugin implements DocumentationExtension
                         if (plugin is DocumentationExtension) {
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
@@ -478,6 +510,8 @@ class PluginManager private constructor(
             }
 
             PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+            PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
+            snippetRefreshListener?.invoke(pluginId)
 
             PluginBuildActionManager.getInstance().cleanupPlugin(pluginId)
             val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
@@ -962,6 +996,19 @@ class PluginManager private constructor(
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
+            IdeSnippetService::class.java,
+            pluginId,
+            "snippet"
+        ) {
+            IdeSnippetServiceImpl().apply {
+                setRefreshCallback { pid ->
+                    snippetRefreshListener?.invoke(pid)
+                }
+            }
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
             IdeCommandService::class.java,
             pluginId,
             "command"
@@ -985,6 +1032,151 @@ class PluginManager private constructor(
         )
     }
 
+    private fun createPluginContext(
+        pluginId: String,
+        classLoader: ClassLoader,
+        permissions: Set<PluginPermission>
+    ): PluginContext {
+        val pluginServiceRegistry = ServiceRegistryImpl()
+
+        logger.debug("Creating IDE services for plugin: $pluginId")
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeProjectService::class.java,
+            pluginId,
+            "project"
+        ) {
+            IdeProjectServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                projectProvider = projectProvider,
+                requiredPermissions = projectServicePermissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeProjectServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeUIService::class.java,
+            pluginId,
+            "UI"
+        ) {
+            IdeUIServiceImpl(activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeBuildService::class.java,
+            pluginId,
+            "build"
+        ) {
+            IdeBuildServiceImpl.getInstance()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTooltipService::class.java,
+            pluginId,
+            "tooltip"
+        ) {
+            IdeTooltipServiceImpl(context, pluginId, activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeEditorTabService::class.java,
+            pluginId,
+            "editor_tab"
+        ) {
+            IdeEditorTabServiceImpl(activityProvider)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFileService::class.java,
+            pluginId,
+            "file"
+        ) {
+            IdeFileServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeFileServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSidebarService::class.java,
+            pluginId,
+            "sidebar"
+        ) {
+            IdeSidebarServiceImpl(pluginId)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeThemeService::class.java,
+            pluginId,
+            "theme"
+        ) {
+            IdeThemeServiceImpl(context)
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFeatureFlagService::class.java,
+            pluginId,
+            "feature_flag"
+        ) {
+            IdeFeatureFlagServiceImpl()
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeTemplateService::class.java,
+            pluginId,
+            "template"
+        ) {
+            IdeTemplateServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                onTemplatesChanged = { templateReloadListener?.invoke() }
+            )
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeSnippetService::class.java,
+            pluginId,
+            "snippet"
+        ) {
+            IdeSnippetServiceImpl().apply {
+                setRefreshCallback { pid ->
+                    snippetRefreshListener?.invoke(pid)
+                }
+            }
+        }
+
+        return PluginContextImpl(
+            androidContext = context,
+            services = pluginServiceRegistry,
+            eventBus = eventBus,
+            logger = PluginLoggerImpl(pluginId, logger),
+            resources = ResourceManagerImpl(pluginId, pluginsDir, classLoader),
+            pluginId = pluginId
+        )
+    }
 
     /**
      * Clean up ALL plugin files and cache directories
@@ -1000,6 +1192,10 @@ class PluginManager private constructor(
             }
 
             File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
+                if (dir.exists()) dir.deleteRecursively()
+            }
+
+            File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId).let { dir ->
                 if (dir.exists()) dir.deleteRecursively()
             }
 
@@ -1063,10 +1259,19 @@ class PluginManager private constructor(
 
 }
 
+data class PluginValidation(
+    val manifest: PluginManifest,
+    val isDebug: Boolean,
+    val iconDayEntryExists: Boolean,
+    val iconNightEntryExists: Boolean
+)
+
 data class LoadedPlugin(
     val plugin: IPlugin,
     val manifest: PluginManifest,
     val classLoader: ClassLoader,
     val context: PluginContext,
-    var isEnabled: Boolean = true
+    var isEnabled: Boolean = true,
+    val iconDayPath: String? = null,
+    val iconNightPath: String? = null
 )

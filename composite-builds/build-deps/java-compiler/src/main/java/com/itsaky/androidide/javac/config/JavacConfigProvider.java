@@ -49,7 +49,11 @@ public class JavacConfigProvider {
      */
     public static String getJavaHome() {
         String javaHome = System.getProperty(PROP_ANDROIDIDE_JAVA_HOME);
-        if (javaHome == null || javaHome.trim().length() == 0) {
+        if (javaHome == null || javaHome.trim().isEmpty()) {
+			System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!");
+			System.err.println(PROP_ANDROIDIDE_JAVA_HOME + " is not set. Falling back to java.home!");
+			System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!");
+
             javaHome = System.getProperty("java.home");
         }
         return javaHome;

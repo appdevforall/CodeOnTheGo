@@ -22,24 +22,29 @@ import com.itsaky.androidide.lsp.models.TextEdit
 import io.github.rosemoe.sora.widget.CodeEditor
 
 /** @author Akash Yadav */
-class RewriteHelper {
-  companion object {
-    @UiThread
-    @JvmStatic
-    fun performEdits(edits: List<TextEdit>, editor: CodeEditor) {
-      if (edits.isEmpty()) {
-        return
-      }
+object RewriteHelper {
+	@UiThread
+	@JvmStatic
+	fun performEdits(edits: List<TextEdit>, editor: CodeEditor) {
+		if (edits.isEmpty()) {
+			return
+		}
 
-      edits.forEach {
-        val s = it.range.start
-        val e = it.range.end
-        if (s == e) {
-          editor.text.insert(s.line, s.column, it.newText)
-        } else {
-          editor.text.replace(s.line, s.column, e.line, e.column, it.newText)
-        }
-      }
-    }
-  }
+		edits.forEach {
+			val s = it.range.start
+			val e = it.range.end
+			editor.text.apply {
+				if (s == e) {
+					val line = s.line
+					var column = s.column
+					if (column > getColumnCount(line)) {
+						column = getColumnCount(line)
+					}
+					editor.text.insert(line, column, it.newText)
+				} else {
+					editor.text.replace(s.line, s.column, e.line, e.column, it.newText)
+				}
+			}
+		}
+	}
 }

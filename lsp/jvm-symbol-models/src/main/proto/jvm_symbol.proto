@@ -1,0 +1,219 @@
+syntax = "proto3";
+
+package org.appdevforall.codeonthego.indexing.jvm;
+
+option java_package = "org.appdevforall.codeonthego.indexing.jvm.proto";
+option java_outer_classname = "JvmSymbolProtos";
+option java_multiple_files = false;
+
+message JvmSymbolData {
+
+  string name = 1;
+  string short_name = 2;
+  string package_name = 3;
+  string source_id = 4;
+
+  JvmSymbolKind kind = 5;
+  JvmSourceLanguage language = 6;
+  JvmVisibility visibility = 7;
+  bool is_deprecated = 8;
+
+  oneof data {
+    ClassData class_data = 20;
+    FunctionData function_data = 21;
+    FieldData field_data = 22;
+    EnumEntryData enum_entry_data = 23;
+    TypeAliasData type_alias_data = 24;
+  }
+}
+
+message ClassData {
+
+  // FQN of the enclosing class (empty for top-level classes)
+  string containing_class_name = 1;
+
+  // Direct supertypes
+  repeated string supertype_names = 2;
+
+  // Type parameters: ["T", "R : Comparable<R>"]
+  repeated string type_parameters = 3;
+
+  // Modifiers
+  bool is_abstract = 4;
+  bool is_final = 5;
+  bool is_inner = 6;
+  bool is_static = 7;  // static nested class in Java
+
+  KotlinClassData kotlin = 10;
+}
+
+message KotlinClassData {
+  bool is_data = 1;
+  bool is_value = 2;     // inline/value class
+  bool is_sealed = 3;
+  bool is_fun_interface = 4;
+  bool is_expect = 5;
+  bool is_actual = 6;
+  bool is_external = 7;
+
+  // Sealed subclass FQNs (only for sealed classes/interfaces)
+  repeated string sealed_subclasses = 8;
+
+  // Companion object name (empty if none or uses default "Companion")
+  string companion_object_name = 9;
+}
+
+message FunctionData {
+
+  // FQN of the containing class (empty for top-level functions)
+  string containing_class_name = 1;
+
+  // Return type
+  string return_type_name = 2;
+  string return_type_display_name = 3;
+
+  // Parameters
+  int32 parameter_count = 4;
+  repeated ParameterData parameters = 5;
+
+  // Human-readable signature: "(count: Int, sep: String): String"
+  string signature_display = 6;
+
+  // Type parameters: ["T", "R : Comparable<R>"]
+  repeated string type_parameters = 7;
+
+  // Modifiers
+  bool is_static = 8;
+  bool is_abstract = 9;
+  bool is_final = 10;
+
+  KotlinFunctionData kotlin = 20;
+}
+
+message ParameterData {
+  string name = 1;
+  string type_name = 2;
+  string type_display_name = 3;
+  bool has_default_value = 4;
+
+  bool is_crossinline = 5;
+  bool is_noinline = 6;
+  bool is_vararg = 7;
+}
+
+message KotlinFunctionData {
+  // Extension receiver type
+  string receiver_type_name = 1;
+  string receiver_type_display_name = 2;
+
+  // Modifiers
+  bool is_suspend = 3;
+  bool is_inline = 4;
+  bool is_infix = 5;
+  bool is_operator = 6;
+  bool is_tailrec = 7;
+  bool is_external = 8;
+  bool is_expect = 9;
+  bool is_actual = 10;
+
+  bool is_return_type_nullable = 11;
+}
+
+message FieldData {
+
+  // FQN of the containing class (empty for top-level properties)
+  string containing_class_name = 1;
+
+  // Type of the field/property
+  string type_name = 2;
+  string type_display_name = 3;
+
+  // Modifiers
+  bool is_static = 4;
+  bool is_final = 5;
+
+  // Constant value (for compile-time constants, as string repr)
+  string constant_value = 6;
+
+  KotlinPropertyData kotlin = 20;
+}
+
+message KotlinPropertyData {
+  // Extension receiver type
+  string receiver_type_name = 1;
+  string receiver_type_display_name = 2;
+
+  bool is_const = 3;
+  bool is_lateinit = 4;
+  bool has_getter = 5;
+  bool has_setter = 6;
+  bool is_delegated = 7;
+  bool is_expect = 8;
+  bool is_actual = 9;
+  bool is_external = 10;
+
+  bool is_type_nullable = 11;
+}
+
+message EnumEntryData {
+  // FQN of the containing enum class
+  string containing_enum_name = 1;
+
+  // Ordinal position
+  int32 ordinal = 2;
+}
+
+message TypeAliasData {
+  // The type this alias expands to
+  string expanded_type_name = 1;
+  string expanded_type_display_name = 2;
+
+  // Type parameters: ["T"]
+  repeated string type_parameters = 3;
+}
+
+enum JvmSymbolKind {
+  KIND_UNKNOWN = 0;
+  KIND_CLASS = 1;
+  KIND_INTERFACE = 2;
+  KIND_ENUM = 3;
+  KIND_ENUM_ENTRY = 4;
+  KIND_ANNOTATION_CLASS = 5;
+  KIND_OBJECT = 6;
+  KIND_COMPANION_OBJECT = 7;
+  KIND_DATA_CLASS = 8;
+  KIND_VALUE_CLASS = 9;
+  KIND_SEALED_CLASS = 10;
+  KIND_SEALED_INTERFACE = 11;
+  KIND_FUNCTION = 12;
+  KIND_EXTENSION_FUNCTION = 13;
+  KIND_CONSTRUCTOR = 14;
+  KIND_PROPERTY = 15;
+  KIND_EXTENSION_PROPERTY = 16;
+  KIND_FIELD = 17;
+  KIND_TYPE_ALIAS = 18;
+}
+
+enum JvmSourceLanguage {
+  LANGUAGE_UNKNOWN = 0;
+  LANGUAGE_JAVA = 1;
+  LANGUAGE_KOTLIN = 2;
+}
+
+enum JvmVisibility {
+  VISIBILITY_UNKNOWN = 0;
+  VISIBILITY_PUBLIC = 1;
+  VISIBILITY_PROTECTED = 2;
+  VISIBILITY_INTERNAL = 3;
+  VISIBILITY_PRIVATE = 4;
+  VISIBILITY_PACKAGE_PRIVATE = 5;
+}
+
+message KtFileData {
+  string path = 1;
+  string packageFqName = 2;
+  int64 lastModified = 3;
+  int64 modificationStamp = 4;
+  bool indexed = 5;
+  repeated string symbolKeys = 6;
+}
