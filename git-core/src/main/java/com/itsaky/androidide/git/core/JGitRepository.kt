@@ -67,23 +67,36 @@ class JGitRepository(override val rootDir: File) : GitRepository {
         val unstaged = mutableListOf<FileChange>()
         val untracked = mutableListOf<FileChange>()
         val conflicted = mutableListOf<FileChange>()
+ 
+        // Track unique paths to avoid duplicates across categories
+        // Priority: Conflicted > Staged > Unstaged > Untracked
+        val processedPaths = mutableSetOf<String>()
 
-        jgitStatus.added.forEach { staged.add(FileChange(it, ChangeType.ADDED)) }
-        jgitStatus.changed.forEach { staged.add(FileChange(it, ChangeType.MODIFIED)) }
-        jgitStatus.removed.forEach { staged.add(FileChange(it, ChangeType.DELETED)) }
+        // 1. Conflicted (Highest Priority)
+        jgitStatus.conflicting.forEach {
+            if (processedPaths.add(it)) {
+                conflicted.add(FileChange(it, ChangeType.CONFLICTED))
+            }
+        }
 
-        jgitStatus.modified.forEach { unstaged.add(FileChange(it, ChangeType.MODIFIED)) }
-        jgitStatus.missing.forEach { unstaged.add(FileChange(it, ChangeType.DELETED)) }
+        // 2. Staged files (Added, Changed, Removed)
+        jgitStatus.added.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.ADDED)) }
+        jgitStatus.changed.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.MODIFIED)) }
+        jgitStatus.removed.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.DELETED)) }
+
+        // 3. Unstaged files (Modified, Missing)
+        jgitStatus.modified.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.MODIFIED)) }
+        jgitStatus.missing.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.DELETED)) }
         
-        jgitStatus.untracked.forEach { untracked.add(FileChange(it, ChangeType.UNTRACKED)) }
+        // 4. Untracked files
+        jgitStatus.untracked.forEach { if (processedPaths.add(it)) untracked.add(FileChange(it, ChangeType.UNTRACKED)) }
         
-        jgitStatus.conflicting.forEach { conflicted.add(FileChange(it, ChangeType.CONFLICTED)) }
 
         val isMerging = repository.repositoryState == RepositoryState.MERGING
 
         GitStatus(
             isClean = jgitStatus.isClean,
-            hasConflicts = jgitStatus.conflicting.isNotEmpty(),
+            hasConflicts = conflicted.isNotEmpty(),
             isMerging = isMerging,
             staged = staged,
             unstaged = unstaged,
