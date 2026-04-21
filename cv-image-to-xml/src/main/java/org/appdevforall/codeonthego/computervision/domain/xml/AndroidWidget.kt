@@ -114,8 +114,6 @@ class ImageWidget(
     override val tag = "ImageView"
     override fun specificAttributes(): Map<String, String> = mapOf(
         "android:contentDescription" to (parsedAttrs["android:contentDescription"] ?: box.label),
-        "android:scaleType" to (parsedAttrs["android:scaleType"] ?: "centerCrop"),
-        "android:background" to (parsedAttrs["android:background"] ?: "#E0E0E0")
     )
 }
 
