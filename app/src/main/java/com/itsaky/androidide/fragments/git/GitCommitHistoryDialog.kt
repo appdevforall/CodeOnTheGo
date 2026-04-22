@@ -1,16 +1,13 @@
 package com.itsaky.androidide.fragments.git
 
 import android.os.Bundle
-import android.view.GestureDetector
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
@@ -60,10 +57,10 @@ class GitCommitHistoryDialog : DialogFragment() {
             linearLayoutManager.orientation
         )
 
-        binding.root.applyLongPressRecursively(listOf(binding.btnPush)) {
+        binding.root.applyLongPressRecursively(listOf(binding.btnPush, binding.rvCommitHistory)) { view ->
             TooltipManager.showIdeCategoryTooltip(
-                context = binding.root.context,
-                anchorView = binding.root,
+                context = view.context,
+                anchorView = view,
                 tag = TooltipTag.GIT_COMMIT_HISTORY
             )
             true
@@ -129,10 +126,10 @@ class GitCommitHistoryDialog : DialogFragment() {
                     showCredentialsDialog()
                 }
             }
-            setOnLongClickListener {
+            setOnLongClickListener { view ->
                 TooltipManager.showIdeCategoryTooltip(
-                    context = binding.root.context,
-                    anchorView = binding.root,
+                    context = view.context,
+                    anchorView = view,
                     tag = TooltipTag.GIT_PUSH
                 )
                 true

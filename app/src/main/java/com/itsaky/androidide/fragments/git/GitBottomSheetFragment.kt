@@ -79,19 +79,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             onSelectionChanged = {
                 validateCommitButton()
             },
-            onFileLongClicked = {
-                TooltipManager.showIdeCategoryTooltip(
-                    context = requireContext(),
-                    anchorView = binding.recyclerView,
-                    tag = TooltipTag.PROJECT_GIT_FILES,
-                )
-            }
         )
 
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerView.adapter = fileChangeAdapter
-
-        binding.recyclerView.onLongPress { e ->
+        binding.recyclerView.onLongPress { _ ->
             TooltipManager.showIdeCategoryTooltip(
                 context = requireContext(),
                 anchorView = binding.recyclerView,
@@ -388,10 +380,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     }
 
     fun AlertDialog.setTooltipOnDialog(tag: String) {
-        onLongPress {
+        onLongPress { view ->
             TooltipManager.showIdeCategoryTooltip(
-                context = binding.root.context,
-                anchorView = binding.root,
+                context = view.context,
+                anchorView = view,
                 tag = tag
             )
             true
@@ -399,10 +391,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     }
 
     fun View.setTooltipOnView(tag: String) {
-        setOnLongClickListener {
+        setOnLongClickListener { view ->
             TooltipManager.showIdeCategoryTooltip(
-                context = binding.root.context,
-                anchorView = binding.root,
+                context = view.context,
+                anchorView = view,
                 tag = tag
             )
             true
