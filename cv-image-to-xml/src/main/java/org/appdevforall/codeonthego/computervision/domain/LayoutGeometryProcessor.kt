@@ -4,6 +4,7 @@ import android.graphics.Rect
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.appdevforall.codeonthego.computervision.domain.model.LayoutItem
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -17,6 +18,14 @@ class LayoutGeometryProcessor {
 
     private fun isRadioButton(box: ScaledBox): Boolean =
         box.label == "radio_button_unchecked" || box.label == "radio_button_checked"
+
+    private fun isLabelableWidget(box: ScaledBox): Boolean {
+        return box.label in setOf(
+            "radio_button_unchecked", "radio_button_checked",
+            "checkbox_unchecked", "checkbox_checked",
+            "switch_on", "switch_off"
+        )
+    }
 
     private class LayoutRow(initialBox: ScaledBox) {
         private val _boxes = mutableListOf(initialBox)
@@ -40,7 +49,7 @@ class LayoutGeometryProcessor {
             val verticalOverlap = minOf(box.y + box.h, bottom) - maxOf(box.y, top)
             val minHeight = minOf(box.h, height).coerceAtLeast(1)
             val overlapRatio = verticalOverlap.toFloat() / minHeight.toFloat()
-            val centerDelta = kotlin.math.abs(box.centerY - centerY)
+            val centerDelta = abs(box.centerY - centerY)
             val centerThreshold = max(VERTICAL_ALIGN_THRESHOLD, minHeight / 2)
 
             return overlapRatio >= OVERLAP_THRESHOLD || centerDelta <= centerThreshold
@@ -121,31 +130,6 @@ class LayoutGeometryProcessor {
         )
     }
 
-    private fun mergeRadioLabels(row: List<ScaledBox>): List<ScaledBox> {
-        val merged = mutableListOf<ScaledBox>()
-        var i = 0
-
-        while (i < row.size) {
-            val current = row[i]
-
-            if (isRadioButton(current) && i + 1 < row.size && row[i + 1].label == "text") {
-                val nextText = row[i + 1]
-                merged.add(current.copy(text = nextText.text))
-                i += 2
-            }
-            else if (current.label == "text" && i + 1 < row.size && isRadioButton(row[i + 1])) {
-                val nextRadio = row[i + 1]
-                merged.add(nextRadio.copy(text = current.text))
-                i += 2
-            }
-            else {
-                merged.add(current)
-                i++
-            }
-        }
-        return merged
-    }
-
     internal fun buildLayoutTree(boxes: List<ScaledBox>): List<LayoutItem> {
         val rows = groupIntoRows(boxes)
         val items = mutableListOf<LayoutItem>()
@@ -158,8 +142,7 @@ class LayoutGeometryProcessor {
             }
         }
 
-        rows.forEach { rawRow ->
-            val row = mergeRadioLabels(rawRow)
+        rows.forEach { row ->
             when {
                 row.all { isRadioButton(it) } && row.size == 1 -> verticalRadioRun.add(row.first())
                 row.all { isRadioButton(it) } -> {
@@ -179,5 +162,42 @@ class LayoutGeometryProcessor {
         flushVerticalRadioRun()
 
         return items
+    }
+
+    internal fun assignNearbyTextToWidgets(boxes: List<ScaledBox>, availableTexts: List<ScaledBox>): List<ScaledBox> {
+        val consumedTexts = mutableSetOf<ScaledBox>()
+        val updatedWidgets = mutableMapOf<ScaledBox, ScaledBox>()
+
+        val labelableWidgets = boxes.filter { isLabelableWidget(it) }
+
+        for (widget in labelableWidgets) {
+            val nearbyText = availableTexts
+                .asSequence()
+                .filter { !consumedTexts.contains(it) }
+                .filter { text ->
+                    val dx = maxOf(0, widget.rect.left - text.rect.right, text.rect.left - widget.rect.right)
+                    val dy = maxOf(0, widget.rect.top - text.rect.bottom, text.rect.top - widget.rect.bottom)
+
+                    dx < widget.w * 2 && dy < widget.h * 2
+                }
+                .minByOrNull { text ->
+                    val dx = maxOf(0, widget.rect.left - text.rect.right, text.rect.left - widget.rect.right).toDouble()
+                    val dy = maxOf(0, widget.rect.top - text.rect.bottom, text.rect.top - widget.rect.bottom).toDouble()
+                    (dx * dx) + (dy * dy)
+                }
+
+            if (nearbyText != null) {
+                updatedWidgets[widget] = widget.copy(text = nearbyText.text)
+                consumedTexts.add(nearbyText)
+            }
+        }
+
+        return boxes.mapNotNull { box ->
+            when {
+                consumedTexts.contains(box) -> null
+                updatedWidgets.containsKey(box) -> updatedWidgets[box]
+                else -> box
+            }
+        }
     }
 }
