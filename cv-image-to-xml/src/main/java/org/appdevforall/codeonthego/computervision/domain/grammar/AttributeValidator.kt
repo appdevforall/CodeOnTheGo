@@ -60,7 +60,18 @@ object EntriesValidator : AttributeValidator {
         val hasBrackets = isEnclosedInBrackets(trimmed)
         val content = trimmed.removeSurrounding("[", "]")
 
-        val cleanedItems = content.split(",").map { processItem(it) }
+        val rawItems = content.split(",")
+
+        val isNumericArray = isEntireArrayLikelyNumeric(rawItems)
+
+        val cleanedItems = rawItems.map { item ->
+            val cleanItem = item.trim()
+            if (isNumericArray) {
+                cleanNumberArtifacts(cleanItem)
+            } else {
+                cleanTextArtifacts(cleanItem)
+            }
+        }
 
         val finalString = cleanedItems.joinToString(", ")
         return if (hasBrackets) "[$finalString]" else finalString
@@ -70,20 +81,23 @@ object EntriesValidator : AttributeValidator {
         return text.startsWith("[") && text.endsWith("]")
     }
 
-    private fun processItem(item: String): String {
-        val cleanItem = item.trim()
-        return if (isOcrGarbledNumber(cleanItem)) {
-            cleanNumberArtifacts(cleanItem)
-        } else {
-            cleanTextArtifacts(cleanItem)
+    private fun isEntireArrayLikelyNumeric(items: List<String>): Boolean {
+        if (items.isEmpty()) return false
+        var hasAtLeastOneDigit = false
+
+        for (item in items) {
+            val cleanItem = item.trim()
+            if (cleanItem.isEmpty()) continue
+
+            if (!cleanItem.matches(Regex("^[0-9oOlIzZsSbB\\s]+$"))) {
+                return false
+            }
+            if (cleanItem.any { it.isDigit() }) {
+                hasAtLeastOneDigit = true
+            }
         }
-    }
 
-    private fun isOcrGarbledNumber(text: String): Boolean {
-        val hasDigit = text.any { it.isDigit() }
-        val onlyContainsNumbersAndCommonOcrNoise = text.matches(Regex("^[0-9oOlIzZsSbB\\s]+$"))
-
-        return hasDigit && onlyContainsNumbersAndCommonOcrNoise
+        return hasAtLeastOneDigit
     }
 
     private fun cleanNumberArtifacts(text: String): String {
@@ -93,7 +107,7 @@ object EntriesValidator : AttributeValidator {
             .replace(Regex("[zZ]"), "2")
             .replace(Regex("[sS]"), "5")
             .replace(Regex("[bB]"), "6")
-            .replace(" ", "")
+            .replace(Regex("\\s+"), "")
     }
 
     private fun cleanTextArtifacts(text: String): String {
