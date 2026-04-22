@@ -26,8 +26,8 @@ object FuzzyAttributeParser {
         TEXT("android:text", listOf("text")),
         HINT("android:hint", listOf("hint")),
         BACKGROUND("android:background", listOf("background", "bg"), ValueType.COLOR),
-        BACKGROUND_TINT("app:backgroundTint", listOf("backgroundtint", "background_tint"), ValueType.COLOR),
-        SRC("android:src", listOf("src", "scr"), ValueType.DRAWABLE),
+        BACKGROUND_TINT("app:backgroundTint", listOf("backgroundtint", "background_tint", "bg_tint"), ValueType.COLOR),
+        SRC("android:src", listOf("src", "scr", "sre", "5rc"), ValueType.DRAWABLE),
         CONTENT_DESCRIPTION("android:contentDescription", listOf("contentdescription", "content_description")),
 
         TEXT_SIZE("android:textSize", listOf("textsize", "text_size"), ValueType.SP_DIMENSION),
@@ -74,7 +74,7 @@ object FuzzyAttributeParser {
         LAYOUT_MARGIN_RIGHT("android:layout_marginRight", listOf("layout_marginright", "layout_margin_right", "margin_right"), ValueType.DIMENSION),
 
         LAYOUT_WEIGHT("android:layout_weight", listOf("layout_weight", "weight"), ValueType.FLOAT),
-        LAYOUT_GRAVITY("android:layout_gravity", listOf("layout_gravity")),
+        LAYOUT_GRAVITY("android:layout_gravity", listOf("layout_gravity", "layaut_gravity")),
         GRAVITY("android:gravity", listOf("gravity")),
         ORIENTATION("android:orientation", listOf("orientation")),
 
@@ -150,6 +150,7 @@ object FuzzyAttributeParser {
     private val ocrLetterZToTwoRegex = Regex("[zZ]")
     private val ocrLetterSToFiveRegex = Regex("[sS]")
     private val ocrLetterBToSixRegex = Regex("[bB]")
+    private val ocrDenoiseRegex = Regex("inm|rn|wm|nm")
 
     private val matchKeywords = setOf("match", "parent")
     private val wrapKeywords = setOf("wrap", "content", "wrapcan")
@@ -419,7 +420,7 @@ object FuzzyAttributeParser {
             .replace(Regex("op$"), "dp")
             .replace(Regex("olp$"), "dp")
 
-        val numericString = fixedUnit.replace(Regex("[a-z]+$"), "")
+        val numericString = fixedUnit.replace("_", "")
         val numericPart = extractOcrNumber(numericString)
 
         if (numericPart != null) return "${numericPart}dp"
@@ -432,7 +433,7 @@ object FuzzyAttributeParser {
             .replace(" ", "")
             .replace(Regex("5p$"), "sp")
 
-        val numericString = fixedUnit.replace(Regex("[a-z]+$"), "")
+        val numericString = fixedUnit.replace("_", "")
         val numericPart = extractOcrNumber(numericString)
 
         if (numericPart != null) return "${numericPart}sp"
@@ -457,22 +458,30 @@ object FuzzyAttributeParser {
     }
 
     private fun cleanId(value: String): String {
-        return value.lowercase()
+        return denoiseOcrIdentifier(value.lowercase())
             .replace(nonAlphanumericRegex, "_")
             .replace(multipleUnderscoresRegex, "_")
             .trimEnd('_')
             .trimStart('_')
     }
 
-    private fun denoiseOcrIdentifier(value: String): String =
-        value.replace("rn", "m")
-            .replace("wm", "m")
+    private fun denoiseOcrIdentifier(value: String): String {
+        return value.replace(ocrDenoiseRegex) { matchResult ->
+            when (matchResult.value) {
+                "inm" -> "im"
+                else -> "m"
+            }
+        }
+    }
 
     private fun cleanDrawable(value: String): String {
         if (value.startsWith("@drawable/")) return value
-        val cleaned = value.replace(Regex("[^a-zA-Z0-9_.]"), "")
-            .substringBeforeLast('.')
-            .lowercase()
+
+        var cleaned = value.lowercase()
+            .replace(Regex("\\.(png|jpg|jpeg|webp|xml|svg)$"), "")
+
+        cleaned = cleaned.replace(Regex("[^a-z0-9_]"), "")
+
         return "@drawable/${denoiseOcrIdentifier(cleaned)}"
     }
 
