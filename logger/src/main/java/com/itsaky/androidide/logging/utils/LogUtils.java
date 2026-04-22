@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 public class LogUtils {
 
     public static final int MAX_TAG_LENGTH = 23;
-    public static final String PATTERN_LAYOUT_MESSAGE_PATTERN = "%msg%n";
+    public static final String PATTERN_LAYOUT_MESSAGE_PATTERN = "[%thread] %msg%n";
 
     public static boolean isJvm() {
         try {

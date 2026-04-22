@@ -22,7 +22,6 @@ import com.itsaky.androidide.lsp.java.compiler.CompileTask
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.models.CompletionResult
-import com.itsaky.androidide.progress.ProgressManager.Companion.abortIfCancelled
 import openjdk.source.util.TreePath
 import java.nio.file.Path
 
@@ -42,7 +41,6 @@ class IdentifierCompletionProvider(
   ): CompletionResult {
     val list = mutableListOf<CompletionItem>()
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
 
     val snippets =
@@ -55,7 +53,6 @@ class IdentifierCompletionProvider(
         .complete(task, path, partial, endsWithParen)
     list.addAll(scopeMembers.items)
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
     val staticImports =
       StaticImportCompletionProvider(file, cursor, compiler, settings, path.compilationUnit)
@@ -65,7 +62,6 @@ class IdentifierCompletionProvider(
     if (CompletionResult.TRIM_TO_MAX && list.size < CompletionResult.MAX_ITEMS) {
       val allLower: Boolean = settings.shouldMatchAllLowerCase()
       if (allLower || partial.isNotEmpty() && Character.isUpperCase(partial[0])) {
-        abortIfCancelled()
         abortCompletionIfCancelled()
         val classNames =
           ClassNamesCompletionProvider(file, cursor, compiler, settings, path.compilationUnit)
@@ -74,7 +70,6 @@ class IdentifierCompletionProvider(
       }
     }
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
     val keywords =
       KeywordCompletionProvider(file, cursor, compiler, settings)

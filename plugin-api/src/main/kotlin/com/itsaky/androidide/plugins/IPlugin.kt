@@ -20,7 +20,9 @@ data class PluginMetadata(
     val author: String,
     val minIdeVersion: String,
     val permissions: List<String> = emptyList(),
-    val dependencies: List<String> = emptyList()
+    val dependencies: List<String> = emptyList(),
+    val iconDayPath: String? = null,
+    val iconNightPath: String? = null
 ) : Parcelable
 
 enum class PluginPermission(val key: String, val description: String) {

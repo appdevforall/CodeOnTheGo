@@ -10,6 +10,8 @@ android {
 }
 
 dependencies {
+	compileOnly(libs.composite.javac)
+
 	api(platform(libs.sora.bom))
 	api(libs.common.editor)
 	api(libs.common.lang3)
@@ -26,6 +28,7 @@ dependencies {
 
 	api(libs.androidx.core.ktx)
 	api(libs.common.kotlin)
+	api(libs.kotlinx.coroutines.core)
 
 	api(projects.buildInfo)
 	api(projects.eventbusAndroid)

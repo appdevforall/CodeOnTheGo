@@ -36,6 +36,9 @@ import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import android.content.ClipData
+import android.content.ClipboardManager
+import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -229,10 +232,20 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     private fun handleUiEffect(effect: PluginManagerUiEffect) {
         when (effect) {
             is PluginManagerUiEffect.ShowError -> {
-                flashbarBuilder(duration = 5000L)
+                val errorMessage = getString(effect.messageResId, *effect.formatArgs.toTypedArray())
+                val builder = flashbarBuilder(duration = if (effect.formatArgs.isEmpty()) 5000L else DURATION_INDEFINITE)
                     .errorIcon()
-                    .message(getString(effect.messageResId, *effect.formatArgs.toTypedArray()))
-                    .showOnUiThread()
+                    .message(errorMessage)
+                if (effect.formatArgs.isNotEmpty()) {
+                    builder
+                        .positiveActionText(R.string.copy)
+                        .positiveActionTapListener { bar ->
+                            (getSystemService(ClipboardManager::class.java))
+                                ?.setPrimaryClip(ClipData.newPlainText(getString(R.string.msg_plugin_error_clip_label), errorMessage))
+                            bar.dismiss()
+                        }
+                }
+                builder.showOnUiThread()
             }
             is PluginManagerUiEffect.ShowSuccess -> {
                 flashSuccess(getString(effect.messageResId))
@@ -248,6 +261,9 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             }
             is PluginManagerUiEffect.ShowRestartPrompt -> {
                 showRestartPrompt(this, cancelable = false)
+            }
+            is PluginManagerUiEffect.ShowOverwriteConfirmation -> {
+                showOverwriteConfirmation(effect)
             }
         }
     }
@@ -272,6 +288,26 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             .setView(dialogView)
             .setPositiveButton(R.string.btn_install) { _, _ ->
                 viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(uri, deleteCheckBox.isChecked))
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showOverwriteConfirmation(effect: PluginManagerUiEffect.ShowOverwriteConfirmation) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.title_plugin_already_installed)
+            .setMessage(
+                getString(
+                    R.string.msg_plugin_overwrite_confirm,
+                    effect.existing.metadata.name,
+                    effect.existing.metadata.version,
+                    effect.incomingMetadata.version
+                )
+            )
+            .setPositiveButton(R.string.replace) { _, _ ->
+                viewModel.onEvent(
+                    PluginManagerUiEvent.ConfirmOverwrite(effect.uri, effect.deleteSourceAfterInstall)
+                )
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

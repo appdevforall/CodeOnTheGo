@@ -1,7 +1,7 @@
 plugins {
-	id("com.android.library")
-	id("kotlin-android")
-	id("kotlin-parcelize")
+    id("com.android.library")
+    id("kotlin-android")
+    id("kotlin-parcelize")
 }
 
 android {
@@ -30,7 +30,7 @@ dependencies {
     compileOnly("androidx.fragment:fragment-ktx:1.6.2")
     compileOnly("com.google.android.material:material:1.11.0")
 
-	api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 }
 
 tasks.register<Copy>("createPluginApiJar") {

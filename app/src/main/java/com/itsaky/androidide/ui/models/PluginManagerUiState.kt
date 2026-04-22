@@ -3,6 +3,7 @@ package com.itsaky.androidide.ui.models
 import android.net.Uri
 import androidx.annotation.StringRes
 import com.itsaky.androidide.plugins.PluginInfo
+import com.itsaky.androidide.plugins.PluginMetadata
 
 data class PluginManagerUiState(
     val isLoading: Boolean = false,
@@ -23,6 +24,7 @@ sealed class PluginManagerUiEvent {
     data class DisablePlugin(val pluginId: String) : PluginManagerUiEvent()
     data class UninstallPlugin(val pluginId: String) : PluginManagerUiEvent()
     data class InstallPlugin(val uri: Uri, val deleteSourceAfterInstall: Boolean) : PluginManagerUiEvent()
+    data class ConfirmOverwrite(val uri: Uri, val deleteSourceAfterInstall: Boolean) : PluginManagerUiEvent()
     object OpenFilePicker : PluginManagerUiEvent()
     data class ShowPluginDetails(val plugin: PluginInfo) : PluginManagerUiEvent()
 }
@@ -34,6 +36,12 @@ sealed class PluginManagerUiEffect {
     object OpenFilePicker : PluginManagerUiEffect()
     data class ShowUninstallConfirmation(val plugin: PluginInfo) : PluginManagerUiEffect()
     object ShowRestartPrompt : PluginManagerUiEffect()
+    data class ShowOverwriteConfirmation(
+        val existing: PluginInfo,
+        val incomingMetadata: PluginMetadata,
+        val uri: Uri,
+        val deleteSourceAfterInstall: Boolean
+    ) : PluginManagerUiEffect()
 }
 
 sealed class PluginOperation {
