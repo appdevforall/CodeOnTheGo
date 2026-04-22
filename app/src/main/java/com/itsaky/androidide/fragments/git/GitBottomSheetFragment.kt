@@ -404,7 +404,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         _binding = null
     }
 
-    fun AlertDialog.setTooltipOnDialog(tag: String) {
+    private fun AlertDialog.setTooltipOnDialog(tag: String) {
         onLongPress { view ->
             TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
@@ -415,7 +415,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         }
     }
 
-    fun View.setTooltipOnView(tag: String) {
+    private fun View.setTooltipOnView(tag: String) {
         setOnLongClickListener { view ->
             TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
