@@ -344,8 +344,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         showCredentialsDialog()
                     }
                 }
-                setTooltipOnView(TooltipTag.GIT_PULL)
             }
+            setTooltipOnView(TooltipTag.GIT_PULL)
         }
     }
 
