@@ -171,11 +171,20 @@ class LayoutGeometryProcessor {
         val labelableWidgets = boxes.filter { isLabelableWidget(it) }
 
         for (widget in labelableWidgets) {
-            val nearbyText = availableTexts.firstOrNull { text ->
-                !consumedTexts.contains(text) &&
-                abs(text.centerY - widget.centerY) < widget.h * 3 &&
-                abs(text.centerX - widget.centerX) < widget.w * 3
-            }
+            val nearbyText = availableTexts
+                .asSequence()
+                .filter { !consumedTexts.contains(it) }
+                .filter { text ->
+                    val dx = maxOf(0, widget.rect.left - text.rect.right, text.rect.left - widget.rect.right)
+                    val dy = maxOf(0, widget.rect.top - text.rect.bottom, text.rect.top - widget.rect.bottom)
+
+                    dx < widget.w * 2 && dy < widget.h * 2
+                }
+                .minByOrNull { text ->
+                    val dx = maxOf(0, widget.rect.left - text.rect.right, text.rect.left - widget.rect.right).toDouble()
+                    val dy = maxOf(0, widget.rect.top - text.rect.bottom, text.rect.top - widget.rect.bottom).toDouble()
+                    (dx * dx) + (dy * dy)
+                }
 
             if (nearbyText != null) {
                 updatedWidgets[widget] = widget.copy(text = nearbyText.text)
