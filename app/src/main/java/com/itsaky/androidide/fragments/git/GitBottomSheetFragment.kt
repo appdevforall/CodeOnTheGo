@@ -383,7 +383,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     private fun checkUnsavedChangesAndProceed(action: () -> Unit) {
         val handler = requireActivity() as? IEditorHandler
         if (handler?.areFilesModified() == true) {
-            MaterialAlertDialogBuilder(requireContext())
+            val dialog = MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.title_files_unsaved)
                 .setMessage(R.string.msg_save_before_git_action)
                 .setPositiveButton(R.string.save_before_git_action) { _, _ ->
@@ -393,7 +393,9 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     action()
                 }
                 .setNeutralButton(android.R.string.cancel, null)
-                .show()
+                .create()
+            dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_SAVE)
+            dialog.show()
         } else {
             action()
         }
