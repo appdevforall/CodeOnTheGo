@@ -4,7 +4,6 @@ import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.ArchiveFormat
 import com.itsaky.androidide.plugins.services.ExtractResult
 import com.itsaky.androidide.plugins.services.IdeArchiveService
-import com.itsaky.androidide.utils.Environment
 import org.apache.commons.compress.archivers.ArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
@@ -14,6 +13,7 @@ import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -33,7 +33,7 @@ class IdeArchiveServiceImpl(
             ensureWritePermission()
             ensurePathAllowed(destination)
 
-            val buffered = BufferedInputStream(source)
+            val buffered = BufferedInputStream(NonClosingInputStream(source))
             when (format) {
                 ArchiveFormat.XZ -> extractSingleStream(
                     XZCompressorInputStream(buffered),
@@ -212,16 +212,10 @@ class IdeArchiveServiceImpl(
 
     private fun ensurePathAllowed(path: File) {
         val validator = pathValidator
-        val canonical = try {
-            path.canonicalPath
-        } catch (e: Exception) {
-            throw SecurityException("Plugin $pluginId cannot canonicalize destination: ${path.absolutePath}")
-        }
-
         val allowed = if (validator != null) {
             validator.isPathAllowed(path)
         } else {
-            defaultAllowedPaths().any { canonical.startsWith(it) }
+            PluginPathAllowlist.isAllowed(path, permissions, pluginId)
         }
 
         if (!allowed) {
@@ -229,32 +223,16 @@ class IdeArchiveServiceImpl(
         }
     }
 
-    private fun defaultAllowedPaths(): List<String> {
-        val paths = mutableListOf(
-            "/storage/emulated/0/${Environment.PROJECTS_FOLDER}",
-            "/sdcard/${Environment.PROJECTS_FOLDER}",
-            System.getProperty("user.home", "/") + "/${Environment.PROJECTS_FOLDER}",
-            "/tmp/CodeOnTheGoProject"
-        )
-        if (PluginPermission.IDE_ENVIRONMENT_WRITE in permissions) {
-            paths += canonicalOrSelf(Environment.ANDROID_HOME)
-            paths += canonicalOrSelf(Environment.TMP_DIR)
-            paths += canonicalOrSelf(File(File(Environment.ANDROIDIDE_HOME, PLUGIN_DATA_ROOT), pluginId))
+    private class NonClosingInputStream(delegate: InputStream) : FilterInputStream(delegate) {
+        override fun close() {
+            // no-op: IdeArchiveService contract states the caller owns the source stream
         }
-        return paths
-    }
-
-    private fun canonicalOrSelf(file: File): String = try {
-        file.canonicalPath
-    } catch (e: Exception) {
-        file.absolutePath
     }
 
     private companion object {
         const val COPY_BUFFER_SIZE = 64 * 1024
         const val PROGRESS_REPORT_INTERVAL = 1L * 1024 * 1024
         const val OWNER_EXECUTE_BIT = 0b001_000_000
-        const val PLUGIN_DATA_ROOT = "plugins"
         val writePermissions = setOf(
             PluginPermission.FILESYSTEM_WRITE,
             PluginPermission.IDE_ENVIRONMENT_WRITE

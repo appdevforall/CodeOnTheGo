@@ -1,6 +1,7 @@
 package com.itsaky.androidide.plugins.services
 
 import java.io.File
+import java.io.IOException
 
 /**
  * Service interface that exposes IDE-managed directories to plugins.
@@ -39,6 +40,9 @@ interface IdeEnvironmentService {
     /**
      * Per-plugin persistent data directory. Scoped to the calling plugin and
      * created on first access. Survives IDE restarts.
+     *
+     * @throws IOException if the directory does not exist and cannot be created.
      */
+    @Throws(IOException::class)
     fun getPluginDataDirectory(): File
 }

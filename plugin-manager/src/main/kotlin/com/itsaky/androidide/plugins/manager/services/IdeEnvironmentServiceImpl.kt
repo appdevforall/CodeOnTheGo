@@ -3,6 +3,7 @@ package com.itsaky.androidide.plugins.manager.services
 import com.itsaky.androidide.plugins.services.IdeEnvironmentService
 import com.itsaky.androidide.utils.Environment
 import java.io.File
+import java.io.IOException
 
 class IdeEnvironmentServiceImpl(
     private val pluginId: String
@@ -18,8 +19,8 @@ class IdeEnvironmentServiceImpl(
 
     override fun getPluginDataDirectory(): File {
         val dir = File(File(Environment.ANDROIDIDE_HOME, PLUGIN_DATA_ROOT), "$pluginId/data")
-        if (!dir.exists()) {
-            dir.mkdirs()
+        if (!dir.exists() && !dir.mkdirs() && !dir.isDirectory) {
+            throw IOException("Failed to create plugin data directory: ${dir.absolutePath}")
         }
         return dir
     }

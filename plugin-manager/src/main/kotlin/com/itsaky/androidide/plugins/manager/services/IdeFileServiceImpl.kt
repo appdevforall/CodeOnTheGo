@@ -2,7 +2,6 @@ package com.itsaky.androidide.plugins.manager.services
 
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.IdeFileService
-import com.itsaky.androidide.utils.Environment
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -184,48 +183,12 @@ class IdeFileServiceImpl(
         pathValidator?.let { validator ->
             return validator.isPathAllowed(path)
         }
-        return isPathAllowedDefault(path)
-    }
-
-    private fun isPathAllowedDefault(path: File): Boolean {
-        val canonicalPath = try {
-            path.canonicalPath
-        } catch (e: Exception) {
-            return false
-        }
-
-        return getDefaultAllowedPaths().any { allowedPath ->
-            canonicalPath.startsWith(allowedPath)
-        }
-    }
-
-    private fun getDefaultAllowedPaths(): List<String> {
-        val paths = mutableListOf(
-            "/storage/emulated/0/${Environment.PROJECTS_FOLDER}",
-            "/sdcard/${Environment.PROJECTS_FOLDER}",
-            System.getProperty("user.home", "/") + "/${Environment.PROJECTS_FOLDER}",
-            "/tmp/CodeOnTheGoProject"
-        )
-
-        if (permissions.contains(PluginPermission.IDE_ENVIRONMENT_WRITE)) {
-            paths += canonicalOrSelf(Environment.ANDROID_HOME)
-            paths += canonicalOrSelf(Environment.TMP_DIR)
-            paths += canonicalOrSelf(File(File(Environment.ANDROIDIDE_HOME, PLUGIN_DATA_ROOT), pluginId))
-        }
-
-        return paths
-    }
-
-    private fun canonicalOrSelf(file: File): String = try {
-        file.canonicalPath
-    } catch (e: Exception) {
-        file.absolutePath
+        return PluginPathAllowlist.isAllowed(path, permissions, pluginId)
     }
 
     private companion object {
         const val COPY_BUFFER_SIZE = 64 * 1024
         const val FAILED_WRITE = -1L
-        const val PLUGIN_DATA_ROOT = "plugins"
         val writePermissions = setOf(
             PluginPermission.FILESYSTEM_WRITE,
             PluginPermission.IDE_ENVIRONMENT_WRITE
