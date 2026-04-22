@@ -50,3 +50,53 @@ object SliderStyleValidator : AttributeValidator {
         }
     }
 }
+
+object EntriesValidator : AttributeValidator {
+
+    override fun validate(rawValue: String): String? {
+        val trimmed = rawValue.trim()
+        if (trimmed.startsWith("@")) return trimmed
+
+        val hasBrackets = isEnclosedInBrackets(trimmed)
+        val content = trimmed.removeSurrounding("[", "]")
+
+        val cleanedItems = content.split(",").map { processItem(it) }
+
+        val finalString = cleanedItems.joinToString(", ")
+        return if (hasBrackets) "[$finalString]" else finalString
+    }
+
+    private fun isEnclosedInBrackets(text: String): Boolean {
+        return text.startsWith("[") && text.endsWith("]")
+    }
+
+    private fun processItem(item: String): String {
+        val cleanItem = item.trim()
+        return if (isOcrGarbledNumber(cleanItem)) {
+            cleanNumberArtifacts(cleanItem)
+        } else {
+            cleanTextArtifacts(cleanItem)
+        }
+    }
+
+    private fun isOcrGarbledNumber(text: String): Boolean {
+        val hasDigit = text.any { it.isDigit() }
+        val onlyContainsNumbersAndCommonOcrNoise = text.matches(Regex("^[0-9oOlIzZsSbB\\s]+$"))
+
+        return hasDigit && onlyContainsNumbersAndCommonOcrNoise
+    }
+
+    private fun cleanNumberArtifacts(text: String): String {
+        return text
+            .replace(Regex("[oO]"), "0")
+            .replace(Regex("[lI]"), "1")
+            .replace(Regex("[zZ]"), "2")
+            .replace(Regex("[sS]"), "5")
+            .replace(Regex("[bB]"), "6")
+            .replace(" ", "")
+    }
+
+    private fun cleanTextArtifacts(text: String): String {
+        return text.replace(Regex("\\s+"), " ")
+    }
+}
