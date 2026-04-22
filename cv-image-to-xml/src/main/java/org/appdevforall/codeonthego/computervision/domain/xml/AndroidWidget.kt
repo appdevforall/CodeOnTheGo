@@ -9,6 +9,8 @@ sealed class AndroidWidget(
 ) {
     abstract val tag: String
 
+    protected open fun fallbackIdLabel(): String = box.label
+
     protected abstract fun specificAttributes(): Map<String, String>
 
     fun render(
@@ -18,7 +20,7 @@ sealed class AndroidWidget(
         idOverride: String? = null
     ) {
         val requestedId = idOverride ?: parsedAttrs["android:id"]?.substringAfterLast('/')
-        val id = context.resolveId(requestedId, box.label)
+        val id = context.resolveId(requestedId, fallbackIdLabel())
         val width = parsedAttrs["android:layout_width"] ?: extraAttrs["android:layout_width"] ?: "wrap_content"
         val height = parsedAttrs["android:layout_height"] ?: extraAttrs["android:layout_height"] ?: "wrap_content"
 
@@ -45,8 +47,9 @@ sealed class AndroidWidget(
         fun create(box: ScaledBox, parsedAttrs: Map<String, String>): AndroidWidget {
             return when (box.label) {
                 "text", "button", "checkbox_unchecked", "checkbox_checked",
-                "radio_button_unchecked", "radio_button_checked", "switch_off", "switch_on" ->
+                "radio_button_unchecked", "radio_button_checked" ->
                     TextBasedWidget(box, parsedAttrs, getTagFor(box.label))
+                "switch_off", "switch_on" -> SwitchWidget(box, parsedAttrs)
                 "text_entry_box" -> InputWidget(box, parsedAttrs)
                 "image_placeholder", "icon" -> ImageWidget(box, parsedAttrs)
                 else -> GenericWidget(box, parsedAttrs, getTagFor(box.label))
@@ -88,6 +91,29 @@ class TextBasedWidget(
         if (box.label.contains("_checked") || box.label.contains("_on")) {
             attrs["android:checked"] = parsedAttrs["android:checked"] ?: "true"
         }
+        return attrs
+    }
+}
+
+class SwitchWidget(
+    box: ScaledBox,
+    parsedAttrs: Map<String, String>
+) : AndroidWidget(box, parsedAttrs) {
+    override val tag = "Switch"
+
+    override fun fallbackIdLabel(): String = "switch"
+
+    override fun specificAttributes(): Map<String, String> {
+        val attrs = mutableMapOf<String, String>()
+        val switchText = parsedAttrs["android:text"] ?: box.text.trim().takeIf { it.isNotEmpty() && it != box.label } ?: "Switch"
+
+        attrs["android:text"] = switchText
+        attrs["tools:ignore"] = "HardcodedText"
+
+        if (box.label.contains("_on")) {
+            attrs["android:checked"] = parsedAttrs["android:checked"] ?: "true"
+        }
+
         return attrs
     }
 }
