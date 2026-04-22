@@ -9,6 +9,7 @@ import kotlinx.coroutines.coroutineScope
 import org.appdevforall.codeonthego.computervision.data.source.OcrSource
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.appdevforall.codeonthego.computervision.utils.BitmapUtils
+import org.appdevforall.codeonthego.computervision.utils.OcrTextAssembler
 
 class RegionOcrProcessor(
     private val ocrSource: OcrSource,
@@ -69,12 +70,8 @@ class RegionOcrProcessor(
                 try {
                     crop = BitmapUtils.cropRegion(bitmap, component.boundingBox, componentPadding)
                     preprocessed = BitmapUtils.preprocessForOcr(crop)
-                    val text = ocrSource.recognizeText(preprocessed)
-                        .getOrNull()
-                        ?.joinToString(" ") { it.text }
-                        ?.replace("\n", " ")
-                        ?.trim()
-                        ?: ""
+                    val textBlocks = ocrSource.recognizeText(preprocessed).getOrNull()
+                    val text = textBlocks?.let { OcrTextAssembler.extractTextWithTolerance(it) } ?: ""
                     component.copy(text = text)
                 } finally {
                     preprocessed?.recycle()
@@ -124,7 +121,7 @@ class RegionOcrProcessor(
                             ),
                             label = "text",
                             score = 0.99f,
-                            text = line.text.trim(),
+                            text = OcrTextAssembler.joinElementsWithTolerance(line),
                             isYolo = false
                         )
                     }
