@@ -1238,7 +1238,7 @@
     <string name="diff_viewer">Diff Viewer</string>
     <string name="diff_loading">Loading Git Diff…</string>
     <string name="commit_summary">Summary (required)</string>
-    <string name="commit_description_optional">Description</string>
+    <string name="commit_description_optional">Description (optional) </string>
     <string name="commit">Commit</string>
     <string name="view_commit_history">View Commit History</string>
     <string name="git_commit_history">Git Commit History</string>
@@ -1323,5 +1323,6 @@
 	<string name="template_read_error_archive_json">%1$s does not contain %2$s</string>
 	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
+    <string name="navigate_up">Navigate up</string>
 
 </resources>
