@@ -25,6 +25,7 @@ import com.itsaky.androidide.lsp.models.InsertTextFormat.SNIPPET
 import com.itsaky.androidide.lsp.util.RewriteHelper
 import io.github.rosemoe.sora.lang.completion.snippet.parser.CodeSnippetParser
 import io.github.rosemoe.sora.text.Content
+import io.github.rosemoe.sora.text.batchEdit
 import io.github.rosemoe.sora.widget.CodeEditor
 import org.slf4j.LoggerFactory
 
@@ -82,15 +83,15 @@ open class DefaultEditHandler : IEditHandler {
 		text.delete(line, start, line, column)
 		editor.commitText(item.insertText)
 
-		text.beginBatchEdit()
-		if (item.additionalEditHandler != null) {
-			item.additionalEditHandler!!.performEdits(item, editor, text, line, column, index)
-		} else if (item.additionalTextEdits != null && item.additionalTextEdits!!.isNotEmpty()) {
-			RewriteHelper.performEdits(item.additionalTextEdits!!, editor)
-		}
-		text.beginBatchEdit()
-
+		performAdditionalEdits(item, editor, text, line, column, index)
 		executeCommand(editor, item.command)
+	}
+
+	protected open fun performAdditionalEdits(item: CompletionItem, editor: CodeEditor, text: Content, line: Int, column: Int, index: Int) {
+		text.batchEdit {
+			item.additionalEditHandler?.performEdits(item, editor, text, line, column, index)
+				?: item.additionalTextEdits?.also { RewriteHelper.performEdits(it, editor) }
+		}
 	}
 
 	protected open fun insertSnippet(
@@ -111,6 +112,8 @@ open class DefaultEditHandler : IEditHandler {
 			actionIndex -= prefixLength
 		}
 		editor.snippetController.startSnippet(actionIndex, snippet, selectedText)
+
+		performAdditionalEdits(item, editor, text, line, column, index)
 
 		if (snippetDescription.allowCommandExecution) {
 			executeCommand(editor, item.command)

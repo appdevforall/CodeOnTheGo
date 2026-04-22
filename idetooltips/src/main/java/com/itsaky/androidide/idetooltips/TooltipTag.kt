@@ -163,4 +163,21 @@ object TooltipTag {
 
     // Git
     const val GIT_DOWNLOAD_SCREEN = "git.download"
+    const val GIT_PREFS = "git.prefs"
+    const val PROJECT_GIT = "project.git"
+    const val PROJECT_GIT_SUMMARY = "project.git.summary"
+    const val PROJECT_GIT_DESCRIPTION = "project.git.description"
+    const val PROJECT_GIT_FILES = "project.git.files"
+    const val PROJECT_GIT_ID = "project.git.id"
+    const val PROJECT_GIT_COMMIT = "project.git.commit"
+    const val PROJECT_GIT_COMMIT_HISTORY = "project.git.commit.history"
+    const val PROJECT_GIT_ABORT = "project.git.abort"
+    const val GIT_COMMIT_HISTORY = "git.commit.history"
+    const val GIT_DIALOG_SAVE = "git.dialog.save"
+    const val GIT_DIALOG_MERGE_CONFLICTS = "git.dialog.mergeconflicts"
+    const val GIT_DIALOG_PULL_FAIL = "git.dialog.pullfail"
+    const val GIT_DIALOG_PUSH_FAIL = "git.dialog.pushfail"
+    const val GIT_DIALOG_ABORT_MERGE = "git.dialog.abortmerge"
+    const val GIT_PUSH = "git.action.push"
+    const val GIT_PULL = "git.action.pull"
 }

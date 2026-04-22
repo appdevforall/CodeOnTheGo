@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.com.intellij.openapi.util.TextRange
 import org.jetbrains.kotlin.com.intellij.psi.PsiDocumentManager
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.com.intellij.psi.PsiFile
+import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("EditExts")
@@ -32,8 +33,11 @@ fun TextRange.toRange(containingFile: PsiFile): Range {
 }
 
 context(ctx: AnalysisContext)
-internal fun insertImport(fqn: String): List<TextEdit> {
-	val imports = ctx.ktFile.importDirectives
+internal fun insertImport(fqn: String): List<TextEdit> =
+	insertImport(ctx.ktFile, fqn)
+
+internal fun insertImport(ktFile: KtFile, fqn: String): List<TextEdit> {
+	val imports = ktFile.importDirectives
 	val importText = "import $fqn"
 	for (import in imports) {
 		val thisFqn = import.importedFqName?.asString() ?: ""
@@ -52,7 +56,7 @@ internal fun insertImport(fqn: String): List<TextEdit> {
 		return insertAfter(last, System.lineSeparator() + importText)
 	}
 
-	ctx.ktFile.packageDirective?.also { pkg ->
+	ktFile.packageDirective?.also { pkg ->
 		logger.info("insert {} after package stmt: {}", importText, pkg.text)
 		return insertAfter(pkg, System.lineSeparator() + importText)
 	}
@@ -67,7 +71,6 @@ internal fun insertImport(fqn: String): List<TextEdit> {
 	)
 }
 
-context(ctx: AnalysisContext)
 internal fun insertBefore(element: PsiElement, text: String): List<TextEdit> {
 	val range = rangeOf(element)
 	return listOf(
@@ -78,7 +81,6 @@ internal fun insertBefore(element: PsiElement, text: String): List<TextEdit> {
 	)
 }
 
-context(ctx: AnalysisContext)
 internal fun insertAfter(element: PsiElement, text: String): List<TextEdit> {
 	val range = rangeOf(element)
 	return listOf(
@@ -89,7 +91,6 @@ internal fun insertAfter(element: PsiElement, text: String): List<TextEdit> {
 	)
 }
 
-context(ctx: AnalysisContext)
-internal fun rangeOf(element: PsiElement): Range {
-	return element.textRange.toRange(ctx.ktFile)
+internal fun rangeOf(element: PsiElement, containingFile: PsiFile = element.containingFile): Range {
+	return element.textRange.toRange(containingFile)
 }

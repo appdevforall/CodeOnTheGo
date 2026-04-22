@@ -149,8 +149,6 @@ include(
 	":lsp:jvm-symbol-index",
 	":lsp:jvm-symbol-models",
 	":lsp:kotlin",
-	":lsp:kotlin-core",
-	":lsp:kotlin-stdlib-generator",
 	":lsp:xml",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",

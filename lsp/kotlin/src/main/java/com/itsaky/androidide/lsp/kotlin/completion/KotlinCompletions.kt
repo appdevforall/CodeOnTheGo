@@ -1,7 +1,9 @@
 package com.itsaky.androidide.lsp.kotlin.completion
 
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
 import com.itsaky.androidide.lsp.kotlin.utils.ModifierFilter
@@ -14,9 +16,11 @@ import com.itsaky.androidide.lsp.models.CompletionItemKind
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.InsertTextFormat
+import com.itsaky.androidide.preferences.utils.indentationString
+import com.itsaky.androidide.progress.ICancelChecker
+import com.itsaky.androidide.progress.ProgressManager
 import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
@@ -49,21 +53,35 @@ import org.jetbrains.kotlin.analysis.api.symbols.name
 import org.jetbrains.kotlin.analysis.api.symbols.receiverType
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
+import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.psi.KtBlockExpression
+import org.jetbrains.kotlin.psi.KtClassBody
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
+import org.jetbrains.kotlin.psi.KtElement
+import org.jetbrains.kotlin.psi.KtFunction
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtSafeQualifiedExpression
+import org.jetbrains.kotlin.psi.KtWhenExpression
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
 import org.jetbrains.kotlin.types.Variance
 import org.slf4j.LoggerFactory
+import kotlin.io.path.name
 
 private const val KT_COMPLETION_PLACEHOLDER = "KT_COMPLETION_PLACEHOLDER"
 
 private val logger = LoggerFactory.getLogger("KotlinCompletions")
+
+private fun abortIfCancelled() {
+	ProgressManager.abortIfCancelled()
+	Lookup.getDefault()
+		.lookup(ICancelChecker::class.java)
+		?.abortIfCancelled()
+}
 
 /**
  * Provide code completion for the given completion parameters.
@@ -72,10 +90,29 @@ private val logger = LoggerFactory.getLogger("KotlinCompletions")
  * @param params The completion parameters.
  * @return The completion result.
  */
-internal fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult {
-	val managedFile = fileManager.getOpenFile(params.file)
-	if (managedFile == null) {
-		logger.warn("No managed file for {}", params.file)
+context(env: CompilationEnvironment)
+internal fun codeComplete(params: CompletionParams): CompletionResult {
+	return try {
+		doComplete(params)
+	} catch (error: Throwable) {
+		if (error is CancellationException || error is InterruptedException) {
+			logger.info("completion cancelled")
+			if (error is InterruptedException) {
+				Thread.interrupted()
+			}
+
+			return CompletionResult.EMPTY
+		}
+
+		throw error
+	}
+}
+
+context(env: CompilationEnvironment)
+internal fun doComplete(params: CompletionParams): CompletionResult {
+	val ktFile = env.ktSymbolIndex.getOpenedKtFile(params.file)
+	if (ktFile == null) {
+		logger.warn("File {} is not open", params.file)
 		return CompletionResult.EMPTY
 	}
 
@@ -87,6 +124,13 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 	val prefix = params.requirePrefix()
 	val partial = partialIdentifier(prefix)
 
+	if (partial.isBlank()) {
+		logger.warn("cannot complete for blank partial candidate")
+		return CompletionResult.EMPTY
+	}
+
+	abortIfCancelled()
+
 	// insert placeholder to fix broken trees
 	val textWithPlaceholder = buildString {
 		append(originalText, 0, completionOffset)
@@ -94,37 +138,46 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 		append(originalText, completionOffset, originalText.length)
 	}
 
-	val completionKtFile =
-		managedFile.createInMemoryFileWithContent(
-			psiFactory = parser,
-			content = textWithPlaceholder
-		)
+	val completionKtFile = env.project.read {
+		env.parser.createFile(
+			fileName = params.file.name,
+			text = textWithPlaceholder
+		).apply {
+			originalFile = ktFile
+			originalKtFile = ktFile
+		}
+	}
+
+	abortIfCancelled()
 
 	return try {
-		analyzeCopy(
-			useSiteElement = completionKtFile,
-			resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
-		) {
-			val ctx =
-				resolveAnalysisContext(
-					env = this@complete,
-					file = params.file,
-					ktFile = completionKtFile,
-					offset = completionOffset,
-					partial = partial
-				)
+		env.project.read {
+			abortIfCancelled()
 
-			if (ctx == null) {
-				logger.error(
-					"Unable to determine context at offset {} in file {}",
-					completionOffset,
-					params.file
-				)
-				return@analyzeCopy CompletionResult.EMPTY
-			}
+			analyzeCopy(
+				useSiteElement = completionKtFile,
+				resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
+			) {
+				val ctx =
+					resolveAnalysisContext(
+						env = env,
+						file = params.file,
+						ktFile = completionKtFile,
+						offset = completionOffset,
+						partial = partial
+					)
 
-			context(ctx) {
-				runBlocking {
+				if (ctx == null) {
+					logger.error(
+						"Unable to determine context at offset {} in file {}",
+						completionOffset,
+						params.file
+					)
+					return@analyzeCopy CompletionResult.EMPTY
+				}
+
+				abortIfCancelled()
+				context(ctx) {
 					val items = mutableListOf<CompletionItem>()
 					val completionContext = determineCompletionContext(ctx.psiElement)
 					when (completionContext) {
@@ -135,7 +188,6 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 							collectMemberCompletions(to = items)
 					}
 
-					collectKeywordCompletions(to = items)
 					CompletionResult(items)
 				}
 			}
@@ -145,7 +197,7 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 			throw e
 		}
 
-		logger.warn("An error occurred while computing completions for {}", params.file)
+		logger.warn("An error occurred while computing completions for {}", params.file, e)
 		return CompletionResult.EMPTY
 	}
 }
@@ -154,6 +206,7 @@ context(ctx: AnalysisContext)
 private fun KaSession.collectMemberCompletions(
 	to: MutableList<CompletionItem>
 ) {
+	abortIfCancelled()
 	val qualifiedExpr = ctx.psiElement.getParentOfType<KtQualifiedExpression>(strict = false)
 	if (qualifiedExpr == null) {
 		logger.error("No qualified expression found requested position")
@@ -192,6 +245,8 @@ private fun KaSession.collectMembersFromType(
 	receiverType: KaType,
 	to: MutableList<CompletionItem>
 ) {
+	abortIfCancelled()
+
 	val typeScope = receiverType.scope
 	if (typeScope != null) {
 		val callables =
@@ -236,9 +291,11 @@ private fun KaSession.collectExtensionFunctions(
 }
 
 context(env: CompilationEnvironment, ctx: AnalysisContext)
-private suspend fun KaSession.collectScopeCompletions(
+private fun KaSession.collectScopeCompletions(
 	to: MutableList<CompletionItem>,
 ) {
+	abortIfCancelled()
+
 	val ktElement = ctx.ktElement
 	val scope = ctx.scope
 	val scopeContext = ctx.scopeContext
@@ -253,6 +310,8 @@ private suspend fun KaSession.collectScopeCompletions(
 	val callables =
 		scope.callables { name -> matchesPrefix(name) }
 			.filter { symbol ->
+
+				abortIfCancelled()
 
 				// always include non-extension functions
 				if (!symbol.isExtension) return@filter true
@@ -270,98 +329,123 @@ private suspend fun KaSession.collectScopeCompletions(
 	to += toCompletionItems(classifiers)
 
 	collectUnimportedSymbols(to)
+	collectSnippetCompletions(to)
+	collectKeywordCompletions(to)
 }
 
 context(env: CompilationEnvironment, ctx: AnalysisContext)
-private suspend fun KaSession.collectUnimportedSymbols(
+private fun KaSession.collectUnimportedSymbols(
 	to: MutableList<CompletionItem>
 ) {
-	val visibilityChecker = env.symbolVisibilityChecker
-	if (visibilityChecker == null) {
-		logger.warn("No visibility checker found")
-		return
-	}
-
-	val librarySymbolIndex = env.libraryIndex
-	if (librarySymbolIndex == null) {
-		logger.warn("Unable to find JVM library symbol index")
-		return
-	}
-
+	val currentPackage = ctx.ktElement.containingKtFile.packageDirective?.fqName?.asString()
 	val useSiteModule = this.useSiteModule
-	librarySymbolIndex.findByPrefix(ctx.partial)
-		.collect { symbol ->
-			val isVisible = visibilityChecker.isVisible(
-				symbol = symbol,
-				useSiteModule = useSiteModule,
-				useSitePackage = ctx.ktElement.containingKtFile.packageDirective?.name
-			)
+	val visibilityChecker = env.symbolVisibilityChecker
 
-			if (!isVisible) return@collect
+	fun addCompletionItem(symbol: JvmSymbol) {
+		abortIfCancelled()
 
-			if (symbol.kind.isCallable && !symbol.isTopLevel && !symbol.isExtension) {
-				// member-level, non-imported callable symbols should not be
-				// completed in scope completions
-				return@collect
-			}
+		if (symbol.packageName == currentPackage) return
 
-			if (symbol.isExtension) {
-				val receiverTypeName = symbol.receiverTypeName
-				if (receiverTypeName != null) {
-					val receiverClassId = internalNameToClassId(receiverTypeName)
-					val receiverType = findClass(receiverClassId)
-					if (receiverType != null) {
-						val satisfiesImplicitReceivers = ctx.scopeContext.implicitReceivers.any { receiver ->
-							receiver.type.isSubtypeOf(receiverType)
-						}
+		val isVisible = visibilityChecker.isVisible(
+			symbol = symbol,
+			useSiteModule = useSiteModule,
+			useSitePackage = currentPackage,
+		)
 
-						// the extension property/function's receiver type
-						// is not available in current context, so ignore this sym
-						if (!satisfiesImplicitReceivers) return@collect
-					} else return@collect
-				}
-			}
+		if (!isVisible) return
 
-			val item = ktCompletionItem(
-				name = symbol.shortName,
-				kind = kindOf(symbol),
-			)
+		buildUnimportedSymbolItem(symbol)?.let { to += it }
+	}
 
-			item.overrideTypeText = symbol.returnTypeDisplay
-			when (symbol.kind) {
-				JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
-					val data = symbol.data as JvmFunctionInfo
-					item.detail = data.signatureDisplay
-					item.setInsertTextForFunction(
-						name = symbol.shortName,
-						hasParams = data.parameterCount > 0,
-					)
+	env.libraryIndex?.findByPrefix(ctx.partial, limit = 0)
+		?.forEach(::addCompletionItem)
 
-					if (symbol.kind == JvmSymbolKind.CONSTRUCTOR) {
-						item.overrideTypeText = symbol.shortName
+	env.sourceIndex?.findByPrefix(ctx.partial, limit = 0)
+		?.forEach(::addCompletionItem)
+
+	env.generatedIndex?.findByPrefix(ctx.partial, limit = 0)
+		?.forEach(::addCompletionItem)
+}
+
+context(ctx: AnalysisContext)
+private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionItem? {
+	if (symbol.kind.isCallable && !symbol.isTopLevel && !symbol.isExtension) {
+		// member-level, non-extension callable symbols should not be
+		// completed in scope completions
+		return null
+	}
+
+	abortIfCancelled()
+
+	if (symbol.isExtension) {
+		val receiverTypeName = symbol.receiverTypeName
+		if (receiverTypeName != null) {
+			val receiverClassId = internalNameToClassId(receiverTypeName)
+			val receiverType = findClass(receiverClassId)
+			if (receiverType != null) {
+				val satisfiesImplicitReceivers =
+					ctx.scopeContext.implicitReceivers.any { receiver ->
+						receiver.type.isSubtypeOf(receiverType)
 					}
-				}
-
-				JvmSymbolKind.TYPE_ALIAS -> {
-					item.detail = (symbol.data as JvmTypeAliasInfo).expandedTypeFqName
-				}
-
-				in JvmSymbolKind.CLASSIFIER_KINDS -> {
-					val classInfo = symbol.data as JvmClassInfo
-					item.detail = symbol.name
-					item.setClassCompletionData(
-						className = symbol.name,
-						isNested = classInfo.isInner,
-						topLevelClass = classInfo.containingClassFqName,
-					)
-				}
-
-				else -> {}
-			}
-
-			logger.debug("Adding completion item: {}", item)
-			to += item
+				// the extension property/function's receiver type
+				// is not available in current context, so ignore this sym
+				if (!satisfiesImplicitReceivers) return null
+			} else return null
 		}
+
+		abortIfCancelled()
+	}
+
+	val item = ktCompletionItem(
+		name = symbol.shortName,
+		kind = kindOf(symbol),
+	)
+
+	item.overrideTypeText = symbol.returnTypeDisplay
+	when (symbol.kind) {
+		JvmSymbolKind.EXTENSION_FUNCTION, JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
+			val data = symbol.data as JvmFunctionInfo
+			item.detail = data.signatureDisplay
+			item.setInsertTextForFunction(
+				name = symbol.shortName,
+				hasParams = data.parameterCount > 0,
+			)
+
+			item.additionalEditHandler = KotlinAutoImportEditHandler(
+				analysisContext = ctx,
+				symbolToImport = symbol
+			)
+
+			if (symbol.kind == JvmSymbolKind.CONSTRUCTOR) {
+				item.overrideTypeText = symbol.shortName
+			}
+		}
+
+		in JvmSymbolKind.CALLABLE_KINDS -> {
+			item.additionalEditHandler = KotlinAutoImportEditHandler(
+				analysisContext = ctx,
+				symbolToImport = symbol
+			)
+		}
+
+		JvmSymbolKind.TYPE_ALIAS -> {
+			item.detail = (symbol.data as JvmTypeAliasInfo).expandedTypeFqName
+		}
+
+		in JvmSymbolKind.CLASSIFIER_KINDS -> {
+			val classInfo = symbol.data as JvmClassInfo
+			item.detail = symbol.fqName
+			item.setClassCompletionData(
+				className = symbol.fqName,
+				isNested = classInfo.isInner,
+				topLevelClass = classInfo.containingClassFqName,
+			)
+		}
+
+		else -> {}
+	}
+
+	return item
 }
 
 private fun internalNameToClassId(internalName: String): ClassId {
@@ -369,7 +453,7 @@ private fun internalNameToClassId(internalName: String): ClassId {
 	val packageName = internalName.substringBeforeLast('/')
 	val relativeName = internalName.substringAfterLast('/')
 	return ClassId(
-		packageFqName = FqName.fromSegments(packageName.split('.')),
+		packageFqName = FqName.fromSegments(packageName.split('/')),
 		relativeClassName = FqName.fromSegments(relativeName.split('$')),
 		isLocal = isLocal
 	)
@@ -394,6 +478,77 @@ private fun KaSession.collectKeywordCompletions(
 	ModifierFilter.validModifiers(ctx).mapTo(to) { kw ->
 		kwItem(kw.value)
 	}
+}
+
+context(ctx: AnalysisContext)
+private fun KaSession.collectSnippetCompletions(to: MutableList<CompletionItem>) {
+	val snippets = buildList {
+		// add global snippets, if any
+		KotlinSnippetRepository.snippets[KotlinSnippetScope.GLOBAL]?.also { addAll(it) }
+
+		val snippetScope = when (ctx.declarationKind) {
+			DeclarationKind.CLASS,
+			DeclarationKind.INTERFACE,
+			DeclarationKind.OBJECT,
+			DeclarationKind.ENUM_CLASS,
+			DeclarationKind.ANNOTATION_CLASS -> KotlinSnippetScope.MEMBER
+
+			DeclarationKind.CONSTRUCTOR,
+			DeclarationKind.FUN -> KotlinSnippetScope.LOCAL
+
+			DeclarationKind.UNKNOWN -> KotlinSnippetScope.TOP_LEVEL.takeIf { ctx.declarationContext == DeclarationContext.TOP_LEVEL }
+
+			DeclarationKind.PROPERTY_VAL -> null
+			DeclarationKind.PROPERTY_VAR -> null
+			DeclarationKind.TYPEALIAS -> null
+		}
+
+		logger.info(
+			"Adding completions for snippet scope: {} (context: {}, kind: {})",
+			snippetScope,
+			ctx.declarationContext,
+			ctx.declarationKind
+		)
+
+		snippetScope?.let { scope -> KotlinSnippetRepository.snippets[scope]?.also { snippets -> addAll(snippets) } }
+	}
+
+	abortIfCancelled()
+	val indent = computeIndentLevelAt(ctx.ktElement)
+	for (snippet in snippets) {
+		abortIfCancelled()
+
+		to += ktCompletionItem(snippet.prefix, CompletionItemKind.SNIPPET).apply {
+			detail = snippet.description
+			ideSortText = "00000${snippet.prefix}"
+			snippetDescription = describeSnippet(ctx.partial)
+
+			val indentation = indentationString(indent)
+			insertTextFormat = InsertTextFormat.SNIPPET
+			insertText = snippet.body.joinToString(separator = System.lineSeparator()) {
+				it.replace("\t", indentation)
+					.replace("\n", "\n${indentation}")
+			}
+		}
+	}
+}
+
+private fun computeIndentLevelAt(ktElement: KtElement): Int {
+	var indentLevel = 0
+	var current = ktElement.parent
+
+	while (current != null) {
+		if (current is KtBlockExpression ||
+			current is KtClassBody ||
+			current is KtWhenExpression ||
+			current is KtFunction
+		) {
+			indentLevel++
+		}
+		current = current.parent
+	}
+
+	return indentLevel
 }
 
 context(ctx: AnalysisContext)
@@ -504,19 +659,23 @@ private fun CompletionItem.setClassCompletionData(
 	isNested: Boolean = false,
 	topLevelClass: String = "",
 ) {
+	abortIfCancelled()
+
 	data = ClassCompletionData(
 		className,
 		isNested,
 		topLevelClass
 	)
 
-	additionalEditHandler = KotlinClassImportEditHandler(analysisContext = ctx)
+	additionalEditHandler = KotlinAutoImportEditHandler(analysisContext = ctx)
 }
 
 context(ctx: AnalysisContext)
 private fun KaSession.createSymbolCompletionItem(
 	symbol: KaSymbol,
 ): CompletionItem? {
+	abortIfCancelled()
+
 	return ktCompletionItem(
 		name = symbol.name?.asString() ?: return null,
 		kind = kindOf(symbol),
@@ -609,11 +768,15 @@ private fun matchesPrefix(name: Name): Boolean {
 private fun determineCompletionContext(element: PsiElement): CompletionContext {
 	// Walk up to find a qualified expression where we're the selector
 	val dotExpr = element.getParentOfType<KtDotQualifiedExpression>(strict = false)
+	abortIfCancelled()
+
 	if (dotExpr != null && isInSelectorPosition(element, dotExpr)) {
 		return CompletionContext.Member
 	}
 
 	val safeExpr = element.getParentOfType<KtSafeQualifiedExpression>(strict = false)
+	abortIfCancelled()
+
 	if (safeExpr != null && isInSelectorPosition(element, safeExpr)) {
 		return CompletionContext.Member
 	}

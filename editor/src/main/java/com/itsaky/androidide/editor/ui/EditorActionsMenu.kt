@@ -46,8 +46,10 @@ import com.itsaky.androidide.editor.adapters.IdeEditorAdapter
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
+import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 import com.itsaky.androidide.resources.R
@@ -298,7 +300,9 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     protected open fun onGetActionLocation() = location
 
     protected open fun onCreateActionData(): ActionData {
+		val languageServerRegistry = ILanguageServerRegistry.default
         val data = ActionData.create(editor.context)
+
         data.put(IDEEditor::class.java, this.editor)
         data.put(
             CodeEditor::class.java,
@@ -307,14 +311,18 @@ open class EditorActionsMenu(val editor: IDEEditor) :
         data.put(File::class.java, editor.file)
         data.put(DiagnosticItem::class.java, getDiagnosticAtCursor())
         data.put(com.itsaky.androidide.models.Range::class.java, editor.cursorLSPRange)
-        data.put(
+		data.put(
             JavaLanguageServer::class.java,
-            ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
+            languageServerRegistry.getServer(JavaLanguageServer.SERVER_ID)
                     as? JavaLanguageServer?
         )
+		data.put(KotlinLanguageServer::class.java,
+			languageServerRegistry
+				.getServer(KotlinLanguageServer.SERVER_ID)
+					as? KotlinLanguageServer?)
         data.put(
             XMLLanguageServer::class.java,
-            ILanguageServerRegistry.default.getServer(XMLLanguageServer.SERVER_ID)
+            languageServerRegistry.getServer(XMLLanguageServer.SERVER_ID)
                     as? XMLLanguageServer?
         )
         data.put(TextTarget::class.java, IdeEditorAdapter(this.editor))

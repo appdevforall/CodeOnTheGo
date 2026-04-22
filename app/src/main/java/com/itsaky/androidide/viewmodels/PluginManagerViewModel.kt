@@ -74,6 +74,11 @@ class PluginManagerViewModel(
                 event.uri,
                 event.deleteSourceAfterInstall
             )
+            is PluginManagerUiEvent.ConfirmOverwrite -> installPlugin(
+                event.uri,
+                event.deleteSourceAfterInstall,
+                checkConflict = false
+            )
 
             is PluginManagerUiEvent.OpenFilePicker -> openFilePicker()
             is PluginManagerUiEvent.ShowPluginDetails -> showPluginDetails(event.plugin)
@@ -230,10 +235,7 @@ class PluginManagerViewModel(
         }
     }
 
-    /**
-     * Install a plugin from URI
-     */
-    private fun installPlugin(uri: Uri, deleteSourceAfterInstall: Boolean) {
+    private fun installPlugin(uri: Uri, deleteSourceAfterInstall: Boolean, checkConflict: Boolean = true) {
         viewModelScope.launch {
             _currentOperation.value = PluginOperation.Installing
             _uiState.update { it.copy(isInstalling = true) }
@@ -256,6 +258,10 @@ class PluginManagerViewModel(
                         Exception("Cannot open file")
                     }
                     tempFile
+                }
+
+                if (checkConflict && resolveInstallConflict(tempFile, uri, deleteSourceAfterInstall)) {
+                    return@launch
                 }
 
                 pluginRepository.installPluginFromFile(tempFile)
@@ -294,11 +300,46 @@ class PluginManagerViewModel(
                         }
                     }
                 }
+                _uiState.update { it.copy(isInstalling = false) }
+                _currentOperation.value = PluginOperation.None
             }
-
-            _uiState.update { it.copy(isInstalling = false) }
-            _currentOperation.value = PluginOperation.None
         }
+    }
+
+    private suspend fun resolveInstallConflict(
+        tempFile: File,
+        uri: Uri,
+        deleteSourceAfterInstall: Boolean
+    ): Boolean {
+        val incoming = pluginRepository.getPluginMetadataFromFile(tempFile).getOrNull()
+        if (incoming == null) {
+            Log.w(TAG, "Failed to read plugin metadata from ${tempFile.name}; aborting install")
+            _uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
+            return true
+        }
+
+        val existing = _uiState.value.plugins.find { it.metadata.id == incoming.id }
+            ?: return false
+
+        val signaturesMatch = pluginRepository
+            .haveMatchingSignatures(tempFile, existing.metadata.id)
+            .getOrDefault(false)
+
+        val effect = if (!signaturesMatch) {
+            PluginManagerUiEffect.ShowError(
+                R.string.msg_plugin_signature_mismatch,
+                listOf(existing.metadata.name)
+            )
+        } else {
+            PluginManagerUiEffect.ShowOverwriteConfirmation(
+                existing = existing,
+                incomingMetadata = incoming,
+                uri = uri,
+                deleteSourceAfterInstall = deleteSourceAfterInstall
+            )
+        }
+        _uiEffect.trySend(effect)
+        return true
     }
 
     private suspend fun deleteSourceDocument(uri: Uri) {

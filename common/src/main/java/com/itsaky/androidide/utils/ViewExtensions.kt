@@ -3,6 +3,7 @@ package com.itsaky.androidide.utils
 import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
+import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
@@ -10,6 +11,8 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.ListView
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.forEach
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.slider.Slider
 import kotlin.math.abs
 
@@ -26,18 +29,34 @@ fun View.forEachViewRecursively(action: (View) -> Unit) {
 	}
 }
 
-fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
-	if (this is ListView) return
+fun View.applyLongPressRecursively(
+    exclude: List<View> = emptyList(),
+    listener: (View) -> Boolean
+) {
+    if (this is ListView || this in exclude) return
 
-	setOnLongClickListener { listener(it) }
-	isLongClickable = true
+    setOnLongClickListener { listener(it) }
+
     if (this is ViewGroup) {
-        for (i in 0 until childCount) {
-            val currentView = getChildAt(i)
-            currentView.applyLongPressRecursively(listener)
-        }
+        forEach { it.applyLongPressRecursively(exclude, listener) }
     }
 }
+
+fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
+    val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onLongPress(e: MotionEvent) {
+            listener(e)
+        }
+    })
+
+    addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+        override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+            gestureDetector.onTouchEvent(e)
+            return false
+        }
+    })
+}
+
 
 @SuppressLint("ClickableViewAccessibility")
 fun View.setupGestureHandling(
@@ -94,8 +113,12 @@ fun View.setupGestureHandling(
  *                 and should return `true` if the listener has consumed the event, `false` otherwise.
  */
 fun AlertDialog.onLongPress(listener: (View) -> Boolean) {
-	this.setOnShowListener {
-		this.window?.decorView?.applyLongPressRecursively(listener)
+	if (this.isShowing) {
+		this.window?.decorView?.applyLongPressRecursively(emptyList(), listener)
+	} else {
+		this.setOnShowListener {
+			this.window?.decorView?.applyLongPressRecursively(emptyList(), listener)
+		}
 	}
 }
 

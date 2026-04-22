@@ -16,4 +16,7 @@ dependencies {
 	api(libs.kotlinx.coroutines.core)
 
 	api(projects.logger)
+
+	testImplementation(projects.testing.unit)
+	testImplementation(libs.tests.kotlinx.coroutines)
 }

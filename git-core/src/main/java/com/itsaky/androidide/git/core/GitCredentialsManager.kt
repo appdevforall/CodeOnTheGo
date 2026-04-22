@@ -32,7 +32,7 @@ class GitCredentialsManager(
         return cachedPrefs!!
     }
 
-    fun saveCredentials(username: String, token: String) {
+    private fun saveCredentials(username: String, token: String) {
         try {
             val (usernameIv, usernameData) = CryptoManager.encrypt(username)
             val (tokenIv, tokenData) = CryptoManager.encrypt(token)
@@ -50,11 +50,6 @@ class GitCredentialsManager(
 
     fun getUsername(): String? = decrypt(KEY_USERNAME_IV, KEY_USERNAME_DATA)
     fun getToken(): String? = decrypt(KEY_TOKEN_IV, KEY_TOKEN_DATA)
-
-    fun hasCredentials(): Boolean {
-        val prefs = getPrefs()
-        return prefs.contains(KEY_USERNAME_DATA) && prefs.contains(KEY_TOKEN_DATA)
-    }
 
     private fun decrypt(ivKey: String, dataKey: String): String? {
         val prefs = getPrefs()

@@ -68,6 +68,9 @@ data class JvmSymbol(
 	val data: JvmSymbolInfo,
 ) : Indexable {
 
+	val fqName: String
+		get() = name.toFqName()
+
     val isTopLevel: Boolean
         get() = data.containingClassName.isEmpty()
 
@@ -80,6 +83,9 @@ data class JvmSymbol(
             is JvmFieldInfo -> d.kotlin?.receiverTypeName?.takeIf { it.isNotEmpty() }
             else -> null
         }
+
+	val receiverTypeFqName: String?
+		get() = receiverTypeName?.toFqName()
 
     val containingClassName: String
         get() = data.containingClassName
@@ -235,3 +241,4 @@ data class JvmTypeAliasInfo(
 private fun String.toFqName() =
 	replace('/', '.')
 		.replace('$', '.')
+		.replace('#', '.')

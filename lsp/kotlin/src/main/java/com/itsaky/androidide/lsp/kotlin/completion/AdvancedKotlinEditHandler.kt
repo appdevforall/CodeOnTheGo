@@ -1,10 +1,10 @@
 package com.itsaky.androidide.lsp.kotlin.completion
 
-import com.itsaky.androidide.lsp.kotlin.KtFileManager
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.models.CompletionItem
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.CodeEditor
+import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
 
 internal abstract class AdvancedKotlinEditHandler(
@@ -23,20 +23,24 @@ internal abstract class AdvancedKotlinEditHandler(
 		column: Int,
 		index: Int
 	) {
-		val managedFile = analysisContext.env.fileManager.getOpenFile(analysisContext.file)
+		val managedFile = analysisContext.env.ktSymbolIndex.getOpenedKtFile(analysisContext.file)
 		if (managedFile == null) {
 			logger.error("Unable to perform edit. File not open.")
 			return
 		}
 
-		performEdits(managedFile, editor, item)
+		context(analysisContext) {
+			performEdits(managedFile, editor, item)
+		}
+
 		if (item.command != null) {
 			executeCommand(editor, item.command)
 		}
 	}
 
+	context(ctx: AnalysisContext)
 	abstract fun performEdits(
-		managedFile: KtFileManager.ManagedFile,
+		ktFile: KtFile,
 		editor: CodeEditor,
 		item: CompletionItem
 	)

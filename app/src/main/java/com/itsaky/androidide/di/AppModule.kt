@@ -8,6 +8,7 @@ import com.itsaky.androidide.analytics.AnalyticsManager
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +34,7 @@ val coreModule =
             GitBottomSheetViewModel(get())
 		}
         viewModel { MainViewModel(get()) }
+        viewModel { CloneRepositoryViewModel(get(), get()) }
 
 
         single<CoroutineScope> {

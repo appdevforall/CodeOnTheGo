@@ -18,6 +18,7 @@
 package com.itsaky.androidide.testing.tooling.models
 
 import com.itsaky.androidide.testing.tooling.ToolingApiTestLauncher
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.utils.FileProvider
 import org.slf4j.Logger
@@ -35,7 +36,8 @@ data class ToolingApiTestLauncherParams(
   val client: ToolingApiTestLauncher.MultiVersionTestClient = ToolingApiTestLauncher.MultiVersionTestClient(),
   val initParams: InitializeProjectParams = InitializeProjectParams(
     projectDir.pathString,
-    client.gradleDistParams
+    client.gradleDistParams,
+    buildId = BuildId.Unknown,
   ),
   val log: Logger = LoggerFactory.getLogger("BuildOutputLogger"),
   val sysProps: Map<String, String> = emptyMap(),
