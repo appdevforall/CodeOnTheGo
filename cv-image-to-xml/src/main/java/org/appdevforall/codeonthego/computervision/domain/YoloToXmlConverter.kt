@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.domain.xml.AndroidXmlGenerator
 import kotlin.comparisons.compareBy
 
 class YoloToXmlConverter(
