@@ -26,8 +26,8 @@ object FuzzyAttributeParser {
         TEXT("android:text", listOf("text")),
         HINT("android:hint", listOf("hint")),
         BACKGROUND("android:background", listOf("background", "bg"), ValueType.COLOR),
-        BACKGROUND_TINT("app:backgroundTint", listOf("backgroundtint", "background_tint"), ValueType.COLOR),
-        SRC("android:src", listOf("src", "scr", "sre"), ValueType.DRAWABLE),
+        BACKGROUND_TINT("app:backgroundTint", listOf("backgroundtint", "background_tint", "bg_tint"), ValueType.COLOR),
+        SRC("android:src", listOf("src", "scr", "sre", "5rc"), ValueType.DRAWABLE),
         CONTENT_DESCRIPTION("android:contentDescription", listOf("contentdescription", "content_description")),
 
         TEXT_SIZE("android:textSize", listOf("textsize", "text_size"), ValueType.SP_DIMENSION),
@@ -150,6 +150,7 @@ object FuzzyAttributeParser {
     private val ocrLetterZToTwoRegex = Regex("[zZ]")
     private val ocrLetterSToFiveRegex = Regex("[sS]")
     private val ocrLetterBToSixRegex = Regex("[bB]")
+    private val ocrDenoiseRegex = Regex("inm|rn|wm|nm")
 
     private val matchKeywords = setOf("match", "parent")
     private val wrapKeywords = setOf("wrap", "content", "wrapcan")
@@ -464,11 +465,14 @@ object FuzzyAttributeParser {
             .trimStart('_')
     }
 
-    private fun denoiseOcrIdentifier(value: String): String =
-        value.replace("rn", "m")
-            .replace("wm", "m")
-            .replace("nm", "m")
-            .replace("inm", "im")
+    private fun denoiseOcrIdentifier(value: String): String {
+        return value.replace(ocrDenoiseRegex) { matchResult ->
+            when (matchResult.value) {
+                "inm" -> "im"
+                else -> "m"
+            }
+        }
+    }
 
     private fun cleanDrawable(value: String): String {
         if (value.startsWith("@drawable/")) return value
