@@ -56,7 +56,12 @@ class GitCommitHistoryDialog : DialogFragment() {
             linearLayoutManager.orientation
         )
 
-        binding.root.applyLongPressRecursively(listOf(binding.btnPush, binding.rvCommitHistory)) { view ->
+        binding.root.applyLongPressRecursively(
+            listOf(
+                binding.btnPush,
+                binding.rvCommitHistory
+            )
+        ) { view ->
             TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
                 anchorView = view,
@@ -76,6 +81,7 @@ class GitCommitHistoryDialog : DialogFragment() {
                     tag = TooltipTag.GIT_COMMIT_HISTORY
                 )
             }
+        }
 
         binding.btnBack.setOnClickListener {
             dismiss()
@@ -91,18 +97,21 @@ class GitCommitHistoryDialog : DialogFragment() {
                         binding.emptyView.visibility = View.GONE
                         binding.rvCommitHistory.visibility = View.GONE
                     }
+
                     is CommitHistoryUiState.Empty -> {
                         binding.progressBar.visibility = View.GONE
                         binding.emptyView.visibility = View.VISIBLE
                         binding.emptyView.setText(R.string.no_commit_history)
                         binding.rvCommitHistory.visibility = View.GONE
                     }
+
                     is CommitHistoryUiState.Error -> {
                         binding.progressBar.visibility = View.GONE
                         binding.emptyView.visibility = View.VISIBLE
                         binding.emptyView.text = state.message ?: getString(R.string.unknown_error)
                         binding.rvCommitHistory.visibility = View.GONE
                     }
+
                     is CommitHistoryUiState.Success -> {
                         binding.progressBar.visibility = View.GONE
                         binding.emptyView.visibility = View.GONE
@@ -114,22 +123,9 @@ class GitCommitHistoryDialog : DialogFragment() {
         }
 
         setupPushUI()
-    }}
+    }
 
     private fun setupPushUI() {
-        binding.btnPush.setOnClickListener {
-            val username = credentialsManager.getUsername()
-            val token = credentialsManager.getToken()
-            if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                viewModel.push(username, token)
-            } else {
-                showGitCredentialsDialog(
-                    credentialsManager = credentialsManager,
-                    positiveButtonTextResId = R.string.push
-                ) { user, accessToken ->
-                    viewModel.push(user, accessToken)
-                }}
-
         binding.btnPush.apply {
             setOnClickListener {
                 val username = credentialsManager.getUsername()
@@ -139,9 +135,9 @@ class GitCommitHistoryDialog : DialogFragment() {
                 } else {
                     showGitCredentialsDialog(
                         credentialsManager = credentialsManager,
-                        positiveButtonTextResId = R.string.pull
+                        positiveButtonTextResId = R.string.push
                     ) { user, accessToken ->
-                        viewModel.pull(user, accessToken)
+                        viewModel.push(user, accessToken)
                     }
                 }
             }
@@ -169,10 +165,12 @@ class GitCommitHistoryDialog : DialogFragment() {
                         binding.btnPush.text = getString(R.string.push)
                         binding.pushProgress.visibility = View.GONE
                     }
+
                     is GitBottomSheetViewModel.PushUiState.Pushing -> {
                         binding.btnPush.isEnabled = false
                         binding.pushProgress.visibility = View.VISIBLE
                     }
+
                     is GitBottomSheetViewModel.PushUiState.Success -> {
                         binding.btnPush.isEnabled = true
                         binding.pushProgress.visibility = View.GONE
@@ -180,14 +178,16 @@ class GitCommitHistoryDialog : DialogFragment() {
                         viewModel.resetPushState()
                         dismiss()
                     }
+
                     is GitBottomSheetViewModel.PushUiState.Error -> {
                         binding.btnPush.isEnabled = true
                         binding.pushProgress.visibility = View.GONE
-                        val message = if (state.errorResId != null && state.errorResId != R.string.unknown_error) {
-                            getString(state.errorResId)
-                        } else {
-                            state.message ?: getString(R.string.unknown_error)
-                        }
+                        val message =
+                            if (state.errorResId != null && state.errorResId != R.string.unknown_error) {
+                                getString(state.errorResId)
+                            } else {
+                                state.message ?: getString(R.string.unknown_error)
+                            }
                         val dialog = MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.push_failed)
                             .setMessage(message)
@@ -207,7 +207,8 @@ class GitCommitHistoryDialog : DialogFragment() {
             }
         }
 
-    }}
+
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
