@@ -32,7 +32,7 @@ class CloneRepositoryAction(context: Context) : ActionItem {
     override fun prepare(data: ActionData) {
         super.prepare(data)
         val context = data.get(Context::class.java)
-        if (!FeatureFlags.isExperimentsEnabled || context !is MainActivity) {
+        if (context !is MainActivity) {
             markInvisible()
         }
     }

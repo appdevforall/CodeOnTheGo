@@ -113,6 +113,14 @@ class EditorBottomSheetTabAdapter(
 				),
 			)
 
+            add(
+                Tab(
+                    title = fragmentActivity.getString(R.string.git_title),
+                    fragmentClass = GitBottomSheetFragment::class.java,
+                    itemId = TAB_GIT,
+                ),
+            )
+
 			if (FeatureFlags.isExperimentsEnabled) {
 				add(
 					Tab(
@@ -122,15 +130,6 @@ class EditorBottomSheetTabAdapter(
 						tooltipTag = TooltipTag.PROJECT_AGENT,
 					),
 				)
-
-                add(
-                    Tab(
-                        title = fragmentActivity.getString(R.string.git_title),
-                        fragmentClass = GitBottomSheetFragment::class.java,
-                        itemId = TAB_GIT,
-                        tooltipTag = TooltipTag.PROJECT_GIT
-                    ),
-                )
 			}
 		}
 

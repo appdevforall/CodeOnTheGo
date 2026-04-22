@@ -52,6 +52,7 @@ internal class KtSymbolIndex(
 		queue = workerQueue,
 		fileIndex = fileIndex,
 		sourceIndex = sourceIndex,
+		scope = scope,
 	)
 
 	private val scanningWorker = ScanningWorker(
@@ -139,3 +140,7 @@ internal fun KtSymbolIndex.filesForPackage(packageFqn: String) =
 
 internal fun KtSymbolIndex.subpackageNames(packageFqn: String) =
 	fileIndex.getSubpackageNames(packageFqn)
+
+internal fun KtSymbolIndex.findSymbolBySimpleName(name: String, limit: Int) =
+	(sourceIndex.findBySimpleName(name, 0) + libraryIndex.findBySimpleName(name, 0))
+		.take(limit)

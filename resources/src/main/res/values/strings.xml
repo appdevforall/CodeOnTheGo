@@ -1289,6 +1289,10 @@
     <string name="merge_conflicts">Merge Conflicts</string>
     <string name="abort_merge">Abort Merge</string>
     <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
+    <string name="msg_save_before_git_action">You have unsaved changes. Would you like to save them before proceeding?</string>
+    <string name="no_save_before_git_action">Proceed without saving</string>
+    <string name="save_before_git_action">Save before proceeding</string>
+    <string name="mark_as_resolved">Mark Resolved</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>

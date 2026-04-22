@@ -1,8 +1,10 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
+import org.appdevforall.codeonthego.computervision.domain.grammar.UiGrammarValidator
 
 object FuzzyAttributeParser {
+    private val grammarValidator = UiGrammarValidator()
 
     private const val FUZZY_VALUE_THRESHOLD = 75
 
@@ -152,18 +154,6 @@ object FuzzyAttributeParser {
     private val matchKeywords = setOf("match", "parent")
     private val wrapKeywords = setOf("wrap", "content", "wrapcan")
 
-    private val validInputTypes = listOf(
-        "text", "textPassword", "number", "numberDecimal",
-        "textEmailAddress", "textUri", "phone"
-    )
-
-    private val validGravities = listOf(
-        "top", "bottom", "left", "right", "center",
-        "center_vertical", "center_horizontal", "start", "end"
-    )
-
-    private val validTextStyles = listOf("normal", "bold", "italic")
-
     private fun normalizeOcrKey(raw: String): String =
         raw.lowercase()
             .replace("-", "_")
@@ -178,16 +168,13 @@ object FuzzyAttributeParser {
 
         val normalizedSpacing = annotation.replace(Regex("\\s+:"), ":")
 
-        return if (normalizedSpacing.contains(PIPE_DELIMITER)) {
+        val rawExtractedAttributes = if (normalizedSpacing.contains(PIPE_DELIMITER)) {
             parseDelimited(normalizedSpacing, tag)
         } else {
             parseByColonScanning(normalizedSpacing, tag)
         }
-    }
 
-    private fun matchCategoricalValue(rawValue: String, allowedValues: List<String>, threshold: Int = 70): String {
-        val result = FuzzySearch.extractOne(rawValue, allowedValues)
-        return if (result.score >= threshold) result.string else rawValue
+        return grammarValidator.enforceGrammar(rawExtractedAttributes, tag)
     }
 
     private fun parseDelimited(annotation: String, tag: String): Map<String, String> {
@@ -408,13 +395,6 @@ object FuzzyAttributeParser {
 
     private fun cleanValue(rawValue: String, key: AttributeKey): String {
         val trimmed = rawValue.trim()
-
-        when (key) {
-            AttributeKey.INPUT_TYPE -> return matchCategoricalValue(trimmed, validInputTypes)
-            AttributeKey.GRAVITY, AttributeKey.LAYOUT_GRAVITY -> return matchCategoricalValue(trimmed, validGravities)
-            AttributeKey.TEXT_STYLE -> return matchCategoricalValue(trimmed, validTextStyles)
-            else -> {}
-        }
 
         return when (key.valueType) {
             ValueType.DIMENSION -> cleanDimension(trimmed)

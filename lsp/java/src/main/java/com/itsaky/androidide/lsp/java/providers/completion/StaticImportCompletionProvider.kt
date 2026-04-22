@@ -25,7 +25,6 @@ import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.lsp.models.MatchLevel.NO_MATCH
-import com.itsaky.androidide.progress.ProgressManager.Companion.abortIfCancelled
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind.METHOD
 import jdkx.lang.model.element.ExecutableElement
@@ -62,7 +61,6 @@ class StaticImportCompletionProvider(
     val methods = mutableMapOf<String, MutableList<ExecutableElement>>()
     val matchRatios: MutableMap<String, MatchLevel> = mutableMapOf()
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
 
     outer@ for (i in root.imports) {
