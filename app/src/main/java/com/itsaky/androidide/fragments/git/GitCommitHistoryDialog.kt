@@ -14,7 +14,11 @@ import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
 import com.itsaky.androidide.fragments.git.adapter.GitCommitHistoryAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -51,10 +55,30 @@ class GitCommitHistoryDialog : DialogFragment() {
             binding.rvCommitHistory.context,
             linearLayoutManager.orientation
         )
+
+        binding.root.applyLongPressRecursively(listOf(binding.btnPush, binding.rvCommitHistory)) { view ->
+            TooltipManager.showIdeCategoryTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = TooltipTag.GIT_COMMIT_HISTORY
+            )
+            true
+        }
+
         binding.rvCommitHistory.apply {
             layoutManager = linearLayoutManager
             addItemDecoration(dividerItemDecoration)
             adapter = commitHistoryAdapter
+            onLongPress {
+                TooltipManager.showIdeCategoryTooltip(
+                    context = binding.root.context,
+                    anchorView = binding.root,
+                    tag = TooltipTag.GIT_COMMIT_HISTORY
+                )
+            }
+
+        binding.btnBack.setOnClickListener {
+            dismiss()
         }
 
         viewModel.getCommitHistoryList()
@@ -90,7 +114,7 @@ class GitCommitHistoryDialog : DialogFragment() {
         }
 
         setupPushUI()
-    }
+    }}
 
     private fun setupPushUI() {
         binding.btnPush.setOnClickListener {
@@ -104,7 +128,30 @@ class GitCommitHistoryDialog : DialogFragment() {
                     positiveButtonTextResId = R.string.push
                 ) { user, accessToken ->
                     viewModel.push(user, accessToken)
+                }}
+
+        binding.btnPush.apply {
+            setOnClickListener {
+                val username = credentialsManager.getUsername()
+                val token = credentialsManager.getToken()
+                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    viewModel.push(username, token)
+                } else {
+                    showGitCredentialsDialog(
+                        credentialsManager = credentialsManager,
+                        positiveButtonTextResId = R.string.pull
+                    ) { user, accessToken ->
+                        viewModel.pull(user, accessToken)
+                    }
                 }
+            }
+            setOnLongClickListener { view ->
+                TooltipManager.showIdeCategoryTooltip(
+                    context = view.context,
+                    anchorView = view,
+                    tag = TooltipTag.GIT_PUSH
+                )
+                true
             }
         }
 
@@ -141,19 +188,26 @@ class GitCommitHistoryDialog : DialogFragment() {
                         } else {
                             state.message ?: getString(R.string.unknown_error)
                         }
-                        MaterialAlertDialogBuilder(requireContext())
+                        val dialog = MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.push_failed)
                             .setMessage(message)
                             .setPositiveButton(android.R.string.ok, null)
-                            .show()
+                            .create()
+                        dialog.onLongPress {
+                            TooltipManager.showIdeCategoryTooltip(
+                                context = binding.root.context,
+                                anchorView = binding.root,
+                                tag = TooltipTag.GIT_DIALOG_PUSH_FAIL
+                            )
+                            true
+                        }
+                        dialog.show()
                     }
                 }
             }
         }
 
-    }
-
-
+    }}
 
     override fun onDestroyView() {
         super.onDestroyView()
