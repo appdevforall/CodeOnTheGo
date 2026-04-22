@@ -80,6 +80,10 @@ class GitCommitHistoryDialog : DialogFragment() {
             adapter = commitHistoryAdapter
         }
 
+        binding.btnBack.setOnClickListener {
+            dismiss()
+        }
+
         viewModel.getCommitHistoryList()
 
         viewLifecycleOwner.lifecycleScope.launch {
