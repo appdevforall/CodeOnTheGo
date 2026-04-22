@@ -18,7 +18,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.PreferencesActivity
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
-import com.itsaky.androidide.databinding.DialogGitCredentialsBinding
 import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
@@ -333,6 +332,19 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             }
         }
 
+        binding.btnPull.setOnClickListener {
+            checkUnsavedChangesAndProceed {
+                val username = credentialsManager.getUsername()
+                val token = credentialsManager.getToken()
+                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                    viewModel.pull(username, token)
+                } else {
+                    showGitCredentialsDialog(
+                        credentialsManager = credentialsManager,
+                        positiveButtonTextResId = R.string.pull
+                    ) { user, accessToken ->
+                        viewModel.pull(user, accessToken)}}
+
         binding.btnPull.apply {
             setOnClickListener {
                 checkUnsavedChangesAndProceed {
@@ -341,37 +353,18 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
                         viewModel.pull(username, token)
                     } else {
-                        showCredentialsDialog()
+                        showGitCredentialsDialog(
+                            credentialsManager = credentialsManager,
+                            positiveButtonTextResId = R.string.pull
+                        ) { user, accessToken ->
+                            viewModel.pull(user, accessToken)
+                        }
                     }
                 }
             }
             setTooltipOnView(TooltipTag.GIT_PULL)
         }
-    }
-
-    private fun showCredentialsDialog() {
-        val context = requireContext()
-        val dialogBinding = DialogGitCredentialsBinding.inflate(layoutInflater)
-
-        dialogBinding.username.setText(credentialsManager.getUsername())
-        dialogBinding.token.setText(credentialsManager.getToken())
-
-        MaterialAlertDialogBuilder(context)
-            .setTitle(R.string.git_credentials_title)
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.pull) { _, _ ->
-                val username = dialogBinding.username.text?.toString()?.trim()
-                val token = dialogBinding.token.text?.toString()?.trim()
-                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    viewModel.pull(username, token)
-                }
-            }
-            .setNeutralButton(R.string.git_credentials_clear) { _, _ ->
-                credentialsManager.clearCredentials()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
+    }}}
 
     private fun refreshEditorContent(force: Boolean = false) {
         val activity = requireActivity()
