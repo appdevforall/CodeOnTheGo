@@ -12,7 +12,7 @@ object SpinnerGrammar : WidgetGrammar {
         "android:layout_height" to DimensionValidator,
         "android:id" to PassThroughValidator,
         "android:text" to PassThroughValidator,
-        "android:entries" to PassThroughValidator
+        "tools:entries" to EntriesValidator
     )
 }
 
