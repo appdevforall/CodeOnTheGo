@@ -176,6 +176,15 @@ class FuzzyAttributeParserTest {
     }
 
     @Test
+    fun `OCR garbled checkbox group id is normalized without changing custom ids`() {
+        val checkboxResult = FuzzyAttributeParser.parse("id: cbgraup2 | width: 100dp", "CheckBox")
+        val customResult = FuzzyAttributeParser.parse("id: radius_slider | width: 100dp", "ImageView")
+
+        assertEquals("cb_group_2", checkboxResult["android:id"])
+        assertEquals("radius_slider", customResult["android:id"])
+    }
+
+    @Test
     fun `hex color values pass through unchanged`() {
         val annotation = "background: #FF5733 | width: 100dp"
         val result = FuzzyAttributeParser.parse(annotation, "TextView")

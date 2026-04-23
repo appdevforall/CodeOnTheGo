@@ -25,7 +25,7 @@ class YoloModelSource {
     companion object {
         private const val MODEL_INPUT_WIDTH = 640
         private const val MODEL_INPUT_HEIGHT = 640
-        private const val CONFIDENCE_THRESHOLD = 0.3f
+        private const val CONFIDENCE_THRESHOLD = 0.2f
         private const val NMS_THRESHOLD = 0.45f
     }
 

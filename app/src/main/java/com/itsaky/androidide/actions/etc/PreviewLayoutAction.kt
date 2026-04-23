@@ -62,6 +62,11 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
   companion object {
     const val ID = "ide.editor.previewLayout"
     private val LOG = LoggerFactory.getLogger(PreviewLayoutAction::class.java)
+
+      private val COMPOSABLE_PREVIEW_PATTERN = Regex(
+          """@Preview\s*(?:\(([^)]*)\))?\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*(?:(?:private|internal|protected|public|open|override|suspend|inline|external|abstract|final|actual|expect)\s+)*fun\s+(\w+)""",
+          setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
+      )
   }
 
   init {
@@ -101,7 +106,7 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
             markInvisible()
           }
         }
-        file.name.endsWith(".kt") && moduleUsesCompose(file) -> {
+        file.name.endsWith(".kt") && moduleUsesCompose(file, editor.text.toString()) -> {
           previewType = PreviewType.COMPOSE
           visible = true
           enabled = true
@@ -111,7 +116,7 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
         }
       }
     } else {
-      if (moduleUsesCompose()) {
+      if (file != null && file.name.endsWith(".kt") && moduleUsesCompose(file)) {
         previewType = PreviewType.COMPOSE
         visible = true
         enabled = false
@@ -196,15 +201,13 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     }
   }
 
-  private fun moduleUsesCompose(): Boolean {
-    val workspace = IProjectManager.getInstance().workspace ?: return false
-    return workspace.findAndroidModules().any { module ->
-      module.hasExternalDependency("androidx.compose.runtime", "runtime")
-    }
-  }
-
   private fun moduleUsesCompose(file: File): Boolean {
     val module = IProjectManager.getInstance().findModuleForFile(file) ?: return false
     return module.hasExternalDependency("androidx.compose.runtime", "runtime")
+  }
+
+  private fun moduleUsesCompose(file: File, editorContent: String): Boolean {
+    val module = IProjectManager.getInstance().findModuleForFile(file) ?: return false
+    return module.hasExternalDependency("androidx.compose.runtime", "runtime") && COMPOSABLE_PREVIEW_PATTERN.findAll(editorContent).any()
   }
 }

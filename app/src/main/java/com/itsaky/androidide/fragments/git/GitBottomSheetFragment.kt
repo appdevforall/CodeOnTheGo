@@ -18,7 +18,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.PreferencesActivity
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
-import com.itsaky.androidide.databinding.DialogGitCredentialsBinding
 import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
@@ -69,6 +68,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             }
                         }
                     }
+
                     else -> {
                         val dialog = GitDiffViewerDialog.newInstance(change.path)
                         dialog.show(childFragmentManager, "GitDiffViewerDialog")
@@ -98,7 +98,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                 viewModel.currentBranch.collectLatest { branchName ->
                     if (branchName != null) {
                         binding.tvBranchName.visibility = View.VISIBLE
-                        binding.tvBranchName.text = getString(R.string.current_branch_name, branchName)
+                        binding.tvBranchName.text =
+                            getString(R.string.current_branch_name, branchName)
                     } else {
                         binding.tvBranchName.visibility = View.GONE
                     }
@@ -109,7 +110,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                 viewModel.isGitRepository,
                 viewModel.gitStatus
             ) { isRepo, status ->
-                val allChanges = status.staged + status.unstaged + status.untracked + status.conflicted
+                val allChanges =
+                    status.staged + status.unstaged + status.untracked + status.conflicted
 
                 when {
                     !isRepo -> binding.apply {
@@ -121,6 +123,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         commitHistoryButton.visibility = View.GONE
                         btnAbortMerge.visibility = View.GONE
                     }
+
                     allChanges.isEmpty() -> binding.apply {
                         emptyView.visibility = View.VISIBLE
                         emptyView.text = getString(R.string.no_uncommitted_changes)
@@ -130,14 +133,17 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         commitHistoryButton.visibility = View.VISIBLE
                         btnAbortMerge.visibility = View.GONE
                     }
+
                     else -> {
                         binding.apply {
                             emptyView.visibility = View.GONE
                             recyclerView.visibility = View.VISIBLE
                             commitSection.visibility = View.VISIBLE
-                            authorWarning.visibility = if (hasAuthorInfo()) View.GONE else View.VISIBLE
+                            authorWarning.visibility =
+                                if (hasAuthorInfo()) View.GONE else View.VISIBLE
                             commitHistoryButton.visibility = View.VISIBLE
-                            btnAbortMerge.visibility = if (status.isMerging) View.VISIBLE else View.GONE
+                            btnAbortMerge.visibility =
+                                if (status.isMerging) View.VISIBLE else View.GONE
                         }
                         fileChangeAdapter.submitList(allChanges)
                     }
@@ -165,8 +171,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
     private fun updateAuthorUI() {
         val hasAuthor = hasAuthorInfo()
-        val allChanges = viewModel.gitStatus.value.staged + viewModel.gitStatus.value.unstaged + viewModel.gitStatus.value.untracked + viewModel.gitStatus.value.conflicted
-        binding.authorWarning.visibility = if (!hasAuthor && allChanges.isNotEmpty()) View.VISIBLE else View.GONE
+        val allChanges =
+            viewModel.gitStatus.value.staged + viewModel.gitStatus.value.unstaged + viewModel.gitStatus.value.untracked + viewModel.gitStatus.value.conflicted
+        binding.authorWarning.visibility =
+            if (!hasAuthor && allChanges.isNotEmpty()) View.VISIBLE else View.GONE
         validateCommitButton()
     }
 
@@ -230,7 +238,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
     private fun showAuthorPopup() {
         val name = GitPreferences.userName.orEmpty().ifBlank { getString(R.string.author_not_set) }
-        val email = GitPreferences.userEmail.orEmpty().ifBlank { getString(R.string.author_not_set) }
+        val email =
+            GitPreferences.userEmail.orEmpty().ifBlank { getString(R.string.author_not_set) }
         val message = getString(R.string.git_committing_as, name) + "\n" +
                 getString(R.string.git_committing_email, email) + "\n\n" +
                 getString(R.string.git_update_config_in_preferences)
@@ -265,7 +274,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         }
 
         dialog.show()
-        dialog.findViewById<TextView>(android.R.id.message)?.movementMethod = LinkMovementMethod.getInstance()
+        dialog.findViewById<TextView>(android.R.id.message)?.movementMethod =
+            LinkMovementMethod.getInstance()
     }
 
     private fun validateCommitButton() {
@@ -289,10 +299,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                     }
+
                     is PullUiState.Pulling -> {
                         binding.btnPull.isEnabled = false
                         binding.pullProgress.visibility = View.VISIBLE
                     }
+
                     is PullUiState.Success -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
@@ -300,6 +312,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         viewModel.resetPullState()
                         refreshEditorContent()
                     }
+
                     is PullUiState.Conflicts -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
@@ -314,12 +327,16 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         viewModel.resetPullState()
                         refreshEditorContent()
                     }
+
                     is PullUiState.Error -> {
                         binding.btnPull.isEnabled = true
                         binding.pullProgress.visibility = View.GONE
                         val message =
-                            state.message ?: state.errorResId?.let { resId -> 
-                                if (state.errorArgs != null) getString(resId, *state.errorArgs.toTypedArray()) else getString(resId)
+                            state.message ?: state.errorResId?.let { resId ->
+                                if (state.errorArgs != null) getString(
+                                    resId,
+                                    *state.errorArgs.toTypedArray()
+                                ) else getString(resId)
                             }
                         val dialog = MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.pull_failed)
@@ -341,36 +358,17 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
                         viewModel.pull(username, token)
                     } else {
-                        showCredentialsDialog()
+                        showGitCredentialsDialog(
+                            credentialsManager = credentialsManager,
+                            positiveButtonTextResId = R.string.pull
+                        ) { user, accessToken ->
+                            viewModel.pull(user, accessToken)
+                        }
                     }
                 }
             }
             setTooltipOnView(TooltipTag.GIT_PULL)
         }
-    }
-
-    private fun showCredentialsDialog() {
-        val context = requireContext()
-        val dialogBinding = DialogGitCredentialsBinding.inflate(layoutInflater)
-
-        dialogBinding.username.setText(credentialsManager.getUsername())
-        dialogBinding.token.setText(credentialsManager.getToken())
-
-        MaterialAlertDialogBuilder(context)
-            .setTitle(R.string.git_credentials_title)
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.pull) { _, _ ->
-                val username = dialogBinding.username.text?.toString()?.trim()
-                val token = dialogBinding.token.text?.toString()?.trim()
-                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    viewModel.pull(username, token)
-                }
-            }
-            .setNeutralButton(R.string.git_credentials_clear) { _, _ ->
-                credentialsManager.clearCredentials()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
     }
 
     private fun refreshEditorContent(force: Boolean = false) {
@@ -406,7 +404,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         _binding = null
     }
 
-    fun AlertDialog.setTooltipOnDialog(tag: String) {
+    private fun AlertDialog.setTooltipOnDialog(tag: String) {
         onLongPress { view ->
             TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
@@ -417,7 +415,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         }
     }
 
-    fun View.setTooltipOnView(tag: String) {
+    private fun View.setTooltipOnView(tag: String) {
         setOnLongClickListener { view ->
             TooltipManager.showIdeCategoryTooltip(
                 context = view.context,

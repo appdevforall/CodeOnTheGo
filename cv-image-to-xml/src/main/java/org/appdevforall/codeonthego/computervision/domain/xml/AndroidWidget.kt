@@ -46,9 +46,9 @@ sealed class AndroidWidget(
     companion object {
         fun create(box: ScaledBox, parsedAttrs: Map<String, String>): AndroidWidget {
             return when (box.label) {
-                "text", "button", "checkbox_unchecked", "checkbox_checked",
-                "radio_button_unchecked", "radio_button_checked" ->
+                "text", "button", "radio_button_unchecked", "radio_button_checked" ->
                     TextBasedWidget(box, parsedAttrs, getTagFor(box.label))
+                "checkbox_unchecked", "checkbox_checked" -> CheckBoxWidget(box, parsedAttrs)
                 "switch_off", "switch_on" -> SwitchWidget(box, parsedAttrs)
                 "text_entry_box" -> InputWidget(box, parsedAttrs)
                 "image_placeholder", "icon" -> ImageWidget(box, parsedAttrs)
@@ -89,6 +89,28 @@ class TextBasedWidget(
             attrs["android:textSize"] = parsedAttrs["android:textSize"] ?: "16sp"
         }
         if (box.label.contains("_checked") || box.label.contains("_on")) {
+            attrs["android:checked"] = parsedAttrs["android:checked"] ?: "true"
+        }
+        return attrs
+    }
+}
+
+class CheckBoxWidget(
+    box: ScaledBox, parsedAttrs: Map<String, String>
+) : AndroidWidget(box, parsedAttrs) {
+    override val tag = "CheckBox"
+
+    override fun specificAttributes(): Map<String, String> {
+        val attrs = mutableMapOf<String, String>()
+
+        val rawViewText = box.text.takeIf { it.isNotEmpty() && it != box.label }
+            ?: parsedAttrs["android:text"]
+            ?: "CheckBox"
+
+        attrs["android:text"] = rawViewText
+        attrs["tools:ignore"] = "HardcodedText"
+
+        if (box.label.contains("_checked")) {
             attrs["android:checked"] = parsedAttrs["android:checked"] ?: "true"
         }
         return attrs

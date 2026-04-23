@@ -11,7 +11,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
-import com.itsaky.androidide.databinding.DialogGitCredentialsBinding
 import com.itsaky.androidide.fragments.git.adapter.GitCommitHistoryAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
@@ -57,7 +56,12 @@ class GitCommitHistoryDialog : DialogFragment() {
             linearLayoutManager.orientation
         )
 
-        binding.root.applyLongPressRecursively(listOf(binding.btnPush, binding.rvCommitHistory)) { view ->
+        binding.root.applyLongPressRecursively(
+            listOf(
+                binding.btnPush,
+                binding.rvCommitHistory
+            )
+        ) { view ->
             TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
                 anchorView = view,
@@ -66,18 +70,17 @@ class GitCommitHistoryDialog : DialogFragment() {
             true
         }
 
-        binding.rvCommitHistory.onLongPress {
-            TooltipManager.showIdeCategoryTooltip(
-                context = binding.root.context,
-                anchorView = binding.root,
-                tag = TooltipTag.GIT_COMMIT_HISTORY
-            )
-        }
-
         binding.rvCommitHistory.apply {
             layoutManager = linearLayoutManager
             addItemDecoration(dividerItemDecoration)
             adapter = commitHistoryAdapter
+            onLongPress {
+                TooltipManager.showIdeCategoryTooltip(
+                    context = binding.root.context,
+                    anchorView = binding.root,
+                    tag = TooltipTag.GIT_COMMIT_HISTORY
+                )
+            }
         }
 
         binding.btnBack.setOnClickListener {
@@ -94,18 +97,21 @@ class GitCommitHistoryDialog : DialogFragment() {
                         binding.emptyView.visibility = View.GONE
                         binding.rvCommitHistory.visibility = View.GONE
                     }
+
                     is CommitHistoryUiState.Empty -> {
                         binding.progressBar.visibility = View.GONE
                         binding.emptyView.visibility = View.VISIBLE
                         binding.emptyView.setText(R.string.no_commit_history)
                         binding.rvCommitHistory.visibility = View.GONE
                     }
+
                     is CommitHistoryUiState.Error -> {
                         binding.progressBar.visibility = View.GONE
                         binding.emptyView.visibility = View.VISIBLE
                         binding.emptyView.text = state.message ?: getString(R.string.unknown_error)
                         binding.rvCommitHistory.visibility = View.GONE
                     }
+
                     is CommitHistoryUiState.Success -> {
                         binding.progressBar.visibility = View.GONE
                         binding.emptyView.visibility = View.GONE
@@ -127,7 +133,12 @@ class GitCommitHistoryDialog : DialogFragment() {
                 if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
                     viewModel.push(username, token)
                 } else {
-                    showCredentialsDialog()
+                    showGitCredentialsDialog(
+                        credentialsManager = credentialsManager,
+                        positiveButtonTextResId = R.string.push
+                    ) { user, accessToken ->
+                        viewModel.push(user, accessToken)
+                    }
                 }
             }
             setOnLongClickListener { view ->
@@ -154,10 +165,12 @@ class GitCommitHistoryDialog : DialogFragment() {
                         binding.btnPush.text = getString(R.string.push)
                         binding.pushProgress.visibility = View.GONE
                     }
+
                     is GitBottomSheetViewModel.PushUiState.Pushing -> {
                         binding.btnPush.isEnabled = false
                         binding.pushProgress.visibility = View.VISIBLE
                     }
+
                     is GitBottomSheetViewModel.PushUiState.Success -> {
                         binding.btnPush.isEnabled = true
                         binding.pushProgress.visibility = View.GONE
@@ -165,14 +178,16 @@ class GitCommitHistoryDialog : DialogFragment() {
                         viewModel.resetPushState()
                         dismiss()
                     }
+
                     is GitBottomSheetViewModel.PushUiState.Error -> {
                         binding.btnPush.isEnabled = true
                         binding.pushProgress.visibility = View.GONE
-                        val message = if (state.errorResId != null && state.errorResId != R.string.unknown_error) {
-                            getString(state.errorResId)
-                        } else {
-                            state.message ?: getString(R.string.unknown_error)
-                        }
+                        val message =
+                            if (state.errorResId != null && state.errorResId != R.string.unknown_error) {
+                                getString(state.errorResId)
+                            } else {
+                                state.message ?: getString(R.string.unknown_error)
+                            }
                         val dialog = MaterialAlertDialogBuilder(requireContext())
                             .setTitle(R.string.push_failed)
                             .setMessage(message)
@@ -192,29 +207,7 @@ class GitCommitHistoryDialog : DialogFragment() {
             }
         }
 
-    }
 
-    private fun showCredentialsDialog() {
-        val dialogBinding = DialogGitCredentialsBinding.inflate(layoutInflater)
-
-        dialogBinding.username.setText(credentialsManager.getUsername())
-        dialogBinding.token.setText(credentialsManager.getToken())
-
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(R.string.git_credentials_title)
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.push) { _, _ ->
-                val username = dialogBinding.username.text?.toString()?.trim()
-                val token = dialogBinding.token.text?.toString()?.trim()
-                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    viewModel.push(username, token)
-                }
-            }
-            .setNeutralButton(R.string.git_credentials_clear) { _, _ ->
-                credentialsManager.clearCredentials()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
     }
 
     override fun onDestroyView() {
