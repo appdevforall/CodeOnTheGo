@@ -6,10 +6,10 @@ class XmlContext(
 ) {
     private val usedIds = mutableSetOf<String>()
 
-    fun nextId(label: String): String {
+    fun nextId(label: String, initialIndex: Int = 0): String {
         val safeLabel = label.replace(Regex("[^a-zA-Z0-9_]"), "_")
 
-        var count = counters.getOrDefault(safeLabel, -1)
+        var count = counters.getOrDefault(safeLabel, initialIndex - 1)
         var newId: String
 
         do {
