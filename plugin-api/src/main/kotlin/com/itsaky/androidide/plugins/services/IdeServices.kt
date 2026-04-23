@@ -4,6 +4,7 @@ package com.itsaky.androidide.plugins.services
 import android.app.Activity
 import com.itsaky.androidide.plugins.extensions.IProject
 import java.io.File
+import java.io.InputStream
 
 /**
  * Service interface that provides access to Code On the Go project information.
@@ -228,6 +229,37 @@ interface IdeFileService {
      * @return true if the replacement was successful, false otherwise
      */
     fun replaceInFile(file: File, oldText: String, newText: String): Boolean
+
+    /**
+     * Writes binary content to a file, replacing any existing content.
+     * Use this instead of [writeFile] for non-text data: UTF-8 transcoding in
+     * [writeFile] corrupts arbitrary bytes.
+     * @param file The file to write to
+     * @param data The bytes to write
+     * @return true if the write operation was successful, false otherwise
+     */
+    fun writeBinary(file: File, data: ByteArray): Boolean
+
+    /**
+     * Writes content from an input stream to a file, replacing any existing
+     * content. Preferred for large payloads (archives, toolchain assets) since
+     * no intermediate buffer of the full payload is held in memory.
+     *
+     * The caller owns [input] and is responsible for closing it.
+     * @param file The file to write to
+     * @param input The stream to read from
+     * @return The number of bytes written, or -1 if the operation failed
+     */
+    fun writeStream(file: File, input: InputStream): Long
+
+    /**
+     * Deletes a file or directory. Directories are removed recursively.
+     * Required for plugins that need to clean up installed assets in
+     * [com.itsaky.androidide.plugins.IPlugin.deactivate].
+     * @param file The file or directory to delete
+     * @return true if the deletion was successful, false otherwise
+     */
+    fun delete(file: File): Boolean
 }
 
 /**

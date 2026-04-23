@@ -32,7 +32,8 @@ enum class PluginPermission(val key: String, val description: String) {
     SYSTEM_COMMANDS("system.commands", "Execute system commands"),
     IDE_SETTINGS("ide.settings", "Modify IDE settings"),
     PROJECT_STRUCTURE("project.structure", "Modify project structure"),
-    NATIVE_CODE("native.code", "Execute native machine code")
+    NATIVE_CODE("native.code", "Execute native machine code"),
+    IDE_ENVIRONMENT_WRITE("ide.environment.write", "Write to IDE-managed directories such as the Android SDK, NDK, and cache")
 }
 
 data class PluginInfo(

@@ -29,4 +29,6 @@ dependencies {
 	implementation(libs.androidx.appcompat)
 	implementation(libs.gson.v2101)
 	implementation(libs.brotli4j)
+	implementation(libs.commons.compress)
+	implementation(libs.tukaani.xz)
 }
