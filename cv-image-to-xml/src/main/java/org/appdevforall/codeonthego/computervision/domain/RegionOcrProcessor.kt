@@ -18,8 +18,6 @@ class RegionOcrProcessor(
 
     private val interactiveLabels = setOf(
         "button",
-        "checkbox_checked",
-        "checkbox_unchecked",
         "switch_on",
         "switch_off",
         "text_entry_box",
