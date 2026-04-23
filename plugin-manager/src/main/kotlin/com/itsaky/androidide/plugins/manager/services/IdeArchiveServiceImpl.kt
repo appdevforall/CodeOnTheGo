@@ -4,7 +4,6 @@ import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.ArchiveFormat
 import com.itsaky.androidide.plugins.services.ExtractResult
 import com.itsaky.androidide.plugins.services.IdeArchiveService
-import com.itsaky.androidide.utils.FeatureFlags
 import org.apache.commons.compress.archivers.ArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
@@ -242,7 +241,6 @@ class IdeArchiveServiceImpl(
     }
 
     private fun extractTarXzViaTermux(archiveFile: File, outputDir: File): Boolean {
-        if (!FeatureFlags.isExperimentsEnabled) return false
         if (!archiveFile.exists()) {
             logger.debug("Archive not found: ${archiveFile.absolutePath}")
             return false
@@ -256,10 +254,10 @@ class IdeArchiveServiceImpl(
 
             val elapsed = measureTimeMillis {
                 val process = ProcessBuilder(
-                    "${TERMUX_BIN_PATH}/bash", "-c",
-                    "tar -xJf ${archiveFile.absolutePath} -C ${outputDir.absolutePath} --no-same-owner"
+                    "$TERMUX_BIN_PATH/tar", "-xJf", archiveFile.absolutePath,
+                    "-C", outputDir.canonicalPath, "--no-same-owner"
                 ).redirectErrorStream(true).apply {
-                    environment()["PATH"] = "${TERMUX_BIN_PATH}:${environment()["PATH"]}"
+                    environment()["PATH"] = TERMUX_BIN_PATH
                 }.start()
 
                 val reader = thread(name = "tar-xz-extract-output") {
