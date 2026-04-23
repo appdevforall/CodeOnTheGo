@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.computervision.domain
 import android.graphics.RectF
 import com.google.mlkit.vision.text.Text
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.utils.OcrTextAssembler.joinElementsWithTolerance
 
 class DetectionMerger(
     private val enrichedComponents: List<DetectionResult>,
@@ -39,20 +40,22 @@ class DetectionMerger(
             }
         }
 
-        val orphanText = fullImageTextBlocks.filter { it !in usedTextBlocks }
-        for (textBlock in orphanText) {
-            textBlock.boundingBox?.let {
-                finalDetections.add(
+        val orphanDetections = fullImageTextBlocks
+            .filter { it !in usedTextBlocks }
+            .flatMap { it.lines }
+            .mapNotNull { line ->
+                line.boundingBox?.let { box ->
                     DetectionResult(
-                        boundingBox = RectF(it),
+                        boundingBox = RectF(box),
                         label = "text",
                         score = 0.99f,
-                        text = textBlock.text.replace("\n", " "),
+                        text = joinElementsWithTolerance(line),
                         isYolo = false
                     )
-                )
+                }
             }
-        }
+
+        finalDetections.addAll(orphanDetections)
 
         return finalDetections
     }

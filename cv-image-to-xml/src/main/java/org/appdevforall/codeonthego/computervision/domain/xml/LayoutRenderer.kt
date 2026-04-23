@@ -8,11 +8,18 @@ class LayoutRenderer(
     private val context: XmlContext,
     private val annotations: Map<ScaledBox, String>
 ) {
+    private val checkboxGroupIdPattern = Regex("^cb_group_\\d+$")
+    private val radioChildGroupIdPatterns = listOf(
+        Regex("^rb_group_\\d+(?:_|$).*"),
+        Regex("^radio_group_\\d+(?:_|$).*")
+    )
+
     fun render(item: LayoutItem, indent: String = "        ") {
         when (item) {
             is LayoutItem.SimpleView -> renderSimpleView(item.box, indent)
             is LayoutItem.HorizontalRow -> renderHorizontalRow(item.row, indent)
             is LayoutItem.RadioGroup -> renderRadioGroup(item.boxes, item.orientation, indent)
+            is LayoutItem.CheckboxGroup -> renderCheckboxGroup(item.boxes, item.orientation, indent)
         }
         context.appendLine()
     }
@@ -62,7 +69,11 @@ class LayoutRenderer(
             val parsedAttrs = FuzzyAttributeParser.parse(annotations[box], "RadioButton")
 
             val requestedId = parsedAttrs["android:id"]?.substringAfterLast('/')
-            val id = context.resolveId(requestedId, box.label)
+            val id = if (requestedId != null && radioChildGroupIdPatterns.any { it.matches(requestedId) }) {
+                context.nextId(box.label)
+            } else {
+                context.resolveId(requestedId, box.label)
+            }
 
             val extraAttrs = if (orientation == "horizontal" && index < boxes.lastIndex) {
                 val gap = maxOf(0, boxes[index + 1].x - (box.x + box.w))
@@ -105,5 +116,39 @@ class LayoutRenderer(
             context.appendLine()
         }
         context.append("$indent</RadioGroup>")
+    }
+
+    private fun renderCheckboxGroup(boxes: List<ScaledBox>, orientation: String, indent: String) {
+        val groupAnnotation = boxes.firstNotNullOfOrNull { annotations[it] }
+        val parsedAttrs = FuzzyAttributeParser.parse(groupAnnotation, "CheckBox")
+
+        val requestedId = parsedAttrs["android:id"]?.substringAfterLast('/')
+        val baseId = if (requestedId != null && checkboxGroupIdPattern.matches(requestedId)) {
+            context.resolveId(requestedId, "cb_group")
+        } else {
+            context.nextId("cb_group", initialIndex = 1)
+        }
+
+        boxes.forEachIndexed { index, box ->
+            val suffix = ('a' + index).toString()
+            val childId = "${baseId}_$suffix"
+
+            val safeAttrs = parsedAttrs.toMutableMap()
+            safeAttrs.remove("android:id")
+
+            val extraAttrs = if (orientation == "horizontal" && index < boxes.lastIndex) {
+                val gap = maxOf(0, boxes[index + 1].x - (box.x + box.w))
+                mapOf("android:layout_marginEnd" to "${gap}dp")
+            } else emptyMap()
+
+            renderSimpleView(
+                box = box,
+                indent = indent,
+                extraAttrs = extraAttrs,
+                idOverride = childId,
+                parsedAttrsOverride = safeAttrs
+            )
+            context.appendLine()
+        }
     }
 }
