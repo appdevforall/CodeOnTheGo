@@ -4,18 +4,23 @@ import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.ArchiveFormat
 import com.itsaky.androidide.plugins.services.ExtractResult
 import com.itsaky.androidide.plugins.services.IdeArchiveService
+import com.itsaky.androidide.utils.FeatureFlags
 import org.apache.commons.compress.archivers.ArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
+import org.slf4j.LoggerFactory
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
+import kotlin.system.measureTimeMillis
 
 class IdeArchiveServiceImpl(
     private val pluginId: String,
@@ -35,6 +40,17 @@ class IdeArchiveServiceImpl(
 
             val buffered = BufferedInputStream(NonClosingInputStream(source))
             when (format) {
+                ArchiveFormat.TAR_XZ -> {
+                    val tempFile = File.createTempFile("archive", ".tar.xz", destination.parentFile)
+                    try {
+                        tempFile.outputStream().use { source.copyTo(it) }
+                        val ok = extractTarXzViaTermux(tempFile, destination)
+                        if (ok) ExtractResult.Success(0, 0)
+                        else ExtractResult.Failure(Exception("Termux tar extraction failed"))
+                    } finally {
+                        tempFile.delete()
+                    }
+                }
                 ArchiveFormat.XZ -> extractSingleStream(
                     XZCompressorInputStream(buffered),
                     destination,
@@ -46,11 +62,6 @@ class IdeArchiveServiceImpl(
                     onProgress
                 )
                 ArchiveFormat.TAR -> extractTar(buffered, destination, onProgress)
-                ArchiveFormat.TAR_XZ -> extractTar(
-                    XZCompressorInputStream(buffered),
-                    destination,
-                    onProgress
-                )
                 ArchiveFormat.TAR_GZ -> extractTar(
                     GzipCompressorInputStream(buffered),
                     destination,
@@ -59,6 +70,7 @@ class IdeArchiveServiceImpl(
                 ArchiveFormat.ZIP -> extractZip(buffered, destination, onProgress)
             }
         } catch (e: Exception) {
+            logger.error("error in extract ${e}")
             ExtractResult.Failure(e)
         }
     }
@@ -229,13 +241,63 @@ class IdeArchiveServiceImpl(
         }
     }
 
+    private fun extractTarXzViaTermux(archiveFile: File, outputDir: File): Boolean {
+        if (!FeatureFlags.isExperimentsEnabled) return false
+        if (!archiveFile.exists()) {
+            logger.debug("Archive not found: ${archiveFile.absolutePath}")
+            return false
+        }
+
+        logger.debug("Starting Termux tar extraction: ${archiveFile.absolutePath}")
+
+        return runCatching {
+            val output = StringBuilder()
+            var exitCode = -1
+
+            val elapsed = measureTimeMillis {
+                val process = ProcessBuilder(
+                    "${TERMUX_BIN_PATH}/bash", "-c",
+                    "tar -xJf ${archiveFile.absolutePath} -C ${outputDir.absolutePath} --no-same-owner"
+                ).redirectErrorStream(true).apply {
+                    environment()["PATH"] = "${TERMUX_BIN_PATH}:${environment()["PATH"]}"
+                }.start()
+
+                val reader = thread(name = "tar-xz-extract-output") {
+                    process.inputStream.bufferedReader().useLines { it.forEach(output::appendLine) }
+                }
+
+                val completed = process.waitFor(2, TimeUnit.MINUTES)
+                if (!completed) process.destroyForcibly()
+                reader.join()
+                exitCode = if (completed) process.exitValue() else -1
+            }
+
+            when (exitCode) {
+                0 -> {
+                    logger.debug("Extraction succeeded in ${elapsed}ms: $output")
+                    true
+                }
+                else -> {
+                    logger.error("Extraction failed (code=$exitCode): $output")
+                    false
+                }
+            }
+        }.getOrElse { e ->
+            logger.error("Termux process error: ${e.message}")
+            false
+        }
+    }
+
+
     private companion object {
         const val COPY_BUFFER_SIZE = 64 * 1024
         const val PROGRESS_REPORT_INTERVAL = 1L * 1024 * 1024
         const val OWNER_EXECUTE_BIT = 0b001_000_000
+        const val TERMUX_BIN_PATH = "/data/data/com.itsaky.androidide/files/usr/bin"
         val writePermissions = setOf(
             PluginPermission.FILESYSTEM_WRITE,
             PluginPermission.IDE_ENVIRONMENT_WRITE
         )
+        private val logger = LoggerFactory.getLogger(IdeArchiveServiceImpl::class.java)
     }
 }
