@@ -7,6 +7,9 @@ object FuzzyAttributeParser {
     private val grammarValidator = UiGrammarValidator()
 
     private const val FUZZY_VALUE_THRESHOLD = 75
+    private const val FUZZY_DIMENSION_THRESHOLD = 60
+    private val DIMENSION_CONSTANTS = listOf("wrap_content", "match_parent")
+    private val ID_VOCABULARY = listOf("cb", "rb", "group", "checkbox", "radio", "btn", "button", "text", "view", "img", "image", "input")
 
     private fun fuzzyKeyThreshold(keyLength: Int): Int = when {
         keyLength <= 3 -> 65
@@ -415,6 +418,11 @@ object FuzzyAttributeParser {
         if (matchKeywords.any { it in normalized }) return "match_parent"
         if (wrapKeywords.any { it in normalized }) return "wrap_content"
 
+        val fuzzyResult = FuzzySearch.extractOne(normalized, DIMENSION_CONSTANTS)
+        if (fuzzyResult.score >= FUZZY_DIMENSION_THRESHOLD) {
+            return fuzzyResult.string
+        }
+
         val fixedUnit = normalized
             .replace(Regex("0p$"), "dp")
             .replace(Regex("op$"), "dp")
@@ -458,11 +466,68 @@ object FuzzyAttributeParser {
     }
 
     private fun cleanId(value: String): String {
-        return denoiseOcrIdentifier(value.lowercase())
+        val cleaned = denoiseOcrIdentifier(value.lowercase())
             .replace(nonAlphanumericRegex, "_")
             .replace(multipleUnderscoresRegex, "_")
             .trimEnd('_')
             .trimStart('_')
+
+        return normalizeKnownIdVocabulary(cleaned)
+    }
+
+    private fun normalizeKnownIdVocabulary(identifier: String): String {
+        if (identifier.isBlank()) return identifier
+
+        return identifier
+            .split('_')
+            .filter { it.isNotBlank() }
+            .flatMap(::normalizeIdToken)
+            .joinToString("_")
+    }
+
+    private fun normalizeIdToken(token: String): List<String> {
+        if (token.isBlank()) return emptyList()
+        if (token.all(Char::isDigit)) return listOf(token)
+
+        val wholeMatch = fuzzyMatchIdVocabulary(token)
+        if (wholeMatch != null) {
+            return listOf(wholeMatch)
+        }
+
+        val compositeMatch = normalizeCompositeIdToken(token)
+        if (compositeMatch != null) {
+            return compositeMatch
+        }
+
+        return listOf(token)
+    }
+
+    private fun normalizeCompositeIdToken(token: String): List<String>? {
+        val match = Regex("^([a-z]+?)(\\d+)?$").matchEntire(token) ?: return null
+        val alphaPart = match.groupValues[1]
+        val trailingDigits = match.groupValues[2].takeIf { it.isNotEmpty() }
+
+        val prefix = ID_VOCABULARY
+            .filter { alphaPart.length > it.length }
+            .sortedByDescending { it.length }
+            .firstOrNull { alphaPart.startsWith(it) }
+            ?: return null
+
+        val remainder = alphaPart.removePrefix(prefix)
+        val normalizedRemainder = fuzzyMatchIdVocabulary(remainder) ?: return null
+
+        val result = mutableListOf(prefix, normalizedRemainder)
+        if (trailingDigits != null) result += trailingDigits
+        return result
+    }
+
+    private fun fuzzyMatchIdVocabulary(token: String): String? {
+        if (token.length < 3) return null
+        if (token in ID_VOCABULARY) return token
+
+        val result = FuzzySearch.extractOne(token, ID_VOCABULARY)
+        val lengthDelta = kotlin.math.abs(token.length - result.string.length)
+        return result.string.takeIf { result.score >= 80 && lengthDelta <= 2 }
     }
 
     private fun denoiseOcrIdentifier(value: String): String {
