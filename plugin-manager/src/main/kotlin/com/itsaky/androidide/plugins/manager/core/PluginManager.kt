@@ -42,8 +42,10 @@ import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeFileService
 import com.itsaky.androidide.plugins.services.IdeSidebarService
+import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeFeatureFlagService
@@ -86,7 +88,70 @@ class PluginManager private constructor(
     
     private var activityProvider: ActivityProvider? = null
     private var pathValidator: PluginPathValidator? = null
-    
+    private var editorProvider: IdeEditorServiceImpl.EditorProvider? = null
+
+    /**
+     * Stable provider handed to every plugin's [IdeEditorServiceImpl]. Each call delegates to
+     * the currently-set [editorProvider] (or returns a no-op default when none is wired). This
+     * lets the editor activity register/unregister a real provider over its lifecycle without
+     * having to rebuild already-loaded plugin services.
+     */
+    /**
+     * Callbacks added by plugins before any real provider was set. We hold them here and
+     * replay onto a real provider when one is registered, so listener registration doesn't
+     * silently drop on the floor during the early-boot window.
+     */
+    private val pendingFileChangeCallbacks = java.util.concurrent.CopyOnWriteArraySet<(File?) -> Unit>()
+
+    private val delegatingEditorProvider = object : IdeEditorServiceImpl.EditorProvider {
+        private fun current(): IdeEditorServiceImpl.EditorProvider? = editorProvider
+
+        override fun getCurrentFile(): File? = current()?.getCurrentFile()
+        override fun getOpenFiles(): List<File> = current()?.getOpenFiles() ?: emptyList()
+        override fun isFileOpen(file: File): Boolean = current()?.isFileOpen(file) ?: false
+        override fun getCurrentSelection(): String? = current()?.getCurrentSelection()
+        override fun getCurrentFileContent(): String? = current()?.getCurrentFileContent()
+        override fun getFileContent(file: File): String? = current()?.getFileContent(file)
+        override fun getCurrentCursorPosition() = current()?.getCurrentCursorPosition()
+        override fun getCurrentSelectionRange() = current()?.getCurrentSelectionRange()
+        override fun getCurrentLineText(): String? = current()?.getCurrentLineText()
+        override fun getLineText(file: File, lineNumber: Int): String? = current()?.getLineText(file, lineNumber)
+        override fun getLineCount(file: File): Int = current()?.getLineCount(file) ?: 0
+        override fun getWordAtCursor(): String? = current()?.getWordAtCursor()
+        override fun getCurrentLanguageId(): String? = current()?.getCurrentLanguageId()
+        override fun getFileLanguageId(file: File): String? = current()?.getFileLanguageId(file)
+        override fun isFileModified(file: File): Boolean = current()?.isFileModified(file) ?: false
+        override fun getModifiedFiles(): List<File> = current()?.getModifiedFiles() ?: emptyList()
+        override fun openFile(file: File): Boolean = current()?.openFile(file) ?: false
+        override fun openFileAt(file: File, line: Int, column: Int): Boolean =
+            current()?.openFileAt(file, line, column) ?: false
+        override fun saveCurrentFile(): Boolean = current()?.saveCurrentFile() ?: false
+        override fun insertTextAtCursor(text: String): Boolean = current()?.insertTextAtCursor(text) ?: false
+        override fun replaceSelection(text: String): Boolean = current()?.replaceSelection(text) ?: false
+        override fun appendToLine(file: File, line: Int, text: String): Boolean =
+            current()?.appendToLine(file, line, text) ?: false
+        override fun prependToLine(file: File, line: Int, text: String): Boolean =
+            current()?.prependToLine(file, line, text) ?: false
+        override fun replaceLine(file: File, line: Int, newText: String): Boolean =
+            current()?.replaceLine(file, line, newText) ?: false
+        override fun insertLineBefore(file: File, line: Int, text: String): Boolean =
+            current()?.insertLineBefore(file, line, text) ?: false
+        override fun deleteLine(file: File, line: Int): Boolean = current()?.deleteLine(file, line) ?: false
+        override fun replaceRange(
+            file: File,
+            range: com.itsaky.androidide.plugins.services.SelectionRange,
+            newText: String,
+        ): Boolean = current()?.replaceRange(file, range, newText) ?: false
+        override fun addFileChangeCallback(callback: (File?) -> Unit) {
+            pendingFileChangeCallbacks.add(callback)
+            current()?.addFileChangeCallback(callback)
+        }
+        override fun removeFileChangeCallback(callback: (File?) -> Unit) {
+            pendingFileChangeCallbacks.remove(callback)
+            current()?.removeFileChangeCallback(callback)
+        }
+    }
+
     // Configurable permissions for different services
     private var projectServicePermissions: Set<PluginPermission> = setOf(PluginPermission.FILESYSTEM_READ)
     
@@ -570,6 +635,11 @@ class PluginManager private constructor(
                 themeService.dispose()
             }
 
+            val editorService = loadedPlugin.context.services.get(IdeEditorService::class.java)
+            if (editorService is IdeEditorServiceImpl) {
+                editorService.dispose()
+            }
+
             // Unregister the plugin's resource context
             PluginFragmentHelper.unregisterPluginContext(pluginId)
 
@@ -817,7 +887,28 @@ class PluginManager private constructor(
     fun setPathValidator(validator: PluginPathValidator?) {
         this.pathValidator = validator
     }
-    
+
+    /**
+     * Set the editor provider to enable plugin access to editor state. Safe to call after
+     * plugins have already loaded — buffered file-change callbacks are replayed on the new
+     * provider and detached from the previous one.
+     */
+    fun setEditorProvider(provider: IdeEditorServiceImpl.EditorProvider?) {
+        val previous = this.editorProvider
+        if (previous === provider) return
+        if (previous != null) {
+            pendingFileChangeCallbacks.forEach { cb ->
+                runCatching { previous.removeFileChangeCallback(cb) }
+            }
+        }
+        this.editorProvider = provider
+        if (provider != null) {
+            pendingFileChangeCallbacks.forEach { cb ->
+                runCatching { provider.addFileChangeCallback(cb) }
+            }
+        }
+    }
+
     /**
      * Save plugin enabled state to persistent storage
      */
@@ -1043,6 +1134,25 @@ class PluginManager private constructor(
                     snippetRefreshListener?.invoke(pid)
                 }
             }
+        }
+
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeEditorService::class.java,
+            pluginId,
+            "editor"
+        ) {
+            IdeEditorServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                editorProvider = delegatingEditorProvider,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeEditorServiceImpl.PathValidator {
+                        override fun isPathAllowed(file: File): Boolean = validator.isPathAllowed(file)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
         }
 
         registerServiceWithErrorHandling(
