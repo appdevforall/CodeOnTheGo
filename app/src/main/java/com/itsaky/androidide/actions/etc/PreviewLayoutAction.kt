@@ -64,7 +64,7 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
     private val LOG = LoggerFactory.getLogger(PreviewLayoutAction::class.java)
 
       private val COMPOSABLE_PREVIEW_PATTERN = Regex(
-          """@Preview\s*(?:\(([^)]*)\))?\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*fun\s+(\w+)""",
+          """@Preview\s*(?:\(([^)]*)\))?\s*(?:@\w+(?:\s*\([^)]*\))?[\s\n]*)*(?:(?:private|internal|protected|public|open|override|suspend|inline|external|abstract|final|actual|expect)\s+)*fun\s+(\w+)""",
           setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL)
       )
   }
