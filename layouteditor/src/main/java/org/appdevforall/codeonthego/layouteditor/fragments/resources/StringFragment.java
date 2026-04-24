@@ -31,6 +31,7 @@ import org.appdevforall.codeonthego.layouteditor.utils.SBUtils;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,9 +76,14 @@ public class StringFragment extends Fragment {
    * @param filePath = Current project strings file path;
    */
   public void loadStringsFromXML(String filePath) throws FileNotFoundException {
-    InputStream stream = new FileInputStream(filePath);
-    stringParser = new ValuesResourceParser(stream, ValuesResourceParser.TAG_STRING);
-    stringList = stringParser.getValuesList();
+    try (InputStream stream = new FileInputStream(filePath)) {
+      stringParser = new ValuesResourceParser(stream, ValuesResourceParser.TAG_STRING);
+      stringList = stringParser.getValuesList();
+    } catch (FileNotFoundException e) {
+      throw e;
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 
   public void addString() {

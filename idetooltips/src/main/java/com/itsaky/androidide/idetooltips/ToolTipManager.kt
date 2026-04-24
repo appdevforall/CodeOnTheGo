@@ -97,51 +97,50 @@ object TooltipManager {
             try {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
-                var cursor = db.rawQuery(QUERY_LAST_CHANGE, arrayOf())
-                cursor.moveToFirst()
-
-                lastChange = "${cursor.getString(0)} ${cursor.getString(1)}"
-
-                Log.d(TAG, "last change is '${lastChange}'.")
-
-                cursor = db.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category))
-
-                when (cursor.count) {
-                    0 -> throw NoTooltipFoundException(category, tag)
-                    1 -> { /* Expected case, continue processing */
+                db.use { database ->
+                    database.rawQuery(QUERY_LAST_CHANGE, arrayOf()).use { c ->
+                        c.moveToFirst()
+                        lastChange = "${c.getString(0)} ${c.getString(1)}"
                     }
 
-                    else -> throw DatabaseCorruptionException(
-                        "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
-                                "Each category/tag combination should be unique."
+                    Log.d(TAG, "last change is '${lastChange}'.")
+
+                    database.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category)).use { c ->
+                        when (c.count) {
+                            0 -> throw NoTooltipFoundException(category, tag)
+                            1 -> { /* Expected case, continue processing */
+                            }
+
+                            else -> throw DatabaseCorruptionException(
+                                "Multiple tooltips found for category='$category', tag='$tag' (found ${c.count} rows). " +
+                                        "Each category/tag combination should be unique."
+                            )
+                        }
+
+                        c.moveToFirst()
+
+                        rowId = c.getInt(0)
+                        tooltipId = c.getInt(1)
+                        summary = c.getString(2)
+                        detail = c.getString(3)
+                    }
+
+                    database.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString())).use { c ->
+                        while (c.moveToNext()) {
+                            buttons.add(
+                                Pair(
+                                    c.getString(0),
+                                    "http://localhost:6174/" + c.getString(1)
+                                )
+                            )
+                        }
+                    }
+
+                    Log.d(
+                        TAG,
+                        "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons."
                     )
                 }
-
-                cursor.moveToFirst()
-
-                rowId = cursor.getInt(0)
-                tooltipId = cursor.getInt(1)
-                summary = cursor.getString(2)
-                detail = cursor.getString(3)
-
-                cursor = db.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString()))
-
-                while (cursor.moveToNext()) {
-                    buttons.add(
-                        Pair(
-                            cursor.getString(0),
-                            "http://localhost:6174/" + cursor.getString(1)
-                        )
-                    )
-                }
-
-                Log.d(
-                    TAG,
-                    "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons."
-                )
-
-                cursor.close()
-                db.close()
 
             } catch (e: Exception) {
                 Log.e(
