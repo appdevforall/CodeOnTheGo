@@ -4,6 +4,8 @@ import android.graphics.Rect
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.appdevforall.codeonthego.computervision.domain.model.LayoutItem
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
+import org.appdevforall.codeonthego.computervision.utils.TextCleaner.cleanTextPreservingLeadingO
+import org.appdevforall.codeonthego.computervision.utils.TextCleaner.cleanTextStrippingLeadingO
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -18,6 +20,9 @@ class LayoutGeometryProcessor {
 
     private fun isRadioButton(box: ScaledBox): Boolean =
         box.label == "radio_button_unchecked" || box.label == "radio_button_checked"
+
+    private fun isCheckbox(box: ScaledBox): Boolean =
+        box.label == "checkbox_unchecked" || box.label == "checkbox_checked"
 
     private fun isLabelableWidget(box: ScaledBox): Boolean {
         return box.label in setOf(
@@ -134,23 +139,33 @@ class LayoutGeometryProcessor {
         val rows = groupIntoRows(boxes)
         val items = mutableListOf<LayoutItem>()
         val verticalRadioRun = mutableListOf<ScaledBox>()
+        val verticalCheckboxRun = mutableListOf<ScaledBox>()
 
-        fun flushVerticalRadioRun() {
+        fun flushRuns() {
             if (verticalRadioRun.isNotEmpty()) {
                 items.add(LayoutItem.RadioGroup(verticalRadioRun.toList(), "vertical"))
                 verticalRadioRun.clear()
             }
+            if (verticalCheckboxRun.isNotEmpty()) {
+                items.add(LayoutItem.CheckboxGroup(verticalCheckboxRun.toList(), "vertical"))
+                verticalCheckboxRun.clear()
+            }
         }
 
         rows.forEach { row ->
+            val isRadioRow = row.all { isRadioButton(it) }
+            val isCheckboxRow = row.all { isCheckbox(it) }
+
+            if (!isRadioRow && verticalRadioRun.isNotEmpty()) flushRuns()
+            if (!isCheckboxRow && verticalCheckboxRun.isNotEmpty()) flushRuns()
+
             when {
-                row.all { isRadioButton(it) } && row.size == 1 -> verticalRadioRun.add(row.first())
-                row.all { isRadioButton(it) } -> {
-                    flushVerticalRadioRun()
-                    items.add(LayoutItem.RadioGroup(row, "horizontal"))
-                }
+                isRadioRow && row.size == 1 -> verticalRadioRun.add(row.first())
+                isRadioRow -> items.add(LayoutItem.RadioGroup(row, "horizontal"))
+                isCheckboxRow && row.size == 1 -> verticalCheckboxRun.add(row.first())
+                isCheckboxRow -> items.add(LayoutItem.CheckboxGroup(row, "horizontal"))
                 else -> {
-                    flushVerticalRadioRun()
+                    flushRuns()
                     if (row.size == 1) {
                         items.add(LayoutItem.SimpleView(row.first()))
                     } else {
@@ -159,7 +174,7 @@ class LayoutGeometryProcessor {
                 }
             }
         }
-        flushVerticalRadioRun()
+        flushRuns()
 
         return items
     }
@@ -169,25 +184,31 @@ class LayoutGeometryProcessor {
         val updatedWidgets = mutableMapOf<ScaledBox, ScaledBox>()
 
         val labelableWidgets = boxes.filter { isLabelableWidget(it) }
+            .sortedWith(compareBy({ it.y }, { it.x }))
 
         for (widget in labelableWidgets) {
             val nearbyText = availableTexts
                 .asSequence()
                 .filter { !consumedTexts.contains(it) }
                 .filter { text ->
-                    val dx = maxOf(0, widget.rect.left - text.rect.right, text.rect.left - widget.rect.right)
-                    val dy = maxOf(0, widget.rect.top - text.rect.bottom, text.rect.top - widget.rect.bottom)
+                    val isToTheRight = text.rect.centerX() > widget.rect.centerX()
+                    val verticalDistance = abs(widget.centerY - text.centerY)
 
-                    dx < widget.w * 2 && dy < widget.h * 2
+                    isToTheRight && verticalDistance < maxOf(widget.h * 2.5, 40.0)
                 }
                 .minByOrNull { text ->
-                    val dx = maxOf(0, widget.rect.left - text.rect.right, text.rect.left - widget.rect.right).toDouble()
-                    val dy = maxOf(0, widget.rect.top - text.rect.bottom, text.rect.top - widget.rect.bottom).toDouble()
-                    (dx * dx) + (dy * dy)
+                    val dx = maxOf(0, text.rect.left - widget.rect.right).toDouble()
+                    val dy = abs(widget.centerY - text.centerY).toDouble()
+                    (dx * dx) + (dy * dy * 5)
                 }
 
             if (nearbyText != null) {
-                updatedWidgets[widget] = widget.copy(text = nearbyText.text)
+                val finalText = if (widget.label.contains("radio", ignoreCase = true)) {
+                    cleanTextStrippingLeadingO(nearbyText.text)
+                } else {
+                    cleanTextPreservingLeadingO(nearbyText.text)
+                }
+                updatedWidgets[widget] = widget.copy(text = finalText)
                 consumedTexts.add(nearbyText)
             }
         }
