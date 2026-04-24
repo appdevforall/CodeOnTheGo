@@ -85,6 +85,8 @@ public class ColorFragment extends Fragment {
         try (InputStream stream = new FileInputStream(filePath)) {
             colorParser = new ValuesResourceParser(stream, ValuesResourceParser.TAG_COLOR);
             colorList = colorParser.getValuesList();
+        } catch (FileNotFoundException e) {
+            throw e;
         } catch (IOException e) {
             e.printStackTrace();
         }

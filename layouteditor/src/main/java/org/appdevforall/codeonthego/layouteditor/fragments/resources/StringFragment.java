@@ -79,6 +79,8 @@ public class StringFragment extends Fragment {
     try (InputStream stream = new FileInputStream(filePath)) {
       stringParser = new ValuesResourceParser(stream, ValuesResourceParser.TAG_STRING);
       stringList = stringParser.getValuesList();
+    } catch (FileNotFoundException e) {
+      throw e;
     } catch (IOException e) {
       e.printStackTrace();
     }
