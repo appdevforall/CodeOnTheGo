@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
   ~  This file is part of AndroidIDE.
   ~
   ~  AndroidIDE is free software: you can redistribute it and/or modify
@@ -15,68 +14,96 @@
   ~  You should have received a copy of the GNU General Public License
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
+
 <resources>
-  <string name="msg_directory_absolute_path">%1$s Jalur Absolut Direktori: \"%2$s\"</string>
+
+  <string name="msg_directory_absolute_path">Direktori %1$s Jalur absolut: \"%2$s\"</string>
+
+
+
   <!-- PackageUtils -->
-  <string name="error_app_not_installed_or_disabled_warning">Aplikasi %1$s (%2$s) tidak dipasang atau dinonaktifkan.</string>
-  <string name="error_get_package_context_failed_title">Gagal Mendapatkan Konteks Paket</string>
-  <string name="error_get_package_context_failed_message">Gagal mendapatkan konteks paket untuk paket \"%1$s\". Hal ini mungkin terjadi karena paket aplikasi tidak diinstal atau memiliki tanda tangan APK yang berbeda dari aplikasi saat ini.</string>
-  <string name="error_get_package_context_failed_help_url_message">Periksa %1$s untuk detail lebih lanjut.</string>
+  <string name="error_app_not_installed_or_disabled_warning">Aplikasi %1$s (%2$s) tidak terinstal atau dinonaktifkan.</string>
+  <string name="error_get_package_context_failed_title">Gagal mendapatkan konteks paket</string>
+  <string name="error_get_package_context_failed_message">Gagal mendapatkan konteks paket untuk \"%1$s\". Hal ini bisa terjadi karena paket aplikasi tidak terinstal atau memiliki tanda tangan APK yang berbeda dengan aplikasi saat ini.</string>
+  <string name="error_get_package_context_failed_help_url_message">Lihat %1$s untuk detail lebih lanjut.</string>
   <string name="error_get_component_state_failed">Gagal mendapatkan status komponen %1$s/%2$s</string>
   <string name="error_enable_component_failed">Gagal mengaktifkan komponen %1$s/%2$s</string>
   <string name="error_disable_component_failed">Gagal menonaktifkan komponen %1$s/%2$s</string>
+
+
+
   <!-- PermissionUtils -->
   <string name="error_failed_to_request_permissions">Gagal meminta izin dengan kode permintaan %1$d: %2$s</string>
-  <string name="error_attempted_to_ask_for_permissions_not_requested">Mencoba meminta izin yang belum diminta dalam manifes aplikasi: %1$s</string>
-  <string name="error_has_not_requested_legacy_external_storage">Paket \"%1$s\" menargetkan targetSdkVersion %2$d dan berjalan di Sdk Android %3$d tetapi belum menyetel requestLegacyExternalStorage ke true dalam manifes aplikasi</string>
+  <string name="error_attempted_to_ask_for_permissions_not_requested">Mencoba meminta izin yang belum dideklarasikan di manifest aplikasi: %1$s</string>
+  <string name="error_has_not_requested_legacy_external_storage">Paket \"%1$s\" menargetkan targetSdkVersion %2$d dan berjalan di Android SDK %3$d tetapi belum mengaktifkan requestLegacyExternalStorage di manifest aplikasi</string>
   <string name="msg_requires_dump_and_package_usage_stats_permissions">Memerlukan izin `DUMP` dan `PACKAGE_USAGE_STATS`</string>
-  <string name="error_display_over_other_apps_permission_not_granted">%1$s memerlukan
-         Izin \"Tampilkan di aplikasi lain\" untuk memulai aktivitas dan layanan dari latar belakang di Android &gt;= 10.
-         Memberikannya dari Pengaturan Android -&gt; Aplikasi -&gt; %1$s -&gt;  Lanjutan -&gt; Tarik aplikasi lain.
-         Nama izin mungkin berbeda pada perangkat yang berbeda, seperti pada Xiaomi, namanya
-         \"Tampilkan jendela pop-up saat berjalan di latar belakang\", periksa https://dontkillmyapp.com
-         untuk masalah khusus perangkat.</string>
+  <string name="error_display_over_other_apps_permission_not_granted">%1$s memerlukan izin
+      \"Tampilkan di atas aplikasi lain\" untuk memulai aktivitas dan layanan dari latar belakang pada Android >= 10.
+      Aktifkan melalui Pengaturan -> Aplikasi -> %1$s -> Lanjutan -> Tampilkan di atas aplikasi lain.
+      Nama izin bisa berbeda di beberapa perangkat, seperti di perangkat Xiaomi yang disebut
+      \"Tampilkan jendela pop-up saat berjalan di latar belakang\". Lihat https://dontkillmyapp.com
+      untuk masalah spesifik perangkat.</string>
+
+
+
   <!-- TermuxPluginUtils -->
-  <string name="error_allow_external_apps_ungranted">%1$s mengharuskan properti `allow-external-apps` disetel ke `true` di file `%2$s`.</string>
+  <string name="error_allow_external_apps_ungranted">%1$s memerlukan properti `allow-external-apps` yang diatur ke `true` di file `%2$s`.</string>
+
+
+
   <!-- ReportActivity -->
-  <string name="title_report_text">Teks Laporan</string>
-  <string name="msg_report_truncated">**Laporan Terpotong**\n\nLaporan terlalu besar untuk dilihat di sini. Gunakan opsi `Simpan Ke File` dari menu opsi (3 titik di kanan atas) dan lihat di aplikasi editor teks eksternal.\n\n##\n\n</string>
+  <string name="title_report_text">Teks laporan</string>
+  <string name="msg_report_truncated">**Laporan dipotong**\n\nLaporan terlalu besar untuk ditampilkan di sini. Gunakan opsi `Simpan ke file` dari menu (titik tiga di pojok kanan atas) dan buka menggunakan aplikasi editor teks eksternal.\n\n##\n\n</string>
+
+
+
   <!-- ShareUtils -->
-  <string name="title_share_with">Berbagi dengan</string>
+  <string name="title_share_with">Bagikan dengan</string>
   <string name="title_open_url_with">Buka URL dengan</string>
-  <string name="msg_storage_permission_not_granted">Izin penyimpanan tidak diberikan.</string>
+  <string name="msg_storage_permission_not_granted">Izin penyimpanan belum diberikan.</string>
   <string name="msg_file_saved_successfully">File %1$s berhasil disimpan di \"%2$s\"</string>
-  <!-- Shell -->
+
+
+
   <!-- TermuxUtils -->
-  <string name="msg_report_issue">Jika Anda ingin melaporkan masalah ini, salin teksnya dari menu opsi (3 titik di kanan atas) dan posting
-         masalah di salah satu tautan berikut.
-         \n\nJika Anda memposting laporan kerusakan aplikasi Termux, harap berikan detail tentang apa yang Anda lakukan
-         yang menyebabkan kerusakan dan cara mereproduksinya, jika memungkinkan.
-         \n\nJika Anda memposting masalah di GitHub, poskan masalah tersebut di repositori tempat laporan berada.
-         Masalah dibuka atau email dikirim dengan **tangkapan layar (sebagian)** dan bukan salinan teks atau file laporan ini
-         **kemungkinan besar akan ditutup/dihapus secara otomatis**.  Anda juga dapat menghapus informasi khusus perangkat apa pun itu yang
-         Anda anggap pribadi atau tidak ingin berbagi atau yang tidak relevan dengan permasalahannya.
-         \n\nKami tidak menyediakan dukungan untuk alat/skrip terkait peretasan apa pun.  Setiap pertanyaan yang diajukan tentang itu melalui email,
-         di GitHub atau forum komunitas termux resmi lainnya **kemungkinan akan ditutup/dihapus otomatis** dan mungkin
-         bahkan mengakibatkan larangan **sementara atau permanen**.  Periksa %1$s/wiki/Peretasan untuk detailnya.</string>
-  <string name="msg_termux_app_required_by_app">Code on the Go diperlukan oleh aplikasi %1$s untuk menjalankan perintah termux.</string>
-  <string name="error_termux_app_package_context_not_accessible">Aplikasi Code on the Go (konteks paket) tidak dapat diakses.</string>
+  <string name="msg_report_issue">
+      Jika Anda ingin melaporkan masalah ini, salin teksnya dari menu opsi (titik tiga di pojok kanan atas) dan kirimkan
+      laporan pada salah satu tautan berikut.
+      \n\nJika Anda melaporkan crash aplikasi Termux, harap sertakan detail apa yang Anda lakukan yang menyebabkan
+      crash tersebut dan cara mereproduksinya, jika memungkinkan.
+      \n\nJika Anda melaporkan masalah di GitHub, silakan kirimkan pada repositori tempat laporan tersebut yang sesuai.
+      Laporan yang dibuat dengan **(tangkapan layar sebagian)** bukan teks yang disalin atau file laporan ini
+      **kemungkinan akan otomatis ditutup/dihapus**. Anda dapat menghapus informasi spesifik perangkat yang
+      dianggap pribadi atau tidak ingin dibagikan atau yang tidak relevan dengan masalah tersebut.
+      \n\nKami tidak menyediakan dukungan untuk alat/skrip apa pun yang terkait dengan peretasan. Setiap pertanyaan yang diajukan
+      tentang hal tersebut melalui email, GitHub, atau forum komunitas Termux resmi **kemungkinan akan otomatis ditutup/dihapus** dan
+      bahkan dapat mengakibatkan **pemblokiran sementara atau permanen**. Lihat %1$s/wiki/Hacking untuk detailnya.</string>
+
+  <string name="msg_termux_app_required_by_app">Aplikasi Code on the Go diperlukan oleh aplikasi %1$s untuk menjalankan perintah termux.</string>
+  <string name="error_termux_app_package_context_not_accessible">Akses konteks paket aplikasi Code on the Go tidak dapat diakses.</string>
   <string name="error_termux_prefix_dir_path_not_accessible">Direktori $PREFIX aplikasi Code on the Go tidak dapat diakses oleh aplikasi %1$s.
-         Ini mungkin karena Anda belum menginstal atau menyiapkan aplikasi Code on the Go atau
-     Aplikasi Code on the Go dan aplikasi %1$s keduanya memiliki tanda tangan APK yang berbeda karena Anda berhasil memasang kedua aplikasi tersebut dari sumber yang berbeda.
-         Mungkin juga karena direktori Code on the Go $PREFIX \"/data/data/com.itsaky.androidide/files/usr\" tidak ada atau belum terbaca,
-         menulis dan menjalankan izin.</string>
+      Hal ini mungkin karena Anda belum menginstal atau menyiapkan aplikasi Code on the Go, atau
+      aplikasi Code on the Go dan aplikasi %1$s memiliki tanda tangan APK yang berbeda karena keduanya diinstal dari sumber yang berbeda.
+      Hal ini juga bisa terjadi karena direktori $PREFIX Code on the Go \"/data/data/com.itsaky.androidide/files/usr\" tidak ada atau tidak
+      memiliki izin baca, tulis, dan eksekusi.</string>
+
+
+
   <!-- Miscellaneous -->
   <string name="action_share">Bagikan</string>
-  <string name="action_save_to_file">Simpan ke File</string>
-  <string name="msg_storage_permission_granted_on_request">Izin penyimpanan diberikan oleh pengguna berdasarkan permintaan</string>
-  <string name="msg_storage_permission_not_granted_on_request">Izin penyimpanan tidak diberikan oleh pengguna berdasarkan permintaan</string>
+  <string name="action_save_to_file">Simpan ke file</string>
+
+  <string name="msg_storage_permission_granted_on_request">Izin penyimpanan diberikan oleh pengguna saat diminta</string>
+  <string name="msg_storage_permission_not_granted_on_request">Izin penyimpanan tidak diberikan oleh pengguna saat diminta</string>
+
+
   <!-- Log Level -->
-  <string name="log_level_title">Tingkat Log</string>
-  <string name="log_level_off">Mati</string>
+  <string name="log_level_title">Level log</string>
+  <string name="log_level_off">Nonaktif</string>
   <string name="log_level_normal">Normal</string>
   <string name="log_level_debug">Debug</string>
   <string name="log_level_verbose">Verbose</string>
-  <string name="log_level_unknown">*Tidak dikenal*</string>
-  <string name="log_level_value">Tingkat log logcat disetel ke \"%1$s\"</string>
+  <string name="log_level_unknown">*Tidak diketahui*</string>
+  <string name="log_level_value">Level logcat diatur ke \"%1$s\"</string>
+
 </resources>

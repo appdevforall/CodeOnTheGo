@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
   ~  This file is part of AndroidIDE.
   ~
   ~  AndroidIDE is free software: you can redistribute it and/or modify
@@ -15,98 +14,139 @@
   ~  You should have received a copy of the GNU General Public License
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="UnusedResources">
+
+<resources xmlns:tools="http://schemas.android.com/tools"
+  tools:ignore="UnusedResources">
+
   <!-- Termux Bootstrap Packages Installation -->
   <string name="bootstrap_installer_body">Menginstal paket bootstrap…</string>
   <string name="bootstrap_error_title">Tidak dapat menginstal bootstrap</string>
   <string name="bootstrap_error_body">Code on the Go tidak dapat menginstal paket bootstrap.</string>
-  <string name="bootstrap_error_abort">Menggugurkan</string>
+  <string name="bootstrap_error_abort">Batalkan</string>
   <string name="bootstrap_error_try_again">Coba lagi</string>
-  <string name="bootstrap_error_not_primary_user_message">Code on the Go hanya dapat dijalankan sebagai pengguna utama.\nBinari bootstrap yang dikompilasi untuk Code on the Go memiliki jalur $PREFIX yang di-hardcode dan tidak dapat dipasang di jalur mana pun selain:\n%1$s.</string>
-  <string name="bootstrap_error_installed_on_portable_sd">Code on the Go tidak dapat diinstal pada portabel/eksternal/ kartu sd yang dapat dilepas di perangkat Anda.\nBiner bootstrap yang dikompilasi untuk Code on the Go memiliki jalur $PREFIX yang di-hardcode dan tidak dapat diinstal pada jalur apa pun selain:\n%1$s.</string>
+  <string name="bootstrap_error_not_primary_user_message">Code on the Go hanya dapat dijalankan sebagai pengguna utama.\nBiner bootstrap yang dikompilasi untuk Code on the Go memiliki jalur $PREFIX yang sudah ditetapkan secara permanen dan tidak dapat diinstal di jalur selain:\n%1$s.</string>
+  <string name="bootstrap_error_installed_on_portable_sd">Code on the Go tidak dapat diinstal di kartu SD portabel/eksternal/yang dapat dilepas pada perangkat Anda.\nBiner bootstrap yang dikompilasi untuk Code on the Go memiliki jalur $PREFIX yang sudah ditetapkan secara permanen dan tidak dapat diinstal di jalur selain:\n%1$s.</string>
+
   <!-- Terminal Sidebar and Shortcuts -->
   <string name="action_new_session">Sesi baru</string>
-  <string name="action_new_session_failsafe">Aman dari kegagalan</string>
-  <string name="title_max_terminals_reached">Terminal maksimal tercapai</string>
+  <string name="action_new_session_failsafe">Mode aman</string>
+  <string name="title_max_terminals_reached">Jumlah terminal maksimum tercapai</string>
   <string name="msg_max_terminals_reached">Tutup yang sudah ada sebelum membuat yang baru.</string>
-  <string name="title_rename_session">Tetapkan nama sesi</string>
+
+  <string name="title_rename_session">Atur nama sesi</string>
   <string name="action_rename_session_confirm">Atur</string>
-  <string name="title_create_named_session">Sesi bernama baru</string>
+  <string name="title_create_named_session">Sesi baru dengan nama</string>
   <string name="action_create_named_session_confirm">Buat</string>
-  <string name="action_toggle_soft_keyboard">Papan ketik</string>
-  <string name="msg_enabling_terminal_toolbar">Mengaktifkan Bilah Alat Terminal</string>
-  <string name="msg_disabling_terminal_toolbar">Menonaktifkan Bilah Alat Terminal</string>
+
+  <string name="action_toggle_soft_keyboard">Keyboard</string>
+
+  <string name="msg_enabling_terminal_toolbar">Aktifkan Bilah alat Terminal</string>
+  <string name="msg_disabling_terminal_toolbar">Nonaktifkan Bilah alat Terminal</string>
+
+
+
   <!-- Terminal Popup -->
   <string name="action_select_url">Pilih URL</string>
-  <string name="title_select_url_dialog">Klik URL untuk menyalin atau tekan lama untuk membuka</string>
-  <string name="title_select_url_none_found">Tidak ada URL yang ditemukan di terminal.</string>
+  <string name="title_select_url_dialog">Ketuk URL untuk menyalin atau tekan lama untuk membuka</string>
+  <string name="title_select_url_none_found">Tidak ada URL ditemukan di terminal.</string>
   <string name="msg_select_url_copied_to_clipboard">URL disalin ke papan klip</string>
+
   <string name="action_share_transcript">Bagikan transkrip</string>
   <string name="title_share_transcript">Transkrip terminal</string>
   <string name="title_share_transcript_with">Kirim transkrip ke:</string>
+
   <string name="action_share_selected_text">Bagikan teks yang dipilih</string>
-  <string name="title_share_selected_text">Teks Terminal</string>
+  <string name="title_share_selected_text">Teks terminal</string>
   <string name="title_share_selected_text_with">Kirim teks yang dipilih ke:</string>
-  <string name="action_autofill_password">Kata sandi isi otomatis</string>
-  <string name="action_reset_terminal">Setel ulang</string>
-  <string name="msg_terminal_reset">Penyetelan ulang terminal</string>
-  <string name="action_kill_process">Matikan proses (%d)</string>
-  <string name="title_confirm_kill_process">Yakin mematikan sesi ini?</string>
-  <string name="action_toggle_keep_screen_on">Biarkan layarnya menyala</string>
+
+  <string name="action_autofill_password">Isi otomatis kata sandi</string>
+
+  <string name="action_reset_terminal">Atur ulang</string>
+  <string name="msg_terminal_reset">Terminal diatur ulang</string>
+
+  <string name="action_kill_process">Hentikan proses (%d)</string>
+  <string name="title_confirm_kill_process">Yakin ingin menghentikan sesi ini?</string>
+
+  <string name="action_toggle_keep_screen_on">Biarkan layar tetap menyala</string>
   <string name="action_open_help">Bantuan</string>
   <string name="action_open_settings">Pengaturan</string>
+
   <string name="action_report_issue">Laporkan masalah</string>
-  <string name="msg_generating_report">Menghasilkan Laporan</string>
-  <string name="msg_add_termux_debug_info">Tambahkan info debug termux untuk dilaporkan?</string>
+  <string name="msg_generating_report">Buat laporan</string>
+  <string name="msg_add_termux_debug_info">Tambahkan info debug termux ke laporan?</string>
+
+
+
   <!-- Termux Notifications -->
-  <string name="notification_action_wake_lock">Dapatkan wakelock</string>
-  <string name="notification_action_wake_unlock">Rilis wakelock</string>
+  <string name="notification_action_wake_lock">Aktifkan wakelock</string>
+  <string name="notification_action_wake_unlock">Nonaktifkan wakelock</string>
+
+
+
   <!-- TermuxService -->
-  <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Code on the Go memerlukan izin \"Tampilkan di atas aplikasi lain\" untuk memulai sesi terminal dari latar belakang di Android &gt;= 10. Memberikannya dari Pengaturan -&gt; Aplikasi -&gt; Code on the Go -&gt; Lanjutan</string>
+  <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Code on the Go memerlukan izin \"Tampilkan di atas aplikasi lain\" untuk memulai sesi terminal dari latar belakang pada Android >= 10. Berikan izin melalui Pengaturan -> Aplikasi -> Code on the Go -> Lanjutan</string>
+
   <!-- Termux File Receiver -->
   <string name="title_file_received">Simpan file di ~/downloads/</string>
-  <string name="action_file_received_edit">Edit</string>
+  <string name="action_file_received_edit">Ubah</string>
   <string name="action_file_received_open_directory">Buka direktori</string>
+
   <!-- Miscellaneous -->
   <string name="error_termux_service_start_failed_general">Gagal memulai TermuxService. Periksa logcat untuk pesan pengecualian.</string>
-  <string name="error_termux_service_start_failed_bg">Gagal memulai TermuxService saat aplikasi berjalan di latar belakang karena pembatasan bg Android.</string>
+  <string name="error_termux_service_start_failed_bg">Gagal memulai TermuxService saat aplikasi berada di latar belakang karena pembatasan latar belakang Android.</string>
+
   <!-- Termux App Preferences -->
-  <string name="termux_preferences_summary">Preferensi untuk terminal Termux.</string>
+  <string name="termux_preferences_summary">Preferensi untuk terminal Termux</string>
+
   <!-- Debugging Preferences -->
-  <string name="termux_debugging_preferences_title">Men-debug</string>
+  <string name="termux_debugging_preferences_title">Debugging</string>
   <string name="termux_debugging_preferences_summary">Preferensi untuk debugging</string>
+
   <!-- Logging Category -->
   <string name="termux_logging_header">Logging</string>
+
   <!-- Log Level -->
   <string name="termux_log_level_title">Tingkat Log</string>
+
   <!-- Terminal View Key Logging -->
-  <string name="termux_terminal_view_key_logging_enabled_title">Pencatatan Kunci Tampilan Terminal</string>
-  <string name="termux_terminal_view_key_logging_enabled_off">Log tidak akan memiliki entri untuk kunci tampilan terminal. (Default)</string>
-  <string name="termux_terminal_view_key_logging_enabled_on">Log Logcat akan memiliki entri untuk kunci tampilan terminal. Ini sangat bertele-tele dan harus dinonaktifkan dalam keadaan normal atau akan menyebabkan masalah kinerja.</string>
+  <string name="termux_terminal_view_key_logging_enabled_title">Catatan Tombol Tampilan Terminal</string>
+  <string name="termux_terminal_view_key_logging_enabled_off">Catatan tidak akan memiliki entri untuk tombol tampilan terminal. (Default)</string>
+  <string name="termux_terminal_view_key_logging_enabled_on">Catatan logcat akan memiliki entri untuk tombol tampilan terminal. Ini sangat detail dan sebaiknya dinonaktifkan dalam kondisi normal karena dapat menyebabkan masalah performa.</string>
+
   <!-- Crash Report Notifications -->
-  <string name="termux_crash_report_notifications_enabled_title">Pemberitahuan Laporan Kerusakan</string>
-  <string name="termux_crash_report_notifications_enabled_off">Nonaktifkan pemberitahuan untuk laporan kerusakan.</string>
-  <string name="termux_crash_report_notifications_enabled_on">Tampilkan pemberitahuan untuk laporan kerusakan. (Default)</string>
+  <string name="termux_crash_report_notifications_enabled_title">Notifikasi Laporan Crash</string>
+  <string name="termux_crash_report_notifications_enabled_off">Nonaktifkan notifikasi untuk laporan crash.</string>
+  <string name="termux_crash_report_notifications_enabled_on">Tampilkan notifikasi untuk laporan crash. (Default)</string>
+
+
   <!-- Terminal IO Preferences -->
   <string name="termux_terminal_io_preferences_title">Terminal I/O</string>
   <string name="termux_terminal_io_preferences_summary">Preferensi untuk terminal I/O</string>
+
   <!-- Keyboard Category -->
-  <string name="termux_keyboard_header">Papan ketik</string>
+  <string name="termux_keyboard_header">Keyboard</string>
+
   <!-- Soft Keyboard -->
-  <string name="termux_soft_keyboard_enabled_title">Papan ketik Lembut Diaktifkan</string>
-  <string name="termux_soft_keyboard_enabled_off">Papan ketik lembut akan dinonaktifkan.</string>
-  <string name="termux_soft_keyboard_enabled_on">Papan ketik lembut akan diaktifkan. (Default)</string>
+  <string name="termux_soft_keyboard_enabled_title">Keyboard Layar</string>
+  <string name="termux_soft_keyboard_enabled_off">Keyboard layar akan dinonaktifkan.</string>
+  <string name="termux_soft_keyboard_enabled_on">Keyboard layar akan diaktifkan. (Default)</string>
+
   <!-- Soft Keyboard Only If No Hardware-->
-  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Papan ketik Lembut Hanya Jika Tidak Ada Perangkat Keras</string>
-  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Keyboard lunak akan diaktifkan meskipun keyboard perangkat keras tersambung. (Default)</string>
-  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Keyboard lunak hanya akan diaktifkan jika tidak ada keyboard perangkat keras yang tersambung.</string>
+  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Keyboard Layar Hanya Jika Tidak Ada Keyboard Fisik</string>
+  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Keyboard layar akan tetap diaktifkan meskipun keyboard fisik tersambung. (Default)</string>
+  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Keyboard layar hanya akan diaktifkan jika tidak ada keyboard fisik yang tersambung.</string>
+
+
   <!-- Terminal View Preferences -->
   <string name="termux_terminal_view_preferences_title">Tampilan Terminal</string>
   <string name="termux_terminal_view_preferences_summary">Preferensi untuk tampilan terminal</string>
+
   <!-- View Category -->
   <string name="termux_terminal_view_view_header">Tampilan</string>
+
   <!-- Terminal View Margin Adjustment -->
   <string name="termux_terminal_view_terminal_margin_adjustment_title">Penyesuaian Margin Terminal</string>
   <string name="termux_terminal_view_terminal_margin_adjustment_off">Penyesuaian margin terminal akan dinonaktifkan.</string>
-  <string name="termux_terminal_view_terminal_margin_adjustment_on">Penyesuaian margin terminal akan diaktifkan. Ini harus diaktifkan untuk mencoba memperbaiki masalah ketika keyboard lunak menutupi bagian tombol tambahan/tampilan terminal. Jika itu menyebabkan layar berkedip pada perangkat Anda, nonaktifkan. (Default)</string>
+  <string name="termux_terminal_view_terminal_margin_adjustment_on">Penyesuaian margin terminal akan diaktifkan. Fitur ini digunakan untuk mencoba memperbaiki masalah di mana keyboard layar menutupi sebagian tombol tambahan atau tampilan terminal. Jika menyebabkan layar berkedip di perangkat Anda, nonaktifkan fitur ini. (Default)</string>
+
 </resources>
