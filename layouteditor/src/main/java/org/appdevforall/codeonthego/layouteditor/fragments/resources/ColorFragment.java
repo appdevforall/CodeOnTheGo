@@ -36,6 +36,7 @@ import org.appdevforall.codeonthego.layouteditor.utils.SBUtils;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,9 +82,14 @@ public class ColorFragment extends Fragment {
      * @param filePath = Current project colors file path;
      */
     public void loadColorsFromXML(String filePath) throws FileNotFoundException {
-        InputStream stream = new FileInputStream(filePath);
-        colorParser = new ValuesResourceParser(stream, ValuesResourceParser.TAG_COLOR);
-        colorList = colorParser.getValuesList();
+        try (InputStream stream = new FileInputStream(filePath)) {
+            colorParser = new ValuesResourceParser(stream, ValuesResourceParser.TAG_COLOR);
+            colorList = colorParser.getValuesList();
+        } catch (FileNotFoundException e) {
+            throw e;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void setupDialogViews(LayoutValuesItemDialogBinding bind) {
