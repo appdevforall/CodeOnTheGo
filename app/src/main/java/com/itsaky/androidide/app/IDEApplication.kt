@@ -211,6 +211,12 @@ class IDEApplication :
 			return
 		}
 
+		if (isFinalizerWatchdogTimeout(thread, exception)) {
+			logger.warn("Non-fatal: FinalizerWatchdogDaemon timeout (suppressed crash)", exception)
+			Sentry.captureException(exception)
+			return
+		}
+
 		if (isUserUnlocked) {
 			CredentialProtectedApplicationLoader.handleUncaughtException(thread, exception)
 			return
@@ -225,5 +231,11 @@ class IDEApplication :
 			it.className.contains("CleanableResource") ||
 				it.className.contains("PhantomCleanable")
 		}
+	}
+
+	private fun isFinalizerWatchdogTimeout(thread: Thread, exception: Throwable): Boolean {
+		if (exception !is java.util.concurrent.TimeoutException) return false
+		return thread.name.contains("FinalizerWatchdogDaemon") ||
+			exception.stackTrace.any { it.className.contains("Daemons\$FinalizerWatchdogDaemon") }
 	}
 }

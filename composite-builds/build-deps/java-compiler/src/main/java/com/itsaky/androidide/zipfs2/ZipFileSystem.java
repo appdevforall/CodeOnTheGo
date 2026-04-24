@@ -1089,13 +1089,11 @@ public class ZipFileSystem extends FileSystem {
 
     @SuppressWarnings("deprecation")
     protected void finalize() throws IOException {
-        try {
-            close();
-        } catch (Throwable ignored) {
-            // On devices with flaky storage, close() can throw UncheckedIOException
-            // wrapping EIO. Swallow all errors during finalization to prevent
-            // killing the FinalizerDaemon thread.
-        }
+        // No-op: do NOT perform I/O during finalization.
+        // On slow storage, close() can exceed the 10-second FinalizerWatchdogDaemon
+        // timeout, causing a fatal TimeoutException crash (Sentry APPDEVFORALL-E8).
+        // All ZipFileSystems should be closed deterministically via close()/doClose().
+        // The OS reclaims file descriptors at process exit regardless.
     }
 
     // Reads len bytes of data from the specified offset into buf.
