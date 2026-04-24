@@ -9,6 +9,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.api.Index
+import java.util.concurrent.atomic.AtomicBoolean
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
@@ -71,6 +72,7 @@ class SQLiteIndex<T : Indexable>(
         .filter { it.prefixSearchable }
         .associate { it.name to "f_${it.name}_lower" }
 
+    private val closed = AtomicBoolean(false)
     private val db: SupportSQLiteDatabase
 
     init {
@@ -103,6 +105,7 @@ class SQLiteIndex<T : Indexable>(
     }
 
     override fun query(query: IndexQuery): Sequence<T> {
+        if (closed.get()) return emptySequence()
         val (sql, args) = buildSelectQuery(query)
         val cursor = db.query(sql, args.toTypedArray())
         return cursor.use {
@@ -116,6 +119,7 @@ class SQLiteIndex<T : Indexable>(
     }
 
     override suspend fun get(key: String): T? = withContext(Dispatchers.IO) {
+        if (closed.get()) return@withContext null
         val cursor = db.query(
             "SELECT _payload FROM $tableName WHERE _key = ? LIMIT 1",
             arrayOf(key),
@@ -129,6 +133,7 @@ class SQLiteIndex<T : Indexable>(
 
     override suspend fun containsSource(sourceId: String): Boolean =
         withContext(Dispatchers.IO) {
+            if (closed.get()) return@withContext false
             val cursor = db.query(
                 "SELECT 1 FROM $tableName WHERE _source_id = ? LIMIT 1",
                 arrayOf(sourceId),
@@ -137,6 +142,7 @@ class SQLiteIndex<T : Indexable>(
         }
 
     override fun distinctValues(fieldName: String): Sequence<String> {
+        if (closed.get()) return emptySequence()
         val col = fieldColumns[fieldName]
             ?: throw IllegalArgumentException("Unknown field: $fieldName")
         val cursor = db.query("SELECT DISTINCT $col FROM $tableName WHERE $col IS NOT NULL")
@@ -150,6 +156,7 @@ class SQLiteIndex<T : Indexable>(
     }
 
     override suspend fun insertAll(entries: Sequence<T>) = withContext(Dispatchers.IO) {
+        if (closed.get()) return@withContext
         val batch = mutableListOf<T>()
         for (entry in entries) {
             batch.add(entry)
@@ -164,22 +171,27 @@ class SQLiteIndex<T : Indexable>(
     }
 
     override suspend fun insert(entry: T) = withContext(Dispatchers.IO) {
+        if (closed.get()) return@withContext
         insertBatch(listOf(entry))
     }
 
     override suspend fun removeBySource(sourceId: String) = withContext(Dispatchers.IO) {
+        if (closed.get()) return@withContext
         db.execSQL("DELETE FROM $tableName WHERE _source_id = ?", arrayOf(sourceId))
     }
 
     override suspend fun clear() = withContext(Dispatchers.IO) {
+        if (closed.get()) return@withContext
         db.execSQL("DELETE FROM $tableName")
     }
 
     override fun close() {
+        if (closed.getAndSet(true)) return
         db.close()
     }
 
     suspend fun size(): Int = withContext(Dispatchers.IO) {
+        if (closed.get()) return@withContext 0
         val cursor = db.query("SELECT COUNT(*) FROM $tableName")
         cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
     }
@@ -225,6 +237,7 @@ class SQLiteIndex<T : Indexable>(
     }
 
     private fun insertBatch(entries: List<T>) {
+        if (closed.get()) return
         db.beginTransaction()
         try {
             for (entry in entries) {

@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
@@ -163,7 +164,7 @@ class BackgroundIndexer<T : Indexable>(
     val activeJobCount: Int get() = activeJobs.size
 
     override fun close() {
-        activeJobs.values.forEach { it.cancel() }
+        scope.cancel("BackgroundIndexer closed")
         activeJobs.clear()
     }
 }
