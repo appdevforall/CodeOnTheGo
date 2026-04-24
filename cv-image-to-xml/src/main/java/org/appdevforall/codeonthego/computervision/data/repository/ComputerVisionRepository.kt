@@ -27,6 +27,7 @@ interface ComputerVisionRepository {
     suspend fun generateXml(
         detections: List<DetectionResult>,
         annotations: Map<String, String>,
+        selectedImagesByPlaceholderId: Map<String, String>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,

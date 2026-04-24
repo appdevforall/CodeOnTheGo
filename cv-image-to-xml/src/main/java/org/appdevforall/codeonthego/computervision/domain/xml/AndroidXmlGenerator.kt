@@ -9,6 +9,7 @@ class AndroidXmlGenerator(
     internal fun buildXml(
         boxes: List<ScaledBox>,
         annotations: Map<ScaledBox, String>,
+        selectedImageOverrides: Map<ScaledBox, String>,
         targetDpHeight: Int,
         wrapInScroll: Boolean
     ): Pair<String, String> {
@@ -19,7 +20,7 @@ class AndroidXmlGenerator(
         appendHeaders(context, needScroll)
 
         val layoutItems = geometryProcessor.buildLayoutTree(boxes)
-        val renderer = LayoutRenderer(context, annotations)
+        val renderer = LayoutRenderer(context, annotations, selectedImageOverrides = selectedImageOverrides)
 
         layoutItems.forEach { item -> renderer.render(item, "        ") }
 

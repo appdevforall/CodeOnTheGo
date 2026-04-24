@@ -6,8 +6,9 @@ import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
 class LayoutRenderer(
     private val context: XmlContext,
     annotations: Map<ScaledBox, String>
+    private val selectedImageOverrides: Map<ScaledBox, String> = emptyMap()
 ) {
-    private val widgetFactory = WidgetFactory(context, annotations)
+    private val widgetFactory = WidgetFactory(context, annotations, selectedImageOverrides)
 
     fun render(item: LayoutItem, indent: String = "        ") {
         val widgets = widgetFactory.createWidgets(item)
