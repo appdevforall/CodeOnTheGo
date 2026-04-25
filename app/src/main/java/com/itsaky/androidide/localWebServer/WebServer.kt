@@ -111,6 +111,7 @@ FROM   LastChange
     }
 
     fun start() {
+        TrafficStats.setThreadStatsTag(0xC0DE)
         try {
             log.info(
                 "Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}', experimentsEnabled={}, experimentsEnablePath='{}'.",
@@ -135,10 +136,8 @@ FROM   LastChange
             // NEW FEATURE: Log database metadata when debug is enabled
             if (debugEnabled) logDatabaseLastChanged()
 
-            TrafficStats.setThreadStatsTag(0xC0DE)
             serverSocket = ServerSocket().apply { reuseAddress = true }
             serverSocket.bind(InetSocketAddress(config.bindName, config.port))
-            TrafficStats.clearThreadStatsTag()
             log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
             while (true) {
@@ -223,6 +222,7 @@ clientSocket and the catch block logic are updated accordingly.
             if (::serverSocket.isInitialized) {
                 serverSocket.close()
             }
+            TrafficStats.clearThreadStatsTag()
         }
     }
 

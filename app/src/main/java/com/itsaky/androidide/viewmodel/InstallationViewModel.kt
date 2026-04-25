@@ -64,7 +64,7 @@ class InstallationViewModel : ViewModel() {
 			if (!checkStorageAndNotify(context)) {
 				return@launch
 			}
-			if (checkToolsIsInstalled()) {
+			if (withContext(Dispatchers.IO) { checkToolsIsInstalled() }) {
 				// Tools already installed
 				_state.update { InstallationComplete }
 				return@launch
@@ -120,6 +120,8 @@ class InstallationViewModel : ViewModel() {
 	}
 
 	fun isSetupComplete(): Boolean = checkToolsIsInstalled()
+
+	suspend fun isSetupCompleteAsync(): Boolean = withContext(Dispatchers.IO) { checkToolsIsInstalled() }
 
 	private fun checkToolsIsInstalled(): Boolean =
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&

@@ -239,7 +239,7 @@ class PermissionsFragment :
 				return@launch
 			}
 
-			if (viewModel.isSetupComplete()) {
+			if (viewModel.isSetupCompleteAsync()) {
 				(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
 				return@launch
 			}
