@@ -138,6 +138,24 @@ object WhitelistEngine {
 				ofType<DiskReadViolation>()
 				allow(
 					"""
+					MIUI's AccessController checks whether an access-control password file exists
+					during activity transitions (startActivity). This happens in the system server
+					and is reported back via Binder. Since we can't control when AccessController
+					is called, we allow this violation.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFrames(
+					classAndMethod("java.io.File", "exists"),
+					classAndMethod("com.miui.server.AccessController", "haveAccessControlPassword"),
+					classAndMethod("com.miui.server.SecurityManagerService", "haveAccessControlPassword"),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
 					On MediaTek devices, the 'ScnModule' is primarily used for scenario detection and
 					power management, like detecting whether a running app is a game. When doing this
 					check, it tries to read a file, resulting in a DiskReadViolation. Since we can't
