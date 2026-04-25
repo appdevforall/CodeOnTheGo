@@ -8,6 +8,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.PrintWriter
+import android.net.TrafficStats
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -134,8 +135,10 @@ FROM   LastChange
             // NEW FEATURE: Log database metadata when debug is enabled
             if (debugEnabled) logDatabaseLastChanged()
 
+            TrafficStats.setThreadStatsTag(0xC0DE)
             serverSocket = ServerSocket().apply { reuseAddress = true }
             serverSocket.bind(InetSocketAddress(config.bindName, config.port))
+            TrafficStats.clearThreadStatsTag()
             log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
             while (true) {

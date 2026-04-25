@@ -233,17 +233,17 @@ class PermissionsFragment :
     }
 
 	private fun startIdeSetup() {
-		val shouldProceed = viewModel.checkStorageAndNotify(requireContext())
-		if (!shouldProceed) {
-			return
-		}
-
-		if (viewModel.isSetupComplete()) {
-			(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
-			return
-		}
-
 		viewLifecycleScope.launch {
+			val shouldProceed = viewModel.checkStorageAndNotify(requireContext())
+			if (!shouldProceed) {
+				return@launch
+			}
+
+			if (viewModel.isSetupComplete()) {
+				(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
+				return@launch
+			}
+
 			doAsyncWithProgress(
 				Dispatchers.IO,
 				configureFlashbar = { builder, _ ->
