@@ -71,7 +71,7 @@
       laporan pada salah satu tautan berikut.
       \n\nJika Anda melaporkan crash aplikasi Termux, harap sertakan detail apa yang Anda lakukan yang menyebabkan
       crash tersebut dan cara mereproduksinya, jika memungkinkan.
-      \n\nJika Anda melaporkan masalah di GitHub, silakan kirimkan pada repositori tempat laporan tersebut yang sesuai.
+      \n\nJika Anda melaporkan masalah di GitHub, silakan kirimkan ke repositori yang sesuai untuk laporan tersebut.
       Laporan yang dibuat dengan **(tangkapan layar sebagian)** bukan teks yang disalin atau file laporan ini
       **kemungkinan akan otomatis ditutup/dihapus**. Anda dapat menghapus informasi spesifik perangkat yang
       dianggap pribadi atau tidak ingin dibagikan atau yang tidak relevan dengan masalah tersebut.
@@ -80,7 +80,7 @@
       bahkan dapat mengakibatkan **pemblokiran sementara atau permanen**. Lihat %1$s/wiki/Hacking untuk detailnya.</string>
 
   <string name="msg_termux_app_required_by_app">Aplikasi Code on the Go diperlukan oleh aplikasi %1$s untuk menjalankan perintah termux.</string>
-  <string name="error_termux_app_package_context_not_accessible">Akses konteks paket aplikasi Code on the Go tidak dapat diakses.</string>
+  <string name="error_termux_app_package_context_not_accessible">Aplikasi Code on the Go (konteks paket) tidak dapat diakses.</string>
   <string name="error_termux_prefix_dir_path_not_accessible">Direktori $PREFIX aplikasi Code on the Go tidak dapat diakses oleh aplikasi %1$s.
       Hal ini mungkin karena Anda belum menginstal atau menyiapkan aplikasi Code on the Go, atau
       aplikasi Code on the Go dan aplikasi %1$s memiliki tanda tangan APK yang berbeda karena keduanya diinstal dari sumber yang berbeda.

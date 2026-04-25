@@ -40,8 +40,8 @@
 
   <string name="action_toggle_soft_keyboard">Keyboard</string>
 
-  <string name="msg_enabling_terminal_toolbar">Aktifkan Bilah alat Terminal</string>
-  <string name="msg_disabling_terminal_toolbar">Nonaktifkan Bilah alat Terminal</string>
+  <string name="msg_enabling_terminal_toolbar">Mengaktifkan Bilah alat Terminal</string>
+  <string name="msg_disabling_terminal_toolbar">Menonaktifkan Bilah alat Terminal</string>
 
 
 
@@ -71,8 +71,8 @@
   <string name="action_open_help">Bantuan</string>
   <string name="action_open_settings">Pengaturan</string>
 
-  <string name="action_report_issue">Laporkan masalah</string>
-  <string name="msg_generating_report">Buat laporan</string>
+  <string name="action_report_issue">Laporkan Masalah</string>
+  <string name="msg_generating_report">Membuat Laporan</string>
   <string name="msg_add_termux_debug_info">Tambahkan info debug termux ke laporan?</string>
 
 
