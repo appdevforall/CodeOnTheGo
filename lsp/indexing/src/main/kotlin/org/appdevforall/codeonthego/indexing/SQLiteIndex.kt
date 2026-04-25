@@ -167,17 +167,17 @@ class SQLiteIndex<T : Indexable>(
         for (entry in entries) {
             batch.add(entry)
             if (batch.size >= batchSize) {
-                ifOpen { insertBatch(batch) }
+                ifOpen { insertBatchLocked(batch) }
                 batch.clear()
             }
         }
         if (batch.isNotEmpty()) {
-            ifOpen { insertBatch(batch) }
+            ifOpen { insertBatchLocked(batch) }
         }
     }
 
     override suspend fun insert(entry: T) = withContext(Dispatchers.IO) {
-        ifOpen { insertBatch(listOf(entry)) }
+        ifOpen { insertBatchLocked(listOf(entry)) }
     }
 
     override suspend fun removeBySource(sourceId: String) = withContext(Dispatchers.IO) {
@@ -251,7 +251,7 @@ class SQLiteIndex<T : Indexable>(
         }
     }
 
-    private fun insertBatch(entries: List<T>) {
+    private fun insertBatchLocked(entries: List<T>) {
         db.beginTransaction()
         try {
             for (entry in entries) {
