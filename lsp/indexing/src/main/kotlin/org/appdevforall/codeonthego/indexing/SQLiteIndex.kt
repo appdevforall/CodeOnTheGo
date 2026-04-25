@@ -7,11 +7,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.appdevforall.codeonthego.indexing.api.Index
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
@@ -74,7 +74,7 @@ class SQLiteIndex<T : Indexable>(
         .filter { it.prefixSearchable }
         .associate { it.name to "f_${it.name}_lower" }
 
-    private val lock = ReentrantReadWriteLock()
+    private val mutex = Mutex()
     @Volatile private var closed = false
     private val db: SupportSQLiteDatabase
 
@@ -107,17 +107,19 @@ class SQLiteIndex<T : Indexable>(
         createTable(db)
     }
 
-    override fun query(query: IndexQuery): Sequence<T> = ifOpen(emptySequence()) {
-        val (sql, args) = buildSelectQuery(query)
-        val cursor = db.query(sql, args.toTypedArray())
-        cursor.use {
-            val payloadIdx = it.getColumnIndexOrThrow("_payload")
-            buildList {
-                while (it.moveToNext()) {
-                    add(descriptor.deserialize(it.getBlob(payloadIdx)))
+    override fun query(query: IndexQuery): Sequence<T> = runBlocking {
+        ifOpen(emptySequence()) {
+            val (sql, args) = buildSelectQuery(query)
+            val cursor = db.query(sql, args.toTypedArray())
+            cursor.use {
+                val payloadIdx = it.getColumnIndexOrThrow("_payload")
+                buildList {
+                    while (it.moveToNext()) {
+                        add(descriptor.deserialize(it.getBlob(payloadIdx)))
+                    }
                 }
-            }
-        }.asSequence()
+            }.asSequence()
+        }
     }
 
     override suspend fun get(key: String): T? = withContext(Dispatchers.IO) {
@@ -145,17 +147,19 @@ class SQLiteIndex<T : Indexable>(
             }
         }
 
-    override fun distinctValues(fieldName: String): Sequence<String> = ifOpen(emptySequence()) {
-        val col = fieldColumns[fieldName]
-            ?: throw IllegalArgumentException("Unknown field: $fieldName")
-        val cursor = db.query("SELECT DISTINCT $col FROM $tableName WHERE $col IS NOT NULL")
-        cursor.use {
-            buildList {
-                while (it.moveToNext()) {
-                    add(it.getString(0))
+    override fun distinctValues(fieldName: String): Sequence<String> = runBlocking {
+        ifOpen(emptySequence()) {
+            val col = fieldColumns[fieldName]
+                ?: throw IllegalArgumentException("Unknown field: $fieldName")
+            val cursor = db.query("SELECT DISTINCT $col FROM $tableName WHERE $col IS NOT NULL")
+            cursor.use {
+                buildList {
+                    while (it.moveToNext()) {
+                        add(it.getString(0))
+                    }
                 }
-            }
-        }.asSequence()
+            }.asSequence()
+        }
     }
 
     override suspend fun insertAll(entries: Sequence<T>) = withContext(Dispatchers.IO) {
@@ -185,19 +189,20 @@ class SQLiteIndex<T : Indexable>(
     }
 
     override fun close() {
-        lock.write {
-            if (closed) return
-            closed = true
-            db.close()
+        runBlocking {
+            mutex.withLock {
+                if (closed) return@withLock
+                closed = true
+                db.close()
+            }
         }
     }
 
-    private inline fun <R> ifOpen(default: R, block: () -> R): R =
-        lock.read { if (closed) default else block() }
+    private suspend inline fun <R> ifOpen(default: R, crossinline block: () -> R): R =
+        mutex.withLock { if (closed) default else block() }
 
-    private inline fun ifOpen(block: () -> Unit) {
-        lock.read { if (!closed) block() }
-    }
+    private suspend inline fun ifOpen(crossinline block: () -> Unit) =
+        mutex.withLock { if (!closed) block() }
 
     suspend fun size(): Int = withContext(Dispatchers.IO) {
         ifOpen(0) {

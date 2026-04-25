@@ -10,7 +10,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.slf4j.LoggerFactory
@@ -53,7 +52,6 @@ class BackgroundIndexer<T : Indexable>(
 
     companion object {
         private val log = LoggerFactory.getLogger(BackgroundIndexer::class.java)
-        private const val CLOSE_TIMEOUT_MS = 5_000L
     }
 
     var progressListener: IndexingProgressListener? = null
@@ -167,14 +165,15 @@ class BackgroundIndexer<T : Indexable>(
     val activeJobCount: Int get() = activeJobs.size
 
     override fun close() {
+        val activeCount = activeJobCount
+        if (activeCount > 0) {
+            log.warn(
+                "Closing indexer with {} active job(s); cancellation is cooperative and close will wait for completion",
+                activeCount,
+            )
+        }
         runBlocking {
-            val completed = withTimeoutOrNull(CLOSE_TIMEOUT_MS) {
-                job.cancelAndJoin()
-            }
-            if (completed == null) {
-                log.warn("Indexer close timed out after {}ms, force-cancelling", CLOSE_TIMEOUT_MS)
-                job.cancel()
-            }
+            job.cancelAndJoin()
         }
         activeJobs.clear()
     }
