@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.indexing
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.os.Looper
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -15,6 +16,7 @@ import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.slf4j.LoggerFactory
 import kotlin.collections.iterator
 
 /**
@@ -61,6 +63,10 @@ class SQLiteIndex<T : Indexable>(
     override val name: String = "sqlite:${descriptor.name}",
     private val batchSize: Int = 500,
 ) : Index<T> {
+    companion object {
+        private val log = LoggerFactory.getLogger(SQLiteIndex::class.java)
+    }
+
 
     private val tableName = descriptor.name.replace(Regex("[^a-zA-Z0-9_]"), "_")
 
@@ -189,6 +195,11 @@ class SQLiteIndex<T : Indexable>(
     }
 
     override fun close() {
+        if (Looper.getMainLooper() == Looper.myLooper()) {
+            log.warn(
+                "SQLiteIndex.close() called on the main thread; waiting on mutex and closing db may block and cause ANR"
+            )
+        }
         runBlocking {
             mutex.withLock {
                 if (closed) return@withLock
