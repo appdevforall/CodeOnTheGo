@@ -1254,24 +1254,24 @@
     <string name="desc_file_renamed">File renamed</string>
     <string name="desc_file_conflicted">File conflicted</string>
     <string name="cancel_clone">Cancel clone</string>
-    <string name="initialising_clone">Initialising clone…</string>
+    <string name="initialising_clone">Initializing clone…</string>
     <string name="cancelling_clone">Cancelling clone…</string>
 
     <!-- Git Preferences -->
     <string name="idepref_git_summary">Set and update Git configuration</string>
-    <string name="idepref_git_author_title">Author Identity</string>
+    <string name="idepref_git_author_title">Author identity</string>
     <string name="idepref_git_author_summary">Set the name and email used for commits</string>
-    <string name="idepref_git_user_name_title">User Name</string>
+    <string name="idepref_git_user_name_title">User name</string>
     <string name="idepref_git_user_name_summary">Used as author name in commits</string>
-    <string name="idepref_git_user_email_title">User Email</string>
+    <string name="idepref_git_user_email_title">User email</string>
     <string name="idepref_git_user_email_summary">Used as author email in commits</string>
-    <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nClick on the avatar for more info.</string>
+    <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nTap the avatar for more info.</string>
     <string name="git_committing_as">Committing as %1$s</string>
     <string name="git_committing_email">Email - %1$s</string>
     <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>
     <string name="author_not_set">Not set</string>
     <string name="not_a_git_repo">This project is not a Git repository</string>
-    <string name="current_branch_name">Current Branch: %1$s</string>
+    <string name="current_branch_name">Current branch: %1$s</string>
     <string name="push">Push</string>
     <string name="pushing">Pushing…</string>
     <string name="push_successful">Push successful!</string>
@@ -1281,18 +1281,18 @@
     <string name="pulling">Pulling…</string>
     <string name="pull_successful">Pull successful!</string>
     <string name="pull_failed">Pull failed</string>
-    <string name="git_credentials_title">Git Credentials</string>
+    <string name="git_credentials_title">Git credentials</string>
     <string name="git_credentials_message">Enter your credentials to sync changes with the remote repository.</string>
-    <string name="git_credentials_clear">Clear Credentials</string>
+    <string name="git_credentials_clear">Clear credentials</string>
     <string name="repo_authorization_error">Authentication failed. Ensure your Personal Access Token has \'repo\' permissions, or try clearing and re-entering credentials.</string>
-    <string name="info_merge_conflicts">Pull completed with conflicts!\nPlease select the conflicted files from the list, resolve the highlighted issues in the editor, save file(s) and then commit your changes.</string>
-    <string name="merge_conflicts">Merge Conflicts</string>
-    <string name="abort_merge">Abort Merge</string>
+    <string name="info_merge_conflicts">Pull completed with conflicts.\nPlease select the conflicted files from the list, resolve the highlighted issues in the editor, save file(s) and then commit your changes.</string>
+    <string name="merge_conflicts">Merge conflicts</string>
+    <string name="abort_merge">Abort merge</string>
     <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
     <string name="msg_save_before_git_action">You have unsaved changes. Would you like to save them before proceeding?</string>
     <string name="no_save_before_git_action">Proceed without saving</string>
     <string name="save_before_git_action">Save before proceeding</string>
-    <string name="mark_as_resolved">Mark Resolved</string>
+    <string name="mark_as_resolved">Mark resolved</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>
