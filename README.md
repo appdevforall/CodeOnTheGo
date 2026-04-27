@@ -104,4 +104,10 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
 
+## 💰 Bounty Contribution
+
+- **Task:** Crash in Kotlin LSP
+- **Reward:** $1
+- **Source:** GitHub-Paid
+- **Date:** 2026-04-27
 
