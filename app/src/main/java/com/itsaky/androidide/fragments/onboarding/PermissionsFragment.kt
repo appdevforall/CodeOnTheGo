@@ -240,7 +240,7 @@ class PermissionsFragment :
 			}
 
 			if (viewModel.isSetupCompleteAsync()) {
-				(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
+				(activity as? OnboardingActivity)?.navigateToMain()
 				return@launch
 			}
 
@@ -265,7 +265,7 @@ class PermissionsFragment :
 						when (state) {
 							is InstallationState.InstallationComplete -> {
 								withContext(Dispatchers.Main) {
-									(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
+									(activity as? OnboardingActivity)?.navigateToMain()
 								}
 								true
 							}
