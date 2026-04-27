@@ -91,7 +91,7 @@ object FuzzyAttributeParser {
         TINT("android:tint", listOf("tint"), ValueType.COLOR),
 
         STYLE("style", listOf("style")),
-        ENTRIES("tools:entries", listOf("entries")),
+        ENTRIES("android:entries", listOf("entries")),
         CHECKED("android:checked", listOf("checked")),
 
         CARD_CORNER_RADIUS("app:cardCornerRadius", listOf("cardcornerradius", "card_corner_radius", "cornerradius", "corner_radius"), ValueType.DIMENSION),

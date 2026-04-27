@@ -18,7 +18,7 @@ class YoloToXmlConverter(
         targetDpWidth: Int,
         targetDpHeight: Int,
         wrapInScroll: Boolean = true
-    ): String {
+    ): Pair<String, String> {
         val uiCandidates = detections
             .filter { (it.isYolo || it.label == "text") && it.label != "widget_tag" }
             .distinctBy {
@@ -58,7 +58,7 @@ class YoloToXmlConverter(
             targetDpWidth: Int,
             targetDpHeight: Int,
             wrapInScroll: Boolean = true
-        ): String {
+        ): Pair<String, String> {
             val geometry = LayoutGeometryProcessor()
             val matcher = WidgetAnnotationMatcher()
             val generator = AndroidXmlGenerator(geometry)

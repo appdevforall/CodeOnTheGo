@@ -121,6 +121,7 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
 import com.itsaky.androidide.utils.applyImmersiveModeInsets
 import com.itsaky.androidide.utils.applyRootSystemInsetsAsPadding
@@ -1089,28 +1090,43 @@ abstract class BaseEditorActivity :
 
 	private fun handleUiDesignerResult(result: ActivityResult) {
 		if (result.resultCode != RESULT_OK || result.data == null) {
-			log.warn(
-				"UI Designer returned invalid result: resultCode={}, data={}",
-				result.resultCode,
-				result.data,
-			)
-			return
-		}
-		val generated =
-			result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
-		if (TextUtils.isEmpty(generated)) {
-			log.warn("UI Designer returned blank generated XML code")
-			return
-		}
-		val view = provideCurrentEditor()
-		val text =
-			view?.editor?.text ?: run {
-				log.warn("No file opened to append UI designer result")
-				return
-			}
-		val endLine = text.lineCount - 1
-		text.replace(0, 0, endLine, text.getColumnCount(endLine), generated)
+            log.warn("UI Designer returned invalid result: resultCode={}, data={}", result.resultCode, result.data)
+            return
+        }
+
+        val data = result.data!!
+        val generatedXml = data.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
+
+        if (TextUtils.isEmpty(generatedXml)) {
+            log.warn("UI Designer returned blank generated XML code")
+            return
+        }
+
+        handleStringsInjection(data)
+        applyGeneratedXmlToEditor(generatedXml!!)
 	}
+
+	private fun handleStringsInjection(data: Intent) {
+        val stringsXml = data.getStringExtra("ide.uidesigner.generatedStrings")
+        val layoutFilePath = data.getStringExtra("com.example.images.LAYOUT_FILE_PATH")
+
+        if (!stringsXml.isNullOrBlank() && layoutFilePath != null) {
+            editorActivityScope.launch {
+                StringsXmlInjector.inject(layoutFilePath, stringsXml)
+            }
+        }
+    }
+
+    private fun applyGeneratedXmlToEditor(generatedXml: String) {
+        val view = provideCurrentEditor()
+        val text = view?.editor?.text ?: run {
+            log.warn("No file opened to append UI designer result")
+            return
+        }
+
+        val endLine = text.lineCount - 1
+        text.replace(0, 0, endLine, text.getColumnCount(endLine), generatedXml)
+    }
 
 	private fun setupDrawers() {
 		// Note: Drawer toggle is now set up in setupToolbar() on the title toolbar
@@ -1137,7 +1153,6 @@ abstract class BaseEditorActivity :
 		content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
 		invalidateOptionsMenu()
 	}
-
 	private fun setupStateObservers() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.CREATED) {
