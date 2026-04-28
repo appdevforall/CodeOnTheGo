@@ -88,19 +88,50 @@ class SpinnerWidget(
 
     override fun processAttributes(context: XmlContext, id: String, attrs: Map<String, String>): Map<String, String> {
         val processed = mutableMapOf<String, String>()
+        val rawEntries = attrs[AttributeKey.ENTRIES.xmlName]
+            ?: attrs[AttributeKey.TEXT.xmlName]
+            ?: box.text.takeIf { it.isMeaningfulDropdownText() }
+
+        when {
+            rawEntries == null -> Unit
+            rawEntries.trimStart().startsWith("@") -> {
+                processed[AttributeKey.ENTRIES.xmlName] = rawEntries.trim().escapeXmlAttr()
+            }
+            else -> rawEntries
+                .toSpinnerEntries()
+                .takeIf { it.isNotEmpty() }
+                ?.let { items ->
+                    val arrayName = "${id}_array"
+                    context.stringArrays[arrayName] = items
+                    processed[AttributeKey.ENTRIES.xmlName] = "@array/$arrayName"
+                }
+        }
 
         attrs.forEach { (key, value) ->
-            if (key == AttributeKey.ENTRIES.xmlName && !value.startsWith("@")) {
-                val arrayName = "${id}_array"
-                val items = value.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-
-                context.stringArrays[arrayName] = items
-                processed[key] = "@array/$arrayName"
-            } else {
-                processed[key] = value.escapeXmlAttr()
+            when {
+                key == AttributeKey.ENTRIES.xmlName || key == AttributeKey.TEXT.xmlName -> Unit
+                else -> processed[key] = value.escapeXmlAttr()
             }
         }
         return processed
+    }
+
+    private fun String.toSpinnerEntries(): List<String> {
+        return removeTrailingDropdownGlyph()
+            .split(Regex("\\s*[,;|/\\n]+\\s*"))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    }
+
+    private fun String.removeTrailingDropdownGlyph(): String {
+        return trim()
+            .replace(Regex("\\s*[▼▽▾▿⌄˅∨]$|\\s+[vV]$"), "")
+            .trim()
+    }
+
+    private fun String.isMeaningfulDropdownText(): Boolean {
+        val cleaned = removeTrailingDropdownGlyph()
+        return cleaned.isNotBlank() && !cleaned.equals("dropdown", ignoreCase = true)
     }
 }
 
