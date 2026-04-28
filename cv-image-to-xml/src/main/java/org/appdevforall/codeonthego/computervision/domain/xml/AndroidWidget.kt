@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.computervision.domain.xml
 
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
+import org.appdevforall.codeonthego.computervision.domain.FuzzyAttributeParser.AttributeKey
 import kotlin.text.substringAfterLast
 
 sealed class AndroidWidget(
@@ -12,6 +13,9 @@ sealed class AndroidWidget(
     protected open fun fallbackIdLabel(): String = box.label
 
     protected abstract fun specificAttributes(): Map<String, String>
+    protected open fun processAttributes(context: XmlContext, id: String, attrs: Map<String, String>): Map<String, String> {
+        return attrs.mapValues { it.value.escapeXmlAttr() }
+    }
 
     fun render(
         context: XmlContext,
@@ -19,21 +23,24 @@ sealed class AndroidWidget(
         extraAttrs: Map<String, String> = emptyMap(),
         idOverride: String? = null
     ) {
-        val requestedId = idOverride ?: parsedAttrs["android:id"]?.substringAfterLast('/')
+        val requestedId = idOverride ?: parsedAttrs[AttributeKey.ID.xmlName]?.substringAfterLast('/')
         val id = context.resolveId(requestedId, fallbackIdLabel())
-        val width = parsedAttrs["android:layout_width"] ?: extraAttrs["android:layout_width"] ?: "wrap_content"
-        val height = parsedAttrs["android:layout_height"] ?: extraAttrs["android:layout_height"] ?: "wrap_content"
+        val width = parsedAttrs[AttributeKey.WIDTH.xmlName] ?: extraAttrs[AttributeKey.WIDTH.xmlName] ?: "wrap_content"
+        val height = parsedAttrs[AttributeKey.HEIGHT.xmlName] ?: extraAttrs[AttributeKey.HEIGHT.xmlName] ?: "wrap_content"
 
         val finalAttrs = mutableMapOf(
-            "android:id" to "@+id/${id.escapeXmlAttr()}",
-            "android:layout_width" to width.escapeXmlAttr(),
-            "android:layout_height" to height.escapeXmlAttr()
+            AttributeKey.ID.xmlName to "@+id/${id.escapeXmlAttr()}",
+            AttributeKey.WIDTH.xmlName to width.escapeXmlAttr(),
+            AttributeKey.HEIGHT.xmlName to height.escapeXmlAttr()
         )
 
         specificAttributes().forEach { (k, v) -> finalAttrs[k] = v.escapeXmlAttr() }
 
-        (parsedAttrs + extraAttrs).forEach { (key, value) ->
-            finalAttrs.putIfAbsent(key, value.escapeXmlAttr())
+        val mergedAttrs = parsedAttrs + extraAttrs
+        val processedAttrs = processAttributes(context, id, mergedAttrs)
+
+        processedAttrs.forEach { (key, value) ->
+            finalAttrs.putIfAbsent(key, value)
         }
 
         context.append("$indent<$tag\n")
@@ -52,6 +59,7 @@ sealed class AndroidWidget(
                 "switch_off", "switch_on" -> SwitchWidget(box, parsedAttrs)
                 "text_entry_box" -> InputWidget(box, parsedAttrs)
                 "image_placeholder", "icon" -> ImageWidget(box, parsedAttrs)
+                "dropdown" -> SpinnerWidget(box, parsedAttrs)
                 else -> GenericWidget(box, parsedAttrs, getTagFor(box.label))
             }
         }
@@ -71,6 +79,31 @@ sealed class AndroidWidget(
     }
 }
 
+class SpinnerWidget(
+    box: ScaledBox, parsedAttrs: Map<String, String>
+) : AndroidWidget(box, parsedAttrs) {
+    override val tag = "Spinner"
+    override fun fallbackIdLabel(): String = "spinner"
+    override fun specificAttributes() = emptyMap<String, String>()
+
+    override fun processAttributes(context: XmlContext, id: String, attrs: Map<String, String>): Map<String, String> {
+        val processed = mutableMapOf<String, String>()
+
+        attrs.forEach { (key, value) ->
+            if (key == AttributeKey.ENTRIES.xmlName && !value.startsWith("@")) {
+                val arrayName = "${id}_array"
+                val items = value.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+                context.stringArrays[arrayName] = items
+                processed[key] = "@array/$arrayName"
+            } else {
+                processed[key] = value.escapeXmlAttr()
+            }
+        }
+        return processed
+    }
+}
+
 class TextBasedWidget(
     box: ScaledBox, parsedAttrs: Map<String, String>,
     override val tag: String
@@ -78,18 +111,18 @@ class TextBasedWidget(
     override fun specificAttributes(): Map<String, String> {
         val attrs = mutableMapOf<String, String>()
         val widgetTags = setOf("Switch", "CheckBox", "RadioButton")
-        val rawViewText = parsedAttrs["android:text"]
+        val rawViewText = parsedAttrs[AttributeKey.TEXT.xmlName]
             ?: box.text.takeIf { it.isNotEmpty() && it != box.label }
             ?: if (tag in widgetTags) tag else box.label
 
-        attrs["android:text"] = rawViewText
+        attrs[AttributeKey.TEXT.xmlName] = rawViewText
         attrs["tools:ignore"] = "HardcodedText"
 
         if (tag == "TextView") {
-            attrs["android:textSize"] = parsedAttrs["android:textSize"] ?: "16sp"
+            attrs[AttributeKey.TEXT_SIZE.xmlName] = parsedAttrs[AttributeKey.TEXT_SIZE.xmlName] ?: "16sp"
         }
         if (box.label.contains("_checked") || box.label.contains("_on")) {
-            attrs["android:checked"] = parsedAttrs["android:checked"] ?: "true"
+            attrs[AttributeKey.CHECKED.xmlName] = parsedAttrs[AttributeKey.CHECKED.xmlName] ?: "true"
         }
         return attrs
     }
@@ -104,14 +137,14 @@ class CheckBoxWidget(
         val attrs = mutableMapOf<String, String>()
 
         val rawViewText = box.text.takeIf { it.isNotEmpty() && it != box.label }
-            ?: parsedAttrs["android:text"]
+            ?: parsedAttrs[AttributeKey.TEXT.xmlName]
             ?: "CheckBox"
 
-        attrs["android:text"] = rawViewText
+        attrs[AttributeKey.TEXT.xmlName] = rawViewText
         attrs["tools:ignore"] = "HardcodedText"
 
         if (box.label.contains("_checked")) {
-            attrs["android:checked"] = parsedAttrs["android:checked"] ?: "true"
+            attrs[AttributeKey.CHECKED.xmlName] = parsedAttrs[AttributeKey.CHECKED.xmlName] ?: "true"
         }
         return attrs
     }
@@ -127,13 +160,13 @@ class SwitchWidget(
 
     override fun specificAttributes(): Map<String, String> {
         val attrs = mutableMapOf<String, String>()
-        val switchText = parsedAttrs["android:text"] ?: box.text.trim().takeIf { it.isNotEmpty() && it != box.label } ?: "Switch"
+        val switchText = parsedAttrs[AttributeKey.TEXT.xmlName] ?: box.text.trim().takeIf { it.isNotEmpty() && it != box.label } ?: "Switch"
 
-        attrs["android:text"] = switchText
+        attrs[AttributeKey.TEXT.xmlName] = switchText
         attrs["tools:ignore"] = "HardcodedText"
 
         if (box.label.contains("_on")) {
-            attrs["android:checked"] = parsedAttrs["android:checked"] ?: "true"
+            attrs[AttributeKey.CHECKED.xmlName] = parsedAttrs[AttributeKey.CHECKED.xmlName] ?: "true"
         }
 
         return attrs
@@ -145,8 +178,8 @@ class InputWidget(
 ) : AndroidWidget(box, parsedAttrs) {
     override val tag = "EditText"
     override fun specificAttributes(): Map<String, String> = mapOf(
-        "android:hint" to (parsedAttrs["android:hint"] ?: box.text.ifEmpty { "Enter text..." }),
-        "android:inputType" to (parsedAttrs["android:inputType"] ?: "text"),
+        AttributeKey.HINT.xmlName to (parsedAttrs[AttributeKey.HINT.xmlName] ?: box.text.ifEmpty { "Enter text..." }),
+        AttributeKey.INPUT_TYPE.xmlName to (parsedAttrs[AttributeKey.INPUT_TYPE.xmlName] ?: "text"),
         "tools:ignore" to "HardcodedText"
     )
 }
@@ -156,7 +189,7 @@ class ImageWidget(
 ) : AndroidWidget(box, parsedAttrs) {
     override val tag = "ImageView"
     override fun specificAttributes(): Map<String, String> = mapOf(
-        "android:contentDescription" to (parsedAttrs["android:contentDescription"] ?: box.label),
+        AttributeKey.CONTENT_DESCRIPTION.xmlName to (parsedAttrs[AttributeKey.CONTENT_DESCRIPTION.xmlName] ?: box.label),
     )
 }
 

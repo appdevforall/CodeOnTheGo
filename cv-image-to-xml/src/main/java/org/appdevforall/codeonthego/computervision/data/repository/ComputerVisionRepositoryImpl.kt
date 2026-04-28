@@ -60,7 +60,7 @@ class ComputerVisionRepositoryImpl(
         sourceImageHeight: Int,
         targetDpWidth: Int,
         targetDpHeight: Int
-    ): Result<String> = withContext(Dispatchers.Default) {
+    ): Result<Pair<String, String>> = withContext(Dispatchers.Default) {
         runCatching {
             YoloToXmlConverter.generateXmlLayout(
                 detections = detections,
