@@ -11,7 +11,7 @@ class AndroidXmlGenerator(
         annotations: Map<ScaledBox, String>,
         targetDpHeight: Int,
         wrapInScroll: Boolean
-    ): String {
+    ): Pair<String, String> {
         val context = XmlContext()
         val maxBottom = boxes.maxOfOrNull { it.y + it.h } ?: 0
         val needScroll = wrapInScroll && maxBottom > targetDpHeight
@@ -21,12 +21,29 @@ class AndroidXmlGenerator(
         val layoutItems = geometryProcessor.buildLayoutTree(boxes)
         val renderer = LayoutRenderer(context, annotations)
 
-        layoutItems.forEach { item ->
-            renderer.render(item, "        ")
-        }
+        layoutItems.forEach { item -> renderer.render(item, "        ") }
 
         appendFooters(context, needScroll)
-        return context.toString()
+
+        val layoutXml = context.toString()
+        val stringsXml = generateStringsResourceXml(context)
+
+        return Pair(layoutXml, stringsXml)
+    }
+
+    private fun generateStringsResourceXml(context: XmlContext): String {
+        if (context.stringArrays.isEmpty()) return ""
+
+        val builder = StringBuilder()
+        context.stringArrays.forEach { (name, items) ->
+            builder.appendLine("    <string-array name=\"${name}\">")
+            items.forEach { item ->
+                builder.appendLine("        <item>${item.escapeXmlAttr()}</item>")
+            }
+            builder.appendLine("    </string-array>")
+        }
+
+        return builder.toString().trimEnd()
     }
 
     private fun appendHeaders(context: XmlContext, needScroll: Boolean) {
