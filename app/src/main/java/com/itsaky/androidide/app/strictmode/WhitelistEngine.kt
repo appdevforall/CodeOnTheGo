@@ -3,6 +3,7 @@ package com.itsaky.androidide.app.strictmode
 import android.os.strictmode.DiskReadViolation
 import android.os.strictmode.DiskWriteViolation
 import androidx.annotation.VisibleForTesting
+import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.anyOf
 import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.classAndMethod
 import android.os.strictmode.Violation as StrictModeViolation
 
@@ -248,15 +249,31 @@ object WhitelistEngine {
 					"""
 					On MediaTek devices, AsyncDrawableCache hooks into Resources.loadDrawable and
 					synchronously commits to a SharedPreferences-backed cache. This is triggered by
-					routine layout inflation and produces a DiskReadViolation. Since this caching is
-					internal to the vendor framework, we allow this violation.
+					routine layout inflation and produces a DiskReadViolation. We anchor this rule
+					with a java.io disk-access frame at the top and the SharedPreferencesImpl
+					commit frame immediately adjacent to the vendor chain, so it only fires on the
+					actual prefs-write path inside this vendor caching code.
 					""".trimIndent(),
 				)
 
-				matchAdjacentFrames(
-					classAndMethod("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
-					classAndMethod("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
-					classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+				matchAdjacentFramesInOrder(
+					listOf(
+						listOf(
+							anyOf(
+								classAndMethod("java.io.File", "exists"),
+								classAndMethod("java.io.FileInputStream", "<init>"),
+								classAndMethod("java.io.FileOutputStream", "<init>"),
+								classAndMethod("java.io.RandomAccessFile", "<init>"),
+								classAndMethod("android.system.Os", "stat"),
+							),
+						),
+						listOf(
+							classAndMethod("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+							classAndMethod("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+							classAndMethod("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+							classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+						),
+					),
 				)
 			}
 

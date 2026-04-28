@@ -129,6 +129,21 @@ class WhitelistRulesTest {
 	}
 
 	@Test
+	fun allow_DiskRead_on_MtkAsyncDrawableCachePutCacheList_OsStatVariant() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("android.system.Os", "stat"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+			stackTraceElement("android.content.res.ResourcesImpl", "cacheDrawable"),
+			// @formatter:on
+		)
+	}
+
+	@Test
 	fun allow_DiskWrite_on_MtkAsyncDrawableCachePutCacheList() {
 		assertAllowed<DiskWriteViolation>(
 			// @formatter:off
