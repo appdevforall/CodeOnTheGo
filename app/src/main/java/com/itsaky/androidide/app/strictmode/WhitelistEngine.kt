@@ -283,15 +283,30 @@ object WhitelistEngine {
 					"""
 					On MediaTek devices, AsyncDrawableCache hooks into Resources.loadDrawable and
 					synchronously commits to a SharedPreferences-backed cache. The same path also
-					produces a DiskWriteViolation when the prefs file is written. Since this caching
-					is internal to the vendor framework, we allow this violation.
+					produces a DiskWriteViolation when the prefs file is written. We anchor this
+					rule with a concrete write-path frame at the top and the SharedPreferencesImpl
+					commit frame immediately adjacent to the vendor chain, so it only fires on the
+					actual prefs-write path inside this vendor caching code.
 					""".trimIndent(),
 				)
 
-				matchAdjacentFrames(
-					classAndMethod("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
-					classAndMethod("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
-					classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+				matchAdjacentFramesInOrder(
+					listOf(
+						listOf(
+							anyOf(
+								classAndMethod("java.io.FileOutputStream", "<init>"),
+								classAndMethod("java.io.FileOutputStream", "write"),
+								classAndMethod("java.io.File", "delete"),
+								classAndMethod("android.system.Os", "chmod"),
+							),
+						),
+						listOf(
+							classAndMethod("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+							classAndMethod("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+							classAndMethod("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+							classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+						),
+					),
 				)
 			}
 		}
