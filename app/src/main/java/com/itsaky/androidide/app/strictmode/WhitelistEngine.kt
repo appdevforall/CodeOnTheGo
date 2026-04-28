@@ -1,6 +1,7 @@
 package com.itsaky.androidide.app.strictmode
 
 import android.os.strictmode.DiskReadViolation
+import android.os.strictmode.DiskWriteViolation
 import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.classAndMethod
 import android.os.strictmode.Violation as StrictModeViolation
@@ -218,6 +219,62 @@ object WhitelistEngine {
 				matchFramesInOrder(
 					classAndMethod("java.io.File", "exists"),
 					classAndMethod("com.itsaky.androidide.activities.OnboardingActivity", "checkToolsIsInstalled"),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					On MediaTek devices, BoostFwk's 'Util.isGameApp' is invoked from ScrollIdentify
+					(via OverScroller's BoostFwkManagerImpl.perfHint) when a RecyclerView/ViewPager2
+					is initialized. It checks for a file's existence, resulting in a DiskReadViolation.
+					Since we can't control when BoostFwk performs scenario detection, we allow this
+					violation.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFrames(
+					classAndMethod("java.io.File", "exists"),
+					classAndMethod("com.mediatek.boostfwk.utils.Util", "isGameApp"),
+					classAndMethod("com.mediatek.boostfwk.utils.TasksUtil", "isGameAPP"),
+					classAndMethod("com.mediatek.boostfwk.identify.scroll.ScrollIdentify", "checkAppType"),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					On MediaTek devices, AsyncDrawableCache hooks into Resources.loadDrawable and
+					synchronously commits to a SharedPreferences-backed cache. This is triggered by
+					routine layout inflation and produces a DiskReadViolation. Since this caching is
+					internal to the vendor framework, we allow this violation.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFrames(
+					classAndMethod("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+					classAndMethod("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+					classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+				)
+			}
+
+			rule {
+				ofType<DiskWriteViolation>()
+				allow(
+					"""
+					On MediaTek devices, AsyncDrawableCache hooks into Resources.loadDrawable and
+					synchronously commits to a SharedPreferences-backed cache. The same path also
+					produces a DiskWriteViolation when the prefs file is written. Since this caching
+					is internal to the vendor framework, we allow this violation.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFrames(
+					classAndMethod("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+					classAndMethod("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+					classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
 				)
 			}
 		}

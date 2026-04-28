@@ -1,6 +1,7 @@
 package com.itsaky.androidide.app.strictmode
 
 import android.os.strictmode.DiskReadViolation
+import android.os.strictmode.DiskWriteViolation
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -96,6 +97,49 @@ class WhitelistRulesTest {
 				"com.itsaky.androidide.activities.OnboardingActivity",
 				"checkToolsIsInstalled"
 			),
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_MtkBoostFwkIsGameApp() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement("com.mediatek.boostfwk.utils.Util", "isGameApp"),
+			stackTraceElement("com.mediatek.boostfwk.utils.TasksUtil", "isGameAPP"),
+			stackTraceElement("com.mediatek.boostfwk.identify.scroll.ScrollIdentify", "checkAppType"),
+			stackTraceElement("com.mediatek.boostfwk.identify.scroll.ScrollIdentify", "dispatchScenario"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskRead_on_MtkAsyncDrawableCachePutCacheList() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+			stackTraceElement("android.content.res.ResourcesImpl", "cacheDrawable"),
+			// @formatter:on
+		)
+	}
+
+	@Test
+	fun allow_DiskWrite_on_MtkAsyncDrawableCachePutCacheList() {
+		assertAllowed<DiskWriteViolation>(
+			// @formatter:off
+			stackTraceElement("libcore.io.IoBridge", "open"),
+			stackTraceElement("java.io.FileOutputStream", "<init>"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "createFileOutputStream"),
+			stackTraceElement("android.app.SharedPreferencesImpl", "writeToFile"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+			stackTraceElement("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+			stackTraceElement("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+			// @formatter:on
 		)
 	}
 }
