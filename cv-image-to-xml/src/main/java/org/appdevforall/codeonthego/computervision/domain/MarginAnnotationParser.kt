@@ -125,7 +125,7 @@ object MarginAnnotationParser {
 
         for (block in explicitBlocks) {
             val tag = block.tag ?: continue
-            if (canvasTags.any { (canvasTag, _) -> canvasTag == tag }) {
+            if (canvasTags.isEmpty() || canvasTags.any { (canvasTag, _) -> canvasTag == tag }) {
                 annotationMap[tag] = block.annotationText
             }
         }
