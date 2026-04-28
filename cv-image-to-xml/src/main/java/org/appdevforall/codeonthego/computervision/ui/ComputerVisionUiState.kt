@@ -47,7 +47,7 @@ sealed class ComputerVisionEffect {
     data class ShowToast(val messageResId: Int) : ComputerVisionEffect()
     data class ShowError(val message: String) : ComputerVisionEffect()
     data class ShowConfirmDialog(val fileName: String) : ComputerVisionEffect()
-    data class ReturnXmlResult(val xml: String) : ComputerVisionEffect()
+    data class ReturnXmlResult(val layoutXml: String, val stringsXml: String) : ComputerVisionEffect()
     data class FileSaved(val fileName: String) : ComputerVisionEffect()
     object NavigateBack : ComputerVisionEffect()
 }
