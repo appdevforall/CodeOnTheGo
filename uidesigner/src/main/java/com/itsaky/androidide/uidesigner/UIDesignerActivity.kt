@@ -101,6 +101,8 @@ class UIDesignerActivity : BaseIDEActivity() {
 
     const val EXTRA_FILE = "layout_file"
     const val RESULT_GENERATED_XML = "ide.uidesigner.generatedXml"
+    const val EXTRA_GENERATED_STRINGS = "ide.uidesigner.generatedStrings"
+    const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
   }
 
   private fun onXmlGenerated(xml: String) {
