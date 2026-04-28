@@ -121,6 +121,7 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
 import com.itsaky.androidide.utils.applyImmersiveModeInsets
@@ -1102,19 +1103,42 @@ abstract class BaseEditorActivity :
             return
         }
 
-        handleStringsInjection(data)
-        applyGeneratedXmlToEditor(generatedXml!!)
-	}
+        editorActivityScope.launch {
+            val injectionSuccess = handleStringsInjection(data)
 
-	private fun handleStringsInjection(data: Intent) {
-        val stringsXml = data.getStringExtra("ide.uidesigner.generatedStrings")
-        val layoutFilePath = data.getStringExtra("com.example.images.LAYOUT_FILE_PATH")
-
-        if (!stringsXml.isNullOrBlank() && layoutFilePath != null) {
-            editorActivityScope.launch {
-                StringsXmlInjector.inject(layoutFilePath, stringsXml)
+            if (injectionSuccess) {
+                withContext(Dispatchers.Main) { applyGeneratedXmlToEditor(generatedXml!!) }
+            } else {
+                log.warn("Aborting layout update due to string injection failure.")
             }
         }
+	}
+
+	private suspend fun handleStringsInjection(data: Intent): Boolean {
+        val stringsXml = data.getStringExtra(UIDesignerActivity.EXTRA_GENERATED_STRINGS)
+        val layoutFilePath = data.getStringExtra(UIDesignerActivity.EXTRA_LAYOUT_FILE_PATH)
+
+        if (stringsXml.isNullOrBlank()) return true
+
+        if (layoutFilePath.isNullOrBlank()) {
+            log.warn("Skipping string injection: generated strings present but layout file path is missing.")
+            return false
+        }
+
+        val result = StringsXmlInjector.inject(layoutFilePath, stringsXml)
+
+        result.onFailure { error ->
+            log.error("String injection failed", error)
+            withContext(Dispatchers.Main) {
+                val message = when (error) {
+                    is StringsInjectionException -> getString(error.messageRes)
+                    else -> getString(string.msg_strings_injection_failed)
+                }
+                flashError(message)
+            }
+        }
+
+        return result.isSuccess
     }
 
     private fun applyGeneratedXmlToEditor(generatedXml: String) {
