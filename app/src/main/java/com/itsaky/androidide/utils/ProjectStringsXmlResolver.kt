@@ -19,11 +19,19 @@ object ProjectStringsXmlResolver {
     fun findNow(projectRootPath: String): File? {
         val projectRoot = projectRootPath.toCanonicalDirectory() ?: return null
         val stringsFile = File(projectRoot, STRINGS_XML_RELATIVE_PATH).canonicalFile
-        return stringsFile.takeIf { it.exists() && it.isFile }
+        return stringsFile.takeIf {
+            it.exists() && it.isFile && it.isWithin(projectRoot)
+        }
     }
 
     private fun String.toCanonicalDirectory(): File? {
         val dir = File(this).canonicalFile
         return dir.takeIf { it.exists() && it.isDirectory }
+    }
+
+    private fun File.isWithin(root: File): Boolean {
+        val rootPath = root.toPath()
+        val filePath = toPath()
+        return filePath.startsWith(rootPath)
     }
 }
