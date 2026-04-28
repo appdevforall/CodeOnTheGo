@@ -1,7 +1,9 @@
 package com.itsaky.androidide.app.strictmode
 
 import android.os.strictmode.DiskReadViolation
+import android.os.strictmode.DiskWriteViolation
 import androidx.annotation.VisibleForTesting
+import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.anyOf
 import com.itsaky.androidide.app.strictmode.FrameMatcher.Companion.classAndMethod
 import android.os.strictmode.Violation as StrictModeViolation
 
@@ -218,6 +220,93 @@ object WhitelistEngine {
 				matchFramesInOrder(
 					classAndMethod("java.io.File", "exists"),
 					classAndMethod("com.itsaky.androidide.activities.OnboardingActivity", "checkToolsIsInstalled"),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					On MediaTek devices, BoostFwk's 'Util.isGameApp' is invoked from ScrollIdentify
+					(via OverScroller's BoostFwkManagerImpl.perfHint) when a RecyclerView/ViewPager2
+					is initialized. It checks for a file's existence, resulting in a DiskReadViolation.
+					Since we can't control when BoostFwk performs scenario detection, we allow this
+					violation.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFrames(
+					classAndMethod("java.io.File", "exists"),
+					classAndMethod("com.mediatek.boostfwk.utils.Util", "isGameApp"),
+					classAndMethod("com.mediatek.boostfwk.utils.TasksUtil", "isGameAPP"),
+					classAndMethod("com.mediatek.boostfwk.identify.scroll.ScrollIdentify", "checkAppType"),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
+					On MediaTek devices, AsyncDrawableCache hooks into Resources.loadDrawable and
+					synchronously commits to a SharedPreferences-backed cache. This is triggered by
+					routine layout inflation and produces a DiskReadViolation. We anchor this rule
+					with a java.io disk-access frame at the top and the SharedPreferencesImpl
+					commit frame immediately adjacent to the vendor chain, so it only fires on the
+					actual prefs-write path inside this vendor caching code.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFramesInOrder(
+					listOf(
+						listOf(
+							anyOf(
+								classAndMethod("java.io.File", "exists"),
+								classAndMethod("java.io.FileInputStream", "<init>"),
+								classAndMethod("java.io.FileOutputStream", "<init>"),
+								classAndMethod("java.io.RandomAccessFile", "<init>"),
+								classAndMethod("android.system.Os", "stat"),
+							),
+						),
+						listOf(
+							classAndMethod("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+							classAndMethod("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+							classAndMethod("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+							classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+						),
+					),
+				)
+			}
+
+			rule {
+				ofType<DiskWriteViolation>()
+				allow(
+					"""
+					On MediaTek devices, AsyncDrawableCache hooks into Resources.loadDrawable and
+					synchronously commits to a SharedPreferences-backed cache. The same path also
+					produces a DiskWriteViolation when the prefs file is written. We anchor this
+					rule with a concrete write-path frame at the top and the SharedPreferencesImpl
+					commit frame immediately adjacent to the vendor chain, so it only fires on the
+					actual prefs-write path inside this vendor caching code.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFramesInOrder(
+					listOf(
+						listOf(
+							anyOf(
+								classAndMethod("java.io.FileOutputStream", "<init>"),
+								classAndMethod("java.io.FileOutputStream", "write"),
+								classAndMethod("java.io.File", "delete"),
+								classAndMethod("android.system.Os", "chmod"),
+							),
+						),
+						listOf(
+							classAndMethod("android.app.SharedPreferencesImpl\$EditorImpl", "commit"),
+							classAndMethod("com.mediatek.res.AsyncDrawableCache", "storeDrawableId"),
+							classAndMethod("com.mediatek.res.AsyncDrawableCache", "putCacheList"),
+							classAndMethod("com.mediatek.res.ResOptExtImpl", "putCacheList"),
+						),
+					),
 				)
 			}
 		}
