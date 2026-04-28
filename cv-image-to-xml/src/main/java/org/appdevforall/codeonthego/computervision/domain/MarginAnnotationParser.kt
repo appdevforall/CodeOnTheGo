@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.utils.MetadataDetector
 import kotlin.math.abs
 
 object MarginAnnotationParser {
@@ -38,6 +39,10 @@ object MarginAnnotationParser {
         leftGuidePct: Float,
         rightGuidePct: Float
     ): Pair<List<DetectionResult>, Map<String, String>> {
+        val sanitizedDetections = detections.filterNot { detection ->
+            MetadataDetector.isMetadataDetection(detection.label, detection.text)
+        }
+
         val leftMarginPx = imageWidth * leftGuidePct
         val rightMarginPx = imageWidth * rightGuidePct
 
@@ -45,7 +50,7 @@ object MarginAnnotationParser {
         val leftMarginDetections = mutableListOf<DetectionResult>()
         val rightMarginDetections = mutableListOf<DetectionResult>()
 
-        for (detection in detections) {
+        for (detection in sanitizedDetections) {
             val centerX = centerX(detection)
             when {
                 centerX > leftMarginPx && centerX < rightMarginPx -> canvasDetections.add(detection)
@@ -72,8 +77,7 @@ object MarginAnnotationParser {
     private data class ParsedBlock(
         val tag: String?,
         val annotationText: String,
-        val centerY: Float,
-        val lineCount: Int
+        val centerY: Float
     )
 
     private fun parseMarginGroup(
@@ -88,13 +92,13 @@ object MarginAnnotationParser {
         val gapBlocks = clusterIntoBlocks(sorted)
         val refinedBlocks = gapBlocks.flatMap { splitAtTags(it, validPrefixes) }
 
-        val parsedBlocks = refinedBlocks.mapIndexed { _, block ->
+        val parsedBlocks = refinedBlocks.map { block ->
             val result = parseBlock(block)
             val centerY = block.map { centerY(it) }.average().toFloat()
             val annotationText = result?.second
                 ?: block.joinToString(" ") { it.text.trim() }.trim()
 
-            ParsedBlock(result?.first, annotationText, centerY, block.size)
+            ParsedBlock(result?.first, annotationText, centerY)
         }
 
         val annotationMap = mutableMapOf<String, String>()
@@ -106,14 +110,22 @@ object MarginAnnotationParser {
             }
 
         val explicitBlocks = parsedBlocks
-            .filter { it.tag != null && it.annotationText.isNotBlank() }
+            .filter {
+                it.tag != null &&
+                    it.annotationText.isNotBlank() &&
+                    !MetadataDetector.isCanvasMetadata(it.annotationText)
+            }
 
         val implicitBlocks = parsedBlocks
-            .filter { it.tag == null && it.annotationText.length >= 5 }
+            .filter {
+                it.tag == null &&
+                    it.annotationText.length >= 5 &&
+                    !MetadataDetector.isCanvasMetadata(it.annotationText)
+            }
 
         for (block in explicitBlocks) {
             val tag = block.tag ?: continue
-            if (canvasTags.isEmpty() || canvasTags.any { (canvasTag, _) -> canvasTag == tag }) {
+            if (canvasTags.any { (canvasTag, _) -> canvasTag == tag }) {
                 annotationMap[tag] = block.annotationText
             }
         }
