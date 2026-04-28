@@ -94,8 +94,8 @@ class SpinnerWidget(
 
         when {
             rawEntries == null -> Unit
-            rawEntries.startsWith("@") -> {
-                processed[AttributeKey.ENTRIES.xmlName] = rawEntries.escapeXmlAttr()
+            rawEntries.trimStart().startsWith("@") -> {
+                processed[AttributeKey.ENTRIES.xmlName] = rawEntries.trim().escapeXmlAttr()
             }
             else -> rawEntries
                 .toSpinnerEntries()
@@ -125,7 +125,7 @@ class SpinnerWidget(
 
     private fun String.removeTrailingDropdownGlyph(): String {
         return trim()
-            .replace(Regex("\\s*[▼▽▾▿⌄˅∨vV]$"), "")
+            .replace(Regex("\\s*[▼▽▾▿⌄˅∨]$|\\s+[vV]$"), "")
             .trim()
     }
 
