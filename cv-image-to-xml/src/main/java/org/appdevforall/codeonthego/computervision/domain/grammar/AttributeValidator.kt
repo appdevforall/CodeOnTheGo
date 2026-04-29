@@ -57,9 +57,7 @@ object EntriesValidator : AttributeValidator {
         val trimmed = rawValue.trim()
         if (trimmed.startsWith("@")) return trimmed
 
-        val hasBrackets = isEnclosedInBrackets(trimmed)
         val content = trimmed.removeSurrounding("[", "]")
-
         val rawItems = content.split(",")
 
         val isNumericArray = isEntireArrayLikelyNumeric(rawItems)
@@ -73,8 +71,7 @@ object EntriesValidator : AttributeValidator {
             }
         }
 
-        val finalString = cleanedItems.joinToString(", ")
-        return if (hasBrackets) "[$finalString]" else finalString
+        return cleanedItems.joinToString(",")
     }
 
     private fun isEnclosedInBrackets(text: String): Boolean {
