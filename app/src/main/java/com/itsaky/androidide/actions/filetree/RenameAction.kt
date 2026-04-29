@@ -58,29 +58,24 @@ class RenameAction(
 		builder.setMessage(R.string.msg_rename_file)
 		builder.setView(binding.root)
 		builder.setNegativeButton(android.R.string.cancel, null)
-		builder.setPositiveButton(R.string.rename_file) {
-			dialogInterface,
-			_ ->
-			dialogInterface.dismiss()
+		builder.setPositiveButton(R.string.rename_file) { dialogInterface, _ ->
             val fileManagerViewModel: FileManagerViewModel by context.viewModels()
             val name: String = binding.name.editText?.text.toString().trim()
             if (name.length !in 1..40) {
                 flashError(R.string.msg_invalid_name)
                 return@setPositiveButton
             }
+            dialogInterface.dismiss()
             fileManagerViewModel.renameFile(file, name, context) { renamed ->
-                if (renamed) {
-                    if (lastHeld != null) {
-                        val parent = lastHeld.parent
-                        if (parent != null) {
-                            requestCollapseNode(parent, false)
-                            requestExpandNode(parent)
-                        } else {
-                            requestFileListing()
-                        }
-                    } else {
-                        requestFileListing()
-                    }
+                if (!renamed) return@renameFile
+
+                val parent = lastHeld?.parent
+
+                if (parent != null) {
+                    requestCollapseNode(parent, false)
+                    requestExpandNode(parent)
+                } else {
+                    requestFileListing()
                 }
             }
 		}
