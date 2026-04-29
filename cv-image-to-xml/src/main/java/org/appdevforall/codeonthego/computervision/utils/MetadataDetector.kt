@@ -31,17 +31,13 @@ object MetadataDetector {
     )
 
     private val xmlAttributeRegex = Regex("""\b(?:android|app|tools):[a-zA-Z_]+\b""")
-    private val assignmentRegex = Regex("""\b[a-zA-Z_]+(?:[:=])[^\s]+""")
-
     fun isCanvasMetadata(text: String): Boolean {
         val lowerText = text.lowercase()
         if (lowerText.isBlank()) return false
         if (metadataSnippets.any { snippet -> lowerText.contains(snippet) }) return true
         if (xmlAttributeRegex.containsMatchIn(lowerText)) return true
         if (metadataKeywords.any { keyword -> lowerText.contains(keyword) }) return true
-
-        val assignmentCount = assignmentRegex.findAll(lowerText).count()
-        return assignmentCount >= 2
+        return false
     }
 
     fun isMetadataLabel(label: String): Boolean {
