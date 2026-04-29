@@ -26,7 +26,7 @@ class DrawableImportHelper(
                 "Could not create drawable directory: ${drawableDir.absolutePath}"
             }
 
-            val extension = resolveSupportedExtension(sourceUri)
+            val extension = resolveSupportedExtension(sourceUri, fallbackName)
             val baseName = sanitizeResourceName(resolveDisplayName(sourceUri) ?: fallbackName)
             val destinationFile = resolveAvailableFile(drawableDir, baseName, extension)
 
@@ -58,12 +58,22 @@ class DrawableImportHelper(
             }
     }
 
-    private fun resolveSupportedExtension(uri: Uri): String {
-        val displayName = resolveDisplayName(uri)
-        val extension = displayName
-            ?.substringAfterLast('.', missingDelimiterValue = "")
-            ?.lowercase(Locale.US)
-            .orEmpty()
+    private fun resolveSupportedExtension(uri: Uri, fallbackName: String): String {
+        val mimeType = contentResolver.getType(uri)?.lowercase(Locale.US)
+        var extension = when (mimeType) {
+            "image/png" -> "png"
+            "image/jpeg", "image/jpg" -> "jpg"
+            "image/webp" -> "webp"
+            else -> null
+        }
+
+        if (extension == null) {
+            val nameToUse = resolveDisplayName(uri) ?: fallbackName
+            extension = nameToUse
+                .substringAfterLast('.', missingDelimiterValue = "")
+                .lowercase(Locale.US)
+                .takeIf { it.isNotBlank() }
+        }
 
         return when (extension) {
             "png", "jpg", "jpeg", "webp" -> extension
@@ -96,7 +106,7 @@ class DrawableImportHelper(
         var candidate = File(drawableDir, "$baseName.$extension")
         var index = 1
 
-        while (candidate.exists()) {
+        while (!candidate.createNewFile()) {
             candidate = File(drawableDir, "${baseName}_$index.$extension")
             index++
         }
