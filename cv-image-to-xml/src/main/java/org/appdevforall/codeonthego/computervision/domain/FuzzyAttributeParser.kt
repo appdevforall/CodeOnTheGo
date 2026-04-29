@@ -10,7 +10,7 @@ object FuzzyAttributeParser {
     private const val FUZZY_DIMENSION_THRESHOLD = 60
     private const val FUZZY_TEXT_STYLE_THRESHOLD = 60
     private val DIMENSION_CONSTANTS = listOf("wrap_content", "match_parent")
-    private val TEXT_STYLE_VALUES = listOf("normal", "bold", "italic")
+    private val TEXT_STYLE_VALUES = listOf("normal", "bold", "italic", "bold|italic")
     private val ID_VOCABULARY = listOf("cb", "rb", "group", "checkbox", "radio", "btn", "button", "text", "view", "img", "image", "input")
 
     private fun fuzzyKeyThreshold(keyLength: Int): Int = when {
