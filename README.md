@@ -4,7 +4,7 @@
 
 <h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
- Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access. Code on the Go is a project of App Dev for All, a nonprofit organization committed to making computer science education and professional programming resources universally available.</p>
+ Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access. Code on the Go is a project of App Dev for All, a philanthropic venture focused on lowering the barriers to Android app development. </p>
 <p><br>
 
 <p align="center">
@@ -21,13 +21,6 @@
 
  <a href="https://www.appdevforall.org/codeonthego">Download the Code On The Go APK from the App Dev for All website.</a>
 
-## Limitations
-
-<p>This is an early, experimental version of Code on the Go, our offline-first Android IDE. This release is intended for Android developers who are comfortable testing rough software and providing constructive feedback. Please note:
-<ul><li>Some features are incomplete or missing
-<li>Stability may vary across devices
-<li>UI and interactions are provisional
- </li></ul></p>
 
 ## Contributing
 
