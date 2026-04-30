@@ -8,7 +8,9 @@ object FuzzyAttributeParser {
 
     private const val FUZZY_VALUE_THRESHOLD = 75
     private const val FUZZY_DIMENSION_THRESHOLD = 60
+    private const val FUZZY_TEXT_STYLE_THRESHOLD = 60
     private val DIMENSION_CONSTANTS = listOf("wrap_content", "match_parent")
+    private val TEXT_STYLE_VALUES = listOf("normal", "bold", "italic", "bold|italic")
     private val ID_VOCABULARY = listOf("cb", "rb", "group", "checkbox", "radio", "btn", "button", "text", "view", "img", "image", "input")
 
     private fun fuzzyKeyThreshold(keyLength: Int): Int = when {
@@ -35,7 +37,7 @@ object FuzzyAttributeParser {
 
         TEXT_SIZE("android:textSize", listOf("textsize", "text_size"), ValueType.SP_DIMENSION),
         TEXT_COLOR("android:textColor", listOf("textcolor", "text_color", "color", "text_colar", "textcolar"), ValueType.COLOR),
-        TEXT_STYLE("android:textStyle", listOf("textstyle", "text_style", "style"), ValueType.RAW),
+        TEXT_STYLE("android:textStyle", listOf("textstyle", "text_style", "style"), ValueType.TEXT_STYLE),
         TEXT_ALIGNMENT("android:textAlignment", listOf("textalignment", "text_alignment")),
         TEXT_ALL_CAPS("android:textAllCaps", listOf("textallcaps", "text_all_caps")),
         FONT_FAMILY("android:fontFamily", listOf("fontfamily", "font_family", "font")),
@@ -131,8 +133,25 @@ object FuzzyAttributeParser {
         ID,
         DRAWABLE,
         INTEGER,
-        FLOAT
+        FLOAT,
+        TEXT_STYLE
     }
+
+    fun interface ValueCleaner {
+        fun clean(rawValue: String): String
+    }
+
+    private val valueCleaners: Map<ValueType, ValueCleaner> = mapOf(
+        ValueType.DIMENSION to ValueCleaner(::cleanDimension),
+        ValueType.SP_DIMENSION to ValueCleaner(::cleanSpDimension),
+        ValueType.COLOR to ValueCleaner(::cleanColor),
+        ValueType.ID to ValueCleaner(::cleanId),
+        ValueType.DRAWABLE to ValueCleaner(::cleanDrawable),
+        ValueType.INTEGER to ValueCleaner(::cleanInteger),
+        ValueType.FLOAT to ValueCleaner(::cleanFloat),
+        ValueType.TEXT_STYLE to ValueCleaner(::cleanTextStyle),
+        ValueType.RAW to ValueCleaner { it }
+    )
 
     internal val colorMap = mapOf(
         "red" to "#FF0000", "rel" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
@@ -399,17 +418,22 @@ object FuzzyAttributeParser {
 
     private fun cleanValue(rawValue: String, key: AttributeKey): String {
         val trimmed = rawValue.trim()
+        val cleaner = valueCleaners[key.valueType] ?: ValueCleaner { it }
 
-        return when (key.valueType) {
-            ValueType.DIMENSION -> cleanDimension(trimmed)
-            ValueType.SP_DIMENSION -> cleanSpDimension(trimmed)
-            ValueType.COLOR -> cleanColor(trimmed)
-            ValueType.ID -> cleanId(trimmed)
-            ValueType.DRAWABLE -> cleanDrawable(trimmed)
-            ValueType.INTEGER -> cleanInteger(trimmed)
-            ValueType.FLOAT -> cleanFloat(trimmed)
-            ValueType.RAW -> trimmed
+        return cleaner.clean(trimmed)
+    }
+
+    private fun cleanTextStyle(value: String): String {
+        val normalizedValue = value.lowercase().replace(" ", "_")
+
+        if (normalizedValue in TEXT_STYLE_VALUES) return normalizedValue
+
+        val result = FuzzySearch.extractOne(normalizedValue, TEXT_STYLE_VALUES)
+        if (result.score >= FUZZY_TEXT_STYLE_THRESHOLD) {
+            return result.string
         }
+
+        return value
     }
 
     private fun cleanDimension(value: String): String {
