@@ -139,11 +139,7 @@ class JvmSymbolIndex(
 	suspend fun awaitIndexing() = indexer.awaitAll()
 
 	override fun close() {
-		super.close()
-		if (backing is AutoCloseable) {
-			backing.close()
-		}
-
 		indexer.close()
+		super.close()
 	}
 }

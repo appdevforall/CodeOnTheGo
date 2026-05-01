@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.computervision.domain
 
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.appdevforall.codeonthego.computervision.domain.xml.AndroidXmlGenerator
+import org.appdevforall.codeonthego.computervision.utils.MetadataDetector
 import kotlin.comparisons.compareBy
 
 class YoloToXmlConverter(
@@ -18,9 +19,10 @@ class YoloToXmlConverter(
         targetDpWidth: Int,
         targetDpHeight: Int,
         wrapInScroll: Boolean = true
-    ): String {
+    ): Pair<String, String> {
         val uiCandidates = detections
             .filter { (it.isYolo || it.label == "text") && it.label != "widget_tag" }
+            .filterNot { MetadataDetector.isMetadataDetection(it.label, it.text) }
             .distinctBy {
                 if (it.label.startsWith("switch")) {
                     "${((it.boundingBox.top + it.boundingBox.bottom) / 2f).toInt() / 50}"
@@ -38,7 +40,9 @@ class YoloToXmlConverter(
         texts = scaledBoxes.filter { it.label == "text" && !annotationMatcher.isTag(it.text) }
         scaledBoxes = geometryProcessor.assignNearbyTextToWidgets(scaledBoxes, texts)
 
-        val uiElements = scaledBoxes.filter { !annotationMatcher.isTag(it.text) }
+        val uiElements = scaledBoxes.filter {
+            !annotationMatcher.isTag(it.text) && !MetadataDetector.isMetadataDetection(it.label, it.text)
+        }
         val widgetTags = detections.filter { it.label == "widget_tag" || (!it.isYolo && annotationMatcher.isTag(it.text)) }
         val canvasTags = widgetTags.map { geometryProcessor.scaleDetection(it, sourceImageWidth, sourceImageHeight, targetDpWidth, targetDpHeight) }
 
@@ -58,7 +62,7 @@ class YoloToXmlConverter(
             targetDpWidth: Int,
             targetDpHeight: Int,
             wrapInScroll: Boolean = true
-        ): String {
+        ): Pair<String, String> {
             val geometry = LayoutGeometryProcessor()
             val matcher = WidgetAnnotationMatcher()
             val generator = AndroidXmlGenerator(geometry)

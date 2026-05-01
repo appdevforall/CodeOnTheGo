@@ -124,11 +124,6 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 	val prefix = params.requirePrefix()
 	val partial = partialIdentifier(prefix)
 
-	if (partial.isBlank()) {
-		logger.warn("cannot complete for blank partial candidate")
-		return CompletionResult.EMPTY
-	}
-
 	abortIfCancelled()
 
 	// insert placeholder to fix broken trees
@@ -294,6 +289,11 @@ context(env: CompilationEnvironment, ctx: AnalysisContext)
 private fun KaSession.collectScopeCompletions(
 	to: MutableList<CompletionItem>,
 ) {
+	if (ctx.partial.isBlank()) {
+		logger.warn("cannot complete for blank partial candidate")
+		return
+	}
+
 	abortIfCancelled()
 
 	val ktElement = ctx.ktElement

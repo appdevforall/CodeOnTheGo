@@ -303,11 +303,11 @@ class ComputerVisionViewModel(
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
             generateXml(state)
-                .onSuccess { xml ->
+                .onSuccess { (layoutXml, stringsXml) ->
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = false)
                     _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
-                    _uiEffect.send(ComputerVisionEffect.ReturnXmlResult(xml))
+                    _uiEffect.send(ComputerVisionEffect.ReturnXmlResult(layoutXml, stringsXml))
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "XML generation failed", exception)
@@ -330,11 +330,12 @@ class ComputerVisionViewModel(
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
             generateXml(state)
-                .onSuccess { xml ->
+                .onSuccess { (layoutXml, stringsXml) ->
+                    val combined = if(stringsXml.isNotBlank()) "$layoutXml\n\n\n" else layoutXml
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = true)
                     _uiState.update { it.copy(currentOperation = CvOperation.SavingFile) }
-                    saveXmlFile(xml)
+                    saveXmlFile(combined)
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "XML generation failed", exception)
@@ -344,7 +345,7 @@ class ComputerVisionViewModel(
         }
     }
 
-    private suspend fun generateXml(state: ComputerVisionUiState): Result<String> {
+    private suspend fun generateXml(state: ComputerVisionUiState): Result<Pair<String, String>> {
         val bitmap = state.currentBitmap ?: return Result.failure(IllegalStateException("No bitmap available"))
         return repository.generateXml(
             detections = state.detections,
