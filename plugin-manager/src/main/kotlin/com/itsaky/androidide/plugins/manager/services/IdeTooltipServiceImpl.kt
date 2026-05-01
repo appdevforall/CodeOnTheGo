@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.View
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.pluginCategory
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 
 /**
@@ -18,7 +19,7 @@ class IdeTooltipServiceImpl(
     private val activityProvider: PluginManager.ActivityProvider?
 ) : IdeTooltipService {
 
-    private val pluginCategory = "plugin_$pluginId"
+    private val pluginCategory = pluginCategory(pluginId)
 
     /**
      * Returns a context suitable for inflating the tooltip layout.
