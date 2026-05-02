@@ -33,9 +33,6 @@ class ProjectTemplateBuilder : ExecutorDataTemplateBuilder<ProjectTemplateRecipe
 	private var _defModule: ModuleTemplateData? = null
 
 	@PublishedApi
-	internal val defModuleTemplate: ModuleTemplate? = null
-
-	@PublishedApi
 	internal val modules = mutableListOf<ModuleTemplate>()
 
 	val defModule: ModuleTemplateData
