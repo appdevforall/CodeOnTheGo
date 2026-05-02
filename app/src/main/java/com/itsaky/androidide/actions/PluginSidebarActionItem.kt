@@ -7,6 +7,8 @@ import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.plugins.extensions.NavigationItem
+import com.itsaky.androidide.plugins.manager.pluginCategory
+import com.itsaky.androidide.plugins.manager.pluginTooltipTag
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.R
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +19,7 @@ class PluginSidebarActionItem(
     private val context: Context,
     private val navigationItem: NavigationItem,
     baseOrder: Int,
-    pluginId: String? = null
+    val pluginId: String
 ) : SidebarActionItem {
 
     override val id: String = "plugin_sidebar_${navigationItem.id}"
@@ -41,6 +43,11 @@ class PluginSidebarActionItem(
             ContextCompat.getDrawable(context, R.drawable.ic_extension)
         }
     }
+
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+        navigationItem.tooltipTag ?: pluginTooltipTag(pluginId, navigationItem.id)
+
+    override fun retrieveTooltipCategory(): String = pluginCategory(pluginId)
 
     override suspend fun execAction(data: ActionData): Boolean {
         return try {

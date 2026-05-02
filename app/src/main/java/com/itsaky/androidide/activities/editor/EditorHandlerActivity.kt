@@ -459,17 +459,19 @@ open class EditorHandlerActivity :
 				hint = getToolbarContentDescription(action, data),
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
-					TooltipManager.showIdeCategoryTooltip(
+					TooltipManager.showTooltip(
 						context = this,
 						anchorView = content.projectActionsToolbar,
+						category = action.retrieveTooltipCategory(),
 						tag = action.retrieveTooltipTag(false),
 					)
 				},
 				onHover = { anchor ->
 					TooltipManager.cancelScheduledDismiss()
-					TooltipManager.showIdeCategoryTooltip(
+					TooltipManager.showTooltip(
 						context = this@EditorHandlerActivity,
 						anchorView = anchor,
+						category = action.retrieveTooltipCategory(),
 						tag = action.retrieveTooltipTag(false),
 						requestFocus = false,
 					)
