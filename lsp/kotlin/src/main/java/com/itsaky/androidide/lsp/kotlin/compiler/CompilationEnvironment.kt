@@ -502,12 +502,22 @@ internal class CompilationEnvironment(
 			KaElementModificationType.ElementRemoved(ktFile)
 		}
 
+		ProjectStructureProvider.getInstance(project)
+			.unregisterInMemoryFile(path.pathString)
+
 		ktSymbolIndex.removeFromIndex(path)
 	}
 
 	suspend fun onFileMoved(fromPath: Path, toPath: Path) {
+		val isFileOpen = ktSymbolIndex.getOpenedKtFile(fromPath) != null
+
 		onFileRemoved(fromPath)
 		onFileCreated(toPath)
+
+		if (isFileOpen) {
+			ktSymbolIndex.closeKtFile(fromPath)
+			onFileOpen(toPath)
+		}
 	}
 
 	fun onFileContentChanged(path: Path) {

@@ -50,6 +50,8 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 		pathToInMemoryVf.remove(sourcePath)?.let { inMemoryVfToModule.remove(it) }
 	}
 
+	fun hasInMemoryFile(sourcePath: String): Boolean = pathToInMemoryVf.containsKey(sourcePath)
+
 	private val notUnderContentRootModuleWithoutPsiFile by lazy {
 		NotUnderContentRootModule(
 			id = "unnamed-outside-content-root-without-psi",
