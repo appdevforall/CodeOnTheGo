@@ -27,7 +27,6 @@ internal abstract class AbstractKtModule(
 		_contentScope = KaContentScopeProvider.getInstance(project).getRefinedContentScope(this)
 	}
 
-	@Synchronized
 	fun invalidateSearchScope() {
 		synchronized(searchScopeLock) {
 			_baseSearchScope = null
