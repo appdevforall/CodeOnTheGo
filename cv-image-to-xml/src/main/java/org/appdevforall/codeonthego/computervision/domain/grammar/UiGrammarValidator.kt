@@ -5,6 +5,10 @@ class UiGrammarValidator {
         SpinnerGrammar,
         ImageViewGrammar,
         EditTextGrammar,
+        RadioButtonGrammar,
+        CheckBoxGrammar,
+        SwitchGrammar,
+        RadioGroupGrammar,
         SliderGrammar
     ).associateBy { it.tag }
 
