@@ -49,7 +49,9 @@ import kotlin.io.path.pathString
 internal fun KtFile.toMetadata(project: Project, isIndexed: Boolean = false): KtFileMetadata =
 	project.read {
 		KtFileMetadata(
-			filePath = (virtualFile?.toNioPathOrNull() ?: backingFilePath)!!.pathString,
+			filePath = checkNotNull((virtualFile?.toNioPathOrNull() ?: backingFilePath)) {
+				"KtFile '$name' has neither a resolvable virtualFile path nor a backingFilePath"
+			}.pathString,
 			packageFqName = packageFqName.asString(),
 			lastModified = (backingFilePath?.let { FileManager.getLastModified(it) }) ?: Instant.ofEpochMilli(virtualFile?.timeStamp ?: System.currentTimeMillis()),
 			modificationStamp = modificationStamp,

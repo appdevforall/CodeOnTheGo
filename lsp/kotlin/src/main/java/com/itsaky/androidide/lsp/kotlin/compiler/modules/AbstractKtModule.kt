@@ -16,20 +16,15 @@ internal abstract class AbstractKtModule(
 	private var _baseSearchScope: GlobalSearchScope? = null
 	private var _contentScope: GlobalSearchScope? = null
 
-	private fun getOrCreateBaseSearchScope(): GlobalSearchScope {
-		synchronized(searchScopeLock) {
-			var searchScope = _baseSearchScope
-			if (searchScope != null) {
-				return searchScope
-			}
-
-			val files = computeFiles(extended = true).toList()
-			searchScope = GlobalSearchScope.filesScope(project, files)
-
-			_baseSearchScope = searchScope
-			_contentScope = KaContentScopeProvider.getInstance(project).getRefinedContentScope(this)
-			return searchScope
+	private fun maybeCreateScopesLocked() {
+		val searchScope = _baseSearchScope
+		if (searchScope != null) {
+			return
 		}
+
+		val files = computeFiles(extended = true).toList()
+		_baseSearchScope = GlobalSearchScope.filesScope(project, files)
+		_contentScope = KaContentScopeProvider.getInstance(project).getRefinedContentScope(this)
 	}
 
 	@Synchronized
@@ -41,10 +36,16 @@ internal abstract class AbstractKtModule(
 	}
 
 	override val baseContentScope: GlobalSearchScope
-		get() = getOrCreateBaseSearchScope()
+		get() = synchronized(searchScopeLock) {
+			maybeCreateScopesLocked()
+			checkNotNull(_baseSearchScope) { "failed to create base content scope" }
+		}
 
 	override val contentScope: GlobalSearchScope
-		get() = getOrCreateBaseSearchScope().let { _contentScope!! }
+		get() = synchronized(searchScopeLock) {
+			maybeCreateScopesLocked()
+			checkNotNull(_contentScope) { "failed to create content refined scope" }
+		}
 
 	override val directDependsOnDependencies: List<KtModule>
 		get() = emptyList()
