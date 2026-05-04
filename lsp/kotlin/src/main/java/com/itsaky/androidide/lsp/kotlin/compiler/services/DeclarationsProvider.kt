@@ -178,7 +178,7 @@ internal class DeclarationProvider(
 
 	private fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> {
 		return index.filesForPackage(fqName.asString())
-			.map { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath))!! }
+			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath)) }
 			.filter { it in scope }
 			.map { index.getKtFile(it) }
 	}

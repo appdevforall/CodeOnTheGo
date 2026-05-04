@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.NotUnderContentRootModu
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaPlatformInterface
+import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProjectStructureProvider
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProjectStructureProviderBase
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaNotUnderContentRootModule
@@ -25,6 +26,10 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(ProjectStructureProvider::class.java)
+
+		fun getInstance(project: Project): ProjectStructureProvider {
+			return KotlinProjectStructureProvider.getInstance(project) as ProjectStructureProvider
+		}
 	}
 
 	private lateinit var modules: List<KtModule>
@@ -47,8 +52,8 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 
 	private val notUnderContentRootModuleWithoutPsiFile by lazy {
 		NotUnderContentRootModule(
-			id = "unnamed-outside-content-root",
-			moduleDescription = "unnamed-outside-content-root",
+			id = "unnamed-outside-content-root-without-psi",
+			moduleDescription = "unnamed-outside-content-root-without-psi",
 			project = project,
 		)
 	}
@@ -64,6 +69,11 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 	}
 
 	override fun getModule(
+		element: PsiElement,
+		useSiteModule: KaModule?
+	): KaModule = getModuleImpl(element, useSiteModule)
+
+	private fun getModuleImpl(
 		element: PsiElement,
 		useSiteModule: KaModule?
 	): KaModule {
@@ -102,8 +112,8 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 		findModuleForSourceId(virtualFile.path)?.let { return it }
 
 		return NotUnderContentRootModule(
-			id = "unnamed-outside-content-root",
-			moduleDescription = "unnamed-outside-content-root module with a PSI file.",
+			id = "unnamed-outside-content-root-with-psi-$element",
+			moduleDescription = "unnamed-outside-content-root module with a PSI file: $element",
 			project = project,
 			file = element.containingFile,
 		)

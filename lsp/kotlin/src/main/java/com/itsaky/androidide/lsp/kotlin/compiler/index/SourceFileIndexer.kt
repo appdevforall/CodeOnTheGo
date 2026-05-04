@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
@@ -22,7 +23,6 @@ import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol
@@ -49,9 +49,9 @@ import kotlin.io.path.pathString
 internal fun KtFile.toMetadata(project: Project, isIndexed: Boolean = false): KtFileMetadata =
 	project.read {
 		KtFileMetadata(
-			filePath = (virtualFile.toNioPathOrNull() ?: backingFilePath)!!.pathString,
+			filePath = (virtualFile?.toNioPathOrNull() ?: backingFilePath)!!.pathString,
 			packageFqName = packageFqName.asString(),
-			lastModified = (backingFilePath?.let { FileManager.getLastModified(it) }) ?: Instant.ofEpochMilli(virtualFile.timeStamp),
+			lastModified = (backingFilePath?.let { FileManager.getLastModified(it) }) ?: Instant.ofEpochMilli(virtualFile?.timeStamp ?: System.currentTimeMillis()),
 			modificationStamp = modificationStamp,
 			isIndexed = isIndexed,
 			symbolKeys = emptyList()
@@ -81,19 +81,18 @@ internal suspend fun indexSourceFile(
 
 	val symbols = project.read {
 		val list = mutableListOf<JvmSymbol>()
-		ktFile.accept(object : KtTreeVisitorVoid() {
-			override fun visitDeclaration(dcl: KtDeclaration) {
-				cancelChecker.abortIfCancelled()
-				val symbol = analyze(dcl) {
-					val result = analyzeDeclaration(newFile.filePath, dcl)
+		analyzeMaybeDangling(ktFile) {
+			val session = this
+			ktFile.accept(object : KtTreeVisitorVoid() {
+				override fun visitDeclaration(dcl: KtDeclaration) {
 					cancelChecker.abortIfCancelled()
-					result
+					val symbol = with(session) { analyzeDeclaration(newFile.filePath, dcl) }
+					cancelChecker.abortIfCancelled()
+					symbol?.let { list.add(it) }
+					super.visitDeclaration(dcl)
 				}
-
-				symbol?.let { list.add(it) }
-				super.visitDeclaration(dcl)
-			}
-		})
+			})
+		}
 		list
 	}
 

@@ -334,8 +334,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 		scope.launch {
 			compiler?.compilationEnvironmentFor(path)
-				?.ktSymbolIndex
-				?.submitForIndexing(path)
+				?.onFileCreated(path)
 		}
 	}
 
@@ -349,8 +348,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 		scope.launch {
 			compiler?.compilationEnvironmentFor(path)
-				?.ktSymbolIndex
-				?.removeFromIndex(path)
+				?.onFileRemoved(path)
 		}
 	}
 
@@ -368,8 +366,7 @@ class KotlinLanguageServer : ILanguageServer {
 				// only the new file is a Kotlin file
 				// so just submit it for indexing
 				compiler?.compilationEnvironmentFor(toPath)
-					?.ktSymbolIndex
-					?.submitForIndexing(toPath)
+					?.onFileCreated(toPath)
 				return@launch
 			}
 
@@ -377,8 +374,7 @@ class KotlinLanguageServer : ILanguageServer {
 				// only the old file was a Kotlin file
 				// so just remove it from the index
 				compiler?.compilationEnvironmentFor(fromPath)
-					?.ktSymbolIndex
-					?.removeFromIndex(fromPath)
+					?.onFileRemoved(fromPath)
 				return@launch
 			}
 
@@ -389,15 +385,15 @@ class KotlinLanguageServer : ILanguageServer {
 
 			if (fromKind != null && fromEnv == toEnv && toEnv != null) {
 				// file was renamed within the same compilation environment
-				toEnv.ktSymbolIndex.onFileMoved(fromPath, toPath)
+				toEnv.onFileMoved(fromPath, toPath)
 				return@launch
 			}
 
 			// file may have been moved from one compilation environment to another
 			// remove from old env's index
 			// and submit to the new env for indexing
-			fromEnv?.ktSymbolIndex?.removeFromIndex(fromPath)
-			toEnv?.ktSymbolIndex?.submitForIndexing(toPath)
+			fromEnv?.onFileRemoved(fromPath)
+			toEnv?.onFileCreated(toPath)
 		}
 	}
 }
