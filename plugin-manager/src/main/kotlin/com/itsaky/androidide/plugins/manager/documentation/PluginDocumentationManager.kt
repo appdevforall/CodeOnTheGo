@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
+import com.itsaky.androidide.plugins.manager.pluginCategory
 import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -23,7 +24,6 @@ class PluginDocumentationManager(private val context: Context) {
 
     companion object {
         private const val TAG = "PluginDocManager"
-        private const val PLUGIN_CATEGORY_PREFIX = "plugin_"
     }
 
     private val databaseName = "documentation.db"
@@ -43,7 +43,6 @@ class PluginDocumentationManager(private val context: Context) {
         }
     }
 
-    private fun pluginCategory(pluginId: String) = "$PLUGIN_CATEGORY_PREFIX$pluginId"
 
     /**
      * Initialize plugin documentation system.
@@ -99,7 +98,7 @@ class PluginDocumentationManager(private val context: Context) {
             for (entry in entries) {
                 val tooltipId = insertTooltip(db, categoryId, entry)
                 entry.buttons.sortedBy { it.order }.forEachIndexed { index, button ->
-                    val resolvedUri = resolvePluginButtonUri(pluginId, button.uri)
+                    val resolvedUri = resolvePluginButtonUri(pluginId, button.uri, button.directPath)
                     insertTooltipButton(db, tooltipId, button.description, resolvedUri, index)
                 }
             }
@@ -472,10 +471,14 @@ class PluginDocumentationManager(private val context: Context) {
         return segments.joinToString("/")
     }
 
-    private fun resolvePluginButtonUri(pluginId: String, rawUri: String): String {
+    private fun resolvePluginButtonUri(
+        pluginId: String,
+        rawUri: String,
+        directPath: Boolean
+    ): String {
         if (rawUri.isEmpty()) return rawUri
         if (rawUri.contains("://")) return rawUri
-        val absolute = rawUri.startsWith("/")
+        val absolute = directPath || rawUri.startsWith("/")
         val normalized = normalizeLocalDocumentationPath(rawUri.trimStart('/'))
         return if (absolute) normalized else "plugin/$pluginId/$normalized"
     }

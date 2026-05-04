@@ -5,6 +5,7 @@ class XmlContext(
     private val counters: MutableMap<String, Int> = mutableMapOf()
 ) {
     private val usedIds = mutableSetOf<String>()
+    val stringArrays = mutableMapOf<String, List<String>>()
 
     fun nextId(label: String, initialIndex: Int = 0): String {
         val safeLabel = label.replace(Regex("[^a-zA-Z0-9_]"), "_")

@@ -249,10 +249,14 @@ class OnboardingActivity : AppIntro2() {
 		checkToolsIsInstalled() &&
 				PermissionsHelper.areAllPermissionsGranted(this)
 
+	internal fun navigateToMain() {
+		startActivity(Intent(this, MainActivity::class.java))
+		finish()
+	}
+
 	internal fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
 		if (isSetupCompleted()) {
-			startActivity(Intent(this, MainActivity::class.java))
-			finish()
+			navigateToMain()
 			return true
 		}
 

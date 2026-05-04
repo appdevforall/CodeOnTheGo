@@ -97,6 +97,8 @@ data class PluginTooltipButton(
      *  - Paths with a leading "/" ("/some/shared/page") are treated as
      *    absolute within the local web server (slash stripped).
      *  - Anything containing "://" is passed through unchanged.
+     *  - When [directPath] is true, namespacing is skipped and [uri] is
+     *    used as-is under the local web server root.
      * The stored path is then prefixed with "http://localhost:6174/" by the
      * tooltip system when the button is rendered.
      */
@@ -105,5 +107,13 @@ data class PluginTooltipButton(
     /**
      * Order of this button (lower numbers appear first).
      */
-    val order: Int = 0
+    val order: Int = 0,
+
+    /**
+     * When true, [uri] is resolved as a direct path under the local web server
+     * (no `plugin/<pluginId>/` prefix). Use this to point at a shared page
+     * (for example a global plugins overview at "i/plugins-adfa.html") while
+     * keeping the path configurable by the plugin author. Default is false.
+     */
+    val directPath: Boolean = false
 )

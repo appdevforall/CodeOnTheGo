@@ -5,7 +5,7 @@ import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
 class WidgetAnnotationMatcher {
     companion object {
         private val TAG_REGEX = Regex("^(?i)(B|P|D|T|C|R|SW|S)-\\d+$")
-        private val TAG_EXTRACT_REGEX = Regex("^(?i)(SW|S\\s*8|8\\s*W|[BPDTCRS8]\\s*W?)[^a-zA-Z0-9]*([\\dlIoO!]+)$")
+        private val TAG_EXTRACT_REGEX = Regex("^(?i)(SW|S\\s*8|8\\s*W|[BPDTCRS8]\\s*W?)[^a-zA-Z0-9]*([\\dlIoO!]+)(?:\\s+(.+))?$")
     }
 
     internal fun matchAnnotationsToElements(
@@ -25,6 +25,7 @@ class WidgetAnnotationMatcher {
                 val widgetType = getTagType(normalizedTag) ?: return@mapNotNull null
 
                 val matchingTagBox = deduplicatedTags.find { normalizeTagText(it.text) == normalizedTag }
+                    ?: return@mapNotNull null
 
                 TaggedAnnotation(
                     normalizedTag = normalizedTag,

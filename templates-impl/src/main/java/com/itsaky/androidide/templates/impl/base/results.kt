@@ -17,26 +17,11 @@
 
 package com.itsaky.androidide.templates.impl.base
 
-import com.itsaky.androidide.templates.ModuleTemplateData
-import com.itsaky.androidide.templates.ModuleTemplateRecipeResult
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
-import com.itsaky.androidide.templates.base.ModuleTemplateBuilder
-import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 data class ProjectTemplateRecipeResultImpl(
     override val data: ProjectTemplateData,
     override val hasErrorsWarnings: Boolean = false
 ) : ProjectTemplateRecipeResult
 
-data class ModuleTemplateRecipeResultImpl(override val data: ModuleTemplateData
-) : ModuleTemplateRecipeResult
-
-
-internal fun ProjectTemplateBuilder.recipeResult(): ProjectTemplateRecipeResult {
-    return ProjectTemplateRecipeResultImpl(data)
-}
-
-internal fun ModuleTemplateBuilder.recipeResult(): ModuleTemplateRecipeResult {
-    return ModuleTemplateRecipeResultImpl(data)
-}

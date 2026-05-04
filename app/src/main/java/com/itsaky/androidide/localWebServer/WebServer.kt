@@ -8,6 +8,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.PrintWriter
+import android.net.TrafficStats
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -110,6 +111,7 @@ FROM   LastChange
     }
 
     fun start() {
+        TrafficStats.setThreadStatsTag(0xC0DE)
         try {
             log.info(
                 "Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}', experimentsEnabled={}, experimentsEnablePath='{}'.",
@@ -220,6 +222,7 @@ clientSocket and the catch block logic are updated accordingly.
             if (::serverSocket.isInitialized) {
                 serverSocket.close()
             }
+            TrafficStats.clearThreadStatsTag()
         }
     }
 

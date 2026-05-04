@@ -9,6 +9,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.slf4j.LoggerFactory
@@ -43,10 +44,11 @@ sealed class IndexingEvent {
  */
 class BackgroundIndexer<T : Indexable>(
     private val index: Index<T>,
-    private val scope: CoroutineScope = CoroutineScope(
-        SupervisorJob() + Dispatchers.Default
-    ),
+    parentScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
 ) : Closeable {
+
+    private val job = SupervisorJob(parentScope.coroutineContext[Job])
+    private val scope = CoroutineScope(parentScope.coroutineContext + job)
 
     companion object {
         private val log = LoggerFactory.getLogger(BackgroundIndexer::class.java)
@@ -163,7 +165,16 @@ class BackgroundIndexer<T : Indexable>(
     val activeJobCount: Int get() = activeJobs.size
 
     override fun close() {
-        activeJobs.values.forEach { it.cancel() }
+        val activeCount = activeJobCount
+        if (activeCount > 0) {
+            log.warn(
+                "Closing indexer with {} active job(s); cancellation is cooperative and close will wait for completion",
+                activeCount,
+            )
+        }
+        runBlocking {
+            job.cancelAndJoin()
+        }
         activeJobs.clear()
     }
 }

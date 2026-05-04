@@ -24,6 +24,7 @@ import android.graphics.drawable.Drawable
 import android.view.Menu
 import android.view.View
 import androidx.annotation.CallSuper
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.utils.resolveAttr
 
 /**
@@ -89,6 +90,14 @@ interface ActionItem {
    * no tooltip is available.
    */
   fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
+
+  /**
+   * Retrieves the tooltip category for this [ActionItem]. The default is
+   * [TooltipCategory.CATEGORY_IDE]; plugin-contributed actions override this
+   * to point at their own `plugin_<pluginId>` category so the lookup hits
+   * tooltip rows the plugin installed via [DocumentationExtension].
+   */
+  fun retrieveTooltipCategory(): String = TooltipCategory.CATEGORY_IDE
 
   /**
    * The order of this action item. This is used only at some locations and not everywhere.

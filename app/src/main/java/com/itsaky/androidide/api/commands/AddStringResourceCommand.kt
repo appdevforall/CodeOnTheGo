@@ -3,8 +3,8 @@ package com.itsaky.androidide.api.commands
 import com.blankj.utilcode.util.FileIOUtils
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.utils.ProjectStringsXmlResolver
 import org.apache.commons.text.StringEscapeUtils
-import java.io.File
 
 /**
  * A command to add or update a string resource in the project's strings.xml file.
@@ -16,14 +16,10 @@ class AddStringResourceCommand(
     override fun execute(): ToolResult {
         return try {
             val baseDir = IProjectManager.getInstance().projectDir
-            // Standard path for the default strings.xml file.
-            val stringsFile = File(baseDir, "app/src/main/res/values/strings.xml")
-
-            if (!stringsFile.exists()) {
-                return ToolResult.failure(
+            val stringsFile =
+                ProjectStringsXmlResolver.findNow(baseDir.path) ?: return ToolResult.failure(
                     message = "strings.xml not found at the standard path: app/src/main/res/values/strings.xml"
                 )
-            }
 
             val content = FileIOUtils.readFile2String(stringsFile)
 

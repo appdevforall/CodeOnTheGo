@@ -31,7 +31,7 @@ interface ComputerVisionRepository {
         sourceImageHeight: Int,
         targetDpWidth: Int,
         targetDpHeight: Int
-    ): Result<String>
+    ): Result<Pair<String, String>>
 
     fun isModelInitialized(): Boolean
 

@@ -22,6 +22,7 @@ import android.view.View
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.databinding.FragmentEditorSidebarBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.EditorSidebarActions
 
@@ -39,12 +40,17 @@ class EditorSidebarFragment : FragmentWithBinding<FragmentEditorSidebarBinding>(
     EditorSidebarActions.setup(this)
   }
 
-  fun setupTooltip(view: View, tooltipTag: String) {
+  fun setupTooltip(
+    view: View,
+    tooltipTag: String,
+    category: String = TooltipCategory.CATEGORY_IDE,
+  ) {
     (requireActivity() as? EditorHandlerActivity)?.let { activity ->
       view.setOnLongClickListener { view ->
-        TooltipManager.showIdeCategoryTooltip(
+        TooltipManager.showTooltip(
           context = view.context,
           anchorView = view,
+          category = category,
           tag = tooltipTag,
         )
         true
