@@ -448,20 +448,17 @@ internal class CompilationEnvironment(
 		typeProvider: (KtFile) -> KaElementModificationType
 	) {
 		val structureProvider = ProjectStructureProvider.getInstance(project)
-		val virtualFile = path.toVirtualFileOrNull() ?: return
-		val ktFile = PsiManager.getInstance(project)
-			.findFile(virtualFile) as? KtFile
+		val ktFile = path.toVirtualFileOrNull()?.let {
+			psiManager.findFile(it) as? KtFile
+		}
 
 		if (ktFile != null) {
 			KaSourceModificationService.getInstance(project)
 				.handleElementModification(ktFile, typeProvider(ktFile))
 		}
 
-		val module = (if (ktFile != null) {
-			structureProvider.getModule(ktFile, null)
-		} else {
-			structureProvider.findModuleForSourceId(path.pathString)
-		}) as? AbstractKtModule
+		val module = (ktFile?.let { structureProvider.getModule(it, null) }
+			?: structureProvider.findModuleForSourceId(path.pathString)) as? AbstractKtModule
 
 		project.write {
 			if (module != null) {
