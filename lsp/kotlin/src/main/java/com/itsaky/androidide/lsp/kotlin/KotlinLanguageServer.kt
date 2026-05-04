@@ -333,7 +333,8 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		scope.launch {
-			compiler?.compilationEnvironmentFor(path)
+			runCatching { compiler?.compilationEnvironmentFor(path) }
+				.getOrNull()
 				?.onFileCreated(path)
 		}
 	}
@@ -347,7 +348,8 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		scope.launch {
-			compiler?.compilationEnvironmentFor(path)
+			runCatching { compiler?.compilationEnvironmentFor(path) }
+				.getOrNull()
 				?.onFileRemoved(path)
 		}
 	}
