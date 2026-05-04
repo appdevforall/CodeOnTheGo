@@ -408,6 +408,13 @@ internal class CompilationEnvironment(
 	}
 
 	fun refreshSources() {
+		ResolutionScopeProvider.getInstance(project)
+			.invalidateAll()
+
+		modules.asFlatSequence()
+			.filterIsInstance<AbstractKtModule>()
+			.forEach { it.invalidateSearchScope() }
+
 		ktSymbolIndex.refreshSources()
 		// TODO: Should also update/notify Java file services about possibly changed Java files
 		//       But that's a bit problematic right now, scheduled for later
