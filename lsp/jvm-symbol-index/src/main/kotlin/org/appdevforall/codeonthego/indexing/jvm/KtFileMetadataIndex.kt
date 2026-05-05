@@ -30,7 +30,7 @@ class KtFileMetadataIndex private constructor(
 				SQLiteIndex(
 					descriptor = KtFileMetadataDescriptor,
 					context = context,
-					dbName = null,
+					dbName = dbName,
 					name = "kt-file-metadata",
 				)
 			)
