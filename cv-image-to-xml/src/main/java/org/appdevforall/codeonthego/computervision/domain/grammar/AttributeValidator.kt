@@ -40,13 +40,15 @@ class SpDimensionRangeValidator(
     private val minSp: Int,
     private val maxSp: Int
 ) : AttributeValidator {
-    private val spRegex = Regex("^(\\d+)sp$")
+    private val spRegex = Regex("^(\\d+(?:\\.\\d+)?)sp$")
 
     override fun validate(rawValue: String): String? {
         val trimmed = rawValue.trim()
+
         val match = spRegex.matchEntire(trimmed) ?: return null
-        val value = match.groupValues[1].toIntOrNull() ?: return null
-        return trimmed.takeIf { value in minSp..maxSp }
+        val value = match.groupValues[1].toFloatOrNull() ?: return null
+
+        return trimmed.takeIf { value >= minSp && value <= maxSp }
     }
 }
 

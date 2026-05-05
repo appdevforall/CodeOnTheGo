@@ -130,7 +130,7 @@ class WidgetFactory(
             val normalizedId = requestedId.lowercase()
             when {
                 normalizedId.startsWith("radio_grou") -> cleanId = "radio_group"
-                normalizedId.startsWith("r") && normalizedId.contains("grou") -> cleanId = "rb_group"
+                normalizedId.startsWith("rb_grou") || normalizedId.startsWith("rb_group") -> cleanId = "rb_group"
             }
         }
         return context.resolveId(cleanId, "radio_group")
