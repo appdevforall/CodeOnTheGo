@@ -41,6 +41,16 @@ class IdeArchiveServiceImpl(
             when (format) {
                 ArchiveFormat.TAR_XZ -> {
                     ensureDirectory(destination)
+
+                    // Clean up any stale temp archives left by a previously killed process.
+                    destination.parentFile?.listFiles { f ->
+                        f.name.startsWith("archive") && f.name.endsWith(".tar.xz")
+                    }?.forEach { stale ->
+                        if (!stale.delete()) {
+                            logger.warn("Could not delete stale archive: ${stale.absolutePath}")
+                        }
+                    }
+
                     val tempFile = File.createTempFile("archive", ".tar.xz", destination.parentFile)
                     tempFile.deleteOnExit()
                     try {
