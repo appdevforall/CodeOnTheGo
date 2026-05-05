@@ -63,7 +63,9 @@ object ImageViewGrammar : LayoutGrammar {
 
     override val attributes = super.attributes + mapOf(
         AttributeKey.SRC.xmlName to PassThroughValidator,
-        AttributeKey.LAYOUT_GRAVITY.xmlName to CategoricalValidator(gravityValues)
+        AttributeKey.LAYOUT_GRAVITY.xmlName to CategoricalValidator(gravityValues),
+        AttributeKey.BACKGROUND.xmlName to PassThroughValidator,
+        AttributeKey.BACKGROUND_TINT.xmlName to PassThroughValidator
     )
 }
 
