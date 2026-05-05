@@ -1,13 +1,16 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -17,6 +20,7 @@ import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.psi.KtFile
+import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
@@ -30,6 +34,7 @@ val KT_SOURCE_FILE_META_INDEX_KEY = IndexKey<KtFileMetadataIndex>("kt-source-fil
  * Callers are responsible for closing the provided indexes.
  */
 internal class KtSymbolIndex(
+	val kind: CompilationKind,
 	val project: Project,
 	modules: List<KtModule>,
 	val fileIndex: KtFileMetadataIndex,
@@ -43,6 +48,7 @@ internal class KtSymbolIndex(
 	)
 ) {
 	companion object {
+		private val logger = LoggerFactory.getLogger(KtSymbolIndex::class.java)
 		const val DEFAULT_CACHE_SIZE = 100L
 	}
 
@@ -56,6 +62,7 @@ internal class KtSymbolIndex(
 	)
 
 	private val scanningWorker = ScanningWorker(
+		kind = kind,
 		sourceIndex = sourceIndex,
 		indexWorker = indexWorker,
 		modules = modules,
@@ -75,14 +82,73 @@ internal class KtSymbolIndex(
 		get() = openedFiles.asSequence()
 
 	fun syncIndexInBackground() {
-		// TODO: Figure out how to handle already-running scanning/indexing jobs.
+		indexingJob?.cancel()
+		startIndexing()
 
-		indexingJob = scope.launch {
-			indexWorker.start()
+		scanningJob?.cancel()
+		startScanning()
+	}
+
+	private fun startIndexing() {
+		val job = scope.launch {
+			try {
+				indexWorker.start()
+			} finally {
+				if (indexingJob === coroutineContext[Job]) {
+					indexingJob = null
+				}
+			}
 		}
 
-		scanningJob = scope.launch(Dispatchers.IO) {
-			scanningWorker.start()
+		indexingJob = job
+	}
+
+	private fun startScanning() {
+		scanningJob = scope.launch {
+			try {
+				scanningWorker.scan()
+			} finally {
+				if (scanningJob === coroutineContext[Job]) {
+					scanningJob = null
+				}
+			}
+		}
+	}
+
+	fun refreshSources() {
+		indexingJob ?: startIndexing()
+
+		scanningJob?.cancel()
+		startScanning()
+	}
+
+	private fun getVirtualFileOrWarn(path: Path): VirtualFile? {
+		return path.toVirtualFileOrNull() ?: run {
+			logger.warn("unable to find virtual file for path {}", path)
+			null
+		}
+	}
+
+	suspend fun submitForIndexing(path: Path) {
+		val vf = getVirtualFileOrWarn(path) ?: return
+		indexWorker.apply {
+			submitCommand(IndexCommand.ScanSourceFile(vf))
+			submitCommand(IndexCommand.IndexSourceFile(vf))
+		}
+	}
+
+	suspend fun removeFromIndex(path: Path) {
+		indexWorker.submitCommand(IndexCommand.RemoveFromIndex(path))
+	}
+
+	suspend fun onFileMoved(from: Path, to: Path) {
+		// always remove the source file from index
+		indexWorker.submitCommand(IndexCommand.RemoveFromIndex(from))
+
+		val toVf = getVirtualFileOrWarn(to) ?: return
+		indexWorker.apply {
+			submitCommand(IndexCommand.ScanSourceFile(toVf))
+			submitCommand(IndexCommand.IndexSourceFile(toVf))
 		}
 	}
 
@@ -124,10 +190,9 @@ internal class KtSymbolIndex(
 	}
 
 	suspend fun close() {
-		scanningWorker.stop()
 		indexWorker.submitCommand(IndexCommand.Stop)
 
-		scanningJob?.join()
+		scanningJob?.cancelAndJoin()
 		indexingJob?.join()
 	}
 }

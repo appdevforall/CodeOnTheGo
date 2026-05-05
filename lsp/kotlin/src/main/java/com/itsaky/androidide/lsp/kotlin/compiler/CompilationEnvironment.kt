@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AbstractKtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
@@ -11,13 +12,15 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAccessibilit
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAnnotationsProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
+import com.itsaky.androidide.lsp.kotlin.compiler.services.ResolutionScopeProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
-import com.itsaky.androidide.utils.KeyedDebouncingAction
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
+import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.api.Workspace
+import com.itsaky.androidide.utils.KeyedDebouncingAction
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +29,8 @@ import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
+import org.jetbrains.kotlin.analysis.api.platform.analysisMessageBus
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDirectInheritorsProvider
@@ -33,6 +38,9 @@ import org.jetbrains.kotlin.analysis.api.platform.java.KotlinJavaModuleAccessibi
 import org.jetbrains.kotlin.analysis.api.platform.java.KotlinJavaModuleAnnotationsProvider
 import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType
 import org.jetbrains.kotlin.analysis.api.platform.modification.KaSourceModificationService
+import org.jetbrains.kotlin.analysis.api.platform.modification.KotlinModuleStateModificationEvent
+import org.jetbrains.kotlin.analysis.api.platform.modification.KotlinModuleStateModificationKind
+import org.jetbrains.kotlin.analysis.api.platform.modification.publishModificationEvent
 import org.jetbrains.kotlin.analysis.api.platform.packages.KotlinPackagePartProviderFactory
 import org.jetbrains.kotlin.analysis.api.platform.packages.KotlinPackageProviderFactory
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinModuleDependentsProvider
@@ -42,6 +50,7 @@ import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.Standa
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectExtensionPoints
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectModelServices
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectServices
+import org.jetbrains.kotlin.analysis.low.level.api.fir.sessions.LLFirSessionInvalidationTopics
 import org.jetbrains.kotlin.cli.common.intellijPluginRoot
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
@@ -110,6 +119,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(K1Deprecation::class)
 internal class CompilationEnvironment(
 	name: String,
+	val kind: CompilationKind,
 	workspace: Workspace,
 	val ktProject: KotlinProjectModel,
 	val intellijPluginRoot: Path,
@@ -166,8 +176,7 @@ internal class CompilationEnvironment(
 		get() = ktProject.generatedIndex
 
 	val symbolVisibilityChecker: SymbolVisibilityChecker by lazy {
-		val provider =
-			project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider
+		val provider = ProjectStructureProvider.getInstance(project)
 		SymbolVisibilityChecker(provider)
 	}
 
@@ -179,6 +188,7 @@ internal class CompilationEnvironment(
 
 	val ktSymbolIndex by lazy {
 		KtSymbolIndex(
+			kind = kind,
 			project = project,
 			modules = modules,
 			fileIndex = requireFileIndex,
@@ -397,6 +407,19 @@ internal class CompilationEnvironment(
 		}
 	}
 
+	fun refreshSources() {
+		ResolutionScopeProvider.getInstance(project)
+			.invalidateAll()
+
+		modules.asFlatSequence()
+			.filterIsInstance<AbstractKtModule>()
+			.forEach { it.invalidateSearchScope() }
+
+		ktSymbolIndex.refreshSources()
+		// TODO: Should also update/notify Java file services about possibly changed Java files
+		//       But that's a bit problematic right now, scheduled for later
+	}
+
 	fun openFileIfNeeded(path: Path) {
 		ktSymbolIndex.getOpenedKtFile(path)
 			?: onFileOpen(path)
@@ -415,18 +438,95 @@ internal class CompilationEnvironment(
 	fun onFileClosed(path: Path) {
 		fileAnalyzer.cancelPending(path)
 		ktSymbolIndex.closeKtFile(path)
-		(project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider)
+		ProjectStructureProvider.getInstance(project)
 			.unregisterInMemoryFile(path.pathString)
+	}
+
+	@OptIn(KaImplementationDetail::class)
+	private inline fun notifyElementModifiedForPath(
+		path: Path,
+		typeProvider: (KtFile) -> KaElementModificationType
+	) {
+		val structureProvider = ProjectStructureProvider.getInstance(project)
+		val ktFile = path.toVirtualFileOrNull()?.let {
+			psiManager.findFile(it) as? KtFile
+		}
+
+		if (ktFile != null) {
+			KaSourceModificationService.getInstance(project)
+				.handleElementModification(ktFile, typeProvider(ktFile))
+		}
+
+		val module = (ktFile?.let { structureProvider.getModule(it, null) }
+			?: structureProvider.findModuleForSourceId(path.pathString)) as? AbstractKtModule
+
+		project.write {
+			if (module != null) {
+				module.invalidateSearchScope()
+				project.publishModificationEvent(
+					KotlinModuleStateModificationEvent(
+						module,
+						KotlinModuleStateModificationKind.UPDATE
+					)
+				)
+
+				project.analysisMessageBus
+					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
+					.afterInvalidation(setOf(module))
+
+				ResolutionScopeProvider.getInstance(project)
+					.invalidate(module)
+			} else {
+				project.analysisMessageBus
+					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
+					.afterGlobalInvalidation()
+
+
+				ResolutionScopeProvider.getInstance(project)
+					.invalidateAll()
+			}
+		}
+	}
+
+	suspend fun onFileCreated(path: Path) {
+		notifyElementModifiedForPath(path) { KaElementModificationType.ElementAdded }
+
+		ktSymbolIndex.submitForIndexing(path)
+	}
+
+	suspend fun onFileRemoved(path: Path) {
+		notifyElementModifiedForPath(path) { ktFile ->
+			KaElementModificationType.ElementRemoved(ktFile)
+		}
+
+		ProjectStructureProvider.getInstance(project)
+			.unregisterInMemoryFile(path.pathString)
+
+		ktSymbolIndex.removeFromIndex(path)
+	}
+
+	suspend fun onFileMoved(fromPath: Path, toPath: Path) {
+		val isFileOpen = ktSymbolIndex.getOpenedKtFile(fromPath) != null
+
+		onFileRemoved(fromPath)
+		onFileCreated(toPath)
+
+		if (isFileOpen) {
+			ktSymbolIndex.closeKtFile(fromPath)
+			onFileOpen(toPath)
+		}
 	}
 
 	fun onFileContentChanged(path: Path) {
 		val newContent = FileManager.getDocumentContents(path)
-		val newKtFile = project.read { parser.createFile(path.pathString, newContent) }
+		val newKtFile = project.read {
+			parser.createFile(path.pathString, newContent)
+		}
+
 		newKtFile.backingFilePath = path
 
 		// Tell ProjectStructureProvider which module owns this LightVirtualFile.
-		val provider =
-			project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider
+		val provider = ProjectStructureProvider.getInstance(project)
 		provider.registerInMemoryFile(path.pathString, newKtFile.virtualFile)
 
 		ktSymbolIndex.openKtFile(path, newKtFile)
