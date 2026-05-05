@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.diagnostic
 
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
 import com.itsaky.androidide.lsp.models.DiagnosticItem
@@ -75,7 +76,7 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 			// The analysis API uses a no-op implementation of
 			// Intellij's ProgressManager for cancellations, so the following
 			// is really cancellable at the moment
-			analyze(ktFile) {
+			analyzeMaybeDangling(ktFile) {
 				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 					.forEach { diagnostic ->
 						cancelChecker.abortIfCancelled()
