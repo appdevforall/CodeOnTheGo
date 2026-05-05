@@ -6,7 +6,8 @@ import org.appdevforall.codeonthego.computervision.domain.FuzzyAttributeParser
 
 class WidgetFactory(
     private val context: XmlContext,
-    private val annotations: Map<ScaledBox, String>
+    private val annotations: Map<ScaledBox, String>,
+    private val selectedImageOverrides: Map<ScaledBox, String> = emptyMap()
 ) {
     private val checkboxGroupIdPattern = Regex("^cb_group_\\d+$")
     private val radioChildGroupIdPatterns = listOf(
@@ -109,7 +110,13 @@ class WidgetFactory(
         parsedAttrsOverride: Map<String, String>? = null
     ): AndroidWidget {
         val tag = AndroidWidget.getTagFor(box.label)
-        val parsedAttrs = parsedAttrsOverride ?: FuzzyAttributeParser.parse(annotations[box], tag)
+        val parsedAttrs = parsedAttrsOverride?.toMutableMap()
+            ?: FuzzyAttributeParser.parse(annotations[box], tag).toMutableMap()
+
+        selectedImageOverrides[box]?.let { drawableReference ->
+            parsedAttrs["android:src"] = drawableReference
+        }
+
         return AndroidWidget.create(box, parsedAttrs).apply {
             this.idOverride = idOverride
             this.extraAttrs = extraAttrs

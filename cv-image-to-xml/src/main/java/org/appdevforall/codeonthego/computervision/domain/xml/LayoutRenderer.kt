@@ -5,8 +5,8 @@ import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
 
 class LayoutRenderer(
     private val context: XmlContext,
-    annotations: Map<ScaledBox, String>
-    private val selectedImageOverrides: Map<ScaledBox, String> = emptyMap()
+    annotations: Map<ScaledBox, String>,
+    selectedImageOverrides: Map<ScaledBox, String> = emptyMap()
 ) {
     private val widgetFactory = WidgetFactory(context, annotations, selectedImageOverrides)
 
