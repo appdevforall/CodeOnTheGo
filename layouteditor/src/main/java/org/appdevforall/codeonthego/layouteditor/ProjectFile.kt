@@ -10,7 +10,6 @@ import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import com.itsaky.androidide.utils.formatDate
 import org.jetbrains.annotations.Contract
 import java.io.File
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -45,12 +44,7 @@ class ProjectFile : Parcelable {
   fun rename(newPath: String) {
     val newFile = File(newPath)
     val oldFile = File(path)
-    if (newFile.exists()) {
-      throw IOException("Destination already exists: $newPath")
-    }
-    if (!oldFile.renameTo(newFile)) {
-      throw IOException("Failed to rename $path to $newPath")
-    }
+    oldFile.renameTo(newFile)
 
     path = newPath
     name = FileUtil.getLastSegmentFromPath(path)
