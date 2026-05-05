@@ -9,6 +9,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import androidx.appcompat.widget.AppCompatImageView
+import kotlin.math.abs
 
 class ZoomableImageView @JvmOverloads constructor(
     context: Context,
@@ -26,6 +27,7 @@ class ZoomableImageView @JvmOverloads constructor(
     private var mode = NONE
 
     var onMatrixChangeListener: ((Matrix) -> Unit)? = null
+    var onImageTapListener: ((Float, Float) -> Boolean)? = null
 
     init {
         super.setClickable(true)
@@ -54,16 +56,45 @@ class ZoomableImageView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP -> {
                 mode = NONE
-                val xDiff = Math.abs(curr.x - start.x).toInt()
-                val yDiff = Math.abs(curr.y - start.y).toInt()
+                val xDiff = abs(curr.x - start.x).toInt()
+                val yDiff = abs(curr.y - start.y).toInt()
                 if (xDiff < CLICK && yDiff < CLICK) {
-                    performClick()
+                    val mappedPoint = mapViewPointToImage(event.x, event.y)
+                    val consumed = mappedPoint?.let {
+                        onImageTapListener?.invoke(it.x, it.y)
+                    } ?: false
+
+                    if (!consumed) {
+                        performClick()
+                    }
                 }
             }
             MotionEvent.ACTION_POINTER_UP -> mode = NONE
         }
         imageMatrix = currentMatrix
         onMatrixChangeListener?.invoke(currentMatrix)
+        return true
+    }
+
+    fun mapViewPointToImage(x: Float, y: Float): PointF? {
+        val drawable = drawable ?: return null
+        val points = floatArrayOf(x, y)
+        val inverseMatrix = Matrix()
+
+        if (!currentMatrix.invert(inverseMatrix)) return null
+        inverseMatrix.mapPoints(points)
+
+        val imageX = points[0]
+        val imageY = points[1]
+
+        return PointF(imageX, imageY).takeIf {
+            it.x in 0f..drawable.intrinsicWidth.toFloat() &&
+            it.y in 0f..drawable.intrinsicHeight.toFloat()
+        }
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
         return true
     }
 
