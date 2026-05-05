@@ -228,11 +228,12 @@ class RecentProjectsAdapter(
         builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
         builder.setPositiveButton(R.string.rename) { _, _ ->
             val newName = binding.textinputEdittext.text.toString()
-            val newPath = project.path.substringBeforeLast("/") + "/" + newName
+            val oldPath = project.path
+            val newPath = oldPath.substringBeforeLast("/") + "/" + newName
             try {
                 project.rename(newPath)
                 flashSuccess(R.string.renamed)
-                onFileRenamed(RenamedFile(oldName, newName, newPath))
+                onFileRenamed(RenamedFile(oldName, newName, oldPath, newPath))
                 notifyItemChanged(position)
             } catch (e: Exception) {
 				logger.error("Failed to rename project", e)
@@ -300,5 +301,10 @@ class RecentProjectsAdapter(
         }
     }
 
-    data class RenamedFile(val oldName: String, val newName: String, val newPath: String)
+    data class RenamedFile(
+        val oldName: String,
+        val newName: String,
+        val oldPath: String,
+        val newPath: String
+    )
 }

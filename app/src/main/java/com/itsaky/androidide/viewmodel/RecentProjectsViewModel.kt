@@ -196,16 +196,26 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     }
 
 	fun updateProject(renamedFile: RecentProjectsAdapter.RenamedFile) =
-		updateProject(renamedFile.oldName, renamedFile.newName, renamedFile.newPath)
+		updateProject(
+			renamedFile.oldName,
+			renamedFile.newName,
+			renamedFile.oldPath,
+			renamedFile.newPath
+		)
 
-    fun updateProject(oldName: String, newName: String, location: String) =
+    fun updateProject(
+        oldName: String,
+        newName: String,
+        oldLocation: String,
+        newLocation: String
+    ) =
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val modifiedAt = System.currentTimeMillis().toString()
                 recentProjectDao.updateNameAndLocation(
                     oldName = oldName,
                     newName = newName,
-                    newLocation = location
+                    newLocation = newLocation
                 )
                 recentProjectDao.updateLastModified(
                     projectName = newName,
@@ -214,6 +224,12 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
                 loadProjects()
             } catch (e: SQLException) {
                 logger.error("Failed to update project after rename ($oldName -> $newName)", e)
+                val rolledBack = File(newLocation).renameTo(File(oldLocation))
+                if (rolledBack) {
+                    logger.info("Rolled back filesystem rename: $newLocation -> $oldLocation")
+                } else {
+                    logger.error("Rollback failed; filesystem and DB are out of sync (disk=$newLocation, db=$oldLocation)")
+                }
                 _renameStatus.emit(false)
             }
         }
