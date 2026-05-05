@@ -261,13 +261,14 @@ class RecentProjectsAdapter(
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                validateProjectName(binding.textinputLayout, s.toString(), dialog)
+                validateProjectName(binding.textinputLayout, s.toString(), oldName, dialog)
             }
         })
 
         validateProjectName(
             binding.textinputLayout,
             binding.textinputEdittext.text.toString(),
+            oldName,
             dialog
         )
     }
@@ -275,12 +276,19 @@ class RecentProjectsAdapter(
     private fun validateProjectName(
         inputLayout: TextInputLayout,
 		newName: String,
+		oldName: String,
 		dialog: AlertDialog
     ) {
         val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
         when {
             newName.isEmpty() -> {
                 inputLayout.error = dialog.context.getString(R.string.msg_cannnot_empty)
+                positiveButton.isEnabled = false
+            }
+
+            newName != oldName && projects.any { it.name == newName } -> {
+                inputLayout.error =
+                    dialog.context.getString(R.string.msg_current_name_unavailable)
                 positiveButton.isEnabled = false
             }
 

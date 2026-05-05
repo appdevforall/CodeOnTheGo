@@ -82,6 +82,7 @@ class RecentProjectsFragment : BaseFragment() {
 		setupClickListeners()
         bootstrapFromFixedFolderIfNeeded()
         observeDeletionStatus()
+        observeRenameStatus()
 	}
 
 	private fun setupRecyclerView() {
@@ -423,6 +424,17 @@ class RecentProjectsFragment : BaseFragment() {
                     flashSuccess(R.string.deleted)
                 } else {
                     flashError(R.string.delete_failed)
+                }
+            }
+        }
+    }
+
+    private fun observeRenameStatus() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.renameStatus.collect { status ->
+                if (!status) {
+                    flashError(R.string.rename_failed)
+                    viewModel.loadProjects()
                 }
             }
         }

@@ -55,6 +55,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     private val _deletionStatus = MutableSharedFlow<Boolean>(replay = 1)
     val deletionStatus = _deletionStatus.asSharedFlow()
 
+    private val _renameStatus = MutableSharedFlow<Boolean>()
+    val renameStatus = _renameStatus.asSharedFlow()
+
     // Get the database and DAO instance
     private val recentProjectDatabase: RecentProjectRoomDatabase =
         RecentProjectRoomDatabase.getDatabase(application, viewModelScope)
@@ -194,17 +197,22 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     fun updateProject(oldName: String, newName: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
-            val modifiedAt = System.currentTimeMillis().toString()
-            recentProjectDao.updateNameAndLocation(
-                oldName = oldName,
-                newName = newName,
-                newLocation = location
-            )
-            recentProjectDao.updateLastModified(
-                projectName = newName,
-                lastModified = modifiedAt
-            )
-            loadProjects()
+            try {
+                val modifiedAt = System.currentTimeMillis().toString()
+                recentProjectDao.updateNameAndLocation(
+                    oldName = oldName,
+                    newName = newName,
+                    newLocation = location
+                )
+                recentProjectDao.updateLastModified(
+                    projectName = newName,
+                    lastModified = modifiedAt
+                )
+                loadProjects()
+            } catch (e: SQLException) {
+                logger.error("Failed to update project after rename ($oldName -> $newName)", e)
+                _renameStatus.emit(false)
+            }
         }
 
 	fun updateProjectModifiedDate(name: String) =
