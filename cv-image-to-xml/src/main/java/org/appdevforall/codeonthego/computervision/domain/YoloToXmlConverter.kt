@@ -1,8 +1,10 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
 import org.appdevforall.codeonthego.computervision.domain.xml.AndroidXmlGenerator
 import org.appdevforall.codeonthego.computervision.utils.MetadataDetector
+import org.appdevforall.codeonthego.computervision.utils.getSortedScaledPlaceholders
 import kotlin.comparisons.compareBy
 
 class YoloToXmlConverter(
@@ -14,6 +16,7 @@ class YoloToXmlConverter(
     fun generateXmlLayout(
         detections: List<DetectionResult>,
         annotations: Map<String, String>,
+        selectedImagesByPlaceholderId: Map<String, String>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,
@@ -50,13 +53,38 @@ class YoloToXmlConverter(
 
         val sortedBoxes = uiElements.sortedWith(compareBy({ it.y }, { it.x }))
 
-        return xmlGenerator.buildXml(sortedBoxes, finalAnnotations, targetDpHeight, wrapInScroll)
+        val selectedImageOverrides = buildSelectedImageOverrides(
+            uiElements = uiElements,
+            selectedImagesByPlaceholderId = selectedImagesByPlaceholderId
+        )
+
+        return xmlGenerator.buildXml(
+            boxes = sortedBoxes,
+            annotations = finalAnnotations,
+            selectedImageOverrides = selectedImageOverrides,
+            targetDpHeight = targetDpHeight,
+            wrapInScroll = wrapInScroll
+        )
+    }
+
+    private fun buildSelectedImageOverrides(
+        uiElements: List<ScaledBox>,
+        selectedImagesByPlaceholderId: Map<String, String>
+    ): Map<ScaledBox, String> {
+        val placeholders = uiElements.getSortedScaledPlaceholders()
+
+        return placeholders.mapIndexedNotNull { index, box ->
+            val drawableReference = selectedImagesByPlaceholderId["ph_$index"]
+                ?: return@mapIndexedNotNull null
+            box to drawableReference
+        }.toMap()
     }
 
     companion object {
         fun generateXmlLayout(
             detections: List<DetectionResult>,
             annotations: Map<String, String>,
+            selectedImagesByPlaceholderId: Map<String, String> = emptyMap(),
             sourceImageWidth: Int,
             sourceImageHeight: Int,
             targetDpWidth: Int,
@@ -70,13 +98,14 @@ class YoloToXmlConverter(
             val converter = YoloToXmlConverter(geometry, matcher, generator)
 
             return converter.generateXmlLayout(
-                detections,
-                annotations,
-                sourceImageWidth,
-                sourceImageHeight,
-                targetDpWidth,
-                targetDpHeight,
-                wrapInScroll
+                detections = detections,
+                annotations = annotations,
+                selectedImagesByPlaceholderId = selectedImagesByPlaceholderId,
+                sourceImageWidth = sourceImageWidth,
+                sourceImageHeight = sourceImageHeight,
+                targetDpWidth = targetDpWidth,
+                targetDpHeight = targetDpHeight,
+                wrapInScroll = wrapInScroll
             )
         }
     }
