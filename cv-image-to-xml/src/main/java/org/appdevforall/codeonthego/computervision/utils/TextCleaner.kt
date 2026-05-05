@@ -3,6 +3,9 @@ package org.appdevforall.codeonthego.computervision.utils
 object TextCleaner {
 
     private val nonAlphanumericRegex = Regex("[^a-zA-Z0-9 ]")
+    private val leadingMarkerRegex = Regex("^[\\[\\]()●○□☑✓-]+\\s*")
+    private val leadingStandaloneCircleRegex = Regex("^[O0o]\\s+")
+    private val duplicatedLeadingCircleRegex = Regex("^[O0o](?=[oO][a-z])")
 
     fun cleanText(text: String): String {
         return text.replace("\n", " ")
@@ -12,7 +15,9 @@ object TextCleaner {
 
     fun cleanTextStrippingLeadingO(text: String): String {
         val cleanedText = text.trim()
-            .replace(Regex("^[O0o\\[\\]()●○□☑✓-]+\\s*"), "")
+            .replace(leadingMarkerRegex, "")
+            .replace(leadingStandaloneCircleRegex, "")
+            .replace(duplicatedLeadingCircleRegex, "")
 
         return cleanedText.ifEmpty { text }
     }
