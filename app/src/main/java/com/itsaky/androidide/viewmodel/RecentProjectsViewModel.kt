@@ -222,6 +222,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
                     lastModified = modifiedAt
                 )
                 loadProjects()
+                _renameStatus.emit(true)
             } catch (e: SQLException) {
                 logger.error("Failed to update project after rename ($oldName -> $newName)", e)
                 val rolledBack = File(newLocation).renameTo(File(oldLocation))
