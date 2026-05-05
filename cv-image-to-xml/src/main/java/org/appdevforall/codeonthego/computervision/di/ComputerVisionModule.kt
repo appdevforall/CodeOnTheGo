@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.computervision.di
 
 import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
 import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepositoryImpl
+import org.appdevforall.codeonthego.computervision.data.repository.DrawableImportHelper
 import org.appdevforall.codeonthego.computervision.data.source.OcrSource
 import org.appdevforall.codeonthego.computervision.data.source.YoloModelSource
 import org.appdevforall.codeonthego.computervision.domain.RegionOcrProcessor
@@ -26,9 +27,16 @@ val computerVisionModule = module {
         )
     }
 
+    single {
+        DrawableImportHelper(
+            contentResolver = androidContext().contentResolver
+        )
+    }
+
     viewModel { (layoutFilePath: String?, layoutFileName: String?) ->
         ComputerVisionViewModel(
             repository = get(),
+            drawableImportHelper = get(),
             contentResolver = androidContext().contentResolver,
             layoutFilePath = layoutFilePath,
             layoutFileName = layoutFileName
