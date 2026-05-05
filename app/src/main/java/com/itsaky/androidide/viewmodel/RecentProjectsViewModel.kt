@@ -130,6 +130,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    fun projectNameExists(name: String): Boolean =
+        allProjects.any { it.name == name }
+
     fun insertProjectFromFolder(name: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
             // Check if the project already exists
