@@ -17,13 +17,8 @@ import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
-import java.io.File
-import java.nio.file.Paths
-import kotlin.io.path.PathWalkOption
-import kotlin.io.path.absolutePathString
 import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
-import kotlin.io.path.pathString
 import kotlin.io.path.walk
 
 @OptIn(KaPlatformInterface::class)
@@ -33,7 +28,9 @@ internal class KtSourceModule(
 	directRegularDependencies: List<KtModule>,
 ) : KaSourceModule, AbstractKtModule(project, directRegularDependencies) {
 
-	private val logger = LoggerFactory.getLogger(KtSourceModule::class.java)
+	companion object {
+		private val logger = LoggerFactory.getLogger(KtSourceModule::class.java)
+	}
 
 	class Builder(private val project: Project) {
 		lateinit var module: ModuleProject

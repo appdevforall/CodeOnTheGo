@@ -3,9 +3,12 @@ package com.itsaky.androidide.lsp.kotlin.compiler.index
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -14,6 +17,7 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import kotlin.io.path.pathString
 
 internal class IndexWorker(
 	private val project: Project,
@@ -42,7 +46,7 @@ internal class IndexWorker(
 		operator fun component2() = ktFile
 	}
 
-	suspend fun start() {
+	suspend fun start() = coroutineScope {
 		var scanCount = 0
 		var sourceIndexCount = 0
 
@@ -55,17 +59,23 @@ internal class IndexWorker(
 			sourceIndexCount++
 		}
 
-		while (true) {
-			when (val command = queue.take()) {
+		while (isActive) {
+			when (val cmd = queue.take()) {
+				is IndexCommand.RemoveFromIndex -> {
+					val filePath = cmd.path.pathString
+					fileIndex.remove(filePath)
+					sourceIndex.removeBySource(filePath)
+				}
+
 				is IndexCommand.IndexSourceFile -> {
-					if (command.vf.fileSystem.protocol != "file") {
-						logger.warn("Unknown source file protocol: {}", command.vf.path)
+					if (cmd.vf.fileSystem.protocol != "file") {
+						logger.warn("Unknown source file protocol: {}", cmd.vf.path)
 						continue
 					}
 
 					val ktFile = project.read {
 						PsiManager.getInstance(project)
-							.findFile(command.vf) as? KtFile
+							.findFile(cmd.vf) as? KtFile
 					}
 
 					if (ktFile == null) {
@@ -87,8 +97,8 @@ internal class IndexWorker(
 				is IndexCommand.IndexModifiedFile -> {
 					modifiedFileIndexer.schedule(
 						ModFileIndexKey(
-							command.ktFile.backingFilePath!!,
-							command.ktFile
+							cmd.ktFile.backingFilePath!!,
+							cmd.ktFile
 						)
 					)
 				}
@@ -103,7 +113,7 @@ internal class IndexWorker(
 
 				is IndexCommand.ScanSourceFile -> {
 					val ktFile = project.read {
-						PsiManager.getInstance(project).findFile(command.vf) as? KtFile
+						PsiManager.getInstance(project).findFile(cmd.vf) as? KtFile
 					}
 						?: continue
 

@@ -25,7 +25,6 @@ import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.KtCallableDeclaration
 import org.jetbrains.kotlin.psi.KtClassLikeDeclaration
 import org.jetbrains.kotlin.psi.KtClassOrObject
-import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtProperty
@@ -75,9 +74,6 @@ internal class DeclarationProvider(
 	private val project: Project,
 	private val index: KtSymbolIndex
 ) : KotlinDeclarationProvider {
-
-	private val KtElement.inScope: Boolean
-		get() = containingKtFile.virtualFile in scope
 
 	override val hasSpecificCallablePackageNamesComputation: Boolean
 		get() = false
@@ -182,7 +178,7 @@ internal class DeclarationProvider(
 
 	private fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> {
 		return index.filesForPackage(fqName.asString())
-			.map { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath))!! }
+			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath)) }
 			.filter { it in scope }
 			.map { index.getKtFile(it) }
 	}
