@@ -1,0 +1,30 @@
+# Plugin-specific gitignore for forms-plugin
+
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# Local configuration
+local.properties
+
+# IDE files
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build outputs
+*.apk
+*.aar
+*.dex
+*.cgp

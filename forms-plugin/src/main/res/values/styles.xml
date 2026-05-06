@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="PluginTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/forms_primary</item>
+        <item name="colorPrimaryVariant">@color/forms_primary_variant</item>
+        <item name="colorOnPrimary">@color/forms_on_primary</item>
+        <item name="colorAccent">@color/forms_primary</item>
+        <item name="android:colorBackground">@color/forms_background</item>
+        <item name="android:textColorPrimary">@color/forms_text_primary</item>
+    </style>
+</resources>

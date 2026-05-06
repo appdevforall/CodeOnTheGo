@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="forms_primary">#1565C0</color>
+    <color name="forms_primary_variant">#0D47A1</color>
+    <color name="forms_on_primary">#FFFFFF</color>
+    <color name="forms_background">#FFFFFF</color>
+    <color name="forms_text_primary">#212121</color>
+    <color name="forms_text_secondary">#757575</color>
+    <color name="forms_divider">#E0E0E0</color>
+</resources>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="Forms Plugin"
+        android:theme="@style/PluginTheme">
+
+        <!-- Plugin metadata -->
+        <meta-data
+            android:name="plugin.id"
+            android:value="com.appdevforall.forms.plugin" />
+
+        <meta-data
+            android:name="plugin.name"
+            android:value="Forms" />
+
+        <meta-data
+            android:name="plugin.version"
+            android:value="${pluginVersion}" />
+
+        <meta-data
+            android:name="plugin.description"
+            android:value="Generate offline-capable form-data apps from a photo of a paper form" />
+
+        <meta-data
+            android:name="plugin.author"
+            android:value="AppDevForAll" />
+
+        <meta-data
+            android:name="plugin.min_ide_version"
+            android:value="1.0.0" />
+
+        <meta-data
+            android:name="plugin.permissions"
+            android:value="filesystem.read,filesystem.write" />
+
+        <meta-data
+            android:name="plugin.main_class"
+            android:value="com.appdevforall.forms.plugin.FormsPlugin" />
+
+        <meta-data
+            android:name="plugin.sidebar_items"
+            android:value="1" />
+
+        <activity
+            android:name=".wizard.WizardActivity"
+            android:exported="false"
+            android:label="@string/forms_wizard_title"
+            android:theme="@style/PluginTheme" />
+
+    </application>
+
+</manifest>

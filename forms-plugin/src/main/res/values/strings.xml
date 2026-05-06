@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="forms_plugin_name">Forms</string>
+    <string name="forms_sidebar_title">Form-filling app from photo</string>
+    <string name="forms_template_name">Form-filling app from photo</string>
+    <string name="forms_template_description">Generate an offline-capable Android app for filling a paper form. Take or pick a photo of the form, review the detected fields, and ship the runnable app.</string>
+
+    <!-- Wizard -->
+    <string name="forms_wizard_title">Form app wizard</string>
+    <string name="forms_wizard_step1_title">Step 1 of 4 — Capture form</string>
+    <string name="forms_wizard_step2_title">Step 2 of 4 — Review fields</string>
+    <string name="forms_wizard_step3_title">Step 3 of 4 — Semantic rules</string>
+    <string name="forms_wizard_step4_title">Step 4 of 4 — Where does data go?</string>
+    <string name="forms_wizard_continue">Continue</string>
+    <string name="forms_wizard_back">Back</string>
+    <string name="forms_wizard_finish">Finish</string>
+    <string name="forms_wizard_cancel">Cancel</string>
+
+    <string name="forms_wizard_take_photo">Take photo</string>
+    <string name="forms_wizard_pick_gallery">Pick from gallery</string>
+    <string name="forms_wizard_skip_photo">Skip — lay out manually</string>
+    <string name="forms_wizard_no_photo_yet">No photo selected. You can skip and lay out fields manually.</string>
+
+    <string name="forms_wizard_review_hint">Tap a field to edit. Long-press to delete. Tap + Add to add a new field.</string>
+    <string name="forms_wizard_no_fields_yet">No fields yet. Tap + Add to add one, or go back and capture a photo.</string>
+    <string name="forms_wizard_add_field">+ Add field</string>
+    <string name="forms_wizard_field_count_placeholder">%1$d fields</string>
+    <string name="forms_wizard_field_label_hint">Label (e.g. Name)</string>
+    <string name="forms_wizard_field_type_label">Type:</string>
+    <string name="forms_wizard_field_required">Required</string>
+    <string name="forms_wizard_field_reusable">Reusable across records</string>
+    <string name="forms_wizard_field_save">Save</string>
+    <string name="forms_wizard_field_delete">Delete</string>
+
+    <string name="forms_wizard_submit_label_post">POST to URL</string>
+    <string name="forms_wizard_submit_post_hint">https://example.org/intake</string>
+    <string name="forms_wizard_submit_csv_share">Allow CSV share</string>
+    <string name="forms_wizard_submit_json_share">Allow JSON share</string>
+    <string name="forms_wizard_submit_offline_queue">Queue offline and retry on reconnect</string>
+
+    <!-- Built-in field types -->
+    <string name="forms_field_type_text">text</string>
+    <string name="forms_field_type_longtext">longtext</string>
+    <string name="forms_field_type_number">number</string>
+    <string name="forms_field_type_date">date</string>
+    <string name="forms_field_type_checkbox">checkbox</string>
+
+    <!-- Toasts -->
+    <string name="forms_template_registered">Form template ready. Open + Create Project to use it.</string>
+    <string name="forms_template_register_failed">Failed to register form template. Check plugin permissions.</string>
+    <string name="forms_wizard_canceled">Wizard canceled. No template was registered.</string>
+    <string name="forms_template_validation_appname">App name must contain at least one letter or digit.</string>
+    <string name="forms_template_validation_no_fields">Add at least one field before finishing the wizard.</string>
+    <string name="forms_template_validation_endpoint">Submit URL must start with http:// or https://.</string>
+</resources>
