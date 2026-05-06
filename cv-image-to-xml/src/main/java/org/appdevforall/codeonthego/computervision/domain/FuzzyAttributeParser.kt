@@ -309,6 +309,8 @@ object FuzzyAttributeParser {
                 annotation.length
             }
 
+            if (current.valueStart > valueEnd) continue
+
             var rawValue = annotation.substring(current.valueStart, valueEnd).trim()
 
             if (rawValue.isNotEmpty()) {
