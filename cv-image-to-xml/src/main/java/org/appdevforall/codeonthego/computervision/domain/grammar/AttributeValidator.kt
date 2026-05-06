@@ -16,6 +16,14 @@ object PassThroughValidator : AttributeValidator {
     override fun validate(rawValue: String): String = rawValue.trim()
 }
 
+object BooleanValidator : AttributeValidator {
+    private val allowedValues = listOf("true", "false")
+
+    override fun validate(rawValue: String): String? {
+        return matchCategoricalValue(rawValue.trim().lowercase(), allowedValues, threshold = 85)
+    }
+}
+
 object DimensionValidator : AttributeValidator {
     private val dimensionValues = listOf("match_parent", "wrap_content")
 
@@ -25,6 +33,22 @@ object DimensionValidator : AttributeValidator {
             return trimmed
         }
         return matchCategoricalValue(trimmed, dimensionValues)
+    }
+}
+
+class SpDimensionRangeValidator(
+    private val minSp: Int,
+    private val maxSp: Int
+) : AttributeValidator {
+    private val spRegex = Regex("^(\\d+(?:\\.\\d+)?)sp$")
+
+    override fun validate(rawValue: String): String? {
+        val trimmed = rawValue.trim()
+
+        val match = spRegex.matchEntire(trimmed) ?: return null
+        val value = match.groupValues[1].toFloatOrNull() ?: return null
+
+        return trimmed.takeIf { value >= minSp && value <= maxSp }
     }
 }
 
