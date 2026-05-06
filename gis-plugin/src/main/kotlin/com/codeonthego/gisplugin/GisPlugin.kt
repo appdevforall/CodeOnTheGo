@@ -7,10 +7,16 @@ import com.codeonthego.gisplugin.wizard.WizardLauncher
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
+import com.itsaky.androidide.plugins.extensions.NavigationItem
 import com.itsaky.androidide.plugins.extensions.PluginTooltipButton
 import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import com.itsaky.androidide.plugins.services.IdeTemplateService
 import java.io.File
 
@@ -42,6 +48,14 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
 
     /** Names of the .cgt files we registered, for clean unregistration. */
     private val registeredCgtFiles = mutableListOf<String>()
+
+    /**
+     * Background scope tied to the plugin's lifecycle. Cancelled in
+     * [dispose]. We use a [SupervisorJob] so a single failed launch doesn't
+     * tear the rest of the plugin's coroutines down (e.g. a wizard
+     * cancellation shouldn't kill template-registration retries).
+     */
+    private val pluginScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun initialize(context: PluginContext): Boolean {
         return try {
@@ -110,12 +124,49 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
     }
 
     override fun dispose() {
+        pluginScope.cancel()
         context.logger.info("GisPlugin disposed")
     }
 
     // ---------------------------------------------------------------------
     //  UIExtension — bottom-sheet "Map Regions" tab
     // ---------------------------------------------------------------------
+
+    /**
+     * Sidebar entry that launches the map wizard manually. **Workaround for
+     * Q1**: until `IdeTemplateService` is extended to let plugins inject a
+     * recipe-time wizard launch, this side-door makes the wizard
+     * reachable so Bryan can manually test the bbox-picker and stub
+     * downloader end-to-end against the bottom-sheet "Map Regions" tab.
+     *
+     * When Q1 is unblocked and the recipe wires up, this entry can either
+     * stay (useful side-door for re-downloading without re-scaffolding)
+     * or be removed.
+     */
+    override fun getSideMenuItems(): List<NavigationItem> = listOf(
+        NavigationItem(
+            id = "gis.sidebar.open_wizard",
+            title = "Map wizard (manual launch)",
+            icon = android.R.drawable.ic_menu_mapmode,
+            isEnabled = true,
+            isVisible = true,
+            group = "tools",
+            order = 100,
+            tooltipTag = "gis.sidebar.open_wizard",
+            action = { launchWizardFromSidebar() }
+        )
+    )
+
+    private fun launchWizardFromSidebar() {
+        // The wizard's blocking-await runs on a background thread; the
+        // sidebar action fires on the UI thread, so kick to the plugin
+        // scope. We don't surface the result anywhere — the wizard's own
+        // side effects (writing into the cache) are what the user wants.
+        pluginScope.launch {
+            runCatching { WizardLauncher.launchAndAwait(context.androidContext) }
+                .onFailure { context.logger.warn("Wizard launch from sidebar failed: ${it.message}") }
+        }
+    }
 
     override fun getEditorTabs(): List<TabItem> = listOf(
         TabItem(
@@ -181,6 +232,21 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
             )
         ),
         PluginTooltipEntry(
+            tag = "gis.sidebar.open_wizard",
+            summary = "<b>Map wizard</b><br>Launch the region-download wizard manually.",
+            detail = """
+                <h3>Map wizard (manual launch)</h3>
+                <p>Opens the same 3-step wizard the IDE will fire automatically
+                once the recipe extension is in place (see plugin readme /
+                <code>QUESTIONS.md</code>). Useful for downloading a region
+                pack into the shared cache before scaffolding a project, and
+                for re-downloading an existing region.</p>
+                <p>The wizard writes into <code>/sdcard/CodeOnTheGo/maps/</code>;
+                the bottom-sheet <b>Map Regions</b> tab reflects the result.</p>
+            """.trimIndent(),
+            buttons = emptyList()
+        ),
+        PluginTooltipEntry(
             tag = "gis.editor_tab.regions",
             summary = "<b>Map Regions</b><br>Manage cached OSM tile + POI bundles.",
             detail = """
@@ -214,14 +280,4 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
      */
     override fun getTier3DocsAssetPath(): String? = "docs"
 
-    // ---------------------------------------------------------------------
-    //  Shared helper for tests / future commits — entry point if a host wants
-    //  to invoke the wizard directly. Currently unused by the IDE because
-    //  the recipe-blocking pattern needs an API extension (see QUESTIONS.md).
-    // ---------------------------------------------------------------------
-
-    @Suppress("unused")
-    internal fun launchWizardForTesting(): com.codeonthego.gisplugin.wizard.WizardResult? {
-        return WizardLauncher.launchAndAwait(context.androidContext)
-    }
 }

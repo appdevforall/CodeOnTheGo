@@ -38,6 +38,11 @@
             android:name="plugin.main_class"
             android:value="com.codeonthego.gisplugin.GisPlugin" />
 
+        <!-- Sidebar entry: 1 item ("Map wizard (manual launch)") for now. -->
+        <meta-data
+            android:name="plugin.sidebar_items"
+            android:value="1" />
+
         <!-- Plugin's own internal Activities (wizard, region picker). Hosted under PluginTheme. -->
         <activity
             android:name="com.codeonthego.gisplugin.wizard.WizardActivity"
