@@ -131,6 +131,18 @@ internal object MapTemplateBuilder {
         // falls back to the demotiles URL for testing.
         builder.addStaticFile("app/src/main/assets/style.json", maplibreStyleJson())
 
+        // C5: read-only template ships a sample POI dataset and a bottom
+        // drawer in MainActivity. The annotate template doesn't need this —
+        // it builds annotations at runtime — so we gate the assets and
+        // helper class on the kind.
+        if (kind == TemplateKind.READONLY) {
+            builder.addStaticFile("app/src/main/assets/pois.json", samplePoisJson())
+            builder.addStaticFile(
+                "app/src/main/res/layout/poi_drawer.xml",
+                poiDrawerLayout()
+            )
+        }
+
         return builder
     }
 
@@ -209,6 +221,8 @@ internal object MapTemplateBuilder {
 
         dependencies {
             implementation("androidx.appcompat:appcompat:1.6.1")
+            implementation("androidx.recyclerview:recyclerview:1.3.2")
+            implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
             implementation("com.google.android.material:material:1.10.0")
 
             // MapLibre Native — pinned current-stable per ADFA-2436 plan §7 R1.
@@ -281,13 +295,14 @@ internal object MapTemplateBuilder {
 
     /**
      * MapView XML. We use the `org.maplibre.android.maps.MapView` class
-     * (post-rebrand). The constraint layout wrapper exists because in
-     * combination with FAB / drawers (annotate template) we'll want to
-     * anchor children to the map without changing the layout root in C6.
+     * (post-rebrand). CoordinatorLayout wraps the map so the read-only
+     * template can attach a bottom drawer (POI list) without re-architecting
+     * in C5. The annotate template will likewise hook a FAB into the same
+     * coordinator parent in C6.
      */
     private fun activityMainLayout(): String = """
         <?xml version="1.0" encoding="utf-8"?>
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <androidx.coordinatorlayout.widget.CoordinatorLayout
             xmlns:android="http://schemas.android.com/apk/res/android"
             xmlns:app="http://schemas.android.com/apk/res-auto"
             android:layout_width="match_parent"
@@ -295,18 +310,113 @@ internal object MapTemplateBuilder {
 
             <org.maplibre.android.maps.MapView
                 android:id="@+id/mapView"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
                 app:maplibre_cameraTargetLat="0.0"
                 app:maplibre_cameraTargetLng="0.0"
                 app:maplibre_cameraZoom="2"
                 app:maplibre_styleUrl="asset://style.json" />
 
-        </androidx.constraintlayout.widget.ConstraintLayout>
+            <!-- POI drawer (read-only template). Inflated optionally; the
+                 annotate template strips this include via the file-presence
+                 check in MainActivity. -->
+            <include layout="@layout/poi_drawer" />
+
+        </androidx.coordinatorlayout.widget.CoordinatorLayout>
+    """.trimIndent()
+
+    /**
+     * POI bottom drawer. A standard Material BottomSheet with a draggable
+     * header and a `RecyclerView` of nearest places. Layout sits on top of
+     * the map and behaves under `BottomSheetBehavior` — peek at 56 dp,
+     * expanded shows the list.
+     */
+    private fun poiDrawerLayout(): String = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            android:id="@+id/poi_drawer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/colorSurface"
+            android:elevation="6dp"
+            android:orientation="vertical"
+            app:behavior_hideable="false"
+            app:behavior_peekHeight="56dp"
+            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+
+            <!-- Drag handle -->
+            <View
+                android:layout_width="32dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="4dp"
+                android:background="?attr/colorOutline" />
+
+            <TextView
+                android:id="@+id/poi_drawer_title"
+                style="@style/TextAppearance.Material3.TitleSmall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="8dp"
+                android:text="Nearest places"
+                android:textColor="?attr/colorOnSurface" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/poi_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingHorizontal="16dp" />
+
+        </LinearLayout>
+    """.trimIndent()
+
+    /**
+     * Sample POI dataset shipped with the read-only template. Five rows
+     * around Lalibela, Ethiopia (mission-relevant test region — see plan
+     * §3 personas). Real downloads via the wizard's Wikipedia REST geosearch
+     * replace this file at scaffold time once Q1 is unblocked.
+     */
+    private fun samplePoisJson(): String = """
+        [
+          {
+            "name": "Lalibela",
+            "lat": 12.0319, "lon": 39.0467,
+            "category": "place=town",
+            "description": "Town in northern Ethiopia famous for its rock-hewn churches.",
+            "source_url": "https://en.wikipedia.org/wiki/Lalibela"
+          },
+          {
+            "name": "Bete Giyorgis",
+            "lat": 12.0312, "lon": 39.0426,
+            "category": "historic=monument",
+            "description": "Rock-hewn church carved in the 12th–13th century.",
+            "source_url": "https://en.wikipedia.org/wiki/Church_of_Saint_George,_Lalibela"
+          },
+          {
+            "name": "Bete Medhane Alem",
+            "lat": 12.0339, "lon": 39.0455,
+            "category": "historic=monument",
+            "description": "The largest of the Lalibela rock-hewn churches.",
+            "source_url": "https://en.wikipedia.org/wiki/Bete_Medhane_Alem"
+          },
+          {
+            "name": "Lalibela Airport",
+            "lat": 11.9779, "lon": 38.9796,
+            "category": "aeroway=aerodrome",
+            "description": "Regional airport (LLI) serving Lalibela.",
+            "source_url": "https://en.wikipedia.org/wiki/Lalibela_Airport"
+          },
+          {
+            "name": "Asheton Maryam Monastery",
+            "lat": 12.0517, "lon": 39.0700,
+            "category": "amenity=place_of_worship",
+            "description": "Mountaintop monastery overlooking Lalibela.",
+            "source_url": "https://en.wikipedia.org/wiki/Asheton_Maryam_Monastery"
+          }
+        ]
     """.trimIndent()
 
     /**
@@ -319,83 +429,155 @@ internal object MapTemplateBuilder {
      * read-only template doesn't move the camera dynamically; C6's
      * annotate template will swap to `requestLocationUpdates`.
      */
-    private fun mainActivityKt(@Suppress("UNUSED_PARAMETER") kind: TemplateKind): String = """
-        package {{PACKAGE_NAME}}
+    private fun mainActivityKt(kind: TemplateKind): String {
+        val poiBlock = if (kind == TemplateKind.READONLY) """
 
-        import android.Manifest
-        import android.content.pm.PackageManager
-        import android.os.Bundle
-        import androidx.appcompat.app.AppCompatActivity
-        import androidx.core.app.ActivityCompat
-        import androidx.core.content.ContextCompat
-        import com.google.android.gms.location.LocationServices
-        import com.google.android.gms.location.Priority
-        import org.maplibre.android.MapLibre
-        import org.maplibre.android.camera.CameraPosition
-        import org.maplibre.android.geometry.LatLng
-        import org.maplibre.android.maps.MapView
-        import org.maplibre.android.maps.MapLibreMap
+            // ----- POI loading + drawer (read-only template only) -----
 
-        class MainActivity : AppCompatActivity() {
+            private val pois = mutableListOf<Poi>()
 
-            private lateinit var mapView: MapView
-            private var map: MapLibreMap? = null
-
-            private val locationPermissionRequest = registerForActivityResult(
-                androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-            ) { granted ->
-                if (granted) centerOnUser()
-            }
-
-            override fun onCreate(savedInstanceState: Bundle?) {
-                super.onCreate(savedInstanceState)
-                MapLibre.getInstance(this)
-                setContentView(R.layout.activity_main)
-
-                mapView = findViewById(R.id.mapView)
-                mapView.onCreate(savedInstanceState)
-                mapView.getMapAsync { m ->
-                    map = m
-                    centerOnUser()
+            private fun loadPois() {
+                val text = assets.open("pois.json").bufferedReader().use { it.readText() }
+                val arr = org.json.JSONArray(text)
+                pois.clear()
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    pois += Poi(
+                        name = o.optString("name"),
+                        lat = o.optDouble("lat"),
+                        lon = o.optDouble("lon"),
+                        description = o.optString("description")
+                    )
                 }
             }
 
-            private fun centerOnUser() {
-                val granted = ContextCompat.checkSelfPermission(
-                    this, Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-                if (!granted) {
-                    locationPermissionRequest.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    return
+            private fun setupPoiDrawer() {
+                val list = findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.poi_list)
+                list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+                list.adapter = PoiAdapter(pois) { poi ->
+                    map?.cameraPosition = org.maplibre.android.camera.CameraPosition.Builder()
+                        .target(org.maplibre.android.geometry.LatLng(poi.lat, poi.lon))
+                        .zoom(15.0)
+                        .build()
                 }
-                val client = LocationServices.getFusedLocationProviderClient(this)
-                client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
-                    .addOnSuccessListener { loc ->
-                        loc ?: return@addOnSuccessListener
-                        map?.cameraPosition = CameraPosition.Builder()
-                            .target(LatLng(loc.latitude, loc.longitude))
-                            .zoom(14.0)
-                            .build()
+            }
+
+            private data class Poi(
+                val name: String,
+                val lat: Double,
+                val lon: Double,
+                val description: String
+            )
+
+            private class PoiAdapter(
+                private val items: List<Poi>,
+                private val onClick: (Poi) -> Unit
+            ) : androidx.recyclerview.widget.RecyclerView.Adapter<PoiAdapter.VH>() {
+                class VH(val v: android.view.View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(v)
+                override fun onCreateViewHolder(p: android.view.ViewGroup, vt: Int): VH {
+                    val tv = android.widget.TextView(p.context).apply {
+                        setPadding(0, 24, 0, 24)
                     }
+                    return VH(tv)
+                }
+                override fun getItemCount() = items.size
+                override fun onBindViewHolder(h: VH, pos: Int) {
+                    val poi = items[pos]
+                    (h.v as android.widget.TextView).text =
+                        "${'$'}{poi.name}\n${'$'}{poi.description}"
+                    h.v.setOnClickListener { onClick(poi) }
+                }
             }
+        """.trimIndent() else ""
 
-            override fun onStart() { super.onStart(); mapView.onStart() }
-            override fun onResume() { super.onResume(); mapView.onResume() }
-            override fun onPause() { super.onPause(); mapView.onPause() }
-            override fun onStop() { super.onStop(); mapView.onStop() }
-            override fun onLowMemory() { super.onLowMemory(); mapView.onLowMemory() }
-            override fun onDestroy() { super.onDestroy(); mapView.onDestroy() }
-            override fun onSaveInstanceState(outState: Bundle) {
-                super.onSaveInstanceState(outState)
-                mapView.onSaveInstanceState(outState)
+        val poiInit = if (kind == TemplateKind.READONLY) """
+                loadPois()
+                setupPoiDrawer()
+        """.trimIndent() else ""
+
+        return """
+            package {{PACKAGE_NAME}}
+
+            import android.Manifest
+            import android.content.pm.PackageManager
+            import android.os.Bundle
+            import androidx.appcompat.app.AppCompatActivity
+            import androidx.core.app.ActivityCompat
+            import androidx.core.content.ContextCompat
+            import com.google.android.gms.location.LocationServices
+            import com.google.android.gms.location.Priority
+            import org.maplibre.android.MapLibre
+            import org.maplibre.android.camera.CameraPosition
+            import org.maplibre.android.geometry.LatLng
+            import org.maplibre.android.maps.MapView
+            import org.maplibre.android.maps.MapLibreMap
+
+            class MainActivity : AppCompatActivity() {
+
+                private lateinit var mapView: MapView
+                private var map: MapLibreMap? = null
+
+                private val locationPermissionRequest = registerForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+                ) { granted ->
+                    if (granted) centerOnUser()
+                }
+
+                override fun onCreate(savedInstanceState: Bundle?) {
+                    super.onCreate(savedInstanceState)
+                    MapLibre.getInstance(this)
+                    setContentView(R.layout.activity_main)
+
+                    mapView = findViewById(R.id.mapView)
+                    mapView.onCreate(savedInstanceState)
+                    mapView.getMapAsync { m ->
+                        map = m
+                        centerOnUser()
+                    }
+                    $poiInit
+                }
+
+                private fun centerOnUser() {
+                    val granted = ContextCompat.checkSelfPermission(
+                        this, Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (!granted) {
+                        locationPermissionRequest.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        return
+                    }
+                    val client = LocationServices.getFusedLocationProviderClient(this)
+                    client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+                        .addOnSuccessListener { loc ->
+                            loc ?: return@addOnSuccessListener
+                            map?.cameraPosition = CameraPosition.Builder()
+                                .target(LatLng(loc.latitude, loc.longitude))
+                                .zoom(14.0)
+                                .build()
+                        }
+                }
+
+                override fun onStart() { super.onStart(); mapView.onStart() }
+                override fun onResume() { super.onResume(); mapView.onResume() }
+                override fun onPause() { super.onPause(); mapView.onPause() }
+                override fun onStop() { super.onStop(); mapView.onStop() }
+                override fun onLowMemory() { super.onLowMemory(); mapView.onLowMemory() }
+                override fun onDestroy() { super.onDestroy(); mapView.onDestroy() }
+                override fun onSaveInstanceState(outState: Bundle) {
+                    super.onSaveInstanceState(outState)
+                    mapView.onSaveInstanceState(outState)
+                }
+                $poiBlock
             }
-        }
-    """.trimIndent()
+        """.trimIndent()
+    }
 
     /**
      * Java sibling of [mainActivityKt] for projects scaffolded with Java
-     * selected in the wizard. The two are kept identical in behaviour;
-     * `ZipRecipeExecutor` skips the wrong-language file at scaffold time.
+     * selected in the wizard. `ZipRecipeExecutor` skips the wrong-language
+     * file at scaffold time. The Java sibling intentionally omits the C5
+     * POI drawer to keep the file readable for someone learning Android in
+     * Java; the README directs them at the Kotlin file as the authoritative
+     * source for the drawer pattern.
      */
     private fun mainActivityJava(@Suppress("UNUSED_PARAMETER") kind: TemplateKind): String = """
         package {{PACKAGE_NAME}};

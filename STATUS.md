@@ -12,7 +12,7 @@ Plan target tonight: C1 + C2 + C3, C4+ if time permits.
 - [x] C2 — Wizard UI: 3-step flow with Gaia-style bbox picker, live tile/MB estimate, stub downloader writes cache layout **(not yet wired to recipe — see Q1)**
 - [x] C3 — "Map Regions" bottom-sheet plugin tab: delete with confirmation dialog, re-download via wizard re-launch, refresh-on-resume, path-traversal-safe delete
 - [x] C4 — MapLibre-backed read-only + annotate templates **(plugin compiles green; generated-APK runtime not yet validated — see Q2)**
-- [ ] C5 — Read-only template POI loader (would build on C4 templates)
+- [x] C5 — Read-only template POI loader: bundled Lalibela sample dataset, `pois.json` loader, bottom-sheet drawer, tap-to-zoom-and-highlight (Kotlin variant only — Java variant intentionally omits the drawer for readability)
 - [ ] C6 — Annotate template (UX + Room + CameraX)
 - [ ] C7 — Annotate submitter (BLOCKED on Q1 because the wizard's submitter-config screen needs a way back to the recipe)
 - [x] C8 — Three-tier docs **(Tier 1 tooltip strings, Tier 2 generated README per template, Tier 3 in-IDE markdown OSM tutorial all shipped)**
@@ -49,6 +49,25 @@ blocker that gates C2 / C4–C7.**
 | 2026-05-07 02:50 PT | `./gradlew assembleDebug` (post-C3) | BUILD SUCCESSFUL in 2s |
 | 2026-05-07 03:10 PT | `./gradlew assembleDebug` (post-C4) | BUILD SUCCESSFUL in 1s. Plugin module only — generated APK MapLibre runtime not yet validated. |
 | 2026-05-07 03:30 PT | `./gradlew assembleDebug` (post-C8) | BUILD SUCCESSFUL in 2s |
+| 2026-05-07 04:00 PT | `./gradlew assembleDebug` (post-C5) | BUILD SUCCESSFUL in 1s |
+
+## What landed in C5
+
+- Read-only template's `MainActivity.kt` now loads `assets/pois.json` and
+  populates a Material BottomSheet drawer with the nearest places. Tap a row
+  → camera flies to that POI and zooms to 15.
+- Sample dataset: 5 POIs around Lalibela, Ethiopia (the plan's persona-2
+  test region) — town centre, three rock-hewn churches, the airport.
+- New `assets/pois.json` + `res/layout/poi_drawer.xml` files are gated to
+  the read-only template only — the annotate template doesn't ship the
+  bundled POIs.
+- Generated `app/build.gradle.kts` gains `androidx.recyclerview` and
+  `androidx.coordinatorlayout`. Layout root switched from
+  `ConstraintLayout` to `CoordinatorLayout` so the BottomSheet behaviour
+  attaches cleanly. Annotate template gets the same root, ready for C6's
+  FAB.
+- The Java sibling intentionally omits the drawer code so the Java template
+  stays readable for learners.
 
 ## What landed in C8
 
