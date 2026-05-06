@@ -288,6 +288,15 @@ class RecentProjectsAdapter(
                 positiveButton.isEnabled = false
             }
 
+            newName.contains('/') ||
+                newName.contains('\\') ||
+                newName.contains(File.separatorChar) ||
+                newName == "." ||
+                newName == ".." -> {
+                inputLayout.error = dialog.context.getString(R.string.msg_invalid_name)
+                positiveButton.isEnabled = false
+            }
+
             newName != oldName && nameExists(newName) -> {
                 inputLayout.error =
                     dialog.context.getString(R.string.msg_current_name_unavailable)
