@@ -1,9 +1,9 @@
 package com.appdevforall.forms.plugin.wizard
 
-import android.util.Xml
 import com.appdevforall.forms.plugin.FieldType
 import com.appdevforall.forms.plugin.FormField
 import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
 
 /**
@@ -50,8 +50,9 @@ internal object CvLayoutParser {
     fun parse(layoutXml: String): List<FormField> {
         if (layoutXml.isBlank()) return emptyList()
         return try {
-            val parser = Xml.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
+            val factory = XmlPullParserFactory.newInstance()
+            factory.isNamespaceAware = true
+            val parser = factory.newPullParser()
             parser.setInput(StringReader(layoutXml))
             walk(parser)
         } catch (t: Throwable) {
