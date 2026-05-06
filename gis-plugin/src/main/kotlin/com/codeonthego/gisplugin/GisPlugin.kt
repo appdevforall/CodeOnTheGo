@@ -2,7 +2,7 @@ package com.codeonthego.gisplugin
 
 import androidx.fragment.app.Fragment
 import com.codeonthego.gisplugin.region.RegionManagerFragment
-import com.codeonthego.gisplugin.templates.StubTemplateBuilder
+import com.codeonthego.gisplugin.templates.MapTemplateBuilder
 import com.codeonthego.gisplugin.wizard.WizardLauncher
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
@@ -70,7 +70,7 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
                 mkdirs()
             }
 
-            val registered = StubTemplateBuilder.buildAndRegister(
+            val registered = MapTemplateBuilder.buildAndRegister(
                 ctx = context,
                 templateService = templateService,
                 outputDir = cgtOutputDir

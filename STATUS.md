@@ -11,10 +11,10 @@ Plan target tonight: C1 + C2 + C3, C4+ if time permits.
 - [x] C1 — Plugin scaffolding + stub templates **(modified — see Q1 in QUESTIONS.md)**
 - [x] C2 — Wizard UI: 3-step flow with Gaia-style bbox picker, live tile/MB estimate, stub downloader writes cache layout **(not yet wired to recipe — see Q1)**
 - [x] C3 — "Map Regions" bottom-sheet plugin tab: delete with confirmation dialog, re-download via wizard re-launch, refresh-on-resume, path-traversal-safe delete
-- [ ] C4 — Read-only template (MapLibre core) (BLOCKED on Q1)
-- [ ] C5 — Read-only template POI loader (BLOCKED on Q1)
-- [ ] C6 — Annotate template (BLOCKED on Q1)
-- [ ] C7 — Annotate submitter (BLOCKED on Q1)
+- [x] C4 — MapLibre-backed read-only + annotate templates **(plugin compiles green; generated-APK runtime not yet validated — see Q2)**
+- [ ] C5 — Read-only template POI loader (would build on C4 templates)
+- [ ] C6 — Annotate template (UX + Room + CameraX)
+- [ ] C7 — Annotate submitter (BLOCKED on Q1 because the wizard's submitter-config screen needs a way back to the recipe)
 - [ ] C8 — Three-tier docs (partial — Tier 1 tooltip strings shipped in C1)
 
 ## What landed in C1
@@ -47,6 +47,27 @@ blocker that gates C2 / C4–C7.**
 | 2026-05-07 01:12 PT | `./gradlew assemblePluginDebug` | BUILD SUCCESSFUL; `gis-plugin-debug.cgp` written to `build/plugin/` |
 | 2026-05-07 02:25 PT | `./gradlew assembleDebug` (post-C2) | BUILD SUCCESSFUL in 4s |
 | 2026-05-07 02:50 PT | `./gradlew assembleDebug` (post-C3) | BUILD SUCCESSFUL in 2s |
+| 2026-05-07 03:10 PT | `./gradlew assembleDebug` (post-C4) | BUILD SUCCESSFUL in 1s. Plugin module only — generated APK MapLibre runtime not yet validated. |
+
+## What landed in C4
+
+- New `MapTemplateBuilder` replaces the C1 stub. Both registered templates
+  now scaffold an Android project that compiles MapLibre Native 11.11.0,
+  Material 3, AppCompat, Play Services Location.
+- Generated `MainActivity.kt` and `MainActivity.java` initialise MapLibre,
+  forward all 8 lifecycle events into the `MapView` (per upstream docs —
+  skipping any leaks GPU memory), and centre the camera on the user's
+  GPS fix via `FusedLocationProviderClient.getCurrentLocation`.
+- Generated `activity_main.xml` uses `org.maplibre.android.maps.MapView`
+  (the post-rebrand class — older docs still reference the
+  `com.mapbox.mapboxsdk.maps.MapView` Mapbox class).
+- Generated `assets/style.json` is a tiny raster style hitting MapLibre's
+  demo tile server. Sufficient for "map renders" smoke testing; the real
+  offline-mbtiles-bundle wire-up is logged in `QUESTIONS.md` Q3.
+- Annotate template manifest declares `CAMERA` permission and the
+  `android.hardware.camera` feature so first-launch UX surfaces it before
+  C6's photo-capture flow lands.
+- Old `StubTemplateBuilder` deleted now that real templates ship.
 
 ## What landed in C3
 

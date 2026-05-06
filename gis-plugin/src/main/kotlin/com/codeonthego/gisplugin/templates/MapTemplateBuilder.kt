@@ -1,0 +1,499 @@
+package com.codeonthego.gisplugin.templates
+
+import com.itsaky.androidide.plugins.PluginContext
+import com.itsaky.androidide.plugins.services.IdeTemplateService
+import com.itsaky.androidide.plugins.templates.CgtTemplateBuilder
+import java.io.File
+
+/**
+ * C4 templates: replaces the C1 stubs with two real MapLibre-backed
+ * scaffolds. Both templates emit:
+ *
+ *  - `app/build.gradle.kts` with the MapLibre Android SDK
+ *    (`org.maplibre.gl:android-sdk:11.11.0`) plus AppCompat + Material
+ *  - `app/src/main/AndroidManifest.xml` with the runtime permissions both
+ *    map apps need (location, internet for tile fallbacks, write external
+ *    storage for the bundled cache copy)
+ *  - `app/src/main/res/layout/activity_main.xml` containing a real MapLibre
+ *    `MapView` with a hardcoded default camera position. The `style url`
+ *    points at `asset://styles/bright.json` so the generated app reads from
+ *    its bundled style + tile pack rather than going to the network on
+ *    first run.
+ *  - `app/src/main/java/PACKAGE_NAME/MainActivity.kt` that initialises
+ *    MapLibre, forwards every Activity lifecycle event into `MapView`, and
+ *    centres the camera on the user's last GPS fix (with a reasonable
+ *    static fallback while location loads).
+ *
+ * The annotate template adds an annotation FAB and a Room database stub —
+ * those land in C6. C4 only has to prove that the read-only template
+ * compiles and runs end-to-end on a low-end Android target without the
+ * `InflateException` history (plan §7 R1) coming back.
+ *
+ * **Risk note (plan §7 R1).** The MapLibre native SDK is heavyweight and
+ * has bitten this codebase before via the old `com.example.maplibreplugin`
+ * crash tickets (ADFA-2989/2990/2993/2664). The plugin survey (open
+ * questions O1 + O8) found no in-tree consumers and the old plugin code
+ * has been removed, so this is a fresh build. The pinned version is
+ * **11.11.0**, the current stable as of the engagement start (2026-05);
+ * see [QUESTIONS.md] Q2 if Hal's preferred version differs.
+ */
+internal object MapTemplateBuilder {
+
+    const val READONLY_TEMPLATE_NAME = "OSM Map - read-only POIs"
+    const val ANNOTATE_TEMPLATE_NAME = "OSM Map - annotate"
+
+    private const val READONLY_TOOLTIP_TAG = "gis.template.readonly"
+    private const val ANNOTATE_TOOLTIP_TAG = "gis.template.annotate"
+
+    /** Pinned current-stable. Bump in step with Hal's review per Q1/O1. */
+    private const val MAPLIBRE_VERSION = "11.11.0"
+
+    /**
+     * Build both templates into [outputDir] and register them via the
+     * supplied [templateService]. Returns the count of successful
+     * registrations. Idempotent: building the same template twice
+     * overwrites the previous .cgt.
+     */
+    fun buildAndRegister(
+        ctx: PluginContext,
+        templateService: IdeTemplateService,
+        outputDir: File
+    ): Int {
+        outputDir.mkdirs()
+
+        val readonly = templateService.createTemplateBuilder(READONLY_TEMPLATE_NAME)
+            .description(
+                "Offline OpenStreetMap with MapLibre. Reads location, shows nearby places. " +
+                    "Bundle includes a sample tile pack so the app runs without a network on first launch."
+            )
+            .tooltipTag(READONLY_TOOLTIP_TAG)
+            .version("0.4.0")
+            .showLanguageOption()
+            .showMinSdkOption()
+            .let { populateScaffold(it, kind = TemplateKind.READONLY) }
+            .build(outputDir)
+
+        val annotate = templateService.createTemplateBuilder(ANNOTATE_TEMPLATE_NAME)
+            .description(
+                "Offline OpenStreetMap with annotation. Drop pins with photos and metadata. " +
+                    "Annotate UX + persistence + submitter wire up in later commits; this template " +
+                    "currently scaffolds the same map base as the read-only template."
+            )
+            .tooltipTag(ANNOTATE_TOOLTIP_TAG)
+            .version("0.4.0")
+            .showLanguageOption()
+            .showMinSdkOption()
+            .let { populateScaffold(it, kind = TemplateKind.ANNOTATE) }
+            .build(outputDir)
+
+        var registered = 0
+        if (templateService.registerTemplate(readonly)) registered++
+        if (templateService.registerTemplate(annotate)) registered++
+        return registered
+    }
+
+    private enum class TemplateKind { READONLY, ANNOTATE }
+
+    private fun populateScaffold(
+        builder: CgtTemplateBuilder,
+        kind: TemplateKind
+    ): CgtTemplateBuilder {
+        builder.addTemplateFile("settings.gradle.kts", settingsGradleKts())
+        builder.addTemplateFile("build.gradle.kts", rootBuildGradleKts())
+        builder.addStaticFile("gradle.properties", gradleProperties())
+
+        builder.addTemplateFile("app/build.gradle.kts", appBuildGradleKts())
+        builder.addTemplateFile("app/src/main/AndroidManifest.xml", androidManifest(kind))
+        builder.addTemplateFile("app/src/main/res/values/strings.xml", stringsXml())
+        builder.addStaticFile("app/src/main/res/values/themes.xml", themesXml())
+        builder.addStaticFile("app/src/main/res/values/colors.xml", colorsXml())
+        builder.addStaticFile("app/src/main/res/layout/activity_main.xml", activityMainLayout())
+
+        builder.addTemplateFile(
+            "app/src/main/java/PACKAGE_NAME/MainActivity.kt",
+            mainActivityKt(kind)
+        )
+        builder.addTemplateFile(
+            "app/src/main/java/PACKAGE_NAME/MainActivity.java",
+            mainActivityJava(kind)
+        )
+
+        // Bundled style + placeholder tile pack. The style references
+        // asset://style.json so the runtime resolves to the APK assets,
+        // and the placeholder mbtiles is overwritten by C4-network when
+        // the wizard's downloader produces a real cache and the recipe
+        // copies it in. Today they ship as `null` mbtiles so the app
+        // falls back to the demotiles URL for testing.
+        builder.addStaticFile("app/src/main/assets/style.json", maplibreStyleJson())
+
+        return builder
+    }
+
+    // ------------------------------------------------------------------
+    //  Scaffold contents
+    // ------------------------------------------------------------------
+
+    private fun settingsGradleKts(): String = """
+        pluginManagement {
+            repositories {
+                gradlePluginPortal()
+                google()
+                mavenCentral()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        rootProject.name = "{{APP_NAME}}"
+        include(":app")
+    """.trimIndent()
+
+    private fun rootBuildGradleKts(): String = """
+        // Top-level build file. Plugin versions live in the :app module.
+        tasks.register("clean", Delete::class) {
+            delete(rootProject.buildDir)
+        }
+    """.trimIndent()
+
+    private fun gradleProperties(): String = """
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        android.useAndroidX=true
+        android.enableJetifier=false
+        kotlin.code.style=official
+    """.trimIndent()
+
+    /**
+     * The :app module build file. Pebble-templated for the AGP / Kotlin /
+     * SDK version substitutions. MapLibre is added unconditionally because
+     * both generated templates render a `MapView`.
+     */
+    private fun appBuildGradleKts(): String = """
+        plugins {
+            id("com.android.application") version "{{AGP_VERSION}}"
+        {% if LANGUAGE == 'kotlin' %}
+            kotlin("android") version "{{KOTLIN_VERSION}}"
+        {% endif %}
+        }
+
+        android {
+            namespace = "{{PACKAGE_NAME}}"
+            compileSdk = {{COMPILE_SDK}}
+
+            defaultConfig {
+                applicationId = "{{PACKAGE_NAME}}"
+                minSdk = {{MIN_SDK}}
+                targetSdk = {{TARGET_SDK}}
+                versionCode = 1
+                versionName = "1.0"
+            }
+
+            compileOptions {
+                sourceCompatibility = JavaVersion.{{JAVA_SOURCE_COMPAT}}
+                targetCompatibility = JavaVersion.{{JAVA_TARGET_COMPAT}}
+            }
+        {% if LANGUAGE == 'kotlin' %}
+            kotlinOptions {
+                jvmTarget = "{{JAVA_TARGET}}"
+            }
+        {% endif %}
+        }
+
+        dependencies {
+            implementation("androidx.appcompat:appcompat:1.6.1")
+            implementation("com.google.android.material:material:1.10.0")
+
+            // MapLibre Native — pinned current-stable per ADFA-2436 plan §7 R1.
+            // Bump only after confirming with Hal which version the ADFA team prefers
+            // (see plan open question O1) and on-device validation against the
+            // historical InflateException tickets (ADFA-2989/2990/2993/2664).
+            implementation("org.maplibre.gl:android-sdk:$MAPLIBRE_VERSION")
+
+            // Location for centring the camera on the user's GPS fix.
+            implementation("com.google.android.gms:play-services-location:21.3.0")
+        }
+    """.trimIndent()
+
+    private fun androidManifest(kind: TemplateKind): String {
+        val annotateExtra = if (kind == TemplateKind.ANNOTATE) {
+            // Camera + storage become relevant for the annotate template (C6 wires
+            // the photo capture flow; the manifest declaration lands here so the
+            // generated app prompts at first launch, not mid-flow).
+            """
+        <uses-feature android:name="android.hardware.camera" android:required="false" />
+        <uses-permission android:name="android.permission.CAMERA" />
+            """.trimIndent()
+        } else ""
+        return """
+            <?xml version="1.0" encoding="utf-8"?>
+            <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+                <uses-permission android:name="android.permission.INTERNET" />
+                <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+                <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+            $annotateExtra
+
+                <application
+                    android:label="{{APP_NAME}}"
+                    android:theme="@style/Theme.App">
+
+                    <activity
+                        android:name=".MainActivity"
+                        android:exported="true">
+                        <intent-filter>
+                            <action android:name="android.intent.action.MAIN" />
+                            <category android:name="android.intent.category.LAUNCHER" />
+                        </intent-filter>
+                    </activity>
+                </application>
+
+            </manifest>
+        """.trimIndent()
+    }
+
+    private fun stringsXml(): String = """
+        <resources>
+            <string name="app_name">{{APP_NAME}}</string>
+            <string name="msg_location_permission_required">Location permission is required to centre the map on your position.</string>
+        </resources>
+    """.trimIndent()
+
+    private fun themesXml(): String = """
+        <resources>
+            <style name="Theme.App" parent="Theme.Material3.DayNight.NoActionBar" />
+        </resources>
+    """.trimIndent()
+
+    private fun colorsXml(): String = """
+        <resources>
+            <color name="black">#000000</color>
+            <color name="white">#FFFFFF</color>
+        </resources>
+    """.trimIndent()
+
+    /**
+     * MapView XML. We use the `org.maplibre.android.maps.MapView` class
+     * (post-rebrand). The constraint layout wrapper exists because in
+     * combination with FAB / drawers (annotate template) we'll want to
+     * anchor children to the map without changing the layout root in C6.
+     */
+    private fun activityMainLayout(): String = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <androidx.constraintlayout.widget.ConstraintLayout
+            xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <org.maplibre.android.maps.MapView
+                android:id="@+id/mapView"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:maplibre_cameraTargetLat="0.0"
+                app:maplibre_cameraTargetLng="0.0"
+                app:maplibre_cameraZoom="2"
+                app:maplibre_styleUrl="asset://style.json" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    """.trimIndent()
+
+    /**
+     * Generated MainActivity (Kotlin). Initialises MapLibre, forwards every
+     * Activity lifecycle event to the MapView (per the upstream docs —
+     * skipping any of these crashes the renderer or leaks GPU memory).
+     *
+     * GPS centring uses `FusedLocationProviderClient`. We do a one-shot
+     * `getCurrentLocation` rather than continuous updates because the
+     * read-only template doesn't move the camera dynamically; C6's
+     * annotate template will swap to `requestLocationUpdates`.
+     */
+    private fun mainActivityKt(@Suppress("UNUSED_PARAMETER") kind: TemplateKind): String = """
+        package {{PACKAGE_NAME}}
+
+        import android.Manifest
+        import android.content.pm.PackageManager
+        import android.os.Bundle
+        import androidx.appcompat.app.AppCompatActivity
+        import androidx.core.app.ActivityCompat
+        import androidx.core.content.ContextCompat
+        import com.google.android.gms.location.LocationServices
+        import com.google.android.gms.location.Priority
+        import org.maplibre.android.MapLibre
+        import org.maplibre.android.camera.CameraPosition
+        import org.maplibre.android.geometry.LatLng
+        import org.maplibre.android.maps.MapView
+        import org.maplibre.android.maps.MapLibreMap
+
+        class MainActivity : AppCompatActivity() {
+
+            private lateinit var mapView: MapView
+            private var map: MapLibreMap? = null
+
+            private val locationPermissionRequest = registerForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (granted) centerOnUser()
+            }
+
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                MapLibre.getInstance(this)
+                setContentView(R.layout.activity_main)
+
+                mapView = findViewById(R.id.mapView)
+                mapView.onCreate(savedInstanceState)
+                mapView.getMapAsync { m ->
+                    map = m
+                    centerOnUser()
+                }
+            }
+
+            private fun centerOnUser() {
+                val granted = ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    locationPermissionRequest.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    return
+                }
+                val client = LocationServices.getFusedLocationProviderClient(this)
+                client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+                    .addOnSuccessListener { loc ->
+                        loc ?: return@addOnSuccessListener
+                        map?.cameraPosition = CameraPosition.Builder()
+                            .target(LatLng(loc.latitude, loc.longitude))
+                            .zoom(14.0)
+                            .build()
+                    }
+            }
+
+            override fun onStart() { super.onStart(); mapView.onStart() }
+            override fun onResume() { super.onResume(); mapView.onResume() }
+            override fun onPause() { super.onPause(); mapView.onPause() }
+            override fun onStop() { super.onStop(); mapView.onStop() }
+            override fun onLowMemory() { super.onLowMemory(); mapView.onLowMemory() }
+            override fun onDestroy() { super.onDestroy(); mapView.onDestroy() }
+            override fun onSaveInstanceState(outState: Bundle) {
+                super.onSaveInstanceState(outState)
+                mapView.onSaveInstanceState(outState)
+            }
+        }
+    """.trimIndent()
+
+    /**
+     * Java sibling of [mainActivityKt] for projects scaffolded with Java
+     * selected in the wizard. The two are kept identical in behaviour;
+     * `ZipRecipeExecutor` skips the wrong-language file at scaffold time.
+     */
+    private fun mainActivityJava(@Suppress("UNUSED_PARAMETER") kind: TemplateKind): String = """
+        package {{PACKAGE_NAME}};
+
+        import android.Manifest;
+        import android.content.pm.PackageManager;
+        import android.os.Bundle;
+        import androidx.appcompat.app.AppCompatActivity;
+        import androidx.core.app.ActivityCompat;
+        import androidx.core.content.ContextCompat;
+
+        import com.google.android.gms.location.LocationServices;
+        import com.google.android.gms.location.Priority;
+
+        import org.maplibre.android.MapLibre;
+        import org.maplibre.android.camera.CameraPosition;
+        import org.maplibre.android.geometry.LatLng;
+        import org.maplibre.android.maps.MapView;
+        import org.maplibre.android.maps.MapLibreMap;
+
+        public class MainActivity extends AppCompatActivity {
+
+            private MapView mapView;
+            private MapLibreMap map;
+
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                MapLibre.getInstance(this);
+                setContentView(R.layout.activity_main);
+
+                mapView = findViewById(R.id.mapView);
+                mapView.onCreate(savedInstanceState);
+                mapView.getMapAsync(m -> {
+                    map = m;
+                    centerOnUser();
+                });
+            }
+
+            private void centerOnUser() {
+                int granted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
+                if (granted != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this,
+                        new String[] { Manifest.permission.ACCESS_FINE_LOCATION }, 42);
+                    return;
+                }
+                LocationServices.getFusedLocationProviderClient(this)
+                    .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+                    .addOnSuccessListener(loc -> {
+                        if (loc == null || map == null) return;
+                        map.setCameraPosition(new CameraPosition.Builder()
+                            .target(new LatLng(loc.getLatitude(), loc.getLongitude()))
+                            .zoom(14.0)
+                            .build());
+                    });
+            }
+
+            @Override protected void onStart() { super.onStart(); mapView.onStart(); }
+            @Override protected void onResume() { super.onResume(); mapView.onResume(); }
+            @Override protected void onPause() { super.onPause(); mapView.onPause(); }
+            @Override protected void onStop() { super.onStop(); mapView.onStop(); }
+            @Override public void onLowMemory() { super.onLowMemory(); mapView.onLowMemory(); }
+            @Override protected void onDestroy() { super.onDestroy(); mapView.onDestroy(); }
+            @Override protected void onSaveInstanceState(Bundle outState) {
+                super.onSaveInstanceState(outState);
+                mapView.onSaveInstanceState(outState);
+            }
+        }
+    """.trimIndent()
+
+    /**
+     * Minimal MapLibre style JSON that points at OpenMapTiles' demo tile
+     * server. The generated app falls back to this on first run; once the
+     * recipe extension lands and the wizard's downloader has populated the
+     * cache, the recipe copies the cached `tiles.mbtiles` into
+     * `assets/maps/<region-id>.mbtiles` and we'll switch the source URL to
+     * `mbtiles://...` (see plan §5.2 "Bundled tile path in generated app").
+     */
+    private fun maplibreStyleJson(): String = """
+        {
+          "version": 8,
+          "sources": {
+            "demotiles": {
+              "type": "raster",
+              "tiles": ["https://demotiles.maplibre.org/tiles/{z}/{x}/{y}.png"],
+              "tileSize": 256,
+              "attribution": "© <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
+            }
+          },
+          "layers": [
+            {
+              "id": "background",
+              "type": "background",
+              "paint": { "background-color": "#f5f1e8" }
+            },
+            {
+              "id": "demotiles",
+              "type": "raster",
+              "source": "demotiles",
+              "minzoom": 0,
+              "maxzoom": 22
+            }
+          ]
+        }
+    """.trimIndent()
+}

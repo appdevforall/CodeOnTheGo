@@ -33,6 +33,51 @@ That model assumes the plugin owns the `TemplateRecipe<ProjectTemplateRecipeResu
 
 > Add a `recipe.class` entry to `template.json`. When present, `ZipTemplateReader` loads the named class via DexClassLoader (using `META-INF/extension.jar`), instantiates it as `TemplateRecipe<ProjectTemplateRecipeResult>`, and uses it in place of (or wrapping) the default `ZipRecipeExecutor`. The plugin's recipe gets the same `RecipeExecutor` (so it can `executor.copy(...)`), can launch a wizard, await results, then either delegate the file-emission to the standard ZipRecipeExecutor with extra Pebble identifiers or write files itself.
 
-**Blocker?** Yes, for the plan as written. **What I'm doing tonight:** scaffold C1 with a *no-wizard stub* CGT (just two templates that scaffold an empty MainActivity, no wizard launch, no MapLibre). This still proves: (a) plugin module builds, (b) `.cgt` files register via `IdeTemplateService`, (c) templates appear in the grid, (d) tap-to-create works end-to-end. C2/C3 can land on top once the recipe extension point exists.
+**Blocker?** Yes, for the plan as written. **What I did tonight:** C1 with a no-wizard stub CGT, then C2 (full wizard UI), C3 (Map Regions tab with delete + re-download), C4 (MapLibre-backed templates). The wizard, Map Regions tab, and MapLibre templates all build green. Once Q1 is unblocked, the recipe → wizard → cache → CGT chain is one wire-up away.
+
+---
+
+## Q2 — MapLibre version pin
+
+The C4 templates pin `org.maplibre.gl:android-sdk:11.11.0` (current stable as of 2026-05). Plan open question O1 asks "What MapLibre Android SDK version did the historical `com.example.maplibreplugin` use?" — the plugin survey (`docs/notes/plugin-survey-answers.md`) confirms no MapLibre code currently lives in tree, so there's no version to match.
+
+**Suggested answer:** Pin 11.11.0 for now. Hal's preferred version (per O1) overrides if different. The pin lives in one place: `MapTemplateBuilder.MAPLIBRE_VERSION` — easy to bump.
+
+**Blocker?** No, but **MapLibre's runtime behaviour in the generated app is not yet validated**. The plugin compiles green, which only proves the CGT contents are syntactically valid Kotlin/Java/Pebble. The generated APK's actual compile against MapLibre 11.11.0 is what could surface the historical `InflateException` (plan §7 R1). Validation requires:
+  1. running the IDE with the plugin installed
+  2. scaffolding a project from one of the templates
+  3. running `./gradlew assembleDebug` in the generated project
+  4. installing on a real low-end device (Galaxy A35/A36 per plan §8)
+
+Without the recipe extension point (Q1), step 2 isn't possible from the IDE today. Workaround: extract the generated project from a built .cgt manually, run gradle, capture any failures. **Not done tonight** — left for a follow-up morning session.
+
+---
+
+## Q3 — Generated app's tile pack source
+
+The C4 read-only template's `assets/style.json` currently points at the public OpenMapTiles demo tile server (`https://demotiles.maplibre.org/tiles/{z}/{x}/{y}.png`). That's:
+  - an internet-required first run (fails the plan's offline-first promise);
+  - a raster source rather than the vector tiles we actually want for the offline pack.
+
+**Plan §5.2 says:** the generated app should read from `mbtiles://...` pointing at `assets/maps/region.mbtiles`, bundled from the wizard's downloaded cache at scaffold time.
+
+**Why I left it on demotiles tonight:**
+  1. with Q1 blocking the recipe extension, there's no way for the plugin to copy a cached region's tiles into the CGT at scaffold time — the scaffold runs before the wizard;
+  2. MapLibre's `mbtiles://` source loader requires the renderer to know how to interpret the bundled bytes; that's a separate plumbing piece (a `MBTilesSource` Java implementation or a third-party loader);
+  3. the demo tile fallback at least lets a human visually confirm the MapView inflated correctly.
+
+**Suggested answer:** Once Q1 is unblocked, the recipe (a) reads the user-selected region's `tiles.mbtiles` from the cache, (b) writes it into the CGT's `assets/maps/region.mbtiles` slot via `addStaticFile`, (c) generates `style.json` with `"sources": {"region": {"type":"vector", "url": "mbtiles://maps/region.mbtiles"}}` and a vector-tile layer stack. The `MBTilesSource` plumbing is a follow-up.
+
+**Blocker?** No, gates final UX of the read-only template only.
+
+---
+
+## Q4 — `core.excludesfile` configured to a sibling worktree's `.gitignore.local`
+
+Independent of ADFA-2436 itself: the shared CodeOnTheGo `.git/config` has `core.excludesfile = /Volumes/Data/Users/bryanchan/dev/appdevforall/worktrees/adfa-2433-xkcd/.gitignore.local`. That file lists `STATUS.md` and `QUESTIONS.md`, which means `git status` ignores them in this worktree too.
+
+**Suggested answer:** Bryan's call. Worth either (a) moving the `.gitignore.local` into a shared location and adding STATUS / QUESTIONS handling per-worktree, or (b) removing the global `core.excludesfile` and keeping per-worktree `.git/info/exclude` instead. **Not touched tonight** — git config edits are user-only per `.claude/rules/security-posture.md`.
+
+**Blocker?** No. Worked around with `git add -f STATUS.md QUESTIONS.md`.
 
 ---
