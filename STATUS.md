@@ -36,7 +36,42 @@ Plan target tonight: C1 + C2 + C3, C4+ if time permits.
 ## Working notes
 
 See `QUESTIONS.md` for unresolved blockers / decisions. **Q1 is the
-blocker that gates C2 / C4–C7.**
+blocker that gates real wiring of templates → recipe → wizard.** Everything
+below the recipe boundary (wizard UI, bbox picker, downloader, cache,
+templates, MapLibre map, POI drawer, docs) ships green.
+
+## Morning checklist (suggested order)
+
+1. **Read `QUESTIONS.md` Q1.** It's the most important finding from tonight.
+   Either confirm the suggested fix (extend `IdeTemplateService` to accept
+   plugin-authored Kotlin recipes) with Daniel/Hal, or pick a different
+   workaround.
+2. **Try the wizard UX manually.** Build & install the .cgp at
+   `gis-plugin/build/plugin/gis-plugin-debug.cgp`, open any project, tap
+   the sidebar "Map wizard (manual launch)" item. You should see the 3
+   steps; downloading writes a stub region into
+   `/sdcard/CodeOnTheGo/maps/`; the bottom-sheet "Map Regions" tab shows
+   it; delete + re-download work. Anything that feels off is signal.
+3. **MapLibre on-device validation (Q2).** Until Q1 is unblocked the
+   easiest way to test the generated APK is: scaffold one of the templates
+   manually by hand-extracting the .cgt and running gradle. Or wait until
+   Q1 is unblocked and use the IDE end-to-end. Either way, the InflateException
+   risk from plan §7 R1 stays open until a Galaxy A35/A36 boots a generated
+   app cleanly.
+4. **Q3 (offline tiles) and Q4 (the gitignore mis-config).** Independent of
+   ADFA-2436 itself; punt these to whenever fits.
+5. **C6 (annotate UX) and C7 (submitter)** are the remaining plan slices.
+   Skipped tonight because they're substantial (CameraX, Room, multipart
+   POST) and largely blocked on Q1. Worth opening as separate sub-tickets
+   so the milestone closes cleanly without these.
+
+## Branch state
+
+  * 7 commits on `feature/ADFA-2436-maps-plugin` ahead of `origin/stage`.
+  * Worktree base is 7 commits behind `origin/stage` — the rebase / merge
+    is left for the morning so any conflicts surface in front of you, not
+    silently overnight.
+  * No push happened. Everything is local.
 
 ## Build verification log
 
