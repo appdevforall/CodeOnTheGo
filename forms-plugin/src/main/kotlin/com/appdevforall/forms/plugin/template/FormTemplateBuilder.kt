@@ -225,7 +225,15 @@ class FormTemplateBuilder(
     }
 
     companion object {
-        const val STATIC_STUB_TEMPLATE_NAME = "Form-filling app from photo"
+        // Keep the stub's templateName distinct from any reasonable
+        // user-chosen app name so an unlucky wizard run doesn't clobber the
+        // stub by accident (CgtTemplateBuilder derives the .cgt filename
+        // from templateName minus non-alphanumerics, so identical names
+        // overwrite each other on registerTemplate). The "(blank stub)"
+        // suffix is also informative — the user-facing card title in the
+        // New Project grid clarifies which template scaffolds a richer app
+        // and which is the placeholder.
+        const val STATIC_STUB_TEMPLATE_NAME = "Form-filling app from photo (blank stub)"
         const val STATIC_STUB_DESCRIPTION =
             "Blank starter for an offline-capable form-data app. Use the Forms wizard " +
                 "from the IDE sidebar to scaffold a richer schema."
