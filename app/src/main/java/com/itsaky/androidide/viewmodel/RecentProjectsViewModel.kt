@@ -55,6 +55,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     private val _deletionStatus = MutableSharedFlow<Boolean>(replay = 1)
     val deletionStatus = _deletionStatus.asSharedFlow()
 
+    private val _renameStatus = MutableSharedFlow<Boolean>()
+    val renameStatus = _renameStatus.asSharedFlow()
+
     // Get the database and DAO instance
     private val recentProjectDatabase: RecentProjectRoomDatabase =
         RecentProjectRoomDatabase.getDatabase(application, viewModelScope)
@@ -127,6 +130,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    fun projectNameExists(name: String): Boolean =
+        allProjects.any { it.name == name }
+
     fun insertProjectFromFolder(name: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
             // Check if the project already exists
@@ -190,21 +196,43 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     }
 
 	fun updateProject(renamedFile: RecentProjectsAdapter.RenamedFile) =
-		updateProject(renamedFile.oldName, renamedFile.newName, renamedFile.newPath)
+		updateProject(
+			renamedFile.oldName,
+			renamedFile.newName,
+			renamedFile.oldPath,
+			renamedFile.newPath
+		)
 
-    fun updateProject(oldName: String, newName: String, location: String) =
+    fun updateProject(
+        oldName: String,
+        newName: String,
+        oldLocation: String,
+        newLocation: String
+    ) =
         viewModelScope.launch(Dispatchers.IO) {
-            val modifiedAt = System.currentTimeMillis().toString()
-            recentProjectDao.updateNameAndLocation(
-                oldName = oldName,
-                newName = newName,
-                newLocation = location
-            )
-            recentProjectDao.updateLastModified(
-                projectName = newName,
-                lastModified = modifiedAt
-            )
-            loadProjects()
+            try {
+                val modifiedAt = System.currentTimeMillis().toString()
+                recentProjectDao.updateNameAndLocation(
+                    oldName = oldName,
+                    newName = newName,
+                    newLocation = newLocation
+                )
+                recentProjectDao.updateLastModified(
+                    projectName = newName,
+                    lastModified = modifiedAt
+                )
+                loadProjects()
+                _renameStatus.emit(true)
+            } catch (e: SQLException) {
+                logger.error("Failed to update project after rename ($oldName -> $newName)", e)
+                val rolledBack = File(newLocation).renameTo(File(oldLocation))
+                if (rolledBack) {
+                    logger.info("Rolled back filesystem rename: $newLocation -> $oldLocation")
+                } else {
+                    logger.error("Rollback failed; filesystem and DB are out of sync (disk=$newLocation, db=$oldLocation)")
+                }
+                _renameStatus.emit(false)
+            }
         }
 
 	fun updateProjectModifiedDate(name: String) =
