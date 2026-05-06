@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp">
+
+    <TextView
+        android:id="@+id/forms_rule_row_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:textColor="@color/forms_text_primary"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/forms_rule_row_type"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/forms_text_secondary"
+        android:textSize="14sp" />
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/forms_rule_row_required"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/forms_wizard_field_required" />
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/forms_rule_row_reusable"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/forms_wizard_field_reusable" />
+</LinearLayout>

@@ -33,8 +33,14 @@ internal object FormsPluginConnector {
         if (this.plugin === plugin) this.plugin = null
     }
 
-    fun deliverCompleted(schema: FormSchema) {
-        plugin?.onWizardCompleted(schema)
+    /**
+     * @return the registered template's filename on success, or null if the
+     *   plugin instance was unbound or registration failed. Callers that need
+     *   to flag the failure to the user should fall through to a generic
+     *   "could not register" toast.
+     */
+    fun deliverCompleted(schema: FormSchema): String? {
+        return plugin?.onWizardCompleted(schema)
     }
 
     fun deliverCanceled() {

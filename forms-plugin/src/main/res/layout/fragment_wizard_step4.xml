@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/forms_wizard_step4_post_enable"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/forms_wizard_submit_label_post" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/forms_wizard_step4_post_url_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="32dp"
+            android:layout_marginTop="4dp"
+            android:hint="@string/forms_wizard_submit_post_hint">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/forms_wizard_step4_post_url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textUri" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <RadioGroup
+            android:id="@+id/forms_wizard_step4_post_format"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="32dp"
+            android:orientation="horizontal">
+            <RadioButton
+                android:id="@+id/forms_wizard_step4_post_json"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="As JSON"
+                android:checked="true" />
+            <RadioButton
+                android:id="@+id/forms_wizard_step4_post_form"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="Form-encoded" />
+        </RadioGroup>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="16dp"
+            android:background="@color/forms_divider" />
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/forms_wizard_step4_csv_share"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/forms_wizard_submit_csv_share" />
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/forms_wizard_step4_json_share"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/forms_wizard_submit_json_share" />
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/forms_wizard_step4_offline_queue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="@string/forms_wizard_submit_offline_queue" />
+    </LinearLayout>
+</ScrollView>
