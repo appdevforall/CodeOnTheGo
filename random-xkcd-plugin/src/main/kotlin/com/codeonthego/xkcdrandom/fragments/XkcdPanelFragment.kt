@@ -1,14 +1,23 @@
 package com.codeonthego.xkcdrandom.fragments
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.codeonthego.xkcdrandom.R
@@ -16,31 +25,38 @@ import com.codeonthego.xkcdrandom.XkcdRandomPlugin
 import com.codeonthego.xkcdrandom.cache.XkcdDiskCache
 import com.codeonthego.xkcdrandom.net.XkcdApiClient
 import com.codeonthego.xkcdrandom.net.XkcdComic
+import com.codeonthego.xkcdrandom.ui.TapCountClassifier
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
  * The "XKCD" tab body.
  *
- * Lifecycle:
- *   - onCreateView: inflate the plugin's layout (note the
- *     PluginFragmentHelper-provided inflater — see [onGetLayoutInflater])
- *   - onViewCreated: paint whatever's in the disk cache, then on first
- *     show kick off a fresh fetch (so the user sees a comic without
- *     having to tap)
- *   - tap on the panel: fetch a new random comic
+ * Reading order:
+ *   - onCreateView / onViewCreated: standard fragment setup, with the
+ *     PluginFragmentHelper-wrapped inflater that lets us resolve our
+ *     own R.layout.* against the plugin's APK.
+ *   - the OnTouchListener: where ACTION_UP feeds the
+ *     [TapCountClassifier] and decides to roll a new comic / copy URL /
+ *     copy image.
+ *   - loadRandomComic(): coroutine-based fetch + render.
  *
- * Multi-tap gestures (double = copy URL, triple = copy image) land in
- * commit 3 — they delegate to a small TapCountClassifier that this
- * fragment will host.
+ * Why we don't use [android.view.GestureDetector]:
+ *   - GestureDetector resolves single/double tap but not triple. The
+ *     ticket explicitly calls for triple-tap to copy the image.
+ *   - A small purpose-built [TapCountClassifier] reads cleaner in the
+ *     Tier-3 walkthrough.
  */
 class XkcdPanelFragment : Fragment() {
 
     private val api = XkcdApiClient()
     private lateinit var cache: XkcdDiskCache
+    private val tapClassifier = TapCountClassifier()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     // Bound view references — populated in onViewCreated, cleared in
     // onDestroyView so we don't leak views across configuration changes.
@@ -52,9 +68,12 @@ class XkcdPanelFragment : Fragment() {
     private var progressView: ProgressBar? = null
     private var emptyView: TextView? = null
 
-    /** The comic we're currently displaying — used by commit 3's clipboard handlers. */
+    /** The comic we're currently displaying — used by the clipboard handlers. */
     @Volatile
     private var currentComic: XkcdComic? = null
+
+    /** Pending tap-window timeout — cancelled if we resolve early. */
+    private val resolveBurstRunnable = Runnable { handleClassification(tapClassifier.resolve()) }
 
     override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
         // Plugins must wrap the inflater so R.layout.* resolves against
@@ -86,11 +105,17 @@ class XkcdPanelFragment : Fragment() {
         progressView = view.findViewById(R.id.xkcd_progress)
         emptyView = view.findViewById(R.id.xkcd_empty)
 
-        // Tap anywhere on the panel rolls a new comic. Commit 3 will
-        // upgrade this from setOnClickListener to a TapCountClassifier
-        // that distinguishes single / double / triple.
-        view.findViewById<View>(R.id.xkcd_root).setOnClickListener {
-            loadRandomComic()
+        // Tap dispatch: ACTION_UP feeds the classifier. The ScrollView
+        // root sits across the entire panel, so any tap counts.
+        val root = view.findViewById<View>(R.id.xkcd_root)
+        root.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                handleTap()
+                root.performClick()  // accessibility-friendly
+            }
+            // We never consume the event here; let the ScrollView keep
+            // its scroll behavior so long content is still scrollable.
+            false
         }
 
         // Render whatever's cached so the panel isn't empty on cold
@@ -101,6 +126,7 @@ class XkcdPanelFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        mainHandler.removeCallbacks(resolveBurstRunnable)
         imageCard = null
         imageView = null
         captionView = null
@@ -109,6 +135,81 @@ class XkcdPanelFragment : Fragment() {
         progressView = null
         emptyView = null
         super.onDestroyView()
+    }
+
+    // --- gesture handling ---
+
+    private fun handleTap() {
+        val now = SystemClock.uptimeMillis()
+        val burstClosedEarly = tapClassifier.onTap(now)
+        if (burstClosedEarly) {
+            // Triple-tap: resolve immediately for snappy feedback.
+            mainHandler.removeCallbacks(resolveBurstRunnable)
+            handleClassification(tapClassifier.resolve())
+            return
+        }
+        // Otherwise, wait one window for more taps. Re-arm the timeout
+        // on every tap so the burst only fires after the user pauses.
+        mainHandler.removeCallbacks(resolveBurstRunnable)
+        mainHandler.postDelayed(resolveBurstRunnable, TapCountClassifier.DEFAULT_WINDOW_MS)
+    }
+
+    private fun handleClassification(c: TapCountClassifier.Classification?) {
+        when (c) {
+            TapCountClassifier.Classification.SINGLE -> loadRandomComic()
+            TapCountClassifier.Classification.DOUBLE -> copyUrlToClipboard()
+            TapCountClassifier.Classification.TRIPLE -> copyImageToClipboard()
+            null -> { /* nothing to do */ }
+        }
+    }
+
+    // --- clipboard ---
+
+    private fun copyUrlToClipboard() {
+        val comic = currentComic ?: return
+        val cm = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("xkcd-url", comic.pageUrl))
+        toast(getString(R.string.toast_url_copied, comic.pageUrl))
+    }
+
+    /**
+     * Triple-tap → push the cached PNG to the clipboard as image/png.
+     *
+     * Plugin manifest providers don't get registered at runtime (plugins
+     * are loaded via DexClassLoader, not installed as apps), so we route
+     * through the host IDE's existing FileProvider authority. The host's
+     * file_provider_paths.xml exposes `filesDir` (`<files-path … path="." />`),
+     * so we copy the cached PNG to `filesDir/xkcd_share/last.png` and
+     * grant a content URI from there.
+     */
+    private fun copyImageToClipboard() {
+        val source = cache.loadImageFile()
+        if (source == null) {
+            toast(getString(R.string.toast_image_copy_failed))
+            return
+        }
+        val ctx = requireContext()
+        val shareDir = File(ctx.filesDir, "xkcd_share").apply { mkdirs() }
+        val target = File(shareDir, "last.png")
+        try {
+            source.copyTo(target, overwrite = true)
+        } catch (_: Exception) {
+            toast(getString(R.string.toast_image_copy_failed))
+            return
+        }
+        val authority = "${ctx.packageName}.providers.fileprovider"
+        val uri = FileProvider.getUriForFile(ctx, authority, target)
+        // ClipData.newUri queries the ContentResolver for the URI's
+        // MIME type (image/png for our PNG), so the resulting clip
+        // advertises image/* to paste targets.
+        val clip = ClipData.newUri(ctx.contentResolver, "xkcd-image", uri)
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(clip)
+        toast(getString(R.string.toast_image_copied))
+    }
+
+    private fun toast(text: String) {
+        Toast.makeText(requireContext(), text, Toast.LENGTH_SHORT).show()
     }
 
     // --- rendering ---
@@ -120,7 +221,6 @@ class XkcdPanelFragment : Fragment() {
         }
         val imageFile = cache.loadImageFile()
         if (imageFile == null) {
-            // We have metadata but the image disappeared — treat as empty.
             showEmptyState()
             return
         }
@@ -172,13 +272,10 @@ class XkcdPanelFragment : Fragment() {
         showLoading()
         viewLifecycleOwner.lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) { fetchAndCacheRandom() }
-            // viewLifecycleOwner.lifecycleScope auto-cancels in onDestroyView,
-            // so we don't need an extra isAdded check before touching views.
             val (comic, bytes) = result ?: run {
-                // Fetch failed — fall back to whatever we last cached
-                // (so a transient network blip doesn't blank the panel).
                 if (currentComic == null) showEmptyState() else {
                     progressView?.visibility = View.GONE
+                    toast(getString(R.string.toast_fetch_failed))
                 }
                 return@launch
             }
@@ -197,8 +294,8 @@ class XkcdPanelFragment : Fragment() {
         val comic = api.fetchRandom() ?: return null
         val bytes = api.openImageStream(comic.imageUrl)?.use { stream ->
             // Bounded read — see XkcdDiskCache.MAX_IMAGE_BYTES. We read
-            // into an in-memory buffer because xkcd images are small and
-            // BitmapFactory.decodeStream consumes the stream once.
+            // into an in-memory buffer because xkcd images are small
+            // and BitmapFactory.decodeStream consumes the stream once.
             val out = ByteArrayOutputStream()
             val buf = ByteArray(8 * 1024)
             var total = 0
