@@ -3,11 +3,6 @@ package org.appdevforall.codeonthego.computervision.domain
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
 
 class WidgetAnnotationMatcher {
-    companion object {
-        private val TAG_REGEX = Regex("^(?i)(B|P|D|T|C|R|SW|S)-\\d+$")
-        private val TAG_EXTRACT_REGEX = Regex("^(?i)(SW|S\\s*8|8\\s*W|[BPDTCRS8]\\s*W?)[^a-zA-Z0-9]*([\\dlIoO!]+)(?:\\s+(.+))?$")
-    }
-
     internal fun matchAnnotationsToElements(
         canvasTags: List<ScaledBox>,
         uiElements: List<ScaledBox>,
@@ -17,14 +12,14 @@ class WidgetAnnotationMatcher {
         val claimedWidgets = mutableSetOf<ScaledBox>()
 
         val deduplicatedTags = canvasTags
-            .distinctBy { normalizeTagText(it.text) }
+            .distinctBy { WidgetTagParser.normalizeTagText(it.text) }
 
         val tagsByWidgetType = annotations
             .mapNotNull { (tagText, annotationText) ->
-                val normalizedTag = normalizeTagText(tagText)
+                val normalizedTag = WidgetTagParser.normalizeTagText(tagText)
                 val widgetType = getTagType(normalizedTag) ?: return@mapNotNull null
 
-                val matchingTagBox = deduplicatedTags.find { normalizeTagText(it.text) == normalizedTag }
+                val matchingTagBox = deduplicatedTags.find { WidgetTagParser.normalizeTagText(it.text) == normalizedTag }
                     ?: return@mapNotNull null
 
                 TaggedAnnotation(
@@ -45,14 +40,14 @@ class WidgetAnnotationMatcher {
 
             val sortedTags = taggedAnnotations.sortedWith(
                 compareBy(
-                    { extractTagOrdinal(it.normalizedTag) ?: Int.MAX_VALUE },
+                    { WidgetTagParser.extractOrdinal(it.normalizedTag) ?: Int.MAX_VALUE },
                     { it.tagBox?.y ?: Int.MAX_VALUE },
                     { it.tagBox?.x ?: Int.MAX_VALUE }
                 )
             )
 
             for (taggedAnnotation in sortedTags) {
-                val ordinal = extractTagOrdinal(taggedAnnotation.normalizedTag)
+                val ordinal = WidgetTagParser.extractOrdinal(taggedAnnotation.normalizedTag)
                 val matchedWidget = findWidgetByOrdinalOrFallback(
                     ordinal = ordinal,
                     tagBox = taggedAnnotation.tagBox,
@@ -68,22 +63,7 @@ class WidgetAnnotationMatcher {
         return finalAnnotations
     }
 
-    private fun normalizeOcrDigits(raw: String): String =
-        raw.replace('l', '1').replace('I', '1').replace('!', '1')
-            .replace('o', '0').replace('O', '0')
-
-    private fun normalizeTagText(text: String): String {
-        val trimmed = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
-        val match = TAG_EXTRACT_REGEX.find(trimmed) ?: return trimmed.uppercase()
-
-        var prefix = match.groupValues[1].replace(Regex("\\s+"), "").uppercase()
-        if (prefix == "8") prefix = "B"
-        if (prefix == "8W" || prefix == "S8") prefix = "SW"
-
-        return "$prefix-${normalizeOcrDigits(match.groupValues[2])}"
-    }
-
-    internal fun isTag(text: String): Boolean = normalizeTagText(text).matches(TAG_REGEX)
+    internal fun isTag(text: String): Boolean = WidgetTagParser.isTag(text)
 
     private fun getTagType(tag: String): String? {
         return when {
@@ -109,10 +89,6 @@ class WidgetAnnotationMatcher {
         label.startsWith("slider") -> "slider"
         label.startsWith("image_placeholder") || label.startsWith("icon") -> "image_placeholder"
         else -> label
-    }
-
-    private fun extractTagOrdinal(tag: String): Int? {
-        return tag.substringAfter('-', "").toIntOrNull()
     }
 
     private fun findWidgetByOrdinalOrFallback(
