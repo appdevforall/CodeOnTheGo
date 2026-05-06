@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XKCD Plugin — Code Walkthrough</title>
+    <link rel="stylesheet" href="css/walkthrough.css">
+</head>
+<body>
+
+<h1>XKCD Plugin — Code Walkthrough</h1>
+<p class="lede">A Tier 3 documentation page for the
+<code>random-xkcd-plugin</code> module — the canonical "this is what a
+small Code on the Go plugin looks like" example.</p>
+
+<div class="callout">
+    <b>Goal of this plugin:</b> demonstrate the bottom-sheet plugin
+    surface, network IO with offline fallback, image rendering, the
+    clipboard, and the IDE's three-tier tooltip / docs system. Under
+    300 LOC of Kotlin + a handful of XML resources.
+</div>
+
+<h2>Source layout</h2>
+<pre>random-xkcd-plugin/
+├── build.gradle.kts
+├── src/main/
+│   ├── AndroidManifest.xml
+│   ├── assets/docs/                  ← this walkthrough
+│   ├── kotlin/com/codeonthego/xkcdrandom/
+│   │   ├── XkcdRandomPlugin.kt       ← lifecycle + tab / docs registration
+│   │   ├── fragments/XkcdPanelFragment.kt
+│   │   ├── net/XkcdApiClient.kt      ← HTTP, two endpoints, no auth
+│   │   ├── net/XkcdComic.kt
+│   │   ├── cache/XkcdDiskCache.kt    ← last-comic on disk
+│   │   └── ui/TapCountClassifier.kt  ← 1/2/3 tap state machine
+│   └── res/
+│       ├── layout/fragment_xkcd_panel.xml
+│       └── values/, values-night/
+└── src/test/                         ← JUnit, no Robolectric</pre>
+
+<h2>1. Plugin entry point</h2>
+<p>Every plugin implements <code>IPlugin</code> for lifecycle, then
+opts into one or more extension interfaces. <code>XkcdRandomPlugin</code>
+implements two of them: <code>UIExtension</code> for the bottom-sheet
+tab, and <code>DocumentationExtension</code> for this very page.</p>
+
+<pre>class XkcdRandomPlugin : IPlugin, UIExtension, DocumentationExtension {
+
+    override fun getEditorTabs(): List&lt;TabItem&gt; = listOf(
+        TabItem(
+            id = "xkcd_bottom_tab",
+            title = "XKCD",
+            fragmentFactory = { XkcdPanelFragment() },
+            order = 200
+        )
+    )
+
+    override fun getTier3DocsAssetPath(): String? = "docs"
+}</pre>
+
+<p class="muted">The IDE walks <code>src/main/assets/docs/</code> at
+install time and serves each file at
+<code>http://localhost:6174/plugin/&lt;pluginId&gt;/&lt;path&gt;</code>.
+Reference files with relative paths (e.g.
+<code>css/walkthrough.css</code>).</p>
+
+<h2>2. Manifest metadata + permissions</h2>
+
+<pre>&lt;meta-data
+    android:name="plugin.permissions"
+    android:value="network.access,filesystem.read" /&gt;</pre>
+
+<p>Permissions live in <code>AndroidManifest.xml</code> as comma-separated
+values. <code>network.access</code> is enforced by
+<code>PluginSecurityManager</code> for any <code>java.net.URL</code> use;
+<code>filesystem.read</code> is required to read the disk cache on cold
+start. Request only what you need.</p>
+
+<h2>3. Network: <code>XkcdApiClient.kt</code></h2>
+<p>Two endpoints, no auth, no rate-limit headers. We use OkHttp because
+it's small and the API is famously readable.</p>
+
+<pre>class XkcdApiClient(
+    private val client: OkHttpClient = defaultClient(),
+) {
+    fun fetchRandom(): XkcdComic? {
+        val latest = fetchLatest() ?: return null
+        repeat(2) {
+            val pick = Random.nextInt(1, latest.num + 1)
+            if (pick == 404) return@repeat   // xkcd #404 returns HTTP 404 on purpose
+            fetchByNumber(pick)?.let { return it }
+        }
+        return latest
+    }
+
+    fun fetchLatest(): XkcdComic? = getJson("https://xkcd.com/info.0.json")?.let(::parseComic)
+    fun fetchByNumber(num: Int): XkcdComic? =
+        getJson("https://xkcd.com/$num/info.0.json")?.let(::parseComic)
+}</pre>
+
+<p>The fetcher uses Android's bundled <code>org.json.JSONObject</code> rather
+than pulling in Moshi/kotlinx-serialization — small dependency footprint
+keeps the demo readable.</p>
+
+<h2>4. Cache: <code>XkcdDiskCache.kt</code></h2>
+<p>One PNG + one JSON file under <code>cacheDir/xkcd/</code>. Bounded
+at 5 MB (review-checklist theme #1: resource bounds on asset reads).</p>
+
+<pre>class XkcdDiskCache(context: Context) {
+    private val dir = File(context.cacheDir, "xkcd").apply { mkdirs() }
+    private val metaFile = File(dir, "last.json")
+    private val imageFile = File(dir, "last.png")
+
+    fun save(comic: XkcdComic, pngBytes: ByteArray) {
+        if (pngBytes.size &gt; MAX_IMAGE_BYTES) return  // bounded
+        metaFile.writeText(toJson(comic))
+        imageFile.writeBytes(pngBytes)
+    }
+
+    companion object { const val MAX_IMAGE_BYTES = 5 * 1024 * 1024 }
+}</pre>
+
+<h2>5. UI: <code>XkcdPanelFragment.kt</code></h2>
+<p>Standard Fragment, with one plugin-specific quirk: the layout
+inflater must be wrapped via <code>PluginFragmentHelper</code>, otherwise
+plugin-side <code>R.layout.*</code> won't resolve.</p>
+
+<pre>override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
+    val inflater = super.onGetLayoutInflater(savedInstanceState)
+    return PluginFragmentHelper.getPluginInflater(
+        XkcdRandomPlugin.PLUGIN_ID,
+        inflater
+    )
+}</pre>
+
+<p>The fetch path is a coroutine off <code>viewLifecycleOwner.lifecycleScope</code>:
+the scope auto-cancels in <code>onDestroyView()</code>, so we don't have
+to track jobs by hand.</p>
+
+<pre>private fun loadRandomComic() {
+    showLoading()
+    viewLifecycleOwner.lifecycleScope.launch {
+        val (comic, bytes) = withContext(Dispatchers.IO) {
+            fetchAndCacheRandom()
+        } ?: run { showFailure(); return@launch }
+
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        if (bmp != null) showComic(comic, bmp) else showEmptyState()
+    }
+}</pre>
+
+<h2>6. Gestures: <code>TapCountClassifier.kt</code></h2>
+
+<p>Why not <code>android.view.GestureDetector</code>? It resolves single
+and double tap, but not triple. The ticket calls for triple. A 25-line
+state machine is also easier to teach and unit-test than nesting
+behavior on top of GestureDetector.</p>
+
+<pre>class TapCountClassifier(
+    private val windowMillis: Long = DEFAULT_WINDOW_MS,  // 300 ms
+) {
+    enum class Classification { SINGLE, DOUBLE, TRIPLE }
+
+    fun onTap(now: Long): Boolean {
+        if (count == 0 || now - lastTapAt &gt; windowMillis) count = 1
+        else                                              count++
+        lastTapAt = now
+        return count &gt;= 3   // 3+ closes the burst eagerly
+    }
+
+    fun resolve(): Classification? = when {
+        count &lt;= 0 -&gt; null
+        count == 1 -&gt; Classification.SINGLE
+        count == 2 -&gt; Classification.DOUBLE
+        else        -&gt; Classification.TRIPLE   // 4+ clamps to TRIPLE
+    }
+}</pre>
+
+<p>Pure Kotlin, no Android imports — so the unit tests run in plain
+JUnit (no Robolectric):</p>
+
+<pre>@Test
+fun `four taps clamp to TRIPLE`() {
+    val c = TapCountClassifier(windowMillis = 300L)
+    c.onTap(now = 1000L); c.onTap(now = 1100L)
+    c.onTap(now = 1200L); c.onTap(now = 1300L)
+    assertEquals(Classification.TRIPLE, c.resolve())
+}</pre>
+
+<h2>7. Clipboard</h2>
+
+<p><b>Double-tap → URL.</b> Trivial:</p>
+
+<pre>val cm = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+cm.setPrimaryClip(ClipData.newPlainText("xkcd-url", comic.pageUrl))</pre>
+
+<p><b>Triple-tap → image.</b> Subtler. <code>ClipData.newUri()</code>
+needs a <code>content://</code> URI from a FileProvider, but plugin-side
+<code>&lt;provider&gt;</code> manifest entries don't get registered with the
+OS at runtime — plugins are loaded via DexClassLoader rather than
+installed as apps. So we route through the host IDE's existing
+FileProvider authority:</p>
+
+<pre>val ctx = requireContext()
+val target = File(ctx.filesDir, "xkcd_share/last.png")
+source.copyTo(target, overwrite = true)
+
+val authority = "${'$'}{ctx.packageName}.providers.fileprovider"
+val uri = FileProvider.getUriForFile(ctx, authority, target)
+cm.setPrimaryClip(ClipData.newUri(ctx.contentResolver, "xkcd-image", uri))</pre>
+
+<p>The host's <code>file_provider_paths.xml</code> exposes
+<code>filesDir</code> via <code>&lt;files-path name="files" path="."/&gt;</code>,
+which is why this works without any host-side change.</p>
+
+<h2>8. Three-tier tooltip</h2>
+
+<p>The tab itself surfaces this walkthrough through three tiers:</p>
+
+<ul>
+    <li><b>Tier 1</b> — <code>summary</code> on the tooltip chip.</li>
+    <li><b>Tier 2</b> — <code>detail</code> HTML on "See More".</li>
+    <li><b>Tier 3</b> — a button that opens <i>this page</i>.</li>
+</ul>
+
+<pre>override fun getTooltipEntries(): List&lt;PluginTooltipEntry&gt; = listOf(
+    PluginTooltipEntry(
+        tag = "xkcd.tab",
+        summary = "Random xkcd comic. Tap to roll a new one.",
+        detail = "&lt;p&gt;Tap → new · 2-tap → URL · 3-tap → image&lt;/p&gt;",
+        buttons = listOf(
+            PluginTooltipButton(description = "Code walkthrough", uri = "index.html")
+        )
+    )
+)
+override fun getTier3DocsAssetPath(): String? = "docs"</pre>
+
+<hr>
+
+<h2>Further reading</h2>
+<ul>
+    <li><a href="https://github.com/appdevforall/CodeOnTheGo/wiki/Plugin-Development-Guide">Plugin Development Guide (wiki)</a></li>
+    <li><a href="https://github.com/MagicLike/random-xkcd">MagicLike/random-xkcd</a> — the inspiration for this demo.</li>
+    <li>Inside CoGo source: <code>plugin-api/src/main/kotlin/com/itsaky/androidide/plugins/extensions/</code> — every available extension surface, in one folder.</li>
+</ul>
+
+<p class="muted">Plugin: <code>com.codeonthego.xkcdrandom</code> · Demo
+ticket: ADFA-2433.</p>
+
+</body>
+</html>
