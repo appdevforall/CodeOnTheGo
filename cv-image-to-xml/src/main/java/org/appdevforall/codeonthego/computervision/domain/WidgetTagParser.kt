@@ -72,8 +72,13 @@ internal object WidgetTagParser {
      * Replaces characters that are commonly misread by OCR with their intended numeric values.
      */
     private fun normalizeOcrDigits(raw: String): String =
-        raw.replace('l', '1').replace('I', '1').replace('!', '1')
-            .replace('o', '0').replace('O', '0')
+        raw.replace('I', '1')
+            .replace('L', '1')
+            .replace('!', '1')
+            .replace('O', '0')
+            .replace('Z', '2')
+            .replace('S', '5')
+            .replace('B', '6')
 
     /**
      * Determines whether a character is a digit or a letter frequently confused with a digit by OCR.
