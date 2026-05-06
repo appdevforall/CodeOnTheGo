@@ -14,12 +14,23 @@ import java.util.Date
 /**
  * Diffing list adapter for [RegionInfo].
  *
- * Click handlers wired up in C3 — for now the buttons are visible but no-op.
- * The data class equality drives DiffUtil so any change to size /
- * downloadedAt / lastUsedAt rebinds the row efficiently when C2 starts
- * mutating the cache.
+ * Click handlers fire on the [Listener] passed at construction. Data-class
+ * equality drives DiffUtil so any change to size / downloadedAt / lastUsedAt
+ * rebinds only the rows that need it.
  */
-internal class RegionAdapter : RecyclerView.Adapter<RegionAdapter.VH>() {
+class RegionAdapter(
+    private val listener: Listener? = null
+) : RecyclerView.Adapter<RegionAdapter.VH>() {
+
+    /**
+     * Per-row actions surfaced by the bottom-sheet tab. The fragment owns the
+     * dialog confirmation flow + actually performing the delete (so the test
+     * surface for the adapter stays small and view-only).
+     */
+    interface Listener {
+        fun onRegionDelete(info: RegionInfo)
+        fun onRegionRedownload(info: RegionInfo)
+    }
 
     private val items = mutableListOf<RegionInfo>()
 
@@ -54,10 +65,10 @@ internal class RegionAdapter : RecyclerView.Adapter<RegionAdapter.VH>() {
         fun bind(info: RegionInfo) {
             name.text = info.displayName
             meta.text = formatMeta(info)
-            // C3 will wire onClick — keeping refs visible to the linter so we
-            // don't accidentally drop them.
-            redownload.isEnabled = false
-            delete.isEnabled = false
+            redownload.isEnabled = listener != null
+            delete.isEnabled = listener != null
+            redownload.setOnClickListener { listener?.onRegionRedownload(info) }
+            delete.setOnClickListener { listener?.onRegionDelete(info) }
         }
     }
 

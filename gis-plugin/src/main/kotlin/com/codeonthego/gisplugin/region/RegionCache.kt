@@ -62,6 +62,24 @@ internal object RegionCache {
         }.sortedBy { it.displayName.lowercase() }
     }
 
+    /**
+     * Delete a cached region directory recursively. Returns true if the
+     * directory either was removed or did not exist (idempotent). Defensive
+     * checks ensure the path is a child of the cache root before deletion —
+     * catches `regionId` values that contain `..` or absolute paths.
+     */
+    fun delete(regionId: String): Boolean {
+        if (regionId.isBlank()) return false
+        val root = runCatching { rootDir() }.getOrNull() ?: return false
+        val target = File(root, regionId).canonicalFile
+        if (!target.toPath().startsWith(root.canonicalFile.toPath())) {
+            Log.w(TAG, "Refusing to delete out-of-bounds path: $target")
+            return false
+        }
+        if (!target.exists()) return true
+        return target.deleteRecursively()
+    }
+
     /** Best-effort read of `meta.json`. Falls back to disk-derived defaults. */
     private fun read(dir: File): RegionInfo {
         val metaFile = File(dir, "meta.json")
@@ -88,8 +106,12 @@ internal object RegionCache {
     }
 }
 
-/** What the bottom-sheet tab renders per row. */
-internal data class RegionInfo(
+/**
+ * What the bottom-sheet tab renders per row. Public because the
+ * `RegionManagerFragment.Listener` overrides reference it; the *meaning* is
+ * still plugin-internal (no other plugin should consume it).
+ */
+data class RegionInfo(
     val regionId: String,
     val displayName: String,
     val sizeBytes: Long,

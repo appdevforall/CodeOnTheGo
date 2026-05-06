@@ -10,7 +10,7 @@ Plan target tonight: C1 + C2 + C3, C4+ if time permits.
 
 - [x] C1 — Plugin scaffolding + stub templates **(modified — see Q1 in QUESTIONS.md)**
 - [x] C2 — Wizard UI: 3-step flow with Gaia-style bbox picker, live tile/MB estimate, stub downloader writes cache layout **(not yet wired to recipe — see Q1)**
-- [/] C3 — "Map Regions" bottom-sheet plugin tab **(C1 fragment + empty state; C2's downloader populates it; live delete + re-download wires up in C3 commit)**
+- [x] C3 — "Map Regions" bottom-sheet plugin tab: delete with confirmation dialog, re-download via wizard re-launch, refresh-on-resume, path-traversal-safe delete
 - [ ] C4 — Read-only template (MapLibre core) (BLOCKED on Q1)
 - [ ] C5 — Read-only template POI loader (BLOCKED on Q1)
 - [ ] C6 — Annotate template (BLOCKED on Q1)
@@ -46,6 +46,20 @@ blocker that gates C2 / C4–C7.**
 | 2026-05-07 01:11 PT | `./gradlew assembleRelease` (gis-plugin) | BUILD SUCCESSFUL in 16s |
 | 2026-05-07 01:12 PT | `./gradlew assemblePluginDebug` | BUILD SUCCESSFUL; `gis-plugin-debug.cgp` written to `build/plugin/` |
 | 2026-05-07 02:25 PT | `./gradlew assembleDebug` (post-C2) | BUILD SUCCESSFUL in 4s |
+| 2026-05-07 02:50 PT | `./gradlew assembleDebug` (post-C3) | BUILD SUCCESSFUL in 2s |
+
+## What landed in C3
+
+- `RegionAdapter` gains a `Listener` interface; per-row Delete + Re-download
+  buttons wire to the fragment.
+- `RegionCache.delete(regionId)` — path-traversal-safe recursive delete
+  (refuses to remove anything outside the cache root).
+- `RegionManagerFragment`:
+    - confirms delete via AlertDialog, toasts result, refreshes
+    - re-download re-launches the wizard from `WizardLauncher` and refreshes
+      on return
+    - `onResume`-based refresh catches external mutations (the wizard
+      finishing while the user is on another tab).
 
 ## What landed in C2
 
