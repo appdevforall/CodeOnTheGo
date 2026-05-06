@@ -227,7 +227,7 @@ class RecentProjectsAdapter(
 
         builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
         builder.setPositiveButton(R.string.rename) { _, _ ->
-            val newName = binding.textinputEdittext.text.toString()
+            val newName = binding.textinputEdittext.text.toString().trim()
             val oldPath = project.path
             val newPath = oldPath.substringBeforeLast("/") + "/" + newName
             try {
@@ -263,13 +263,13 @@ class RecentProjectsAdapter(
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                validateProjectName(binding.textinputLayout, s.toString(), oldName, dialog)
+                validateProjectName(binding.textinputLayout, s.toString().trim(), oldName, dialog)
             }
         })
 
         validateProjectName(
             binding.textinputLayout,
-            binding.textinputEdittext.text.toString(),
+            binding.textinputEdittext.text.toString().trim(),
             oldName,
             dialog
         )
