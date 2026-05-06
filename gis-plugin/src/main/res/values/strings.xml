@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GIS Plugin</string>
+    <string name="plugin_name">GIS (OpenStreetMap)</string>
+
+    <!-- Templates -->
+    <string name="tpl_readonly_name">OSM Map — read-only POIs</string>
+    <string name="tpl_readonly_desc">Offline OpenStreetMap. Reads location, shows nearby places.</string>
+    <string name="tpl_annotate_name">OSM Map — annotate</string>
+    <string name="tpl_annotate_desc">Offline OpenStreetMap. Drop pins with photos and metadata. Export to URL or CSV.</string>
+
+    <!-- Wizard -->
+    <string name="gis_wizard_title">Map setup</string>
+    <string name="gis_wizard_step1_title">Map region</string>
+    <string name="gis_wizard_step1_subtitle">Pick a cached region or download a new one.</string>
+    <string name="gis_wizard_pick_cached">Use a cached region</string>
+    <string name="gis_wizard_download_new">Download a new region</string>
+    <string name="gis_wizard_no_cached">No cached regions yet — download one to get started.</string>
+    <string name="gis_wizard_continue">Continue</string>
+    <string name="gis_wizard_back">Back</string>
+    <string name="gis_wizard_cancel">Cancel</string>
+    <string name="gis_wizard_finish">Finish</string>
+    <string name="gis_wizard_step2_title">Choose area</string>
+    <string name="gis_wizard_step2_subtitle">Drag the corners to resize. Drag the box to move.</string>
+    <string name="gis_wizard_step3_title">Downloading…</string>
+    <string name="gis_wizard_step3_subtitle">Tiles and POI summaries are being saved to your device.</string>
+    <string name="gis_wizard_estimate_tiles">Tiles</string>
+    <string name="gis_wizard_estimate_pois">POIs</string>
+    <string name="gis_wizard_estimate_total">Total</string>
+    <string name="gis_wizard_search_hint">Search for a place (e.g. Lalibela, Ethiopia)</string>
+    <string name="gis_wizard_continue_proof">OK, continue (C1 stub — wizard is not yet implemented)</string>
+    <string name="gis_wizard_proof_summary">C1 sanity check: this Activity launched from the template recipe and the recipe is currently blocked waiting on you. Tap Continue to unblock.</string>
+
+    <!-- Region manager (bottom-sheet tab) -->
+    <string name="gis_regions_tab_title">Map Regions</string>
+    <string name="gis_regions_empty">No regions cached yet. Create a Map project to download one.</string>
+    <string name="gis_regions_size_label">Size</string>
+    <string name="gis_regions_downloaded_label">Downloaded</string>
+    <string name="gis_regions_last_used_label">Last used</string>
+    <string name="gis_regions_delete">Delete</string>
+    <string name="gis_regions_redownload">Re-download</string>
+    <string name="gis_regions_confirm_delete_title">Delete cached region?</string>
+    <string name="gis_regions_confirm_delete_message">This frees disk space but any project that bundles this region keeps its own copy.</string>
+
+    <!-- Tooltip / overview -->
+    <string name="gis_tooltip_overview_summary"><![CDATA[<b>GIS plugin</b><br>Adds offline OpenStreetMap project templates plus a regions cache panel.]]></string>
+</resources>

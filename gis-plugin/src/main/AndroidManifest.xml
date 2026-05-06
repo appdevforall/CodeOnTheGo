@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="GIS Plugin"
+        android:theme="@style/PluginTheme">
+
+        <!-- Plugin metadata -->
+        <meta-data
+            android:name="plugin.id"
+            android:value="com.codeonthego.gisplugin" />
+
+        <meta-data
+            android:name="plugin.name"
+            android:value="GIS (OpenStreetMap)" />
+
+        <meta-data
+            android:name="plugin.version"
+            android:value="${pluginVersion}" />
+
+        <meta-data
+            android:name="plugin.description"
+            android:value="Project templates and tools for offline OpenStreetMap apps. Adds 'OSM Map - read-only POIs' and 'OSM Map - annotate' templates plus a 'Map Regions' bottom-sheet tab for cache management." />
+
+        <meta-data
+            android:name="plugin.author"
+            android:value="App Dev For All" />
+
+        <meta-data
+            android:name="plugin.min_ide_version"
+            android:value="2.1.0" />
+
+        <meta-data
+            android:name="plugin.permissions"
+            android:value="filesystem.read,filesystem.write,network.access" />
+
+        <meta-data
+            android:name="plugin.main_class"
+            android:value="com.codeonthego.gisplugin.GisPlugin" />
+
+        <!-- Plugin's own internal Activities (wizard, region picker). Hosted under PluginTheme. -->
+        <activity
+            android:name="com.codeonthego.gisplugin.wizard.WizardActivity"
+            android:exported="false"
+            android:theme="@style/PluginTheme"
+            android:label="@string/gis_wizard_title"
+            android:launchMode="singleTask" />
+
+    </application>
+
+</manifest>
