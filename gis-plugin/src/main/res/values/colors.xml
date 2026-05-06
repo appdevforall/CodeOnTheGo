@@ -17,4 +17,7 @@
 
     <color name="status_text">#191C1A</color>
     <color name="status_background">#E1E7E2</color>
+
+    <!-- Stand-in for the OSM tile pack background until the real MapView lands in C4. -->
+    <color name="map_background_placeholder">#F5F1E8</color>
 </resources>

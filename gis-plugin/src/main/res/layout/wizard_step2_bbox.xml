@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/step2_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Map background placeholder. C4 swaps this with a real MapLibre `MapView`;
+         for C2 we render a plain colour so the bbox picker can be tested without
+         a tile pack. -->
+    <View
+        android:id="@+id/map_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/map_background_placeholder" />
+
+    <!-- The interactive bbox overlay. Sits on top of the map. -->
+    <com.codeonthego.gisplugin.wizard.BboxOverlayView
+        android:id="@+id/bbox_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Top bar: cancel | live tile/MB estimate | (Save = wizard "Continue" handled by the bottom row). -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="?attr/colorSurface"
+        android:elevation="2dp">
+
+        <TextView
+            android:id="@+id/estimate_tiles"
+            style="@style/TextAppearance.Material3.TitleMedium"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="?attr/colorOnSurface"
+            tools:text="240 tiles" />
+
+        <TextView
+            android:id="@+id/estimate_size"
+            style="@style/TextAppearance.Material3.BodySmall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:text="28.8 MB · zoom 6–14" />
+
+        <TextView
+            android:id="@+id/step2_subtitle"
+            style="@style/TextAppearance.Material3.BodySmall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:text="@string/gis_wizard_step2_subtitle"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+    </LinearLayout>
+
+</FrameLayout>

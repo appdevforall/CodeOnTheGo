@@ -9,8 +9,8 @@ Plan target tonight: C1 + C2 + C3, C4+ if time permits.
 (updated as work progresses)
 
 - [x] C1 — Plugin scaffolding + stub templates **(modified — see Q1 in QUESTIONS.md)**
-- [/] C3 — "Map Regions" bottom-sheet plugin tab **(stub fragment + empty state landed in C1; live data wires up in C2)**
-- [ ] C2 — Wizard with full multi-step flow (BLOCKED on Q1)
+- [x] C2 — Wizard UI: 3-step flow with Gaia-style bbox picker, live tile/MB estimate, stub downloader writes cache layout **(not yet wired to recipe — see Q1)**
+- [/] C3 — "Map Regions" bottom-sheet plugin tab **(C1 fragment + empty state; C2's downloader populates it; live delete + re-download wires up in C3 commit)**
 - [ ] C4 — Read-only template (MapLibre core) (BLOCKED on Q1)
 - [ ] C5 — Read-only template POI loader (BLOCKED on Q1)
 - [ ] C6 — Annotate template (BLOCKED on Q1)
@@ -45,3 +45,23 @@ blocker that gates C2 / C4–C7.**
 | 2026-05-07 01:10 PT | `./gradlew assembleDebug` (gis-plugin) | BUILD SUCCESSFUL in 7s; `gis-plugin-debug.apk` (5.6 MB) produced |
 | 2026-05-07 01:11 PT | `./gradlew assembleRelease` (gis-plugin) | BUILD SUCCESSFUL in 16s |
 | 2026-05-07 01:12 PT | `./gradlew assemblePluginDebug` | BUILD SUCCESSFUL; `gis-plugin-debug.cgp` written to `build/plugin/` |
+| 2026-05-07 02:25 PT | `./gradlew assembleDebug` (post-C2) | BUILD SUCCESSFUL in 4s |
+
+## What landed in C2
+
+- `Bbox` + `TileEstimator` — slippy-map-tilenames math, haversine widthKm/
+  heightKm, default-square-around-point helper.
+- `BboxOverlayView` — direct-manipulation custom View. 48 dp corner-handle
+  hit zones, 20 dp visible dots, drag-interior-to-translate, drag-corner-to-
+  resize, min 48 dp side, parent-touch-interception while dragging.
+- 3-step wizard layout: pick region (cached / download), Gaia-style bbox
+  picker with live tile/MB readout, download progress.
+- `RegionDownloader` — stub (no HTTP yet) that writes the canonical cache
+  layout `{tiles.mbtiles, pois.json, meta.json}` under
+  `/sdcard/CodeOnTheGo/maps/<region-id>/`. Synthetic 50 ms-per-step progress
+  callback so the UI animates and a real downloader can drop in unchanged.
+- `CachedRegionPickerAdapter` — single-select picker that reuses the C1 row
+  layout but hides per-row buttons. Driven by `RegionCache.list()`.
+- Wizard state machine + cancellation contract: any exit without a successful
+  step-3 finish calls `WizardLauncher.complete(null)`. Matters because the
+  recipe coroutine (when wired) blocks on the same deferred.

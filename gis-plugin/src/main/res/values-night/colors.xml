@@ -16,4 +16,6 @@
 
     <color name="status_text">#E1E3DF</color>
     <color name="status_background">#2E3230</color>
+
+    <color name="map_background_placeholder">#202320</color>
 </resources>

@@ -7,7 +7,6 @@
     android:orientation="vertical"
     android:background="?attr/colorSurface">
 
-    <!-- Wizard chrome -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
@@ -17,64 +16,56 @@
         app:title="@string/gis_wizard_title"
         app:titleTextColor="?attr/colorOnSurface" />
 
-    <!-- Progress strip (C1: just a flat bar; C2 will animate per step). -->
-    <View
-        android:id="@+id/progress_bar"
+    <!-- Progress strip — width updated per step in code. -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="3dp"
-        android:background="?attr/colorPrimary" />
+        android:background="?attr/colorOutlineVariant">
 
-    <ScrollView
+        <View
+            android:id="@+id/progress_fill"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:background="?attr/colorPrimary" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/step_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true">
+        android:layout_weight="1">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="24dp">
+        <include
+            android:id="@+id/step1"
+            layout="@layout/wizard_step1_pick_region" />
 
-            <TextView
-                android:id="@+id/title"
-                style="@style/TextAppearance.Material3.HeadlineSmall"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="?attr/colorOnSurface"
-                tools:text="Map region" />
+        <include
+            android:id="@+id/step2"
+            layout="@layout/wizard_step2_bbox" />
 
-            <TextView
-                android:id="@+id/subtitle"
-                style="@style/TextAppearance.Material3.BodyMedium"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                tools:text="C1 sanity check" />
+        <include
+            android:id="@+id/step3"
+            layout="@layout/wizard_step3_download" />
+    </FrameLayout>
 
-            <TextView
-                android:id="@+id/proof_summary"
-                style="@style/TextAppearance.Material3.BodyMedium"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:padding="16dp"
-                android:background="?attr/colorPrimaryContainer"
-                android:textColor="?attr/colorOnPrimaryContainer"
-                tools:text="Recipe is blocked." />
-
-        </LinearLayout>
-
-    </ScrollView>
-
-    <!-- Bottom action row -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="16dp"
-        android:gravity="end">
+        android:gravity="end"
+        android:padding="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_back"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/gis_wizard_back" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_cancel"
@@ -84,7 +75,7 @@
             android:text="@string/gis_wizard_cancel" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_continue"
+            android:id="@+id/btn_next"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
