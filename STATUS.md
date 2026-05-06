@@ -15,7 +15,7 @@ Plan target tonight: C1 + C2 + C3, C4+ if time permits.
 - [ ] C5 — Read-only template POI loader (would build on C4 templates)
 - [ ] C6 — Annotate template (UX + Room + CameraX)
 - [ ] C7 — Annotate submitter (BLOCKED on Q1 because the wizard's submitter-config screen needs a way back to the recipe)
-- [ ] C8 — Three-tier docs (partial — Tier 1 tooltip strings shipped in C1)
+- [x] C8 — Three-tier docs **(Tier 1 tooltip strings, Tier 2 generated README per template, Tier 3 in-IDE markdown OSM tutorial all shipped)**
 
 ## What landed in C1
 
@@ -48,6 +48,22 @@ blocker that gates C2 / C4–C7.**
 | 2026-05-07 02:25 PT | `./gradlew assembleDebug` (post-C2) | BUILD SUCCESSFUL in 4s |
 | 2026-05-07 02:50 PT | `./gradlew assembleDebug` (post-C3) | BUILD SUCCESSFUL in 2s |
 | 2026-05-07 03:10 PT | `./gradlew assembleDebug` (post-C4) | BUILD SUCCESSFUL in 1s. Plugin module only — generated APK MapLibre runtime not yet validated. |
+| 2026-05-07 03:30 PT | `./gradlew assembleDebug` (post-C8) | BUILD SUCCESSFUL in 2s |
+
+## What landed in C8
+
+- Tier 1 — tooltip strings on each template card (in `GisPlugin.getTooltipEntries`).
+  Now include a "OSM + MapLibre tutorial" button that deep-links into Tier 3.
+- Tier 2 — `README.md` emitted into every generated project. Audience-specific
+  ("annotate" template's README has a submitter section, "read-only" doesn't).
+  Pebble-templated so the user's `{{APP_NAME}}` and `{{PACKAGE_NAME}}` show up
+  in code blocks and headings.
+- Tier 3 — `gis-plugin/src/main/assets/docs/osm-tutorial.md`. ~6 pages
+  covering OSM tag model, MapLibre style basics, where tiles come from, how
+  to swap `pois.json`, Overpass API for adding new POI categories.
+  `GisPlugin.getTier3DocsAssetPath()` now returns `"docs"` so the IDE walks
+  the tree at install time and inserts each file under
+  `plugin/com.codeonthego.gisplugin/...` in the docs DB.
 
 ## What landed in C4
 

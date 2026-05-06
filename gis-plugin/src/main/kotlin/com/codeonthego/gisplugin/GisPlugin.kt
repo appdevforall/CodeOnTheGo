@@ -7,6 +7,7 @@ import com.codeonthego.gisplugin.wizard.WizardLauncher
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
+import com.itsaky.androidide.plugins.extensions.PluginTooltipButton
 import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
@@ -141,13 +142,23 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
             detail = """
                 <h3>OSM Map &mdash; read-only POIs</h3>
                 <p>Generates an Android app that renders an offline OpenStreetMap
-                tile pack and shows nearby points of interest from a bundled JSON
-                dataset. Built for field workers in low-connectivity environments.</p>
-                <p><b>Status (C1):</b> the template scaffolds an empty Activity.
-                MapLibre rendering, GPS centering, and the POI drawer arrive in
-                later commits.</p>
+                tile pack with MapLibre and shows nearby points of interest from
+                a bundled JSON dataset. Built for field workers in low-connectivity
+                environments.</p>
+                <p>The generated project includes a real <code>MapView</code>,
+                GPS centering via <code>FusedLocationProviderClient</code>, and a
+                style file that points at MapLibre's demo tile server out of the
+                box. Replace <code>assets/style.json</code> + drop an
+                <code>.mbtiles</code> into <code>assets/maps/</code> to ship
+                offline.</p>
             """.trimIndent(),
-            buttons = emptyList()
+            buttons = listOf(
+                PluginTooltipButton(
+                    description = "OSM + MapLibre tutorial",
+                    uri = "osm-tutorial.md",
+                    order = 0
+                )
+            )
         ),
         PluginTooltipEntry(
             tag = "gis.template.annotate",
@@ -155,13 +166,19 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
             detail = """
                 <h3>OSM Map &mdash; annotate</h3>
                 <p>Like the read-only template, but the user can drop pins at
-                their current GPS location, attach photos, and submit / share
+                their current GPS location, attach photos, and submit or share
                 the resulting dataset.</p>
-                <p><b>Status (C1):</b> the template scaffolds an empty Activity.
-                Annotation FAB, CameraX capture, Room persistence, and the
-                submitter arrive in later commits.</p>
+                <p>Same MapLibre base; an annotation FAB, CameraX capture, Room
+                persistence, and a configurable HTTP submitter (or Sharesheet
+                CSV / JSON export) land in later commits.</p>
             """.trimIndent(),
-            buttons = emptyList()
+            buttons = listOf(
+                PluginTooltipButton(
+                    description = "OSM + MapLibre tutorial",
+                    uri = "osm-tutorial.md",
+                    order = 0
+                )
+            )
         ),
         PluginTooltipEntry(
             tag = "gis.editor_tab.regions",
@@ -187,6 +204,15 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
     override fun onDocumentationUninstall() {
         context.logger.info("GisPlugin documentation uninstalled")
     }
+
+    /**
+     * Tier 3 docs subdirectory under `src/main/assets/`. The IDE walks this
+     * tree at install time and inserts every file into the documentation DB
+     * under `plugin/<pluginId>/<relative-path>` (per
+     * `Tier3AssetWalker`); a `PluginTooltipButton` with `uri = "osm-tutorial.md"`
+     * resolves to `http://localhost:6174/plugin/com.codeonthego.gisplugin/osm-tutorial.md`.
+     */
+    override fun getTier3DocsAssetPath(): String? = "docs"
 
     // ---------------------------------------------------------------------
     //  Shared helper for tests / future commits — entry point if a host wants
