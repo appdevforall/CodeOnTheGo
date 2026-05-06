@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="plugin_primary">#B1C5FF</color>
+    <color name="plugin_on_primary">#172E60</color>
+    <color name="plugin_primary_container">#2F4578</color>
+    <color name="plugin_on_primary_container">#DAE2FF</color>
+
+    <!-- xkcd comics are black-on-white PNGs, so we keep a white panel
+         even in dark mode rather than tint the image. -->
+    <color name="comic_background">#FFFFFF</color>
+    <color name="caption_text">#E6E1E5</color>
+</resources>

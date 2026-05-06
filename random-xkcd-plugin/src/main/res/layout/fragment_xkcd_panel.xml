@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The whole panel is the gesture target — single/double/triple tap on
+     anywhere here cycles the comic, copies the URL, or copies the image. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/xkcd_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:id="@+id/xkcd_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <!-- Spinner sits over the panel while the comic is fetching. Hidden
+             while a comic is rendered or in the empty state. -->
+        <ProgressBar
+            android:id="@+id/xkcd_progress"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="24dp"
+            android:visibility="gone" />
+
+        <!-- White card holds the comic image so dark-mode users still
+             see the comic correctly (xkcd is black-on-white). -->
+        <FrameLayout
+            android:id="@+id/xkcd_image_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/comic_background"
+            android:padding="8dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/xkcd_image"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:scaleType="fitCenter"
+                android:contentDescription="@string/app_name" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/xkcd_caption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:textColor="?attr/colorOnSurface"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/xkcd_alt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="13sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone" />
+
+        <!-- Legend always visible — the gesture model is non-obvious, so
+             we surface it in the panel instead of hiding it behind a
+             tooltip alone. -->
+        <TextView
+            android:id="@+id/xkcd_legend"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:text="@string/legend" />
+
+        <TextView
+            android:id="@+id/xkcd_empty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:text="@string/empty_offline"
+            android:visibility="gone" />
+    </LinearLayout>
+</ScrollView>

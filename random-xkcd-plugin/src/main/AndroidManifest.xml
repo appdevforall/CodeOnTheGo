@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="@string/app_name"
+        android:theme="@style/PluginTheme">
+
+        <!-- Plugin metadata -->
+        <meta-data
+            android:name="plugin.id"
+            android:value="com.codeonthego.xkcdrandom" />
+
+        <meta-data
+            android:name="plugin.name"
+            android:value="Random XKCD" />
+
+        <meta-data
+            android:name="plugin.version"
+            android:value="${pluginVersion}" />
+
+        <meta-data
+            android:name="plugin.description"
+            android:value="A random xkcd comic in your bottom sheet. Tap for a new one, double-tap to copy URL, triple-tap to copy image. Demo plugin: see Tier 3 docs for a code walkthrough." />
+
+        <meta-data
+            android:name="plugin.author"
+            android:value="Code on the Go Team" />
+
+        <meta-data
+            android:name="plugin.min_ide_version"
+            android:value="1.0.0" />
+
+        <!-- network.access  : xkcd JSON + image fetch.
+             filesystem.read : last-comic disk cache lives in the plugin's
+                               cacheDir (read on startup to render offline). -->
+        <meta-data
+            android:name="plugin.permissions"
+            android:value="network.access,filesystem.read" />
+
+        <meta-data
+            android:name="plugin.main_class"
+            android:value="com.codeonthego.xkcdrandom.XkcdRandomPlugin" />
+
+    </application>
+
+</manifest>

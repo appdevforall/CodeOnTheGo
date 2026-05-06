@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Random XKCD</string>
+
+    <string name="tab_title">XKCD</string>
+
+    <string name="loading">Loading…</string>
+    <string name="empty_offline">No comic cached yet — connect to the internet to load one.</string>
+    <string name="legend">Tap → new · 2-tap → URL · 3-tap → image</string>
+
+    <string name="toast_url_copied">URL copied: %1$s</string>
+    <string name="toast_image_copied">Comic image copied to clipboard</string>
+    <string name="toast_image_copy_failed">Could not copy image (no cache yet)</string>
+    <string name="toast_fetch_failed">Could not load comic — check your connection</string>
+
+    <string name="comic_caption">#%1$d  &#8220;%2$s&#8221;</string>
+    <string name="comic_alt_prefix">alt: %1$s</string>
+</resources>

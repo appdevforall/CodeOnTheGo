@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Match the in-tree CodeOnTheGo BlueWave default. -->
+    <color name="plugin_primary">#485D92</color>
+    <color name="plugin_on_primary">#FFFFFF</color>
+    <color name="plugin_primary_container">#DAE2FF</color>
+    <color name="plugin_on_primary_container">#001847</color>
+
+    <color name="comic_background">#FFFFFF</color>
+    <color name="caption_text">#1B1B1F</color>
+</resources>
