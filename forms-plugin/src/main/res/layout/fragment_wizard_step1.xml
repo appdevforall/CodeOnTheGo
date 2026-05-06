@@ -17,16 +17,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:enabled="false"
         android:text="@string/forms_wizard_take_photo" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/forms_wizard_step1_pick_gallery"
+    <TextView
+        android:id="@+id/forms_wizard_step1_cv_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:enabled="false"
-        android:text="@string/forms_wizard_pick_gallery" />
+        android:layout_marginTop="4dp"
+        android:textColor="@color/forms_text_secondary"
+        android:textSize="12sp"
+        android:visibility="gone" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/forms_wizard_step1_skip"
