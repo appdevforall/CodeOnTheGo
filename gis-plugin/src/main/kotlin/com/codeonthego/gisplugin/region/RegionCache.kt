@@ -2,6 +2,7 @@ package com.codeonthego.gisplugin.region
 
 import android.os.Environment
 import android.util.Log
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
@@ -32,11 +33,31 @@ import java.io.File
  * so writes work today. C2 should add a fallback to
  * `Context.getExternalFilesDir("maps")` in case the IDE's permission model
  * tightens.
+ *
+ * **regionId precondition.** The id must match [REGION_ID_PATTERN] —
+ * lowercase alphanumeric + hyphens, must start with alphanumeric, no `.`,
+ * `..`, slashes or other path components. [isValidRegionId] is the
+ * authoritative validator and is called from every entry point that
+ * resolves a path under the cache root.
  */
 internal object RegionCache {
 
     private const val TAG = "GisPlugin.RegionCache"
     private const val DEFAULT_ROOT_NAME = "CodeOnTheGo/maps"
+
+    /**
+     * Strict allowlist for regionId values used as cache directory names.
+     *
+     * Matches: starts with `[a-z0-9]`, then any number of `[a-z0-9-]`.
+     *
+     * Excludes: `.`, `..`, leading hyphens, leading dots, slashes, backslashes,
+     * empty strings, embedded null bytes, and anything not in the ASCII subset.
+     * The kebab-case shape pairs with the slugifier in [BboxPickerFragment.save].
+     */
+    private val REGION_ID_PATTERN = Regex("^[a-z0-9][a-z0-9-]*$")
+
+    /** Strict allowlist check; see [REGION_ID_PATTERN]. */
+    fun isValidRegionId(regionId: String): Boolean = REGION_ID_PATTERN.matches(regionId)
 
     /** Returns the root directory of the cache. Creates it lazily; never null. */
     fun rootDir(): File {
@@ -67,9 +88,17 @@ internal object RegionCache {
      * directory either was removed or did not exist (idempotent). Defensive
      * checks ensure the path is a child of the cache root before deletion —
      * catches `regionId` values that contain `..` or absolute paths.
+     *
+     * Validates [regionId] against [REGION_ID_PATTERN] first, then
+     * canonicalises and asserts containment. The two checks are
+     * complementary: the regex prevents most attacks at the API boundary,
+     * canonicalisation catches anything the regex missed (defense in depth).
      */
     fun delete(regionId: String): Boolean {
-        if (regionId.isBlank()) return false
+        if (!isValidRegionId(regionId)) {
+            Log.w(TAG, "Refusing to delete invalid regionId: $regionId")
+            return false
+        }
         val root = runCatching { rootDir() }.getOrNull() ?: return false
         val target = File(root, regionId).canonicalFile
         if (!target.toPath().startsWith(root.canonicalFile.toPath())) {
@@ -94,6 +123,15 @@ internal object RegionCache {
             runCatching { JSONObject(metaFile.readText()) }.getOrNull() ?: JSONObject()
         } else JSONObject()
 
+        // Optional bbox (south, west, north, east). Only surfaced when all four
+        // values are present — partial / malformed bbox arrays are dropped.
+        val bbox: DoubleArray? = runCatching {
+            if (!meta.has("bbox")) return@runCatching null
+            val arr: JSONArray = meta.getJSONArray("bbox")
+            if (arr.length() != 4) return@runCatching null
+            DoubleArray(4) { i -> arr.getDouble(i) }
+        }.getOrNull()
+
         return RegionInfo(
             regionId = meta.optString("regionId", dir.name),
             displayName = meta.optString("displayName", dir.name),
@@ -101,7 +139,8 @@ internal object RegionCache {
             downloadedAt = meta.optLong("downloadedAt", 0L).takeIf { it > 0L },
             lastUsedAt = meta.optLong("lastUsedAt", 0L).takeIf { it > 0L },
             source = meta.optString("source", "unknown"),
-            directory = dir
+            directory = dir,
+            bbox = bbox,
         )
     }
 }
@@ -110,6 +149,9 @@ internal object RegionCache {
  * What the bottom-sheet tab renders per row. Public because the
  * `RegionManagerFragment.Listener` overrides reference it; the *meaning* is
  * still plugin-internal (no other plugin should consume it).
+ *
+ * `bbox` is the south, west, north, east tuple read from `meta.json` — used
+ * by Refresh to re-pick the same area without making the user re-draw.
  */
 data class RegionInfo(
     val regionId: String,
@@ -118,5 +160,39 @@ data class RegionInfo(
     val downloadedAt: Long?,
     val lastUsedAt: Long?,
     val source: String,
-    val directory: File
-)
+    val directory: File,
+    val bbox: DoubleArray? = null,
+) {
+    // bbox is a DoubleArray so equality needs structural comparison; the
+    // generated equals/hashCode for data classes uses array reference equality.
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is RegionInfo) return false
+        if (regionId != other.regionId) return false
+        if (displayName != other.displayName) return false
+        if (sizeBytes != other.sizeBytes) return false
+        if (downloadedAt != other.downloadedAt) return false
+        if (lastUsedAt != other.lastUsedAt) return false
+        if (source != other.source) return false
+        if (directory != other.directory) return false
+        if (bbox == null) {
+            if (other.bbox != null) return false
+        } else {
+            if (other.bbox == null) return false
+            if (!bbox.contentEquals(other.bbox)) return false
+        }
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = regionId.hashCode()
+        result = 31 * result + displayName.hashCode()
+        result = 31 * result + sizeBytes.hashCode()
+        result = 31 * result + (downloadedAt?.hashCode() ?: 0)
+        result = 31 * result + (lastUsedAt?.hashCode() ?: 0)
+        result = 31 * result + source.hashCode()
+        result = 31 * result + directory.hashCode()
+        result = 31 * result + (bbox?.contentHashCode() ?: 0)
+        return result
+    }
+}

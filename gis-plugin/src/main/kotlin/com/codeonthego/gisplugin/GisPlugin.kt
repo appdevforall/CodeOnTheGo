@@ -1,15 +1,18 @@
 package com.codeonthego.gisplugin
 
-import android.content.Intent
-import com.codeonthego.gisplugin.region.RegionManagerActivity
+import androidx.fragment.app.Fragment
+import com.codeonthego.gisplugin.region.RegionManagerFragment
 import com.codeonthego.gisplugin.templates.MapTemplateBuilder
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
+import com.itsaky.androidide.plugins.extensions.EditorTabExtension
+import com.itsaky.androidide.plugins.extensions.EditorTabItem
 import com.itsaky.androidide.plugins.extensions.NavigationItem
 import com.itsaky.androidide.plugins.extensions.PluginTooltipButton
 import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
 import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeTemplateService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,26 +34,36 @@ import java.io.File
  *     of the box even before the user picks a region. Recipes stay pure
  *     Pebble — no Kotlin-recipe injection point needed.
  *
- *  2. **"Map Regions" sidebar entry.** After the project is open, the
- *     plugin contributes one [NavigationItem] via
- *     [UIExtension.getSideMenuItems]. Tapping it launches
- *     [RegionManagerActivity], which hosts the regions panel — list of
- *     cached regions with per-row "Use in this project" / "Refresh" /
- *     "Delete" affordances and a bottom "+ Download new region" CTA that
- *     fires the bbox picker.
+ *  2. **"Map Regions" sidebar entry → host-resolved editor tab.** After
+ *     the project is open, the plugin contributes one [NavigationItem] via
+ *     [UIExtension.getSideMenuItems] and one [EditorTabItem] via
+ *     [EditorTabExtension.getMainEditorTabs]. Tapping the sidebar entry
+ *     calls [IdeEditorTabService.selectPluginTab] which surfaces the tab
+ *     hosting [RegionManagerFragment]. The "+ Download new region" CTA
+ *     swaps in `BboxPickerFragment` within the same tab via
+ *     `parentFragmentManager.beginTransaction().replace(...)`.
  *
- *  No bottom-sheet tab. Region management is project-resource navigation,
- *  not process output, so the sidebar slot is the right surface.
+ *  Why this shape (vs. the older plugin-Activity model): plugin APKs are
+ *  loaded with `DexClassLoader` and never registered with the host's
+ *  `PackageManager`, so `Intent(host, PluginActivity::class)` resolves to
+ *  null and silently fails. Sibling plugins (apk-viewer, markdown-preview,
+ *  keystore-generator, forms) all route through `selectPluginTab(...)` for
+ *  the same reason. See REVIEW2.md C1 finding.
  */
-class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
+class GisPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExtension {
 
     /**
-     * Static handle so internal Activities ([RegionManagerActivity]) can
-     * resolve the [IdeProjectService] without re-implementing service
-     * lookup. Set in [initialize], cleared in [dispose]. The plugin runs
-     * one instance at a time; the static is safe.
+     * Static handle so plugin Fragments hosted under the IDE's Activity can
+     * resolve the [com.itsaky.androidide.plugins.services.IdeProjectService]
+     * without re-implementing service lookup. Set in [initialize], cleared
+     * in [dispose] so a plugin reload doesn't leave a stale reference.
+     *
+     * One plugin instance at a time; the static is safe.
      */
     companion object {
+        const val PLUGIN_ID = "com.codeonthego.gisplugin"
+        const val REGIONS_TAB_ID = "gis_regions_main_tab"
+
         @Volatile
         var pluginContext: PluginContext? = null
             internal set
@@ -136,13 +149,14 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
 
     override fun dispose() {
         pluginScope.cancel()
+        // Clear the static plugin-context reference so a subsequent reload
+        // doesn't leave Fragments resolving services from a defunct context.
         pluginContext = null
         context.logger.info("GisPlugin disposed")
     }
 
     // ---------------------------------------------------------------------
-    //  UIExtension — sidebar entry only. No bottom-sheet tab; that's the
-    //  wrong surface for project-resource navigation.
+    //  UIExtension — sidebar entry routes to the host-resolved editor tab.
     // ---------------------------------------------------------------------
 
     override fun getSideMenuItems(): List<NavigationItem> = listOf(
@@ -155,17 +169,66 @@ class GisPlugin : IPlugin, UIExtension, DocumentationExtension {
             group = "tools",
             order = 100,
             tooltipTag = "gis.sidebar.map_regions",
-            action = { launchRegionManager() }
+            action = { openRegionsTab() }
         )
     )
 
-    private fun launchRegionManager() {
-        val androidContext = context.androidContext
-        val intent = Intent(androidContext, RegionManagerActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { androidContext.startActivity(intent) }
-            .onFailure { context.logger.warn("Failed to launch RegionManagerActivity: ${it.message}") }
+    /**
+     * Surface the regions tab in the host editor's tab bar. Mirrors
+     * `MarkdownPreviewerPlugin.openPreviewerTab` and Forms's `openSchemaPanel`
+     * — falls through with a logged warning if the tab service is
+     * unavailable (no plugin-Activity fallback because that path silently
+     * fails against a `DexClassLoader`-loaded plugin APK; see REVIEW2.md C1).
+     */
+    private fun openRegionsTab() {
+        val tabService = context.services.get(IdeEditorTabService::class.java)
+        if (tabService == null) {
+            context.logger.error(
+                "IdeEditorTabService unavailable; can't surface Map Regions tab."
+            )
+            return
+        }
+        if (!tabService.isTabSystemAvailable()) {
+            context.logger.error(
+                "Editor tab system not available; can't surface Map Regions tab."
+            )
+            return
+        }
+        runCatching { tabService.selectPluginTab(REGIONS_TAB_ID) }
+            .onSuccess { ok ->
+                if (!ok) context.logger.warn("selectPluginTab($REGIONS_TAB_ID) returned false")
+            }
+            .onFailure { context.logger.error("Error selecting Map Regions tab", it) }
     }
+
+    // ---------------------------------------------------------------------
+    //  EditorTabExtension — host-resolved tab hosting the regions panel.
+    // ---------------------------------------------------------------------
+
+    override fun getMainEditorTabs(): List<EditorTabItem> = listOf(
+        EditorTabItem(
+            id = REGIONS_TAB_ID,
+            title = context.androidContext.getString(R.string.gis_regions_title),
+            icon = android.R.drawable.ic_menu_mapmode,
+            fragmentFactory = { RegionManagerFragment() },
+            isCloseable = true,
+            isPersistent = false,
+            order = 50,
+            isEnabled = true,
+            isVisible = true,
+            tooltip = context.androidContext.getString(R.string.gis_regions_title)
+        )
+    )
+
+    override fun onEditorTabSelected(tabId: String, fragment: Fragment) {
+        context.logger.debug("Editor tab selected: $tabId")
+    }
+
+    override fun onEditorTabClosed(tabId: String) {
+        context.logger.debug("Editor tab closed: $tabId")
+    }
+
+    override fun canCloseEditorTab(tabId: String): Boolean = true
 
     // ---------------------------------------------------------------------
     //  DocumentationExtension — three-tier tooltips for the template cards

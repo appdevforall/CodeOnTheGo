@@ -1,8 +1,8 @@
 package com.codeonthego.gisplugin.region
 
 import android.app.AlertDialog
-import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,8 +11,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.codeonthego.gisplugin.GisPlugin
 import com.codeonthego.gisplugin.R
-import com.codeonthego.gisplugin.wizard.BboxPickerActivity
+import com.codeonthego.gisplugin.wizard.BboxPickerFragment
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
 import com.itsaky.androidide.plugins.PluginContext
@@ -22,50 +23,66 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
- * Full-screen sidebar destination for managing cached map regions.
+ * Host-resolved Fragment for the "Map Regions" panel. Registered as a
+ * [com.itsaky.androidide.plugins.extensions.EditorTabItem] in
+ * [GisPlugin.getMainEditorTabs] so it lives inside the IDE's main editor
+ * tab bar — same surface markdown-preview-plugin and apk-viewer-plugin use.
  *
- * Hosted by [RegionManagerActivity]; same layout / UX as the bottom-sheet
- * tab the previous prototype shipped, but promoted to a primary navigation
- * destination because:
- *  - region management is project-scoped resource management, not process
- *    output (build / lint / search / log) which is what the bottom sheet is
- *    optimised for;
- *  - "Use in this project" needs space to surface confirmation + per-region
- *    progress without jamming a half-screen sheet over the editor.
+ * Was a full-screen Activity (`RegionManagerActivity`) in the previous
+ * iteration; that approach silently failed at runtime because plugin-declared
+ * Activities don't resolve via the host's `PackageManager` when the plugin
+ * APK is loaded with `DexClassLoader`. See REVIEW2.md C1.
  *
  *  Per-row affordances:
  *  - **Use in this project** copies `tiles.mbtiles` + `pois.json` into
  *    `<projectDir>/app/src/main/assets/maps/` and writes a `region-id.txt`
  *    sentinel so subsequent re-renders show the "✓ In this project" badge.
- *  - **Refresh** re-launches the bbox picker; the picker writes back into
- *    the same regionId, overwriting tiles + POIs in place.
+ *    Atomic-rename pattern (write `.tmp`, rename) so a process kill
+ *    mid-copy can't leave a half-written `tiles.mbtiles` behind.
+ *  - **Refresh** swaps in [BboxPickerFragment] pre-filled with the region's
+ *    name + bbox, so the user can confirm and re-download. The picker
+ *    reuses the same regionId — refresh rewrites the existing entry.
  *  - **Delete** removes the region directory recursively (path-traversal-safe).
  *
  *  Bottom CTA:
- *  - **+ Download new region** launches [BboxPickerActivity] for a fresh
+ *  - **+ Download new region** swaps in [BboxPickerFragment] for a fresh
  *    download. On return the cache is re-loaded and the new region appears.
  */
-class RegionManagerFragment : Fragment(), RegionAdapter.Listener {
+class RegionManagerFragment : Fragment(),
+    RegionAdapter.Listener,
+    BboxPickerFragment.Listener {
 
     private companion object {
-        const val PLUGIN_ID = "com.codeonthego.gisplugin"
         const val REGION_MARKER_FILE = "region-id.txt"
-        const val REQ_BBOX_PICKER = 1042
+        /** Cap on the marker file's read size — defensive bound (CodeRabbit theme #1). */
+        const val MARKER_MAX_BYTES = 1024L
+        const val TAG = "GisPlugin.RegionManager"
+        const val BBOX_PICKER_TAG = "gis_bbox_picker"
     }
 
-    private lateinit var list: RecyclerView
-    private lateinit var emptyState: View
-    private lateinit var btnDownloadNew: MaterialButton
+    private var listView: RecyclerView? = null
+    private var emptyState: View? = null
+    private var btnDownloadNew: MaterialButton? = null
+    private var listContainer: View? = null
+    private var pickerContainer: View? = null
+
     private val adapter = RegionAdapter(this)
 
-    /** Static handle the host Activity sets so we can resolve services + project. */
-    var pluginContext: PluginContext? = null
+    /**
+     * Resolve the live [PluginContext] from [GisPlugin]'s static. Read on
+     * every access (volatile) so a plugin reload doesn't leave us holding a
+     * stale reference. Null when the plugin has been disposed.
+     */
+    private val pluginContext: PluginContext?
+        get() = GisPlugin.pluginContext
 
     override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
         val inflater = super.onGetLayoutInflater(savedInstanceState)
-        return PluginFragmentHelper.getPluginInflater(PLUGIN_ID, inflater)
+        return PluginFragmentHelper.getPluginInflater(GisPlugin.PLUGIN_ID, inflater)
     }
 
     override fun onCreateView(
@@ -78,13 +95,16 @@ class RegionManagerFragment : Fragment(), RegionAdapter.Listener {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        list = view.findViewById(R.id.regions_list)
+        listContainer = view.findViewById(R.id.list_container)
+        pickerContainer = view.findViewById(R.id.picker_container)
+        listView = view.findViewById<RecyclerView>(R.id.regions_list).also { rv ->
+            rv.layoutManager = LinearLayoutManager(requireContext())
+            rv.adapter = adapter
+        }
         emptyState = view.findViewById(R.id.empty_state)
-        btnDownloadNew = view.findViewById(R.id.btn_download_new)
-        list.layoutManager = LinearLayoutManager(requireContext())
-        list.adapter = adapter
-
-        btnDownloadNew.setOnClickListener { launchBboxPicker() }
+        btnDownloadNew = view.findViewById<MaterialButton>(R.id.btn_download_new).also {
+            it.setOnClickListener { showBboxPicker(prefillFrom = null) }
+        }
     }
 
     override fun onResume() {
@@ -94,6 +114,9 @@ class RegionManagerFragment : Fragment(), RegionAdapter.Listener {
 
     /** Reload from disk and toggle empty / list visibility accordingly. */
     private fun refresh() {
+        val container = listContainer ?: return
+        val empty = emptyState ?: return
+        val rv = listView ?: return
         viewLifecycleOwner.lifecycleScope.launch {
             val (rows, isEmpty) = withContext(Dispatchers.IO) {
                 val items = RegionCache.list()
@@ -104,30 +127,59 @@ class RegionManagerFragment : Fragment(), RegionAdapter.Listener {
                 rows to items.isEmpty()
             }
             adapter.submit(rows)
-            list.visibility = if (isEmpty) View.GONE else View.VISIBLE
-            emptyState.visibility = if (isEmpty) View.VISIBLE else View.GONE
+            // Only render list/empty visibility when the picker isn't on top.
+            if (container.visibility == View.VISIBLE) {
+                rv.visibility = if (isEmpty) View.GONE else View.VISIBLE
+                empty.visibility = if (isEmpty) View.VISIBLE else View.GONE
+            }
         }
     }
 
-    @Suppress("DEPRECATION")
-    private fun launchBboxPicker() {
-        // Using the deprecated startActivityForResult/onActivityResult pair
-        // because the modern ActivityResultLauncher wiring needs to register
-        // before STARTED — fine here, but we don't actually need the intent
-        // result, only "did the picker run." The deprecated path is
-        // mechanically simpler and equivalent for this use case.
-        val intent = Intent(requireContext(), BboxPickerActivity::class.java)
-        startActivityForResult(intent, REQ_BBOX_PICKER)
+    // ----- Sub-fragment swap (list ⇄ bbox picker) -----
+
+    private fun showBboxPicker(prefillFrom: RegionInfo?) {
+        val list = listContainer ?: return
+        val picker = pickerContainer ?: return
+        list.visibility = View.GONE
+        picker.visibility = View.VISIBLE
+        val frag = if (prefillFrom != null) {
+            BboxPickerFragment.newInstance(
+                prefillRegionId = prefillFrom.regionId,
+                prefillDisplayName = prefillFrom.displayName,
+                prefillBbox = prefillFrom.bbox,
+            )
+        } else {
+            BboxPickerFragment.newInstance()
+        }
+        // Use childFragmentManager so the picker fragment lives under this
+        // fragment's lifecycle — saves us from racing the host tab's lifecycle.
+        childFragmentManager.beginTransaction()
+            .replace(R.id.picker_container, frag, BBOX_PICKER_TAG)
+            .commit()
     }
 
-    @Deprecated("Pairs with the deprecated startActivityForResult; modern launcher is overkill for our needs.")
-    @Suppress("DEPRECATION")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_BBOX_PICKER) {
-            // Whatever the picker did, the cache may have a new entry. Refresh.
-            refresh()
+    private fun showList() {
+        val picker = pickerContainer ?: return
+        val list = listContainer ?: return
+        // Tear down the picker fragment so its lifecycle ends and any in-flight
+        // download coroutine bound to viewLifecycleOwner is cancelled cleanly.
+        val frag = childFragmentManager.findFragmentByTag(BBOX_PICKER_TAG)
+        if (frag != null) {
+            childFragmentManager.beginTransaction().remove(frag).commit()
         }
+        picker.visibility = View.GONE
+        list.visibility = View.VISIBLE
+        refresh()
+    }
+
+    // ----- BboxPickerFragment.Listener -----
+
+    override fun onBboxPickerSaved() {
+        showList()
+    }
+
+    override fun onBboxPickerCancelled() {
+        showList()
     }
 
     // ----- RegionAdapter.Listener -----
@@ -175,10 +227,11 @@ class RegionManagerFragment : Fragment(), RegionAdapter.Listener {
     }
 
     override fun onRegionRedownload(info: RegionInfo) {
-        // Refresh today re-opens the bbox picker so the user can re-pick / re-confirm
-        // and trigger a re-download. A future "silently re-download against this
-        // exact bbox" pass would skip the picker, but that's a follow-up.
-        launchBboxPicker()
+        // Refresh re-opens the bbox picker pre-filled with this region's
+        // existing name + bbox so the user can confirm and re-download. Same
+        // regionId is reused on save (RegionDownloader rewrites the payload
+        // atomically — see REVIEW2.md I3/I4).
+        showBboxPicker(prefillFrom = info)
     }
 
     // ----- Project / asset wiring -----
@@ -199,12 +252,16 @@ class RegionManagerFragment : Fragment(), RegionAdapter.Listener {
      * (`<projectDir>/app/src/main/assets/maps/region-id.txt`). Null when no
      * region has been applied or the project root isn't resolvable.
      *
-     * Runs on the IO dispatcher (called from [refresh] under withContext).
+     * Bounded read — the marker is supposed to be a region-id slug
+     * (≤256 chars). A corrupt or malicious marker over [MARKER_MAX_BYTES]
+     * is dropped to avoid loading an arbitrarily large file. Runs on the IO
+     * dispatcher (called from [refresh] under withContext).
      */
     private fun readActiveRegionId(): String? {
         val projectDir = currentProjectRoot() ?: return null
         val marker = File(projectDir, "app/src/main/assets/maps/$REGION_MARKER_FILE")
         if (!marker.exists() || !marker.isFile) return null
+        if (marker.length() > MARKER_MAX_BYTES) return null
         return runCatching { marker.readText().trim() }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
@@ -216,30 +273,104 @@ class RegionManagerFragment : Fragment(), RegionAdapter.Listener {
      * so [readActiveRegionId] can identify which region is bundled. Returns
      * true on success.
      *
-     * Path safety: all writes are confined to `<projectDir>/app/src/main/assets/maps/`.
-     * No user-supplied path component reaches the filesystem.
+     * Path safety:
+     *  - `targetDir` is canonicalised against `projectDir` before writing.
+     *  - `srcDir` is canonicalised against the cache root — defense in depth
+     *    against future callers fabricating a `RegionInfo` whose `directory`
+     *    sits outside the cache.
+     *
+     * Atomicity:
+     *  - free-space precheck (REVIEW2.md MB1 / theme #1).
+     *  - tiles + pois are written via `<dest>.tmp` + `Files.move(... ATOMIC_MOVE)`.
+     *  - the `region-id.txt` marker is written last — its presence implies
+     *    the prior two files completed (REVIEW2.md I2 / theme #4).
      */
     private fun applyRegionToProject(info: RegionInfo, projectDir: File): Boolean {
         return try {
             val targetDir = File(projectDir, "app/src/main/assets/maps").apply { mkdirs() }
-            // Defensive: ensure target stays inside projectDir.
             val canonicalProject = projectDir.canonicalFile
             val canonicalTarget = targetDir.canonicalFile
             if (!canonicalTarget.toPath().startsWith(canonicalProject.toPath())) {
+                Log.w(TAG, "Refusing to write outside project: $canonicalTarget")
                 return false
             }
-            val srcDir = info.directory
-            val tilesSrc = File(srcDir, "tiles.mbtiles")
-            val poisSrc = File(srcDir, "pois.json")
+            // Defense-in-depth: the source directory must live under the
+            // cache root. RegionInfo today always comes from RegionCache.list(),
+            // but a future caller could fabricate one.
+            val cacheRoot = RegionCache.rootDir().canonicalFile
+            val canonicalSrc = info.directory.canonicalFile
+            if (!canonicalSrc.toPath().startsWith(cacheRoot.toPath())) {
+                Log.w(TAG, "Refusing to copy from outside cache: $canonicalSrc")
+                return false
+            }
 
-            if (tilesSrc.exists()) tilesSrc.copyTo(File(targetDir, "tiles.mbtiles"), overwrite = true)
-            if (poisSrc.exists()) poisSrc.copyTo(File(targetDir, "pois.json"), overwrite = true)
+            val tilesSrc = File(canonicalSrc, "tiles.mbtiles")
+            val poisSrc = File(canonicalSrc, "pois.json")
 
-            File(targetDir, REGION_MARKER_FILE).writeText(info.regionId)
+            val needed = (if (tilesSrc.exists()) tilesSrc.length() else 0L) +
+                (if (poisSrc.exists()) poisSrc.length() else 0L)
+            // Need ~1 MB headroom for marker + filesystem overhead.
+            val safetyMargin = 1L * 1024L * 1024L
+            val usable = canonicalTarget.usableSpace
+            if (usable in 1 until needed + safetyMargin) {
+                Log.w(
+                    TAG,
+                    "Insufficient space to apply region ${info.regionId}: " +
+                        "need ${needed + safetyMargin}, have $usable"
+                )
+                return false
+            }
+
+            // Stage tiles + pois to .tmp, atomic-rename, then write marker last.
+            if (tilesSrc.exists()) atomicCopy(tilesSrc, File(canonicalTarget, "tiles.mbtiles"))
+            if (poisSrc.exists()) atomicCopy(poisSrc, File(canonicalTarget, "pois.json"))
+            atomicWriteText(File(canonicalTarget, REGION_MARKER_FILE), info.regionId)
             true
         } catch (e: Exception) {
-            // Surface failure to the caller; snackbar shows the apply_failed string.
+            // Surface failure in logcat; the caller's snackbar shows the
+            // user-facing apply_failed string. Without this the cause was
+            // swallowed (REVIEW2.md M5).
+            pluginContext?.logger?.error("applyRegionToProject failed for ${info.regionId}", e)
+                ?: Log.e(TAG, "applyRegionToProject failed for ${info.regionId}", e)
             false
+        }
+    }
+
+    /**
+     * Atomically copy [src] to [dest] via a temp file. If the destination's
+     * filesystem doesn't support atomic moves (rare on Android internal /
+     * external storage but possible on FUSE-mounted partitions), falls back
+     * to a non-atomic replace.
+     */
+    private fun atomicCopy(src: File, dest: File) {
+        val tmp = File(dest.parentFile, dest.name + ".tmp")
+        if (tmp.exists()) tmp.delete()
+        src.copyTo(tmp, overwrite = true)
+        try {
+            Files.move(
+                tmp.toPath(),
+                dest.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+
+    private fun atomicWriteText(dest: File, text: String) {
+        val tmp = File(dest.parentFile, dest.name + ".tmp")
+        if (tmp.exists()) tmp.delete()
+        tmp.writeText(text)
+        try {
+            Files.move(
+                tmp.toPath(),
+                dest.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
     }
 }

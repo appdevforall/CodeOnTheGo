@@ -43,18 +43,13 @@
             android:name="plugin.sidebar_items"
             android:value="1" />
 
-        <!-- Plugin's own internal Activities. Hosted under PluginTheme. -->
-        <activity
-            android:name="com.codeonthego.gisplugin.region.RegionManagerActivity"
-            android:exported="false"
-            android:theme="@style/PluginTheme"
-            android:label="@string/gis_regions_title" />
-
-        <activity
-            android:name="com.codeonthego.gisplugin.wizard.BboxPickerActivity"
-            android:exported="false"
-            android:theme="@style/PluginTheme"
-            android:label="@string/gis_bbox_title" />
+        <!--
+            No <activity> declarations: plugin APKs are loaded with
+            DexClassLoader and never registered with the host's
+            PackageManager, so plugin-Activity launches via Intent fail at
+            runtime. UI lives in Fragments hosted under the IDE's editor
+            tab system (see GisPlugin.getMainEditorTabs).
+        -->
 
     </application>
 
