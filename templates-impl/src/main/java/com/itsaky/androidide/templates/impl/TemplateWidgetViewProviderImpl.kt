@@ -144,7 +144,9 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
       val observer = object : DefaultObserver<String>() {
         override fun onChanged(parameter: Parameter<String>) {
           disableAndRun {
-            input.setText(param.value)
+              input.post {
+                  input.setText(param.value)
+              }
           }
         }
       }
