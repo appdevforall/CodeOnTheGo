@@ -138,14 +138,13 @@ the scope auto-cancels in <code>onDestroyView()</code>, so we don't have
 to track jobs by hand.</p>
 
 <pre>private fun loadRandomComic() {
-    showLoading()
-    viewLifecycleOwner.lifecycleScope.launch {
-        val (comic, bytes) = withContext(Dispatchers.IO) {
-            fetchAndCacheRandom()
+    if (loadJob?.isActive == true) return  // skip rapid-tap fan-out
+    if (currentComic == null) showLoading()  // avoid cached-comic flash
+    loadJob = viewLifecycleOwner.lifecycleScope.launch {
+        val (comic, bmp) = withContext(Dispatchers.IO) {
+            fetchDecodeAndCache()  // network + decode both on IO
         } ?: run { showFailure(); return@launch }
-
-        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        if (bmp != null) showComic(comic, bmp) else showEmptyState()
+        showComic(comic, bmp)
     }
 }</pre>
 
@@ -187,6 +186,24 @@ fun `four taps clamp to TRIPLE`() {
     assertEquals(Classification.TRIPLE, c.resolve())
 }</pre>
 
+<p><b>Scroll vs. tap.</b> The fragment's <code>OnTouchListener</code>
+sits on a <code>ScrollView</code>, so every fling/scroll also ends in
+an <code>ACTION_UP</code>. To keep scroll-end from being classified as
+a tap, track the <code>ACTION_DOWN</code> coordinates and only feed
+the classifier when the finger moved less than the system touch slop:</p>
+
+<pre>val slop = ViewConfiguration.get(view.context).scaledTouchSlop
+root.setOnTouchListener { _, e -&gt;
+    when (e.actionMasked) {
+        MotionEvent.ACTION_DOWN -&gt; { downX = e.x; downY = e.y }
+        MotionEvent.ACTION_UP -&gt; {
+            val dx = e.x - downX; val dy = e.y - downY
+            if (dx*dx + dy*dy &lt;= slop*slop) handleTap()
+        }
+    }
+    false  // never consume — let the ScrollView keep scrolling
+}</pre>
+
 <h2>7. Clipboard</h2>
 
 <p><b>Double-tap → URL.</b> Trivial:</p>
@@ -202,12 +219,14 @@ installed as apps. So we route through the host IDE's existing
 FileProvider authority:</p>
 
 <pre>val ctx = requireContext()
-val target = File(ctx.filesDir, "xkcd_share/last.png")
-source.copyTo(target, overwrite = true)
-
-val authority = "${'$'}{ctx.packageName}.providers.fileprovider"
-val uri = FileProvider.getUriForFile(ctx, authority, target)
-cm.setPrimaryClip(ClipData.newUri(ctx.contentResolver, "xkcd-image", uri))</pre>
+viewLifecycleOwner.lifecycleScope.launch {
+    val target = withContext(Dispatchers.IO) {        // up to 5 MB — keep off Main
+        File(ctx.filesDir, "xkcd_share/last.png").also { source.copyTo(it, true) }
+    }
+    val authority = "${'$'}{ctx.packageName}.providers.fileprovider"
+    val uri = FileProvider.getUriForFile(ctx, authority, target)
+    cm.setPrimaryClip(ClipData.newUri(ctx.contentResolver, "xkcd-image", uri))
+}</pre>
 
 <p>The host's <code>file_provider_paths.xml</code> exposes
 <code>filesDir</code> via <code>&lt;files-path name="files" path="."/&gt;</code>,

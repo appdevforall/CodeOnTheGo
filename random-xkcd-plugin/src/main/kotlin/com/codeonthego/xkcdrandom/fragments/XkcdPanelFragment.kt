@@ -29,8 +29,11 @@ import com.codeonthego.xkcdrandom.net.XkcdComic
 import com.codeonthego.xkcdrandom.ui.TapCountClassifier
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -72,6 +75,9 @@ class XkcdPanelFragment : Fragment() {
     /** The comic we're currently displaying — used by the clipboard handlers. */
     @Volatile
     private var currentComic: XkcdComic? = null
+
+    /** In-flight fetch, so rapid SINGLE-tap bursts don't fan out into N parallel fetches. */
+    private var loadJob: Job? = null
 
     /** Pending tap-window timeout — cancelled if we resolve early. */
     private val resolveBurstRunnable = Runnable { handleClassification(tapClassifier.resolve()) }
@@ -291,24 +297,24 @@ class XkcdPanelFragment : Fragment() {
     // --- networking ---
 
     /**
-     * Fetch a new random comic, then update the UI. All network IO is
-     * on Dispatchers.IO; the callback hops back to the main thread via
-     * the lifecycleScope's Main dispatcher.
+     * Fetch a new random comic, then update the UI. All network IO and
+     * bitmap decoding are on Dispatchers.IO; the callback hops back to
+     * the main thread via the lifecycleScope's Main dispatcher.
+     *
+     * Skips if a previous fetch is still in flight (rapid taps no-op).
      */
     private fun loadRandomComic() {
-        showLoading()
-        viewLifecycleOwner.lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) { fetchAndCacheRandom() }
-            val (comic, bytes) = result ?: run {
+        if (loadJob?.isActive == true) return
+        // Avoid the cached-comic flash on cold start: only blank the
+        // panel if we have nothing to show yet.
+        if (currentComic == null) showLoading()
+        loadJob = viewLifecycleOwner.lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { fetchDecodeAndCache() }
+            val (comic, bmp) = result ?: run {
                 if (currentComic == null) showEmptyState() else {
                     progressView?.visibility = View.GONE
                     toast(getString(R.string.toast_fetch_failed))
                 }
-                return@launch
-            }
-            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            if (bmp == null) {
-                showEmptyState()
                 return@launch
             }
             currentComic = comic
@@ -316,8 +322,8 @@ class XkcdPanelFragment : Fragment() {
         }
     }
 
-    /** Returns (comic, pngBytes) on success, null on any IO/parse failure. */
-    private fun fetchAndCacheRandom(): Pair<XkcdComic, ByteArray>? {
+    /** Returns (comic, bitmap) on success, null on any IO/parse failure. */
+    private suspend fun fetchDecodeAndCache(): Pair<XkcdComic, android.graphics.Bitmap>? {
         val comic = api.fetchRandom() ?: return null
         val bytes = api.openImageStream(comic.imageUrl)?.use { stream ->
             // Bounded read — see XkcdDiskCache.MAX_IMAGE_BYTES. We read
@@ -327,6 +333,10 @@ class XkcdPanelFragment : Fragment() {
             val buf = ByteArray(8 * 1024)
             var total = 0
             while (true) {
+                // Cooperative cancellation — the read loop runs on
+                // Dispatchers.IO; let lifecycleScope cancellation
+                // interrupt mid-download.
+                coroutineContext.ensureActive()
                 val n = stream.read(buf)
                 if (n < 0) break
                 total += n
@@ -336,6 +346,9 @@ class XkcdPanelFragment : Fragment() {
             out.toByteArray()
         } ?: return null
         cache.save(comic, bytes)
-        return comic to bytes
+        // Decode here on Dispatchers.IO, not back on Main — a 2 MB PNG
+        // decode is enough to drop a frame on low-end devices.
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+        return comic to bmp
     }
 }
