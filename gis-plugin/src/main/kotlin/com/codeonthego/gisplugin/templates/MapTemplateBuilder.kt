@@ -6,36 +6,47 @@ import com.itsaky.androidide.plugins.templates.CgtTemplateBuilder
 import java.io.File
 
 /**
- * C4 templates: replaces the C1 stubs with two real MapLibre-backed
- * scaffolds. Both templates emit:
+ * Static project templates for ADFA-2436.
  *
- *  - `app/build.gradle.kts` with the MapLibre Android SDK
- *    (`org.maplibre.gl:android-sdk:11.11.0`) plus AppCompat + Material
- *  - `app/src/main/AndroidManifest.xml` with the runtime permissions both
- *    map apps need (location, internet for tile fallbacks, write external
- *    storage for the bundled cache copy)
- *  - `app/src/main/res/layout/activity_main.xml` containing a real MapLibre
- *    `MapView` with a hardcoded default camera position. The `style url`
- *    points at `asset://styles/bright.json` so the generated app reads from
- *    its bundled style + tile pack rather than going to the network on
- *    first run.
- *  - `app/src/main/java/PACKAGE_NAME/MainActivity.kt` that initialises
- *    MapLibre, forwards every Activity lifecycle event into `MapView`, and
- *    centres the camera on the user's last GPS fix (with a reasonable
- *    static fallback while location loads).
+ * **Two templates, generic-Map scaffolding.** Both templates emit a Map app
+ * that compiles and runs out of the box:
  *
- * The annotate template adds an annotation FAB and a Room database stub —
- * those land in C6. C4 only has to prove that the read-only template
- * compiles and runs end-to-end on a low-end Android target without the
- * `InflateException` history (plan §7 R1) coming back.
+ *  - `app/build.gradle.kts` — MapLibre Native + Material + Play Services
+ *    Location dependencies.
+ *  - `app/src/main/AndroidManifest.xml` — runtime permissions (location;
+ *    plus camera in the annotate template).
+ *  - `app/src/main/res/layout/activity_main.xml` — a real MapLibre `MapView`
+ *    over a CoordinatorLayout (room for an empty-state banner today, an
+ *    annotation FAB later in the annotate template).
+ *  - `app/src/main/assets/maps/tiles.mbtiles` — stub world-overview tile
+ *    pack. Tiny (a few bytes today; intent is ~1 MB world overview once a
+ *    real stub gets bundled). Lets the app render *something* before the
+ *    user picks a region.
+ *  - `app/src/main/assets/maps/pois.json` — empty array `[]`. The
+ *    generated `MainActivity` detects the empty state and surfaces a
+ *    "Pick a region from your IDE → Map Regions sidebar" banner so users
+ *    know how to populate it.
+ *  - `app/src/main/java/PACKAGE_NAME/MainActivity.{kt,java}` — initialises
+ *    MapLibre, forwards every Activity lifecycle event to `MapView`,
+ *    centres the camera on the user's GPS fix (fallback to a static
+ *    position while location loads), and renders the empty-state banner
+ *    when `pois.json` has no entries.
  *
- * **Risk note (plan §7 R1).** The MapLibre native SDK is heavyweight and
- * has bitten this codebase before via the old `com.example.maplibreplugin`
- * crash tickets (ADFA-2989/2990/2993/2664). The plugin survey (open
- * questions O1 + O8) found no in-tree consumers and the old plugin code
- * has been removed, so this is a fresh build. The pinned version is
- * **11.11.0**, the current stable as of the engagement start (2026-05);
- * see [QUESTIONS.md] Q2 if Hal's preferred version differs.
+ * **Region content arrives via the sidebar, not the template.** Per the
+ * two-phase architecture: the user opens the project, then taps "Map
+ * Regions" in the sidebar to download a region (bbox picker → background
+ * download → `/sdcard/CodeOnTheGo/maps/<id>/`) and applies it via
+ * "Use in this project", which copies the region's files over the stub
+ * assets. No recipe-blocking handshake required.
+ *
+ * **Risk note (plan §7 R1).** The MapLibre native SDK has bitten this
+ * codebase before (`InflateException` tickets ADFA-2989/2990/2993/2664).
+ * Pinned version is **11.11.0** (current stable as of 2026-05); see
+ * [QUESTIONS.md] Q2 if Hal's preferred version differs. If MapLibre
+ * inflation crashes on a low-end target, fall back to swapping the
+ * `MapView` in `activity_main.xml` for an `ImageView` and keep the
+ * empty-state banner — the rest of the scaffold is independent of the
+ * map renderer.
  */
 internal object MapTemplateBuilder {
 
@@ -112,7 +123,7 @@ internal object MapTemplateBuilder {
         builder.addTemplateFile("app/src/main/res/values/strings.xml", stringsXml())
         builder.addStaticFile("app/src/main/res/values/themes.xml", themesXml())
         builder.addStaticFile("app/src/main/res/values/colors.xml", colorsXml())
-        builder.addStaticFile("app/src/main/res/layout/activity_main.xml", activityMainLayout())
+        builder.addStaticFile("app/src/main/res/layout/activity_main.xml", activityMainLayout(kind))
 
         builder.addTemplateFile(
             "app/src/main/java/PACKAGE_NAME/MainActivity.kt",
@@ -123,20 +134,23 @@ internal object MapTemplateBuilder {
             mainActivityJava(kind)
         )
 
-        // Bundled style + placeholder tile pack. The style references
-        // asset://style.json so the runtime resolves to the APK assets,
-        // and the placeholder mbtiles is overwritten by C4-network when
-        // the wizard's downloader produces a real cache and the recipe
-        // copies it in. Today they ship as `null` mbtiles so the app
-        // falls back to the demotiles URL for testing.
+        // Bundled style — points at the demo tile server today (raster
+        // fallback) so the app renders something before the user applies a
+        // region. Once "Use in this project" lands a real `tiles.mbtiles`
+        // into `assets/maps/`, the user can switch the source URL to
+        // `mbtiles://maps/tiles.mbtiles` (covered in the README).
         builder.addStaticFile("app/src/main/assets/style.json", maplibreStyleJson())
 
-        // C5: read-only template ships a sample POI dataset and a bottom
-        // drawer in MainActivity. The annotate template doesn't need this —
-        // it builds annotations at runtime — so we gate the assets and
-        // helper class on the kind.
+        // Stub region assets bundled with every template scaffold. The user
+        // overwrites these via "Use in this project" once they've downloaded
+        // a region from the sidebar.
+        builder.addStaticFile("app/src/main/assets/maps/tiles.mbtiles", stubMbtilesBytes())
+        builder.addStaticFile("app/src/main/assets/maps/pois.json", emptyPoisJson())
+
+        // Read-only template gets the bottom-drawer layout for the POI list;
+        // the annotate template builds annotations at runtime and doesn't
+        // need it.
         if (kind == TemplateKind.READONLY) {
-            builder.addStaticFile("app/src/main/assets/pois.json", samplePoisJson())
             builder.addStaticFile(
                 "app/src/main/res/layout/poi_drawer.xml",
                 poiDrawerLayout()
@@ -223,6 +237,7 @@ internal object MapTemplateBuilder {
             implementation("androidx.appcompat:appcompat:1.6.1")
             implementation("androidx.recyclerview:recyclerview:1.3.2")
             implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
+            implementation("androidx.cardview:cardview:1.0.0")
             implementation("com.google.android.material:material:1.10.0")
 
             // MapLibre Native — pinned current-stable per ADFA-2436 plan §7 R1.
@@ -296,11 +311,18 @@ internal object MapTemplateBuilder {
     /**
      * MapView XML. We use the `org.maplibre.android.maps.MapView` class
      * (post-rebrand). CoordinatorLayout wraps the map so the read-only
-     * template can attach a bottom drawer (POI list) without re-architecting
-     * in C5. The annotate template will likewise hook a FAB into the same
-     * coordinator parent in C6.
+     * template can attach a bottom drawer (POI list); the annotate template
+     * will hook a FAB into the same coordinator parent in C6.
+     *
+     * The empty-state banner is a top-anchored card that the generated
+     * MainActivity hides when `pois.json` has any entries. It points users
+     * back at the IDE sidebar.
      */
-    private fun activityMainLayout(): String = """
+    private fun activityMainLayout(kind: TemplateKind): String {
+        val poiDrawerInclude = if (kind == TemplateKind.READONLY) {
+            """<include layout="@layout/poi_drawer" />"""
+        } else ""
+        return """
         <?xml version="1.0" encoding="utf-8"?>
         <androidx.coordinatorlayout.widget.CoordinatorLayout
             xmlns:android="http://schemas.android.com/apk/res/android"
@@ -317,13 +339,47 @@ internal object MapTemplateBuilder {
                 app:maplibre_cameraZoom="2"
                 app:maplibre_styleUrl="asset://style.json" />
 
-            <!-- POI drawer (read-only template). Inflated optionally; the
-                 annotate template strips this include via the file-presence
-                 check in MainActivity. -->
-            <include layout="@layout/poi_drawer" />
+            <!-- Empty-state banner: visible until the user applies a region
+                 via the IDE sidebar. MainActivity hides it once pois.json
+                 has any entries. -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/empty_state_banner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top"
+                android:layout_margin="16dp"
+                app:cardElevation="6dp"
+                app:cardCornerRadius="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="No region configured"
+                        android:textStyle="bold"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Open Map Regions in your IDE sidebar to download and apply a region pack."
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- POI drawer included only for the read-only template; the
+                 annotate template builds annotations at runtime. -->
+            $poiDrawerInclude
 
         </androidx.coordinatorlayout.widget.CoordinatorLayout>
     """.trimIndent()
+    }
 
     /**
      * POI bottom drawer. A standard Material BottomSheet with a draggable
@@ -374,50 +430,35 @@ internal object MapTemplateBuilder {
     """.trimIndent()
 
     /**
-     * Sample POI dataset shipped with the read-only template. Five rows
-     * around Lalibela, Ethiopia (mission-relevant test region — see plan
-     * §3 personas). Real downloads via the wizard's Wikipedia REST geosearch
-     * replace this file at scaffold time once Q1 is unblocked.
+     * Empty POI list shipped with every template scaffold. The user populates
+     * this by tapping "Use in this project" on a downloaded region in the
+     * sidebar's Map Regions panel; that copy step writes a real `pois.json`
+     * with the region's POI dataset.
+     *
+     * Generated `MainActivity` checks for an empty array on load and
+     * surfaces the "Pick a region from your IDE" empty state when there are
+     * no entries.
      */
-    private fun samplePoisJson(): String = """
-        [
-          {
-            "name": "Lalibela",
-            "lat": 12.0319, "lon": 39.0467,
-            "category": "place=town",
-            "description": "Town in northern Ethiopia famous for its rock-hewn churches.",
-            "source_url": "https://en.wikipedia.org/wiki/Lalibela"
-          },
-          {
-            "name": "Bete Giyorgis",
-            "lat": 12.0312, "lon": 39.0426,
-            "category": "historic=monument",
-            "description": "Rock-hewn church carved in the 12th–13th century.",
-            "source_url": "https://en.wikipedia.org/wiki/Church_of_Saint_George,_Lalibela"
-          },
-          {
-            "name": "Bete Medhane Alem",
-            "lat": 12.0339, "lon": 39.0455,
-            "category": "historic=monument",
-            "description": "The largest of the Lalibela rock-hewn churches.",
-            "source_url": "https://en.wikipedia.org/wiki/Bete_Medhane_Alem"
-          },
-          {
-            "name": "Lalibela Airport",
-            "lat": 11.9779, "lon": 38.9796,
-            "category": "aeroway=aerodrome",
-            "description": "Regional airport (LLI) serving Lalibela.",
-            "source_url": "https://en.wikipedia.org/wiki/Lalibela_Airport"
-          },
-          {
-            "name": "Asheton Maryam Monastery",
-            "lat": 12.0517, "lon": 39.0700,
-            "category": "amenity=place_of_worship",
-            "description": "Mountaintop monastery overlooking Lalibela.",
-            "source_url": "https://en.wikipedia.org/wiki/Asheton_Maryam_Monastery"
-          }
-        ]
-    """.trimIndent()
+    private fun emptyPoisJson(): String = "[]\n"
+
+    /**
+     * Stub `tiles.mbtiles` bundled with every template scaffold. Keeps the
+     * generated app's MapView from crashing on a missing-asset reference and
+     * lets `assetManager.open()` succeed.
+     *
+     * **TODO:** swap in a real ~1 MB world-overview MBTiles once one is
+     * sourced (a shrunk natural-earth raster would do). Today's bytes are
+     * a 4-byte sentinel — enough to satisfy `assets/maps/tiles.mbtiles`
+     * existence but not a valid SQLite database. The MapLibre style points
+     * at the demo tile server until the user applies a real region via
+     * the sidebar.
+     */
+    private fun stubMbtilesBytes(): ByteArray = byteArrayOf(
+        'M'.code.toByte(),
+        'B'.code.toByte(),
+        'T'.code.toByte(),
+        '0'.code.toByte()
+    )
 
     /**
      * Generated MainActivity (Kotlin). Initialises MapLibre, forwards every
@@ -437,7 +478,9 @@ internal object MapTemplateBuilder {
             private val pois = mutableListOf<Poi>()
 
             private fun loadPois() {
-                val text = assets.open("pois.json").bufferedReader().use { it.readText() }
+                val text = runCatching {
+                    assets.open("maps/pois.json").bufferedReader().use { it.readText() }
+                }.getOrElse { "[]" }
                 val arr = org.json.JSONArray(text)
                 pois.clear()
                 for (i in 0 until arr.length()) {
@@ -495,6 +538,20 @@ internal object MapTemplateBuilder {
                 setupPoiDrawer()
         """.trimIndent() else ""
 
+        // Empty-state banner toggle. Reads pois.json and hides the banner
+        // when there's at least one entry. The banner directs users at the
+        // IDE's Map Regions sidebar entry — same wording the README uses.
+        val emptyStateInit = """
+                runCatching {
+                    val raw = assets.open("maps/pois.json").bufferedReader().use { it.readText() }
+                    val arr = org.json.JSONArray(raw)
+                    if (arr.length() > 0) {
+                        findViewById<android.view.View>(R.id.empty_state_banner).visibility =
+                            android.view.View.GONE
+                    }
+                }
+        """.trimIndent()
+
         return """
             package {{PACKAGE_NAME}}
 
@@ -534,6 +591,7 @@ internal object MapTemplateBuilder {
                         map = m
                         centerOnUser()
                     }
+                    $emptyStateInit
                     $poiInit
                 }
 
@@ -615,6 +673,22 @@ internal object MapTemplateBuilder {
                     map = m;
                     centerOnUser();
                 });
+
+                // Empty-state banner toggle. The banner is hidden once the
+                // bundled `assets/maps/pois.json` has any entries — i.e. the
+                // user has applied a region via the IDE sidebar.
+                try {
+                    java.io.InputStream is = getAssets().open("maps/pois.json");
+                    java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(is));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = r.readLine()) != null) sb.append(line);
+                    r.close();
+                    org.json.JSONArray arr = new org.json.JSONArray(sb.toString());
+                    if (arr.length() > 0) {
+                        findViewById(R.id.empty_state_banner).setVisibility(android.view.View.GONE);
+                    }
+                } catch (Exception ignored) {}
             }
 
             private void centerOnUser() {

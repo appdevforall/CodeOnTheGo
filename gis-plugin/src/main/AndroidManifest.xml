@@ -20,7 +20,7 @@
 
         <meta-data
             android:name="plugin.description"
-            android:value="Project templates and tools for offline OpenStreetMap apps. Adds 'OSM Map - read-only POIs' and 'OSM Map - annotate' templates plus a 'Map Regions' bottom-sheet tab for cache management." />
+            android:value="Project templates and tools for offline OpenStreetMap apps. Adds 'OSM Map - read-only POIs' and 'OSM Map - annotate' templates plus a 'Map Regions' sidebar entry for cache management." />
 
         <meta-data
             android:name="plugin.author"
@@ -38,18 +38,23 @@
             android:name="plugin.main_class"
             android:value="com.codeonthego.gisplugin.GisPlugin" />
 
-        <!-- Sidebar entry: 1 item ("Map wizard (manual launch)") for now. -->
+        <!-- Sidebar entry: 1 item ("Map Regions"). -->
         <meta-data
             android:name="plugin.sidebar_items"
             android:value="1" />
 
-        <!-- Plugin's own internal Activities (wizard, region picker). Hosted under PluginTheme. -->
+        <!-- Plugin's own internal Activities. Hosted under PluginTheme. -->
         <activity
-            android:name="com.codeonthego.gisplugin.wizard.WizardActivity"
+            android:name="com.codeonthego.gisplugin.region.RegionManagerActivity"
             android:exported="false"
             android:theme="@style/PluginTheme"
-            android:label="@string/gis_wizard_title"
-            android:launchMode="singleTask" />
+            android:label="@string/gis_regions_title" />
+
+        <activity
+            android:name="com.codeonthego.gisplugin.wizard.BboxPickerActivity"
+            android:exported="false"
+            android:theme="@style/PluginTheme"
+            android:label="@string/gis_bbox_title" />
 
     </application>
 

@@ -8,13 +8,45 @@
     android:background="?attr/colorSurface"
     android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/region_name"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textAppearance="?attr/textAppearanceTitleMedium"
-        android:textColor="?attr/colorOnSurface"
-        tools:text="Lalibela, Ethiopia" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/region_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textColor="?attr/colorOnSurface"
+            tools:text="Lalibela, Ethiopia" />
+
+        <!-- Visible only when this region's files are bundled into the open project. -->
+        <TextView
+            android:id="@+id/in_project_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:background="@color/plugin_primary_container"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:textColor="@color/plugin_on_primary_container"
+            android:text="@string/gis_regions_in_this_project"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <!-- Inline progress when a fresh download is running for this region. -->
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/region_progress"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginStart="8dp"
+            android:indeterminate="true"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/region_meta"
@@ -32,10 +64,18 @@
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_use_in_project"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/gis_regions_use_in_project" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_redownload"
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:text="@string/gis_regions_redownload" />
 
         <com.google.android.material.button.MaterialButton
