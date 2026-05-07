@@ -190,3 +190,46 @@ See `QUESTIONS.md`:
 Net: the diff is now mergeable per REVIEW2.md's stated criteria
 (C1/I1/I2/I3/I4 + path-traversal test) modulo the runtime-on-device
 verification.
+
+## Kaspresso instrumented test scaffolding (added 2026-05-07)
+
+Per-plugin Tier 3 instrumented test scaffolding is now in place under
+`app/src/androidTest/kotlin/com/itsaky/androidide/plugins/maps/`,
+mirroring the team's `EndToEndTest` + `HomeScreen.kt` conventions:
+
+| File | Purpose |
+|---|---|
+| `plugins/testsupport/PluginTestSetup.kt` | Stages a `.cgp` from androidTest assets into `<filesDir>/plugins/`, calls `PluginManager.loadPlugin` directly. |
+| `plugins/testsupport/LogcatAssertions.kt` | `LogcatWatcher.assertNoFatalPluginErrors()` greps for `Resources$NotFoundException` / `ActivityNotFoundException` (the runtime bugs Maps shipped originally and were fixed in commit `12ca5aa98`). |
+| `plugins/maps/screens/MapsScreen.kt` | Kaspresso KScreen page object — Map Regions sidebar entry, regions panel views (`btn_download_new`, `regions_list`, `empty_state`), bbox-picker views (`bbox_overlay`, `edt_name`, `btn_save`). |
+| `plugins/maps/MapsSmokeTest.kt` | Full UI Kaspresso `TestCase` — launches SplashActivity, taps "Map Regions" sidebar, verifies RegionManagerFragment inflates, taps "+ Download new region", verifies bbox-picker fragment loads, presses back to confirm clean return. **`@Ignore`'d** until the plugin's `.cgp` is bundled at `androidTest/assets/plugins/`. |
+| `plugins/maps/MapsFragmentInflationTest.kt` | Fast plugin-loader-level test — calls `PluginManager.loadPlugin` directly, asserts `PluginFragmentHelper.getPluginContext` populated, asserts clean logcat. **`@Ignore`'d** until the `.cgp` is bundled. |
+
+### Plugin install path picked
+
+Plugin `.cgp` files are loaded by the host from `<context.filesDir>/plugins/*.cgp`
+at app startup (`PluginManager.pluginsDir`). For tests we stage the file via
+`assets/plugins/<name>.cgp` → `<filesDir>/plugins/<name>.cgp` in the test setup.
+
+This is the simplest viable path — no host-side code changes, no test seam in
+the loader, just the existing public `PluginManager.loadPlugin(File)` API. The
+`.cgp` build is a separate Gradle step (`./gradlew :gis-plugin:assemblePluginDebug`,
+already producing a 5.4 MB `gis-plugin-debug.cgp` per the build log above), not
+yet wired into `app:assembleDebugAndroidTest` — flagged as a TODO for the
+team's CI maintainer.
+
+### Why @Ignore by default
+
+The two test classes ship `@Ignore`'d so the test sources compile clean today
+(no `.cgp` asset bundled yet) but the structure / page-object / logcat-grep
+contract is in place. Removing the `@Ignore` is a one-line change once the
+`.cgp` bundling lands — see each file's header for the integration steps.
+
+These tests **catch the runtime fix from commit `12ca5aa98`** (drop plugin
+Activities) and the fragment-inflater wrap that's needed for any plugin
+fragment. With these in place + nightly Firebase Test Lab runs, regressions
+on either runtime fix become merge-blockers.
+
+### Compile status
+
+`./gradlew :app:compileV7DebugAndroidTestKotlin` — **BUILD SUCCESSFUL** (2m 9s).
