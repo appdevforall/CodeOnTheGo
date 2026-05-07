@@ -143,10 +143,10 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
       val param = widget.parameter as StringParameter
       val observer = object : DefaultObserver<String>() {
         override fun onChanged(parameter: Parameter<String>) {
-          disableAndRun {
-              input.post {
-                  input.setText(param.value)
-              }
+          input.post {
+            disableAndRun {
+              input.setText(param.value)
+            }
           }
         }
       }
