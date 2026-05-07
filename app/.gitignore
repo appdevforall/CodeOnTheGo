@@ -95,3 +95,8 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# Plugin .cgp artifacts staged by `stage<Plugin>DebugCgpForAndroidTest`
+# (build output written into the source tree so AGP picks it up as an
+# androidTest asset). Build-product, never committed.
+src/androidTest/assets/plugins/*.cgp
