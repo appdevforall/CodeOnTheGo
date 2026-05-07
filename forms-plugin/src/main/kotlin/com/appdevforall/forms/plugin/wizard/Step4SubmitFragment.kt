@@ -7,12 +7,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import com.appdevforall.forms.plugin.FormsPlugin
 import com.appdevforall.forms.plugin.R
 import com.appdevforall.forms.plugin.SubmitConfig
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import android.widget.RadioButton
 import android.widget.RadioGroup
 
@@ -28,7 +30,16 @@ import android.widget.RadioGroup
  */
 class Step4SubmitFragment : Fragment() {
 
-    private val viewModel: WizardViewModel by activityViewModels()
+    private val viewModel: WizardViewModel by viewModels(
+        ownerProducer = { requireParentFragment() },
+    )
+
+    override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
+        return PluginFragmentHelper.getPluginInflater(
+            FormsPlugin.PLUGIN_ID,
+            super.onGetLayoutInflater(savedInstanceState),
+        )
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,

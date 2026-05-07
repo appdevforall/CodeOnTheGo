@@ -42,12 +42,6 @@
             android:name="plugin.sidebar_items"
             android:value="1" />
 
-        <activity
-            android:name=".wizard.WizardActivity"
-            android:exported="false"
-            android:label="@string/forms_wizard_title"
-            android:theme="@style/PluginTheme" />
-
     </application>
 
 </manifest>

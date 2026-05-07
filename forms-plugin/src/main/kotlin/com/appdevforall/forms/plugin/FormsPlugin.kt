@@ -4,7 +4,6 @@ import com.appdevforall.forms.plugin.panel.SchemaPanelFragment
 import com.appdevforall.forms.plugin.panel.SchemaPanelHost
 import com.appdevforall.forms.plugin.template.FormTemplateBuilder
 import com.appdevforall.forms.plugin.wizard.FormsPluginConnector
-import com.appdevforall.forms.plugin.wizard.WizardActivity
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
@@ -20,7 +19,6 @@ import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeFileService
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeTemplateService
-import com.itsaky.androidide.plugins.services.IdeUIService
 import java.io.File
 
 /**
@@ -39,17 +37,22 @@ import java.io.File
  * 2. **Schema capture into the open project.** After the user opens a
  *    generated project, the plugin contributes:
  *      - a side-menu entry ("Form schema") that opens [SchemaPanelFragment]
- *        as a main editor tab — the panel shows the current schema and a
- *        Capture button.
- *      - a toolbar action ("📷 Capture form from photo") that launches the
- *        wizard directly. (Subject to host wiring; see QUESTIONS.md Q1.)
- *      - a main editor tab ([SchemaPanelFragment]) that the side-menu /
- *        toolbar hand off to.
+ *        as a main editor tab — the panel shows the current schema and
+ *        hosts the wizard inline when the user taps Capture.
+ *      - a toolbar action ("📷 Capture form from photo") that opens the
+ *        same editor tab. (Subject to host wiring; see QUESTIONS.md Q1.)
+ *      - a main editor tab ([SchemaPanelFragment]).
  *
  *    The wizard's last step writes `app/src/main/assets/form_schema.json`
  *    into the open project via [IdeFileService] / [IdeProjectService]. The
  *    generated app's runtime renderer reads that JSON on every launch, so
  *    iteration is just file replacement plus an APK rebuild.
+ *
+ * **No plugin Activities.** Plugin APKs load via DexClassLoader, so any
+ * `<activity>` declared in this plugin's AndroidManifest never enters the
+ * host's merged manifest — `Intent(ctx, FooActivity::class.java)` would
+ * throw `ActivityNotFoundException`. The wizard is therefore a Fragment
+ * hosted inside [SchemaPanelFragment]'s editor tab, not its own Activity.
  */
 class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExtension {
 
@@ -151,7 +154,12 @@ class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExten
                 isEnabled = true,
                 isVisible = true,
                 order = 0,
-                action = ::launchWizard,
+                // Toolbar action opens the schema-panel editor tab; the user
+                // taps Capture inside the panel to launch the wizard. We
+                // don't try to push the user straight into the wizard from
+                // here because the wizard now lives inside the panel's
+                // childFragmentManager — it has no entry point of its own.
+                action = ::openSchemaPanel,
             )
         )
     }
@@ -175,9 +183,9 @@ class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExten
 
     /**
      * Surface the schema panel as a main editor tab. Mirrors how
-     * `MarkdownPreviewerPlugin` opens its preview tab — falls through to a
-     * direct wizard launch if the editor tab system isn't available, so the
-     * action is never a complete dead-end.
+     * `MarkdownPreviewerPlugin` opens its preview tab. If the editor tab
+     * system isn't available, log and bail — the panel is the only entry
+     * point now (the wizard lives inside it).
      */
     private fun openSchemaPanel() {
         val tabService = pluginContext.services.get(IdeEditorTabService::class.java)
@@ -188,47 +196,19 @@ class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExten
         }
         pluginContext.logger.warn(
             "IdeEditorTabService not available or selectPluginTab failed — " +
-                "falling back to launching the wizard directly."
+                "the Forms schema panel could not be opened. The host IDE may " +
+                "not yet expose the editor tab system."
         )
-        launchWizard()
     }
 
     /**
-     * Launch the wizard. Prefers the foreground Activity from
-     * [IdeUIService.getCurrentActivity]; falls back to the application context
-     * with FLAG_ACTIVITY_NEW_TASK if no Activity is available (defensive — the
-     * sidebar action should always have a foreground Activity).
-     */
-    private fun launchWizard() {
-        val ui = pluginContext.services.get(IdeUIService::class.java)
-        val activity = ui?.getCurrentActivity()
-        if (activity != null) {
-            val intent = android.content.Intent(activity, WizardActivity::class.java)
-            activity.startActivity(intent)
-            return
-        }
-        pluginContext.logger.warn(
-            "No foreground Activity from IdeUIService; falling back to application " +
-                "context launch with FLAG_ACTIVITY_NEW_TASK."
-        )
-        val ctx = pluginContext.androidContext
-        val intent = android.content.Intent(ctx, WizardActivity::class.java)
-            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        ctx.startActivity(intent)
-    }
-
-    /**
-     * Called by [WizardActivity] when the user finishes the wizard. Writes
-     * the captured schema into the open project's `assets/form_schema.json`
-     * via [com.itsaky.androidide.plugins.services.IdeFileService] and
-     * [com.itsaky.androidide.plugins.services.IdeProjectService]. Returns
-     * the absolute path written on success, or null when no project is
-     * open / writing fails.
+     * Called by [com.appdevforall.forms.plugin.wizard.WizardHostFragment]
+     * when the user finishes the wizard. Writes the captured schema into
+     * the open project's `assets/form_schema.json` via [IdeFileService] /
+     * [IdeProjectService].
      *
-     * Side effect: the next time the user rebuilds the project, the
-     * generated app's runtime renderer reads the new schema from assets.
-     * The plugin doesn't trigger the rebuild itself — that would require
-     * `IdeBuildService` and we want the user to stay in control.
+     * @return the absolute path written on success, or null when no project
+     *   is open, services are unavailable, or the write failed.
      */
     internal fun onWizardCompleted(schema: FormSchema): String? {
         val projectService = pluginContext.services.get(IdeProjectService::class.java)
@@ -249,6 +229,9 @@ class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExten
         }
         val target = File(project.rootDir, ASSETS_SCHEMA_PATH)
         target.parentFile?.mkdirs()
+        // JSON is plain UTF-8 so writeFile (which UTF-8-transcodes) is safe
+        // here. For binary payloads use writeBinary / writeStream — see
+        // IdeFileService docs.
         val ok = fileService.writeFile(target, schema.toJson())
         if (!ok) {
             pluginContext.logger.error(
@@ -261,6 +244,12 @@ class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExten
     }
 
     companion object {
+        /**
+         * Plugin id matches the `plugin.id` meta-data declared in the
+         * AndroidManifest. Fragments use this to look up the plugin's
+         * resource context via [com.itsaky.androidide.plugins.base.PluginFragmentHelper.getPluginInflater].
+         */
+        const val PLUGIN_ID: String = "com.appdevforall.forms.plugin"
         private const val SCHEMA_PANEL_TAB_ID = "forms_schema_panel_tab"
         /** Project-relative path of the schema the runtime renderer reads. */
         internal const val ASSETS_SCHEMA_PATH = "app/src/main/assets/form_schema.json"

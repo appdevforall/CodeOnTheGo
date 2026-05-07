@@ -14,10 +14,12 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import com.appdevforall.forms.plugin.FormsPlugin
 import com.appdevforall.forms.plugin.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
+import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import java.io.File
 
 /**
@@ -45,7 +47,12 @@ import java.io.File
  */
 class Step1CaptureFragment : Fragment() {
 
-    private val viewModel: WizardViewModel by activityViewModels()
+    // Scope the ViewModel to the WizardHostFragment so all four step
+    // fragments share the same instance. activityViewModels() doesn't work
+    // because the host is no longer an Activity.
+    private val viewModel: WizardViewModel by viewModels(
+        ownerProducer = { requireParentFragment() },
+    )
 
     private var cvStatus: TextView? = null
 
@@ -53,6 +60,13 @@ class Step1CaptureFragment : Fragment() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         handleCvResult(result.resultCode, result.data)
+    }
+
+    override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
+        return PluginFragmentHelper.getPluginInflater(
+            FormsPlugin.PLUGIN_ID,
+            super.onGetLayoutInflater(savedInstanceState),
+        )
     }
 
     override fun onCreateView(

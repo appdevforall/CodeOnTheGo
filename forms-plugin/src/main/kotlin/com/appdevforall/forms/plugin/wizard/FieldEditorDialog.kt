@@ -8,8 +8,10 @@ import android.widget.RadioGroup
 import androidx.fragment.app.DialogFragment
 import com.appdevforall.forms.plugin.FieldType
 import com.appdevforall.forms.plugin.FormField
+import com.appdevforall.forms.plugin.FormsPlugin
 import com.appdevforall.forms.plugin.R
 import com.google.android.material.textfield.TextInputEditText
+import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 
 /**
  * Dialog for adding or editing a single [FormField]. The host fragment passes
@@ -23,9 +25,20 @@ internal class FieldEditorDialog : DialogFragment() {
 
     var onFieldSaved: ((FormField) -> Unit)? = null
 
+    override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
+        return PluginFragmentHelper.getPluginInflater(
+            FormsPlugin.PLUGIN_ID,
+            super.onGetLayoutInflater(savedInstanceState),
+        )
+    }
+
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val ctx = requireContext()
-        val view = LayoutInflater.from(ctx).inflate(R.layout.dialog_field_editor, null)
+        // Use the framework-provided layoutInflater (which goes through our
+        // onGetLayoutInflater override), not LayoutInflater.from(ctx) — the
+        // latter resolves to the host activity's resources and won't find
+        // R.layout.dialog_field_editor in the plugin APK.
+        val view = layoutInflater.inflate(R.layout.dialog_field_editor, null)
         val labelEdit = view.findViewById<TextInputEditText>(R.id.forms_field_editor_label)
         val typeGroup = view.findViewById<RadioGroup>(R.id.forms_field_editor_type)
 
