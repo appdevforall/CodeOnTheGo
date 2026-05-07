@@ -51,6 +51,13 @@ import com.itsaky.androidide.templates.impl.databinding.LayoutTextfieldBinding
 import com.itsaky.androidide.utils.ServiceLoader
 import com.itsaky.androidide.utils.SingleTextWatcher
 import androidx.core.graphics.drawable.toDrawable
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 /**
@@ -65,6 +72,8 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
 
     @JvmStatic
     private var service: ITemplateWidgetViewProvider? = null
+
+    private const val VALIDATION_DEBOUNCE_MS = 150L
 
     @JvmStatic
     fun getInstance(reload: Boolean = false): ITemplateWidgetViewProvider {
@@ -149,20 +158,38 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
         }
       }
 
+      var validationJob: Job? = null
+
       param.configureTextField(context, root) { value ->
         observer.disableAndRun {
           param.setValue(value)
           param.resetStartAndEndIcons(root.context, root)
         }
 
-        val err =
-          ConstraintVerifier.verify(value, constraints = param.constraints)
-
-        root.isErrorEnabled = err != null
-        if (err != null) {
-          root.error = err
+        // The EXISTS / FILE / DIRECTORY constraints stat the filesystem; running them
+        // synchronously on the UI thread would trigger a StrictMode DiskReadViolation
+        // on every keystroke. Debounce + dispatch to IO; apply the result on Main.
+        validationJob?.cancel()
+        val owner = root.findViewTreeLifecycleOwner()
+        validationJob = owner?.lifecycleScope?.launch {
+          delay(VALIDATION_DEBOUNCE_MS)
+          val err = withContext(Dispatchers.IO) {
+            ConstraintVerifier.verify(value, constraints = param.constraints)
+          }
+          root.isErrorEnabled = err != null
+          if (err != null) {
+            root.error = err
+          }
+        } ?: run {
+          // Fall back to synchronous validation when no lifecycle owner is attached
+          // (e.g., previews/tests). Production attaches a fragment lifecycle.
+          val err = ConstraintVerifier.verify(value, constraints = param.constraints)
+          root.isErrorEnabled = err != null
+          if (err != null) {
+            root.error = err
+          }
+          null
         }
-
       }
 
       input.setText(param.value)

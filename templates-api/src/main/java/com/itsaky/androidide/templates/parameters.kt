@@ -157,6 +157,7 @@ abstract class Parameter<T>(
 
         this.actionBeforeCreateView = null
         this.actionAfterCreateView = null
+        this.beforeCreateViewInvoked = false
     }
 
     private fun clearObservers() {
@@ -185,10 +186,20 @@ abstract class Parameter<T>(
         this.actionBeforeCreateView = action
     }
 
+    private var beforeCreateViewInvoked = false
+
     /**
-     * Called before the layout for this widget is created.
+     * Called before the layout for this widget is created. The action registered via
+     * [doBeforeCreateView] is invoked at most once per parameter instance — callers
+     * may pre-invoke this off the UI thread (e.g. before binding a RecyclerView) so
+     * that the bind-time call is a no-op and avoids triggering disk reads on the
+     * main thread.
      */
     open fun beforeCreateView() {
+        if (beforeCreateViewInvoked) {
+            return
+        }
+        beforeCreateViewInvoked = true
         this.actionBeforeCreateView?.invoke(this)
     }
 
