@@ -17,7 +17,8 @@ internal data class ListenerState(
 
 	private companion object {
 		// Tag used to identify the JDWP listener socket for traffic-stats accounting.
-		private const val JDWP_LISTENER_SOCKET_TAG = 0x444A574C // "JDWL"
+		// Bytes spell "JDWL" (J=0x4A, D=0x44, W=0x57, L=0x4C).
+		private const val JDWP_LISTENER_SOCKET_TAG = 0x4A44574C
 	}
 
 	/**

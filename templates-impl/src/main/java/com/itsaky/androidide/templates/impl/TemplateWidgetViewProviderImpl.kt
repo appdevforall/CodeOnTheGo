@@ -178,12 +178,11 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
           }
           applyValidationResult(root, err)
         } ?: run {
-          // Fall back to synchronous validation when no lifecycle owner is attached
-          // (e.g., previews/tests). Production attaches a fragment lifecycle.
-          applyValidationResult(
-            root,
-            ConstraintVerifier.verify(value, constraints = param.constraints),
-          )
+          // No lifecycle owner yet — this is the initial setText before the view is
+          // attached to the RecyclerView. Skip validation to avoid disk IO on the UI
+          // thread; the user's first keystroke (post-attach) re-runs validation, and
+          // the submit handler validates again before accepting the form.
+          applyValidationResult(root, null)
           null
         }
       }
