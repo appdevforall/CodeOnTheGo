@@ -1,7 +1,9 @@
 package org.appdevforall.codeonthego.computervision.domain.grammar
 
-import org.appdevforall.codeonthego.computervision.domain.FuzzyAttributeParser.AttributeKey
-
+import org.appdevforall.codeonthego.computervision.domain.parser.AttributeKey
+import org.appdevforall.codeonthego.computervision.domain.parser.GravityValueSet
+import org.appdevforall.codeonthego.computervision.domain.parser.InputTypeValueSet
+import org.appdevforall.codeonthego.computervision.domain.parser.VisibilityValueSet
 
 interface WidgetGrammar {
     val tag: String
@@ -21,10 +23,11 @@ interface LayoutGrammar : WidgetGrammar {
             AttributeKey.LAYOUT_MARGIN_BOTTOM.xmlName to DimensionValidator,
             AttributeKey.LAYOUT_MARGIN_START.xmlName to DimensionValidator,
             AttributeKey.LAYOUT_MARGIN_END.xmlName to DimensionValidator,
-            AttributeKey.LAYOUT_GRAVITY.xmlName to PassThroughValidator,
+            AttributeKey.LAYOUT_GRAVITY.xmlName to CategoricalValidator(GravityValueSet.values),
+            AttributeKey.GRAVITY.xmlName to CategoricalValidator(GravityValueSet.values),
             AttributeKey.LAYOUT_WEIGHT.xmlName to PassThroughValidator,
             AttributeKey.PADDING.xmlName to DimensionValidator,
-            AttributeKey.VISIBILITY.xmlName to CategoricalValidator(listOf("visible", "invisible", "gone"))
+            AttributeKey.VISIBILITY.xmlName to CategoricalValidator(VisibilityValueSet.values)
         )
 }
 
@@ -59,11 +62,10 @@ object SpinnerGrammar : LayoutGrammar {
 
 object ImageViewGrammar : LayoutGrammar {
     override val tag = "ImageView"
-    private val gravityValues = listOf("top", "bottom", "left", "right", "center", "center_vertical", "center_horizontal", "start", "end")
 
     override val attributes = super.attributes + mapOf(
         AttributeKey.SRC.xmlName to PassThroughValidator,
-        AttributeKey.LAYOUT_GRAVITY.xmlName to CategoricalValidator(gravityValues),
+        AttributeKey.LAYOUT_GRAVITY.xmlName to CategoricalValidator(GravityValueSet.values),
         AttributeKey.BACKGROUND.xmlName to PassThroughValidator,
         AttributeKey.BACKGROUND_TINT.xmlName to PassThroughValidator
     )
@@ -71,11 +73,10 @@ object ImageViewGrammar : LayoutGrammar {
 
 object EditTextGrammar : TextGrammar {
     override val tag = "EditText"
-    private val inputTypeValues = listOf("text", "textPassword", "number", "numberDecimal", "textEmailAddress", "textUri", "phone")
 
     override val attributes = super.attributes + mapOf(
         AttributeKey.TEXT.xmlName to PassThroughValidator,
-        AttributeKey.INPUT_TYPE.xmlName to CategoricalValidator(inputTypeValues),
+        AttributeKey.INPUT_TYPE.xmlName to CategoricalValidator(InputTypeValueSet.values),
         AttributeKey.HINT.xmlName to PassThroughValidator
     )
 }
