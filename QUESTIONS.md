@@ -4,6 +4,41 @@ Append-only. Most-recent-first.
 
 ---
 
+## Q5 (resolved by P1-fix commit) — Plugin Activities silently no-op against `DexClassLoader`-loaded plugin APK
+
+**Resolution.** The 2026-05-07 mid-day commit (`12ca5aa9`) replaces both
+`RegionManagerActivity` and `BboxPickerActivity` with host-resolved
+Fragments. Plugin APKs are loaded with `DexClassLoader` (in
+`plugin-manager/.../PluginLoader.kt`) and never registered with the
+host's `PackageManager`, so `Intent(host, RegionManagerActivity::class)
+.startActivity(...)` resolves to null and throws
+`ActivityNotFoundException`. The previous `runCatching { startActivity()
+}.onFailure { logger.warn(...) }` block swallowed the exception silently
+— the sidebar tap on "Map Regions" was a no-op.
+
+The new shape:
+  - `RegionManagerFragment` is contributed via
+    `EditorTabExtension.getMainEditorTabs()` as `gis_regions_main_tab`;
+    the sidebar action calls `IdeEditorTabService.selectPluginTab(...)`.
+  - `BboxPickerFragment` is swapped into the same tab via
+    `childFragmentManager.beginTransaction().replace(...)`. Listener
+    interface (`onBboxPickerSaved` / `onBboxPickerCancelled`) lets the
+    regions fragment swap itself back in.
+  - All `<activity>` declarations dropped from the manifest.
+  - Both activity files + their layouts deleted.
+
+This matches the pattern apk-viewer-plugin / markdown-preview-plugin /
+keystore-generator-plugin / forms-plugin all use.
+
+**Validation.** `gis-plugin assembleDebug` + `assemblePluginDebug` +
+`testDebugUnitTest` all green. Runtime install + sidebar-tap
+verification on a CodeOnTheGo IDE running the published plugin is still
+TODO and requires Bryan or a teammate with a device. The new structure
+is consistent with sibling plugins that are known to work, so
+high-confidence-but-unverified.
+
+---
+
 ## Q1 (resolved by sidebar branch) — BLOCKER: "Recipe-blocks-on-WizardActivity" pattern is not supported by the current `IdeTemplateService` API
 
 **Resolution.** The `feature/ADFA-2436-maps-plugin-sidebar` branch
