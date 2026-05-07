@@ -4,7 +4,27 @@ Append-only. Most-recent-first.
 
 ---
 
-## Q1 — BLOCKER: "Recipe-blocks-on-WizardActivity" pattern is not supported by the current `IdeTemplateService` API
+## Q1 (resolved by sidebar branch) — BLOCKER: "Recipe-blocks-on-WizardActivity" pattern is not supported by the current `IdeTemplateService` API
+
+**Resolution.** The `feature/ADFA-2436-maps-plugin-sidebar` branch
+abandons the recipe-blocking handshake entirely in favour of a two-phase
+architecture:
+
+1. Two **static** `.cgt` templates (read-only + annotate) — each scaffolds
+   a generic Map app with stub `tiles.mbtiles` + empty `pois.json`. Pebble
+   recipe only; no plugin-Kotlin injection point needed. Apps build + run
+   out of the box.
+2. After project opens, plugin contributes a **"Map Regions" sidebar
+   entry** via `UIExtension.getSideMenuItems()`. It launches
+   `RegionManagerActivity` where the user manages cached regions and
+   applies one to the open project via "Use in this project" (copies
+   `tiles.mbtiles` + `pois.json` into `<projectDir>/app/src/main/assets/maps/`).
+
+This trades the recipe-extension blocker for a model that ships within
+the existing API. No `templates-impl` changes required. Original Q1
+analysis kept below for reference.
+
+### Original analysis (pre-resolution)
 
 **Context.** Plan §5.2 (launch pattern row) and §5e of the Forms ADFA-2435 plan both say: "Template recipe blocks on a `WizardActivity`. Recipe runs on a background thread (per `TemplateDetailsFragment` line 109), launches `WizardActivity` via `context.startActivity(intent.addFlags(FLAG_ACTIVITY_NEW_TASK))`, blocks on a `CompletableDeferred` until the wizard returns a `WizardResult`."
 

@@ -1,172 +1,116 @@
-# ADFA-2436 implementation status (overnight run, 2026-05-06 / 07)
+# ADFA-2436 implementation status (sidebar branch, 2026-05-07)
 
-## Plan vs. reality
+## Branch context
 
-Plan target tonight: C1 + C2 + C3, C4+ if time permits.
+This is `feature/ADFA-2436-maps-plugin-sidebar`, branched from
+`feature/ADFA-2436-maps-plugin` after the recipe-blocking-wizard model
+was abandoned (Q1 finding). New architecture is **two-phase**:
 
-## Current state
+1. Plugin registers two **static** `.cgt` templates (read-only + annotate).
+   Each scaffolds a generic Map app with stub `tiles.mbtiles` + empty
+   `pois.json` so the app builds and runs out of the box. Recipe is plain
+   Pebble — no Kotlin-recipe injection, no wizard inside the template
+   flow.
+2. After project opens, plugin contributes a single **"Map Regions"**
+   sidebar entry via `UIExtension.getSideMenuItems()`. Tapping it opens
+   `RegionManagerActivity` (full-screen), where the user manages cached
+   regions with per-row "Use in this project" / "Refresh" / "Delete" and
+   a bottom "+ Download new region" CTA that fires the bbox picker.
 
-(updated as work progresses)
+Bottom-sheet plugin tab is **gone**. Region management is project-resource
+navigation, not process output, so the sidebar slot is the right surface.
 
-- [x] C1 — Plugin scaffolding + stub templates **(modified — see Q1 in QUESTIONS.md)**
-- [x] C2 — Wizard UI: 3-step flow with Gaia-style bbox picker, live tile/MB estimate, stub downloader writes cache layout **(not yet wired to recipe — see Q1)**
-- [x] C3 — "Map Regions" bottom-sheet plugin tab: delete with confirmation dialog, re-download via wizard re-launch, refresh-on-resume, path-traversal-safe delete
-- [x] C4 — MapLibre-backed read-only + annotate templates **(plugin compiles green; generated-APK runtime not yet validated — see Q2)**
-- [x] C5 — Read-only template POI loader: bundled Lalibela sample dataset, `pois.json` loader, bottom-sheet drawer, tap-to-zoom-and-highlight (Kotlin variant only — Java variant intentionally omits the drawer for readability)
-- [ ] C6 — Annotate template (UX + Room + CameraX)
-- [ ] C7 — Annotate submitter (BLOCKED on Q1 because the wizard's submitter-config screen needs a way back to the recipe)
-- [x] C8 — Three-tier docs **(Tier 1 tooltip strings, Tier 2 generated README per template, Tier 3 in-IDE markdown OSM tutorial all shipped)**
+## What landed in this branch
 
-## What landed in C1
+### Removed (recipe-blocking wizard plumbing)
+- `WizardActivity.kt` (3-step wizard)
+- `WizardLauncher.kt` (CompletableDeferred handshake)
+- `WizardResult.kt`
+- `CachedRegionPickerAdapter.kt`
+- 4 wizard layouts (`activity_wizard.xml`, `wizard_step1/2/3`)
+- `getEditorTabs()` override on `GisPlugin` (bottom-sheet tab gone)
+- Sample Lalibela POI dataset bundled in the read-only template (the
+  scaffold now ships an empty `pois.json` — region content arrives via
+  the sidebar's "Use in this project")
 
-- New module `gis-plugin/` with `plugin.json` declaring permissions
-  `filesystem.read,filesystem.write,network.access` and main_class
-  `com.codeonthego.gisplugin.GisPlugin`.
-- `GisPlugin` (`IPlugin` + `UIExtension` + `DocumentationExtension`):
-    - registers two stub `.cgt` templates via `IdeTemplateService`
-    - contributes a "Map Regions" bottom-sheet tab via `getEditorTabs()`
-    - ships Tier 1 tooltip strings for both templates and the regions tab
-- `WizardActivity` + `WizardLauncher` ready for the recipe-blocking pattern
-  once the `IdeTemplateService` API is extended (see QUESTIONS.md Q1).
-- Stub CGTs scaffold a minimal Material 3 / AppCompat single-Activity
-  Android project (no MapLibre yet — that arrives in C4).
-- `RegionCache` reads `/sdcard/CodeOnTheGo/maps/*/meta.json` and exposes
-  it to `RegionManagerFragment` (empty cache → empty state).
+### Added
+- `RegionManagerActivity` — full-screen Activity hosting the regions
+  fragment. Material 3 chrome with back-arrow.
+- `BboxPickerActivity` — repurposes `BboxOverlayView` as a standalone
+  picker. Top app bar, region-name field, live tile/MB estimate, Save +
+  Cancel. On Save runs `RegionDownloader` and finishes.
+- "Use in this project" affordance on every region card. Copies
+  `tiles.mbtiles` + `pois.json` into `<projectDir>/app/src/main/assets/maps/`
+  + writes a `region-id.txt` marker so the badge persists.
+- "✓ In this project" badge per row when the region is currently bundled.
+- "+ Download new region" primary CTA at the bottom of the regions panel.
+- `RegionRow` view-model wrapping `RegionInfo` with `isInProject` +
+  `isDownloading` flags.
+- Empty-state banner in the generated app's `MainActivity` ("No region
+  configured — open Map Regions in your IDE sidebar"). Hides itself once
+  `pois.json` has any entries.
+- `cardview` dependency in the generated app's `build.gradle.kts` (used
+  by the empty-state banner).
+- Stub `tiles.mbtiles` + empty `pois.json` bundled in every template
+  scaffold so the generated app's MapView never inflates against missing
+  assets.
+- `androidx.cardview` dependency in generated app build.gradle.kts.
 
-## Working notes
+### Modified
+- `GisPlugin.kt` — drops `getEditorTabs()` + the prior "manual launch
+  sidebar" workaround entry. Single `getSideMenuItems()` returns "Map
+  Regions" launcher. Exposes `pluginContext` via companion object so the
+  hosted Activity can resolve services.
+- `RegionAdapter.kt` — listener interface gains `onRegionUseInProject`;
+  consumes `RegionRow` instead of bare `RegionInfo`. Inline progress
+  indicator + badge wiring.
+- `RegionManagerFragment.kt` — promoted from bottom-sheet to full-screen.
+  Adds project-aware refresh, "Use in this project" copy + marker write,
+  and CTA → BboxPickerActivity launch.
+- `item_region.xml` — adds badge, progress indicator, and primary "Use
+  in this project" button.
+- `fragment_region_manager.xml` — adds bottom "+ Download new region"
+  primary button.
+- `AndroidManifest.xml` — declares the two new Activities, removes
+  `WizardActivity`. Sidebar items count stays at 1.
+- `MapTemplateBuilder.kt` — generic-Map scaffolds; reads from
+  `assets/maps/pois.json` (not `assets/pois.json`); kind-aware
+  `activityMainLayout` so the annotate template doesn't inflate the POI
+  drawer.
+- `strings.xml` — new strings for Use-in-project / In-this-project /
+  Download-new / apply success/failure / no-project; dropped wizard
+  strings.
 
-See `QUESTIONS.md` for unresolved blockers / decisions. **Q1 is the
-blocker that gates real wiring of templates → recipe → wizard.** Everything
-below the recipe boundary (wizard UI, bbox picker, downloader, cache,
-templates, MapLibre map, POI drawer, docs) ships green.
+## What survives unchanged from the previous branch's 8 commits
 
-## Morning checklist (suggested order)
-
-1. **Read `QUESTIONS.md` Q1.** It's the most important finding from tonight.
-   Either confirm the suggested fix (extend `IdeTemplateService` to accept
-   plugin-authored Kotlin recipes) with Daniel/Hal, or pick a different
-   workaround.
-2. **Try the wizard UX manually.** Build & install the .cgp at
-   `gis-plugin/build/plugin/gis-plugin-debug.cgp`, open any project, tap
-   the sidebar "Map wizard (manual launch)" item. You should see the 3
-   steps; downloading writes a stub region into
-   `/sdcard/CodeOnTheGo/maps/`; the bottom-sheet "Map Regions" tab shows
-   it; delete + re-download work. Anything that feels off is signal.
-3. **MapLibre on-device validation (Q2).** Until Q1 is unblocked the
-   easiest way to test the generated APK is: scaffold one of the templates
-   manually by hand-extracting the .cgt and running gradle. Or wait until
-   Q1 is unblocked and use the IDE end-to-end. Either way, the InflateException
-   risk from plan §7 R1 stays open until a Galaxy A35/A36 boots a generated
-   app cleanly.
-4. **Q3 (offline tiles) and Q4 (the gitignore mis-config).** Independent of
-   ADFA-2436 itself; punt these to whenever fits.
-5. **C6 (annotate UX) and C7 (submitter)** are the remaining plan slices.
-   Skipped tonight because they're substantial (CameraX, Room, multipart
-   POST) and largely blocked on Q1. Worth opening as separate sub-tickets
-   so the milestone closes cleanly without these.
-
-## Branch state
-
-  * 7 commits on `feature/ADFA-2436-maps-plugin` ahead of `origin/stage`.
-  * Worktree base is 7 commits behind `origin/stage` — the rebase / merge
-    is left for the morning so any conflicts surface in front of you, not
-    silently overnight.
-  * No push happened. Everything is local.
+- `BboxOverlayView` math + drag handling
+- `RegionCache` + path-traversal-safe delete
+- `Bbox` + `TileEstimator` (slippy-map-tilenames math, haversine width/
+  height calculations)
+- `RegionDownloader` stub (synthetic 50ms-per-step progress so the picker
+  has something to wait on)
+- Tier 1 / 2 / 3 documentation (template tooltips, generated README,
+  OSM tutorial markdown)
+- MapLibre 11.11.0 pin
+- Generated MainActivity Kotlin + Java sibling lifecycle wiring
 
 ## Build verification log
 
 | When | Cmd | Outcome |
 |---|---|---|
-| 2026-05-07 01:10 PT | `./gradlew assembleDebug` (gis-plugin) | BUILD SUCCESSFUL in 7s; `gis-plugin-debug.apk` (5.6 MB) produced |
-| 2026-05-07 01:11 PT | `./gradlew assembleRelease` (gis-plugin) | BUILD SUCCESSFUL in 16s |
-| 2026-05-07 01:12 PT | `./gradlew assemblePluginDebug` | BUILD SUCCESSFUL; `gis-plugin-debug.cgp` written to `build/plugin/` |
-| 2026-05-07 02:25 PT | `./gradlew assembleDebug` (post-C2) | BUILD SUCCESSFUL in 4s |
-| 2026-05-07 02:50 PT | `./gradlew assembleDebug` (post-C3) | BUILD SUCCESSFUL in 2s |
-| 2026-05-07 03:10 PT | `./gradlew assembleDebug` (post-C4) | BUILD SUCCESSFUL in 1s. Plugin module only — generated APK MapLibre runtime not yet validated. |
-| 2026-05-07 03:30 PT | `./gradlew assembleDebug` (post-C8) | BUILD SUCCESSFUL in 2s |
-| 2026-05-07 04:00 PT | `./gradlew assembleDebug` (post-C5) | BUILD SUCCESSFUL in 1s |
+| 2026-05-07 02:11 PT | `./gradlew :gis-plugin:assembleDebug` (post-rewire) | BUILD SUCCESSFUL in 3s |
+| 2026-05-07 02:12 PT | `./gradlew :gis-plugin:assemblePluginDebug` | BUILD SUCCESSFUL; `gis-plugin-debug.cgp` (5.4 MB) emitted |
+| 2026-05-07 02:13 PT | `./gradlew clean :gis-plugin:assemblePluginDebug` | BUILD SUCCESSFUL in 1s (clean rebuild) |
 
-## What landed in C5
+## Open questions / risks (still standing)
 
-- Read-only template's `MainActivity.kt` now loads `assets/pois.json` and
-  populates a Material BottomSheet drawer with the nearest places. Tap a row
-  → camera flies to that POI and zooms to 15.
-- Sample dataset: 5 POIs around Lalibela, Ethiopia (the plan's persona-2
-  test region) — town centre, three rock-hewn churches, the airport.
-- New `assets/pois.json` + `res/layout/poi_drawer.xml` files are gated to
-  the read-only template only — the annotate template doesn't ship the
-  bundled POIs.
-- Generated `app/build.gradle.kts` gains `androidx.recyclerview` and
-  `androidx.coordinatorlayout`. Layout root switched from
-  `ConstraintLayout` to `CoordinatorLayout` so the BottomSheet behaviour
-  attaches cleanly. Annotate template gets the same root, ready for C6's
-  FAB.
-- The Java sibling intentionally omits the drawer code so the Java template
-  stays readable for learners.
+See `QUESTIONS.md` — Q1 (recipe-blocking) is **resolved by this branch's
+architectural pivot** (no longer needed). Q2 (MapLibre 11.11.0 on-device
+validation), Q3 (offline tile pack source), Q4 (gitignore mis-config) are
+unchanged.
 
-## What landed in C8
-
-- Tier 1 — tooltip strings on each template card (in `GisPlugin.getTooltipEntries`).
-  Now include a "OSM + MapLibre tutorial" button that deep-links into Tier 3.
-- Tier 2 — `README.md` emitted into every generated project. Audience-specific
-  ("annotate" template's README has a submitter section, "read-only" doesn't).
-  Pebble-templated so the user's `{{APP_NAME}}` and `{{PACKAGE_NAME}}` show up
-  in code blocks and headings.
-- Tier 3 — `gis-plugin/src/main/assets/docs/osm-tutorial.md`. ~6 pages
-  covering OSM tag model, MapLibre style basics, where tiles come from, how
-  to swap `pois.json`, Overpass API for adding new POI categories.
-  `GisPlugin.getTier3DocsAssetPath()` now returns `"docs"` so the IDE walks
-  the tree at install time and inserts each file under
-  `plugin/com.codeonthego.gisplugin/...` in the docs DB.
-
-## What landed in C4
-
-- New `MapTemplateBuilder` replaces the C1 stub. Both registered templates
-  now scaffold an Android project that compiles MapLibre Native 11.11.0,
-  Material 3, AppCompat, Play Services Location.
-- Generated `MainActivity.kt` and `MainActivity.java` initialise MapLibre,
-  forward all 8 lifecycle events into the `MapView` (per upstream docs —
-  skipping any leaks GPU memory), and centre the camera on the user's
-  GPS fix via `FusedLocationProviderClient.getCurrentLocation`.
-- Generated `activity_main.xml` uses `org.maplibre.android.maps.MapView`
-  (the post-rebrand class — older docs still reference the
-  `com.mapbox.mapboxsdk.maps.MapView` Mapbox class).
-- Generated `assets/style.json` is a tiny raster style hitting MapLibre's
-  demo tile server. Sufficient for "map renders" smoke testing; the real
-  offline-mbtiles-bundle wire-up is logged in `QUESTIONS.md` Q3.
-- Annotate template manifest declares `CAMERA` permission and the
-  `android.hardware.camera` feature so first-launch UX surfaces it before
-  C6's photo-capture flow lands.
-- Old `StubTemplateBuilder` deleted now that real templates ship.
-
-## What landed in C3
-
-- `RegionAdapter` gains a `Listener` interface; per-row Delete + Re-download
-  buttons wire to the fragment.
-- `RegionCache.delete(regionId)` — path-traversal-safe recursive delete
-  (refuses to remove anything outside the cache root).
-- `RegionManagerFragment`:
-    - confirms delete via AlertDialog, toasts result, refreshes
-    - re-download re-launches the wizard from `WizardLauncher` and refreshes
-      on return
-    - `onResume`-based refresh catches external mutations (the wizard
-      finishing while the user is on another tab).
-
-## What landed in C2
-
-- `Bbox` + `TileEstimator` — slippy-map-tilenames math, haversine widthKm/
-  heightKm, default-square-around-point helper.
-- `BboxOverlayView` — direct-manipulation custom View. 48 dp corner-handle
-  hit zones, 20 dp visible dots, drag-interior-to-translate, drag-corner-to-
-  resize, min 48 dp side, parent-touch-interception while dragging.
-- 3-step wizard layout: pick region (cached / download), Gaia-style bbox
-  picker with live tile/MB readout, download progress.
-- `RegionDownloader` — stub (no HTTP yet) that writes the canonical cache
-  layout `{tiles.mbtiles, pois.json, meta.json}` under
-  `/sdcard/CodeOnTheGo/maps/<region-id>/`. Synthetic 50 ms-per-step progress
-  callback so the UI animates and a real downloader can drop in unchanged.
-- `CachedRegionPickerAdapter` — single-select picker that reuses the C1 row
-  layout but hides per-row buttons. Driven by `RegionCache.list()`.
-- Wizard state machine + cancellation contract: any exit without a successful
-  step-3 finish calls `WizardLauncher.complete(null)`. Matters because the
-  recipe coroutine (when wired) blocks on the same deferred.
+Net: this branch trades the recipe-extension blocker for a simpler model
+that ships within the existing API surface. The trade-off is that
+projects scaffolded from a Map template start with empty pois.json + a
+4-byte stub mbtiles; users complete the loop by downloading a region in
+the sidebar and tapping "Use in this project".
