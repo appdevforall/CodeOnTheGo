@@ -34,10 +34,10 @@ internal object FormsPluginConnector {
     }
 
     /**
-     * @return the registered template's filename on success, or null if the
-     *   plugin instance was unbound or registration failed. Callers that need
-     *   to flag the failure to the user should fall through to a generic
-     *   "could not register" toast.
+     * @return the absolute path of the written `form_schema.json` on success,
+     *   or null if the plugin instance was unbound, no project was open, or
+     *   the file write failed. Callers that need to flag the failure to the
+     *   user should fall through to a generic "could not save" toast.
      */
     fun deliverCompleted(schema: FormSchema): String? {
         return plugin?.onWizardCompleted(schema)

@@ -1,9 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="forms_plugin_name">Forms</string>
-    <string name="forms_sidebar_title">Form-filling app from photo</string>
+    <string name="forms_sidebar_title">Form schema</string>
+    <string name="forms_toolbar_action_title">Capture form from photo</string>
     <string name="forms_template_name">Form-filling app from photo</string>
     <string name="forms_template_description">Generate an offline-capable Android app for filling a paper form. Take or pick a photo of the form, review the detected fields, and ship the runnable app.</string>
+
+    <!-- Schema panel -->
+    <string name="forms_panel_tab_title">Form schema</string>
+    <string name="forms_panel_capture_button">📷 Capture form from photo</string>
+    <string name="forms_panel_no_project">Open a form-data project first. The schema panel reads and writes app/src/main/assets/form_schema.json in the open project.</string>
+    <string name="forms_panel_schema_missing">No form_schema.json yet. Tap Capture to build one from a photo.</string>
+    <string name="forms_panel_schema_unreadable">form_schema.json couldn\'t be parsed. Use Capture to overwrite it with a fresh schema.</string>
+    <string name="forms_panel_field_count">%1$d field(s) currently configured.</string>
+    <string name="forms_panel_stub_hint">Stub schema with a placeholder field. Tap Capture to replace it with real fields.</string>
+    <string name="forms_panel_path_label">Schema file:</string>
+    <string name="forms_panel_schema_saved">Form schema saved · rebuild to apply.</string>
+    <string name="forms_panel_schema_save_failed">Could not save form schema. Is a project open?</string>
 
     <!-- Wizard -->
     <string name="forms_wizard_title">Form app wizard</string>

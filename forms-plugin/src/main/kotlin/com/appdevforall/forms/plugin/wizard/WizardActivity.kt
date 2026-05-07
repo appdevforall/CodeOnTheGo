@@ -174,11 +174,11 @@ class WizardActivity : AppCompatActivity() {
 
     private fun finishCompleted() {
         val schema = viewModel.snapshot()
-        val registered = FormsPluginConnector.deliverCompleted(schema)
-        val toastResId = if (registered != null) {
-            R.string.forms_template_registered
+        val written = FormsPluginConnector.deliverCompleted(schema)
+        val toastResId = if (written != null) {
+            R.string.forms_panel_schema_saved
         } else {
-            R.string.forms_template_register_failed
+            R.string.forms_panel_schema_save_failed
         }
         Toast.makeText(this, toastResId, Toast.LENGTH_LONG).show()
         finish()

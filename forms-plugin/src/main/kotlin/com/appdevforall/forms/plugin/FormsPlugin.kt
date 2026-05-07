@@ -1,17 +1,27 @@
 package com.appdevforall.forms.plugin
 
+import com.appdevforall.forms.plugin.panel.SchemaPanelFragment
+import com.appdevforall.forms.plugin.panel.SchemaPanelHost
 import com.appdevforall.forms.plugin.template.FormTemplateBuilder
 import com.appdevforall.forms.plugin.wizard.FormsPluginConnector
 import com.appdevforall.forms.plugin.wizard.WizardActivity
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
+import com.itsaky.androidide.plugins.extensions.DocumentationExtension
+import com.itsaky.androidide.plugins.extensions.EditorTabExtension
+import com.itsaky.androidide.plugins.extensions.EditorTabItem
 import com.itsaky.androidide.plugins.extensions.NavigationItem
 import com.itsaky.androidide.plugins.extensions.PluginTooltipButton
 import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
-import com.itsaky.androidide.plugins.extensions.DocumentationExtension
+import com.itsaky.androidide.plugins.extensions.ShowAsAction
+import com.itsaky.androidide.plugins.extensions.ToolbarAction
 import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.plugins.services.IdeEditorTabService
+import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeTemplateService
 import com.itsaky.androidide.plugins.services.IdeUIService
+import java.io.File
 
 /**
  * Code on the Go plugin that scaffolds a runnable, offline-capable form-data
@@ -41,7 +51,7 @@ import com.itsaky.androidide.plugins.services.IdeUIService
  *    generated app's runtime renderer reads that JSON on every launch, so
  *    iteration is just file replacement plus an APK rebuild.
  */
-class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
+class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExtension {
 
     private lateinit var pluginContext: PluginContext
     private var templateBuilder: FormTemplateBuilder? = null
@@ -61,10 +71,26 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
         pluginContext.logger.info("FormsPlugin: activating")
         FormsPluginConnector.bind(this)
 
+        // Hook the schema panel up to the open project's schema file. The
+        // panel re-resolves the locator on every render, so this lambda runs
+        // on the UI thread and must stay cheap. Returning null is the panel's
+        // empty-state signal.
+        SchemaPanelHost.locator = {
+            val projectService = pluginContext.services.get(IdeProjectService::class.java)
+            val project = projectService?.getCurrentProject()
+            if (project != null) {
+                SchemaPanelHost(
+                    schemaFile = File(project.rootDir, ASSETS_SCHEMA_PATH),
+                )
+            } else {
+                null
+            }
+        }
+
         val templateService = pluginContext.services.get(IdeTemplateService::class.java)
         if (templateService == null) {
             pluginContext.logger.warn(
-                "IdeTemplateService not available — sidebar entry still works, but " +
+                "IdeTemplateService not available — schema panel still works, but " +
                     "the static template card won't appear in the New Project grid."
             )
             return true
@@ -88,29 +114,83 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
     override fun deactivate(): Boolean {
         pluginContext.logger.info("FormsPlugin: deactivating")
         FormsPluginConnector.unbind(this)
+        SchemaPanelHost.locator = null
         return true
     }
 
     override fun dispose() {
         pluginContext.logger.info("FormsPlugin: disposing")
         FormsPluginConnector.unbind(this)
+        SchemaPanelHost.locator = null
         templateBuilder = null
     }
 
     override fun getSideMenuItems(): List<NavigationItem> {
         return listOf(
             NavigationItem(
-                id = "forms_wizard",
+                id = "forms_schema_panel",
                 title = pluginContext.androidContext.getString(R.string.forms_sidebar_title),
-                icon = android.R.drawable.ic_menu_camera,
+                icon = android.R.drawable.ic_menu_edit,
                 isEnabled = true,
                 isVisible = true,
                 group = "templates",
                 order = 0,
                 tooltipTag = "forms_plugin.wizard",
+                action = ::openSchemaPanel,
+            )
+        )
+    }
+
+    override fun getToolbarActions(): List<ToolbarAction> {
+        return listOf(
+            ToolbarAction(
+                id = "forms_capture_from_photo",
+                title = pluginContext.androidContext.getString(R.string.forms_toolbar_action_title),
+                icon = android.R.drawable.ic_menu_camera,
+                showAsAction = ShowAsAction.IF_ROOM,
+                isEnabled = true,
+                isVisible = true,
+                order = 0,
                 action = ::launchWizard,
             )
         )
+    }
+
+    override fun getMainEditorTabs(): List<EditorTabItem> {
+        return listOf(
+            EditorTabItem(
+                id = SCHEMA_PANEL_TAB_ID,
+                title = pluginContext.androidContext.getString(R.string.forms_panel_tab_title),
+                icon = android.R.drawable.ic_menu_edit,
+                fragmentFactory = { SchemaPanelFragment() },
+                isCloseable = true,
+                isPersistent = false,
+                order = 50,
+                isEnabled = true,
+                isVisible = true,
+                tooltip = pluginContext.androidContext.getString(R.string.forms_panel_tab_title),
+            )
+        )
+    }
+
+    /**
+     * Surface the schema panel as a main editor tab. Mirrors how
+     * `MarkdownPreviewerPlugin` opens its preview tab — falls through to a
+     * direct wizard launch if the editor tab system isn't available, so the
+     * action is never a complete dead-end.
+     */
+    private fun openSchemaPanel() {
+        val tabService = pluginContext.services.get(IdeEditorTabService::class.java)
+        if (tabService != null && tabService.isTabSystemAvailable() &&
+            tabService.selectPluginTab(SCHEMA_PANEL_TAB_ID)
+        ) {
+            return
+        }
+        pluginContext.logger.warn(
+            "IdeEditorTabService not available or selectPluginTab failed — " +
+                "falling back to launching the wizard directly."
+        )
+        launchWizard()
     }
 
     /**
@@ -150,13 +230,9 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
      * The plugin doesn't trigger the rebuild itself — that would require
      * `IdeBuildService` and we want the user to stay in control.
      */
-    internal fun onWizardCompleted(schema: com.appdevforall.forms.plugin.FormSchema): String? {
-        val projectService = pluginContext.services.get(
-            com.itsaky.androidide.plugins.services.IdeProjectService::class.java
-        )
-        val fileService = pluginContext.services.get(
-            com.itsaky.androidide.plugins.services.IdeFileService::class.java
-        )
+    internal fun onWizardCompleted(schema: FormSchema): String? {
+        val projectService = pluginContext.services.get(IdeProjectService::class.java)
+        val fileService = pluginContext.services.get(IdeFileService::class.java)
         if (projectService == null || fileService == null) {
             pluginContext.logger.error(
                 "IdeProjectService or IdeFileService unavailable. The wizard captured " +
@@ -171,10 +247,7 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
             )
             return null
         }
-        val target = java.io.File(
-            project.rootDir,
-            "app/src/main/assets/form_schema.json",
-        )
+        val target = File(project.rootDir, ASSETS_SCHEMA_PATH)
         target.parentFile?.mkdirs()
         val ok = fileService.writeFile(target, schema.toJson())
         if (!ok) {
@@ -185,6 +258,12 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
         }
         pluginContext.logger.info("Forms wizard wrote schema to ${target.absolutePath}")
         return target.absolutePath
+    }
+
+    companion object {
+        private const val SCHEMA_PANEL_TAB_ID = "forms_schema_panel_tab"
+        /** Project-relative path of the schema the runtime renderer reads. */
+        internal const val ASSETS_SCHEMA_PATH = "app/src/main/assets/form_schema.json"
     }
 
     // DocumentationExtension — three-tier tooltip plumbing per ADFA-2432.
