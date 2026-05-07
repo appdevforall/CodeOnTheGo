@@ -103,4 +103,77 @@ class FormSchemaTest {
         assertEquals(FieldType.TEXT, FieldType.fromId("unknown"))
         assertEquals(FieldType.TEXT, FieldType.fromId(""))
     }
+
+    @Test
+    fun fromJsonRoundTripsFullSchema() {
+        val original = FormSchema(
+            appName = "Vaccination intake",
+            packageName = "org.ngo.intake",
+            fields = listOf(
+                FormField(id = "f_1", label = "Name", type = FieldType.TEXT, required = true),
+                FormField(id = "f_2", label = "DOB", type = FieldType.DATE, required = true),
+                FormField(id = "f_3", label = "Notes", type = FieldType.LONGTEXT),
+                FormField(id = "f_4", label = "Pregnant?", type = FieldType.CHECKBOX),
+                FormField(id = "f_5", label = "Postal", type = FieldType.TEXT, reusable = true, confidence = 0.91),
+            ),
+            submit = SubmitConfig(
+                postUrl = "https://example.org/intake",
+                postAsJson = true,
+                allowCsvShare = true,
+                allowJsonShare = false,
+                offlineQueue = true,
+            ),
+        )
+        val parsed = FormSchema.fromJson(original.toJson())!!
+        assertEquals(original, parsed)
+    }
+
+    @Test
+    fun fromJsonHandlesEmptySchema() {
+        val original = FormSchema(
+            appName = "Stub",
+            packageName = "com.example.stub",
+            fields = emptyList(),
+            submit = SubmitConfig(),
+        )
+        val parsed = FormSchema.fromJson(original.toJson())!!
+        assertEquals(original, parsed)
+    }
+
+    @Test
+    fun fromJsonReturnsNullForGarbage() {
+        assertEquals(null, FormSchema.fromJson("not json {{"))
+    }
+
+    @Test
+    fun fromJsonToleratesMissingFields() {
+        // Hand-edited or partial schemas should still parse rather than blow
+        // up the panel's renderer.
+        val parsed = FormSchema.fromJson("""{"appName":"X"}""")!!
+        assertEquals("X", parsed.appName)
+        assertEquals("", parsed.packageName)
+        assertEquals(0, parsed.fields.size)
+        assertTrue(parsed.submit.postAsJson)
+        assertTrue(parsed.submit.offlineQueue)
+        assertFalse(parsed.submit.allowCsvShare)
+    }
+
+    @Test
+    fun fromJsonSkipsFieldsWithoutId() {
+        val json = """
+            {
+              "appName":"X",
+              "packageName":"com.x",
+              "fields":[
+                {"id":"ok","label":"OK","type":"text"},
+                {"label":"missing id","type":"text"},
+                {"id":"","label":"empty id","type":"text"}
+              ],
+              "submit":{}
+            }
+        """.trimIndent()
+        val parsed = FormSchema.fromJson(json)!!
+        assertEquals(1, parsed.fields.size)
+        assertEquals("ok", parsed.fields[0].id)
+    }
 }

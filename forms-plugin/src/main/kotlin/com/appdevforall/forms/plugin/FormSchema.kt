@@ -77,5 +77,55 @@ data class FormSchema(
             root.put("submit", sj)
             return root
         }
+
+        /**
+         * Parse a JSON document produced by [toJson]. Tolerant of missing or
+         * legacy fields: a malformed schema yields a best-effort schema rather
+         * than throwing, since [SchemaPanelFragment] uses this to render
+         * whatever's currently on disk in the open project's `assets/` dir
+         * (including hand-edited stubs).
+         *
+         * Returns null only if the input isn't valid JSON at all.
+         */
+        fun fromJson(json: String): FormSchema? {
+            val obj = try {
+                JSONObject(json)
+            } catch (t: Throwable) {
+                return null
+            }
+            val appName = obj.optString("appName", "")
+            val packageName = obj.optString("packageName", "")
+            val fieldsArray = obj.optJSONArray("fields") ?: JSONArray()
+            val fields = ArrayList<FormField>(fieldsArray.length())
+            for (i in 0 until fieldsArray.length()) {
+                val fj = fieldsArray.optJSONObject(i) ?: continue
+                val id = fj.optString("id", "")
+                if (id.isEmpty()) continue
+                val confidence = if (fj.has("confidence")) fj.optDouble("confidence") else null
+                fields += FormField(
+                    id = id,
+                    label = fj.optString("label", ""),
+                    type = FieldType.fromId(fj.optString("type", "text")),
+                    required = fj.optBoolean("required", false),
+                    reusable = fj.optBoolean("reusable", false),
+                    confidence = if (confidence != null && !confidence.isNaN()) confidence else null,
+                )
+            }
+            val sj = obj.optJSONObject("submit") ?: JSONObject()
+            val postUrlRaw = sj.optString("postUrl", "")
+            val submit = SubmitConfig(
+                postUrl = postUrlRaw.takeIf { it.isNotEmpty() },
+                postAsJson = sj.optBoolean("postAsJson", true),
+                allowCsvShare = sj.optBoolean("allowCsvShare", false),
+                allowJsonShare = sj.optBoolean("allowJsonShare", false),
+                offlineQueue = sj.optBoolean("offlineQueue", true),
+            )
+            return FormSchema(
+                appName = appName,
+                packageName = packageName,
+                fields = fields,
+                submit = submit,
+            )
+        }
     }
 }
