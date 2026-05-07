@@ -11,6 +11,7 @@ import android.os.SystemClock
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -105,13 +106,27 @@ class XkcdPanelFragment : Fragment() {
         progressView = view.findViewById(R.id.xkcd_progress)
         emptyView = view.findViewById(R.id.xkcd_empty)
 
-        // Tap dispatch: ACTION_UP feeds the classifier. The ScrollView
-        // root sits across the entire panel, so any tap counts.
+        // Tap dispatch: ACTION_UP feeds the classifier *only* if the
+        // gesture didn't move beyond the system touch slop — otherwise
+        // every fling/scroll on a tall comic would also fire a tap.
         val root = view.findViewById<View>(R.id.xkcd_root)
+        val touchSlop = ViewConfiguration.get(view.context).scaledTouchSlop
+        var downX = 0f
+        var downY = 0f
         root.setOnTouchListener { _, event ->
-            if (event.actionMasked == MotionEvent.ACTION_UP) {
-                handleTap()
-                root.performClick()  // accessibility-friendly
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dx = event.x - downX
+                    val dy = event.y - downY
+                    if (dx * dx + dy * dy <= touchSlop * touchSlop) {
+                        handleTap()
+                        root.performClick()  // accessibility-friendly
+                    }
+                }
             }
             // We never consume the event here; let the ScrollView keep
             // its scroll behavior so long content is still scrollable.
@@ -155,6 +170,9 @@ class XkcdPanelFragment : Fragment() {
     }
 
     private fun handleClassification(c: TapCountClassifier.Classification?) {
+        // Guard against the deferred Handler runnable firing after the
+        // view has been torn down — would otherwise touch viewLifecycleOwner.
+        if (!isAdded || view == null) return
         when (c) {
             TapCountClassifier.Classification.SINGLE -> loadRandomComic()
             TapCountClassifier.Classification.DOUBLE -> copyUrlToClipboard()
