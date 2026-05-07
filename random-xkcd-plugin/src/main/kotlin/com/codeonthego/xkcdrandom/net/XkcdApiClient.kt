@@ -46,18 +46,24 @@ class XkcdApiClient(
 
     /**
      * Stream the comic's PNG. Caller must close the returned stream.
-     * Returns null if the request failed or the response body was empty.
+     * Returns null if the request failed, the response body was empty,
+     * or any IO error occurred (timeout, DNS, TLS). Returning null —
+     * rather than throwing — keeps the caller's empty-state branch
+     * reachable; without it the spinner can hang on a flaky connection.
      * The size cap is enforced by the caller — see [XkcdPanelFragment].
      */
-    fun openImageStream(imageUrl: String): InputStream? {
+    fun openImageStream(imageUrl: String): InputStream? = try {
         val response = client.newCall(Request.Builder().url(imageUrl).build()).execute()
         if (!response.isSuccessful) {
             response.close()
-            return null
+            null
+        } else {
+            // body() can be null on 204 etc. — for xkcd it shouldn't, but
+            // handle the case explicitly.
+            response.body?.byteStream()
         }
-        // body() can be null on 204 etc. — for xkcd it shouldn't, but
-        // handle the case explicitly.
-        return response.body?.byteStream()
+    } catch (_: IOException) {
+        null
     }
 
     private fun getJson(url: String): JSONObject? = try {
