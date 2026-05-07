@@ -15,10 +15,6 @@ import java.io.File
  *  - `meta.json`       — `{regionId, displayName, bbox, zoomMin, zoomMax,
  *                          source, sizeBytes, downloadedAt, lastUsedAt}`
  *
- * C1 only implements **read** — listing what's on disk so the bottom-sheet tab
- * can populate. Write-side (download into the cache, delete a region) lands in
- * C2 / C3 once the wizard is wired up.
- *
  * The cache lives outside the plugin so it survives plugin re-installs and is
  * shareable between projects. We use the public external storage path because:
  *   (a) Internet-in-a-Box and similar distribution channels can sideload tile
@@ -39,6 +35,10 @@ import java.io.File
  * `..`, slashes or other path components. [isValidRegionId] is the
  * authoritative validator and is called from every entry point that
  * resolves a path under the cache root.
+ *
+ * **Testability note.** The `*FromRoot` overloads take an explicit root File
+ * parameter so JVM unit tests can run without `Environment.getExternalStorageDirectory`.
+ * The no-arg variants delegate to [rootDir] for production callers.
  */
 internal object RegionCache {
 
@@ -52,7 +52,7 @@ internal object RegionCache {
      *
      * Excludes: `.`, `..`, leading hyphens, leading dots, slashes, backslashes,
      * empty strings, embedded null bytes, and anything not in the ASCII subset.
-     * The kebab-case shape pairs with the slugifier in [BboxPickerFragment.save].
+     * The kebab-case shape pairs with the slugifier in [com.codeonthego.gisplugin.wizard.BboxPickerFragment].
      */
     private val REGION_ID_PATTERN = Regex("^[a-z0-9][a-z0-9-]*$")
 
@@ -75,10 +75,15 @@ internal object RegionCache {
      */
     fun list(): List<RegionInfo> {
         val root = runCatching { rootDir() }.getOrNull() ?: return emptyList()
+        return listFromRoot(root)
+    }
+
+    /** Testable variant of [list] taking an explicit root directory. */
+    fun listFromRoot(root: File): List<RegionInfo> {
         val children = root.listFiles { f -> f.isDirectory } ?: return emptyList()
         return children.mapNotNull { dir ->
             runCatching { read(dir) }
-                .onFailure { Log.w(TAG, "Skipping malformed region at ${dir.name}: ${it.message}") }
+                .onFailure { warn("Skipping malformed region at ${dir.name}: ${it.message}") }
                 .getOrNull()
         }.sortedBy { it.displayName.lowercase() }
     }
@@ -95,19 +100,30 @@ internal object RegionCache {
      * canonicalisation catches anything the regex missed (defense in depth).
      */
     fun delete(regionId: String): Boolean {
+        val root = runCatching { rootDir() }.getOrNull() ?: return false
+        return deleteFromRoot(root, regionId)
+    }
+
+    /** Testable variant of [delete] taking an explicit root directory. */
+    fun deleteFromRoot(root: File, regionId: String): Boolean {
         if (!isValidRegionId(regionId)) {
-            Log.w(TAG, "Refusing to delete invalid regionId: $regionId")
+            warn("Refusing to delete invalid regionId: $regionId")
             return false
         }
-        val root = runCatching { rootDir() }.getOrNull() ?: return false
         val target = File(root, regionId).canonicalFile
         if (!target.toPath().startsWith(root.canonicalFile.toPath())) {
-            Log.w(TAG, "Refusing to delete out-of-bounds path: $target")
+            warn("Refusing to delete out-of-bounds path: $target")
             return false
         }
         if (!target.exists()) return true
         return target.deleteRecursively()
     }
+
+    /**
+     * Public read of a single region directory. Returns null on read failure.
+     * Used by tests; production code goes through [list] / [listFromRoot].
+     */
+    fun readDir(dir: File): RegionInfo? = runCatching { read(dir) }.getOrNull()
 
     /** Best-effort read of `meta.json`. Falls back to disk-derived defaults. */
     private fun read(dir: File): RegionInfo {
@@ -142,6 +158,16 @@ internal object RegionCache {
             directory = dir,
             bbox = bbox,
         )
+    }
+
+    /**
+     * Defensive logger wrapper. Production calls go to `android.util.Log`;
+     * unit tests run on the JVM where `Log` isn't classloaded, so we
+     * runCatch around it and fall back to stderr.
+     */
+    private fun warn(message: String) {
+        runCatching { Log.w(TAG, message) }
+            .onFailure { System.err.println("$TAG: $message") }
     }
 }
 

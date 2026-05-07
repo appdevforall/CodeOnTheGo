@@ -38,6 +38,25 @@ internal class Bbox(
     /** Height of the box, in kilometres (latitude span × 111.32). */
     fun heightKm(): Double = haversineKm(south, west, north, west)
 
+    /**
+     * Approximate area of the box in square kilometres. Treats it as a
+     * rectangle on the haversine-corrected width/height — accurate enough for
+     * a tile-pack size estimate (single-digit-percent error inside the
+     * reasonable mid-latitude range, well within "show MB estimate" tolerance).
+     */
+    fun areaKm2(): Double = widthKm() * heightKm()
+
+    /**
+     * True iff (lat, lon) sits inside the closed box (boundary inclusive).
+     * Boundary inclusion matches the wizard's "did the user click inside the
+     * picked region" semantics, where dragging exactly to the edge counts.
+     *
+     * Anti-meridian crossings are unsupported (asserted in init {}); callers
+     * that need wrap-around must split into two boxes.
+     */
+    fun contains(lat: Double, lon: Double): Boolean =
+        lat in south..north && lon in west..east
+
     fun toBoundsArray(): DoubleArray = doubleArrayOf(south, west, north, east)
 
     companion object {
@@ -101,8 +120,14 @@ internal object TileEstimator {
         require(zoomMax in zoomMin..20)
         var totalTiles = 0L
         for (z in zoomMin..zoomMax) {
-            val (xMin, yMax) = lonLatToTile(bbox.west, bbox.north, z)
-            val (xMax, yMin) = lonLatToTile(bbox.east, bbox.south, z)
+            // In slippy-map, NORTH maps to SMALLER y (y=0 at the top), so the
+            // NW corner of the bbox is the (xMin, yMin) tile and the SE corner
+            // is (xMax, yMax). Earlier wiring named these reversed and the
+            // resulting `(yMax - yMin + 1)` was always negative for any non-
+            // empty bbox — coerceAtLeast(0) silently produced zero tiles for
+            // every zoom level.
+            val (xMin, yMin) = lonLatToTile(bbox.west, bbox.north, z)
+            val (xMax, yMax) = lonLatToTile(bbox.east, bbox.south, z)
             val xs = (xMax - xMin + 1).coerceAtLeast(0)
             val ys = (yMax - yMin + 1).coerceAtLeast(0)
             totalTiles += xs.toLong() * ys.toLong()
