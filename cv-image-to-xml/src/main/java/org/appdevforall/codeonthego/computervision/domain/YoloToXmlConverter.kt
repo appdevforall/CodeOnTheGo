@@ -85,12 +85,11 @@ class YoloToXmlConverter(
     }
 
     private fun associateTextToWidgets(scaledBoxes: List<ScaledBox>): List<ScaledBox> {
-        val parents = scaledBoxes.filter { it.label != "text" && !annotationMatcher.isTag(it.text) }
+        val parents = scaledBoxes.filter { it.label != "text" }
         val initialTexts = scaledBoxes.filter { it.label == "text" && !annotationMatcher.isTag(it.text) }
-
         val textAssignedBoxes = geometryProcessor.assignTextToParents(parents, initialTexts, scaledBoxes)
-        
         val remainingTexts = textAssignedBoxes.filter { it.label == "text" && !annotationMatcher.isTag(it.text) }
+
         return geometryProcessor.assignNearbyTextToWidgets(textAssignedBoxes, remainingTexts)
     }
 
