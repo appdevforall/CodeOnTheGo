@@ -17,19 +17,29 @@ import com.itsaky.androidide.plugins.services.IdeUIService
  * Code on the Go plugin that scaffolds a runnable, offline-capable form-data
  * Android app from a photo of a paper form.
  *
- * On `activate()` the plugin registers a static "Form-filling app from photo"
- * template via [IdeTemplateService.registerTemplate] so the card is visible in
- * the New Project grid even before the wizard runs. The sidebar entry opens
- * [WizardActivity], which (in C2) lets the user capture the form, edit fields,
- * pick semantic rules, and configure where data goes; the wizard then registers
- * a per-instance template carrying the captured schema.
+ * Two-phase architecture:
  *
- * **Design note.** The original plan §5e had the template recipe block on the
- * wizard via a `CompletableDeferred`. That pattern doesn't fit the actual
- * `IdeTemplateService` API — the recipe of a `.cgt` archive is fixed
- * (`ZipRecipeExecutor`) and there's no plugin-supplied Kotlin-recipe seam.
- * Instead the wizard runs **before** the user picks the template; see
- * QUESTIONS.md Q1 in the worktree root.
+ * 1. **Static template registration.** On `activate()` the plugin registers a
+ *    single "Form-filling app from photo" template via
+ *    [IdeTemplateService.registerTemplate]. The template scaffolds a generic
+ *    form-app shell with a one-field stub `assets/form_schema.json` — the
+ *    project compiles and runs out of the box without ever launching the
+ *    wizard.
+ *
+ * 2. **Schema capture into the open project.** After the user opens a
+ *    generated project, the plugin contributes:
+ *      - a side-menu entry ("Form schema") that opens [SchemaPanelFragment]
+ *        as a main editor tab — the panel shows the current schema and a
+ *        Capture button.
+ *      - a toolbar action ("📷 Capture form from photo") that launches the
+ *        wizard directly. (Subject to host wiring; see QUESTIONS.md Q1.)
+ *      - a main editor tab ([SchemaPanelFragment]) that the side-menu /
+ *        toolbar hand off to.
+ *
+ *    The wizard's last step writes `app/src/main/assets/form_schema.json`
+ *    into the open project via [IdeFileService] / [IdeProjectService]. The
+ *    generated app's runtime renderer reads that JSON on every launch, so
+ *    iteration is just file replacement plus an APK rebuild.
  */
 class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
 
@@ -61,15 +71,14 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
         }
 
         templateBuilder = FormTemplateBuilder(pluginContext, templateService).also { tb ->
-            // Register the static stub on activate so users see the card even
-            // before they run the wizard. Idempotent: registerTemplate copies
-            // the file each time, so subsequent activations just overwrite.
-            val schema = FormTemplateBuilder.blankStubSchema()
-            val registered = tb.buildAndRegister(schema, isStaticStub = true)
+            // Idempotent: registerTemplate overwrites previous file content each
+            // time. Cheap enough to do unconditionally on every activate; not
+            // worth a sentinel file.
+            val registered = tb.buildAndRegisterStaticStub()
             if (registered == null) {
                 pluginContext.logger.warn(
-                    "Static stub template registration returned null. The wizard " +
-                        "is still usable but the static card won't appear."
+                    "Static stub template registration returned null. The Forms " +
+                        "side menu still works but the New Project card won't appear."
                 )
             }
         }
@@ -129,21 +138,53 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
     }
 
     /**
-     * Called by [WizardActivity] when the wizard finishes with a captured
-     * schema. Builds and registers a per-instance `.cgt` so the user can pick
-     * it from + Create Project.
+     * Called by [WizardActivity] when the user finishes the wizard. Writes
+     * the captured schema into the open project's `assets/form_schema.json`
+     * via [com.itsaky.androidide.plugins.services.IdeFileService] and
+     * [com.itsaky.androidide.plugins.services.IdeProjectService]. Returns
+     * the absolute path written on success, or null when no project is
+     * open / writing fails.
      *
-     * Made `internal` so the wizard can hand results back without exposing the
-     * builder publicly. C1 doesn't use this; C2's wizard wires it up.
+     * Side effect: the next time the user rebuilds the project, the
+     * generated app's runtime renderer reads the new schema from assets.
+     * The plugin doesn't trigger the rebuild itself — that would require
+     * `IdeBuildService` and we want the user to stay in control.
      */
-    internal fun onWizardCompleted(schema: FormSchema): String? {
-        val tb = templateBuilder ?: run {
+    internal fun onWizardCompleted(schema: com.appdevforall.forms.plugin.FormSchema): String? {
+        val projectService = pluginContext.services.get(
+            com.itsaky.androidide.plugins.services.IdeProjectService::class.java
+        )
+        val fileService = pluginContext.services.get(
+            com.itsaky.androidide.plugins.services.IdeFileService::class.java
+        )
+        if (projectService == null || fileService == null) {
             pluginContext.logger.error(
-                "templateBuilder is null — onWizardCompleted called before activate?"
+                "IdeProjectService or IdeFileService unavailable. The wizard captured " +
+                    "a schema but the plugin can't write it without filesystem access."
             )
             return null
         }
-        return tb.buildAndRegister(schema, isStaticStub = false)
+        val project = projectService.getCurrentProject() ?: run {
+            pluginContext.logger.warn(
+                "No open project — wizard schema not written. Open the form-data " +
+                    "project before running Capture form from photo."
+            )
+            return null
+        }
+        val target = java.io.File(
+            project.rootDir,
+            "app/src/main/assets/form_schema.json",
+        )
+        target.parentFile?.mkdirs()
+        val ok = fileService.writeFile(target, schema.toJson())
+        if (!ok) {
+            pluginContext.logger.error(
+                "IdeFileService.writeFile failed for ${target.absolutePath}"
+            )
+            return null
+        }
+        pluginContext.logger.info("Forms wizard wrote schema to ${target.absolutePath}")
+        return target.absolutePath
     }
 
     // DocumentationExtension — three-tier tooltip plumbing per ADFA-2432.
@@ -153,21 +194,23 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
         return listOf(
             PluginTooltipEntry(
                 tag = "forms_plugin.wizard",
-                summary = "<b>Form-filling app from photo</b><br>Generate an offline-capable data-collection app from a paper form.",
+                summary = "<b>Form schema</b><br>Capture or edit the form schema for the open project.",
                 detail = """
-                    <h3>Form-filling app from photo</h3>
-                    <p>This wizard generates a runnable Android app that collects data from a paper form's
-                    fields. The generated app works offline (queued submission) and can ship data via HTTP POST,
-                    CSV share, or JSON share.</p>
+                    <h3>Form schema</h3>
+                    <p>The Forms plugin generates a runnable Android app for filling out a paper form.
+                    Open the form-data project, then use this side-menu entry to view or recapture the
+                    schema. The generated app reads <code>assets/form_schema.json</code> at startup and
+                    lays out one input per field; rerunning Capture rewrites the schema and the app
+                    picks it up on next rebuild.</p>
 
-                    <h4>How to use:</h4>
+                    <h4>Capture flow:</h4>
                     <ol>
-                      <li>Tap <b>Form-filling app from photo</b> in the IDE sidebar.</li>
-                      <li>Take or pick a photo of the paper form, or skip and lay out fields manually.</li>
+                      <li>Tap <b>📷 Capture form from photo</b>.</li>
+                      <li>Take or pick a photo of the paper form, or skip to lay out manually.</li>
                       <li>Review and edit the detected fields (label, type, required-ness).</li>
-                      <li>Set semantic rules per field (required, reusable, postal-code lookup).</li>
+                      <li>Set semantic rules per field (required, reusable).</li>
                       <li>Pick where collected data should go (POST URL, CSV share, JSON share).</li>
-                      <li>Finish — a new template card will appear in the New Project grid.</li>
+                      <li>Finish — the schema is written into the open project's assets dir.</li>
                     </ol>
 
                     <p><b>Tip:</b> CV recognition works best on printed labels with good lighting.</p>
@@ -182,13 +225,13 @@ class FormsPlugin : IPlugin, UIExtension, DocumentationExtension {
             ),
             PluginTooltipEntry(
                 tag = "forms_plugin.template",
-                summary = "<b>Form-filling app from photo</b><br>Generated by the Forms wizard.",
+                summary = "<b>Form-filling app from photo</b><br>Static template that scaffolds a form-data app.",
                 detail = """
                     <h3>Form-filling app from photo template</h3>
-                    <p>The static "Form-filling app from photo" card scaffolds a blank form-data app —
-                    you can fill in fields by hand inside the generated project. To get a richer scaffold
-                    (CV-detected fields, semantic rules, configured submitters), run the wizard from the
-                    sidebar instead and pick the per-instance template it registers.</p>
+                    <p>This card scaffolds an offline-capable Android app whose layout is driven by
+                    <code>assets/form_schema.json</code>. The schema starts as a one-field stub so the
+                    app builds and launches out of the box — open the project and tap
+                    <b>Form schema</b> in the IDE side menu to capture real fields from a photo.</p>
                 """.trimIndent(),
             ),
         )
