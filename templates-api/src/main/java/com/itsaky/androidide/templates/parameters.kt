@@ -26,6 +26,7 @@ import com.itsaky.androidide.templates.ParameterConstraint.NONEMPTY
 import com.itsaky.androidide.templates.ParameterConstraint.PACKAGE
 import com.itsaky.androidide.templates.R.string
 import org.adfa.constants.Sdk
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -157,7 +158,7 @@ abstract class Parameter<T>(
 
         this.actionBeforeCreateView = null
         this.actionAfterCreateView = null
-        this.beforeCreateViewInvoked = false
+        this.beforeCreateViewInvoked.set(false)
     }
 
     private fun clearObservers() {
@@ -186,7 +187,7 @@ abstract class Parameter<T>(
         this.actionBeforeCreateView = action
     }
 
-    private var beforeCreateViewInvoked = false
+    private val beforeCreateViewInvoked = AtomicBoolean(false)
 
     /**
      * Called before the layout for this widget is created. The action registered via
@@ -196,10 +197,9 @@ abstract class Parameter<T>(
      * main thread.
      */
     open fun beforeCreateView() {
-        if (beforeCreateViewInvoked) {
+        if (!beforeCreateViewInvoked.compareAndSet(false, true)) {
             return
         }
-        beforeCreateViewInvoked = true
         this.actionBeforeCreateView?.invoke(this)
     }
 

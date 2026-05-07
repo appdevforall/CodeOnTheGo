@@ -45,11 +45,12 @@ internal data class ListenerState(
 	 * @return The address of the listening socket.
 	 */
 	fun startListening(): String {
+		val previousTag = TrafficStats.getThreadStatsTag()
 		TrafficStats.setThreadStatsTag(JDWP_LISTENER_SOCKET_TAG)
 		val address = try {
 			connector.startListening(args)
 		} finally {
-			TrafficStats.clearThreadStatsTag()
+			TrafficStats.setThreadStatsTag(previousTag)
 		}
 		listenAddress = address
 		return address

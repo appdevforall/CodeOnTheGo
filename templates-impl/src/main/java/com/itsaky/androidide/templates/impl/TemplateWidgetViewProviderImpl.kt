@@ -176,18 +176,14 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
           val err = withContext(Dispatchers.IO) {
             ConstraintVerifier.verify(value, constraints = param.constraints)
           }
-          root.isErrorEnabled = err != null
-          if (err != null) {
-            root.error = err
-          }
+          applyValidationResult(root, err)
         } ?: run {
           // Fall back to synchronous validation when no lifecycle owner is attached
           // (e.g., previews/tests). Production attaches a fragment lifecycle.
-          val err = ConstraintVerifier.verify(value, constraints = param.constraints)
-          root.isErrorEnabled = err != null
-          if (err != null) {
-            root.error = err
-          }
+          applyValidationResult(
+            root,
+            ConstraintVerifier.verify(value, constraints = param.constraints),
+          )
           null
         }
       }
@@ -368,6 +364,16 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
         onTextChanged(s?.toString() ?: "")
       }
     })
+  }
+
+  private fun applyValidationResult(root: TextInputLayout, err: String?) {
+    if (err == null) {
+      root.error = null
+      root.isErrorEnabled = false
+    } else {
+      root.isErrorEnabled = true
+      root.error = err
+    }
   }
 
   private fun <T> TextFieldParameter<T>.resetStartAndEndIcons(context: Context,

@@ -44,6 +44,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -58,6 +59,7 @@ class TemplateDetailsFragment :
     ) {
 
     private val viewModel by activityViewModel<MainViewModel>()
+    private var widgetsBindJob: Job? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -170,7 +172,8 @@ class TemplateDetailsFragment :
         // Some parameters do disk work in their beforeCreateView hook (e.g. computing a
         // non-colliding default project name). Run those hooks on Dispatchers.IO before
         // attaching the adapter so that onBindViewHolder skips them (they are one-shot).
-        viewLifecycleOwner.lifecycleScope.launch {
+        widgetsBindJob?.cancel()
+        widgetsBindJob = viewLifecycleOwner.lifecycleScope.launch {
             withContext(Dispatchers.IO) {
                 template.widgets.forEach { widget ->
                     if (widget is ParameterWidget<*>) {

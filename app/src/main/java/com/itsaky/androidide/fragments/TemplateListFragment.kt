@@ -35,6 +35,7 @@ import com.itsaky.androidide.templates.impl.TemplateProviderImpl
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -50,6 +51,7 @@ class TemplateListFragment :
 		FragmentTemplateListBinding::bind,
 	) {
 	private var adapter: TemplateListAdapter? = null
+	private var reloadJob: Job? = null
 
 	private val viewModel by activityViewModel<MainViewModel>()
 
@@ -122,7 +124,8 @@ class TemplateListFragment :
 
 		log.debug("Reloading templates...")
 
-		viewLifecycleOwner.lifecycleScope.launch {
+		reloadJob?.cancel()
+		reloadJob = viewLifecycleOwner.lifecycleScope.launch {
 			val (templates, warnings) = withContext(Dispatchers.IO) {
 				val provider = ITemplateProvider.getInstance(reload = true)
 				// Pre-warm the widget view provider so per-bind getInstance() in

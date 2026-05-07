@@ -257,6 +257,9 @@ object WhitelistEngine {
 					classAndMethod("java.io.File", "exists"),
 					classAndMethod("miui.enterprise.EpFrameworkFactory", "isEnterpriseJarExists"),
 					classAndMethod("miui.enterprise.EpFrameworkFactory", "get"),
+					classAndMethod("miui.enterprise.ApplicationHelperStub\$SingletonHolder", "<clinit>"),
+					classAndMethod("miui.enterprise.ApplicationHelperStub", "getInstance"),
+					classAndMethod("android.app.NotificationManager", "notifyAsUser"),
 				)
 			}
 
