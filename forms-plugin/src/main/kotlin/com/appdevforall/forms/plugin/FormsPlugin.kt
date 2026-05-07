@@ -20,6 +20,7 @@ import com.itsaky.androidide.plugins.services.IdeFileService
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeTemplateService
 import java.io.File
+import java.lang.ref.WeakReference
 
 /**
  * Code on the Go plugin that scaffolds a runnable, offline-capable form-data
@@ -78,8 +79,18 @@ class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExten
         // panel re-resolves the locator on every render, so this lambda runs
         // on the UI thread and must stay cheap. Returning null is the panel's
         // empty-state signal.
-        SchemaPanelHost.locator = {
-            val projectService = pluginContext.services.get(IdeProjectService::class.java)
+        //
+        // `SchemaPanelHost.locator` is a process-singleton, so we capture
+        // `pluginContext` via a WeakReference rather than letting the lambda
+        // strong-hold this plugin instance for the lifetime of the process.
+        // If we get re-activated without `dispose()` first running cleanly
+        // (hot-reload during dev, plugin recycle), the stale lambda's weak
+        // ref returns null and the panel falls back to the empty state until
+        // the new locator overwrites the slot.
+        val ctxRef = WeakReference(pluginContext)
+        SchemaPanelHost.locator = locator@{
+            val ctx = ctxRef.get() ?: return@locator null
+            val projectService = ctx.services.get(IdeProjectService::class.java)
             val project = projectService?.getCurrentProject()
             if (project != null) {
                 SchemaPanelHost(
@@ -207,6 +218,16 @@ class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExten
      * the open project's `assets/form_schema.json` via [IdeFileService] /
      * [IdeProjectService].
      *
+     * **Threading.** This function performs disk I/O; callers must invoke
+     * it from a coroutine on `Dispatchers.IO` (or equivalent). The wizard
+     * fragment does this via `viewLifecycleOwner.lifecycleScope.launch`.
+     *
+     * **Atomicity.** Writes to a sibling `.tmp` file first and renames into
+     * place on success. A mid-write crash leaves the previous schema
+     * intact rather than truncating it to garbage that
+     * [FormSchema.fromJson] can't parse — important on the reference 4 GB
+     * device where flash pressure is a real failure mode.
+     *
      * @return the absolute path written on success, or null when no project
      *   is open, services are unavailable, or the write failed.
      */
@@ -229,13 +250,28 @@ class FormsPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExten
         }
         val target = File(project.rootDir, ASSETS_SCHEMA_PATH)
         target.parentFile?.mkdirs()
+        // Atomic write: stage to a sibling `.tmp` first, rename on success.
         // JSON is plain UTF-8 so writeFile (which UTF-8-transcodes) is safe
         // here. For binary payloads use writeBinary / writeStream — see
         // IdeFileService docs.
-        val ok = fileService.writeFile(target, schema.toJson())
-        if (!ok) {
+        val staging = File(target.parentFile, target.name + ".tmp")
+        if (!fileService.writeFile(staging, schema.toJson())) {
             pluginContext.logger.error(
-                "IdeFileService.writeFile failed for ${target.absolutePath}"
+                "IdeFileService.writeFile failed for ${staging.absolutePath}"
+            )
+            return null
+        }
+        if (target.exists() && !fileService.delete(target)) {
+            pluginContext.logger.error(
+                "Could not remove existing schema at ${target.absolutePath} before rename. " +
+                    "Staged file left at ${staging.absolutePath}."
+            )
+            return null
+        }
+        if (!staging.renameTo(target)) {
+            pluginContext.logger.error(
+                "Could not rename ${staging.absolutePath} to ${target.absolutePath}. " +
+                    "Schema may be in inconsistent state."
             )
             return null
         }

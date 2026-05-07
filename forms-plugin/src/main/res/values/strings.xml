@@ -59,6 +59,7 @@
     <!-- Toasts -->
     <string name="forms_wizard_canceled">Wizard canceled. The schema was not changed.</string>
     <string name="forms_template_validation_appname">App name must contain at least one letter or digit.</string>
+    <string name="forms_template_validation_package">Package name must be lowercase letter-led segments separated by dots (e.g. org.ngo.intake).</string>
     <string name="forms_template_validation_no_fields">Add at least one field before finishing the wizard.</string>
     <string name="forms_template_validation_endpoint">Submit URL must start with http:// or https://.</string>
 </resources>

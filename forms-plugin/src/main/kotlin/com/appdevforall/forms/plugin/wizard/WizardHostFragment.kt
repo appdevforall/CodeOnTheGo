@@ -187,8 +187,19 @@ internal class WizardHostFragment : Fragment() {
             WizardStep.CAPTURE -> {
                 val name = viewModel.appName.value.orEmpty().trim()
                 if (!name.any { it.isLetterOrDigit() }) {
-                    getString(R.string.forms_template_validation_appname)
-                } else null
+                    return getString(R.string.forms_template_validation_appname)
+                }
+                val pkg = viewModel.packageName.value.orEmpty().trim()
+                // Validate package name as a Java/Android package: lowercase
+                // letter-led segments separated by dots, at least two
+                // segments. Stricter than Manifest.applicationId permits
+                // (which allows uppercase) so user input that wouldn't
+                // compile cleanly gets caught here instead of at Gradle
+                // time, downstream of the wizard.
+                if (pkg.isNotEmpty() && !PACKAGE_NAME_REGEX.matches(pkg)) {
+                    return getString(R.string.forms_template_validation_package)
+                }
+                null
             }
             WizardStep.REVIEW_FIELDS -> {
                 if (viewModel.fields.value.orEmpty().isEmpty()) {
@@ -256,5 +267,17 @@ internal class WizardHostFragment : Fragment() {
 
     companion object {
         private const val STATE_STEP = "forms_wizard.current_step"
+
+        /**
+         * Lowercase letter-led segments, at least two, dot-separated.
+         * Tighter than Android's applicationId rules (which allow
+         * uppercase) so we surface the issue at Continue time instead of
+         * at Gradle time; matches the convention used by templates-impl's
+         * package validation.
+         *
+         * Exposed as `internal` so JVM tests can pin the precedence
+         * without instantiating the Fragment.
+         */
+        internal val PACKAGE_NAME_REGEX = Regex("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$")
     }
 }
