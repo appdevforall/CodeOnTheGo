@@ -40,18 +40,10 @@ import com.itsaky.androidide.plugins.testsupport.PluginTestSetup
 import com.itsaky.androidide.plugins.xkcd.screens.XkcdScreen
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.After
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-@Ignore(
-    "Requires the random-xkcd plugin's debug .cgp bundled at " +
-        "androidTest/assets/plugins/random-xkcd-debug.cgp. Build via " +
-        "./gradlew :random-xkcd-plugin:assemblePluginDebug, then copy and " +
-        "remove this @Ignore. See file header + PluginTestSetup for the " +
-        "full integration path."
-)
 class XkcdSmokeTest : TestCase() {
 
     private val targetContext

@@ -36,15 +36,10 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.plugins.testsupport.LogcatWatcher
 import com.itsaky.androidide.plugins.testsupport.PluginTestSetup
 import org.junit.After
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-@Ignore(
-    "Enable once random-xkcd-debug.cgp lives at " +
-        "androidTest/assets/plugins/. See file header for the build step."
-)
 class XkcdFragmentInflationTest {
 
     private val targetContext
