@@ -405,6 +405,123 @@ class HeuristicFieldClassifierTest {
         assertEquals(emptyList<FormField>(), classifier.classify(ocr))
     }
 
+    // -- word-boundary keyword matching (forms-benchmark regressions) --
+
+    @Test
+    fun villageInLabelDoesNotTriggerAgeKeyword() {
+        // Forms-benchmark regression: "Town / village: ___" was classified
+        // as NUMBER because "age" was matching as a substring of "village".
+        // Word-boundary matching kills the false positive (31 cases).
+        val ocr = ocr {
+            block(0, 0) { line("Town / village: _______") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(1, fields.size)
+        assertEquals("Town / village", fields[0].label)
+        assertEquals(FieldType.TEXT, fields[0].type)
+    }
+
+    @Test
+    fun placeOfBirthIsNotClassifiedAsDate() {
+        // Forms-benchmark regression: "Place of birth" was classified as
+        // DATE because "birth" appeared as a date keyword. We removed
+        // bare "birth" from the date keywords (4 cases) — "Date of birth"
+        // still matches via "date".
+        val ocr = ocr {
+            block(0, 0) { line("Place of birth: _______") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(1, fields.size)
+        assertEquals("Place of birth", fields[0].label)
+        assertEquals(FieldType.TEXT, fields[0].type)
+    }
+
+    @Test
+    fun dateOfBirthStillClassifiedAsDate() {
+        // Regression guard for the "birth" removal: "Date of birth"
+        // continues to be a DATE because "date" matches.
+        val ocr = ocr {
+            block(0, 0) { line("Date of birth: _______") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(1, fields.size)
+        assertEquals(FieldType.DATE, fields[0].type)
+    }
+
+    @Test
+    fun telephoneNumberStillClassifiedAsNumber() {
+        // Positive regression guard — word-boundary matching must still
+        // accept legitimate full-token matches.
+        val ocr = ocr {
+            block(0, 0) { line("Telephone number: _____________") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(FieldType.NUMBER, fields[0].type)
+    }
+
+    @Test
+    fun phoneNumberStillClassifiedAsNumber() {
+        val ocr = ocr {
+            block(0, 0) { line("Phone number: _____________") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(FieldType.NUMBER, fields[0].type)
+    }
+
+    // -- multi-checkbox-on-one-line (forms-benchmark regression) -------
+
+    @Test
+    fun multiCheckboxLineUsesPrefixAsLabel() {
+        // Forms-benchmark regression: "Sex: ☐ M ☐ F" used to emit ONE
+        // CHECKBOX with label "M ☐ F" (or similar), losing the "Sex"
+        // prefix entirely. Now the prefix is preserved as the label.
+        val ocr = ocr {
+            block(0, 0) { line("Sex: ☐ M ☐ F") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(1, fields.size)
+        assertEquals("Sex", fields[0].label)
+        assertEquals(FieldType.CHECKBOX, fields[0].type)
+    }
+
+    @Test
+    fun multiCheckboxLineWithThreeOptionsUsesPrefix() {
+        val ocr = ocr {
+            block(0, 0) { line("Gender: ☐ Male ☐ Female ☐ Other") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(1, fields.size)
+        assertEquals("Gender", fields[0].label)
+        assertEquals(FieldType.CHECKBOX, fields[0].type)
+    }
+
+    @Test
+    fun singleCheckboxLineStillProducesOneField() {
+        // Regression guard for the single-checkbox path — "☐ Pregnant?"
+        // must continue to produce ONE CHECKBOX with label "Pregnant?".
+        val ocr = ocr {
+            block(0, 0) { line("☐ Pregnant?") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(1, fields.size)
+        assertEquals("Pregnant?", fields[0].label)
+        assertEquals(FieldType.CHECKBOX, fields[0].type)
+    }
+
+    @Test
+    fun multiCheckboxLineWithoutPrefixFallsBackToOptions() {
+        // Edge case: "☐ A ☐ B" with no prefix label. Document-and-test
+        // the chosen fallback: emit ONE CHECKBOX with the options joined
+        // ("A / B") as the label. Better than dropping the line entirely.
+        val ocr = ocr {
+            block(0, 0) { line("☐ A ☐ B") }
+        }
+        val fields = classifier.classify(ocr)
+        assertEquals(1, fields.size)
+        assertEquals("A / B", fields[0].label)
+        assertEquals(FieldType.CHECKBOX, fields[0].type)
+    }
+
     @Test
     fun checkboxJoinedWithLabelInSameElementIsRecognized() {
         // ML Kit sometimes returns "☐Pregnant?" as a single element if the

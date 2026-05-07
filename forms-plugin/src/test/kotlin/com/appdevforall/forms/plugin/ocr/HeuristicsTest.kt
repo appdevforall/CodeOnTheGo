@@ -201,4 +201,62 @@ class HeuristicsTest {
         val right = Heuristics.rightOfLabel(labelElem, line)
         assertTrue(right.isEmpty())
     }
+
+    // -- ClassifierLocale.anyKeywordIn / anyMarkerIn --------------------
+
+    @Test
+    fun anyKeywordInMatchesWholeTokensOnly() {
+        val locale = ClassifierLocale.EN
+        // "age" must match "Age" (whole token), not "village" (substring).
+        assertTrue(locale.anyKeywordIn("Age", locale.numberKeywords))
+        assertFalse(locale.anyKeywordIn("village", locale.numberKeywords))
+        assertFalse(locale.anyKeywordIn("Town / village", locale.numberKeywords))
+    }
+
+    @Test
+    fun anyKeywordInIsCaseInsensitive() {
+        val locale = ClassifierLocale.EN
+        assertTrue(locale.anyKeywordIn("AGE", locale.numberKeywords))
+        assertTrue(locale.anyKeywordIn("age", locale.numberKeywords))
+        assertTrue(locale.anyKeywordIn("DATE", locale.dateKeywords))
+    }
+
+    @Test
+    fun anyKeywordInAcceptsKeywordsWithPunctuation() {
+        // "no." and "d.o.b" contain non-word characters in the keyword
+        // itself; word-boundary regex fallback must still match them.
+        val locale = ClassifierLocale.EN
+        assertTrue(locale.anyKeywordIn("Tracking no.", locale.numberKeywords))
+        assertTrue(locale.anyKeywordIn("Patient D.O.B.", locale.dateKeywords))
+    }
+
+    @Test
+    fun anyKeywordInHandlesMultiWordKeywords() {
+        // "personal information" must match as a whole phrase, not via
+        // its individual words.
+        val locale = ClassifierLocale.EN
+        assertTrue(locale.anyKeywordIn("Personal Information", locale.groupHeaders))
+        assertTrue(locale.anyKeywordIn("Section: Personal Information", locale.groupHeaders))
+        // "personal" alone shouldn't match the phrase keyword.
+        assertFalse(
+            ClassifierLocale(
+                dateKeywords = emptySet(),
+                signatureKeywords = emptySet(),
+                groupHeaders = setOf("personal information"),
+                numberKeywords = emptySet(),
+                longTextKeywords = emptySet(),
+                requiredMarkers = emptySet(),
+            ).anyKeywordIn("personal", setOf("personal information"))
+        )
+    }
+
+    @Test
+    fun anyMarkerInUsesSubstringContainment() {
+        // Required markers like "*" and "(required)" are punctuation /
+        // decoration; they must match as substrings, not as whole tokens.
+        val locale = ClassifierLocale.EN
+        assertTrue(locale.anyMarkerIn("Name *", locale.requiredMarkers))
+        assertTrue(locale.anyMarkerIn("Email (required)", locale.requiredMarkers))
+        assertFalse(locale.anyMarkerIn("Name", locale.requiredMarkers))
+    }
 }

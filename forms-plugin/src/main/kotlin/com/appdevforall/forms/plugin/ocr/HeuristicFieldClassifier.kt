@@ -129,6 +129,26 @@ class HeuristicFieldClassifier(
     private fun classifyCheckboxLine(line: OcrLine): FormField? {
         val elements = line.elements
         if (elements.isEmpty()) return null
+
+        // Multi-checkbox-on-one-line case: "Sex: ☐ M ☐ F" or
+        // "Gender: ☐ Male ☐ Female ☐ Other". Two or more checkbox glyphs on
+        // a single line indicate a single-choice / multi-choice group with
+        // a prefix label (text before the first glyph) and per-option texts
+        // (text between glyphs). We emit ONE field per line — losing the
+        // per-option semantics is a known limitation until the schema gains
+        // a CHOICE / RADIO role. The important fix here is to preserve the
+        // PREFIX label ("Sex") rather than emitting "M ☐ F" as the label.
+        //
+        // TODO: emit as CHOICE / RADIO with explicit options once
+        // FieldType supports it (see FormSchema.kt — currently only
+        // TEXT / LONGTEXT / NUMBER / DATE / CHECKBOX).
+        val glyphIndices = elements.mapIndexedNotNull { i, e ->
+            if (Heuristics.isCheckboxGlyph(e.text)) i else null
+        }
+        if (glyphIndices.size >= 2) {
+            return classifyMultiCheckboxLine(elements, glyphIndices)
+        }
+
         // Find the first checkbox glyph; the rest of the line is the label.
         val glyphIndex = elements.indexOfFirst { Heuristics.isCheckboxGlyph(it.text) }
         if (glyphIndex < 0) {
@@ -147,9 +167,71 @@ class HeuristicFieldClassifier(
         return newField(label, FieldType.CHECKBOX, locale)
     }
 
+    /**
+     * Handle a line with 2+ checkbox glyphs ("Sex: ☐ M ☐ F").
+     *
+     * Strategy:
+     *   - If there's a prefix (elements before the first glyph) ending in
+     *     a colon-bearing token (e.g. "Sex:"), use that prefix as the
+     *     field label.
+     *   - Otherwise, fall back to the per-option labels joined ("A / B"),
+     *     which at least preserves the option text instead of dropping it.
+     *
+     * Returns ONE FormField with type CHECKBOX. (See KDoc on
+     * [classifyCheckboxLine] for why we don't emit RADIO yet.)
+     */
+    private fun classifyMultiCheckboxLine(
+        elements: List<OcrElement>,
+        glyphIndices: List<Int>,
+    ): FormField? {
+        val firstGlyphIdx = glyphIndices.first()
+        val prefixElems = elements.take(firstGlyphIdx)
+        val prefixText = prefixElems.joinToString(" ") { it.text }.trim()
+
+        // Extract per-option texts: between consecutive glyphs, plus from
+        // the last glyph to end-of-line.
+        val options = mutableListOf<String>()
+        for (k in glyphIndices.indices) {
+            val start = glyphIndices[k] + 1
+            val end = if (k + 1 < glyphIndices.size) glyphIndices[k + 1] else elements.size
+            val optionText = elements.subList(start, end)
+                .joinToString(" ") { it.text }
+                .trim()
+            if (optionText.isNotEmpty()) options += optionText
+        }
+
+        val labelFromPrefix = if (prefixText.isNotEmpty()) {
+            // Heuristic: a "real" group prefix ends with a colon (e.g.
+            // "Sex:", "Gender:") or is short alphabetic prose. We require
+            // either a colon OR at least one alphabetic char to avoid
+            // turning a bullet glyph at line start into a label.
+            Heuristics.extractLabel(prefixText)
+                ?.takeIf { it.any { c -> c.isLetter() } }
+        } else null
+
+        val label = labelFromPrefix
+            ?: options.takeIf { it.isNotEmpty() }?.joinToString(" / ")
+            ?: return null
+        return newField(label, FieldType.CHECKBOX, locale, rawLabelText = prefixText.ifEmpty { label })
+    }
+
     private fun classifyRadioLine(line: OcrLine): FormField? {
         val elements = line.elements
         if (elements.isEmpty()) return null
+
+        // Multi-radio-on-one-line case mirrors the multi-checkbox path:
+        // "○ Citizen   ○ Non-citizen" should produce ONE field whose label
+        // captures the group, not "Citizen ○ Non-citizen". Since the schema
+        // doesn't have RADIO/CHOICE yet (FormSchema.kt), we emit CHECKBOX
+        // and join the options into the label. TODO: switch to RADIO once
+        // FieldType supports it.
+        val radioIndices = elements.mapIndexedNotNull { i, e ->
+            if (Heuristics.isRadioGlyph(e.text)) i else null
+        }
+        if (radioIndices.size >= 2) {
+            return classifyMultiRadioLine(elements, radioIndices)
+        }
+
         val glyphIndex = elements.indexOfFirst { Heuristics.isRadioGlyph(it.text) }
         if (glyphIndex < 0) {
             val joinedFirstChar = line.text.trim().firstOrNull()?.toString().orEmpty()
@@ -164,6 +246,39 @@ class HeuristicFieldClassifier(
         val labelText = labelElems.joinToString(" ") { it.text }
         val label = Heuristics.extractLabel(labelText) ?: return null
         return newField(label, FieldType.CHECKBOX, locale)
+    }
+
+    /**
+     * Multi-radio-line analogue of [classifyMultiCheckboxLine]. See KDoc on
+     * the checkbox version for the strategy.
+     */
+    private fun classifyMultiRadioLine(
+        elements: List<OcrElement>,
+        radioIndices: List<Int>,
+    ): FormField? {
+        val firstIdx = radioIndices.first()
+        val prefixElems = elements.take(firstIdx)
+        val prefixText = prefixElems.joinToString(" ") { it.text }.trim()
+
+        val options = mutableListOf<String>()
+        for (k in radioIndices.indices) {
+            val start = radioIndices[k] + 1
+            val end = if (k + 1 < radioIndices.size) radioIndices[k + 1] else elements.size
+            val optionText = elements.subList(start, end)
+                .joinToString(" ") { it.text }
+                .trim()
+            if (optionText.isNotEmpty()) options += optionText
+        }
+
+        val labelFromPrefix = if (prefixText.isNotEmpty()) {
+            Heuristics.extractLabel(prefixText)
+                ?.takeIf { it.any { c -> c.isLetter() } }
+        } else null
+
+        val label = labelFromPrefix
+            ?: options.takeIf { it.isNotEmpty() }?.joinToString(" / ")
+            ?: return null
+        return newField(label, FieldType.CHECKBOX, locale, rawLabelText = prefixText.ifEmpty { label })
     }
 
     private fun classifyLabelColonLine(line: OcrLine): FormField? {
@@ -247,7 +362,10 @@ class HeuristicFieldClassifier(
         rawLabelText: String = label,
     ): FormField {
         // Detect required-marker on the original (un-cleaned) label text.
-        val required = locale.anyKeywordIn(rawLabelText, locale.requiredMarkers)
+        // Use anyMarkerIn (substring containment) — required markers like
+        // `*` and `(required)` are punctuation/decoration, not whole words,
+        // so word-boundary matching would miss them.
+        val required = locale.anyMarkerIn(rawLabelText, locale.requiredMarkers)
         return WizardViewModel.newField(label = label, type = type)
             .copy(required = required, confidence = DEFAULT_CONFIDENCE)
     }
