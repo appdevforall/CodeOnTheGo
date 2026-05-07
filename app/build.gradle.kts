@@ -710,6 +710,101 @@ tasks.register("copyPluginApiJarToAssets") {
 	}
 }
 
+// --- Plugin .cgp staging for androidTest ---------------------------------
+//
+// Plugin modules (random-xkcd-plugin, forms-plugin, gis-plugin, …) ship as
+// *standalone* Gradle builds — they are intentionally NOT included in the
+// root `settings.gradle.kts`. Each has its own `gradlew` + `settings.gradle.kts`
+// and produces a `.cgp` (a re-skinned debug APK) at
+// `<plugin-dir>/build/plugin/<pluginName>-debug.cgp` via the
+// `assemblePluginDebug` task contributed by the `pluginBuilder` Gradle plugin.
+//
+// To exercise the plugin runtime in Kaspresso instrumented tests we need to
+// bundle that `.cgp` as an `androidTest` asset so PluginTestSetup can stage
+// it into the host's `<filesDir>/plugins/` at test time. Approach:
+//
+//   1. `Exec` task runs the plugin's standalone `gradlew assemblePluginDebug`
+//      from inside the plugin module's directory.
+//   2. `Copy` task depends on (1) and copies the produced `.cgp` into
+//      `app/src/androidTest/assets/plugins/`.
+//   3. `afterEvaluate` wires the staging task as a dependency of
+//      `merge<Flavor>DebugAndroidTestAssets` so the asset is in place before
+//      the test APK is packaged.
+//
+// Only the plugin(s) relevant to this branch's instrumented tests are
+// registered here — the worktree is plugin-isolated.
+val androidTestPluginAssetsDir =
+	layout.projectDirectory.dir("src/androidTest/assets/plugins")
+
+val pluginCgpStagingTasks = mutableListOf<TaskProvider<*>>()
+
+fun registerPluginCgpStagingTask(
+	pluginDirName: String,
+	pluginNameInBuilder: String,
+): TaskProvider<Copy> {
+	val pluginDir = rootProject.file(pluginDirName)
+	val gradlewName = if (isWindows) "gradlew.bat" else "gradlew"
+	val pluginGradlew = File(pluginDir, gradlewName)
+	val cgpFile = File(pluginDir, "build/plugin/$pluginNameInBuilder-debug.cgp")
+
+	val capitalized = pluginDirName.split('-')
+		.joinToString("") { part -> part.replaceFirstChar { it.uppercase() } }
+	val buildTaskName = "build${capitalized}DebugCgp"
+	val stageTaskName = "stage${capitalized}DebugCgpForAndroidTest"
+
+	val buildTask = tasks.register<Exec>(buildTaskName) {
+		group = "verification"
+		description = "Builds $pluginDirName's debug .cgp via the plugin's standalone Gradle build."
+		workingDir = pluginDir
+		// `clean assemblePluginDebug` rather than just `assemblePluginDebug` because
+		// the plugin's PluginBuilder.createAssembleTask deletes the APK after copying
+		// it into build/plugin/<name>-debug.cgp. On a stale rerun, Gradle treats
+		// `assembleDebug` as UP-TO-DATE (other intermediates intact) but the doLast
+		// finds no APK and silently emits an empty/stale .cgp. Clean keeps the
+		// inner build honest.
+		val args = mutableListOf(pluginGradlew.absolutePath, "clean", "assemblePluginDebug")
+		if (gradle.startParameter.isOffline) args += "--offline"
+		commandLine(args)
+		// Declare inputs so Gradle only re-spawns the inner build when plugin
+		// source / manifest / build script actually changes.
+		inputs.dir(File(pluginDir, "src"))
+		inputs.file(File(pluginDir, "build.gradle.kts"))
+		inputs.files(fileTree(pluginDir) {
+			include("*.gradle.kts", "*.properties", "proguard-rules.pro")
+		})
+		outputs.file(cgpFile)
+	}
+
+	val stageTask = tasks.register<Copy>(stageTaskName) {
+		group = "verification"
+		description = "Stages $pluginDirName's debug .cgp into androidTest assets."
+		dependsOn(buildTask)
+		from(cgpFile)
+		into(androidTestPluginAssetsDir)
+	}
+
+	pluginCgpStagingTasks += stageTask
+	return stageTask
+}
+
+// Register staging for the plugin(s) exercised by this branch's androidTest suite.
+registerPluginCgpStagingTask(
+	pluginDirName = "gis-plugin",
+	pluginNameInBuilder = "gis-plugin",
+)
+
+afterEvaluate {
+	// `merge<Flavor>DebugAndroidTestAssets` is the AGP task that copies all
+	// androidTest source-set assets into the merged folder consumed by the
+	// test APK packager. Wiring our staging task here guarantees the .cgp is
+	// in place before assembleDebugAndroidTest runs.
+	tasks
+		.matching { it.name.startsWith("merge") && it.name.endsWith("AndroidTestAssets") }
+		.configureEach {
+			pluginCgpStagingTasks.forEach { dependsOn(it) }
+		}
+}
+
 tasks.register<Zip>("createPluginArtifactsZip") {
 	dependsOn("copyPluginApiJarToAssets")
 	dependsOn(gradle.includedBuild("plugin-builder").task(":jar"))

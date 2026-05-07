@@ -39,17 +39,10 @@ import com.itsaky.androidide.plugins.testsupport.LogcatWatcher
 import com.itsaky.androidide.plugins.testsupport.PluginTestSetup
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.After
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-@Ignore(
-    "Requires gis-plugin-debug.cgp bundled at " +
-        "androidTest/assets/plugins/gis-plugin-debug.cgp. Build via " +
-        "./gradlew :gis-plugin:assemblePluginDebug, then copy and " +
-        "remove this @Ignore. See file header + PluginTestSetup."
-)
 class MapsSmokeTest : TestCase() {
 
     private val targetContext
