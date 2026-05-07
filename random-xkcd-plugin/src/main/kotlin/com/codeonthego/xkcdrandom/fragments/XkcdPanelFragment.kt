@@ -207,23 +207,32 @@ class XkcdPanelFragment : Fragment() {
             return
         }
         val ctx = requireContext()
-        val shareDir = File(ctx.filesDir, "xkcd_share").apply { mkdirs() }
-        val target = File(shareDir, "last.png")
-        try {
-            source.copyTo(target, overwrite = true)
-        } catch (_: Exception) {
-            toast(getString(R.string.toast_image_copy_failed))
-            return
+        viewLifecycleOwner.lifecycleScope.launch {
+            // Up to 5 MB of file copy — off the main thread.
+            val target = withContext(Dispatchers.IO) {
+                val shareDir = File(ctx.filesDir, "xkcd_share").apply { mkdirs() }
+                val out = File(shareDir, "last.png")
+                try {
+                    source.copyTo(out, overwrite = true)
+                    out
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            if (target == null) {
+                toast(getString(R.string.toast_image_copy_failed))
+                return@launch
+            }
+            val authority = "${ctx.packageName}.providers.fileprovider"
+            val uri = FileProvider.getUriForFile(ctx, authority, target)
+            // ClipData.newUri queries the ContentResolver for the URI's
+            // MIME type (image/png for our PNG), so the resulting clip
+            // advertises image/* to paste targets.
+            val clip = ClipData.newUri(ctx.contentResolver, "xkcd-image", uri)
+            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(clip)
+            toast(getString(R.string.toast_image_copied))
         }
-        val authority = "${ctx.packageName}.providers.fileprovider"
-        val uri = FileProvider.getUriForFile(ctx, authority, target)
-        // ClipData.newUri queries the ContentResolver for the URI's
-        // MIME type (image/png for our PNG), so the resulting clip
-        // advertises image/* to paste targets.
-        val clip = ClipData.newUri(ctx.contentResolver, "xkcd-image", uri)
-        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(clip)
-        toast(getString(R.string.toast_image_copied))
     }
 
     private fun toast(text: String) {
