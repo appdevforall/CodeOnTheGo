@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.computervision.domain.parser
 
-import android.util.Log
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
 import org.appdevforall.codeonthego.computervision.domain.grammar.UiGrammarValidator
 import java.lang.StringBuilder
@@ -9,6 +8,7 @@ object FuzzyAttributeParser {
     private val grammarValidator = UiGrammarValidator()
     private const val PIPE_DELIMITER = "|"
     private val multipleUnderscoresRegex = Regex("_+")
+    private val inputTypeValues = InputTypeValueSet.values.map { it.lowercase() }.toSet()
 
     private val cleaners = mapOf(
         ValueType.TEXT_CONTENT to TextContentCleaner,
@@ -54,7 +54,11 @@ object FuzzyAttributeParser {
         val currentValue = StringBuilder()
 
         for (token in tokens) {
-            val matchedKey = fuzzyMatchKey(token)
+            val matchedKey = if (shouldTreatTokenAsValue(token, currentKey)) {
+                null
+            } else {
+                fuzzyMatchKey(token)
+            }
 
             if (matchedKey != null) {
                 flushAttribute(currentKey, currentValue.toString(), tag, result)
@@ -67,6 +71,11 @@ object FuzzyAttributeParser {
 
         flushAttribute(currentKey, currentValue.toString(), tag, result)
         return result
+    }
+
+    private fun shouldTreatTokenAsValue(token: String, currentKey: AttributeKey?): Boolean {
+        if (currentKey != AttributeKey.INPUT_TYPE) return false
+        return token.trim().lowercase() in inputTypeValues
     }
 
     private fun flushAttribute(key: AttributeKey?, rawValue: String, tag: String, destination: MutableMap<String, String>) {

@@ -100,10 +100,9 @@ object MarginAnnotationParser {
     ): Map<String, String> {
         if (detections.isEmpty()) return emptyMap()
 
-        val validPrefixes = canvasTags.map { (tag, _) -> tag.substringBefore('-') }.toSet()
         val sortedDetections = detections.sortedBy { it.boundingBox.top }
 
-        val groupedBlocks = extractBlocks(sortedDetections, validPrefixes)
+        val groupedBlocks = extractBlocks(sortedDetections)
 
         val resolvedImplicitAnnotations = resolveImplicitBlocks(
             implicitBlocks = groupedBlocks.implicitBlocks,
@@ -116,11 +115,12 @@ object MarginAnnotationParser {
 
     /**
      * Reads vertically through margin detections and groups them into text blocks.
-     * Blocks starting with a valid tag become explicit annotations, while untagged blocks are stored as implicit.
+     * Blocks starting with an explicit tag become explicit annotations, while untagged blocks are stored as implicit.
+     * Side-based prefix heuristics are intentionally not applied here because OCR can place
+     * a valid explicit tag on the opposite margin from its detected canvas tag.
      */
     private fun extractBlocks(
-        sortedDetections: List<DetectionResult>,
-        validPrefixes: Set<String>
+        sortedDetections: List<DetectionResult>
     ): GroupedBlocks {
         val blocks = GroupedBlocks()
         var currentTag: String? = null
@@ -139,8 +139,7 @@ object MarginAnnotationParser {
             val text = det.text.trim().trimStart('|', ':', ';', '.', ',', '_')
             val extraction = WidgetTagParser.extractTag(text)
 
-            val isExplicitTag = extraction != null &&
-                (validPrefixes.isEmpty() || extraction.first.substringBefore('-') in validPrefixes)
+            val isExplicitTag = extraction != null
 
             if (isExplicitTag) {
                 saveCurrentBlock()

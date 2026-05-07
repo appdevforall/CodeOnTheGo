@@ -283,23 +283,13 @@ class InputWidget(
 
     override fun specificAttributes(): Map<String, String> {
         val resolvedHint = parsedAttrs[AttributeKey.HINT.xmlName] ?: box.text.ifEmpty { "Enter text..." }
-        val resolvedInputType = parsedAttrs[AttributeKey.INPUT_TYPE.xmlName]
-            ?: inferInputTypeFromHint(resolvedHint)
-            ?: "text"
+        val resolvedInputType = parsedAttrs[AttributeKey.INPUT_TYPE.xmlName] ?: "text"
 
         return mapOf(
             AttributeKey.HINT.xmlName to resolvedHint,
             AttributeKey.INPUT_TYPE.xmlName to resolvedInputType,
             "tools:ignore" to "HardcodedText"
         )
-    }
-
-    private fun inferInputTypeFromHint(hint: String): String? {
-        val normalizedHint = hint.trim().lowercase()
-        return "textPassword".takeIf {
-            normalizedHint.contains("password") ||
-                normalizedHint.contains("pass word")
-        }
     }
 }
 
