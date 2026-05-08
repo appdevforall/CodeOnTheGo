@@ -8,6 +8,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.PrintWriter
+import java.io.StringWriter
 import android.net.TrafficStats
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -18,6 +19,9 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import io.pebbletemplates.pebble.PebbleEngine
+import io.pebbletemplates.pebble.loader.StringLoader
+
 data class ServerConfig(
     val port: Int = 6174,
     val databasePath: String,
@@ -317,6 +321,7 @@ clientSocket and the catch block logic are updated accordingly.
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
+                "pr/pb" -> handlePebbleTest(writer, output)
                 else    -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'.")
             }
         }
@@ -433,6 +438,48 @@ WHERE  path = ?
         output.flush()
     }
 
+    private fun handlePebbleTest(writer: PrintWriter, output: java.io.OutputStream) {
+        try {
+            // 1. Setup Pebble with a StringLoader for testing raw strings
+            val engine = PebbleEngine.Builder()
+                .loader(StringLoader())
+                .build()
+
+            // 2. Hard-coded Template String
+            val templateSource = """
+            <!DOCTYPE html>
+            <html>
+            <head><title>Pebble Test</title></head>
+            <body>
+                <h1>Hello, {{ name }}!</h1>
+                <p>Welcome to <strong>{{ appName }}</strong>.</p>
+                <p>Status: <span style="color: green;">{{ status }}</span></p>
+            </body>
+            </html>
+        """.trimIndent()
+
+            // 3. Hard-coded Data (Context)
+            val context = mapOf(
+                "name" to "Developer",
+                "appName" to "Code on the Go",
+                "status" to "Pebble Engine is Online"
+            )
+
+            // 4. Compile and Render
+            val compiledTemplate = engine.getTemplate(templateSource)
+            val stringWriter = StringWriter()
+            compiledTemplate.evaluate(stringWriter, context)
+
+            val htmlResult = stringWriter.toString()
+
+            // 5. Send to client using your existing helper
+            writeNormalToClient(writer, output, htmlResult)
+
+        } catch (e: Exception) {
+            log.error("Pebble Test Failed: {}", e.message)
+            sendError(writer, output, 500, "Internal Server Error", "Pebble Template Error: ${e.message}")
+        }
+    }
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleDbEndpoint().")
 
