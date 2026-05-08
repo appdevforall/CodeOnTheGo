@@ -90,6 +90,10 @@ class ComputerVisionViewModel(
             is ComputerVisionEvent.PlaceholderImageSelected -> {
                 handlePlaceholderImageSelected(event.uri)
             }
+
+            is ComputerVisionEvent.RemovePlaceholderImage -> {
+                removePlaceholderImage(event.placeholderId)
+            }
         }
     }
 
@@ -438,6 +442,36 @@ class ComputerVisionViewModel(
                         "Image import failed: ${exception.message}"
                     )
                 )
+            }
+        }
+    }
+
+    /**
+     * Safely removes a selected image from the placeholder state.
+     * Uses Dispatchers.IO for any required file cleanup to prevent UI blocking.
+     *
+     * @param placeholderId The ID of the placeholder to clear.
+     */
+    private fun removePlaceholderImage(placeholderId: String) {
+        val state = _uiState.value
+        val importedImageInfo = state.selectedImagesByPlaceholderId[placeholderId] ?: return
+
+        viewModelScope.launch {
+            val deletionResult = drawableImportHelper.deleteDrawable(
+                layoutFilePath = state.layoutFilePath,
+                resourceName = importedImageInfo.resourceName
+            )
+
+            if (deletionResult.isSuccess || deletionResult.exceptionOrNull() is Exception) {
+                // Update state idiomatically by filtering out the removed key
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        selectedImagesByPlaceholderId = currentState.selectedImagesByPlaceholderId.filterKeys { it != placeholderId }
+                    )
+                }
+                _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_removed))
+            } else {
+                _uiEffect.send(ComputerVisionEffect.ShowError("Failed to clean up image file."))
             }
         }
     }
