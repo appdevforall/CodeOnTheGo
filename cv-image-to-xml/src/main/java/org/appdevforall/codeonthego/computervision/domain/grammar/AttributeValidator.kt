@@ -131,3 +131,28 @@ object EntriesValidator : AttributeValidator {
         return text.replace(Regex("\\s+"), " ")
     }
 }
+
+class FlagsCategoricalValidator(
+    private val allowedValues: List<String>,
+    private val separator: String = "|",
+    private val threshold: Int = 70
+) : AttributeValidator {
+    override fun validate(rawValue: String): String? {
+        val flags = rawValue.split(separator)
+
+        val validFlags = flags.mapNotNull { flag ->
+            val trimmedFlag = flag.trim()
+            if (trimmedFlag.isEmpty()) {
+                null
+            } else {
+                matchCategoricalValue(trimmedFlag, allowedValues, threshold)
+            }
+        }
+
+        return if (validFlags.isNotEmpty()) {
+            validFlags.distinct().joinToString(separator)
+        } else {
+            null
+        }
+    }
+}

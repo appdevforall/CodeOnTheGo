@@ -34,7 +34,16 @@ object InputTypeValueSet : AttributeValueSet {
         "numberDecimal",
         "textEmailAddress",
         "textUri",
-        "phone"
+        "phone",
+        "textVisiblePassword",
+        "textPersonName",
+        "textCapSentences",
+        "textCapWords",
+        "textMultiLine",
+        "textNoSuggestions",
+        "date",
+        "time",
+        "datetime"
     )
 }
 
@@ -68,7 +77,7 @@ enum class AttributeKey(
 
     TEXT_SIZE("android:textSize", listOf("textsize", "text_size"), ValueType.SP_DIMENSION),
     TEXT_COLOR("android:textColor", listOf("textcolor", "text_color", "color", "text_colar", "textcolar"), ValueType.COLOR),
-    TEXT_STYLE("android:textStyle", listOf("textstyle", "text_style", "style"), ValueType.TEXT_STYLE),
+    TEXT_STYLE("android:textStyle", listOf("textstyle", "text_style"), ValueType.TEXT_STYLE),
     TEXT_ALIGNMENT("android:textAlignment", listOf("textalignment", "text_alignment")),
     TEXT_ALL_CAPS("android:textAllCaps", listOf("textallcaps", "text_all_caps")),
     FONT_FAMILY("android:fontFamily", listOf("fontfamily", "font_family", "font")),

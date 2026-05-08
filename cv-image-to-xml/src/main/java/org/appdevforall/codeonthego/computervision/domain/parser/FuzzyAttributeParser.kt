@@ -103,7 +103,12 @@ object FuzzyAttributeParser {
 
         if (normalizedKey.length < 2) return null
 
-        val threshold = if (normalizedKey.length <= 3) 65 else if (normalizedKey.length == 6) 75 else 80
+        val threshold = when {
+            normalizedKey.length <= 3 -> 65
+            normalizedKey.length <= 6 -> 75
+            else -> 80
+        }
+
         val result = FuzzySearch.extractOne(normalizedKey, AttributeKey.allAliases)
 
         return if (result.score >= threshold) AttributeKey.findByAlias(result.string) else null

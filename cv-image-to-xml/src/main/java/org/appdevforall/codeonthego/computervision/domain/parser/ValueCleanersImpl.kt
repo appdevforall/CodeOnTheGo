@@ -130,8 +130,12 @@ internal object IdCleaner : ValueCleaner {
 internal object DrawableCleaner : ValueCleaner {
     override fun clean(rawValue: String): String {
         if (rawValue.startsWith("@drawable/")) return rawValue
-        val cleaned = rawValue.lowercase().replace(Regex("\\.(png|jpg|jpeg|webp|xml|svg)$"), "").replace(Regex("[^a-z0-9_]"), "")
-        return "@drawable/$cleaned"
+        val cleaned = rawValue.lowercase()
+            .replace(Regex("\\.(png|jpg|jpeg|webp|xml|svg)$"), "")
+            .replace(Regex("[^a-z0-9_]"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+        return if (cleaned.isEmpty()) rawValue else "@drawable/$cleaned"
     }
 }
 

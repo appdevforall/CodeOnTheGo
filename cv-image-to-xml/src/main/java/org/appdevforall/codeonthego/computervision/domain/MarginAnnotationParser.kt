@@ -144,7 +144,7 @@ object MarginAnnotationParser {
             if (isExplicitTag) {
                 saveCurrentBlock()
 
-                currentTag = extraction!!.first
+                currentTag = extraction.first
                 currentText = StringBuilder()
                 blockStartY = centerY(det)
 

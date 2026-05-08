@@ -76,7 +76,7 @@ object EditTextGrammar : TextGrammar {
 
     override val attributes = super.attributes + mapOf(
         AttributeKey.TEXT.xmlName to PassThroughValidator,
-        AttributeKey.INPUT_TYPE.xmlName to CategoricalValidator(InputTypeValueSet.values),
+        AttributeKey.INPUT_TYPE.xmlName to FlagsCategoricalValidator(InputTypeValueSet.values),
         AttributeKey.HINT.xmlName to PassThroughValidator
     )
 }

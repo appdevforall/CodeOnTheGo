@@ -20,20 +20,33 @@ internal object WidgetTagParser {
         return normalizeTagText(cleaned).matches(tagRegex)
     }
 
+    private fun parseTagParts(match: MatchResult): Pair<String, String> {
+        val prefix = normalizePrefix(match.groupValues[1])
+        var tokenRaw = match.groupValues[3].trim('-')
+
+        val upperToken = tokenRaw.uppercase()
+        val remainder = upperToken.removePrefix(prefix)
+
+        when {
+            upperToken.startsWith("$prefix-") || upperToken.startsWith("${prefix}_") -> {
+                tokenRaw = tokenRaw.substring(prefix.length + 1).trim('-')
+            }
+            upperToken.startsWith(prefix) && remainder.isNotEmpty() && remainder.all(::isNumericLikeOcrChar) -> {
+                tokenRaw = remainder
+            }
+        }
+
+        val token = normalizeTagToken(tokenRaw)
+        return prefix to token
+    }
+
     fun normalizeTagText(text: String): String {
         val cleaned = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
         val match = tagExtractRegex.find(cleaned) ?: return cleaned.uppercase()
 
         if (!isValidTagMatch(match)) return cleaned.uppercase()
 
-        val prefix = normalizePrefix(match.groupValues[1])
-        var tokenRaw = match.groupValues[3].trim('-')
-
-        if (tokenRaw.uppercase().startsWith(prefix)) {
-            tokenRaw = tokenRaw.substring(prefix.length).trim('-')
-        }
-
-        val token = normalizeTagToken(tokenRaw)
+        val (prefix, token) = parseTagParts(match)
         return "$prefix-$token"
     }
 
@@ -43,14 +56,7 @@ internal object WidgetTagParser {
 
         if (!isValidTagMatch(match)) return null
 
-        val prefix = normalizePrefix(match.groupValues[1])
-        var tokenRaw = match.groupValues[3].trim('-')
-
-        if (tokenRaw.uppercase().startsWith(prefix)) {
-            tokenRaw = tokenRaw.substring(prefix.length).trim('-')
-        }
-
-        val token = normalizeTagToken(tokenRaw)
+        val (prefix, token) = parseTagParts(match)
         val finalTag = "$prefix-$token"
 
         if (!finalTag.matches(tagRegex)) return null
