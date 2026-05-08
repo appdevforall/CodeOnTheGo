@@ -40,14 +40,29 @@ class IdeArchiveServiceImpl(
             val buffered = BufferedInputStream(NonClosingInputStream(source))
             when (format) {
                 ArchiveFormat.TAR_XZ -> {
+                    ensureDirectory(destination)
+
+                    // Clean up any stale temp archives left by a previously killed process.
+                    destination.parentFile?.listFiles { f ->
+                        f.name.startsWith("archive") && f.name.endsWith(".tar.xz")
+                    }?.forEach { stale ->
+                        if (!stale.delete()) {
+                            logger.warn("Could not delete stale archive: ${stale.absolutePath}")
+                        }
+                    }
+
                     val tempFile = File.createTempFile("archive", ".tar.xz", destination.parentFile)
+                    tempFile.deleteOnExit()
                     try {
-                        tempFile.outputStream().use { source.copyTo(it) }
+                        tempFile.outputStream().use { buffered.copyTo(it) }
                         val ok = extractTarXzViaTermux(tempFile, destination)
                         if (ok) ExtractResult.Success(0, 0)
                         else ExtractResult.Failure(Exception("Termux tar extraction failed"))
                     } finally {
-                        tempFile.delete()
+                        if (tempFile.exists() && !tempFile.delete()) {
+                            logger.warn("Failed to delete temporary archive: ${tempFile.absolutePath}")
+                            tempFile.deleteOnExit()
+                        }
                     }
                 }
                 ArchiveFormat.XZ -> extractSingleStream(
@@ -285,7 +300,6 @@ class IdeArchiveServiceImpl(
             false
         }
     }
-
 
     private companion object {
         const val COPY_BUFFER_SIZE = 64 * 1024

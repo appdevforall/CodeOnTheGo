@@ -309,6 +309,8 @@ object FuzzyAttributeParser {
                 annotation.length
             }
 
+            if (current.valueStart > valueEnd) continue
+
             var rawValue = annotation.substring(current.valueStart, valueEnd).trim()
 
             if (rawValue.isNotEmpty()) {
@@ -461,11 +463,12 @@ object FuzzyAttributeParser {
     }
 
     private fun cleanSpDimension(value: String): String {
-        val fixedUnit = value.lowercase()
+        val normalized = value.lowercase()
             .replace(" ", "")
-            .replace(Regex("5p$"), "sp")
+        val numericCandidate = normalized
+            .replace(Regex("(sp|5p)$"), "")
 
-        val numericString = fixedUnit.replace("_", "")
+        val numericString = numericCandidate.replace("_", "")
         val numericPart = extractOcrNumber(numericString)
 
         if (numericPart != null) return "${numericPart}sp"
