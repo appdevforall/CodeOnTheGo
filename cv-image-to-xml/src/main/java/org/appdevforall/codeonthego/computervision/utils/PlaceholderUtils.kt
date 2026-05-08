@@ -14,3 +14,17 @@ fun List<ScaledBox>.getSortedScaledPlaceholders(): List<ScaledBox> {
     return this.filter { it.label == IMAGE_PLACEHOLDER_LABEL }
         .sortedWith(compareBy({ it.y }, { it.x }))
 }
+
+/**
+ * Associates ordered image placeholders with their selected drawable references.
+ * Useful for mapping user-selected gallery images to the physical canvas bounding boxes.
+ */
+fun List<ScaledBox>.buildPlaceholderOverrides(selectedImagesByPlaceholderId: Map<String, String>): Map<ScaledBox, String> {
+    val placeholders = this.getSortedScaledPlaceholders()
+
+    return placeholders.mapIndexedNotNull { index, box ->
+        val drawableReference = selectedImagesByPlaceholderId["ph_$index"]
+            ?: return@mapIndexedNotNull null
+        box to drawableReference
+    }.toMap()
+}
