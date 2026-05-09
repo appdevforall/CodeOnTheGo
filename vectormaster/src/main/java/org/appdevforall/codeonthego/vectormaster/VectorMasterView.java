@@ -610,6 +610,14 @@ public class VectorMasterView extends View {
       }
     } catch (XmlPullParserException | IOException e) {
       e.printStackTrace();
+    } finally {
+      if (vectorStream != null) {
+        try {
+          vectorStream.close();
+        } catch (IOException ignored) {
+        }
+        vectorStream = null;
+      }
     }
   }
 

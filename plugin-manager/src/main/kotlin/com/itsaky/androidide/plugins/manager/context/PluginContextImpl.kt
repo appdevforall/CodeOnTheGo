@@ -3,9 +3,11 @@
 package com.itsaky.androidide.plugins.manager.context
 
 import android.content.Context
+import android.content.res.AssetManager
 import com.itsaky.androidide.plugins.*
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import java.io.File
+import java.io.InputStream
 import java.util.concurrent.ConcurrentHashMap
 
 class PluginContextImpl(
@@ -42,31 +44,32 @@ class ServiceRegistryImpl : ServiceRegistry {
 class ResourceManagerImpl(
     private val pluginId: String,
     private val pluginsDir: File,
-    private val classLoader: ClassLoader
+    private val classLoader: ClassLoader,
+    private val assetManager: AssetManager? = null
 ) : ResourceManager {
-    
+
     private val pluginDirectory = File(pluginsDir, pluginId)
     private val securityManager = PluginSecurityManager()
-    
+
     init {
         if (!pluginDirectory.exists()) {
             pluginDirectory.mkdirs()
         }
     }
-    
+
     override fun getPluginDirectory(): File = pluginDirectory
-    
+
     override fun getPluginFile(path: String): File {
         val file = File(pluginDirectory, path)
-        
+
         // Security check: ensure file is within plugin directory
         if (!file.canonicalPath.startsWith(pluginDirectory.canonicalPath)) {
             throw SecurityException("Access denied: Path traversal detected")
         }
-        
+
         return file
     }
-    
+
     override fun getPluginResource(name: String): ByteArray? {
         return try {
             classLoader.getResourceAsStream(name)?.use {
@@ -77,6 +80,22 @@ class ResourceManagerImpl(
         }
     }
 
+    override fun openPluginResource(name: String): InputStream? {
+        return try {
+            classLoader.getResourceAsStream(name)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    override fun openPluginAsset(path: String): InputStream? {
+        val assets = assetManager ?: return null
+        return try {
+            assets.open(path)
+        } catch (e: Exception) {
+            null
+        }
+    }
 }
 
 class PluginLoggerImpl(

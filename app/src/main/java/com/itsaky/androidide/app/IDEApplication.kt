@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import org.appdevforall.codeonthego.computervision.di.computerVisionModule
+import org.jetbrains.kotlin.cli.jvm.compiler.setupIdeaStandaloneExecution
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
@@ -103,6 +104,9 @@ class IDEApplication :
 			private set
 
 		init {
+			System.setProperty("java.awt.headless", "true")
+			setupIdeaStandaloneExecution()
+
 			@Suppress("Deprecation")
 			Shell.setDefaultBuilder(
 				Shell.Builder
@@ -207,6 +211,12 @@ class IDEApplication :
 			return
 		}
 
+		if (isFinalizerWatchdogTimeout(thread, exception)) {
+			logger.warn("Non-fatal: FinalizerWatchdogDaemon timeout (suppressed crash)", exception)
+			Sentry.captureException(exception)
+			return
+		}
+
 		if (isUserUnlocked) {
 			CredentialProtectedApplicationLoader.handleUncaughtException(thread, exception)
 			return
@@ -221,5 +231,11 @@ class IDEApplication :
 			it.className.contains("CleanableResource") ||
 				it.className.contains("PhantomCleanable")
 		}
+	}
+
+	private fun isFinalizerWatchdogTimeout(thread: Thread, exception: Throwable): Boolean {
+		if (exception !is java.util.concurrent.TimeoutException) return false
+		return thread.name.contains("FinalizerWatchdogDaemon") ||
+			exception.stackTrace.any { it.className.contains("Daemons\$FinalizerWatchdogDaemon") }
 	}
 }

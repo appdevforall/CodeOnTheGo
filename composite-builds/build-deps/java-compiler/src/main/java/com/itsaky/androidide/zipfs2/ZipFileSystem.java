@@ -31,6 +31,7 @@ import java.io.EOFException;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
@@ -292,8 +293,8 @@ public class ZipFileSystem extends FileSystem {
                 sync();
                 return null;
             });
-            ch.close();              // close the ch just in case no update
-            // and sync didn't close the ch
+            closeChannelQuietly(ch); // close the ch just in case no update
+                                     // and sync didn't close the ch
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getException();
         } finally {
@@ -1074,12 +1075,25 @@ public class ZipFileSystem extends FileSystem {
         return zc.toString(name);
     }
 
+    /**
+     * Closes a channel, swallowing I/O errors that can occur on devices with
+     * flaky storage (e.g. EIO wrapped in UncheckedIOException). This prevents
+     * an exception during cleanup from killing the FinalizerDaemon thread.
+     */
+    private static void closeChannelQuietly(SeekableByteChannel channel) {
+        try {
+            channel.close();
+        } catch (IOException | UncheckedIOException ignored) {
+        }
+    }
+
     @SuppressWarnings("deprecation")
     protected void finalize() throws IOException {
-        try {
-            close();
-        } catch (IOException ignored) {
-        }
+        // No-op: do NOT perform I/O during finalization.
+        // On slow storage, close() can exceed the 10-second FinalizerWatchdogDaemon
+        // timeout, causing a fatal TimeoutException crash (Sentry APPDEVFORALL-E8).
+        // All ZipFileSystems should be closed deterministically via close()/doClose().
+        // The OS reclaims file descriptors at process exit regardless.
     }
 
     // Reads len bytes of data from the specified offset into buf.
@@ -1503,7 +1517,7 @@ public class ZipFileSystem extends FileSystem {
             exChClosers.add(ecc);
             streams = Collections.synchronizedSet(new HashSet<>());
         } else {
-            ch.close();
+            closeChannelQuietly(ch);
             Files.delete(zfpath);
         }
 
@@ -2833,7 +2847,7 @@ public class ZipFileSystem extends FileSystem {
          */
         public boolean closeAndDeleteIfDone() throws IOException {
             if (streams.isEmpty()) {
-                ch.close();
+                closeChannelQuietly(ch);
                 Files.delete(path);
                 return true;
             }

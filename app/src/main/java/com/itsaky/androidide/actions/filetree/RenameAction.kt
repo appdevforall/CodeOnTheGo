@@ -23,15 +23,12 @@ import androidx.activity.viewModels
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
-import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
-import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
-import org.greenrobot.eventbus.EventBus
-import java.io.File
 
 /**
  * Action to rename the selected file.
@@ -55,19 +52,32 @@ class RenameAction(
 		val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
 		val builder = DialogUtils.newMaterialDialogBuilder(context)
 		binding.name.editText!!.hint =
-			context.getString(com.itsaky.androidide.resources.R.string.new_name)
+			context.getString(R.string.new_name)
 		binding.name.editText!!.setText(file.name)
-		builder.setTitle(com.itsaky.androidide.resources.R.string.rename_file)
-		builder.setMessage(com.itsaky.androidide.resources.R.string.msg_rename_file)
+		builder.setTitle(R.string.rename_file)
+		builder.setMessage(R.string.msg_rename_file)
 		builder.setView(binding.root)
 		builder.setNegativeButton(android.R.string.cancel, null)
-		builder.setPositiveButton(com.itsaky.androidide.resources.R.string.rename_file) {
-			dialogInterface,
-			_ ->
-			dialogInterface.dismiss()
+		builder.setPositiveButton(R.string.rename_file) { dialogInterface, _ ->
             val fileManagerViewModel: FileManagerViewModel by context.viewModels()
             val name: String = binding.name.editText?.text.toString().trim()
-            fileManagerViewModel.renameFile(file, name)
+            if (name.length !in 1..40) {
+                flashError(R.string.msg_invalid_name)
+                return@setPositiveButton
+            }
+            dialogInterface.dismiss()
+            fileManagerViewModel.renameFile(file, name, context) { renamed ->
+                if (!renamed) return@renameFile
+
+                val parent = lastHeld?.parent
+
+                if (parent != null) {
+                    requestCollapseNode(parent, false)
+                    requestExpandNode(parent)
+                } else {
+                    requestFileListing()
+                }
+            }
 		}
 
         builder.showWithLongPressTooltip(
@@ -75,17 +85,4 @@ class RenameAction(
             tooltipTag = TooltipTag.PROJECT_RENAME_DIALOG
         )
 	}
-
-    private fun notifyFileRenamed(
-        file: File,
-        name: String,
-        context: Context,
-    ) {
-        val renameEvent = FileRenameEvent(file, File(file.parent, name))
-
-        // Notify FileManager first
-        FileManager.onFileRenamed(renameEvent)
-
-        EventBus.getDefault().post(renameEvent.apply { putData(context) })
-    }
 }

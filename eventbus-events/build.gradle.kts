@@ -29,6 +29,7 @@ android {
 dependencies {
 	implementation(libs.common.kotlin)
 	implementation(projects.shared)
+	implementation(projects.subprojects.toolingApi)
 	implementation(projects.logger)
 
 	api(projects.eventbus)

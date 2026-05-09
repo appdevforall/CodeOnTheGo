@@ -87,6 +87,13 @@ class ComputerVisionActivity : AppCompatActivity() {
         else Toast.makeText(this, R.string.msg_camera_permission_required, Toast.LENGTH_LONG).show()
     }
 
+    private val pickPlaceholderImageLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            uri?.let {
+                viewModel.onEvent(ComputerVisionEvent.PlaceholderImageSelected(it))
+            } ?: Toast.makeText(this, R.string.msg_no_image_selected, Toast.LENGTH_SHORT).show()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityComputerVisionBinding.inflate(layoutInflater)
@@ -117,6 +124,17 @@ class ComputerVisionActivity : AppCompatActivity() {
         }
         binding.saveButton.setOnClickListener {
             viewModel.onEvent(ComputerVisionEvent.SaveToDownloads)
+        }
+        binding.imageView.onImageTapListener = imageTap@{ imageX, imageY ->
+            if (!viewModel.isImagePlaceholderAt(imageX, imageY)) return@imageTap false
+
+            viewModel.onEvent(
+                ComputerVisionEvent.ImagePlaceholderTapped(
+                    imageX = imageX,
+                    imageY = imageY
+                )
+            )
+            true
         }
     }
 
@@ -164,7 +182,6 @@ class ComputerVisionActivity : AppCompatActivity() {
         }
         binding.guidelinesView.updateGuidelines(state.leftGuidePct, state.rightGuidePct)
 
-        val isIdle = state.currentOperation == CvOperation.Idle
         binding.detectButton.isEnabled = state.canRunDetection
         binding.updateButton.isEnabled = state.canGenerateXml
         binding.saveButton.isEnabled = state.canGenerateXml
@@ -185,9 +202,11 @@ class ComputerVisionActivity : AppCompatActivity() {
                 Toast.makeText(this, effect.message, Toast.LENGTH_LONG).show()
             is ComputerVisionEffect.ShowConfirmDialog ->
                 showUpdateConfirmationDialog(effect.fileName)
-            is ComputerVisionEffect.ReturnXmlResult -> returnXmlResult(effect.xml)
+            is ComputerVisionEffect.ReturnXmlResult -> returnXmlResult(effect.layoutXml, effect.stringsXml)
             is ComputerVisionEffect.FileSaved -> saveXmlToFile(effect.fileName)
             ComputerVisionEffect.NavigateBack -> finish()
+            ComputerVisionEffect.OpenPlaceholderImagePicker ->
+                pickPlaceholderImageLauncher.launch("image/*")
         }
     }
 
@@ -218,9 +237,11 @@ class ComputerVisionActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun returnXmlResult(xml: String) {
+    private fun returnXmlResult(layoutXml: String, stringsXml: String) {
         setResult(RESULT_OK, Intent().apply {
-            putExtra(RESULT_GENERATED_XML, xml)
+            putExtra(RESULT_GENERATED_XML, layoutXml)
+            putExtra(RESULT_GENERATED_STRINGS, stringsXml)
+            putExtra(EXTRA_LAYOUT_FILE_PATH, intent.getStringExtra(EXTRA_LAYOUT_FILE_PATH))
         })
         finish()
     }
@@ -276,5 +297,6 @@ class ComputerVisionActivity : AppCompatActivity() {
         const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
         const val EXTRA_LAYOUT_FILE_NAME = "com.example.images.LAYOUT_FILE_NAME"
         const val RESULT_GENERATED_XML = "ide.uidesigner.generatedXml"
+        const val RESULT_GENERATED_STRINGS = "ide.uidesigner.generatedStrings"
     }
 }

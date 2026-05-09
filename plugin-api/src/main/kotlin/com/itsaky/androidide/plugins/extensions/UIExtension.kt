@@ -56,7 +56,16 @@ data class MenuItem(
     val isVisible: Boolean = true,
     val shortcut: String? = null,
     val subItems: List<MenuItem> = emptyList(),
-    val action: () -> Unit
+    val action: () -> Unit,
+    /**
+     * Optional tooltip tag to look up under the plugin's tooltip category
+     * (`plugin_<pluginId>`). When null, the IDE composes a tag using the
+     * convention `<pluginId>.<id>`. Supplying the same tooltipTag on a
+     * NavigationItem and a MenuItem lets a single PluginTooltipEntry serve
+     * both the sidebar and the toolbar surfaces.
+     */
+    val tooltipTag: String? = null,
+
 )
 
 data class ContextMenuContext(
@@ -83,6 +92,13 @@ data class NavigationItem(
     val isVisible: Boolean = true,
     val group: String? = null,
     val order: Int = 0,
+    /**
+     * Optional tooltip tag to look up under the plugin's tooltip category
+     * (`plugin_<pluginId>`). When null, the IDE composes a tag using the
+     * convention `<pluginId>.<id>` so plugins do not need to manually
+     * namespace tags to avoid collisions across plugins.
+     */
+    val tooltipTag: String? = null,
     val action: () -> Unit
 )
 

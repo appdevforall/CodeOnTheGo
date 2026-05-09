@@ -1,36 +1,12 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.utils.MetadataDetector
 import kotlin.math.abs
 
 object MarginAnnotationParser {
     private const val GAP_MULTIPLIER = 1.5f
     private const val HEIGHT_FRACTION = 0.8f
-
-    private val TAG_REGEX = Regex("^(?i)(B|P|D|T|C|R|SW|S)-\\d+$")
-    private val TAG_EXTRACT_REGEX = Regex("^(?i)([BPDTCRS8]\\s*W?)[^a-zA-Z0-9]*([\\dlIoO!]+)(?:\\s+(.+))?$")
-
-    private fun normalizeOcrDigits(raw: String): String =
-        raw.replace('l', '1').replace('I', '1').replace('!', '1')
-            .replace('o', '0').replace('O', '0')
-
-    private fun isTag(text: String): Boolean = text.matches(TAG_REGEX)
-
-    private fun extractTag(text: String): Pair<String, String?>? {
-        val trimmed = text.trim().trimEnd('.', ',', ';', '_', '|')
-        val match = TAG_EXTRACT_REGEX.find(trimmed) ?: return null
-
-        var prefix = match.groupValues[1].replace(Regex("\\s+"), "").uppercase()
-        if (prefix == "8") prefix = "B"
-        if (prefix == "8W" || prefix == "S8") prefix = "SW"
-
-        val digit = normalizeOcrDigits(match.groupValues[2])
-        val remaining = match.groupValues[3].takeIf { it.isNotBlank() }
-        val tag = "$prefix-$digit"
-
-        if (isTag(tag)) return tag to remaining
-        return null
-    }
 
     fun parse(
         detections: List<DetectionResult>,
@@ -38,6 +14,11 @@ object MarginAnnotationParser {
         leftGuidePct: Float,
         rightGuidePct: Float
     ): Pair<List<DetectionResult>, Map<String, String>> {
+        val sanitizedDetections = detections.filterNot { detection ->
+            MetadataDetector.isMetadataLabel(detection.label) ||
+                (detection.isYolo && MetadataDetector.isCanvasMetadata(detection.text))
+        }
+
         val leftMarginPx = imageWidth * leftGuidePct
         val rightMarginPx = imageWidth * rightGuidePct
 
@@ -45,7 +26,7 @@ object MarginAnnotationParser {
         val leftMarginDetections = mutableListOf<DetectionResult>()
         val rightMarginDetections = mutableListOf<DetectionResult>()
 
-        for (detection in detections) {
+        for (detection in sanitizedDetections) {
             val centerX = centerX(detection)
             when {
                 centerX > leftMarginPx && centerX < rightMarginPx -> canvasDetections.add(detection)
@@ -55,7 +36,7 @@ object MarginAnnotationParser {
         }
 
         val canvasTags = canvasDetections.mapNotNull { det ->
-            extractTag(det.text)?.let { (tag, _) -> tag to det }
+            WidgetTagParser.extractTag(det.text)?.let { (tag, _) -> tag to det }
         }
 
         val canvasMidX = imageWidth * (leftGuidePct + rightGuidePct) / 2f
@@ -72,8 +53,7 @@ object MarginAnnotationParser {
     private data class ParsedBlock(
         val tag: String?,
         val annotationText: String,
-        val centerY: Float,
-        val lineCount: Int
+        val centerY: Float
     )
 
     private fun parseMarginGroup(
@@ -88,13 +68,13 @@ object MarginAnnotationParser {
         val gapBlocks = clusterIntoBlocks(sorted)
         val refinedBlocks = gapBlocks.flatMap { splitAtTags(it, validPrefixes) }
 
-        val parsedBlocks = refinedBlocks.mapIndexed { _, block ->
+        val parsedBlocks = refinedBlocks.map { block ->
             val result = parseBlock(block)
             val centerY = block.map { centerY(it) }.average().toFloat()
             val annotationText = result?.second
                 ?: block.joinToString(" ") { it.text.trim() }.trim()
 
-            ParsedBlock(result?.first, annotationText, centerY, block.size)
+            ParsedBlock(result?.first, annotationText, centerY)
         }
 
         val annotationMap = mutableMapOf<String, String>()
@@ -106,10 +86,16 @@ object MarginAnnotationParser {
             }
 
         val explicitBlocks = parsedBlocks
-            .filter { it.tag != null && it.annotationText.isNotBlank() }
+            .filter {
+                it.tag != null &&
+                    it.annotationText.isNotBlank()
+            }
 
         val implicitBlocks = parsedBlocks
-            .filter { it.tag == null && it.annotationText.length >= 5 }
+            .filter {
+                it.tag == null &&
+                    it.annotationText.length >= 5
+            }
 
         for (block in explicitBlocks) {
             val tag = block.tag ?: continue
@@ -124,7 +110,7 @@ object MarginAnnotationParser {
             .mapValues { (_, tags) ->
                 tags.map { it.first }
                     .filter { tag -> tag !in annotationMap }
-                    .sortedBy { tag -> extractOrdinal(tag) ?: Int.MAX_VALUE }
+                    .sortedBy { tag -> WidgetTagParser.extractOrdinal(tag) ?: Int.MAX_VALUE }
                     .toMutableList()
             }
             .toMutableMap()
@@ -151,10 +137,6 @@ object MarginAnnotationParser {
         }
 
         return annotationMap
-    }
-
-    private fun extractOrdinal(tag: String): Int? {
-        return tag.substringAfter('-', "").toIntOrNull()
     }
 
     private fun centerX(detection: DetectionResult): Float {
@@ -200,7 +182,7 @@ object MarginAnnotationParser {
         var currentBlock = mutableListOf<DetectionResult>()
 
         for (detection in block) {
-            val tagExtraction = extractTag(detection.text.trim())
+            val tagExtraction = WidgetTagParser.extractTag(detection.text.trim())
             val isValidSplit = tagExtraction != null &&
                 (validPrefixes.isEmpty() || tagExtraction.first.substringBefore('-') in validPrefixes)
 
@@ -224,7 +206,7 @@ object MarginAnnotationParser {
                 .trim()
                 .trimStart('|', ':', ';', '.', ',', '_')
 
-            val tagExtraction = extractTag(text)
+            val tagExtraction = WidgetTagParser.extractTag(text)
 
             if (tag == null && tagExtraction != null && index <= 2) {
                 tag = tagExtraction.first

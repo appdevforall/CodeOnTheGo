@@ -21,6 +21,7 @@
     <string name="msg_saved_to_downloads">Saved to Downloads/%s</string>
     <string name="msg_error_saving_file">Error saving file: %s</string>
     <string name="msg_share_xml_layout">Share XML Layout</string>
+    <string name="msg_placeholder_image_selected">Image selected for placeholder.</string>
 
     <string name="layout_default_name">layout</string>
     <string name="image_placeholder_desc">Image placeholder for object detection</string>

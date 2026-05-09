@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.eclipse.jgit.api.MergeResult.MergeStatus
 import org.eclipse.jgit.api.PullResult
-import org.eclipse.jgit.errors.NoRemoteRepositoryException
 import org.eclipse.jgit.api.errors.CheckoutConflictException
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
@@ -176,14 +175,14 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
     fun push(username: String?, token: String?) {
         pushResetJob?.cancel()
 
-        if (!NetworkUtils.isConnected()){
-            _pushState.value = PushUiState.Error(errorResId = R.string.no_internet_connection)
-            return
-        }
-
         viewModelScope.launch {
-            _pushState.value = PushUiState.Pushing
             try {
+                if (!NetworkUtils.isConnected()){
+                    _pushState.value = PushUiState.Error(errorResId = R.string.no_internet_connection)
+                    return@launch
+                }
+
+                _pushState.value = PushUiState.Pushing
                 val repository = currentRepository ?: return@launch
                 val credentials = buildCredentials(username, token)
                 val results = repository.push(credentialsProvider = credentials)
@@ -246,14 +245,14 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
     fun pull(username: String?, token: String?) {
         pullResetJob?.cancel()
 
-        if (!NetworkUtils.isConnected()){
-            _pullState.value = PullUiState.Error(errorResId = R.string.no_internet_connection)
-            return
-        }
-
         viewModelScope.launch {
-            _pullState.value = PullUiState.Pulling
             try {
+                if (!NetworkUtils.isConnected()){
+                    _pullState.value = PullUiState.Error(errorResId = R.string.no_internet_connection)
+                    return@launch
+                }
+
+                _pullState.value = PullUiState.Pulling
                 val repository = currentRepository ?: return@launch
                 val credentials = buildCredentials(username, token)
                 val result = repository.pull(credentialsProvider = credentials)
@@ -365,6 +364,19 @@ class GitBottomSheetViewModel(private val credentialsManager: GitCredentialsMana
                 onSuccess?.invoke()
             } catch (e: Exception) {
                 log.error("Failed to abort merge", e)
+            }
+        }
+    }
+
+    fun resolveConflict(path: String) {
+        viewModelScope.launch {
+            try {
+                val repository = currentRepository ?: return@launch
+                val projectDir = File(IProjectManager.getInstance().projectDirPath)
+                repository.stageFiles(listOf(File(projectDir, path)))
+                refreshStatus()
+            } catch (e: Exception) {
+                log.error("Failed to resolve conflict for $path", e)
             }
         }
     }

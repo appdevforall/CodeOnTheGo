@@ -25,11 +25,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.computervision.R
+import org.appdevforall.codeonthego.computervision.data.repository.DrawableImportHelper
+import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.ui.SelectedImportedImage
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil
 import org.appdevforall.codeonthego.computervision.utils.SmartBoundaryDetector
+import org.appdevforall.codeonthego.computervision.utils.getSortedPlaceholders
 
 class ComputerVisionViewModel(
     private val repository: ComputerVisionRepository,
+    private val drawableImportHelper: DrawableImportHelper,
     private val contentResolver: ContentResolver,
     layoutFilePath: String?,
     layoutFileName: String?
@@ -77,6 +82,13 @@ class ComputerVisionViewModel(
                         rightGuidePct = event.rightPct
                     )
                 }
+            }
+            is ComputerVisionEvent.ImagePlaceholderTapped -> {
+                handleImagePlaceholderTap(event.imageX, event.imageY)
+            }
+
+            is ComputerVisionEvent.PlaceholderImageSelected -> {
+                handlePlaceholderImageSelected(event.uri)
             }
         }
     }
@@ -137,7 +149,9 @@ class ComputerVisionViewModel(
                         visualizedBitmap = null,
                         leftGuidePct = leftPct,
                         rightGuidePct = rightPct,
-                        parsedAnnotations = emptyMap() // Reset on new image
+                        parsedAnnotations = emptyMap(), // Reset on new image
+                        pendingImagePlaceholderId = null,
+                        selectedImagesByPlaceholderId = emptyMap()
                     )
                 }
             } catch (e: Exception) {
@@ -166,7 +180,7 @@ class ComputerVisionViewModel(
                     ExifInterface.ORIENTATION_NORMAL
                 )
             } ?: ExifInterface.ORIENTATION_NORMAL
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             ExifInterface.ORIENTATION_NORMAL
         }
 
@@ -187,7 +201,7 @@ class ComputerVisionViewModel(
                 bitmap.recycle()
             }
             rotatedBitmap
-        } catch (e: OutOfMemoryError) {
+        } catch (_: OutOfMemoryError) {
             bitmap
         }
     }
@@ -264,7 +278,9 @@ class ComputerVisionViewModel(
                         it.copy(
                             detections = canvasDetections,
                             parsedAnnotations = annotationMap,
-                            currentOperation = CvOperation.Idle
+                            currentOperation = CvOperation.Idle,
+                            pendingImagePlaceholderId = null,
+                            selectedImagesByPlaceholderId = emptyMap(),
                         )
                     }
                 }
@@ -303,11 +319,11 @@ class ComputerVisionViewModel(
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
             generateXml(state)
-                .onSuccess { xml ->
+                .onSuccess { (layoutXml, stringsXml) ->
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = false)
                     _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
-                    _uiEffect.send(ComputerVisionEffect.ReturnXmlResult(xml))
+                    _uiEffect.send(ComputerVisionEffect.ReturnXmlResult(layoutXml, stringsXml))
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "XML generation failed", exception)
@@ -330,11 +346,12 @@ class ComputerVisionViewModel(
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
             generateXml(state)
-                .onSuccess { xml ->
+                .onSuccess { (layoutXml, stringsXml) ->
+                    val combined = if(stringsXml.isNotBlank()) "$layoutXml\n\n\n" else layoutXml
                     CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = true)
                     _uiState.update { it.copy(currentOperation = CvOperation.SavingFile) }
-                    saveXmlFile(xml)
+                    saveXmlFile(combined)
                 }
                 .onFailure { exception ->
                     Log.e(TAG, "XML generation failed", exception)
@@ -344,11 +361,13 @@ class ComputerVisionViewModel(
         }
     }
 
-    private suspend fun generateXml(state: ComputerVisionUiState): Result<String> {
+    private suspend fun generateXml(state: ComputerVisionUiState): Result<Pair<String, String>> {
         val bitmap = state.currentBitmap ?: return Result.failure(IllegalStateException("No bitmap available"))
         return repository.generateXml(
             detections = state.detections,
             annotations = state.parsedAnnotations,
+            selectedImagesByPlaceholderId = state.selectedImagesByPlaceholderId
+                .mapValues { it.value.drawableReference },
             sourceImageWidth = bitmap.width,
             sourceImageHeight = bitmap.height,
             targetDpWidth = TARGET_DP_WIDTH,
@@ -371,6 +390,71 @@ class ComputerVisionViewModel(
             Log.e(TAG, "Error decoding bitmap from URI", e)
             null
         }
+    }
+
+    private fun handleImagePlaceholderTap(imageX: Float, imageY: Float) {
+        val placeholder = findImagePlaceholderAt(imageX, imageY) ?: return
+        val placeholderId = resolvePlaceholderId(placeholder)
+
+        _uiState.update { it.copy(pendingImagePlaceholderId = placeholderId) }
+        viewModelScope.launch {
+            _uiEffect.send(ComputerVisionEffect.OpenPlaceholderImagePicker)
+        }
+    }
+
+    private fun handlePlaceholderImageSelected(uri: Uri) {
+        val state = _uiState.value
+        val placeholderId = state.pendingImagePlaceholderId ?: return
+
+        viewModelScope.launch {
+            drawableImportHelper.importDrawable(
+                sourceUri = uri,
+                layoutFilePath = state.layoutFilePath,
+                fallbackName = "imported_image_$placeholderId"
+            ).onSuccess { importedDrawable ->
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        pendingImagePlaceholderId = null,
+                        selectedImagesByPlaceholderId = currentState.selectedImagesByPlaceholderId +
+                            (
+                                placeholderId to SelectedImportedImage(
+                                    resourceName = importedDrawable.resourceName,
+                                    drawableReference = importedDrawable.drawableReference
+                                )
+                            )
+                    )
+                }
+
+                _uiEffect.send(
+                    ComputerVisionEffect.ShowToast(R.string.msg_placeholder_image_selected)
+                )
+            }.onFailure { exception ->
+                _uiState.update {
+                    it.copy(pendingImagePlaceholderId = null)
+                }
+
+                _uiEffect.send(
+                    ComputerVisionEffect.ShowError(
+                        "Image import failed: ${exception.message}"
+                    )
+                )
+            }
+        }
+    }
+
+    private fun resolvePlaceholderId(detection: DetectionResult): String {
+        val index = _uiState.value.detections.getSortedPlaceholders().indexOf(detection)
+        return "ph_${index.coerceAtLeast(0)}"
+    }
+
+    fun isImagePlaceholderAt(imageX: Float, imageY: Float): Boolean {
+        return findImagePlaceholderAt(imageX, imageY) != null
+    }
+
+    private fun findImagePlaceholderAt(imageX: Float, imageY: Float): DetectionResult? {
+        return _uiState.value.detections
+            .getSortedPlaceholders()
+            .firstOrNull { it.boundingBox.contains(imageX, imageY) }
     }
 
     override fun onCleared() {

@@ -53,8 +53,8 @@ class EditorBottomSheetTabAdapter(
 		const val TAB_DIAGNOSTICS = 3
 		const val TAB_SEARCH_RESULTS = 4
 		const val TAB_DEBUGGER = 5
-		const val TAB_AGENT = 6
-        const val TAB_GIT = 7
+        const val TAB_GIT = 6
+		const val TAB_AGENT = 7
 	}
 
 	private val allTabs =
@@ -113,6 +113,15 @@ class EditorBottomSheetTabAdapter(
 				),
 			)
 
+            add(
+                Tab(
+                    title = fragmentActivity.getString(R.string.git_title),
+                    fragmentClass = GitBottomSheetFragment::class.java,
+                    itemId = TAB_GIT,
+                    tooltipTag = TooltipTag.PROJECT_GIT,
+                ),
+            )
+
 			if (FeatureFlags.isExperimentsEnabled) {
 				add(
 					Tab(
@@ -122,14 +131,6 @@ class EditorBottomSheetTabAdapter(
 						tooltipTag = TooltipTag.PROJECT_AGENT,
 					),
 				)
-
-                add(
-                    Tab(
-                        title = fragmentActivity.getString(R.string.git_title),
-                        fragmentClass = GitBottomSheetFragment::class.java,
-                        itemId = TAB_GIT,
-                    ),
-                )
 			}
 		}
 

@@ -1,10 +1,17 @@
 package org.appdevforall.codeonthego.computervision.domain
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
+import org.appdevforall.codeonthego.computervision.domain.grammar.UiGrammarValidator
 
 object FuzzyAttributeParser {
+    private val grammarValidator = UiGrammarValidator()
 
     private const val FUZZY_VALUE_THRESHOLD = 75
+    private const val FUZZY_DIMENSION_THRESHOLD = 60
+    private const val FUZZY_TEXT_STYLE_THRESHOLD = 60
+    private val DIMENSION_CONSTANTS = listOf("wrap_content", "match_parent")
+    private val TEXT_STYLE_VALUES = listOf("normal", "bold", "italic", "bold|italic")
+    private val ID_VOCABULARY = listOf("cb", "rb", "group", "checkbox", "radio", "btn", "button", "text", "view", "img", "image", "input")
 
     private fun fuzzyKeyThreshold(keyLength: Int): Int = when {
         keyLength <= 3 -> 65
@@ -24,13 +31,13 @@ object FuzzyAttributeParser {
         TEXT("android:text", listOf("text")),
         HINT("android:hint", listOf("hint")),
         BACKGROUND("android:background", listOf("background", "bg"), ValueType.COLOR),
-        BACKGROUND_TINT("app:backgroundTint", listOf("backgroundtint", "background_tint"), ValueType.COLOR),
-        SRC("android:src", listOf("src", "scr"), ValueType.DRAWABLE),
+        BACKGROUND_TINT("app:backgroundTint", listOf("backgroundtint", "background_tint", "bg_tint"), ValueType.COLOR),
+        SRC("android:src", listOf("src", "scr", "sre", "5rc"), ValueType.DRAWABLE),
         CONTENT_DESCRIPTION("android:contentDescription", listOf("contentdescription", "content_description")),
 
         TEXT_SIZE("android:textSize", listOf("textsize", "text_size"), ValueType.SP_DIMENSION),
         TEXT_COLOR("android:textColor", listOf("textcolor", "text_color", "color", "text_colar", "textcolar"), ValueType.COLOR),
-        TEXT_STYLE("android:textStyle", listOf("textstyle", "text_style", "style"), ValueType.RAW),
+        TEXT_STYLE("android:textStyle", listOf("textstyle", "text_style", "style"), ValueType.TEXT_STYLE),
         TEXT_ALIGNMENT("android:textAlignment", listOf("textalignment", "text_alignment")),
         TEXT_ALL_CAPS("android:textAllCaps", listOf("textallcaps", "text_all_caps")),
         FONT_FAMILY("android:fontFamily", listOf("fontfamily", "font_family", "font")),
@@ -72,7 +79,7 @@ object FuzzyAttributeParser {
         LAYOUT_MARGIN_RIGHT("android:layout_marginRight", listOf("layout_marginright", "layout_margin_right", "margin_right"), ValueType.DIMENSION),
 
         LAYOUT_WEIGHT("android:layout_weight", listOf("layout_weight", "weight"), ValueType.FLOAT),
-        LAYOUT_GRAVITY("android:layout_gravity", listOf("layout_gravity")),
+        LAYOUT_GRAVITY("android:layout_gravity", listOf("layout_gravity", "layaut_gravity")),
         GRAVITY("android:gravity", listOf("gravity")),
         ORIENTATION("android:orientation", listOf("orientation")),
 
@@ -86,7 +93,7 @@ object FuzzyAttributeParser {
         TINT("android:tint", listOf("tint"), ValueType.COLOR),
 
         STYLE("style", listOf("style")),
-        ENTRIES("tools:entries", listOf("entries")),
+        ENTRIES("android:entries", listOf("entries")),
         CHECKED("android:checked", listOf("checked")),
 
         CARD_CORNER_RADIUS("app:cardCornerRadius", listOf("cardcornerradius", "card_corner_radius", "cornerradius", "corner_radius"), ValueType.DIMENSION),
@@ -126,8 +133,25 @@ object FuzzyAttributeParser {
         ID,
         DRAWABLE,
         INTEGER,
-        FLOAT
+        FLOAT,
+        TEXT_STYLE
     }
+
+    fun interface ValueCleaner {
+        fun clean(rawValue: String): String
+    }
+
+    private val valueCleaners: Map<ValueType, ValueCleaner> = mapOf(
+        ValueType.DIMENSION to ValueCleaner(::cleanDimension),
+        ValueType.SP_DIMENSION to ValueCleaner(::cleanSpDimension),
+        ValueType.COLOR to ValueCleaner(::cleanColor),
+        ValueType.ID to ValueCleaner(::cleanId),
+        ValueType.DRAWABLE to ValueCleaner(::cleanDrawable),
+        ValueType.INTEGER to ValueCleaner(::cleanInteger),
+        ValueType.FLOAT to ValueCleaner(::cleanFloat),
+        ValueType.TEXT_STYLE to ValueCleaner(::cleanTextStyle),
+        ValueType.RAW to ValueCleaner { it }
+    )
 
     internal val colorMap = mapOf(
         "red" to "#FF0000", "rel" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
@@ -148,21 +172,10 @@ object FuzzyAttributeParser {
     private val ocrLetterZToTwoRegex = Regex("[zZ]")
     private val ocrLetterSToFiveRegex = Regex("[sS]")
     private val ocrLetterBToSixRegex = Regex("[bB]")
+    private val ocrDenoiseRegex = Regex("inm|rn|wm|nm")
 
     private val matchKeywords = setOf("match", "parent")
     private val wrapKeywords = setOf("wrap", "content", "wrapcan")
-
-    private val validInputTypes = listOf(
-        "text", "textPassword", "number", "numberDecimal",
-        "textEmailAddress", "textUri", "phone"
-    )
-
-    private val validGravities = listOf(
-        "top", "bottom", "left", "right", "center",
-        "center_vertical", "center_horizontal", "start", "end"
-    )
-
-    private val validTextStyles = listOf("normal", "bold", "italic")
 
     private fun normalizeOcrKey(raw: String): String =
         raw.lowercase()
@@ -178,16 +191,13 @@ object FuzzyAttributeParser {
 
         val normalizedSpacing = annotation.replace(Regex("\\s+:"), ":")
 
-        return if (normalizedSpacing.contains(PIPE_DELIMITER)) {
+        val rawExtractedAttributes = if (normalizedSpacing.contains(PIPE_DELIMITER)) {
             parseDelimited(normalizedSpacing, tag)
         } else {
             parseByColonScanning(normalizedSpacing, tag)
         }
-    }
 
-    private fun matchCategoricalValue(rawValue: String, allowedValues: List<String>, threshold: Int = 70): String {
-        val result = FuzzySearch.extractOne(rawValue, allowedValues)
-        return if (result.score >= threshold) result.string else rawValue
+        return grammarValidator.enforceGrammar(rawExtractedAttributes, tag)
     }
 
     private fun parseDelimited(annotation: String, tag: String): Map<String, String> {
@@ -299,6 +309,8 @@ object FuzzyAttributeParser {
                 annotation.length
             }
 
+            if (current.valueStart > valueEnd) continue
+
             var rawValue = annotation.substring(current.valueStart, valueEnd).trim()
 
             if (rawValue.isNotEmpty()) {
@@ -408,24 +420,22 @@ object FuzzyAttributeParser {
 
     private fun cleanValue(rawValue: String, key: AttributeKey): String {
         val trimmed = rawValue.trim()
+        val cleaner = valueCleaners[key.valueType] ?: ValueCleaner { it }
 
-        when (key) {
-            AttributeKey.INPUT_TYPE -> return matchCategoricalValue(trimmed, validInputTypes)
-            AttributeKey.GRAVITY, AttributeKey.LAYOUT_GRAVITY -> return matchCategoricalValue(trimmed, validGravities)
-            AttributeKey.TEXT_STYLE -> return matchCategoricalValue(trimmed, validTextStyles)
-            else -> {}
+        return cleaner.clean(trimmed)
+    }
+
+    private fun cleanTextStyle(value: String): String {
+        val normalizedValue = value.lowercase().replace(" ", "_")
+
+        if (normalizedValue in TEXT_STYLE_VALUES) return normalizedValue
+
+        val result = FuzzySearch.extractOne(normalizedValue, TEXT_STYLE_VALUES)
+        if (result.score >= FUZZY_TEXT_STYLE_THRESHOLD) {
+            return result.string
         }
 
-        return when (key.valueType) {
-            ValueType.DIMENSION -> cleanDimension(trimmed)
-            ValueType.SP_DIMENSION -> cleanSpDimension(trimmed)
-            ValueType.COLOR -> cleanColor(trimmed)
-            ValueType.ID -> cleanId(trimmed)
-            ValueType.DRAWABLE -> cleanDrawable(trimmed)
-            ValueType.INTEGER -> cleanInteger(trimmed)
-            ValueType.FLOAT -> cleanFloat(trimmed)
-            ValueType.RAW -> trimmed
-        }
+        return value
     }
 
     private fun cleanDimension(value: String): String {
@@ -434,12 +444,17 @@ object FuzzyAttributeParser {
         if (matchKeywords.any { it in normalized }) return "match_parent"
         if (wrapKeywords.any { it in normalized }) return "wrap_content"
 
+        val fuzzyResult = FuzzySearch.extractOne(normalized, DIMENSION_CONSTANTS)
+        if (fuzzyResult.score >= FUZZY_DIMENSION_THRESHOLD) {
+            return fuzzyResult.string
+        }
+
         val fixedUnit = normalized
             .replace(Regex("0p$"), "dp")
             .replace(Regex("op$"), "dp")
             .replace(Regex("olp$"), "dp")
 
-        val numericString = fixedUnit.replace(Regex("[a-z]+$"), "")
+        val numericString = fixedUnit.replace("_", "")
         val numericPart = extractOcrNumber(numericString)
 
         if (numericPart != null) return "${numericPart}dp"
@@ -448,11 +463,12 @@ object FuzzyAttributeParser {
     }
 
     private fun cleanSpDimension(value: String): String {
-        val fixedUnit = value.lowercase()
+        val normalized = value.lowercase()
             .replace(" ", "")
-            .replace(Regex("5p$"), "sp")
+        val numericCandidate = normalized
+            .replace(Regex("(sp|5p)$"), "")
 
-        val numericString = fixedUnit.replace(Regex("[a-z]+$"), "")
+        val numericString = numericCandidate.replace("_", "")
         val numericPart = extractOcrNumber(numericString)
 
         if (numericPart != null) return "${numericPart}sp"
@@ -477,22 +493,87 @@ object FuzzyAttributeParser {
     }
 
     private fun cleanId(value: String): String {
-        return value.lowercase()
+        val cleaned = denoiseOcrIdentifier(value.lowercase())
             .replace(nonAlphanumericRegex, "_")
             .replace(multipleUnderscoresRegex, "_")
             .trimEnd('_')
             .trimStart('_')
+
+        return normalizeKnownIdVocabulary(cleaned)
     }
 
-    private fun denoiseOcrIdentifier(value: String): String =
-        value.replace("rn", "m")
-            .replace("wm", "m")
+    private fun normalizeKnownIdVocabulary(identifier: String): String {
+        if (identifier.isBlank()) return identifier
+
+        return identifier
+            .split('_')
+            .filter { it.isNotBlank() }
+            .flatMap(::normalizeIdToken)
+            .joinToString("_")
+    }
+
+    private fun normalizeIdToken(token: String): List<String> {
+        if (token.isBlank()) return emptyList()
+        if (token.all(Char::isDigit)) return listOf(token)
+
+        val wholeMatch = fuzzyMatchIdVocabulary(token)
+        if (wholeMatch != null) {
+            return listOf(wholeMatch)
+        }
+
+        val compositeMatch = normalizeCompositeIdToken(token)
+        if (compositeMatch != null) {
+            return compositeMatch
+        }
+
+        return listOf(token)
+    }
+
+    private fun normalizeCompositeIdToken(token: String): List<String>? {
+        val match = Regex("^([a-z]+?)(\\d+)?$").matchEntire(token) ?: return null
+        val alphaPart = match.groupValues[1]
+        val trailingDigits = match.groupValues[2].takeIf { it.isNotEmpty() }
+
+        val prefix = ID_VOCABULARY
+            .filter { alphaPart.length > it.length }
+            .sortedByDescending { it.length }
+            .firstOrNull { alphaPart.startsWith(it) }
+            ?: return null
+
+        val remainder = alphaPart.removePrefix(prefix)
+        val normalizedRemainder = fuzzyMatchIdVocabulary(remainder) ?: return null
+
+        val result = mutableListOf(prefix, normalizedRemainder)
+        if (trailingDigits != null) result += trailingDigits
+        return result
+    }
+
+    private fun fuzzyMatchIdVocabulary(token: String): String? {
+        if (token.length < 3) return null
+        if (token in ID_VOCABULARY) return token
+
+        val result = FuzzySearch.extractOne(token, ID_VOCABULARY)
+        val lengthDelta = kotlin.math.abs(token.length - result.string.length)
+        return result.string.takeIf { result.score >= 80 && lengthDelta <= 2 }
+    }
+
+    private fun denoiseOcrIdentifier(value: String): String {
+        return value.replace(ocrDenoiseRegex) { matchResult ->
+            when (matchResult.value) {
+                "inm" -> "im"
+                else -> "m"
+            }
+        }
+    }
 
     private fun cleanDrawable(value: String): String {
         if (value.startsWith("@drawable/")) return value
-        val cleaned = value.replace(Regex("[^a-zA-Z0-9_.]"), "")
-            .substringBeforeLast('.')
-            .lowercase()
+
+        var cleaned = value.lowercase()
+            .replace(Regex("\\.(png|jpg|jpeg|webp|xml|svg)$"), "")
+
+        cleaned = cleaned.replace(Regex("[^a-z0-9_]"), "")
+
         return "@drawable/${denoiseOcrIdentifier(cleaned)}"
     }
 

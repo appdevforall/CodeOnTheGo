@@ -27,11 +27,12 @@ interface ComputerVisionRepository {
     suspend fun generateXml(
         detections: List<DetectionResult>,
         annotations: Map<String, String>,
+        selectedImagesByPlaceholderId: Map<String, String>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,
         targetDpHeight: Int
-    ): Result<String>
+    ): Result<Pair<String, String>>
 
     fun isModelInitialized(): Boolean
 

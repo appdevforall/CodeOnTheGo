@@ -23,7 +23,6 @@ import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.providers.CompletionProvider
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.MatchLevel.NO_MATCH
-import com.itsaky.androidide.progress.ProgressManager.Companion.abortIfCancelled
 import openjdk.source.tree.ClassTree
 import openjdk.source.tree.CompilationUnitTree
 import openjdk.source.util.TreePath
@@ -58,7 +57,6 @@ class ClassNamesCompletionProvider(
     val imports: Set<String> =
       root.imports.map { it.qualifiedIdentifier }.mapNotNull { it.toString() }.toSet()
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
     for (className in compiler.packagePrivateTopLevelTypes(packageName)) {
       val matchLevel = matchLevel(className, partial)
@@ -70,7 +68,6 @@ class ClassNamesCompletionProvider(
       uniques.add(className)
     }
 
-    abortIfCancelled()
     abortCompletionIfCancelled()
 
     val topLevelTypes = compiler.publicTopLevelTypes()
@@ -87,7 +84,6 @@ class ClassNamesCompletionProvider(
       list.add(classItem(imports, file, className, matchLevel))
       uniques.add(className)
     }
-    abortIfCancelled()
     abortCompletionIfCancelled()
     for (t in root.typeDecls) {
       if (t !is ClassTree) {

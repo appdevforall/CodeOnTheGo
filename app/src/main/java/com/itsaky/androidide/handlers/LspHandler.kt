@@ -34,9 +34,7 @@ object LspHandler {
 	fun registerLanguageServers() {
 		ILanguageServerRegistry.default.apply {
 			getServer(JavaLanguageServer.SERVER_ID) ?: register(JavaLanguageServer())
-			if (FeatureFlags.isExperimentsEnabled) {
-				getServer(KotlinLanguageServer.SERVER_ID) ?: register(KotlinLanguageServer())
-			}
+			getServer(KotlinLanguageServer.SERVER_ID) ?: register(KotlinLanguageServer())
 			getServer(XMLLanguageServer.SERVER_ID) ?: register(XMLLanguageServer())
 		}
 	}

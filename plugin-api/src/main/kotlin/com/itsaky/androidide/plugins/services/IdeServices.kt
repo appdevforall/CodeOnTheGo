@@ -4,6 +4,7 @@ package com.itsaky.androidide.plugins.services
 import android.app.Activity
 import com.itsaky.androidide.plugins.extensions.IProject
 import java.io.File
+import java.io.InputStream
 
 /**
  * Service interface that provides access to Code On the Go project information.
@@ -32,35 +33,104 @@ interface IdeProjectService {
 }
 
 /**
+ * 0-based cursor position inside an editor buffer.
+ */
+data class CursorPosition(val line: Int, val column: Int, val index: Int)
+
+/**
+ * 0-based selection range. Inclusive of start, exclusive of end (matches the underlying editor).
+ */
+data class SelectionRange(
+    val startLine: Int,
+    val startColumn: Int,
+    val endLine: Int,
+    val endColumn: Int,
+)
+
+/**
+ * Notified when the user switches between open files. The new active file is passed,
+ * or null if all files are closed.
+ */
+fun interface FileChangeListener {
+    fun onFileChanged(file: File?)
+}
+
+/**
  * Service interface that provides access to Code On the Go editor state and open files.
- * This service should be registered by Code On the Go and made available to plugins
- * that have the FILESYSTEM_READ permission.
+ * Read methods require FILESYSTEM_READ. Methods that mutate editor state (open/save) require
+ * FILESYSTEM_WRITE.
  */
 interface IdeEditorService {
-    /**
-     * Gets the currently active/focused file in the editor.
-     * @return The current file, or null if no file is open
-     */
     fun getCurrentFile(): File?
-    
-    /**
-     * Gets all files currently open in editor tabs.
-     * @return List of all open files
-     */
+
     fun getOpenFiles(): List<File>
-    
-    /**
-     * Checks if a specific file is currently open in the editor.
-     * @param file The file to check
-     * @return true if the file is open, false otherwise
-     */
+
     fun isFileOpen(file: File): Boolean
-    
-    /**
-     * Gets the currently selected text in the active editor.
-     * @return The selected text, or null if no text is selected
-     */
+
     fun getCurrentSelection(): String?
+
+    fun getCurrentFileContent(): String?
+
+    fun getFileContent(file: File): String?
+
+    fun getCurrentCursorPosition(): CursorPosition?
+
+    fun getCurrentSelectionRange(): SelectionRange?
+
+    fun getCurrentLineText(): String?
+
+    fun getLineText(file: File, lineNumber: Int): String?
+
+    fun getLineCount(file: File): Int
+
+    fun getWordAtCursor(): String?
+
+    fun getCurrentLanguageId(): String?
+
+    fun getFileLanguageId(file: File): String?
+
+    fun isFileModified(file: File): Boolean
+
+    fun getModifiedFiles(): List<File>
+
+    /**
+     * Schedules the given file to be opened in the editor. The open itself runs asynchronously
+     * on the IDE's editor thread — a `true` return means the request was dispatched, not that
+     * the file is already open or that it exists, is readable, or was handled by this IDE
+     * rather than delegated (image viewer, another plugin, etc.). Poll [isFileOpen] if you
+     * need to confirm completion.
+     */
+    fun openFile(file: File): Boolean
+
+    /** See [openFile]. The caret is moved to the given 0-based position once the open completes. */
+    fun openFileAt(file: File, line: Int, column: Int): Boolean
+
+    /**
+     * Schedules a save of the active editor tab. Runs asynchronously; a `true` return means
+     * the save was dispatched, not that the buffer has been flushed to disk. Poll
+     * [isFileModified] on the current file to confirm completion.
+     */
+    fun saveCurrentFile(): Boolean
+
+    fun insertTextAtCursor(text: String): Boolean
+
+    fun replaceSelection(text: String): Boolean
+
+    fun appendToLine(file: File, line: Int, text: String): Boolean
+
+    fun prependToLine(file: File, line: Int, text: String): Boolean
+
+    fun replaceLine(file: File, line: Int, newText: String): Boolean
+
+    fun insertLineBefore(file: File, line: Int, text: String): Boolean
+
+    fun deleteLine(file: File, line: Int): Boolean
+
+    fun replaceRange(file: File, range: SelectionRange, newText: String): Boolean
+
+    fun addFileChangeListener(listener: FileChangeListener)
+
+    fun removeFileChangeListener(listener: FileChangeListener)
 }
 
 /**
@@ -159,6 +229,37 @@ interface IdeFileService {
      * @return true if the replacement was successful, false otherwise
      */
     fun replaceInFile(file: File, oldText: String, newText: String): Boolean
+
+    /**
+     * Writes binary content to a file, replacing any existing content.
+     * Use this instead of [writeFile] for non-text data: UTF-8 transcoding in
+     * [writeFile] corrupts arbitrary bytes.
+     * @param file The file to write to
+     * @param data The bytes to write
+     * @return true if the write operation was successful, false otherwise
+     */
+    fun writeBinary(file: File, data: ByteArray): Boolean
+
+    /**
+     * Writes content from an input stream to a file, replacing any existing
+     * content. Preferred for large payloads (archives, toolchain assets) since
+     * no intermediate buffer of the full payload is held in memory.
+     *
+     * The caller owns [input] and is responsible for closing it.
+     * @param file The file to write to
+     * @param input The stream to read from
+     * @return The number of bytes written, or -1 if the operation failed
+     */
+    fun writeStream(file: File, input: InputStream): Long
+
+    /**
+     * Deletes a file or directory. Directories are removed recursively.
+     * Required for plugins that need to clean up installed assets in
+     * [com.itsaky.androidide.plugins.IPlugin.deactivate].
+     * @param file The file or directory to delete
+     * @return true if the deletion was successful, false otherwise
+     */
+    fun delete(file: File): Boolean
 }
 
 /**

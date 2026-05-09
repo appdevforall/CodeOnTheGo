@@ -44,151 +44,157 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object FileManager {
 
-  private val log = LoggerFactory.getLogger(FileManager::class.java)
-  private val activeDocuments = ConcurrentHashMap<Path, ActiveDocument>()
+	private val log = LoggerFactory.getLogger(FileManager::class.java)
+	private val _activeDocuments = ConcurrentHashMap<Path, ActiveDocument>()
 
-  fun isActive(uri: URI): Boolean {
-    return isActive(Paths.get(uri))
-  }
+	val activeDocuments: Collection<ActiveDocument>
+		get() = _activeDocuments.values.toSet()
 
-  fun isActive(file: Path): Boolean {
-    return this.activeDocuments.containsKey(file.normalize())
-  }
+	fun isActive(uri: URI): Boolean {
+		return isActive(Paths.get(uri))
+	}
 
-  fun getActiveDocument(file: Path): ActiveDocument? {
-    return this.activeDocuments[file.normalize()]
-  }
+	fun isActive(file: Path): Boolean {
+		return this._activeDocuments.containsKey(file.normalize())
+	}
 
-  fun getActiveDocumentCount(): Int {
-    return this.activeDocuments.size
-  }
+	fun getActiveDocument(file: Path): ActiveDocument? {
+		return this._activeDocuments[file.normalize()]
+	}
 
-  fun getDocumentContents(file: Path): String {
-    val document = getActiveDocument(file)
-    if (document != null) {
-      return document.content
-    }
+	fun getActiveDocumentCount(): Int {
+		return this._activeDocuments.size
+	}
 
-    return getFileContents(file)
-  }
+	fun getDocumentContents(file: Path): String {
+		val document = getActiveDocument(file)
+		if (document != null) {
+			return document.content
+		}
 
-  fun getLastModified(file: Path): Instant {
-    val document = getActiveDocument(file)
-    if (document != null) {
-      return document.modified
-    }
+		return getFileContents(file)
+	}
 
-    return getLastModifiedFromDisk(file)
-  }
+	fun getLastModified(file: Path): Instant {
+		val document = getActiveDocument(file)
+		if (document != null) {
+			return document.modified
+		}
 
-  fun getReader(file: Path): BufferedReader {
-    val document = getActiveDocument(file)
-    if (document != null) {
-      return document.reader()
-    }
+		return getLastModifiedFromDisk(file)
+	}
 
-    return createFileReader(file)
-  }
+	fun getReader(file: Path): BufferedReader {
+		val document = getActiveDocument(file)
+		if (document != null) {
+			return document.reader()
+		}
 
-  fun getInputStream(file: Path): InputStream {
-    val document = getActiveDocument(file)
-    if (document != null) {
-      return document.inputStream()
-    }
+		return createFileReader(file)
+	}
 
-    return createFileInputStream(file)
-  }
+	fun getInputStream(file: Path): InputStream {
+		val document = getActiveDocument(file)
+		if (document != null) {
+			return document.inputStream()
+		}
 
-  fun onDocumentOpen(event: DocumentOpenEvent) {
-    activeDocuments[event.openedFile.normalize()] = createDocument(event)
-  }
+		return createFileInputStream(file)
+	}
 
-  fun onDocumentContentChange(event: DocumentChangeEvent) {
-    val document = activeDocuments[event.changedFile.normalize()]
+	fun onDocumentOpen(event: DocumentOpenEvent) {
+		_activeDocuments[event.openedFile.normalize()] = createDocument(event)
+	}
 
-    if (document == null) {
-      // create document if not already created
-      // this should not happen under normal circumstances
-      activeDocuments[event.changedFile.normalize()] = createDocument(event)
-      log.warn("Document change event received before open event for file {}", event.changedFile)
-      return
-    }
+	fun onDocumentContentChange(event: DocumentChangeEvent) {
+		val document = _activeDocuments[event.changedFile.normalize()]
 
-    document.version = event.version
-    document.modified = Instant.now()
-    document.content = event.newText!!
-    event.newText = null
-  }
+		if (document == null) {
+			// create document if not already created
+			// this should not happen under normal circumstances
+			_activeDocuments[event.changedFile.normalize()] = createDocument(event)
+			log.warn(
+				"Document change event received before open event for file {}",
+				event.changedFile
+			)
+			return
+		}
 
-  fun onDocumentClose(event: DocumentCloseEvent) {
-    activeDocuments.remove(event.closedFile.normalize())
-  }
+		document.version = event.version
+		document.modified = Instant.now()
+		document.content = event.newText!!
+		event.newText = null
+	}
 
-  fun onFileRenamed(event: FileRenameEvent) {
-    val document = activeDocuments.remove(event.file.toPath().normalize())
-    if (document != null) {
-      activeDocuments[event.newFile.toPath().normalize()] = document
-    }
-  }
+	fun onDocumentClose(event: DocumentCloseEvent) {
+		_activeDocuments.remove(event.closedFile.normalize())
+	}
 
-  fun onFileDeleted(event: FileDeletionEvent) {
-    // If the file was an active document, remove the document cache
-    activeDocuments.remove(event.file.toPath().normalize())
-  }
+	fun onFileRenamed(event: FileRenameEvent) {
+		val document = _activeDocuments.remove(event.file.toPath().normalize())
+		if (document != null) {
+			_activeDocuments[event.newFile.toPath().normalize()] = document
+		}
+	}
 
-  private fun createDocument(event: DocumentOpenEvent): ActiveDocument {
-    return ActiveDocument(
-      file = event.openedFile,
-      version = event.version,
-      modified = Instant.now(),
-      content = event.text
-    )
-  }
+	fun onFileDeleted(event: FileDeletionEvent) {
+		// If the file was an active document, remove the document cache
+		_activeDocuments.remove(event.file.toPath().normalize())
+	}
 
-  private fun createDocument(event: DocumentChangeEvent): ActiveDocument {
-    return ActiveDocument(
-      file = event.changedFile,
-      version = event.version,
-      modified = Instant.now(),
-      content = event.changedText
-    )
-  }
+	private fun createDocument(event: DocumentOpenEvent): ActiveDocument {
+		return ActiveDocument(
+			file = event.openedFile,
+			version = event.version,
+			modified = Instant.now(),
+			content = event.text
+		)
+	}
 
-  private fun createFileReader(file: Path): BufferedReader {
-    return try {
-      Files.newBufferedReader(file)
-    } catch (noFile: java.nio.file.NoSuchFileException) {
-      log.warn("No such file", noFile)
-      "".reader().buffered()
-    } catch (cancelled: CancellationException) {
-      "".reader().buffered()
-    }
-  }
+	private fun createDocument(event: DocumentChangeEvent): ActiveDocument {
+		return ActiveDocument(
+			file = event.changedFile,
+			version = event.version,
+			modified = Instant.now(),
+			content = event.changedText
+		)
+	}
 
-  private fun createFileInputStream(file: Path): InputStream {
-    return try {
-      Files.newInputStream(file)
-    } catch (noFile: java.nio.file.NoSuchFileException) {
-      log.warn("No such file", noFile)
-      "".byteInputStream()
-    } catch (cancelled: CancellationException) {
-      "".byteInputStream()
-    }
-  }
+	private fun createFileReader(file: Path): BufferedReader {
+		return try {
+			Files.newBufferedReader(file)
+		} catch (noFile: java.nio.file.NoSuchFileException) {
+			log.warn("No such file", noFile)
+			"".reader().buffered()
+		} catch (cancelled: CancellationException) {
+			"".reader().buffered()
+		}
+	}
 
-  private fun getLastModifiedFromDisk(file: Path): Instant {
-    return Files.getLastModifiedTime(file).toInstant()
-  }
+	private fun createFileInputStream(file: Path): InputStream {
+		return try {
+			Files.newInputStream(file)
+		} catch (noFile: java.nio.file.NoSuchFileException) {
+			log.warn("No such file", noFile)
+			"".byteInputStream()
+		} catch (cancelled: CancellationException) {
+			"".byteInputStream()
+		}
+	}
 
-  private fun getFileContents(file: Path): String {
-    return try {
-      ProgressManager.abortIfCancelled()
-      FileUtils.readFileToString(file.toFile(), Charset.defaultCharset())
-    } catch (noFile: java.nio.file.NoSuchFileException) {
-      log.warn("No such file", noFile)
-      ""
-    } catch (cancelled: CancellationException) {
-      ""
-    }
-  }
+	private fun getLastModifiedFromDisk(file: Path): Instant {
+		return Files.getLastModifiedTime(file).toInstant()
+	}
+
+	private fun getFileContents(file: Path): String {
+		return try {
+			ProgressManager.abortIfCancelled()
+			FileUtils.readFileToString(file.toFile(), Charset.defaultCharset())
+		} catch (noFile: java.nio.file.NoSuchFileException) {
+			log.warn("No such file", noFile)
+			""
+		} catch (cancelled: CancellationException) {
+			""
+		}
+	}
 }

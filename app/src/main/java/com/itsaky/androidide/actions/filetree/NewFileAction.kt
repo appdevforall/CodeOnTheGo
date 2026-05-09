@@ -280,10 +280,6 @@ class NewFileAction(val context: Context, override val order: Int) :
       else -> createFile(node, sourceFileDirectory, name, "")
     }
 
-    node?.let {
-      requestCollapseNode(it, true)
-    }
-
     if (autoLayout) {
       val packagePath = pkgName.toString().replace(".", "/")
       createAutoLayout(context, sourceFileDirectory, name, packagePath, isKotlin)
@@ -449,10 +445,8 @@ class NewFileAction(val context: Context, override val order: Int) :
 
   override fun onActionSuccess(message: String, createdFile: File?) {
     flashSuccess(R.string.msg_file_created)
-    if (currentNode != null && createdFile != null) {
-      val newNode = TreeNode(createdFile)
-      newNode.viewHolder = FileTreeViewHolder(this.context)
-      currentNode!!.addChild(newNode)
+    if (currentNode != null) {
+      requestCollapseNode(currentNode!!, false)
       requestExpandNode(currentNode!!)
     } else {
       requestFileListing()
