@@ -56,6 +56,7 @@ data class MenuItem(
     val isVisible: Boolean = true,
     val shortcut: String? = null,
     val subItems: List<MenuItem> = emptyList(),
+    val action: () -> Unit,
     /**
      * Optional tooltip tag to look up under the plugin's tooltip category
      * (`plugin_<pluginId>`). When null, the IDE composes a tag using the
@@ -64,7 +65,7 @@ data class MenuItem(
      * both the sidebar and the toolbar surfaces.
      */
     val tooltipTag: String? = null,
-    val action: () -> Unit
+
 )
 
 data class ContextMenuContext(

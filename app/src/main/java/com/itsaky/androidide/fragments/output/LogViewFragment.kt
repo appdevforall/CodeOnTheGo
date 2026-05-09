@@ -112,6 +112,13 @@ abstract class LogViewFragment<V : LogViewModel> :
 	}
 
 	private suspend fun observeLogs(): Nothing {
+		// Wait for the editor's first layout pass. The sora-editor's
+		// LineBreakLayout populates its line-width tracker asynchronously after
+		// layout; appending before that races BlockIntList.set on an empty list.
+		_binding?.editor?.awaitLayout(
+			onForceVisible = { emptyStateViewModel.setEmpty(false) },
+		)
+
 		viewModel.uiEvents.collect { event ->
 			when (event) {
 				is LogViewModel.UiEvent.Append -> {
@@ -161,9 +168,10 @@ abstract class LogViewFragment<V : LogViewModel> :
 			return
 		}
 
-		_binding?.editor?.append(chars)?.also {
-			emptyStateViewModel.setEmpty(false)
-		}
+		val editor = _binding?.editor ?: return
+		if (!editor.isReadyToAppend) return
+		editor.appendBatch(chars.toString())
+		emptyStateViewModel.setEmpty(false)
 	}
 
 	@UiThread
