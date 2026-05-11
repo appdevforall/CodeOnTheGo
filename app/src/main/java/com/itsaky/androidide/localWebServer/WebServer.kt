@@ -21,6 +21,9 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
+import java.util.concurrent.ConcurrentHashMap
+import io.pebbletemplates.pebble.template.PebbleTemplate
+
 
 data class ServerConfig(
     val port: Int = 6174,
@@ -56,6 +59,8 @@ class WebServer(private val config: ServerConfig) {
     private          val experimentsEnabled : Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader     : String  = "Accept-Encoding"
     private          val brotliCompression  : String  = "br"
+    private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
+    private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
 
 
     //function to obtain the last modified date of a documentation.db database
@@ -247,7 +252,7 @@ clientSocket and the catch block logic are updated accordingly.
         return String(bytes, 0, len, Charsets.ISO_8859_1)
     }
 
-    private fun handleClient(clientSocket: Socket) {
+/*    private fun handleClient(clientSocket: Socket) {
         if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
         val input = clientSocket.getInputStream()
@@ -437,7 +442,157 @@ WHERE  path = ?
         output.write(dbContent)
         output.flush()
     }
+*/
 
+    private fun handleClient(clientSocket: Socket) {
+        if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
+
+        val input = clientSocket.getInputStream()
+        val output = clientSocket.getOutputStream()
+        val writer = PrintWriter(output, true)
+
+        var brotliSupported = false
+
+        var requestLine = readLineFromStream(input) ?: return
+        if (debugEnabled) log.debug("Request is {}", requestLine)
+
+        val parts = requestLine.split(" ")
+        if (parts.size != 3) {
+            return sendError(writer, output, 400, "Bad Request")
+        }
+
+        val method = parts[0]
+        var path = parts[1].split("?")[0].substring(1)
+
+        val headers = mutableMapOf<String, String>()
+        while (true) {
+            requestLine = readLineFromStream(input) ?: break
+            if (requestLine.isEmpty()) break
+            val colon = requestLine.indexOf(':')
+            if (colon > 0) {
+                headers[requestLine.substring(0, colon).trim().lowercase()] = requestLine.substring(colon + 1).trim()
+            }
+        }
+        brotliSupported = headers["accept-encoding"]?.contains(brotliCompression) == true
+
+        if (method != "GET") {
+            return sendError(writer, output, 501, "Not Implemented")
+        }
+
+        // Check for newer database on SD card
+        val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
+        if (debugDatabaseTimestamp > databaseTimestamp) {
+            database.close()
+            database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
+            databaseTimestamp = debugDatabaseTimestamp
+        }
+
+        // --- DATABASE FETCH ---
+        val query = """
+            SELECT C.content, CT.value, CT.compression, C.templateId
+            FROM   Content C, ContentTypes CT
+            WHERE  C.contentTypeID = CT.id
+              AND  C.path = ?
+        """
+        val cursor = database.rawQuery(query, arrayOf(path))
+
+        try {
+            if (cursor.count != 1) {
+                return if (cursor.count == 0) sendError(writer, output, 404, "Not Found")
+                else sendError(writer, output, 500, "Corrupt database")
+            }
+
+            cursor.moveToFirst()
+            var dbContent = cursor.getBlob(0)
+            val dbMimeType = cursor.getString(1)
+            var compression = cursor.getString(2)
+            val templateId = cursor.getInt(3)
+
+            // Fragment handling for large content (> 1MB)
+            if (dbContent.size == 1024 * 1024) {
+                val query2 = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
+                var fragmentNumber = 1
+                var dbContent2 = dbContent
+                while (dbContent2.size == 1024 * 1024) {
+                    val path2 = "$path-$fragmentNumber"
+                    val cursor2 = database.rawQuery(query2, arrayOf(path2))
+                    try {
+                        if (cursor2.moveToFirst()) {
+                            dbContent2 = cursor2.getBlob(0)
+                            dbContent += dbContent2
+                            fragmentNumber++
+                        } else break
+                    } finally { cursor2.close() }
+                }
+            }
+
+            // --- TEMPLATE PROCESSING ---
+            if (templateId != 0) {
+                if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
+
+                // 1. Get or Compile Template from Cache
+                val compiledTemplate = templateCache.getOrPut(templateId) {
+                    if (debugEnabled) log.debug("Template cache miss for ID {}", templateId)
+                    val tQuery = "SELECT content FROM Templates WHERE id = ?"
+                    val tCursor = database.rawQuery(tQuery, arrayOf(templateId.toString()))
+                    tCursor.use {
+                        if (it.moveToFirst()) {
+                            val templateBlob = it.getBlob(0)
+                            pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
+                        } else {
+                            throw Exception("Template ID $templateId not found in database.")
+                        }
+                    }
+                }
+
+                // 2. Decompress Article (Must be raw string for Pebble)
+                val articleText = if (compression == "brotli") {
+                    BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }.toString(Charsets.UTF_8)
+                } else {
+                    dbContent.toString(Charsets.UTF_8)
+                }
+
+                // 3. Render Template
+                val sw = StringWriter()
+                compiledTemplate.evaluate(sw, mapOf("article" to articleText))
+                val finalHtml = sw.toString()
+
+                // 4. Send back as standard HTML
+                writeNormalToClient(writer, output, finalHtml)
+
+            } else {
+                // --- STANDARD NON-TEMPLATED FLOW ---
+                if (compression == "brotli") {
+                    if (brotliSupported) {
+                        compression = "br"
+                    } else {
+                        try {
+                            dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+                            compression = "none"
+                        } catch (e: Exception) {
+                            return sendError(writer, output, 500, "Internal Server Error 3")
+                        }
+                    }
+                }
+
+                writer.println("HTTP/1.1 200 OK")
+                writer.println("Content-Type: $dbMimeType")
+                writer.println("Content-Length: ${dbContent.size}")
+                if (compression != "none") writer.println("Content-Encoding: $compression")
+                writer.println("Connection: close")
+                writer.println()
+                writer.flush()
+                output.write(dbContent)
+                output.flush()
+            }
+
+        } catch (e: Exception) {
+            log.error("Error processing request: {}", e.message)
+            sendError(writer, output, 500, "Internal Server Error", e.message ?: "")
+        } finally {
+            cursor.close()
+        }
+    }
     private fun handlePebbleTest(writer: PrintWriter, output: java.io.OutputStream) {
         try {
             // 1. Setup Pebble with a StringLoader for testing raw strings
