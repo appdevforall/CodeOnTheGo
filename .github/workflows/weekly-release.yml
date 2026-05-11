@@ -28,8 +28,8 @@ jobs:
       - name: Compute CalVer version
         id: compute
         run: |
-          VERSION=$(date +%y.%V)
-          NEXT_VERSION=$(date -d "+7 days" +%y.%V)
+          VERSION=$(date -u +%g.%V)
+          NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           echo "Releasing $VERSION (next will be $NEXT_VERSION)"
