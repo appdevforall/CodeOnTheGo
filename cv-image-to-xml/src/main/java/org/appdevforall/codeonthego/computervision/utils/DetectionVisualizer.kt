@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
-import android.util.Log
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.graphics.toColorInt
 import org.appdevforall.codeonthego.computervision.R
@@ -126,7 +125,6 @@ class DetectionVisualizer(private val context: Context) {
             }
         }
 
-        Log.d("DetectionVisualizer", "Visualizing ${detections.size} detections")
         return mutableBitmap
     }
 
