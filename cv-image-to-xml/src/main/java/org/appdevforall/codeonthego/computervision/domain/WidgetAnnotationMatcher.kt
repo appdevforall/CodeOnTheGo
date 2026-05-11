@@ -20,7 +20,6 @@ class WidgetAnnotationMatcher {
                 val widgetType = getTagType(normalizedTag) ?: return@mapNotNull null
 
                 val matchingTagBox = deduplicatedTags.find { WidgetTagParser.normalizeTagText(it.text) == normalizedTag }
-                    ?: return@mapNotNull null
 
                 TaggedAnnotation(
                     normalizedTag = normalizedTag,

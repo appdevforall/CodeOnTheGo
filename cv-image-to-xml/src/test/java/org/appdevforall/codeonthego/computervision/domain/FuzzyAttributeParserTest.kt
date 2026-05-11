@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.computervision.domain
 
+import org.appdevforall.codeonthego.computervision.domain.parser.FuzzyAttributeParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
