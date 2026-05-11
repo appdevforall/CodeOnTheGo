@@ -722,15 +722,17 @@ public class RegularExpression implements java.io.Serializable {
      */
     public boolean matches(char[] target, int start, int end, Match match) {
 
+        Context ctx;
         synchronized (this) {
             if (this.operations == null)
                 this.prepare();
             if (this.context == null)
                 this.context = new Context();
+            ctx = this.context;
         }
         Context con = null;
-        synchronized (this.context) {
-            con = this.context.inuse ? new Context() : this.context;
+        synchronized (ctx) {
+            con = ctx.inuse ? new Context() : ctx;
             con.reset(target, start, end, this.numberOfClosures);
         }
         if (match != null) {
@@ -907,15 +909,17 @@ public class RegularExpression implements java.io.Serializable {
      */
     public boolean matches(String  target, int start, int end, Match match) {
 
+        Context ctx;
         synchronized (this) {
             if (this.operations == null)
                 this.prepare();
             if (this.context == null)
                 this.context = new Context();
+            ctx = this.context;
         }
         Context con = null;
-        synchronized (this.context) {
-            con = this.context.inuse ? new Context() : this.context;
+        synchronized (ctx) {
+            con = ctx.inuse ? new Context() : ctx;
             con.reset(target, start, end, this.numberOfClosures);
         }
         if (match != null) {
@@ -1586,15 +1590,17 @@ public class RegularExpression implements java.io.Serializable {
 
 
 
+        Context ctx;
         synchronized (this) {
             if (this.operations == null)
                 this.prepare();
             if (this.context == null)
                 this.context = new Context();
+            ctx = this.context;
         }
         Context con = null;
-        synchronized (this.context) {
-            con = this.context.inuse ? new Context() : this.context;
+        synchronized (ctx) {
+            con = ctx.inuse ? new Context() : ctx;
             con.reset(target, start, end, this.numberOfClosures);
         }
         if (match != null) {
