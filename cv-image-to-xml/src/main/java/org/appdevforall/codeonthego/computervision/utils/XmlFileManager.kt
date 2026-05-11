@@ -25,10 +25,10 @@ class XmlFileManager(private val context: Context) {
      * Android 10 (API 29+) and older versions.
      *
      * @param xmlString The XML content to be saved.
-     * @param fileName The desired name for the output file. Defaults to "testing_result.xml".
+     * @param fileName The desired name for the output file. Defaults to "layout_result.xml".
      * @return A [Result] containing the file name if successful, or an [IOException] on failure.
      */
-    fun saveXmlToDownloads(xmlString: String, fileName: String = "testing_result.xml"): Result<String> {
+    fun saveXmlToDownloads(xmlString: String, fileName: String = "layout_result.xml"): Result<String> {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 saveUsingMediaStore(xmlString, fileName)

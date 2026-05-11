@@ -222,4 +222,8 @@ class DetectionVisualizer(private val context: Context) {
         iconDrawable.setBounds(left, top, right, bottom)
         iconDrawable.draw(canvas)
     }
+
+    fun clearCache() {
+        deleteIconClickableAreas.clear()
+    }
 }

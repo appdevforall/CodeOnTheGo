@@ -120,6 +120,7 @@ class ComputerVisionActivity : AppCompatActivity() {
                 selectedPlaceholderIds = state.selectedImagesByPlaceholderId.keys
             )
         } else {
+            detectionVisualizer.clearCache()
             state.currentBitmap
         }
 

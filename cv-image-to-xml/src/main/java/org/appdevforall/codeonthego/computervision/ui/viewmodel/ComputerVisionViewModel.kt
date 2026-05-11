@@ -462,16 +462,15 @@ class ComputerVisionViewModel(
                 resourceName = importedImageInfo.resourceName
             )
 
-            if (deletionResult.isSuccess || deletionResult.exceptionOrNull() is Exception) {
-                // Update state idiomatically by filtering out the removed key
+            deletionResult.onSuccess {
                 _uiState.update { currentState ->
                     currentState.copy(
-                        selectedImagesByPlaceholderId = currentState.selectedImagesByPlaceholderId.filterKeys { it != placeholderId }
+                        selectedImagesByPlaceholderId = currentState.selectedImagesByPlaceholderId - placeholderId
                     )
                 }
                 _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_removed))
-            } else {
-                _uiEffect.send(ComputerVisionEffect.ShowError("Failed to clean up image file."))
+            }.onFailure { exception ->
+                _uiEffect.send(ComputerVisionEffect.ShowError("Failed to clean up image file: ${exception.message}"))
             }
         }
     }
