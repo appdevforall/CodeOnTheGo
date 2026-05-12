@@ -57,6 +57,7 @@ class WidgetFactory(
 
             val baseParsedAttrs = parsedAttrsOverride?.toMutableMap()
                 ?: FuzzyAttributeParser.parse(annotations[box], AndroidWidget.getTagFor(box.label)).toMutableMap()
+            baseParsedAttrs.remove(AttributeKey.TEXT.xmlName)
 
             val spinnerBox = box.copy(text = "")
             widgets.add(createSimpleWidget(spinnerBox, extraAttrs, idOverride, baseParsedAttrs))
