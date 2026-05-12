@@ -52,7 +52,9 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.Insets
+import androidx.core.hardware.display.DisplayManagerCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -83,6 +85,7 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
@@ -104,7 +107,6 @@ import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
-import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
@@ -123,10 +125,10 @@ import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
-import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
-import com.itsaky.androidide.utils.applyImmersiveModeInsets
-import com.itsaky.androidide.utils.applyRootSystemInsetsAsPadding
 import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
+import com.itsaky.androidide.utils.applyImmersiveModeInsets
+import com.itsaky.androidide.utils.applyResponsiveAppBarInsets
+import com.itsaky.androidide.utils.applyRootSystemInsetsAsPadding
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.getOrStoreInitialPadding
@@ -208,7 +210,8 @@ abstract class BaseEditorActivity :
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
 	val binding: ActivityEditorBinding
-		get() = _binding ?: throw IllegalStateException("Activity destroyed; binding not accessible")
+		get() = _binding
+			?: throw IllegalStateException("Activity destroyed; binding not accessible")
 	val content: ContentEditorBinding
 		get() = binding.content
 
@@ -230,12 +233,15 @@ abstract class BaseEditorActivity :
 					binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START) -> {
 						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
 					}
+
 					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
 						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
 					}
+
 					binding.swipeReveal.isOpen -> {
 						binding.swipeReveal.close()
 					}
+
 					else -> {
 						doConfirmProjectClose()
 					}
@@ -249,7 +255,12 @@ abstract class BaseEditorActivity :
 			memoryUsage.forEachValue { proc ->
 				_binding?.memUsageView?.chart?.apply {
 					val dataset =
-						(data.getDataSetByIndex(pidToDatasetIdxMap.getOrDefault(proc.pid, -1)) as LineDataSet?)
+						(data.getDataSetByIndex(
+							pidToDatasetIdxMap.getOrDefault(
+								proc.pid,
+								-1
+							)
+						) as LineDataSet?)
 							?: run {
 								log.error(
 									"No dataset found for process: {}: {}",
@@ -360,6 +371,12 @@ abstract class BaseEditorActivity :
 		isDebuggerStarting = true
 
 		val intent = Intent(this, DebuggerService::class.java)
+			.apply {
+				val currentOrDefaultDisplay =
+					ContextCompat.getDisplayOrDefault(this@BaseEditorActivity)
+				putExtra(DebuggerService.EXTRA_DISPLAY_ID, currentOrDefaultDisplay.displayId)
+			}
+
 		if (bindService(intent, debuggerServiceConnection, BIND_AUTO_CREATE)) {
 			postStopDebuggerServiceIfNotConnected()
 			doSetStatus(getString(string.debugger_starting))
@@ -387,7 +404,6 @@ abstract class BaseEditorActivity :
 	private var editorAppBarInsetTop: Int = 0
 
 	companion object {
-		private const val TAG = "ResizePanelDebugger"
 
 		const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
@@ -527,8 +543,11 @@ abstract class BaseEditorActivity :
 						}
 					}
 				}
+
 				else -> {
-					updateLayoutParams<ViewGroup.LayoutParams> { height = ViewGroup.LayoutParams.MATCH_PARENT }
+					updateLayoutParams<ViewGroup.LayoutParams> {
+						height = ViewGroup.LayoutParams.MATCH_PARENT
+					}
 					post { contentCardRealHeight = measuredHeight }
 				}
 			}
@@ -602,7 +621,8 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
-		savedInstanceState?.getString(KEY_PROJECT_PATH)?.let(ProjectManagerImpl.getInstance()::projectPath::set)
+		savedInstanceState?.getString(KEY_PROJECT_PATH)
+			?.let(ProjectManagerImpl.getInstance()::projectPath::set)
 		super.onCreate(savedInstanceState)
 
 		editorViewModel.isBuildInProgress = false
@@ -766,7 +786,8 @@ abstract class BaseEditorActivity :
 			val insetsTop = systemBarInsets?.top ?: 0
 			val topInset = (insetsTop * (1f - progress)).roundToInt()
 
-			val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+			val isLandscape =
+				resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
 			if (isLandscape) {
 				content.editorAppbarContent.updatePadding(top = topInset)
@@ -874,6 +895,13 @@ abstract class BaseEditorActivity :
 	override fun onResume() {
 		super.onResume()
 		invalidateOptionsMenu()
+
+		val displayId = ContextCompat.getDisplayOrDefault(this).displayId
+		runCatching {
+			debuggerService?.maybeMoveOverlayToDisplay(displayId)
+		}.onFailure { err ->
+			log.warn("Unable to move debugger overlay to display {}", displayId, err)
+		}
 
 		memoryUsageWatcher.listener = memoryUsageListener
 		memoryUsageWatcher.startWatching()
@@ -1091,66 +1119,70 @@ abstract class BaseEditorActivity :
 
 	private fun handleUiDesignerResult(result: ActivityResult) {
 		if (result.resultCode != RESULT_OK || result.data == null) {
-            log.warn("UI Designer returned invalid result: resultCode={}, data={}", result.resultCode, result.data)
-            return
-        }
+			log.warn(
+				"UI Designer returned invalid result: resultCode={}, data={}",
+				result.resultCode,
+				result.data
+			)
+			return
+		}
 
-        val data = result.data!!
-        val generatedXml = data.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
+		val data = result.data!!
+		val generatedXml = data.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
 
-        if (TextUtils.isEmpty(generatedXml)) {
-            log.warn("UI Designer returned blank generated XML code")
-            return
-        }
+		if (TextUtils.isEmpty(generatedXml)) {
+			log.warn("UI Designer returned blank generated XML code")
+			return
+		}
 
-        editorActivityScope.launch {
-            val injectionSuccess = handleStringsInjection(data)
+		editorActivityScope.launch {
+			val injectionSuccess = handleStringsInjection(data)
 
-            if (injectionSuccess) {
-                withContext(Dispatchers.Main) { applyGeneratedXmlToEditor(generatedXml!!) }
-            } else {
-                log.warn("Aborting layout update due to string injection failure.")
-            }
-        }
+			if (injectionSuccess) {
+				withContext(Dispatchers.Main) { applyGeneratedXmlToEditor(generatedXml!!) }
+			} else {
+				log.warn("Aborting layout update due to string injection failure.")
+			}
+		}
 	}
 
 	private suspend fun handleStringsInjection(data: Intent): Boolean {
-        val stringsXml = data.getStringExtra(UIDesignerActivity.EXTRA_GENERATED_STRINGS)
-        val layoutFilePath = data.getStringExtra(UIDesignerActivity.EXTRA_LAYOUT_FILE_PATH)
+		val stringsXml = data.getStringExtra(UIDesignerActivity.EXTRA_GENERATED_STRINGS)
+		val layoutFilePath = data.getStringExtra(UIDesignerActivity.EXTRA_LAYOUT_FILE_PATH)
 
-        if (stringsXml.isNullOrBlank()) return true
+		if (stringsXml.isNullOrBlank()) return true
 
-        if (layoutFilePath.isNullOrBlank()) {
-            log.warn("Skipping string injection: generated strings present but layout file path is missing.")
-            return false
-        }
+		if (layoutFilePath.isNullOrBlank()) {
+			log.warn("Skipping string injection: generated strings present but layout file path is missing.")
+			return false
+		}
 
-        val result = StringsXmlInjector.inject(layoutFilePath, stringsXml)
+		val result = StringsXmlInjector.inject(layoutFilePath, stringsXml)
 
-        result.onFailure { error ->
-            log.error("String injection failed", error)
-            withContext(Dispatchers.Main) {
-                val message = when (error) {
-                    is StringsInjectionException -> getString(error.messageRes)
-                    else -> getString(string.msg_strings_injection_failed)
-                }
-                flashError(message)
-            }
-        }
+		result.onFailure { error ->
+			log.error("String injection failed", error)
+			withContext(Dispatchers.Main) {
+				val message = when (error) {
+					is StringsInjectionException -> getString(error.messageRes)
+					else -> getString(string.msg_strings_injection_failed)
+				}
+				flashError(message)
+			}
+		}
 
-        return result.isSuccess
-    }
+		return result.isSuccess
+	}
 
-    private fun applyGeneratedXmlToEditor(generatedXml: String) {
-        val view = provideCurrentEditor()
-        val text = view?.editor?.text ?: run {
-            log.warn("No file opened to append UI designer result")
-            return
-        }
+	private fun applyGeneratedXmlToEditor(generatedXml: String) {
+		val view = provideCurrentEditor()
+		val text = view?.editor?.text ?: run {
+			log.warn("No file opened to append UI designer result")
+			return
+		}
 
-        val endLine = text.lineCount - 1
-        text.replace(0, 0, endLine, text.getColumnCount(endLine), generatedXml)
-    }
+		val endLine = text.lineCount - 1
+		text.replace(0, 0, endLine, text.getColumnCount(endLine), generatedXml)
+	}
 
 	private fun setupDrawers() {
 		// Note: Drawer toggle is now set up in setupToolbar() on the title toolbar
@@ -1177,6 +1209,7 @@ abstract class BaseEditorActivity :
 		content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
 		invalidateOptionsMenu()
 	}
+
 	private fun setupStateObservers() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.CREATED) {
@@ -1438,9 +1471,9 @@ abstract class BaseEditorActivity :
 						it.realContainer.pivotX = it.realContainer.width.toFloat() / 2f
 						it.realContainer.pivotY =
 							(it.realContainer.height.toFloat() / 2f) + (
-								systemBarInsets?.run { bottom - top }
-									?: 0
-							)
+									systemBarInsets?.run { bottom - top }
+										?: 0
+									)
 						it.viewContainer.viewTreeObserver.removeOnGlobalLayoutListener(this)
 					}
 				}
@@ -1524,16 +1557,16 @@ abstract class BaseEditorActivity :
 						val startedNearTopEdge = e1.y < topEdgeThreshold
 						val startedNearBottomEdge = e1.y > bottomEdgeThreshold
 						val isTopEdgeDismissFling = isVerticalSwipe &&
-							hasVerticalVelocity &&
-							startedNearTopEdge &&
-							hasDownFlingDistance
+								hasVerticalVelocity &&
+								startedNearTopEdge &&
+								hasDownFlingDistance
 						val isBottomEdgeDismissFling = isVerticalSwipe &&
-							hasVerticalVelocity &&
-							startedNearBottomEdge &&
-							hasUpFlingDistance
+								hasVerticalVelocity &&
+								startedNearBottomEdge &&
+								hasUpFlingDistance
 						val isDrawerOpenFling = hasRightFlingDistance &&
-							hasHorizontalVelocity &&
-							isHorizontalSwipe
+								hasHorizontalVelocity &&
+								isHorizontalSwipe
 
 						// Fullscreen mode can be dismissed with an inward fling from either vertical edge.
 						if (isTopEdgeDismissFling && editorViewModel.isFullscreen) {
@@ -1549,7 +1582,7 @@ abstract class BaseEditorActivity :
 						// Preserve the editor interaction area; drawer gestures are only enabled on the empty state.
 						val noFilesOpen = content.viewContainer.displayedChild == 1
 						if (!noFilesOpen) {
-						    return false
+							return false
 						}
 
 						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
