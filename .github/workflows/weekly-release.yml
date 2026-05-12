@@ -111,6 +111,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      STAGING_DIR: ./_release-staging
     strategy:
       fail-fast: false
       matrix:
@@ -122,8 +124,8 @@ jobs:
 
       - name: Reset staging directory
         run: |
-          rm -rf ./_release-staging
-          mkdir -p ./_release-staging
+          rm -rf "$STAGING_DIR"
+          mkdir -p "$STAGING_DIR"
 
       - name: Authenticate to Google Cloud
         id: gcp-auth
@@ -191,7 +193,7 @@ jobs:
           fi
 
           SAFE_VERSION=$(echo "$DISPLAY_VERSION" | tr -c 'A-Za-z0-9._-' '_')
-          APK_PATH="./_release-staging/firebase-${VARIANT}-${SAFE_VERSION}.apk"
+          APK_PATH="${STAGING_DIR}/firebase-${VARIANT}-${SAFE_VERSION}.apk"
           echo "Match: displayVersion=$DISPLAY_VERSION  createTime=$CREATE_TIME  tag=$BUILD_TYPE_TAG"
           curl -fsSL -o "$APK_PATH" "$DOWNLOAD_URI"
 
@@ -213,7 +215,7 @@ jobs:
 
       - name: Clean up staging
         if: always()
-        run: rm -rf ./_release-staging
+        run: rm -rf "$STAGING_DIR"
 
   release-codeonthego:
     needs: [prepare, pull-apk, release-plugin-api]
@@ -316,9 +318,16 @@ jobs:
           echo ""
           echo "Jira version $VERSION_ID marked released"
 
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id:      ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
       - name: Set NEXT_RELEASE_VERSION repo variable
         env:
-          GH_TOKEN:     ${{ secrets.WORKFLOW_VARIABLES_PAT }}
+          GH_TOKEN:     ${{ steps.app-token.outputs.token }}
           NEXT_VERSION: ${{ needs.prepare.outputs.next_version }}
         run: |
           gh variable set NEXT_RELEASE_VERSION --body "$NEXT_VERSION" --repo "$GITHUB_REPOSITORY"
