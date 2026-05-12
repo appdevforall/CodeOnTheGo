@@ -252,7 +252,7 @@ clientSocket and the catch block logic are updated accordingly.
         return String(bytes, 0, len, Charsets.ISO_8859_1)
     }
 
-/*    private fun handleClient(clientSocket: Socket) {
+    private fun handleClient(clientSocket: Socket) {
         if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
         val input = clientSocket.getInputStream()
@@ -331,162 +331,6 @@ clientSocket and the catch block logic are updated accordingly.
             }
         }
 
-        val query = """
-SELECT C.content, CT.value, CT.compression
-FROM   Content C, ContentTypes CT
-WHERE  C.contentTypeID = CT.id
-  AND  C.path = ?
-        """
-        val cursor = database.rawQuery(query, arrayOf(path))
-        val rowCount = cursor.count
-
-        if (debugEnabled) log.debug("Database fetch for path='{}' returned {} rows.", path, rowCount)
-
-        var dbContent   : ByteArray
-        var dbMimeType  : String
-        var compression : String
-
-        try {
-            if (rowCount != 1) {
-                return when (rowCount) {
-                    0 -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'.")
-                    else -> sendError(
-                        writer,
-                        output,
-                        500,
-                        "Internal Server Error 2",
-                        "Corrupt database - multiple records found when unique record expected, Path requested: '$path'."
-                    )
-                }
-            }
-
-            cursor.moveToFirst()
-            dbContent   = cursor.getBlob(0)
-            dbMimeType  = cursor.getString(1)
-            compression = cursor.getString(2)
-
-            if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
-
-        } finally {
-            cursor.close()
-        }
-
-        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests but only for uncompressed content.
-            val query2 = """
-SELECT content
-FROM   Content
-WHERE  path = ?
-  AND  languageId = 1
-        """
-            var fragmentNumber = 1
-            var dbContent2 = dbContent
-
-            while (dbContent2.size == 1024 * 1024) {
-                val path2 = "$path-$fragmentNumber"
-                if (debugEnabled) log.debug("DB item > 1 MB. fragment#{} path2='{}'.", fragmentNumber, path2)
-
-                val cursor2 = database.rawQuery(query2, arrayOf(path2))
-                try {
-                    if (cursor2.moveToFirst()) {
-                        dbContent2 = cursor2.getBlob(0)
-
-                    } else {
-                        log.error("No fragment found for path '{}'.", path2)
-                        break
-                    }
-
-                } finally {
-                    cursor2.close()
-                }
-
-                dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 22-Jul-2025
-                fragmentNumber += 1
-                if (debugEnabled) log.debug("Fragment size={}, dbContent.length={}.", dbContent2.size, dbContent.size)
-            }
-        }
-
-        // If the Accept-Encoding header contains "br", the client can handle
-        // Brotli. Send Brotli data as-is, without decompressing it here.
-        // If the client can't handle Brotli, and the content is Brotli-
-        // compressed, decompress the content here.
-
-        if (compression == "brotli") {
-            if (brotliSupported) {
-                compression = "br"
-
-            } else {
-                try {
-                    if (debugEnabled) log.debug("Brotli content but client doesn't support Brotli. Decoding locally.")
-                    dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
-                    compression = "none"
-
-                } catch (e: Exception) {
-                    log.error("Error decompressing Brotli content: {}", e.message)
-                    return sendError(writer, output, 500, "Internal Server Error 3")
-                }
-            }
-        }
-
-        //send our response
-        writer.println("HTTP/1.1 200 OK")
-        writer.println("Content-Type: $dbMimeType")
-        writer.println("Content-Length: ${dbContent.size}")
-
-        if (compression != "none") {
-            writer.println("Content-Encoding: $compression")
-        }
-
-        writer.println("Connection: close")
-        writer.println()
-        writer.flush()
-        output.write(dbContent)
-        output.flush()
-    }
-*/
-
-    private fun handleClient(clientSocket: Socket) {
-        if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
-
-        val input = clientSocket.getInputStream()
-        val output = clientSocket.getOutputStream()
-        val writer = PrintWriter(output, true)
-
-        var brotliSupported = false
-
-        var requestLine = readLineFromStream(input) ?: return
-        if (debugEnabled) log.debug("Request is {}", requestLine)
-
-        val parts = requestLine.split(" ")
-        if (parts.size != 3) {
-            return sendError(writer, output, 400, "Bad Request")
-        }
-
-        val method = parts[0]
-        var path = parts[1].split("?")[0].substring(1)
-
-        val headers = mutableMapOf<String, String>()
-        while (true) {
-            requestLine = readLineFromStream(input) ?: break
-            if (requestLine.isEmpty()) break
-            val colon = requestLine.indexOf(':')
-            if (colon > 0) {
-                headers[requestLine.substring(0, colon).trim().lowercase()] = requestLine.substring(colon + 1).trim()
-            }
-        }
-        brotliSupported = headers["accept-encoding"]?.contains(brotliCompression) == true
-
-        if (method != "GET") {
-            return sendError(writer, output, 501, "Not Implemented")
-        }
-
-        // Check for newer database on SD card
-        val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-        if (debugDatabaseTimestamp > databaseTimestamp) {
-            database.close()
-            database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
-            databaseTimestamp = debugDatabaseTimestamp
-        }
-
         // --- DATABASE FETCH ---
         val query = """
             SELECT C.content, CT.value, CT.compression, C.templateId
@@ -527,20 +371,34 @@ WHERE  path = ?
             }
 
             // --- TEMPLATE PROCESSING ---
+            //
+            // Note that templates must fit into a single blob record in the documentation database.
             if (templateId != 0) {
                 if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
 
                 // 1. Get or Compile Template from Cache
                 val compiledTemplate = templateCache.getOrPut(templateId) {
-                    if (debugEnabled) log.debug("Template cache miss for ID {}", templateId)
+                    if (debugEnabled) log.debug(
+                        "Template cache miss for ID {}, path {}, MIME type {}, compression {}}",
+                        templateId,
+                        path,
+                        dbMimeType,
+                        compression
+                    )
                     val tQuery = "SELECT content FROM Templates WHERE id = ?"
                     val tCursor = database.rawQuery(tQuery, arrayOf(templateId.toString()))
-                    tCursor.use {
-                        if (it.moveToFirst()) {
-                            val templateBlob = it.getBlob(0)
-                            pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
-                        } else {
-                            throw Exception("Template ID $templateId not found in database.")
+                    if (tCursor.count == 0) {
+                        throw Exception("Template ID $templateId not found in the database")
+                    } else if (tCursor.count > 1) {
+                        throw Exception("Template ID $templateId is shared by more than one template")
+                    } else {
+                        tCursor.use {
+                            if (it.moveToFirst()) {
+                                val templateBlob = it.getBlob(0)
+                                pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
+                            } else {
+                                throw Exception("Template ID $templateId not found in database.")
+                            }
                         }
                     }
                 }
