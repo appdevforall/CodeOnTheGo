@@ -20,6 +20,7 @@ package com.itsaky.androidide.fragments
 import android.os.Bundle
 import android.view.View
 import android.content.res.Configuration
+import androidx.lifecycle.lifecycleScope
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.recyclerview.widget.GridLayoutManager
 import com.itsaky.androidide.R
@@ -28,10 +29,15 @@ import com.itsaky.androidide.databinding.FragmentTemplateListBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.templates.ITemplateProvider
+import com.itsaky.androidide.templates.ITemplateWidgetViewProvider
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.impl.TemplateProviderImpl
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.MainViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 /**
@@ -45,6 +51,7 @@ class TemplateListFragment :
 		FragmentTemplateListBinding::bind,
 	) {
 	private var adapter: TemplateListAdapter? = null
+	private var reloadJob: Job? = null
 
 	private val viewModel by activityViewModel<MainViewModel>()
 
@@ -117,36 +124,47 @@ class TemplateListFragment :
 
 		log.debug("Reloading templates...")
 
-        val provider = ITemplateProvider.getInstance(reload = true)
-        val templates = provider.getTemplates().filterIsInstance<ProjectTemplate>()
-		val warnings = (provider as? TemplateProviderImpl)?.warnings.orEmpty()
+		reloadJob?.cancel()
+		reloadJob = viewLifecycleOwner.lifecycleScope.launch {
+			val (templates, warnings) = withContext(Dispatchers.IO) {
+				val provider = ITemplateProvider.getInstance(reload = true)
+				// Pre-warm the widget view provider so per-bind getInstance() in
+				// TemplateWidgetsListAdapter doesn't trigger a disk read on the UI thread.
+				ITemplateWidgetViewProvider.getInstance()
+				val templates = provider.getTemplates().filterIsInstance<ProjectTemplate>()
+				val warnings = (provider as? TemplateProviderImpl)?.warnings.orEmpty()
+				templates to warnings
+			}
 
-		adapter =
-			TemplateListAdapter(
-				templates = templates,
-				onClick = { template, _ ->
-					viewModel.template.value = template
-					viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_DETAILS)
-				},
-				onLongClick = { template, itemView ->
-					template.tooltipTag?.let { tag ->
-						TooltipManager.showIdeCategoryTooltip(
-							context = requireContext(),
-							anchorView = itemView,
-							tag = tag
-						)
+			_binding ?: return@launch
+
+			adapter =
+				TemplateListAdapter(
+					templates = templates,
+					onClick = { template, _ ->
+						viewModel.template.value = template
+						viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_DETAILS)
+					},
+					onLongClick = { template, itemView ->
+						template.tooltipTag?.let { tag ->
+							TooltipManager.showIdeCategoryTooltip(
+								context = requireContext(),
+								anchorView = itemView,
+								tag = tag
+							)
+						}
+					},
+				)
+			binding.list.adapter = adapter
+			updateSpanCount()
+
+			if (warnings.isNotEmpty()) {
+				requireActivity().flashError(
+					warnings.joinToString(System.lineSeparator()) { w ->
+						requireContext().getString(w.resId, *w.args.toTypedArray())
 					}
-				},
-			)
-		binding.list.adapter = adapter
-		updateSpanCount()
-
-		if (warnings.isNotEmpty()) {
-            requireActivity().flashError(
-                warnings.joinToString(System.lineSeparator()) { w ->
-                    requireContext().getString(w.resId, *w.args.toTypedArray())
-                }
-            )
+				)
+			}
 		}
-    }
+	}
 }

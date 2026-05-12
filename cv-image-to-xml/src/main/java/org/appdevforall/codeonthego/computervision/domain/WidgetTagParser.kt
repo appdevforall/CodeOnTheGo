@@ -6,45 +6,71 @@ package org.appdevforall.codeonthego.computervision.domain
  */
 internal object WidgetTagParser {
     private val tagRegex = Regex("^(?i)(B|P|D|T|C|R|SW|S)-[A-Z0-9_]+$")
-    private val tagExtractRegex = Regex("^(?i)(SW|S\\s*8|8\\s*W|[BPDTCRS8]\\s*W?)[^a-zA-Z0-9]*([A-Z0-9_\\-]+)(?:\\s+(.+))?$")
+    private val tagExtractRegex = Regex("^(?i)(SW|S\\s*8|8\\s*W|[BPDTCRS8]\\s*W?)([\\s\\-_]*)([A-Z0-9_\\-]+)")
 
-    /**
-     * Checks if the given text represents a valid, normalized widget tag.
-     */
-    fun isTag(text: String): Boolean = normalizeTagText(text).matches(tagRegex)
+    fun isTag(text: String): Boolean {
+        val cleaned = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
+        val match = tagExtractRegex.find(cleaned) ?: return false
 
-    /**
-     * Normalizes raw OCR text into a standard tag format (e.g., "Prefix-Token").
-     */
-    fun normalizeTagText(text: String): String {
-        val trimmed = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
-        val match = tagExtractRegex.find(trimmed) ?: return trimmed.uppercase()
+        if (!isValidTagMatch(match)) return false
 
+        val trailingText = cleaned.substring(match.range.last + 1).trim()
+        if (trailingText.isNotBlank() && trailingText.any { it.isLetterOrDigit() }) return false
+
+        return normalizeTagText(cleaned).matches(tagRegex)
+    }
+
+    private fun parseTagParts(match: MatchResult): Pair<String, String> {
         val prefix = normalizePrefix(match.groupValues[1])
-        val token = normalizeTagToken(match.groupValues[2].trim('-'))
+        var tokenRaw = match.groupValues[3].trim('-')
 
+        val upperToken = tokenRaw.uppercase()
+        val remainder = upperToken.removePrefix(prefix)
+
+        when {
+            upperToken.startsWith("$prefix-") || upperToken.startsWith("${prefix}_") -> {
+                tokenRaw = tokenRaw.substring(prefix.length + 1).trim('-')
+            }
+            upperToken.startsWith(prefix) && remainder.isNotEmpty() && remainder.all(::isNumericLikeOcrChar) -> {
+                tokenRaw = remainder
+            }
+        }
+
+        val token = normalizeTagToken(tokenRaw)
+        return prefix to token
+    }
+
+    fun normalizeTagText(text: String): String {
+        val cleaned = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
+        val match = tagExtractRegex.find(cleaned) ?: return cleaned.uppercase()
+
+        if (!isValidTagMatch(match)) return cleaned.uppercase()
+
+        val (prefix, token) = parseTagParts(match)
         return "$prefix-$token"
     }
 
-    /**
-     * Extracts a normalized widget tag and any remaining trailing text from a raw string.
-     * @return A Pair containing the [normalized tag, trailing text], or null if no valid tag is found.
-     */
     fun extractTag(text: String): Pair<String, String?>? {
-        val trimmed = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
-        val match = tagExtractRegex.find(trimmed) ?: return null
+        val cleaned = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
+        val match = tagExtractRegex.find(cleaned) ?: return null
 
-        val prefix = normalizePrefix(match.groupValues[1])
-        val token = normalizeTagToken(match.groupValues[2].trim('-'))
-        val tag = "$prefix-$token"
-        val trailingText = match.groupValues[3].takeIf { it.isNotBlank() }
+        if (!isValidTagMatch(match)) return null
 
-        return (tag to trailingText).takeIf { isTag(tag) }
+        val (prefix, token) = parseTagParts(match)
+        val finalTag = "$prefix-$token"
+
+        if (!finalTag.matches(tagRegex)) return null
+
+        val trailingText = cleaned.substring(match.range.last + 1).trim().takeIf { it.isNotBlank() }
+        return finalTag to trailingText
     }
 
-    /**
-     * Normalizes the prefix using Regex to handle common OCR misreads (e.g., '8' as 'B').
-     */
+    private fun isValidTagMatch(match: MatchResult): Boolean {
+        val separator = match.groupValues[2]
+        val rawToken = match.groupValues[3]
+        return !(separator.isEmpty() && rawToken.firstOrNull()?.isLetter() == true)
+    }
+
     private fun normalizePrefix(rawPrefix: String): String {
         return rawPrefix.uppercase()
             .replace(Regex("\\s+"), "")
