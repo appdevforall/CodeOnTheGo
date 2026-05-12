@@ -1,7 +1,8 @@
 package org.appdevforall.codeonthego.computervision.domain.xml
 
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
-import org.appdevforall.codeonthego.computervision.domain.FuzzyAttributeParser.AttributeKey
+import org.appdevforall.codeonthego.computervision.domain.parser.AttributeKey
+import org.appdevforall.codeonthego.computervision.utils.extractOcrEntries
 
 sealed class AndroidWidget(
     protected open val box: ScaledBox?,
@@ -28,7 +29,7 @@ sealed class AndroidWidget(
         writeXml(context, indent, finalAttributes)
     }
 
-    private fun resolveWidgetId(context: XmlContext): String {
+    protected open fun resolveWidgetId(context: XmlContext): String {
         val requestedId = idOverride ?: parsedAttrs[AttributeKey.ID.xmlName]?.substringAfterLast('/')
         return context.resolveId(requestedId, fallbackIdLabel())
     }
@@ -76,6 +77,9 @@ sealed class AndroidWidget(
     }
 
     companion object {
+        private val nonAlphanumericRegex = Regex("[^a-z0-9_]")
+        private val multipleUnderscoresRegex = Regex("_+")
+
         fun create(box: ScaledBox, parsedAttrs: Map<String, String>): AndroidWidget {
             return when (box.label) {
                 "text", "button", "radio_button_unchecked", "radio_button_checked" ->
@@ -101,15 +105,42 @@ sealed class AndroidWidget(
             "slider" -> AndroidWidgetTags.SEEK_BAR
             else -> AndroidWidgetTags.VIEW
         }
+
+        internal fun sanitizeResourceName(raw: String): String {
+            return raw
+                .lowercase()
+                .replace('-', '_')
+                .replace(nonAlphanumericRegex, "_")
+                .replace(multipleUnderscoresRegex, "_")
+                .trim('_')
+        }
     }
 }
 
 class SpinnerWidget(
     override val box: ScaledBox, parsedAttrs: Map<String, String>
 ) : AndroidWidget(box, parsedAttrs) {
+    companion object {
+        private val placeholderEntries = setOf("year", "month", "day", "select", "choose", "dropdown")
+    }
+
     override val tag = AndroidWidgetTags.SPINNER
-    override fun fallbackIdLabel(): String = "spinner"
+    override fun fallbackIdLabel(): String {
+        val normalizedLabel = sanitizeResourceName(box.text.normalizedDropdownLabel())
+        return normalizedLabel.takeIf { it.isNotBlank() }?.let { "dd_$it" } ?: "spinner"
+    }
     override fun specificAttributes() = emptyMap<String, String>()
+
+    override fun resolveWidgetId(context: XmlContext): String {
+        val requestedId = idOverride ?: parsedAttrs[AttributeKey.ID.xmlName]?.substringAfterLast('/')
+        if (requestedId != null) return context.resolveId(requestedId, fallbackIdLabel())
+
+        val derivedId = fallbackIdLabel()
+        return derivedId
+            .takeUnless { it == "spinner" }
+            ?.let { context.resolveId(it, "spinner") }
+            ?: context.nextId("spinner")
+    }
 
     override fun processAttributes(context: XmlContext, id: String, attrs: Map<String, String>): Map<String, String> {
         val processed = mutableMapOf<String, String>()
@@ -124,7 +155,7 @@ class SpinnerWidget(
             }
             else -> rawEntries
                 .toSpinnerEntries()
-                .takeIf { it.isNotEmpty() }
+                .takeIf { items -> items.isNotEmpty() && !items.isSinglePlaceholderEntry() }
                 ?.let { items ->
                     val arrayName = "${id}_array"
                     context.stringArrays[arrayName] = items
@@ -141,11 +172,13 @@ class SpinnerWidget(
         return processed
     }
 
+    private fun List<String>.isSinglePlaceholderEntry(): Boolean {
+        if (size != 1) return false
+        return first().normalizedDropdownLabel().lowercase() in placeholderEntries
+    }
+
     private fun String.toSpinnerEntries(): List<String> {
-        return removeTrailingDropdownGlyph()
-            .split(Regex("\\s*[,;|/\\n]+\\s*"))
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
+        return this.removeTrailingDropdownGlyph().extractOcrEntries()
     }
 
     private fun String.removeTrailingDropdownGlyph(): String {
@@ -154,8 +187,20 @@ class SpinnerWidget(
             .trim()
     }
 
+    private fun String.removeLeadingDropdownHint(): String {
+        return trim()
+            .replace(Regex("^[vV]\\s+"), "")
+            .trim()
+    }
+
+    private fun String.normalizedDropdownLabel(): String {
+        return removeTrailingDropdownGlyph()
+            .removeLeadingDropdownHint()
+            .trim()
+    }
+
     private fun String.isMeaningfulDropdownText(): Boolean {
-        val cleaned = removeTrailingDropdownGlyph()
+        val cleaned = normalizedDropdownLabel()
         return cleaned.isNotBlank() && !cleaned.equals("dropdown", ignoreCase = true)
     }
 }
@@ -235,11 +280,17 @@ class InputWidget(
     override val box: ScaledBox, parsedAttrs: Map<String, String>
 ) : AndroidWidget(box, parsedAttrs) {
     override val tag = AndroidWidgetTags.EDIT_TEXT
-    override fun specificAttributes(): Map<String, String> = mapOf(
-        AttributeKey.HINT.xmlName to (parsedAttrs[AttributeKey.HINT.xmlName] ?: box.text.ifEmpty { "Enter text..." }),
-        AttributeKey.INPUT_TYPE.xmlName to (parsedAttrs[AttributeKey.INPUT_TYPE.xmlName] ?: "text"),
-        "tools:ignore" to "HardcodedText"
-    )
+
+    override fun specificAttributes(): Map<String, String> {
+        val resolvedHint = parsedAttrs[AttributeKey.HINT.xmlName] ?: box.text.ifEmpty { "Enter text..." }
+        val resolvedInputType = parsedAttrs[AttributeKey.INPUT_TYPE.xmlName] ?: "text"
+
+        return mapOf(
+            AttributeKey.HINT.xmlName to resolvedHint,
+            AttributeKey.INPUT_TYPE.xmlName to resolvedInputType,
+            "tools:ignore" to "HardcodedText"
+        )
+    }
 }
 
 class ImageWidget(

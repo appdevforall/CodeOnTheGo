@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.computervision.domain.grammar
 
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
+import org.appdevforall.codeonthego.computervision.utils.extractOcrEntries
 
 interface AttributeValidator {
     fun validate(rawValue: String): String?
@@ -76,13 +77,12 @@ object SliderStyleValidator : AttributeValidator {
 }
 
 object EntriesValidator : AttributeValidator {
-
     override fun validate(rawValue: String): String? {
         val trimmed = rawValue.trim()
         if (trimmed.startsWith("@")) return trimmed
 
         val content = trimmed.removeSurrounding("[", "]")
-        val rawItems = content.split(",")
+        val rawItems = content.extractOcrEntries()
 
         val isNumericArray = isEntireArrayLikelyNumeric(rawItems)
 
@@ -96,10 +96,6 @@ object EntriesValidator : AttributeValidator {
         }
 
         return cleanedItems.joinToString(",")
-    }
-
-    private fun isEnclosedInBrackets(text: String): Boolean {
-        return text.startsWith("[") && text.endsWith("]")
     }
 
     private fun isEntireArrayLikelyNumeric(items: List<String>): Boolean {
@@ -133,5 +129,30 @@ object EntriesValidator : AttributeValidator {
 
     private fun cleanTextArtifacts(text: String): String {
         return text.replace(Regex("\\s+"), " ")
+    }
+}
+
+class FlagsCategoricalValidator(
+    private val allowedValues: List<String>,
+    private val separator: String = "|",
+    private val threshold: Int = 70
+) : AttributeValidator {
+    override fun validate(rawValue: String): String? {
+        val flags = rawValue.split(separator)
+
+        val validFlags = flags.mapNotNull { flag ->
+            val trimmedFlag = flag.trim()
+            if (trimmedFlag.isEmpty()) {
+                null
+            } else {
+                matchCategoricalValue(trimmedFlag, allowedValues, threshold)
+            }
+        }
+
+        return if (validFlags.isNotEmpty()) {
+            validFlags.distinct().joinToString(separator)
+        } else {
+            null
+        }
     }
 }
