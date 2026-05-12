@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.computervision.domain.xml
 
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
-import org.appdevforall.codeonthego.computervision.domain.FuzzyAttributeParser.AttributeKey
+import org.appdevforall.codeonthego.computervision.domain.parser.AttributeKey
 import org.appdevforall.codeonthego.computervision.utils.extractOcrEntries
 
 sealed class AndroidWidget(
@@ -280,11 +280,17 @@ class InputWidget(
     override val box: ScaledBox, parsedAttrs: Map<String, String>
 ) : AndroidWidget(box, parsedAttrs) {
     override val tag = AndroidWidgetTags.EDIT_TEXT
-    override fun specificAttributes(): Map<String, String> = mapOf(
-        AttributeKey.HINT.xmlName to (parsedAttrs[AttributeKey.HINT.xmlName] ?: box.text.ifEmpty { "Enter text..." }),
-        AttributeKey.INPUT_TYPE.xmlName to (parsedAttrs[AttributeKey.INPUT_TYPE.xmlName] ?: "text"),
-        "tools:ignore" to "HardcodedText"
-    )
+
+    override fun specificAttributes(): Map<String, String> {
+        val resolvedHint = parsedAttrs[AttributeKey.HINT.xmlName] ?: box.text.ifEmpty { "Enter text..." }
+        val resolvedInputType = parsedAttrs[AttributeKey.INPUT_TYPE.xmlName] ?: "text"
+
+        return mapOf(
+            AttributeKey.HINT.xmlName to resolvedHint,
+            AttributeKey.INPUT_TYPE.xmlName to resolvedInputType,
+            "tools:ignore" to "HardcodedText"
+        )
+    }
 }
 
 class ImageWidget(

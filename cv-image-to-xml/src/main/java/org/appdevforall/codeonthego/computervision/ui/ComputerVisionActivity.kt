@@ -3,15 +3,8 @@ package org.appdevforall.codeonthego.computervision.ui
 import android.Manifest
 import android.content.ContentValues
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -23,50 +16,25 @@ import com.itsaky.androidide.FeedbackButtonManager
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.computervision.R
 import org.appdevforall.codeonthego.computervision.databinding.ActivityComputerVisionBinding
-import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
 import org.appdevforall.codeonthego.computervision.ui.viewmodel.ComputerVisionViewModel
+import org.appdevforall.codeonthego.computervision.utils.DetectionVisualizer
+import org.appdevforall.codeonthego.computervision.utils.XmlFileManager
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
 
 class ComputerVisionActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityComputerVisionBinding
     private var feedbackButtonManager: FeedbackButtonManager? = null
+
+    private val detectionVisualizer by lazy { DetectionVisualizer(this) }
+    private val xmlFileManager by lazy { XmlFileManager(this) }
+
     private val viewModel: ComputerVisionViewModel by viewModel {
         parametersOf(
             intent.getStringExtra(EXTRA_LAYOUT_FILE_PATH),
             intent.getStringExtra(EXTRA_LAYOUT_FILE_NAME)
         )
-    }
-
-    private val boundingBoxPaint by lazy {
-        Paint().apply {
-            color = Color.GREEN
-            style = Paint.Style.STROKE
-            strokeWidth = 5.0f
-            alpha = 200
-        }
-    }
-
-    private val textRecognitionBoxPaint by lazy {
-        Paint().apply {
-            color = Color.BLUE
-            style = Paint.Style.STROKE
-            strokeWidth = 3.0f
-            alpha = 200
-        }
-    }
-
-    private val textPaint by lazy {
-        Paint().apply {
-            color = Color.WHITE
-            style = Paint.Style.FILL
-            textSize = 40.0f
-            setShadowLayer(5.0f, 0f, 0f, Color.BLACK)
-        }
     }
 
     private var currentCameraUri: android.net.Uri? = null
@@ -87,12 +55,10 @@ class ComputerVisionActivity : AppCompatActivity() {
         else Toast.makeText(this, R.string.msg_camera_permission_required, Toast.LENGTH_LONG).show()
     }
 
-    private val pickPlaceholderImageLauncher =
-        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            uri?.let {
-                viewModel.onEvent(ComputerVisionEvent.PlaceholderImageSelected(it))
-            } ?: Toast.makeText(this, R.string.msg_no_image_selected, Toast.LENGTH_SHORT).show()
-        }
+    private val pickPlaceholderImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.onEvent(ComputerVisionEvent.PlaceholderImageSelected(it)) }
+            ?: Toast.makeText(this, R.string.msg_no_image_selected, Toast.LENGTH_SHORT).show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -113,28 +79,12 @@ class ComputerVisionActivity : AppCompatActivity() {
     }
 
     private fun setupClickListeners() {
-        binding.imageView.setOnClickListener {
-            viewModel.onEvent(ComputerVisionEvent.OpenImagePicker)
-        }
-        binding.detectButton.setOnClickListener {
-            viewModel.onEvent(ComputerVisionEvent.RunDetection)
-        }
-        binding.updateButton.setOnClickListener {
-            viewModel.onEvent(ComputerVisionEvent.UpdateLayoutFile)
-        }
-        binding.saveButton.setOnClickListener {
-            viewModel.onEvent(ComputerVisionEvent.SaveToDownloads)
-        }
-        binding.imageView.onImageTapListener = imageTap@{ imageX, imageY ->
-            if (!viewModel.isImagePlaceholderAt(imageX, imageY)) return@imageTap false
-
-            viewModel.onEvent(
-                ComputerVisionEvent.ImagePlaceholderTapped(
-                    imageX = imageX,
-                    imageY = imageY
-                )
-            )
-            true
+        with(binding) {
+            imageView.setOnClickListener { viewModel.onEvent(ComputerVisionEvent.OpenImagePicker) }
+            detectButton.setOnClickListener { viewModel.onEvent(ComputerVisionEvent.RunDetection) }
+            updateButton.setOnClickListener { viewModel.onEvent(ComputerVisionEvent.UpdateLayoutFile) }
+            saveButton.setOnClickListener { viewModel.onEvent(ComputerVisionEvent.SaveToDownloads) }
+            imageView.onImageTapListener = ::handleImageTap
         }
     }
 
@@ -142,22 +92,14 @@ class ComputerVisionActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.onScreenStarted()
-                viewModel.uiState.collect { state -> updateUi(state) }
-            }
-        }
-
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiEffect.collect { effect -> handleEffect(effect) }
+                launch { viewModel.uiState.collect { updateUi(it) } }
+                launch { viewModel.uiEffect.collect { handleEffect(it) } }
             }
         }
     }
+
     private fun setupFeedbackButton(){
-        feedbackButtonManager =
-            FeedbackButtonManager(
-                activity = this,
-                feedbackFab = binding.fabFeedback,
-            )
+        feedbackButtonManager = FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
         feedbackButtonManager?.setupDraggableFab()
     }
 
@@ -172,10 +114,16 @@ class ComputerVisionActivity : AppCompatActivity() {
 
     private fun updateUi(state: ComputerVisionUiState) {
         val displayBitmap = if (state.hasDetections && state.currentBitmap != null) {
-            visualizeDetections(state.currentBitmap, state.detections)
+            detectionVisualizer.visualize(
+                bitmap = state.currentBitmap,
+                detections = state.detections,
+                selectedPlaceholderIds = state.selectedImagesByPlaceholderId.keys
+            )
         } else {
+            detectionVisualizer.clearCache()
             state.currentBitmap
         }
+
         binding.imageView.setImageBitmap(displayBitmap)
         state.currentBitmap?.let {
             binding.guidelinesView.setImageDimensions(it.width, it.height)
@@ -203,25 +151,41 @@ class ComputerVisionActivity : AppCompatActivity() {
             is ComputerVisionEffect.ShowConfirmDialog ->
                 showUpdateConfirmationDialog(effect.fileName)
             is ComputerVisionEffect.ReturnXmlResult -> returnXmlResult(effect.layoutXml, effect.stringsXml)
-            is ComputerVisionEffect.FileSaved -> saveXmlToFile(effect.fileName)
             ComputerVisionEffect.NavigateBack -> finish()
             ComputerVisionEffect.OpenPlaceholderImagePicker ->
                 pickPlaceholderImageLauncher.launch("image/*")
+            is ComputerVisionEffect.FileSaved -> saveXmlFile(effect.fileName)
         }
     }
 
-    private fun visualizeDetections(bitmap: Bitmap, detections: List<DetectionResult>): Bitmap {
-        val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(mutableBitmap)
-        for (result in detections) {
-            val paint = if (result.isYolo) boundingBoxPaint else textRecognitionBoxPaint
-            canvas.drawRect(result.boundingBox, paint)
-            val label = result.label.take(15)
-            val text = if (result.text.isNotEmpty()) "${label}: ${result.text}" else label
-            canvas.drawText(text, result.boundingBox.left, result.boundingBox.top - 5, textPaint)
+    /**
+     * Handles tap events on the image view, determining whether the user tapped
+     * a delete action or a general placeholder, and routes the event to the ViewModel.
+     *
+     * @param imageX The X coordinate of the tap on the original image.
+     * @param imageY The Y coordinate of the tap on the original image.
+     * @return True if the tap was handled, false otherwise.
+     */
+    private fun handleImageTap(imageX: Float, imageY: Float): Boolean {
+        val tappedDeleteId = detectionVisualizer.getTappedDeleteIconId(imageX, imageY)
+        if (tappedDeleteId != null) {
+            viewModel.onEvent(ComputerVisionEvent.RemovePlaceholderImage(tappedDeleteId))
+            return true
         }
-        Log.d(TAG, "Visualizing ${detections.size} detections")
-        return mutableBitmap
+
+        if (!viewModel.isImagePlaceholderAt(imageX, imageY)) return false
+
+        viewModel.onEvent(ComputerVisionEvent.ImagePlaceholderTapped(imageX, imageY))
+        return true
+    }
+
+    private fun saveXmlFile(xmlString: String) {
+        val result = xmlFileManager.saveXmlToDownloads(xmlString)
+        result.onSuccess { fileName ->
+            Toast.makeText(this, getString(R.string.msg_saved_to_downloads, fileName), Toast.LENGTH_LONG).show()
+        }.onFailure { error ->
+            Toast.makeText(this, getString(R.string.msg_error_saving_file, error.message), Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showUpdateConfirmationDialog(fileName: String) {
@@ -246,41 +210,6 @@ class ComputerVisionActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun saveXmlToFile(xmlString: String) {
-        val fileName = "testing_result.xml"
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val resolver = contentResolver
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "text/xml")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                }
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                    ?: throw IOException("Failed to create new MediaStore record.")
-                resolver.openOutputStream(uri).use { outputStream ->
-                    outputStream?.write(xmlString.toByteArray())
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                val file = File(downloadsDir, fileName)
-                FileOutputStream(file).use { outputStream ->
-                    outputStream.write(xmlString.toByteArray())
-                }
-            }
-            Toast.makeText(this, getString(R.string.msg_saved_to_downloads, fileName), Toast.LENGTH_LONG).show()
-        } catch (e: IOException) {
-            Log.e(TAG, "Failed to save XML file", e)
-            Toast.makeText(this, getString(R.string.msg_error_saving_file, e.message), Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        feedbackButtonManager?.loadFabPosition()
-    }
     private fun launchCamera() {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.TITLE, getString(R.string.camera_picture_title))
@@ -292,8 +221,12 @@ class ComputerVisionActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
+    }
+
     companion object {
-        private const val TAG = "ComputerVisionActivity"
         const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
         const val EXTRA_LAYOUT_FILE_NAME = "com.example.images.LAYOUT_FILE_NAME"
         const val RESULT_GENERATED_XML = "ide.uidesigner.generatedXml"

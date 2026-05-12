@@ -35,6 +35,8 @@ import com.itsaky.androidide.templates.Widget
 class TemplateWidgetsListAdapter(
 	private val widgets: List<Widget<*>>,
 ) : RecyclerView.Adapter<WidgetViewHolder>() {
+	private val viewProvider = ITemplateWidgetViewProvider.getInstance()
+
 	class WidgetViewHolder(
 		internal val binding: LayoutTemplateWidgetlistItemBinding,
 	) : RecyclerView.ViewHolder(binding.root)
@@ -58,7 +60,6 @@ class TemplateWidgetsListAdapter(
 		position: Int,
 	) {
 		holder.binding.apply {
-			val viewProvider = ITemplateWidgetViewProvider.getInstance()
 			val widget = widgets[position]
 			val view = viewProvider.createView(root.context, widget)
 			viewProvider.applyCallTooltip { tooltipTag ->
