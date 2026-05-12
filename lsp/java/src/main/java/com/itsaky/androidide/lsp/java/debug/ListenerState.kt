@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.java.debug
 
+import android.net.TrafficStats
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
@@ -13,6 +14,12 @@ internal data class ListenerState(
 	val args: Map<String, Connector.Argument>
 ) {
 	private val invalidated = AtomicBoolean(false)
+
+	private companion object {
+		// Tag used to identify the JDWP listener socket for traffic-stats accounting.
+		// Bytes spell "JDWL" (J=0x4A, D=0x44, W=0x57, L=0x4C).
+		private const val JDWP_LISTENER_SOCKET_TAG = 0x4A44574C
+	}
 
 	/**
 	 * Whether we're currently listening for incoming connections.
@@ -39,7 +46,13 @@ internal data class ListenerState(
 	 * @return The address of the listening socket.
 	 */
 	fun startListening(): String {
-		val address = connector.startListening(args)
+		val previousTag = TrafficStats.getThreadStatsTag()
+		TrafficStats.setThreadStatsTag(JDWP_LISTENER_SOCKET_TAG)
+		val address = try {
+			connector.startListening(args)
+		} finally {
+			TrafficStats.setThreadStatsTag(previousTag)
+		}
 		listenAddress = address
 		return address
 	}
