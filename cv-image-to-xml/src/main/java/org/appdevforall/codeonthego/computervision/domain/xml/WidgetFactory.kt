@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.computervision.domain.xml
 
 import org.appdevforall.codeonthego.computervision.domain.model.LayoutItem
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
+import org.appdevforall.codeonthego.computervision.domain.parser.AttributeKey
 import org.appdevforall.codeonthego.computervision.domain.parser.FuzzyAttributeParser
 
 class WidgetFactory(
@@ -16,18 +17,55 @@ class WidgetFactory(
     )
 
     fun createWidgets(item: LayoutItem): List<AndroidWidget> = when (item) {
-        is LayoutItem.SimpleView -> listOf(createSimpleWidget(item.box))
+        is LayoutItem.SimpleView -> createWidgetsForBox(item.box)
         is LayoutItem.HorizontalRow -> createHorizontalRow(item)
         is LayoutItem.RadioGroup -> createRadioGroup(item)
         is LayoutItem.CheckboxGroup -> createCheckboxGroup(item)
     }
 
     private fun createHorizontalRow(item: LayoutItem.HorizontalRow): List<AndroidWidget> {
-        val children = item.row.mapIndexed { index, box ->
+        val children = item.row.flatMapIndexed { index, box ->
             val extraAttrs = getMarginEndForHorizontalGap(item.row, index)
-            createSimpleWidget(box, extraAttrs = extraAttrs)
+            createWidgetsForBox(box, extraAttrs = extraAttrs)
         }
         return listOf(HorizontalRowWidget(children))
+    }
+
+    private fun createWidgetsForBox(
+        box: ScaledBox,
+        extraAttrs: Map<String, String> = emptyMap(),
+        idOverride: String? = null,
+        parsedAttrsOverride: Map<String, String>? = null
+    ): List<AndroidWidget> {
+        val widgets = mutableListOf<AndroidWidget>()
+
+        val dropdownTitle = box.text
+            .takeIf { box.label == "dropdown" }
+            ?.let(::extractDropdownTitle)
+
+        if (dropdownTitle != null) {
+            val titleBox = box.copy(label = "text", text = dropdownTitle)
+
+            val titleAttrs = mapOf(
+                AttributeKey.WIDTH.xmlName to AndroidConstants.WRAP_CONTENT,
+                AttributeKey.HEIGHT.xmlName to AndroidConstants.WRAP_CONTENT,
+                AttributeKey.LAYOUT_MARGIN_BOTTOM.xmlName to "4dp",
+                AttributeKey.TEXT.xmlName to dropdownTitle,
+                AttributeKey.TEXT_STYLE.xmlName to "bold"
+            )
+            widgets.add(createSimpleWidget(titleBox, parsedAttrsOverride = titleAttrs))
+
+            val baseParsedAttrs = parsedAttrsOverride?.toMutableMap()
+                ?: FuzzyAttributeParser.parse(annotations[box], AndroidWidget.getTagFor(box.label)).toMutableMap()
+
+            val spinnerBox = box.copy(text = "")
+            widgets.add(createSimpleWidget(spinnerBox, extraAttrs, idOverride, baseParsedAttrs))
+
+            return widgets
+        }
+
+        widgets.add(createSimpleWidget(box, extraAttrs, idOverride, parsedAttrsOverride))
+        return widgets
     }
 
     private fun createRadioGroup(item: LayoutItem.RadioGroup): List<AndroidWidget> {
@@ -121,6 +159,15 @@ class WidgetFactory(
             this.idOverride = idOverride
             this.extraAttrs = extraAttrs
         }
+    }
+
+    private fun extractDropdownTitle(rawText: String): String? {
+        val cleaned = rawText.trim()
+            .replace(Regex("\\s*[▼▽▾▿⌄˅∨]$|\\s+[vV]$"), "")
+            .replace(Regex("^[vV]\\s+"), "")
+            .trim()
+
+        return cleaned.takeIf { it.isNotBlank() && !it.equals("dropdown", ignoreCase = true) }
     }
 
     private fun getMarginEndForHorizontalGap(boxes: List<ScaledBox>, currentIndex: Int): Map<String, String> {
