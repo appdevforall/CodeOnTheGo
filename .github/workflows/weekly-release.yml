@@ -262,8 +262,8 @@ jobs:
       matrix:
         variant: [V7, V8]
     env:
-      AWS_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_ACCESS_KEY_ID:     ${{ vars.CLOUDFLARE_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION:    auto
     steps:
       - name: Download APK artifact
@@ -290,7 +290,7 @@ jobs:
 
       - name: Upload to Cloudflare R2 (apk-repo bucket)
         env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           DEST:          ${{ steps.rename.outputs.dest }}
         run: |
           aws s3 cp "./$DEST" "s3://apk-repo/$DEST" \
@@ -322,7 +322,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id:      ${{ secrets.RELEASE_BOT_APP_ID }}
+          app-id:      ${{ vars.RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
       - name: Set NEXT_RELEASE_VERSION repo variable
