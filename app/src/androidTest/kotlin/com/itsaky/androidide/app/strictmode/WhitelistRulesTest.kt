@@ -101,6 +101,20 @@ class WhitelistRulesTest {
 	}
 
 	@Test
+	fun allow_DiskRead_on_MiuiEpFrameworkFactoryIsEnterpriseJarExists() {
+		assertAllowed<DiskReadViolation>(
+			// @formatter:off
+			stackTraceElement("java.io.File", "exists"),
+			stackTraceElement("miui.enterprise.EpFrameworkFactory", "isEnterpriseJarExists"),
+			stackTraceElement("miui.enterprise.EpFrameworkFactory", "get"),
+			stackTraceElement("miui.enterprise.ApplicationHelperStub\$SingletonHolder", "<clinit>"),
+			stackTraceElement("miui.enterprise.ApplicationHelperStub", "getInstance"),
+			stackTraceElement("android.app.NotificationManager", "notifyAsUser"),
+			// @formatter:on
+		)
+	}
+
+	@Test
 	fun allow_DiskRead_on_MtkBoostFwkIsGameApp() {
 		assertAllowed<DiskReadViolation>(
 			// @formatter:off

@@ -51,6 +51,13 @@ import com.itsaky.androidide.templates.impl.databinding.LayoutTextfieldBinding
 import com.itsaky.androidide.utils.ServiceLoader
 import com.itsaky.androidide.utils.SingleTextWatcher
 import androidx.core.graphics.drawable.toDrawable
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 /**
@@ -65,6 +72,8 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
 
     @JvmStatic
     private var service: ITemplateWidgetViewProvider? = null
+
+    private const val VALIDATION_DEBOUNCE_MS = 150L
 
     @JvmStatic
     fun getInstance(reload: Boolean = false): ITemplateWidgetViewProvider {
@@ -151,20 +160,33 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
         }
       }
 
+      var validationJob: Job? = null
+
       param.configureTextField(context, root) { value ->
         observer.disableAndRun {
           param.setValue(value)
           param.resetStartAndEndIcons(root.context, root)
         }
 
-        val err =
-          ConstraintVerifier.verify(value, constraints = param.constraints)
-
-        root.isErrorEnabled = err != null
-        if (err != null) {
-          root.error = err
+        // The EXISTS / FILE / DIRECTORY constraints stat the filesystem; running them
+        // synchronously on the UI thread would trigger a StrictMode DiskReadViolation
+        // on every keystroke. Debounce + dispatch to IO; apply the result on Main.
+        validationJob?.cancel()
+        val owner = root.findViewTreeLifecycleOwner()
+        validationJob = owner?.lifecycleScope?.launch {
+          delay(VALIDATION_DEBOUNCE_MS)
+          val err = withContext(Dispatchers.IO) {
+            ConstraintVerifier.verify(value, constraints = param.constraints)
+          }
+          applyValidationResult(root, err)
+        } ?: run {
+          // No lifecycle owner yet — this is the initial setText before the view is
+          // attached to the RecyclerView. Skip validation to avoid disk IO on the UI
+          // thread; the user's first keystroke (post-attach) re-runs validation, and
+          // the submit handler validates again before accepting the form.
+          applyValidationResult(root, null)
+          null
         }
-
       }
 
       input.setText(param.value)
@@ -343,6 +365,16 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
         onTextChanged(s?.toString() ?: "")
       }
     })
+  }
+
+  private fun applyValidationResult(root: TextInputLayout, err: String?) {
+    if (err == null) {
+      root.error = null
+      root.isErrorEnabled = false
+    } else {
+      root.isErrorEnabled = true
+      root.error = err
+    }
   }
 
   private fun <T> TextFieldParameter<T>.resetStartAndEndIcons(context: Context,
