@@ -189,36 +189,47 @@ class LayoutGeometryProcessor {
         for (widget in labelableWidgets) {
             val nearbyText = availableTexts
                 .asSequence()
-                .filter { !consumedTexts.contains(it) }
-                .filter { text ->
-                    val isToTheRight = text.rect.centerX() > widget.rect.centerX()
-                    val verticalDistance = abs(widget.centerY - text.centerY)
-
-                    isToTheRight && verticalDistance < maxOf(widget.h * 2.5, 40.0)
-                }
-                .minByOrNull { text ->
-                    val dx = maxOf(0, text.rect.left - widget.rect.right).toDouble()
-                    val dy = abs(widget.centerY - text.centerY).toDouble()
-                    (dx * dx) + (dy * dy * 5)
-                }
+                .filter { it !in consumedTexts }
+                .filter { text -> widget.isVerticallyAlignedWith(text, tolerance = max(widget.h * 2.5, 40.0)) }
+                .minByOrNull { text -> widget.calculateProximityScoreTo(text) }
 
             if (nearbyText != null) {
-                val finalText = if (widget.label.contains("radio", ignoreCase = true)) {
-                    cleanTextStrippingLeadingO(nearbyText.text)
-                } else {
-                    cleanTextPreservingLeadingO(nearbyText.text)
-                }
+                val finalText = cleanWidgetText(widget, nearbyText.text)
                 updatedWidgets[widget] = widget.copy(text = finalText)
                 consumedTexts.add(nearbyText)
             }
         }
 
         return boxes.mapNotNull { box ->
-            when {
-                consumedTexts.contains(box) -> null
-                updatedWidgets.containsKey(box) -> updatedWidgets[box]
+            when (box) {
+                in consumedTexts -> null
+                in updatedWidgets -> updatedWidgets[box]
                 else -> box
             }
         }
+    }
+
+    private fun cleanWidgetText(widget: ScaledBox, rawText: String): String {
+        return if (widget.label.contains("radio", ignoreCase = true)) {
+            cleanTextStrippingLeadingO(rawText)
+        } else {
+            cleanTextPreservingLeadingO(rawText)
+        }
+    }
+
+    private fun ScaledBox.isVerticallyAlignedWith(other: ScaledBox, tolerance: Double): Boolean {
+        return abs(this.centerY - other.centerY) < tolerance
+    }
+
+    private fun ScaledBox.calculateProximityScoreTo(other: ScaledBox): Double {
+        val dx = this.rect.horizontalDistanceTo(other.rect).toDouble()
+        val dy = abs(this.centerY - other.centerY).toDouble()
+        return (dx * dx) + (dy * dy * 5)
+    }
+
+    private fun Rect.horizontalDistanceTo(other: Rect): Int = when {
+        this.right < other.left -> other.left - this.right
+        this.left > other.right -> this.left - other.right
+        else -> 0
     }
 }

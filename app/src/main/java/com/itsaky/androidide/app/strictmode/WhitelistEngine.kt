@@ -247,6 +247,26 @@ object WhitelistEngine {
 				ofType<DiskReadViolation>()
 				allow(
 					"""
+					On MIUI devices, NotificationManager.notify lazily initializes the
+					EpFrameworkFactory enterprise hook, which checks for an enterprise JAR via
+					File.exists. This is vendor framework code outside our control, so we allow it.
+					""".trimIndent(),
+				)
+
+				matchAdjacentFrames(
+					classAndMethod("java.io.File", "exists"),
+					classAndMethod("miui.enterprise.EpFrameworkFactory", "isEnterpriseJarExists"),
+					classAndMethod("miui.enterprise.EpFrameworkFactory", "get"),
+					classAndMethod("miui.enterprise.ApplicationHelperStub\$SingletonHolder", "<clinit>"),
+					classAndMethod("miui.enterprise.ApplicationHelperStub", "getInstance"),
+					classAndMethod("android.app.NotificationManager", "notifyAsUser"),
+				)
+			}
+
+			rule {
+				ofType<DiskReadViolation>()
+				allow(
+					"""
 					On MediaTek devices, AsyncDrawableCache hooks into Resources.loadDrawable and
 					synchronously commits to a SharedPreferences-backed cache. This is triggered by
 					routine layout inflation and produces a DiskReadViolation. We anchor this rule

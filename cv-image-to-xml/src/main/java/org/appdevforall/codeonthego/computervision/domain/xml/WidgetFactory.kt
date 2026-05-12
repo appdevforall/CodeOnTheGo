@@ -2,7 +2,7 @@ package org.appdevforall.codeonthego.computervision.domain.xml
 
 import org.appdevforall.codeonthego.computervision.domain.model.LayoutItem
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
-import org.appdevforall.codeonthego.computervision.domain.FuzzyAttributeParser
+import org.appdevforall.codeonthego.computervision.domain.parser.FuzzyAttributeParser
 
 class WidgetFactory(
     private val context: XmlContext,

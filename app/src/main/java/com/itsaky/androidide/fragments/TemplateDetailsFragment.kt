@@ -19,6 +19,7 @@ package com.itsaky.androidide.fragments
 
 import android.os.Bundle
 import android.view.View
+import androidx.lifecycle.lifecycleScope
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.transition.TransitionManager
@@ -33,6 +34,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_PREVIOUS
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.tasks.executeAsyncProvideError
+import com.itsaky.androidide.templates.ParameterWidget
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.Template
@@ -41,6 +43,10 @@ import com.itsaky.androidide.utils.TemplateRecipeExecutor
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * A fragment which shows a wizard-like interface for creating templates.
@@ -53,6 +59,7 @@ class TemplateDetailsFragment :
     ) {
 
     private val viewModel by activityViewModel<MainViewModel>()
+    private var widgetsBindJob: Job? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -160,7 +167,22 @@ class TemplateDetailsFragment :
     private fun bindWithTemplate(template: Template<*>?) {
         template ?: return
 
-        binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
         binding.title.text = template.templateNameStr
+
+        // Some parameters do disk work in their beforeCreateView hook (e.g. computing a
+        // non-colliding default project name). Run those hooks on Dispatchers.IO before
+        // attaching the adapter so that onBindViewHolder skips them (they are one-shot).
+        widgetsBindJob?.cancel()
+        widgetsBindJob = viewLifecycleOwner.lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                template.widgets.forEach { widget ->
+                    if (widget is ParameterWidget<*>) {
+                        widget.parameter.beforeCreateView()
+                    }
+                }
+            }
+            _binding ?: return@launch
+            binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
+        }
     }
 }
