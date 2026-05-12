@@ -45,10 +45,12 @@ internal object DimensionCleaner : ValueCleaner {
     private val matchKeywords = setOf("match", "parent")
     private val wrapKeywords = setOf("wrap", "content", "wrapcan")
     private val DIMENSION_CONSTANTS = listOf("wrap_content", "match_parent")
-    private val explicitDimensionRegex = Regex("^(-?\\d+)(dp|sp|px|dip)\\s*$")
+    private val explicitDimensionRegex = Regex("^(-?\\d+)(dp|sp|px|dip)$")
 
     override fun clean(rawValue: String): String {
-        val normalized = rawValue.lowercase().replace(" ", "_")
+        val trimmedValue = rawValue.trim()
+        val normalized = trimmedValue.lowercase().replace(" ", "_")
+
         if (matchKeywords.any { it in normalized }) return "match_parent"
         if (wrapKeywords.any { it in normalized }) return "wrap_content"
 
@@ -64,7 +66,7 @@ internal object DimensionCleaner : ValueCleaner {
         val numericPart = NumberCleaner.clean(fixedUnit.replace("_", ""))
         val normalizedNumericPart = normalizeOcrDimensionNumber(numericPart)
 
-        return if (numericPart != fixedUnit) "${normalizedNumericPart}dp" else rawValue
+        return if (numericPart != fixedUnit) "${normalizedNumericPart}dp" else trimmedValue
     }
 
     private fun normalizeOcrDimensionNumber(numericPart: String): String {
