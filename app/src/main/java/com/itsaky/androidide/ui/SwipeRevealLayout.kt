@@ -224,7 +224,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     hiddenContent.layout(0, paddingTop, r, paddingTop + hiddenContent.measuredHeight)
 
     val olapTop = paddingTop + (hiddenContent.height * dragProgress).toInt()
-    overlappingContent.layout(0, olapTop, r, b)
+      overlappingContent.layout(0, olapTop, r, olapTop + overlappingContent.measuredHeight)
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {

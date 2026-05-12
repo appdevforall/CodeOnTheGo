@@ -118,7 +118,7 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
 
     addView(
       findInFileBinding.root,
-      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
     )
   }
 
