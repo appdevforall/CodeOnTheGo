@@ -180,6 +180,6 @@ internal class DeclarationProvider(
 		return index.filesForPackage(fqName.asString())
 			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath)) }
 			.filter { it in scope }
-			.map { index.getKtFile(it) }
+			.mapNotNull { index.getKtFile(it) }
 	}
 }
