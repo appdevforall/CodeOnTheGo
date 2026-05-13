@@ -487,6 +487,8 @@ jobs:
           echo "google-services.json created successfully"
 
       - name: Assemble Release APK
+        env:
+          SKIP_LLAMA_ASSETS: "false"
         run: |
           variant_upper=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
           flox activate -d flox/base -- ./gradlew :app:assemble${variant_upper}Release --no-daemon \
