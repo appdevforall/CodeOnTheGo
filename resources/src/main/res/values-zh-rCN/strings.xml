@@ -465,11 +465,6 @@
   <string name="title_install_location_error">安装位置错误</string>
   <string name="title_unsupported_user">不支持的用户</string>
   <string name="title_socials">社交</string>
-  <string name="title_contributors">贡献者</string>
-  <string name="summary_contributors">顶级社区贡献者。</string>
-  <string name="title_github_contributors">GitHub 贡献者</string>
-  <string name="title_crowdin_translators">Crowdin 翻译员</string>
-  <string name="title_misc">杂项</string>
   <string name="title_contribute">贡献</string>
   <string name="summary_contribute">它不仅仅是一个 IDE，更是一个社区。为 Code on the Go 贡献代码、想法和热情。</string>
   <string name="msg_app_unavailable_for_intent">没有可用于处理意图的应用。</string>
