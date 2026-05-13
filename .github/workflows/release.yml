@@ -488,7 +488,7 @@ jobs:
 
       - name: Assemble Release APK
         env:
-          INCLUDE_LLAMA_ASSETS: "false"
+          INCLUDE_LLAMA_ASSETS: "true"
         run: |
           variant_upper=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
           flox activate -d flox/base -- ./gradlew :app:assemble${variant_upper}Release --no-daemon \

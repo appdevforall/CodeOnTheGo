@@ -77,7 +77,7 @@ jobs:
     needs: check_changes
     if: needs.check_changes.outputs.must_build == 'true'
     env:
-      INCLUDE_LLAMA_ASSETS: "true"
+      INCLUDE_LLAMA_ASSETS: "false"
 
     steps:
 
