@@ -86,7 +86,9 @@ data class TabItem(
      * Optional tooltip tag to look up under the plugin's tooltip category
      * (`plugin_<pluginId>`). When null, the IDE composes a tag using the
      * convention `<pluginId>.<id>` so plugins do not need to manually
-     * namespace tags to avoid collisions across plugins. Mirrors the
+     * namespace tags to avoid collisions across plugins. If the plugin's
+     * id can't be resolved at registration time, the IDE falls back to a
+     * generic placeholder tag under the IDE tooltip category. Mirrors the
      * tooltipTag fallback already on NavigationItem and MenuItem.
      */
     val tooltipTag: String? = null

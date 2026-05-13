@@ -152,6 +152,7 @@ class EditorBottomSheetTabAdapter(
 		tabs.clear()
 		pluginFragmentFactories.clear()
 		pluginExtensions.clear()
+		pluginIdsByTabItemId.clear()
 		notifyDataSetChanged()
 	}
 
@@ -342,7 +343,11 @@ class EditorBottomSheetTabAdapter(
 		) : this(title, fragmentClass, itemId.toLong(), tooltipTag)
 	}
 
-	fun getTooltipTag(position: Int): String? = allTabs[position].tooltipTag
+	// Position-keyed lookups must index `tabs` (the visible list, what the
+	// ViewPager iterates), not `allTabs` (the full master list).
+	// `removeFragment` / `restoreFragment` can diverge the two, and the
+	// long-press handler in EditorBottomSheet passes the ViewPager position.
+	fun getTooltipTag(position: Int): String? = tabs[position].tooltipTag
 
 	/**
 	 * Tooltip category for the tab at [position]. Built-in tabs live in
@@ -352,7 +357,7 @@ class EditorBottomSheetTabAdapter(
 	 * colliding with other plugins or the IDE's own tags.
 	 */
 	fun getTooltipCategory(position: Int): String {
-		val itemId = allTabs[position].itemId
+		val itemId = tabs[position].itemId
 		val pluginId = pluginIdsByTabItemId[itemId]
 		return if (pluginId != null) pluginCategory(pluginId) else TooltipCategory.CATEGORY_IDE
 	}
