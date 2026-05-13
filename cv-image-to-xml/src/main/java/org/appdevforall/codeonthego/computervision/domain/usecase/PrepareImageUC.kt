@@ -10,6 +10,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.computervision.utils.SmartBoundaryDetector
+import java.io.IOException
 
 /**
  * Use case responsible for decoding an image URI, correcting its EXIF rotation,
@@ -46,7 +47,7 @@ class PrepareImageUC(private val contentResolver: ContentResolver) {
             contentResolver.openInputStream(uri)?.use { stream ->
                 ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
             } ?: ExifInterface.ORIENTATION_NORMAL
-        } catch (_: Exception) {
+        } catch (_: IOException) {
             ExifInterface.ORIENTATION_NORMAL
         }
 

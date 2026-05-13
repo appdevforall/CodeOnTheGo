@@ -67,7 +67,7 @@ class ComputerVisionViewModel(
             ComputerVisionEvent.SaveToDownloads -> saveXmlToDownloads()
             ComputerVisionEvent.OpenImagePicker -> viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.OpenImagePicker) }
             ComputerVisionEvent.RequestCameraPermission -> viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
-            is ComputerVisionEvent.UpdateGuides -> _uiState.update { it.copy(leftGuidePct = event.leftPct, rightGuidePct = event.rightPct) }
+            is ComputerVisionEvent.UpdateGuides -> updateGuides(event.leftPct, event.rightPct)
             is ComputerVisionEvent.ImagePlaceholderTapped -> handleImagePlaceholderTap(event.imageX, event.imageY)
             is ComputerVisionEvent.PlaceholderImageSelected -> handlePlaceholderImageSelected(event.uri)
             is ComputerVisionEvent.RemovePlaceholderImage -> removePlaceholderImage(event.placeholderId)
@@ -208,6 +208,18 @@ class ComputerVisionViewModel(
                 _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
                 _uiEffect.send(ComputerVisionEffect.ShowError("XML generation failed: ${exception.message}"))
             }
+        }
+    }
+
+    private fun updateGuides(leftPct: Float, rightPct: Float) {
+        val clampedLeft = leftPct.coerceIn(0f, 1f)
+        val clampedRight = rightPct.coerceIn(0f, 1f)
+
+        _uiState.update {
+            it.copy(
+                leftGuidePct = minOf(clampedLeft, clampedRight),
+                rightGuidePct = maxOf(clampedLeft, clampedRight)
+            )
         }
     }
 

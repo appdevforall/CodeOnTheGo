@@ -164,7 +164,11 @@ internal object DrawableCleaner : ValueCleaner {
             .replace(Regex("_+"), "_")
             .trim('_')
 
-        val finalCleaned = cleaned.replace("im_age", "image")
+        val finalCleaned = cleaned
+            .replace("im_age", "image")
+            .replace(Regex("(^|_)im($|_)"), "$1image$2")
+            .replace(Regex("_+"), "_")
+            .trim('_')
         return if (finalCleaned.isEmpty()) rawValue else "@drawable/$finalCleaned"
     }
 }

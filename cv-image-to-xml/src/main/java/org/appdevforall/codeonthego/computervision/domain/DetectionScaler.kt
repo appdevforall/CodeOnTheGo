@@ -23,8 +23,8 @@ object DetectionScaler {
         val rect = detection.boundingBox
         val normCx = ((rect.left + rect.right) / 2f) / sourceWidth.toFloat()
         val normCy = ((rect.top + rect.bottom) / 2f) / sourceHeight.toFloat()
-        val normW = (rect.right - rect.left) / sourceWidth
-        val normH = (rect.bottom - rect.top) / sourceHeight
+        val normW = (rect.right - rect.left) / sourceWidth.toFloat()
+        val normH = (rect.bottom - rect.top) / sourceHeight.toFloat()
 
         val x = max(0, ((normCx - normW / 2f) * targetW).roundToInt())
         val y = max(0, ((normCy - normH / 2f) * targetH).roundToInt())
