@@ -133,6 +133,30 @@ class FuzzyAttributeParserTest {
     }
 
     @Test
+    fun `OCR dimension with trailing zero before dp is normalized`() {
+        val annotation = "height: 1500dp | width: 100dp"
+        val result = FuzzyAttributeParser.parse(annotation, "EditText")
+
+        assertEquals("150dp", result["android:layout_height"])
+    }
+
+    @Test
+    fun `zero padded dimension values are normalized`() {
+        val annotation = "height: 0010dp | width: 100dp"
+        val result = FuzzyAttributeParser.parse(annotation, "EditText")
+
+        assertEquals("10dp", result["android:layout_height"])
+    }
+
+    @Test
+    fun `all zero padded dimension values normalize to zero`() {
+        val annotation = "height: 0000dp | width: 100dp"
+        val result = FuzzyAttributeParser.parse(annotation, "EditText")
+
+        assertEquals("0dp", result["android:layout_height"])
+    }
+
+    @Test
     fun `empty chunks between pipes are skipped`() {
         val annotation = "width: 100dp | | height: 80dp"
         val result = FuzzyAttributeParser.parse(annotation, "Button")

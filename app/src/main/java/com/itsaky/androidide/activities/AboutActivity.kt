@@ -17,7 +17,6 @@
 package com.itsaky.androidide.activities
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
@@ -67,7 +66,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     private val ACTION_EMAIL = id++
     private val ACTION_TG_CHANNEL = id++
     private val ACTION_TG_GROUP = id++
-    private val ACTION_CONTRIBUTORS = id++
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,11 +95,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
         sectionTitle.setText(R.string.title_socials)
         sectionItems.adapter = AboutSocialItemsAdapter(createSocialItems(), ::handleActionClick)
       }
-
-      misc.apply {
-        sectionTitle.setText(R.string.title_misc)
-        sectionItems.adapter = AboutSocialItemsAdapter(createMiscItems(), ::handleActionClick)
-      }
     }
   }
 
@@ -122,7 +115,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
       ACTION_TG_GROUP -> UrlManager.openUrl(getString(R.string.telegram_group_url), "org.telegram.messenger", this)
       ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
-      ACTION_CONTRIBUTORS -> startActivity(Intent(this, ContributorsActivity::class.java))
     }
   }
 
@@ -162,20 +154,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
           R.drawable.ic_telegram,
           R.string.official_tg_channel,
           getString(R.string.telegram_channel_url)
-        )
-      )
-    }
-  }
-
-  private fun createMiscItems(): List<IconTitleDescriptionItem> {
-    return mutableListOf<IconTitleDescriptionItem>().apply {
-      add(
-        SimpleIconTitleDescriptionItem.create(
-          this@AboutActivity,
-          ACTION_CONTRIBUTORS,
-          R.drawable.ic_heart_outline,
-          R.string.title_contributors,
-          R.string.summary_contributors
         )
       )
     }
