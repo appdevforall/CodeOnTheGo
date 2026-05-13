@@ -415,9 +415,15 @@ clientSocket and the catch block logic are updated accordingly.
                 compiledTemplate.evaluate(sw, mapOf("article" to articleText))
                 val finalHtml = sw.toString()
 
-                // 4. Send back as standard HTML
-                writeNormalToClient(writer, output, finalHtml)
-
+                writer.println("HTTP/1.1 200 OK")
+                writer.println("Content-Type: $dbMimeType")
+                writer.println("Content-Length: ${finalHtml.length}")
+                if (compression != "none") writer.println("Content-Encoding: $compression")
+                writer.println("Connection: close")
+                writer.println()
+                writer.flush()
+                output.write(finalHtml.toByteArray())
+                output.flush()
             } else {
                 // --- STANDARD NON-TEMPLATED FLOW ---
                 if (compression == "brotli") {
