@@ -466,11 +466,6 @@
   <string name="title_install_location_error">ইনস্টল করার অবস্থানে ত্রুটি</string>
   <string name="title_unsupported_user">অসমর্থিত ব্যবহার</string>
   <string name="title_socials">সামাজিক মাধ্যম গুলি</string>
-  <string name="title_contributors">অবদানকারীরা</string>
-  <string name="summary_contributors">শীর্ষে থাকা কমিউনিটি অবদানকারীরা।</string>
-  <string name="title_github_contributors">GitHub অবদানকারীরা</string>
-  <string name="title_crowdin_translators">ক্রাউডিন অনুবাদকেরা</string>
-  <string name="title_misc">বিবিধ</string>
   <string name="title_contribute">অবদান করুন</string>
   <string name="summary_contribute">এটি শুধুমাত্র একটি IDE নয়, এটি একটি কমিউনিটি। Code on the Go-এ কোড, ধারনা এবং আবেগ অবদান করুন।</string>
   <string name="msg_app_unavailable_for_intent">Intent গ্রহন করার জন্য কোনো অ্যাপ্লিকেশন উপলব্ধ নেই৷</string>
