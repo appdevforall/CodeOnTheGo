@@ -138,5 +138,24 @@
         "defaultAttributes": {
             "android:text": "CheckedTextView"
         }
+    },
+  {
+    "name": "TextInputLayout",
+    "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.TextInputLayoutDesign",
+    "iconName": "ic_palette_linear_layout_vert",
+    "defaultAttributes": {
+      "android:layout_width": "match_parent",
+      "android:layout_height": "wrap_content"
     }
+  },
+  {
+    "name": "TextInputEditText",
+    "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.TextInputEditTextDesign",
+    "iconName": "ic_palette_edit_text",
+    "defaultAttributes": {
+      "android:layout_width": "match_parent",
+      "android:layout_height": "wrap_content",
+      "android:inputType": "text"
+    }
+  }
 ]

@@ -59,9 +59,11 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.color.MaterialColors
+import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.tabs.TabLayout
+import com.google.android.material.textfield.TextInputEditText
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutStructureViewItemBinding
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.idMap
@@ -143,7 +145,7 @@ class StructureView(
 			viewId.visibility = VISIBLE
 			viewId.text = idMap[view]
 		}
-		if (view is LinearLayout && view !is RadioGroup) {
+		if (view is LinearLayout && view !is RadioGroup && view !is TextInputLayout) {
 			val orientation =
 				if (view.orientation == LinearLayout.HORIZONTAL) "horizontal" else "vertical"
 			val imgResId = imgMap[LinearLayout::class.java.simpleName + orientation]!!
@@ -178,13 +180,20 @@ class StructureView(
 				group !is SearchView &&
 				group !is NavigationView &&
 				group !is BottomNavigationView &&
-				group !is TabLayout
+				group !is TabLayout &&
+				group !is TextInputLayout
 			) {
 				nextDepth++
 
 				for (i in 0 until group.childCount) {
 					val child = group.getChildAt(i)
 					peek(child, nextDepth)
+				}
+			} else if (group is TextInputLayout) {
+				nextDepth++
+				val editText = group.editText
+				if (editText != null) {
+					peek(editText, nextDepth)
 				}
 			}
 		}
@@ -207,7 +216,8 @@ class StructureView(
 					group !is SearchView &&
 					group !is NavigationView &&
 					group !is BottomNavigationView &&
-					group !is TabLayout
+					group !is TabLayout &&
+					group !is TextInputLayout
 				) {
 					canvas.drawRect(
 						x - pointRadius,
@@ -233,6 +243,35 @@ class StructureView(
 							currentParent.y + currentParent.height.toFloat() / 2,
 							paint,
 						)
+					}
+				} else if (group is TextInputLayout) {
+					canvas.drawRect(
+						x - pointRadius,
+						y - pointRadius,
+						x + pointRadius,
+						y + pointRadius,
+						paint,
+					)
+					val editText = group.editText
+					if (editText != null) {
+						val current = viewTextMap[editText]
+						if (current != null) {
+							val currentParent = current.parent.parent as ViewGroup
+							canvas.drawLine(
+								parent.x,
+								parent.y + parent.height.toFloat() / 2,
+								parent.x,
+								currentParent.y + currentParent.height.toFloat() / 2,
+								paint,
+							)
+							canvas.drawLine(
+								parent.x,
+								currentParent.y + currentParent.height.toFloat() / 2,
+								currentParent.x,
+								currentParent.y + currentParent.height.toFloat() / 2,
+								paint,
+							)
+						}
 					}
 				} else {
 					canvas.drawCircle(
@@ -369,6 +408,8 @@ class StructureView(
 			imgMap[CoordinatorLayout::class.java.simpleName] =
 				R.mipmap.ic_palette_coordinator_layout
 			imgMap[DrawerLayout::class.java.simpleName] = R.mipmap.ic_palette_drawer_layout
+			imgMap[TextInputLayout::class.java.simpleName] = R.mipmap.ic_palette_linear_layout_vert
+			imgMap[TextInputEditText::class.java.simpleName] = R.mipmap.ic_palette_edit_text
 		}
 	}
 }
