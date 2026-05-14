@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.indexing.service
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -132,6 +133,7 @@ class IndexingServiceManager(
 						service.close()
 						log.debug("Closed service: {}", service.id)
 					} catch (e: Exception) {
+						if (e is CancellationException) throw e
 						log.error("Failed to close service: {}", service.id, e)
 					}
 				} ?: run {
