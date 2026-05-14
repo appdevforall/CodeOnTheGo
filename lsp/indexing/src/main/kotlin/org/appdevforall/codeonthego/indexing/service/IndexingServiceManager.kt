@@ -7,7 +7,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.io.Closeable
@@ -142,8 +141,21 @@ class IndexingServiceManager(
 			}
 		}
 
+		val closeRegistryJob = scope.launch(Dispatchers.Default) {
+			withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
+				try {
+					registry.close()
+				} catch (e: Exception) {
+					if (e is CancellationException) throw e
+					log.error("Failed to close index registry")
+				}
+			} ?: run {
+				log.warn("Index registry failed to close within timeout: {}ms", SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds)
+			}
+		}
+
 		scope.launch {
-			runCatching { joinAll(*cancellationJobs.toTypedArray()) }
+			runCatching { joinAll(closeRegistryJob, *cancellationJobs.toTypedArray()) }
 				.onFailure { err ->
 					log.error("Failed to close indexing services", err)
 				}
@@ -153,10 +165,9 @@ class IndexingServiceManager(
 		}
 
 		services.clear()
-		registry.close()
 		initialized = false
 
-		log.info("Indexing services shut down")
+		log.info("Indexing services shut down requested")
 	}
 
 	private suspend fun initializeServices() {
