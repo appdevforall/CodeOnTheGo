@@ -704,5 +704,35 @@
       "attributeName": "android:singleLine",
       "argumentType": "boolean"
     }
+  ],
+  "com.google.android.material.textfield.TextInputLayout": [
+    {
+      "name": "android:hint",
+      "methodName": "setHint",
+      "className": "text.TextInputLayoutCaller",
+      "attributeName": "android:hint",
+      "argumentType": "text|string"
+    },
+    {
+      "name": "app:hintEnabled",
+      "methodName": "setHintEnabled",
+      "className": "text.TextInputLayoutCaller",
+      "attributeName": "app:hintEnabled",
+      "argumentType": "boolean"
+    },
+    {
+      "name": "app:errorEnabled",
+      "methodName": "setErrorEnabled",
+      "className": "text.TextInputLayoutCaller",
+      "attributeName": "app:errorEnabled",
+      "argumentType": "boolean"
+    },
+    {
+      "name": "app:counterEnabled",
+      "methodName": "setCounterEnabled",
+      "className": "text.TextInputLayoutCaller",
+      "attributeName": "app:counterEnabled",
+      "argumentType": "boolean"
+    }
   ]
 }

@@ -54,5 +54,6 @@
     "SearchView": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SearchViewDesign",
     "TextureView": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.TextureViewDesign",
     "SurfaceView": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SurfaceViewDesign",
-    "TextInputEditText": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.TextInputEditTextDesign"
+    "TextInputEditText": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.TextInputEditTextDesign",
+    "TextInputLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.TextInputLayoutDesign"
 }
