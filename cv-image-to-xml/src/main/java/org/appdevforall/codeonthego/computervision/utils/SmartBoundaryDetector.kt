@@ -6,8 +6,8 @@ import org.appdevforall.codeonthego.computervision.utils.BitmapUtils.calculateVe
 object SmartBoundaryDetector {
 
     private const val DEFAULT_EDGE_IGNORE_PERCENT = 0.05f
-    private const val LEFT_ZONE_END_PERCENT = 0.4f
-    private const val RIGHT_ZONE_START_PERCENT = 0.6f
+    private const val LEFT_ZONE_END_PERCENT = 0.5f
+    private const val RIGHT_ZONE_START_PERCENT = 0.5f
     private const val MIN_GAP_WIDTH_PERCENT = 0.02
     private const val PRIMARY_ACTIVITY_THRESHOLD = 0.05f
     private const val FALLBACK_ACTIVITY_THRESHOLD = 0.01f
@@ -77,7 +77,7 @@ object SmartBoundaryDetector {
         var maxGapLength = 0
         var maxGapMidpoint: Int? = null
         var currentGapStart = -1
-        var previousIsActive = false
+        var previousIsActive = true
 
         signal.forEachIndexed { index, value ->
             val isActive = value > threshold
