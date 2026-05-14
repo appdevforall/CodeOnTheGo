@@ -56,6 +56,7 @@ class ComputerVisionRepositoryImpl(
     override suspend fun generateXml(
         detections: List<DetectionResult>,
         annotations: Map<String, String>,
+        selectedImagesByPlaceholderId: Map<String, String>,
         sourceImageWidth: Int,
         sourceImageHeight: Int,
         targetDpWidth: Int,
@@ -65,6 +66,7 @@ class ComputerVisionRepositoryImpl(
             YoloToXmlConverter.generateXmlLayout(
                 detections = detections,
                 annotations = annotations,
+                selectedImagesByPlaceholderId = selectedImagesByPlaceholderId,
                 sourceImageWidth = sourceImageWidth,
                 sourceImageHeight = sourceImageHeight,
                 targetDpWidth = targetDpWidth,

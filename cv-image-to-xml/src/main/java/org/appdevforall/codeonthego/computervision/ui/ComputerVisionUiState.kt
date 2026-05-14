@@ -15,7 +15,9 @@ data class ComputerVisionUiState(
     val currentOperation: CvOperation = CvOperation.Idle,
     val leftGuidePct: Float = 0.2f,
     val rightGuidePct: Float = 0.8f,
-    val parsedAnnotations: Map<String, String> = emptyMap() // Replaced old marginAnnotations
+    val parsedAnnotations: Map<String, String> = emptyMap(), // Replaced old marginAnnotations
+    val pendingImagePlaceholderId: String? = null,
+    val selectedImagesByPlaceholderId: Map<String, SelectedImportedImage> = emptyMap()
 ) {
     val hasImage: Boolean
         get() = currentBitmap != null
@@ -50,4 +52,10 @@ sealed class ComputerVisionEffect {
     data class ReturnXmlResult(val layoutXml: String, val stringsXml: String) : ComputerVisionEffect()
     data class FileSaved(val fileName: String) : ComputerVisionEffect()
     object NavigateBack : ComputerVisionEffect()
+    object OpenPlaceholderImagePicker : ComputerVisionEffect()
 }
+
+data class SelectedImportedImage(
+    val resourceName: String,
+    val drawableReference: String
+)
