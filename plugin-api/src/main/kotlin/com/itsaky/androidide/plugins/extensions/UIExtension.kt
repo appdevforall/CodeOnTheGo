@@ -49,7 +49,7 @@ interface UIExtension : IPlugin {
     fun getFabActions(): List<FabAction> = emptyList()
 }
 
-data class MenuItem(
+data class MenuItem @JvmOverloads constructor(
     val id: String,
     val title: String,
     val isEnabled: Boolean = true,
@@ -65,7 +65,7 @@ data class MenuItem(
      * both the sidebar and the toolbar surfaces.
      */
     val tooltipTag: String? = null,
-
+    val icon: Int? = null,
 )
 
 data class ContextMenuContext(
