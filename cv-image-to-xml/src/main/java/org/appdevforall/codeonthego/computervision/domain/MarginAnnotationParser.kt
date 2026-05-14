@@ -24,11 +24,13 @@ object MarginAnnotationParser {
 
         val distribution = distributeDetections(sanitizedDetections, imageWidth, leftGuidePct, rightGuidePct)
         val canvasTags = extractCanvasTags(distribution.canvas)
-        val (leftCanvasTags, rightCanvasTags) = splitCanvasTags(canvasTags, imageWidth, leftGuidePct, rightGuidePct)
+        val leftAnnotations = parseMarginGroup(distribution.leftMargin, canvasTags)
+        val rightAnnotations = parseMarginGroup(distribution.rightMargin, canvasTags)
 
-        val annotationMap = mutableMapOf<String, String>()
-        annotationMap.putAll(parseMarginGroup(distribution.leftMargin, leftCanvasTags))
-        annotationMap.putAll(parseMarginGroup(distribution.rightMargin, rightCanvasTags))
+        val annotationMap = (leftAnnotations.toList() + rightAnnotations.toList())
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, values) -> values.joinToString(" | ") }
+            .toMutableMap()
 
         return Pair(distribution.canvas, annotationMap)
     }
@@ -73,21 +75,6 @@ object MarginAnnotationParser {
         return canvasDetections.mapNotNull { det ->
             WidgetTagParser.extractTag(det.text)?.let { (tag, _) -> tag to det }
         }
-    }
-
-    /**
-     * Splits the extracted canvas tags into left and right groups based on the canvas midpoint.
-     */
-    private fun splitCanvasTags(
-        canvasTags: List<Pair<String, DetectionResult>>,
-        imageWidth: Int,
-        leftGuidePct: Float,
-        rightGuidePct: Float
-    ): Pair<List<Pair<String, DetectionResult>>, List<Pair<String, DetectionResult>>> {
-        val canvasMidX = imageWidth * (leftGuidePct + rightGuidePct) / 2f
-        val leftTags = canvasTags.filter { (_, det) -> centerX(det) < canvasMidX }
-        val rightTags = canvasTags.filter { (_, det) -> centerX(det) >= canvasMidX }
-        return Pair(leftTags, rightTags)
     }
 
     /**
