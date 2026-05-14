@@ -18,6 +18,7 @@ import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
 public class XmlLayoutGenerator {
   final StringBuilder builder = new StringBuilder();
@@ -35,19 +36,30 @@ public class XmlLayoutGenerator {
     }
     builder.append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
 
-    return peek(editor.getChildAt(0), editor.getViewAttributeMap(), 0);
+    peek(editor.getChildAt(0), editor.getViewAttributeMap(), 0);
+    return builder.toString().trim();
   }
 
-  private String peek(View view, HashMap<View, AttributeMap> attributeMap, int depth) {
-    if (attributeMap == null || view == null) return "";
+  private void peek(View view, HashMap<View, AttributeMap> attributeMap, int depth) {
+    if (attributeMap == null || view == null) return;
+
+    if (!attributeMap.containsKey(view)) {
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                peek(group.getChildAt(i), attributeMap, depth);
+            }
+        }
+        return;
+    }
+
     if (tryWriteInclude(view, attributeMap, depth)) {
-      return builder.toString();
+      return;
     }
     if (tryWriteFragment(view, attributeMap, depth)) {
-      return builder.toString();
+      return;
     }
     if (tryWriteMerge(view, attributeMap, depth)) {
-      return builder.toString();
+      return;
     }
     String indent = getIndent(depth);
     int nextDepth = depth;
@@ -55,12 +67,14 @@ public class XmlLayoutGenerator {
     String className = getClassName(view, indent);
 
     List<String> keys =
-            (attributeMap.get(view) != null) ? attributeMap.get(view).keySet() : new ArrayList<>();
+            (attributeMap.get(view) != null) ? new ArrayList<>(Objects.requireNonNull(attributeMap.get(view)).keySet()) : new ArrayList<>();
     for (String key : keys) {
-      builder.append(TAB).append(indent).append(key).append("=\"").append(StringEscapeUtils.escapeXml11(attributeMap.get(view).getValue(key))).append("\"\n");
+      builder.append(TAB).append(indent).append(key).append("=\"").append(StringEscapeUtils.escapeXml11(Objects.requireNonNull(attributeMap.get(view)).getValue(key))).append("\"\n");
     }
 
-    builder.deleteCharAt(builder.length() - 1);
+    if (builder.charAt(builder.length() - 1) == '\n') {
+        builder.deleteCharAt(builder.length() - 1);
+    }
 
     if (view instanceof ViewGroup group) {
       if (!(group instanceof CalendarView)
@@ -72,12 +86,18 @@ public class XmlLayoutGenerator {
 
         if (group.getChildCount() > 0) {
           builder.append(">\n\n");
+          int beforeLen = builder.length();
 
           for (int i = 0; i < group.getChildCount(); i++) {
             peek(group.getChildAt(i), attributeMap, nextDepth);
           }
 
-          builder.append(indent).append("</").append(className).append(">\n\n");
+          if (builder.length() == beforeLen) {
+              builder.setLength(beforeLen - 3);
+              builder.append(" />\n\n");
+          } else {
+              builder.append(indent).append("</").append(className).append(">\n\n");
+          }
         } else {
           builder.append(" />\n\n");
         }
@@ -87,8 +107,6 @@ public class XmlLayoutGenerator {
     } else {
       builder.append(" />\n\n");
     }
-
-    return builder.toString().trim();
   }
 
   @NonNull
