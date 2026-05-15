@@ -1,21 +1,9 @@
 package org.appdevforall.codeonthego.computervision.ui.viewmodel
 
-import android.content.ContentResolver
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import android.net.Uri
 import android.util.Log
-import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
-import org.appdevforall.codeonthego.computervision.data.repository.ComputerVisionRepository
-import org.appdevforall.codeonthego.computervision.domain.MarginAnnotationParser
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEvent
-import org.appdevforall.codeonthego.computervision.ui.ComputerVisionUiState
-import org.appdevforall.codeonthego.computervision.ui.CvOperation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,19 +11,30 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.computervision.R
 import org.appdevforall.codeonthego.computervision.data.repository.DrawableImportHelper
+import org.appdevforall.codeonthego.computervision.data.repository.VisionRepository
 import org.appdevforall.codeonthego.computervision.domain.model.DetectionResult
+import org.appdevforall.codeonthego.computervision.domain.usecase.GenerateXmlUC
+import org.appdevforall.codeonthego.computervision.domain.usecase.ImportPlaceholderImageUC
+import org.appdevforall.codeonthego.computervision.domain.usecase.PrepareImageUC
+import org.appdevforall.codeonthego.computervision.domain.usecase.RemovePlaceholderImageUC
+import org.appdevforall.codeonthego.computervision.domain.usecase.RunVisionUC
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEffect
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionEvent
+import org.appdevforall.codeonthego.computervision.ui.ComputerVisionUiState
+import org.appdevforall.codeonthego.computervision.ui.CvOperation
 import org.appdevforall.codeonthego.computervision.ui.SelectedImportedImage
 import org.appdevforall.codeonthego.computervision.utils.CvAnalyticsUtil
-import org.appdevforall.codeonthego.computervision.utils.SmartBoundaryDetector
 import org.appdevforall.codeonthego.computervision.utils.getSortedPlaceholders
 
 class ComputerVisionViewModel(
-    private val repository: ComputerVisionRepository,
-    private val drawableImportHelper: DrawableImportHelper,
-    private val contentResolver: ContentResolver,
+    private val repository: VisionRepository,
+    private val prepareImageUC: PrepareImageUC,
+    private val runVisionUC: RunVisionUC,
+    private val generateXmlUC: GenerateXmlUC,
+    private val importPlaceholderImageUC: ImportPlaceholderImageUC,
+    private val removePlaceholderImageUC: RemovePlaceholderImageUC,
     layoutFilePath: String?,
     layoutFileName: String?
 ) : ViewModel() {
@@ -52,7 +51,7 @@ class ComputerVisionViewModel(
     val uiEffect = _uiEffect.receiveAsFlow()
 
     init {
-        initializeModel()
+        initModel()
     }
 
     fun onEvent(event: ComputerVisionEvent) {
@@ -61,55 +60,25 @@ class ComputerVisionViewModel(
                 CvAnalyticsUtil.trackImageSelected(fromCamera = false)
                 loadImageFromUri(event.uri)
             }
-
             is ComputerVisionEvent.ImageCaptured -> handleCameraResult(event.uri, event.success)
             ComputerVisionEvent.RunDetection -> runDetection()
             ComputerVisionEvent.UpdateLayoutFile -> showUpdateConfirmation()
             ComputerVisionEvent.ConfirmUpdate -> performLayoutUpdate()
             ComputerVisionEvent.SaveToDownloads -> saveXmlToDownloads()
-            ComputerVisionEvent.OpenImagePicker -> {
-                viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.OpenImagePicker) }
-            }
-
-            ComputerVisionEvent.RequestCameraPermission -> {
-                viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
-            }
-
-            is ComputerVisionEvent.UpdateGuides -> {
-                _uiState.update {
-                    it.copy(
-                        leftGuidePct = event.leftPct,
-                        rightGuidePct = event.rightPct
-                    )
-                }
-            }
-            is ComputerVisionEvent.ImagePlaceholderTapped -> {
-                handleImagePlaceholderTap(event.imageX, event.imageY)
-            }
-
-            is ComputerVisionEvent.PlaceholderImageSelected -> {
-                handlePlaceholderImageSelected(event.uri)
-            }
-
-            is ComputerVisionEvent.RemovePlaceholderImage -> {
-                removePlaceholderImage(event.placeholderId)
-            }
+            ComputerVisionEvent.OpenImagePicker -> viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.OpenImagePicker) }
+            ComputerVisionEvent.RequestCameraPermission -> viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.RequestCameraPermission) }
+            is ComputerVisionEvent.UpdateGuides -> updateGuides(event.leftPct, event.rightPct)
+            is ComputerVisionEvent.ImagePlaceholderTapped -> handleImagePlaceholderTap(event.imageX, event.imageY)
+            is ComputerVisionEvent.PlaceholderImageSelected -> handlePlaceholderImageSelected(event.uri)
+            is ComputerVisionEvent.RemovePlaceholderImage -> removePlaceholderImage(event.placeholderId)
         }
     }
 
-    private fun initializeModel() {
+    private fun initModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(currentOperation = CvOperation.InitializingModel) }
-
-            repository.initializeModel()
-                .onSuccess {
-                    _uiState.update {
-                        it.copy(
-                            isModelInitialized = true,
-                            currentOperation = CvOperation.Idle
-                        )
-                    }
-                }
+            repository.initModel()
+                .onSuccess { _uiState.update { it.copy(isModelInitialized = true, currentOperation = CvOperation.Idle) } }
                 .onFailure { exception ->
                     Log.e(TAG, "Model initialization failed", exception)
                     _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
@@ -124,42 +93,22 @@ class ComputerVisionViewModel(
 
     private fun loadImageFromUri(uri: Uri) {
         viewModelScope.launch {
-            try {
-                val result = withContext(Dispatchers.Default) {
-                    val bitmap = uriToBitmap(uri) ?: return@withContext null
-
-                    val rotatedBitmap = handleImageRotation(uri, bitmap)
-                    val (leftBoundPx, rightBoundPx) = SmartBoundaryDetector.detectSmartBoundaries(rotatedBitmap)
-
-                    val widthFloat = rotatedBitmap.width.toFloat()
-                    val leftPct = leftBoundPx / widthFloat
-                    val rightPct = rightBoundPx / widthFloat
-
-                    Triple(rotatedBitmap, leftPct, rightPct)
-                }
-
-                if (result == null) {
-                    _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_no_image_selected))
-                    return@launch
-                }
-
-                val (rotatedBitmap, leftPct, rightPct) = result
-
+            prepareImageUC(uri).onSuccess { prepared ->
                 _uiState.update {
                     it.copy(
-                        currentBitmap = rotatedBitmap,
+                        currentBitmap = prepared.bitmap,
                         imageUri = uri,
                         detections = emptyList(),
                         visualizedBitmap = null,
-                        leftGuidePct = leftPct,
-                        rightGuidePct = rightPct,
-                        parsedAnnotations = emptyMap(), // Reset on new image
+                        leftGuidePct = prepared.leftPct,
+                        rightGuidePct = prepared.rightPct,
+                        parsedAnnotations = emptyMap(),
                         pendingImagePlaceholderId = null,
                         selectedImagesByPlaceholderId = emptyMap()
                     )
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error loading image from URI", e)
+            }.onFailure { e ->
+                Log.e(TAG, "Error loading image", e)
                 _uiEffect.send(ComputerVisionEffect.ShowError("Failed to load image: ${e.message}"))
             }
         }
@@ -170,149 +119,50 @@ class ComputerVisionViewModel(
             CvAnalyticsUtil.trackImageSelected(fromCamera = true)
             loadImageFromUri(uri)
         } else {
-            viewModelScope.launch {
-                _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_capture_cancelled))
-            }
-        }
-    }
-
-    private fun handleImageRotation(uri: Uri, bitmap: Bitmap): Bitmap {
-        val orientation = try {
-            contentResolver.openInputStream(uri)?.use { stream ->
-                ExifInterface(stream).getAttributeInt(
-                    ExifInterface.TAG_ORIENTATION,
-                    ExifInterface.ORIENTATION_NORMAL
-                )
-            } ?: ExifInterface.ORIENTATION_NORMAL
-        } catch (_: Exception) {
-            ExifInterface.ORIENTATION_NORMAL
-        }
-
-        val matrix = Matrix().apply {
-            when (orientation) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> postRotate(90f)
-                ExifInterface.ORIENTATION_ROTATE_180 -> postRotate(180f)
-                ExifInterface.ORIENTATION_ROTATE_270 -> postRotate(270f)
-                else -> return bitmap
-            }
-        }
-
-        return try {
-            val rotatedBitmap = Bitmap.createBitmap(
-                bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
-            )
-            if (rotatedBitmap != bitmap) {
-                bitmap.recycle()
-            }
-            rotatedBitmap
-        } catch (_: OutOfMemoryError) {
-            bitmap
+            viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_capture_cancelled)) }
         }
     }
 
     private fun runDetection() {
         val state = _uiState.value
-        val bitmap = state.currentBitmap
-        if (bitmap == null) {
-            viewModelScope.launch {
-                _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_select_image_first))
-            }
+        val bitmap = state.currentBitmap ?: run {
+            viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_select_image_first)) }
             return
         }
 
         viewModelScope.launch {
             CvAnalyticsUtil.trackDetectionStarted()
             val startTime = System.currentTimeMillis()
-            _uiState.update { it.copy(currentOperation = CvOperation.RunningYolo) }
 
-            val yoloResult = repository.runYoloInference(bitmap)
-            if (yoloResult.isFailure) {
-                val endTime = System.currentTimeMillis()
-                CvAnalyticsUtil.trackDetectionCompleted(
-                    success = false,
-                    detectionCount = 0,
-                    durationMs = endTime - startTime
-                )
-                handleDetectionError(yoloResult.exceptionOrNull())
-                return@launch
-            }
-            val yoloDetections = yoloResult.getOrThrow()
-
-            _uiState.update { it.copy(currentOperation = CvOperation.RunningOcr) }
-
-            val regionOcrResult = repository.runRegionOcr(
-                bitmap, yoloDetections, state.leftGuidePct, state.rightGuidePct
-            )
-            if (regionOcrResult.isFailure) {
-                handleDetectionError(regionOcrResult.exceptionOrNull())
-                return@launch
-            }
-            val ocrResult = regionOcrResult.getOrThrow()
-
-            _uiState.update { it.copy(currentOperation = CvOperation.MergingDetections) }
-
-            val mergeResult = repository.mergeDetections(
-                enrichedComponents = ocrResult.enrichedDetections,
-                remainingDetections = ocrResult.remainingDetections,
-                fullImageTextBlocks = ocrResult.fullImageTextBlocks
-            )
-
-            mergeResult
-                .onSuccess { mergedDetections ->
-                    val leftBound = bitmap.width * state.leftGuidePct
-                    val rightBound = bitmap.width * state.rightGuidePct
-                    val canvasOnlyMerged = mergedDetections.filter { detection ->
-                        detection.isYolo || detection.boundingBox.centerX() in leftBound..rightBound
-                    }
-                    val allDetections = canvasOnlyMerged + ocrResult.marginDetections
-
-                    val (canvasDetections, annotationMap) = MarginAnnotationParser.parse(
-                        detections = allDetections,
-                        imageWidth = bitmap.width,
-                        leftGuidePct = state.leftGuidePct,
-                        rightGuidePct = state.rightGuidePct
+            runVisionUC(bitmap, state.leftGuidePct, state.rightGuidePct) { operation ->
+                _uiState.update { it.copy(currentOperation = operation) }
+            }.onSuccess { result ->
+                CvAnalyticsUtil.trackDetectionCompleted(true, result.detections.size, System.currentTimeMillis() - startTime)
+                _uiState.update {
+                    it.copy(
+                        detections = result.detections,
+                        parsedAnnotations = result.annotations,
+                        currentOperation = CvOperation.Idle,
+                        pendingImagePlaceholderId = null,
+                        selectedImagesByPlaceholderId = emptyMap()
                     )
-
-                    CvAnalyticsUtil.trackDetectionCompleted(
-                        success = true,
-                        detectionCount = canvasDetections.size,
-                        durationMs = System.currentTimeMillis() - startTime
-                    )
-                    _uiState.update {
-                        it.copy(
-                            detections = canvasDetections,
-                            parsedAnnotations = annotationMap,
-                            currentOperation = CvOperation.Idle,
-                            pendingImagePlaceholderId = null,
-                            selectedImagesByPlaceholderId = emptyMap(),
-                        )
-                    }
                 }
-                .onFailure { handleDetectionError(it) }
-        }
-    }
-
-    private fun handleDetectionError(exception: Throwable?) {
-        Log.e(TAG, "Detection failed", exception)
-        viewModelScope.launch {
-            _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
-            _uiEffect.send(ComputerVisionEffect.ShowError("Detection failed: ${exception?.message}"))
+            }.onFailure { exception ->
+                Log.e(TAG, "Detection failed", exception)
+                CvAnalyticsUtil.trackDetectionCompleted(false, 0, System.currentTimeMillis() - startTime)
+                _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
+                _uiEffect.send(ComputerVisionEffect.ShowError("Detection failed: ${exception.message}"))
+            }
         }
     }
 
     private fun showUpdateConfirmation() {
         val state = _uiState.value
         if (!state.hasDetections || state.currentBitmap == null) {
-            viewModelScope.launch {
-                _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_run_detection_first))
-            }
+            viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_run_detection_first)) }
             return
         }
-
-        val fileName = state.layoutFileName ?: "layout.xml"
-        viewModelScope.launch {
-            _uiEffect.send(ComputerVisionEffect.ShowConfirmDialog(fileName))
-        }
+        viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.ShowConfirmDialog(state.layoutFileName ?: "layout.xml")) }
     }
 
     private fun performLayoutUpdate() {
@@ -324,12 +174,11 @@ class ComputerVisionViewModel(
 
             generateXml(state)
                 .onSuccess { (layoutXml, stringsXml) ->
-                    CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
+                    CvAnalyticsUtil.trackXmlGenerated(state.detections.size)
                     CvAnalyticsUtil.trackXmlExported(toDownloads = false)
                     _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
                     _uiEffect.send(ComputerVisionEffect.ReturnXmlResult(layoutXml, stringsXml))
-                }
-                .onFailure { exception ->
+                }.onFailure { exception ->
                     Log.e(TAG, "XML generation failed", exception)
                     _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
                     _uiEffect.send(ComputerVisionEffect.ShowError("XML generation failed: ${exception.message}"))
@@ -340,38 +189,46 @@ class ComputerVisionViewModel(
     private fun saveXmlToDownloads() {
         val state = _uiState.value
         if (!state.hasDetections || state.currentBitmap == null) {
-            viewModelScope.launch {
-                _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_run_detection_first))
-            }
+            viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_run_detection_first)) }
             return
         }
 
         viewModelScope.launch {
             _uiState.update { it.copy(currentOperation = CvOperation.GeneratingXml) }
 
-            generateXml(state)
-                .onSuccess { (layoutXml, stringsXml) ->
-                    val combined = if(stringsXml.isNotBlank()) "$layoutXml\n\n\n" else layoutXml
-                    CvAnalyticsUtil.trackXmlGenerated(componentCount = state.detections.size)
-                    CvAnalyticsUtil.trackXmlExported(toDownloads = true)
-                    _uiState.update { it.copy(currentOperation = CvOperation.SavingFile) }
-                    saveXmlFile(combined)
-                }
-                .onFailure { exception ->
-                    Log.e(TAG, "XML generation failed", exception)
-                    _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
-                    _uiEffect.send(ComputerVisionEffect.ShowError("XML generation failed: ${exception.message}"))
-                }
+            generateXml(state).onSuccess { (layoutXml, _) ->
+                CvAnalyticsUtil.trackXmlGenerated(state.detections.size)
+                CvAnalyticsUtil.trackXmlExported(toDownloads = true)
+                _uiState.update { it.copy(currentOperation = CvOperation.SavingFile) }
+                _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
+
+                _uiEffect.send(ComputerVisionEffect.FileSaved(layoutXml))
+            }.onFailure { exception ->
+                Log.e(TAG, "XML generation failed", exception)
+                _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
+                _uiEffect.send(ComputerVisionEffect.ShowError("XML generation failed: ${exception.message}"))
+            }
         }
     }
 
-    private suspend fun generateXml(state: ComputerVisionUiState): Result<Pair<String, String>> {
+    private fun updateGuides(leftPct: Float, rightPct: Float) {
+        val clampedLeft = leftPct.coerceIn(0f, 1f)
+        val clampedRight = rightPct.coerceIn(0f, 1f)
+
+        _uiState.update {
+            it.copy(
+                leftGuidePct = minOf(clampedLeft, clampedRight),
+                rightGuidePct = maxOf(clampedLeft, clampedRight)
+            )
+        }
+    }
+
+    private fun generateXml(state: ComputerVisionUiState): Result<Pair<String, String>> {
         val bitmap = state.currentBitmap ?: return Result.failure(IllegalStateException("No bitmap available"))
-        return repository.generateXml(
+        return generateXmlUC(
             detections = state.detections,
             annotations = state.parsedAnnotations,
-            selectedImagesByPlaceholderId = state.selectedImagesByPlaceholderId
-                .mapValues { it.value.drawableReference },
+            selectedImagesByPlaceholderId = state.selectedImagesByPlaceholderId.mapValues { it.value.drawableReference },
             sourceImageWidth = bitmap.width,
             sourceImageHeight = bitmap.height,
             targetDpWidth = TARGET_DP_WIDTH,
@@ -379,31 +236,12 @@ class ComputerVisionViewModel(
         )
     }
 
-
-    private suspend fun saveXmlFile(xmlString: String) {
-        _uiState.update { it.copy(currentOperation = CvOperation.Idle) }
-        _uiEffect.send(ComputerVisionEffect.FileSaved(xmlString))
-    }
-
-    private fun uriToBitmap(selectedFileUri: Uri): Bitmap? {
-        return try {
-            contentResolver.openFileDescriptor(selectedFileUri, "r")?.use {
-                BitmapFactory.decodeFileDescriptor(it.fileDescriptor)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error decoding bitmap from URI", e)
-            null
-        }
-    }
-
     private fun handleImagePlaceholderTap(imageX: Float, imageY: Float) {
         val placeholder = findImagePlaceholderAt(imageX, imageY) ?: return
         val placeholderId = resolvePlaceholderId(placeholder)
 
         _uiState.update { it.copy(pendingImagePlaceholderId = placeholderId) }
-        viewModelScope.launch {
-            _uiEffect.send(ComputerVisionEffect.OpenPlaceholderImagePicker)
-        }
+        viewModelScope.launch { _uiEffect.send(ComputerVisionEffect.OpenPlaceholderImagePicker) }
     }
 
     private fun handlePlaceholderImageSelected(uri: Uri) {
@@ -411,67 +249,37 @@ class ComputerVisionViewModel(
         val placeholderId = state.pendingImagePlaceholderId ?: return
 
         viewModelScope.launch {
-            drawableImportHelper.importDrawable(
-                sourceUri = uri,
-                layoutFilePath = state.layoutFilePath,
-                fallbackName = "imported_image_$placeholderId"
-            ).onSuccess { importedDrawable ->
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        pendingImagePlaceholderId = null,
-                        selectedImagesByPlaceholderId = currentState.selectedImagesByPlaceholderId +
-                            (
-                                placeholderId to SelectedImportedImage(
-                                    resourceName = importedDrawable.resourceName,
-                                    drawableReference = importedDrawable.drawableReference
-                                )
-                            )
-                    )
+            importPlaceholderImageUC(uri, state.layoutFilePath, placeholderId)
+                .onSuccess { importedDrawable ->
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            pendingImagePlaceholderId = null,
+                            selectedImagesByPlaceholderId = currentState.selectedImagesByPlaceholderId +
+                                (placeholderId to SelectedImportedImage(importedDrawable.resourceName, importedDrawable.drawableReference))
+                        )
+                    }
+                    _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_placeholder_image_selected))
+                }.onFailure { exception ->
+                    _uiState.update { it.copy(pendingImagePlaceholderId = null) }
+                    _uiEffect.send(ComputerVisionEffect.ShowError("Image import failed: ${exception.message}"))
                 }
-
-                _uiEffect.send(
-                    ComputerVisionEffect.ShowToast(R.string.msg_placeholder_image_selected)
-                )
-            }.onFailure { exception ->
-                _uiState.update {
-                    it.copy(pendingImagePlaceholderId = null)
-                }
-
-                _uiEffect.send(
-                    ComputerVisionEffect.ShowError(
-                        "Image import failed: ${exception.message}"
-                    )
-                )
-            }
         }
     }
 
-    /**
-     * Safely removes a selected image from the placeholder state.
-     * Uses Dispatchers.IO for any required file cleanup to prevent UI blocking.
-     *
-     * @param placeholderId The ID of the placeholder to clear.
-     */
     private fun removePlaceholderImage(placeholderId: String) {
         val state = _uiState.value
         val importedImageInfo = state.selectedImagesByPlaceholderId[placeholderId] ?: return
 
         viewModelScope.launch {
-            val deletionResult = drawableImportHelper.deleteDrawable(
-                layoutFilePath = state.layoutFilePath,
-                resourceName = importedImageInfo.resourceName
-            )
-
-            deletionResult.onSuccess {
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        selectedImagesByPlaceholderId = currentState.selectedImagesByPlaceholderId - placeholderId
-                    )
+            removePlaceholderImageUC(state.layoutFilePath, importedImageInfo.resourceName)
+                .onSuccess {
+                    _uiState.update { currentState ->
+                        currentState.copy(selectedImagesByPlaceholderId = currentState.selectedImagesByPlaceholderId - placeholderId)
+                    }
+                    _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_removed))
+                }.onFailure { exception ->
+                    _uiEffect.send(ComputerVisionEffect.ShowError("Failed to clean up image file: ${exception.message}"))
                 }
-                _uiEffect.send(ComputerVisionEffect.ShowToast(R.string.msg_image_removed))
-            }.onFailure { exception ->
-                _uiEffect.send(ComputerVisionEffect.ShowError("Failed to clean up image file: ${exception.message}"))
-            }
         }
     }
 
@@ -492,7 +300,7 @@ class ComputerVisionViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        repository.releaseResources()
+        repository.release()
     }
 
     companion object {
