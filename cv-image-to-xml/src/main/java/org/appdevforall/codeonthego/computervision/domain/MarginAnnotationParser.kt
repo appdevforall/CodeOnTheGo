@@ -24,13 +24,12 @@ object MarginAnnotationParser {
 
         val distribution = distributeDetections(sanitizedDetections, imageWidth, leftGuidePct, rightGuidePct)
         val canvasTags = extractCanvasTags(distribution.canvas)
-        val leftAnnotations = parseMarginGroup(distribution.leftMargin, canvasTags)
-        val rightAnnotations = parseMarginGroup(distribution.rightMargin, canvasTags)
 
-        val annotationMap = (leftAnnotations.toList() + rightAnnotations.toList())
-            .groupBy({ it.first }, { it.second })
-            .mapValues { (_, values) -> values.joinToString(" | ") }
-            .toMutableMap()
+        val annotationMap = parseMarginsGlobally(
+            leftMargin = distribution.leftMargin,
+            rightMargin = distribution.rightMargin,
+            canvasTags = canvasTags
+        )
 
         return Pair(distribution.canvas, annotationMap)
     }
@@ -78,26 +77,43 @@ object MarginAnnotationParser {
     }
 
     /**
-     * Processes a specific margin (left or right), extracting explicit annotations and
-     * resolving implicit ones against the available canvas tags.
+     * Processes both margins simultaneously to prevent cross-margin collisions.
+     * Gathers all explicit annotations first, then resolves all implicit blocks
+     * against a shared pool of remaining tags.
      */
-    private fun parseMarginGroup(
-        detections: List<DetectionResult>,
+    private fun parseMarginsGlobally(
+        leftMargin: List<DetectionResult>,
+        rightMargin: List<DetectionResult>,
         canvasTags: List<Pair<String, DetectionResult>>
     ): Map<String, String> {
-        if (detections.isEmpty()) return emptyMap()
+        val leftBlocks = extractBlocks(leftMargin.sortedBy { it.boundingBox.top })
+        val rightBlocks = extractBlocks(rightMargin.sortedBy { it.boundingBox.top })
 
-        val sortedDetections = detections.sortedBy { it.boundingBox.top }
-
-        val groupedBlocks = extractBlocks(sortedDetections)
-
-        val resolvedImplicitAnnotations = resolveImplicitBlocks(
-            implicitBlocks = groupedBlocks.implicitBlocks,
-            canvasTags = canvasTags,
-            existingAnnotations = groupedBlocks.explicitAnnotations
+        val globalExplicitAnnotations = mergeAnnotations(
+            leftBlocks.explicitAnnotations,
+            rightBlocks.explicitAnnotations
         )
 
-        return groupedBlocks.explicitAnnotations + resolvedImplicitAnnotations
+        val allImplicitBlocks = leftBlocks.implicitBlocks + rightBlocks.implicitBlocks
+
+        val resolvedImplicitAnnotations = resolveImplicitBlocks(
+            implicitBlocks = allImplicitBlocks,
+            canvasTags = canvasTags,
+            existingAnnotations = globalExplicitAnnotations
+        )
+
+        return mergeAnnotations(globalExplicitAnnotations, resolvedImplicitAnnotations)
+    }
+
+    /**
+     * Merges multiple annotation maps. If a tag exists in multiple maps,
+     * their values are combined separated by " | ".
+     */
+    private fun mergeAnnotations(vararg maps: Map<String, String>): MutableMap<String, String> {
+        return maps.flatMap { it.toList() }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, values) -> values.joinToString(" | ") }
+            .toMutableMap()
     }
 
     /**
