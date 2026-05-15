@@ -28,6 +28,7 @@ import android.view.MotionEvent
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.itsaky.androidide.activities.editor.HelpActivity
+import com.itsaky.androidide.utils.DatabaseVersionResolver
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -66,12 +67,6 @@ object TooltipManager {
         ORDER BY buttonNumberId
     """
 
-    private const val QUERY_LAST_CHANGE = """
-        SELECT changeTime, who
-        FROM LastChange
-        WHERE documentationSet = 'wholedb'
-    """
-
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         Log.d(TAG, "In getTooltip() for category='$category', tag='$tag'.")
 
@@ -98,9 +93,10 @@ object TooltipManager {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
                 db.use { database ->
-                    database.rawQuery(QUERY_LAST_CHANGE, arrayOf()).use { c ->
-                        c.moveToFirst()
-                        lastChange = "${c.getString(0)} ${c.getString(1)}"
+                    try {
+                        lastChange = DatabaseVersionResolver.resolveDatabaseVersion(database)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Version resolution failed: ${e.message}")
                     }
 
                     Log.d(TAG, "last change is '${lastChange}'.")
