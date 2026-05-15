@@ -8,7 +8,6 @@ import org.appdevforall.codeonthego.computervision.utils.buildPlaceholderOverrid
 import kotlin.comparisons.compareBy
 
 class YoloToXmlConverter(
-    private val geometryProcessor: LayoutGeometryProcessor,
     private val annotationMatcher: WidgetAnnotationMatcher,
     private val xmlGenerator: AndroidXmlGenerator
 ) {
@@ -80,17 +79,18 @@ class YoloToXmlConverter(
         targetHeight: Int
     ): List<ScaledBox> {
         return candidates.map { 
-            geometryProcessor.scaleDetection(it, sourceWidth, sourceHeight, targetWidth, targetHeight) 
+            DetectionScaler.scale(it, sourceWidth, sourceHeight, targetWidth, targetHeight)
         }
     }
 
     private fun associateTextToWidgets(scaledBoxes: List<ScaledBox>): List<ScaledBox> {
         val parents = scaledBoxes.filter { it.label != "text" }
         val initialTexts = scaledBoxes.filter { it.label == "text" && !annotationMatcher.isTag(it.text) }
-        val textAssignedBoxes = geometryProcessor.assignTextToParents(parents, initialTexts, scaledBoxes)
+
+        val textAssignedBoxes = TextAssociator.assignTextToParents(parents, initialTexts, scaledBoxes)
         val remainingTexts = textAssignedBoxes.filter { it.label == "text" && !annotationMatcher.isTag(it.text) }
 
-        return geometryProcessor.assignNearbyTextToWidgets(textAssignedBoxes, remainingTexts)
+        return TextAssociator.assignNearbyTextToWidgets(textAssignedBoxes, remainingTexts)
     }
 
     private fun finalizeUiElements(boxes: List<ScaledBox>): List<ScaledBox> {
@@ -112,7 +112,7 @@ class YoloToXmlConverter(
             it.label == "widget_tag" || (!it.isYolo && annotationMatcher.isTag(it.text)) 
         }
         return widgetTags.map { 
-            geometryProcessor.scaleDetection(it, sourceWidth, sourceHeight, targetWidth, targetHeight) 
+            DetectionScaler.scale(it, sourceWidth, sourceHeight, targetWidth, targetHeight)
         }
     }
 
@@ -127,11 +127,10 @@ class YoloToXmlConverter(
             targetDpHeight: Int,
             wrapInScroll: Boolean = true
         ): Pair<String, String> {
-            val geometry = LayoutGeometryProcessor()
             val matcher = WidgetAnnotationMatcher()
-            val generator = AndroidXmlGenerator(geometry)
+            val generator = AndroidXmlGenerator()
 
-            val converter = YoloToXmlConverter(geometry, matcher, generator)
+            val converter = YoloToXmlConverter(matcher, generator)
 
             return converter.generateXmlLayout(
                 detections = detections,

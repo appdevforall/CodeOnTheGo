@@ -107,16 +107,26 @@ class FullscreenManager(
     private var pendingTransitionToken = 0L
 
     private val transitionDurationMs = 350L
+    
+    private var isFullscreenState = false
 
-    private val defaultEditorBottomMargin by lazy {
+    private val defaultEditorBottomMargin =
         (editorContainer.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin
-    }
+
+
 
     private val offsetListener = AppBarLayout.OnOffsetChangedListener { appBarLayout, verticalOffset ->
         val totalScrollRange = appBarLayout.totalScrollRange
         if (totalScrollRange > 0) {
             val collapseFraction = abs(verticalOffset).toFloat() / totalScrollRange.toFloat()
             appBarContent.alpha = 1f - collapseFraction
+        }
+        
+        if (!isFullscreenState) {
+            val visibleAppBarHeight = totalScrollRange + verticalOffset
+            editorContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = defaultEditorBottomMargin + visibleAppBarHeight
+            }
         }
     }
 
@@ -234,13 +244,10 @@ class FullscreenManager(
         } else {
             bottomSheetBehavior.isHideable = false
         }
-
-        editorContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-            bottomMargin = defaultEditorBottomMargin
-        }
     }
 
     private fun syncToggleUi(state: FullscreenUiState) {
+        isFullscreenState = state.isFullscreen
         if (state.isFullscreen) {
             fullscreenToggle.setImageResource(R.drawable.ic_fullscreen_exit)
             fullscreenToggle.contentDescription =

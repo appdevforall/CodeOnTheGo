@@ -45,9 +45,12 @@ internal object DimensionCleaner : ValueCleaner {
     private val matchKeywords = setOf("match", "parent")
     private val wrapKeywords = setOf("wrap", "content", "wrapcan")
     private val DIMENSION_CONSTANTS = listOf("wrap_content", "match_parent")
+    private val explicitDimensionRegex = Regex("^(-?\\d+)(dp|sp|px|dip)$")
 
     override fun clean(rawValue: String): String {
-        val normalized = rawValue.lowercase().replace(" ", "_")
+        val trimmedValue = rawValue.trim()
+        val normalized = trimmedValue.lowercase().replace(" ", "_")
+
         if (matchKeywords.any { it in normalized }) return "match_parent"
         if (wrapKeywords.any { it in normalized }) return "wrap_content"
 
@@ -55,9 +58,32 @@ internal object DimensionCleaner : ValueCleaner {
         if (fuzzyResult.score >= 60) return fuzzyResult.string
 
         val fixedUnit = normalized.replace(Regex("0p$|op$|olp$"), "dp")
-        val numericPart = NumberCleaner.clean(fixedUnit.replace("_", ""))
+        explicitDimensionRegex.matchEntire(fixedUnit)?.let { match ->
+            val normalizedNumber = normalizeOcrDimensionNumber(match.groupValues[1])
+            return normalizedNumber + match.groupValues[2]
+        }
 
-        return if (numericPart != fixedUnit) "${numericPart}dp" else rawValue
+        val numericPart = NumberCleaner.clean(fixedUnit.replace("_", ""))
+        val normalizedNumericPart = normalizeOcrDimensionNumber(numericPart)
+
+        return if (numericPart != fixedUnit) "${normalizedNumericPart}dp" else trimmedValue
+    }
+
+    private fun normalizeOcrDimensionNumber(numericPart: String): String {
+        if (!numericPart.matches(Regex("-?\\d+"))) return numericPart
+
+        val isNegative = numericPart.startsWith("-")
+        val numericValue = numericPart.toLongOrNull() ?: return numericPart
+        val canonical = numericValue.toString()
+        val unsignedCanonical = canonical.removePrefix("-")
+
+        // OCR sometimes reads the trailing "dp" as a single zero, turning 150dp into 1500.
+        if (unsignedCanonical.endsWith('0') && unsignedCanonical.toLong() >= 1000L) {
+            val normalizedValue = numericValue / 10L
+            return normalizedValue.toString()
+        }
+
+        return if (isNegative && numericValue == 0L) "0" else canonical
     }
 }
 
@@ -130,12 +156,20 @@ internal object IdCleaner : ValueCleaner {
 internal object DrawableCleaner : ValueCleaner {
     override fun clean(rawValue: String): String {
         if (rawValue.startsWith("@drawable/")) return rawValue
+
         val cleaned = rawValue.lowercase()
             .replace(Regex("\\.(png|jpg|jpeg|webp|xml|svg)$"), "")
+            .replace(Regex("inm|rn|wm|nm")) { m -> if (m.value == "inm") "im" else "m" }
             .replace(Regex("[^a-z0-9_]"), "_")
             .replace(Regex("_+"), "_")
             .trim('_')
-        return if (cleaned.isEmpty()) rawValue else "@drawable/$cleaned"
+
+        val finalCleaned = cleaned
+            .replace("im_age", "image")
+            .replace(Regex("(^|_)im($|_)"), "$1image$2")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+        return if (finalCleaned.isEmpty()) rawValue else "@drawable/$finalCleaned"
     }
 }
 

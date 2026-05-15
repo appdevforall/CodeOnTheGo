@@ -5,6 +5,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
+import com.itsaky.androidide.utils.DocumentUtils
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -172,8 +173,9 @@ internal class KtSymbolIndex(
 
 	fun getOpenedKtFile(path: Path) = openedFiles[path]
 
-	fun getKtFile(vf: VirtualFile): KtFile {
+	fun getKtFile(vf: VirtualFile): KtFile? {
 		val path = vf.toNioPath()
+		if (!DocumentUtils.isKotlinFile(path)) return null
 
 		openedFiles[path]?.also { return it }
 		ktFileCache.getIfPresent(path)?.also { return it }

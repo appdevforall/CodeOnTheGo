@@ -69,10 +69,13 @@
       android:layout_height="40dp"
       android:text="@string/previous"
       android:textAllCaps="true"
+      android:minWidth="0dp"
+      android:paddingHorizontal="4dp"
       app:layout_constraintEnd_toStartOf="@+id/next"
       app:layout_constraintHorizontal_weight="0.25"
       app:layout_constraintStart_toStartOf="parent"
-      app:layout_constraintTop_toBottomOf="@+id/search_input" />
+      app:layout_constraintTop_toBottomOf="@+id/search_input"
+      app:layout_constraintBottom_toBottomOf="parent" />
 
 
   <com.google.android.material.button.MaterialButton
@@ -82,11 +85,14 @@
       android:layout_height="40dp"
       android:text="@string/next"
       android:textAllCaps="true"
+      android:minWidth="0dp"
+      android:paddingHorizontal="4dp"
       app:layout_constraintEnd_toStartOf="@+id/replace"
       app:layout_constraintHorizontal_bias="0.5"
       app:layout_constraintHorizontal_weight="0.25"
       app:layout_constraintStart_toEndOf="@+id/prev"
-      app:layout_constraintTop_toBottomOf="@+id/search_input" />
+      app:layout_constraintTop_toBottomOf="@+id/search_input"
+      app:layout_constraintBottom_toBottomOf="parent" />
 
   <com.google.android.material.button.MaterialButton
       android:id="@+id/replace"
@@ -95,11 +101,14 @@
       android:layout_height="40dp"
       android:text="@string/replace"
       android:textAllCaps="true"
+      android:minWidth="0dp"
+      android:paddingHorizontal="4dp"
       app:layout_constraintEnd_toStartOf="@+id/close"
       app:layout_constraintHorizontal_bias="0.5"
       app:layout_constraintHorizontal_weight="0.25"
       app:layout_constraintStart_toEndOf="@+id/next"
-      app:layout_constraintTop_toBottomOf="@+id/search_input" />
+      app:layout_constraintTop_toBottomOf="@+id/search_input"
+      app:layout_constraintBottom_toBottomOf="parent" />
 
   <com.google.android.material.button.MaterialButton
       android:id="@+id/close"
@@ -108,10 +117,13 @@
       android:layout_height="40dp"
       android:text="@string/btn_close"
       android:textAllCaps="true"
+      android:minWidth="0dp"
+      android:paddingHorizontal="4dp"
       app:layout_constraintEnd_toEndOf="parent"
       app:layout_constraintHorizontal_bias="0.5"
       app:layout_constraintHorizontal_weight="0.25"
       app:layout_constraintStart_toEndOf="@+id/replace"
-      app:layout_constraintTop_toBottomOf="@+id/search_input" />
+      app:layout_constraintTop_toBottomOf="@+id/search_input"
+      app:layout_constraintBottom_toBottomOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
