@@ -199,98 +199,91 @@ class StructureView(
 		}
 	}
 
-	/** This method is called to draw rectangles, lines, and circles for each TextView in the view.  */
-	override fun dispatchDraw(canvas: Canvas) {
-		super.dispatchDraw(canvas)
+    /** This method is called to draw rectangles, lines, and circles for each TextView in the view.  */
+    override fun dispatchDraw(canvas: Canvas) {
+        super.dispatchDraw(canvas)
 
-		for (text in textViewMap.keys) {
-			val view = textViewMap[text]
-			val parent = text.parent.parent as ViewGroup
+        for (text in textViewMap.keys) {
+            val view = textViewMap[text]
+            val parent = text.parent.parent as ViewGroup
 
-			if (view is ViewGroup && view.childCount > 0) {
-				val x = parent.x
-				val y = parent.y + parent.height.toFloat() / 2
+            val centerX = parent.x
+            val centerY = parent.y + parent.height.toFloat() / 2
 
-				val group = view
-				if (group !is CalendarView &&
-					group !is SearchView &&
-					group !is NavigationView &&
-					group !is BottomNavigationView &&
-					group !is TabLayout &&
-					group !is TextInputLayout
-				) {
-					canvas.drawRect(
-						x - pointRadius,
-						y - pointRadius,
-						x + pointRadius,
-						y + pointRadius,
-						paint,
-					)
-					for (i in 0 until group.childCount) {
-						val current = viewTextMap[group.getChildAt(i)]
-						val currentParent = current!!.parent.parent as ViewGroup
-						canvas.drawLine(
-							parent.x,
-							parent.y + parent.height.toFloat() / 2,
-							parent.x,
-							currentParent.y + currentParent.height.toFloat() / 2,
-							paint,
-						)
-						canvas.drawLine(
-							parent.x,
-							currentParent.y + currentParent.height.toFloat() / 2,
-							currentParent.x,
-							currentParent.y + currentParent.height.toFloat() / 2,
-							paint,
-						)
-					}
-				} else if (group is TextInputLayout) {
-					canvas.drawRect(
-						x - pointRadius,
-						y - pointRadius,
-						x + pointRadius,
-						y + pointRadius,
-						paint,
-					)
-					val editText = group.editText
-					if (editText != null) {
-						val current = viewTextMap[editText]
-						if (current != null) {
-							val currentParent = current.parent.parent as ViewGroup
-							canvas.drawLine(
-								parent.x,
-								parent.y + parent.height.toFloat() / 2,
-								parent.x,
-								currentParent.y + currentParent.height.toFloat() / 2,
-								paint,
-							)
-							canvas.drawLine(
-								parent.x,
-								currentParent.y + currentParent.height.toFloat() / 2,
-								currentParent.x,
-								currentParent.y + currentParent.height.toFloat() / 2,
-								paint,
-							)
-						}
-					}
-				} else {
-					canvas.drawCircle(
-						parent.x,
-						parent.y + parent.height.toFloat() / 2,
-						pointRadius.toFloat(),
-						paint,
-					)
-				}
-			} else {
-				canvas.drawCircle(
-					parent.x,
-					parent.y + parent.height.toFloat() / 2,
-					pointRadius.toFloat(),
-					paint,
-				)
-			}
-		}
-	}
+            fun drawCircle() {
+                canvas.drawCircle(
+                    centerX,
+                    centerY,
+                    pointRadius.toFloat(),
+                    paint,
+                )
+            }
+
+            fun drawRectangle() {
+                canvas.drawRect(
+                    centerX - pointRadius,
+                    centerY - pointRadius,
+                    centerX + pointRadius,
+                    centerY + pointRadius,
+                    paint,
+                )
+            }
+
+            fun drawLine(targetParent: ViewGroup) {
+                val targetY = targetParent.y + targetParent.height.toFloat() / 2
+
+                canvas.drawLine(
+                    centerX,
+                    centerY,
+                    centerX,
+                    targetY,
+                    paint,
+                )
+
+                canvas.drawLine(
+                    centerX,
+                    targetY,
+                    targetParent.x,
+                    targetY,
+                    paint,
+                )
+            }
+
+            if (view !is ViewGroup || view.childCount <= 0) {
+                drawCircle()
+                continue
+            }
+
+            when (view) {
+                is CalendarView,
+                is SearchView,
+                is NavigationView,
+                is BottomNavigationView,
+                is TabLayout -> { drawCircle() }
+                is TextInputLayout -> {
+                    drawRectangle()
+
+                    val editText = view.editText ?: continue
+                    val current = viewTextMap[editText] ?: continue
+                    val currentParent = current.parent.parent as ViewGroup
+
+                    drawLine(currentParent)
+                }
+
+                else -> {
+                    drawRectangle()
+
+                    for (i in 0 until view.childCount) {
+                        val child = view.getChildAt(i)
+                        val current = viewTextMap[child] ?: continue
+                        val currentParent = current.parent.parent as ViewGroup
+
+                        drawLine(currentParent)
+                    }
+                }
+            }
+        }
+    }
 
 	/**
 	 * This method is called when a TextView is clicked, and it calls the OnItemClickListener's
