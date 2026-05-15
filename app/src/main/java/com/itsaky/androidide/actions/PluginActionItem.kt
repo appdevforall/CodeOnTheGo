@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.plugins.extensions.MenuItem
 import com.itsaky.androidide.plugins.manager.pluginCategory
 import com.itsaky.androidide.plugins.manager.pluginTooltipTag
+import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 
 
 class PluginActionItem(
@@ -21,7 +22,13 @@ class PluginActionItem(
 
     init {
         label = menuItem.title
-        icon = ContextCompat.getDrawable(context, R.drawable.ic_package)
+            val iconResId = menuItem.icon
+        icon = if (iconResId != null) {
+            PluginDrawableResolver.resolve(iconResId, pluginId, context)
+                ?: ContextCompat.getDrawable(context, R.drawable.ic_package)
+        } else {
+            ContextCompat.getDrawable(context, R.drawable.ic_package)
+        }
         location = ActionItem.Location.EDITOR_TOOLBAR
         requiresUIThread = true
     }
