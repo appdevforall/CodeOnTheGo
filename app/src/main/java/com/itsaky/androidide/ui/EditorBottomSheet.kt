@@ -339,7 +339,8 @@ constructor(
 	 */
 	fun setImeVisible(isVisible: Boolean) {
 		isImeVisible = isVisible
-		behavior.isGestureInsetBottomIgnored = isVisible
+		behavior.isGestureInsetBottomIgnored = true
+        behavior.peekHeight = if (isVisible) 0 else collapsedHeight.toInt()
 	}
 
 	fun setOffsetAnchor(view: View) {
@@ -351,7 +352,7 @@ constructor(
 
 					behavior.peekHeight = collapsedHeight.roundToInt()
 					behavior.expandedOffset = anchorOffset
-					behavior.isGestureInsetBottomIgnored = isImeVisible
+					behavior.isGestureInsetBottomIgnored = true
 
 					binding.root.updatePadding(bottom = anchorOffset + insetBottom)
 					binding.headerContainer.apply {

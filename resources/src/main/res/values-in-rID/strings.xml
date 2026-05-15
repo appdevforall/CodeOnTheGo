@@ -466,11 +466,6 @@
   <string name="title_install_location_error">Kesalahan lokasi pemasangan</string>
   <string name="title_unsupported_user">Pengguna tidak didukung</string>
   <string name="title_socials">Sosial</string>
-  <string name="title_contributors">Kontributor</string>
-  <string name="summary_contributors">Kontributor komunitas teratas.</string>
-  <string name="title_github_contributors">Kontributor GitHub</string>
-  <string name="title_crowdin_translators">Penerjemah Crowdin</string>
-  <string name="title_misc">Lain-lain</string>
   <string name="title_contribute">Menyumbang</string>
   <string name="summary_contribute">Ini bukan hanya sebuah IDE, ini adalah sebuah komunitas. Kontribusikan kode, ide, dan semangat ke Code on the Go.</string>
   <string name="msg_app_unavailable_for_intent">Tidak ada aplikasi yang tersedia untuk menangani maksud.</string>
