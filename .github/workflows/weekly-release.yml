@@ -1,0 +1,334 @@
+name: Weekly release (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-release
+  cancel-in-progress: false
+
+jobs:
+
+  prepare:
+    runs-on: self-hosted
+    outputs:
+      version:         ${{ steps.compute.outputs.version }}
+      next_version:    ${{ steps.compute.outputs.next_version }}
+      previous_tag:    ${{ steps.previous.outputs.previous_tag }}
+      jira_version_id: ${{ steps.jira.outputs.version_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compute CalVer version
+        id: compute
+        run: |
+          VERSION=$(date -u +%g.%V)
+          NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION (next will be $NEXT_VERSION)"
+
+      - name: Look up previous CalVer tag
+        id: previous
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREVIOUS_TAG=$(gh release list --json tagName \
+              --jq '[.[] | select(.tagName | test("^[0-9]+\\.[0-9]+$"))] | .[0].tagName // ""')
+          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+          echo "Previous CalVer tag: ${PREVIOUS_TAG:-none}"
+
+      - name: Look up Jira version
+        id: jira
+        env:
+          JIRA_EMAIL:     ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          VERSION:        ${{ steps.compute.outputs.version }}
+        run: |
+          VERSION_DATA=$(curl -fs --user "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+              "https://appdevforall.atlassian.net/rest/api/3/project/ADFA/versions")
+          VERSION_ID=$(echo "$VERSION_DATA" | jq -r --arg v "$VERSION" \
+              '.[] | select(.name == $v) | .id')
+          if [[ -z "$VERSION_ID" || "$VERSION_ID" == "null" ]]; then
+            echo "::error::Jira version $VERSION not found in project ADFA"
+            exit 1
+          fi
+          echo "version_id=$VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Jira version $VERSION → id $VERSION_ID"
+
+  release-plugin-api:
+    needs: prepare
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Build plugin-api jar
+        run: |
+          flox activate -d flox/base -- \
+              ./gradlew --console=plain --no-daemon :plugin-api:createPluginApiJar
+
+      - name: Build plugin-builder jar
+        run: |
+          flox activate -d flox/base -- \
+              ./gradlew --console=plain --no-daemon -p plugin-api/plugin-builder :jar
+
+      - name: Stage plugin-api release assets
+        run: |
+          mkdir -p .release
+          cp plugin-api/build/libs/plugin-api-*.jar                     .release/plugin-api.jar
+          cp plugin-api/plugin-builder/build/libs/plugin-builder-*.jar  .release/gradle-plugin.jar
+          ( cd .release && sha256sum plugin-api.jar gradle-plugin.jar > checksums.txt )
+          ls -la .release
+
+      - name: Replace plugin-api-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view plugin-api-latest >/dev/null 2>&1; then
+            gh release delete plugin-api-latest --cleanup-tag --yes
+          fi
+          gh release create plugin-api-latest \
+              --target "$GITHUB_SHA" \
+              --title "plugin-api (latest)" \
+              --notes "built from ${GITHUB_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
+              .release/plugin-api.jar \
+              .release/gradle-plugin.jar \
+              .release/checksums.txt
+
+  pull-apk:
+    needs: prepare
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      STAGING_DIR: ./_release-staging
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [V7, V8]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Reset staging directory
+        run: |
+          rm -rf "$STAGING_DIR"
+          mkdir -p "$STAGING_DIR"
+
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account:            ${{ secrets.IDENTITY_EMAIL }}
+          token_format:               'access_token'
+
+      - name: Download matching APK from Firebase App Distribution
+        id: locate
+        env:
+          GCP_ACCESS_TOKEN: ${{ steps.gcp-auth.outputs.access_token }}
+          FIREBASE_APP_ID:  ${{ secrets.FIREBASE_APP_ID }}
+          VARIANT:          ${{ matrix.variant }}
+          DISPLAY_VERSION_PREFIX: 'C-r-'
+        run: |
+          set -euo pipefail
+
+          case "$VARIANT" in
+            V7) BUILD_TYPE_TAG='RELEASE 32-bit' ;;
+            V8) BUILD_TYPE_TAG='RELEASE 64-bit' ;;
+            *)
+              echo "::error::Unknown matrix variant: $VARIANT"
+              exit 1
+              ;;
+          esac
+
+          PROJECT_NUMBER=$(echo "$FIREBASE_APP_ID" | cut -d: -f2)
+          if [[ -z "$PROJECT_NUMBER" ]]; then
+            echo "::error::Could not parse project number from FIREBASE_APP_ID"
+            exit 1
+          fi
+
+          LIST_URL="https://firebaseappdistribution.googleapis.com/v1/projects/${PROJECT_NUMBER}/apps/${FIREBASE_APP_ID}/releases?pageSize=50"
+          LIST_JSON=$(curl -fsS -H "Authorization: Bearer $GCP_ACCESS_TOKEN" "$LIST_URL")
+
+          MATCH_JSON=$(echo "$LIST_JSON" | jq \
+            --arg tag    "$BUILD_TYPE_TAG" \
+            --arg prefix "$DISPLAY_VERSION_PREFIX" '
+            .releases // []
+            | map(select(
+                ((.displayVersion // "") | startswith($prefix))
+                and ((.releaseNotes.text // "") | contains($tag))
+              ))
+            | .[0] // empty
+          ')
+
+          if [[ -z "$MATCH_JSON" || "$MATCH_JSON" == "null" ]]; then
+            echo "::error::No Firebase release found with displayVersion starting '$DISPLAY_VERSION_PREFIX' and release notes containing '$BUILD_TYPE_TAG'"
+            echo "::group::Firebase releases.list response (last 50)"
+            echo "$LIST_JSON" | jq '.releases // [] | map({displayVersion, createTime, releaseNotes: (.releaseNotes.text // "")})'
+            echo "::endgroup::"
+            exit 1
+          fi
+
+          DOWNLOAD_URI=$(echo "$MATCH_JSON" | jq -r '.binaryDownloadUri // empty')
+          DISPLAY_VERSION=$(echo "$MATCH_JSON" | jq -r '.displayVersion // "unknown"')
+          CREATE_TIME=$(echo "$MATCH_JSON" | jq -r '.createTime // "unknown"')
+
+          if [[ -z "$DOWNLOAD_URI" ]]; then
+            echo "::error::Matched release has no binaryDownloadUri"
+            echo "$MATCH_JSON" | jq .
+            exit 1
+          fi
+
+          SAFE_VERSION=$(echo "$DISPLAY_VERSION" | tr -c 'A-Za-z0-9._-' '_')
+          APK_PATH="${STAGING_DIR}/firebase-${VARIANT}-${SAFE_VERSION}.apk"
+          echo "Match: displayVersion=$DISPLAY_VERSION  createTime=$CREATE_TIME  tag=$BUILD_TYPE_TAG"
+          curl -fsSL -o "$APK_PATH" "$DOWNLOAD_URI"
+
+          if [[ ! -s "$APK_PATH" ]]; then
+            echo "::error::Downloaded APK is empty"
+            exit 1
+          fi
+
+          ls -la "$APK_PATH"
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ matrix.variant }}
+          path: ${{ steps.locate.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Clean up staging
+        if: always()
+        run: rm -rf "$STAGING_DIR"
+
+  release-codeonthego:
+    needs: [prepare, pull-apk, release-plugin-api]
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Tag and create GitHub Release (idempotent)
+        env:
+          GH_TOKEN:     ${{ github.token }}
+          VERSION:      ${{ needs.prepare.outputs.version }}
+          PREVIOUS_TAG: ${{ needs.prepare.outputs.previous_tag }}
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists; skipping creation."
+            exit 0
+          fi
+
+          if [[ -n "$PREVIOUS_TAG" && "$PREVIOUS_TAG" != "$VERSION" ]]; then
+            gh release create "$VERSION" \
+                --target "$GITHUB_SHA" \
+                --latest \
+                --title "$VERSION" \
+                --generate-notes \
+                --notes-start-tag "$PREVIOUS_TAG"
+          else
+            gh release create "$VERSION" \
+                --target "$GITHUB_SHA" \
+                --latest \
+                --title "$VERSION" \
+                --generate-notes
+          fi
+
+  upload-r2:
+    needs: [prepare, pull-apk]
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [V7, V8]
+    env:
+      AWS_ACCESS_KEY_ID:     ${{ vars.CLOUDFLARE_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:    auto
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-${{ matrix.variant }}
+          path: ./_apk
+
+      - name: Rename APK with release version + arch
+        id: rename
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          case "$VARIANT" in
+            V8) ARCH=armv8a ;;
+            V7) ARCH=armv7a ;;
+          esac
+          SRC=$(find ./_apk -type f -name '*.apk' | head -n1)
+          DEST="CodeOnTheGo-release${VERSION}-${ARCH}.apk"
+          mv "$SRC" "./$DEST"
+          echo "dest=$DEST" >> "$GITHUB_OUTPUT"
+          echo "Prepared: $DEST"
+
+      - name: Upload to Cloudflare R2 (apk-repo bucket)
+        env:
+          R2_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          DEST:          ${{ steps.rename.outputs.dest }}
+        run: |
+          aws s3 cp "./$DEST" "s3://apk-repo/$DEST" \
+              --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+              --content-type "application/vnd.android.package-archive"
+
+  finalize:
+    needs: [prepare, release-codeonthego, upload-r2]
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Close Jira version (idempotent)
+        env:
+          JIRA_EMAIL:     ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          VERSION_ID:     ${{ needs.prepare.outputs.jira_version_id }}
+        run: |
+          curl -fs -X PUT \
+              "https://appdevforall.atlassian.net/rest/api/3/version/$VERSION_ID" \
+              --user "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+              --header 'Content-Type: application/json' \
+              --data "{\"released\": true, \"releaseDate\": \"$(date -u +%Y-%m-%d)\"}"
+          echo ""
+          echo "Jira version $VERSION_ID marked released"
+
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id:      ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      - name: Set NEXT_RELEASE_VERSION repo variable
+        env:
+          GH_TOKEN:     ${{ steps.app-token.outputs.token }}
+          NEXT_VERSION: ${{ needs.prepare.outputs.next_version }}
+        run: |
+          gh variable set NEXT_RELEASE_VERSION --body "$NEXT_VERSION" --repo "$GITHUB_REPOSITORY"
+          echo "NEXT_RELEASE_VERSION set to $NEXT_VERSION"
