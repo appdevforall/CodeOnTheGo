@@ -23,6 +23,8 @@ import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
 import java.util.concurrent.ConcurrentHashMap
 import io.pebbletemplates.pebble.template.PebbleTemplate
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 
 data class ServerConfig(
@@ -420,12 +422,18 @@ clientSocket and the catch block logic are updated accordingly.
                 }
 
                 // 2. Decompress Article (Must be raw string for Pebble)
-                val articleText = dbContent.toString(Charsets.UTF_8)
+                // val articleText = dbContent.toString(Charsets.UTF_8)
 
-                // 3. Render Template
-                val sw = StringWriter()
-                compiledTemplate.evaluate(sw, mapOf("article" to articleText))
-                dbContent = sw.toString().toByteArray()
+                try {
+                    val mapper = ObjectMapper()
+                    val context: Map<String, Any> = mapper.readValue(dbContent.toString(Charsets.UTF_8), object : TypeReference<Map<String, Any>>() {})
+                    // 3. Render Template
+                    val sw = StringWriter()
+                    compiledTemplate.evaluate(sw, context)
+                    dbContent = sw.toString().toByteArray()
+                } catch (e: Exception) {
+                    throw Exception("Error processing templated file at $path")
+                }
             }
 
             writer.println("HTTP/1.1 200 OK")
