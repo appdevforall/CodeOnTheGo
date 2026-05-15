@@ -35,11 +35,12 @@ class DebuggerService : Service() {
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(DebuggerService::class.java)
+		const val EXTRA_DISPLAY_ID = "debugger.overlay.displayId"
 	}
 
 	private val actionsRegistry = ActionsRegistry.getInstance()
 	private lateinit var actionsList: List<ActionItem>
-	private lateinit var overlayManager: DebugOverlayManager
+	private var overlayManager: DebugOverlayManager? = null
 	private val binder = Binder()
 	private val serviceScope = CoroutineScope(Dispatchers.Default)
 
@@ -61,7 +62,6 @@ class DebuggerService : Service() {
 			}
 
 		this.actionsList.forEach(actionsRegistry::registerAction)
-		this.overlayManager = DebugOverlayManager.create(this)
 
 		serviceScope.launch {
 			ForegroundAppReceiver.foregroundAppState
@@ -103,12 +103,7 @@ class DebuggerService : Service() {
 		targetPackage = null
 		serviceScope.cancelIfActive("DebuggerService is being destroyed")
 
-		try {
-			overlayManager.hide()
-		} catch (err: Throwable) {
-			logger.error("Failed to hide debugger overlay", err)
-		}
-
+		detachOverlay()
 		super.onDestroy()
 
 		actionsList.forEach(actionsRegistry::unregisterAction)
@@ -116,23 +111,55 @@ class DebuggerService : Service() {
 
 	fun showOverlay() {
 		logger.debug("showOverlay()")
-		this.overlayManager.show()
+		this.overlayManager?.show()
 	}
 
 	fun hideOverlay() {
 		logger.debug("hideOverlay()")
-		this.overlayManager.hide()
+		this.overlayManager?.hide()
 	}
 
 	fun setOverlayVisibility(isShown: Boolean) = if (isShown) showOverlay() else hideOverlay()
 
+	fun maybeMoveOverlayToDisplay(displayId: Int) {
+		if (overlayManager?.attachedDisplayId == displayId) return
+
+		hideOverlay()
+		createOverlayManagerIfNeeded(displayId)
+		showOverlay()
+	}
+
+	private fun createOverlayManagerIfNeeded(displayId: Int) {
+		if (overlayManager?.attachedDisplayId != displayId) {
+			hideOverlay()
+			overlayManager = null
+		}
+
+		if (overlayManager == null) {
+			overlayManager =
+				DebugOverlayManager.create(
+					ctx = this,
+					displayId = displayId
+				)
+		}
+	}
+
+	private fun detachOverlay() {
+		try {
+			hideOverlay()
+		} catch (err: Throwable) {
+			logger.error("Failed to hide debugger overlay", err)
+		}
+	}
+
 	fun onConnectionStateUpdated(newState: DebuggerConnectionState) {
 		setOverlayVisibility(newState >= DebuggerConnectionState.ATTACHED)
-		overlayManager.refreshActions()
+		overlayManager?.refreshActions()
 	}
 
 	override fun onBind(intent: Intent?): IBinder {
 		logger.debug("onBind(intent={}): extras={}", intent, intent?.extras)
+		createOverlayManagerIfNeeded(displayId = intent?.extras?.getInt(EXTRA_DISPLAY_ID, -1) ?: -1)
 		return this.binder
 	}
 
