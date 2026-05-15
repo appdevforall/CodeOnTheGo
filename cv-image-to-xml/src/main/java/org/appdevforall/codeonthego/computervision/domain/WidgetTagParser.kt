@@ -6,7 +6,8 @@ package org.appdevforall.codeonthego.computervision.domain
  */
 internal object WidgetTagParser {
     private val tagRegex = Regex("^(?i)(B|P|D|T|C|R|SW|S)-[A-Z0-9_]+$")
-    private val tagExtractRegex = Regex("^(?i)(SW|S\\s*8|8\\s*W|[BPDTCRS8]\\s*W?)([\\s\\-_]*)([A-Z0-9_\\-]+)")
+    private val tagExtractRegex = Regex("^(?i)([A-Z0-9\\s]+)([\\s\\-_.]+)([A-Z0-9_\\-]+)")
+    private val VALID_PREFIXES = setOf("B", "P", "D", "T", "C", "R", "SW", "S")
 
     fun isTag(text: String): Boolean {
         val cleaned = text.trim().trimEnd('.', ',', ';', ':', '_', '|')
@@ -20,8 +21,12 @@ internal object WidgetTagParser {
         return normalizeTagText(cleaned).matches(tagRegex)
     }
 
-    private fun parseTagParts(match: MatchResult): Pair<String, String> {
-        val prefix = normalizePrefix(match.groupValues[1])
+    private fun parseTagParts(match: MatchResult): Pair<String, String>? {
+        val rawPrefix = match.groupValues[1]
+        val prefix = normalizePrefix(rawPrefix)
+
+        if (prefix !in VALID_PREFIXES) return null
+
         var tokenRaw = match.groupValues[3].trim('-')
 
         val upperToken = tokenRaw.uppercase()
@@ -46,8 +51,9 @@ internal object WidgetTagParser {
 
         if (!isValidTagMatch(match)) return cleaned.uppercase()
 
-        val (prefix, token) = parseTagParts(match)
-        return "$prefix-$token"
+        val parts = parseTagParts(match) ?: return cleaned.uppercase()
+
+        return "${parts.first}-${parts.second}"
     }
 
     fun extractTag(text: String): Pair<String, String?>? {
@@ -56,8 +62,9 @@ internal object WidgetTagParser {
 
         if (!isValidTagMatch(match)) return null
 
-        val (prefix, token) = parseTagParts(match)
-        val finalTag = "$prefix-$token"
+        val parts = parseTagParts(match) ?: return null
+
+        val finalTag = "${parts.first}-${parts.second}"
 
         if (!finalTag.matches(tagRegex)) return null
 
