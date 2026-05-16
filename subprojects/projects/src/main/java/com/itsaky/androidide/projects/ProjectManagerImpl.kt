@@ -53,7 +53,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
-import org.appdevforall.codeonthego.indexing.service.IndexingService
 import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe

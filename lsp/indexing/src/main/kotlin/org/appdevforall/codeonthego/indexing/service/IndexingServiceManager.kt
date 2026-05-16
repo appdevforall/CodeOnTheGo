@@ -1,13 +1,17 @@
 package org.appdevforall.codeonthego.indexing.service
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Manages the lifecycle of [IndexingService]s and the [IndexRegistry].
@@ -20,6 +24,9 @@ class IndexingServiceManager(
 
 	companion object {
 		private val log = LoggerFactory.getLogger(IndexingServiceManager::class.java)
+
+		/** The timeout duration for closing indexing services */
+		private val SERVICE_CLOSE_TIMEOUT = 10.seconds
 	}
 
 	/**
@@ -116,24 +123,51 @@ class IndexingServiceManager(
 	override fun close() {
 		log.info("Shutting down indexing services")
 
-		// Cancel in-flight work
-		scope.coroutineContext.cancelChildren()
 
 		// Close services in reverse registration order
-		services.values.reversed().forEach { service ->
-			try {
-				service.close()
-				log.debug("Closed service: {}", service.id)
-			} catch (e: Exception) {
-				log.error("Failed to close service: {}", service.id, e)
+		val cancellationJobs = services.values.reversed().map { service ->
+			scope.launch(Dispatchers.Default) {
+				withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
+					try {
+						service.close()
+						log.debug("Closed service: {}", service.id)
+					} catch (e: Exception) {
+						if (e is CancellationException) throw e
+						log.error("Failed to close service: {}", service.id, e)
+					}
+				} ?: run {
+					log.warn("Indexing service {} failed to close within timeout period: {}ms", service.id, SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds)
+				}
 			}
 		}
 
+		val closeRegistryJob = scope.launch(Dispatchers.Default) {
+			withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
+				try {
+					registry.close()
+				} catch (e: Exception) {
+					if (e is CancellationException) throw e
+					log.error("Failed to close index registry")
+				}
+			} ?: run {
+				log.warn("Index registry failed to close within timeout: {}ms", SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds)
+			}
+		}
+
+		scope.launch {
+			runCatching { joinAll(closeRegistryJob, *cancellationJobs.toTypedArray()) }
+				.onFailure { err ->
+					log.error("Failed to close indexing services", err)
+				}
+
+			// Cancel in-flight work
+			scope.coroutineContext.cancelChildren()
+		}
+
 		services.clear()
-		registry.close()
 		initialized = false
 
-		log.info("Indexing services shut down")
+		log.info("Indexing services shut down requested")
 	}
 
 	private suspend fun initializeServices() {
