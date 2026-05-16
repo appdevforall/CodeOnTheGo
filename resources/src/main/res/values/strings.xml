@@ -435,7 +435,7 @@
 	<string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
 	<string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
 	<string name="btn_donate">Donate</string>
-	<string name="btn_docs">Documentation</string>
+	<string name="btn_docs">Help</string>
 	<string name="btn_close">Close</string>
 	<string name="msg_ignore_case">Ignore case</string>
 	<string name="msg_use_regex">Use regex</string>
