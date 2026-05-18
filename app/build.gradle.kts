@@ -370,6 +370,11 @@ dependencies {
 	implementation(libs.google.genai)
 	implementation(project(":llama-api"))
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
+
+    // Pebble template engine
+    implementation("io.pebbletemplates:pebble:3.2.2")
+    // Jackson JSON parsing dependency
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 }
 
 tasks.register("downloadDocDb") {
