@@ -385,46 +385,9 @@ clientSocket and the catch block logic are updated accordingly.
                 }
             }
 
-            // Process templates
-            // Note that templates must fit into a single blob record in the documentation database.
-            if (templateId != 0) {
-                if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
-
-                // 1. Get or Compile Template from Cache
-                val compiledTemplate = templateCache.getOrPut(templateId) {
-                    if (debugEnabled) log.debug(
-                        "Template cache miss for ID {}, path {}, MIME type {}, compression {}}",
-                        templateId,
-                        path,
-                        dbMimeType,
-                        compression
-                    )
-                    val tQuery = "SELECT content FROM Templates WHERE id = ?"
-                    val tCursor = database.rawQuery(tQuery, arrayOf(templateId.toString()))
-                    if (tCursor.count == 0) {
-                        throw Exception("Template ID $templateId not found in the database")
-                    } else if (tCursor.count > 1) {
-                        throw Exception("Template ID $templateId is shared by more than one template")
-                    } else {
-                        tCursor.use {
-                            if (it.moveToFirst()) {
-                                val templateBlob = it.getBlob(0)
-                                pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
-                            } else {
-                                throw Exception("Template ID $templateId not found in database.")
-                            }
-                        }
-                    }
-                }
-
-                // Load JSON data into a template context Map<> for instantiation
-                val mapper = ObjectMapper()
-                val context: Map<String, Any> = mapper.readValue(dbContent.toString(Charsets.UTF_8), object : TypeReference<Map<String, Any>>() {})
-
-                // Evaluate template with loaded data and return the output
-                val sw = StringWriter()
-                compiledTemplate.evaluate(sw, context)
-                dbContent = sw.toString().toByteArray()
+            // If the file is associated with a template, instantiate that template and send the result to the client
+            if (templateId > 0) {
+                dbContent = instantiatePebbleTemplate(templateId, dbContent, path, dbMimeType, compression)
             }
 
             writer.println("HTTP/1.1 200 OK")
@@ -443,6 +406,68 @@ clientSocket and the catch block logic are updated accordingly.
             cursor.close()
         }
     }
+
+    private fun instantiatePebbleTemplate(templateId: Int, dbContent: ByteArray, path: String, dbMimeType: String, compression: String): ByteArray {
+        if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
+
+        // 1. Get or Compile Template from Cache
+        val compiledTemplate = templateCache.getOrPut(templateId) {
+            if (debugEnabled) log.debug(
+                "Template cache miss for ID {}, path {}, MIME type {}, compression {}}",
+                templateId,
+                path,
+                dbMimeType,
+                compression
+            )
+
+            val tQuery = "SELECT content FROM Templates WHERE id = ?"
+            val tCursor = database.rawQuery(tQuery, arrayOf(templateId.toString()))
+            if (tCursor.count == 0) {
+                log.debug( "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
+                    templateId,
+                    path,
+                    dbMimeType,
+                    compression
+                )
+                throw Exception("Template ID $templateId not found in the database")
+            } else if (tCursor.count > 1) {
+                log.debug(
+                    "More than one template found, for ID {}, path {}, MIME type {}, compression {}}",
+                    templateId,
+                    path,
+                    dbMimeType,
+                    compression
+                )
+                throw Exception("Template ID $templateId is shared by more than one template")
+            } else {
+                tCursor.use {
+                    if (it.moveToFirst()) {
+                        val templateBlob = it.getBlob(0)
+                        pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
+                    } else {
+                        log.debug(
+                            "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
+                            templateId,
+                            path,
+                            dbMimeType,
+                            compression
+                        )
+                        throw Exception("Template ID $templateId not found in database.")
+                    }
+                }
+            }
+        }
+
+        // Load JSON data into a template context Map<> for instantiation
+        val mapper = ObjectMapper()
+        val context: Map<String, Any> = mapper.readValue(dbContent.toString(Charsets.UTF_8), object : TypeReference<Map<String, Any>>() {})
+
+        // Evaluate template with loaded data and return the output
+        val sw = StringWriter()
+        compiledTemplate.evaluate(sw, context)
+        return sw.toString().toByteArray()
+    }
+
 
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleDbEndpoint().")
