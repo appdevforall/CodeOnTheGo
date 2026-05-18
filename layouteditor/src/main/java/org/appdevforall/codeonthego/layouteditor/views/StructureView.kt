@@ -59,9 +59,11 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.color.MaterialColors
+import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.tabs.TabLayout
+import com.google.android.material.textfield.TextInputEditText
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutStructureViewItemBinding
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.idMap
@@ -143,7 +145,7 @@ class StructureView(
 			viewId.visibility = VISIBLE
 			viewId.text = idMap[view]
 		}
-		if (view is LinearLayout && view !is RadioGroup) {
+		if (view is LinearLayout && view !is RadioGroup && view !is TextInputLayout) {
 			val orientation =
 				if (view.orientation == LinearLayout.HORIZONTAL) "horizontal" else "vertical"
 			val imgResId = imgMap[LinearLayout::class.java.simpleName + orientation]!!
@@ -178,7 +180,8 @@ class StructureView(
 				group !is SearchView &&
 				group !is NavigationView &&
 				group !is BottomNavigationView &&
-				group !is TabLayout
+				group !is TabLayout &&
+				group !is TextInputLayout
 			) {
 				nextDepth++
 
@@ -186,72 +189,101 @@ class StructureView(
 					val child = group.getChildAt(i)
 					peek(child, nextDepth)
 				}
-			}
-		}
-	}
-
-	/** This method is called to draw rectangles, lines, and circles for each TextView in the view.  */
-	override fun dispatchDraw(canvas: Canvas) {
-		super.dispatchDraw(canvas)
-
-		for (text in textViewMap.keys) {
-			val view = textViewMap[text]
-			val parent = text.parent.parent as ViewGroup
-
-			if (view is ViewGroup && view.childCount > 0) {
-				val x = parent.x
-				val y = parent.y + parent.height.toFloat() / 2
-
-				val group = view
-				if (group !is CalendarView &&
-					group !is SearchView &&
-					group !is NavigationView &&
-					group !is BottomNavigationView &&
-					group !is TabLayout
-				) {
-					canvas.drawRect(
-						x - pointRadius,
-						y - pointRadius,
-						x + pointRadius,
-						y + pointRadius,
-						paint,
-					)
-					for (i in 0 until group.childCount) {
-						val current = viewTextMap[group.getChildAt(i)]
-						val currentParent = current!!.parent.parent as ViewGroup
-						canvas.drawLine(
-							parent.x,
-							parent.y + parent.height.toFloat() / 2,
-							parent.x,
-							currentParent.y + currentParent.height.toFloat() / 2,
-							paint,
-						)
-						canvas.drawLine(
-							parent.x,
-							currentParent.y + currentParent.height.toFloat() / 2,
-							currentParent.x,
-							currentParent.y + currentParent.height.toFloat() / 2,
-							paint,
-						)
-					}
-				} else {
-					canvas.drawCircle(
-						parent.x,
-						parent.y + parent.height.toFloat() / 2,
-						pointRadius.toFloat(),
-						paint,
-					)
+			} else if (group is TextInputLayout) {
+				nextDepth++
+				val editText = group.editText
+				if (editText != null) {
+					peek(editText, nextDepth)
 				}
-			} else {
-				canvas.drawCircle(
-					parent.x,
-					parent.y + parent.height.toFloat() / 2,
-					pointRadius.toFloat(),
-					paint,
-				)
 			}
 		}
 	}
+
+    /** This method is called to draw rectangles, lines, and circles for each TextView in the view.  */
+    override fun dispatchDraw(canvas: Canvas) {
+        super.dispatchDraw(canvas)
+
+        for (text in textViewMap.keys) {
+            val view = textViewMap[text]
+            val parent = text.parent.parent as ViewGroup
+
+            val centerX = parent.x
+            val centerY = parent.y + parent.height.toFloat() / 2
+
+            fun drawCircle() {
+                canvas.drawCircle(
+                    centerX,
+                    centerY,
+                    pointRadius.toFloat(),
+                    paint,
+                )
+            }
+
+            fun drawRectangle() {
+                canvas.drawRect(
+                    centerX - pointRadius,
+                    centerY - pointRadius,
+                    centerX + pointRadius,
+                    centerY + pointRadius,
+                    paint,
+                )
+            }
+
+            fun drawLine(targetParent: ViewGroup) {
+                val targetY = targetParent.y + targetParent.height.toFloat() / 2
+
+                canvas.drawLine(
+                    centerX,
+                    centerY,
+                    centerX,
+                    targetY,
+                    paint,
+                )
+
+                canvas.drawLine(
+                    centerX,
+                    targetY,
+                    targetParent.x,
+                    targetY,
+                    paint,
+                )
+            }
+
+            if (view !is ViewGroup || view.childCount <= 0) {
+                drawCircle()
+                continue
+            }
+
+            when (view) {
+                is CalendarView,
+                is SearchView,
+                is NavigationView,
+                is BottomNavigationView,
+                is TabLayout -> { drawCircle() }
+                is TextInputLayout -> {
+                    drawRectangle()
+
+                    val editText = view.editText ?: continue
+                    val current = viewTextMap[editText] ?: continue
+                    val currentParent = current.parent.parent as ViewGroup
+
+                    drawLine(currentParent)
+                }
+
+                else -> {
+                    drawRectangle()
+
+                    for (i in 0 until view.childCount) {
+                        val child = view.getChildAt(i)
+                        val current = viewTextMap[child] ?: continue
+                        val currentParent = current.parent.parent as ViewGroup
+
+                        drawLine(currentParent)
+                    }
+                }
+            }
+        }
+    }
 
 	/**
 	 * This method is called when a TextView is clicked, and it calls the OnItemClickListener's
@@ -369,6 +401,8 @@ class StructureView(
 			imgMap[CoordinatorLayout::class.java.simpleName] =
 				R.mipmap.ic_palette_coordinator_layout
 			imgMap[DrawerLayout::class.java.simpleName] = R.mipmap.ic_palette_drawer_layout
+			imgMap[TextInputLayout::class.java.simpleName] = R.mipmap.ic_palette_linear_layout_vert
+			imgMap[TextInputEditText::class.java.simpleName] = R.mipmap.ic_palette_edit_text
 		}
 	}
 }

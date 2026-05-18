@@ -228,10 +228,12 @@ class XmlLayoutParser(
 							} else {
 								view = result as? View
 								view?.let {
-									it.layoutParams = ViewGroup.LayoutParams(
-										ViewGroup.LayoutParams.WRAP_CONTENT,
-										ViewGroup.LayoutParams.WRAP_CONTENT,
-									)
+									if (listViews.isEmpty()) {
+										it.layoutParams = ViewGroup.LayoutParams(
+											ViewGroup.LayoutParams.WRAP_CONTENT,
+											ViewGroup.LayoutParams.WRAP_CONTENT,
+										)
+									}
 									listViews.add(it)
 								}
 							}
