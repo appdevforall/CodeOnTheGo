@@ -13,9 +13,9 @@ object TextInputLayoutCaller {
     fun setHint(target: View, value: String, context: Context) {
         var finalValue = value
         if (finalValue.startsWith("@string/")) {
-            val project = ProjectManager.instance.openedProject
+            val project = ProjectManager.instance.openedProject ?: return
             finalValue = ValuesManager.getValueFromResources(
-                ValuesResourceParser.TAG_STRING, finalValue, project!!.stringsPath
+                ValuesResourceParser.TAG_STRING, finalValue, project.stringsPath
             )
         }
         (target as TextInputLayout).hint = finalValue
