@@ -17,9 +17,13 @@
   <a href="https://t.me/CodeOnTheGoDiscussions">Telegram discussions</a>
 </p>
 
+## Code on the Go and AndroidIDE
+
+Code on the Go is the successor to [AndroidIDE](https://github.com/AndroidIDEOfficial/AndroidIDE), a popular mobile IDE that was archived in 2024. Code on the Go is actively maintained and updated weekly by App Dev for All. 
+
 ## Installation
 
- <a href="https://www.appdevforall.org/codeonthego">Download the Code On The Go APK from the App Dev for All website.</a>
+ <a href="[https://www.appdevforall.org/code-on-the-go](https://www.appdevforall.org/?utm_source=gh&utm_medium=readme)">Download the Code on the Go APK from the App Dev for All website.</a>
 
 
 ## Contributing
