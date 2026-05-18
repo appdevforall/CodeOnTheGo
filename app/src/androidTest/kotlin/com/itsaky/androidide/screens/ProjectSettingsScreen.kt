@@ -50,59 +50,42 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     fun TestContext<Unit>.selectKotlinLanguage() {
         step("Select the kotlin language") {
-            flakySafely(30000) {  // Increased timeout
-                try {
-                    ProjectSettingsScreen {
-                        spinner {
-                            isVisible()
-                            open()
-                            
-                            // Wait for spinner to fully open
-                            Thread.sleep(1000)
+            flakySafely(30000) {
+                openProjectLanguageDropdown()
 
-                            // Retry mechanism for selecting Kotlin
-                            var attempts = 0
-                            var success = false
-                            while (attempts < 3 && !success) {
-                                try {
-                                    childAt<KSpinnerItem>(1) {
-                                        isVisible()
-                                        hasText("Kotlin")
-                                        click()
-                                    }
-                                    success = true
-                                } catch (e: Exception) {
-                                    attempts++
-                                    println("Failed to select Kotlin on attempt $attempts: ${e.message}")
-                                    if (attempts < 3) {
-                                        // Close and reopen spinner
-                                        device.uiDevice.pressBack()
-                                        Thread.sleep(1000)
-                                        open()
-                                        Thread.sleep(1000)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    println("Error in selectKotlinLanguage: ${e.message}")
-                    // One more attempt with a different approach
-                    ProjectSettingsScreen {
-                        spinner {
-                            isVisible()
-                            open()
-                            
-                            // Wait for spinner to fully open
-                            Thread.sleep(1000)
-                            
-                            // Try to select by text instead of position
-                            device.uiDevice.findObject(UiSelector().text("Kotlin")).click()
-                        }
-                    }
-                }
+                val d = device.uiDevice
+                val kotlin = d.findObject(UiSelector().text("Kotlin"))
+                check(kotlin.waitForExists(5_000)) { "Kotlin language option not found" }
+                kotlin.click()
+                d.waitForIdle()
             }
         }
+    }
+
+    private fun TestContext<Unit>.openProjectLanguageDropdown() {
+        val d = device.uiDevice
+
+        val javaValue = d.findObject(UiSelector().text("Java"))
+        if (javaValue.waitForExists(5_000)) {
+            val bounds = javaValue.visibleBounds
+            d.click(bounds.centerX(), bounds.centerY())
+            d.waitForIdle()
+            if (d.findObject(UiSelector().text("Kotlin")).waitForExists(2_000)) {
+                return
+            }
+        }
+
+        val languageLabel = d.findObject(UiSelector().textMatches("(?i)Project language"))
+        if (languageLabel.waitForExists(5_000)) {
+            val bounds = languageLabel.visibleBounds
+            d.click(d.displayWidth - 80, bounds.centerY())
+            d.waitForIdle()
+            if (d.findObject(UiSelector().text("Kotlin")).waitForExists(2_000)) {
+                return
+            }
+        }
+
+        error("Project language dropdown did not open")
     }
 
     fun TestContext<Unit>.clickCreateProjectProjectSettings() {
