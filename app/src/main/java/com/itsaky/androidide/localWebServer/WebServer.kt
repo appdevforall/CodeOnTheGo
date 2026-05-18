@@ -122,6 +122,7 @@ FROM   LastChange
     }
 
     fun start() {
+        //  Hal Eisen: Required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets()
         TrafficStats.setThreadStatsTag(0xC0DE)
         try {
             log.info(
