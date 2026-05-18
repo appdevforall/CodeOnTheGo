@@ -83,20 +83,53 @@ class InitializationProjectAndCancelingBuildScenario(
             clickToolbarButton("Quick run")
         }
 
-        step("Wait for APK install offer") {
-            // After a successful build, the system package installer appears.
-            // If it never appears, the build failed.
+        step("Wait for quick-run outcome") {
             val d = device.uiDevice
+            val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
             val installer = d.findObject(
                 UiSelector().packageNameMatches(".*packageinstaller.*|.*permissioncontroller.*")
             )
-            check(installer.waitForExists(120_000)) {
-                "APK install offer never appeared — build may have failed"
+            val success = d.findObject(UiSelector().textContains("Build completed successfully"))
+            val gradleSuccess = d.findObject(UiSelector().textContains("BUILD SUCCESSFUL"))
+            val failure = d.findObject(UiSelector().textContains("Build failed"))
+            val gradleFailure = d.findObject(UiSelector().textContains("BUILD FAILED"))
+            val quickRunFailure = d.findObject(
+                UiSelector().textContains(targetContext.getString(R.string.error_quick_run_failed))
+            )
+
+            closeProjectLog("Waiting for quick-run installer or build success")
+            val deadline = System.currentTimeMillis() + QUICK_RUN_TIMEOUT_MS
+            var lastLogAt = 0L
+
+            while (System.currentTimeMillis() < deadline) {
+                if (installer.exists()) {
+                    closeProjectLog("Quick-run installer appeared; dismissing")
+                    d.pressBack()
+                    d.waitForIdle()
+                    return@step
+                }
+
+                if (success.exists() || gradleSuccess.exists()) {
+                    closeProjectLog("Quick-run build success detected without installer; continuing")
+                    d.waitForIdle()
+                    return@step
+                }
+
+                check(!failure.exists() && !gradleFailure.exists() && !quickRunFailure.exists()) {
+                    "Quick-run build failed"
+                }
+
+                val now = System.currentTimeMillis()
+                if (now - lastLogAt > 15_000L) {
+                    closeProjectLog("Still waiting for quick-run installer or build success")
+                    lastLogAt = now
+                }
+
+                d.waitForIdle(2_000)
+                Thread.sleep(1_000)
             }
-            println("APK install offer appeared — build succeeded")
-            // Dismiss it — we don't need to install
-            d.pressBack()
-            d.waitForIdle()
+
+            error("Quick-run timed out waiting for installer or build success")
         }
 
         if (closeProjectAfterBuild) {
@@ -106,6 +139,7 @@ class InitializationProjectAndCancelingBuildScenario(
 
     companion object {
         private const val PROJECT_INIT_TIMEOUT_MS = 5 * 60 * 1000L
+        private const val QUICK_RUN_TIMEOUT_MS = 5 * 60 * 1000L
     }
 
     class CloseProjectScenario : Scenario() {

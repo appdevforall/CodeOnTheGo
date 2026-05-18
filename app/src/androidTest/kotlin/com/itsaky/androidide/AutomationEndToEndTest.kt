@@ -17,6 +17,7 @@ import com.itsaky.androidide.resources.R as ResourcesR
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
+import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.setProjectName
 import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.screens.PermissionsInfoScreen
@@ -198,7 +199,7 @@ class AutomationEndToEndTest : TestCase() {
             waitForMainHomeOrEditorUi(device.uiDevice)
         }
 
-        // ── Phase 2: Project creation + build for first 3 templates ──
+        // ── Phase 2: Project creation + build across default and Kotlin template variants ──
 
         ensureOnHomeScreenBeforeCreateProject()
 
@@ -207,9 +208,10 @@ class AutomationEndToEndTest : TestCase() {
             val templateResId: Int,
             val projectName: String,
             val visibleLabelOverride: String? = null,
+            val useKotlinLanguage: Boolean = false,
         )
 
-        val templates = listOf(
+        val defaultLanguageTemplates = listOf(
             TemplateConfig("No Activity", R.string.template_no_activity, "TestNoActivity"),
             TemplateConfig("Empty Activity", R.string.template_empty, "TestEmptyActivity"),
             TemplateConfig("Basic Activity", R.string.template_basic, "TestBasicActivity"),
@@ -230,6 +232,16 @@ class AutomationEndToEndTest : TestCase() {
             TemplateConfig("Compose Activity", R.string.template_compose, "TestComposeActivity"),
         )
 
+        val kotlinLanguageTemplates = defaultLanguageTemplates.take(7).map { config ->
+            config.copy(
+                label = "Kotlin ${config.label}",
+                projectName = "Kt${config.projectName}",
+                useKotlinLanguage = true,
+            )
+        }
+
+        val templates = defaultLanguageTemplates + kotlinLanguageTemplates
+
         for ((index, config) in templates.withIndex()) {
             step("Create+build template ${index + 1}/${templates.size}: ${config.label}") {
                 clickCreateProjectHomeScreen()
@@ -239,6 +251,9 @@ class AutomationEndToEndTest : TestCase() {
                 config.templateResId,
                 config.visibleLabelOverride,
             )
+            if (config.useKotlinLanguage) {
+                selectKotlinLanguage()
+            }
             setProjectName(config.projectName)
             clickCreateProjectProjectSettings()
             initializeProjectRunAssembleTasksAndCancelBuild()
