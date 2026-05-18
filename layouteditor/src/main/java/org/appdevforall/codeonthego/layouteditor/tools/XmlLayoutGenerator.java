@@ -44,12 +44,12 @@ public class XmlLayoutGenerator {
     if (attributeMap == null || view == null) return;
 
     if (!attributeMap.containsKey(view)) {
-        if (view instanceof ViewGroup group) {
-            for (int i = 0; i < group.getChildCount(); i++) {
-                peek(group.getChildAt(i), attributeMap, depth);
-            }
-        }
-        return;
+      if (!(view instanceof ViewGroup group)) return;
+
+      for (int i = 0; i < group.getChildCount(); i++) {
+        peek(group.getChildAt(i), attributeMap, depth);
+      }
+      return;
     }
 
     if (tryWriteInclude(view, attributeMap, depth)) {
@@ -62,7 +62,6 @@ public class XmlLayoutGenerator {
       return;
     }
     String indent = getIndent(depth);
-    int nextDepth = depth;
 
     String className = getClassName(view, indent);
 
@@ -76,36 +75,29 @@ public class XmlLayoutGenerator {
         builder.deleteCharAt(builder.length() - 1);
     }
 
-    if (view instanceof ViewGroup group) {
-      if (!(group instanceof CalendarView)
-              && !(group instanceof SearchView)
-              && !(group instanceof NavigationView)
-              && !(group instanceof BottomNavigationView)
-              && !(group instanceof TabLayout)) {
-        nextDepth++;
-
-        if (group.getChildCount() > 0) {
-          builder.append(">\n\n");
-          int beforeLen = builder.length();
-
-          for (int i = 0; i < group.getChildCount(); i++) {
-            peek(group.getChildAt(i), attributeMap, nextDepth);
-          }
-
-          if (builder.length() == beforeLen) {
-              builder.setLength(beforeLen - 3);
-              builder.append(" />\n\n");
-          } else {
-              builder.append(indent).append("</").append(className).append(">\n\n");
-          }
-        } else {
-          builder.append(" />\n\n");
-        }
-      } else {
-        builder.append(" />\n\n");
-      }
-    } else {
+    if (!(view instanceof ViewGroup group)
+            || group instanceof CalendarView
+            || group instanceof SearchView
+            || group instanceof NavigationView
+            || group instanceof BottomNavigationView
+            || group instanceof TabLayout
+            || group.getChildCount() == 0) {
       builder.append(" />\n\n");
+      return;
+    }
+
+    builder.append(">\n\n");
+    int beforeLen = builder.length();
+
+    for (int i = 0; i < group.getChildCount(); i++) {
+      peek(group.getChildAt(i), attributeMap, depth + 1);
+    }
+
+    if (builder.length() == beforeLen) {
+        builder.setLength(beforeLen - 3);
+        builder.append(" />\n\n");
+    } else {
+        builder.append(indent).append("</").append(className).append(">\n\n");
     }
   }
 
