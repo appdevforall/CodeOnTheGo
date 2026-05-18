@@ -23,16 +23,16 @@ object TextInputLayoutCaller {
 
     @JvmStatic
     fun setHintEnabled(target: View, value: String, context: Context) {
-        (target as TextInputLayout).isHintEnabled = java.lang.Boolean.parseBoolean(value)
+        (target as TextInputLayout).isHintEnabled = value.toBoolean()
     }
 
     @JvmStatic
     fun setErrorEnabled(target: View, value: String, context: Context) {
-        (target as TextInputLayout).isErrorEnabled = java.lang.Boolean.parseBoolean(value)
+        (target as TextInputLayout).isErrorEnabled = value.toBoolean()
     }
 
     @JvmStatic
     fun setCounterEnabled(target: View, value: String, context: Context) {
-        (target as TextInputLayout).isCounterEnabled = java.lang.Boolean.parseBoolean(value)
+        (target as TextInputLayout).isCounterEnabled = value.toBoolean()
     }
 }
