@@ -80,6 +80,7 @@ internal class FlashbarContainerView(context: Context)
     private var isBarDismissing = false
     private var barDismissOnTapOutside: Boolean = false
     private var earlyDismissalRequested = false
+    private var isShowInitiated = false
     private var showOverlay: Boolean = false
     private var overlayBlockable: Boolean = false
 
@@ -171,6 +172,8 @@ internal class FlashbarContainerView(context: Context)
 
         val activityRootView = activity.getRootView() ?: return
 
+        isShowInitiated = true
+
         // Only add the withView to the parent once
         if (this.parent == null) {
             activityRootView.addView(this)
@@ -183,6 +186,11 @@ internal class FlashbarContainerView(context: Context)
         }
 
         activityRootView.afterMeasured {
+            if (earlyDismissalRequested) {
+                cancelPendingShow()
+                return@afterMeasured
+            }
+
             val enterAnim = enterAnimBuilder.withView(flashbarView).build()
             enterAnim.start(object : FlashAnim.InternalAnimListener {
                 override fun onStart() {
@@ -197,6 +205,7 @@ internal class FlashbarContainerView(context: Context)
                 override fun onStop() {
                     isBarShowing = false
                     isBarShown = true
+                    isShowInitiated = false
 
                     flashbarView.startIconAnimation(iconAnimBuilder)
 
@@ -292,7 +301,14 @@ internal class FlashbarContainerView(context: Context)
             return
         }
 
-        if (isBarDismissing || !isBarShown) {
+        if (isBarDismissing) {
+            return
+        }
+
+        if (!isBarShown) {
+            if (isShowInitiated) {
+                earlyDismissalRequested = true
+            }
             return
         }
 
@@ -325,6 +341,15 @@ internal class FlashbarContainerView(context: Context)
                 }
             }
         })
+    }
+
+    private fun cancelPendingShow() {
+        isShowInitiated = false
+        earlyDismissalRequested = false
+        removeCallbacks(dismissRunnable)
+        unregisterConfigurationCallback()
+        (parent as? ViewGroup)?.removeView(this)
+        onBarDismissListener?.onDismissed(parentFlashbar, MANUAL)
     }
 
     private fun registerConfigurationCallback(activity: Activity) {
