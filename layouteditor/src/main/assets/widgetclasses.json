@@ -53,5 +53,7 @@
     "RatingBar": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.RatingBarDesign",
     "SearchView": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SearchViewDesign",
     "TextureView": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.TextureViewDesign",
-    "SurfaceView": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SurfaceViewDesign"
+    "SurfaceView": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SurfaceViewDesign",
+    "TextInputEditText": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.TextInputEditTextDesign",
+    "TextInputLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.TextInputLayoutDesign"
 }

@@ -81,9 +81,7 @@ class NewFolderAction(context: Context, override val order: Int) :
 
       flashSuccess(R.string.msg_folder_created)
       if (lastHeld != null) {
-        val node = TreeNode(newDir)
-        node.viewHolder = FileTreeViewHolder(context)
-        lastHeld.addChild(node)
+        requestCollapseNode(lastHeld, false)
         requestExpandNode(lastHeld)
       } else {
         requestFileListing()

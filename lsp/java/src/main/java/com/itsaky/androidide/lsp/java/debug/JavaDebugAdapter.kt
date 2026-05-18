@@ -60,7 +60,7 @@ internal class JavaDebugAdapter :
 	IDebugAdapter,
 	EventConsumer,
 	AutoCloseable {
-	private val vmm = Bootstrap.virtualMachineManager()
+	private val vmm by lazy { Bootstrap.virtualMachineManager() }
 
 	private val vms = CopyOnWriteArraySet<VmConnection>()
 	private val adapterScope = CoroutineScope(Dispatchers.Default)

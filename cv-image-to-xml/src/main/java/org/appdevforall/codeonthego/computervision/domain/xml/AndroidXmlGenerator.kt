@@ -1,32 +1,48 @@
 package org.appdevforall.codeonthego.computervision.domain.xml
 
-import org.appdevforall.codeonthego.computervision.domain.LayoutGeometryProcessor
+import org.appdevforall.codeonthego.computervision.domain.LayoutTreeBuilder
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
 
-class AndroidXmlGenerator(
-    private val geometryProcessor: LayoutGeometryProcessor
-) {
+class AndroidXmlGenerator {
     internal fun buildXml(
         boxes: List<ScaledBox>,
         annotations: Map<ScaledBox, String>,
+        selectedImageOverrides: Map<ScaledBox, String>,
         targetDpHeight: Int,
         wrapInScroll: Boolean
-    ): String {
+    ): Pair<String, String> {
         val context = XmlContext()
         val maxBottom = boxes.maxOfOrNull { it.y + it.h } ?: 0
         val needScroll = wrapInScroll && maxBottom > targetDpHeight
 
         appendHeaders(context, needScroll)
 
-        val layoutItems = geometryProcessor.buildLayoutTree(boxes)
-        val renderer = LayoutRenderer(context, annotations)
+        val layoutItems = LayoutTreeBuilder.buildLayoutTree(boxes)
+        val renderer = LayoutRenderer(context, annotations, selectedImageOverrides = selectedImageOverrides)
 
-        layoutItems.forEach { item ->
-            renderer.render(item, "        ")
-        }
+        layoutItems.forEach { item -> renderer.render(item, "        ") }
 
         appendFooters(context, needScroll)
-        return context.toString()
+
+        val layoutXml = context.toString()
+        val stringsXml = generateStringsResourceXml(context)
+
+        return Pair(layoutXml, stringsXml)
+    }
+
+    private fun generateStringsResourceXml(context: XmlContext): String {
+        if (context.stringArrays.isEmpty()) return ""
+
+        val builder = StringBuilder()
+        context.stringArrays.forEach { (name, items) ->
+            builder.appendLine("    <string-array name=\"${name}\">")
+            items.forEach { item ->
+                builder.appendLine("        <item>${item.escapeXmlAttr()}</item>")
+            }
+            builder.appendLine("    </string-array>")
+        }
+
+        return builder.toString().trimEnd()
     }
 
     private fun appendHeaders(context: XmlContext, needScroll: Boolean) {

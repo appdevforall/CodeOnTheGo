@@ -185,8 +185,9 @@ class EditorActivityActions {
             .forEach { plugin ->
                 try {
                     Log.d("plugin_debug", "Registering menu items for plugin: ${plugin.javaClass.simpleName}")
+                    val pluginId = pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin) ?: ""
                     plugin.getMainMenuItems().forEach { menuItem ->
-                        val action = PluginActionItem(context, menuItem, order++)
+                        val action = PluginActionItem(context, menuItem, order++, pluginId)
                         registry.registerAction(action)
                     }
                 } catch (e: Exception) {

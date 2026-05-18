@@ -758,7 +758,7 @@ class PluginManager private constructor(
     fun getAllPlugins(): List<PluginInfo> {
         return loadedPlugins.values.map { loadedPlugin ->
             PluginInfo(
-                metadata = loadedPlugin.manifest.toPluginMetadata(),
+                metadata = loadedPlugin.toPluginMetadata(),
                 isEnabled = loadedPlugin.isEnabled,
                 isLoaded = true
             )
@@ -1501,3 +1501,9 @@ data class LoadedPlugin(
     val iconDayPath: String? = null,
     val iconNightPath: String? = null
 )
+
+fun LoadedPlugin.toPluginMetadata(): PluginMetadata =
+    manifest.toPluginMetadata().copy(
+        iconDayPath = iconDayPath,
+        iconNightPath = iconNightPath,
+    )
