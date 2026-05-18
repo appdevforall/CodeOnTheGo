@@ -54,10 +54,11 @@ public abstract interface class com/itsaky/androidide/plugins/PluginLogger {
 
 public final class com/itsaky/androidide/plugins/PluginMetadata : android/os/Parcelable {
 	public static final field CREATOR Landroid/os/Parcelable$Creator;
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component10 ()Ljava/lang/String;
+	public final fun component11 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()Ljava/lang/String;
@@ -66,8 +67,8 @@ public final class com/itsaky/androidide/plugins/PluginMetadata : android/os/Par
 	public final fun component7 ()Ljava/util/List;
 	public final fun component8 ()Ljava/util/List;
 	public final fun component9 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/PluginMetadata;
-	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/PluginMetadata;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/PluginMetadata;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/PluginMetadata;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/PluginMetadata;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/PluginMetadata;
 	public final fun describeContents ()I
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAuthor ()Ljava/lang/String;
@@ -76,6 +77,7 @@ public final class com/itsaky/androidide/plugins/PluginMetadata : android/os/Par
 	public final fun getIconDayPath ()Ljava/lang/String;
 	public final fun getIconNightPath ()Ljava/lang/String;
 	public final fun getId ()Ljava/lang/String;
+	public final fun getMinIdeVersion ()Ljava/lang/String;
 	public final fun getMinPluginApiVersion ()Ljava/lang/String;
 	public final fun getName ()Ljava/lang/String;
 	public final fun getPermissions ()Ljava/util/List;
@@ -683,8 +685,14 @@ public abstract interface class com/itsaky/androidide/plugins/extensions/IProjec
 }
 
 public final class com/itsaky/androidide/plugins/extensions/MenuItem {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function0;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Lkotlin/jvm/functions/Function0;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLkotlin/jvm/functions/Function0;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Z
@@ -692,14 +700,18 @@ public final class com/itsaky/androidide/plugins/extensions/MenuItem {
 	public final fun component5 ()Ljava/lang/String;
 	public final fun component6 ()Ljava/util/List;
 	public final fun component7 ()Lkotlin/jvm/functions/Function0;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;)Lcom/itsaky/androidide/plugins/extensions/MenuItem;
-	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/MenuItem;Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/MenuItem;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;)Lcom/itsaky/androidide/plugins/extensions/MenuItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/MenuItem;Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/MenuItem;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAction ()Lkotlin/jvm/functions/Function0;
+	public final fun getIcon ()Ljava/lang/Integer;
 	public final fun getId ()Ljava/lang/String;
 	public final fun getShortcut ()Ljava/lang/String;
 	public final fun getSubItems ()Ljava/util/List;
 	public final fun getTitle ()Ljava/lang/String;
+	public final fun getTooltipTag ()Ljava/lang/String;
 	public fun hashCode ()I
 	public final fun isEnabled ()Z
 	public final fun isVisible ()Z
@@ -714,8 +726,8 @@ public final class com/itsaky/androidide/plugins/extensions/ModuleType : java/la
 }
 
 public final class com/itsaky/androidide/plugins/extensions/NavigationItem {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILkotlin/jvm/functions/Function0;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/Integer;
@@ -723,9 +735,10 @@ public final class com/itsaky/androidide/plugins/extensions/NavigationItem {
 	public final fun component5 ()Z
 	public final fun component6 ()Ljava/lang/String;
 	public final fun component7 ()I
-	public final fun component8 ()Lkotlin/jvm/functions/Function0;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILkotlin/jvm/functions/Function0;)Lcom/itsaky/androidide/plugins/extensions/NavigationItem;
-	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/NavigationItem;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/NavigationItem;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Lkotlin/jvm/functions/Function0;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;)Lcom/itsaky/androidide/plugins/extensions/NavigationItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/NavigationItem;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/NavigationItem;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAction ()Lkotlin/jvm/functions/Function0;
 	public final fun getGroup ()Ljava/lang/String;
@@ -733,6 +746,7 @@ public final class com/itsaky/androidide/plugins/extensions/NavigationItem {
 	public final fun getId ()Ljava/lang/String;
 	public final fun getOrder ()I
 	public final fun getTitle ()Ljava/lang/String;
+	public final fun getTooltipTag ()Ljava/lang/String;
 	public fun hashCode ()I
 	public final fun isEnabled ()Z
 	public final fun isVisible ()Z
@@ -764,15 +778,17 @@ public final class com/itsaky/androidide/plugins/extensions/PluginBuildAction {
 }
 
 public final class com/itsaky/androidide/plugins/extensions/PluginTooltipButton {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;I)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;IZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;IZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()I
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;I)Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;
-	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;Ljava/lang/String;Ljava/lang/String;IILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;
+	public final fun component4 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;IZ)Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;Ljava/lang/String;Ljava/lang/String;IZILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDescription ()Ljava/lang/String;
+	public final fun getDirectPath ()Z
 	public final fun getOrder ()I
 	public final fun getUri ()Ljava/lang/String;
 	public fun hashCode ()I
@@ -936,21 +952,23 @@ public abstract interface class com/itsaky/androidide/plugins/extensions/SyntaxH
 }
 
 public final class com/itsaky/androidide/plugins/extensions/TabItem {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZI)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Lkotlin/jvm/functions/Function0;
 	public final fun component4 ()Z
 	public final fun component5 ()Z
 	public final fun component6 ()I
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZI)Lcom/itsaky/androidide/plugins/extensions/TabItem;
-	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/TabItem;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZIILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/TabItem;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/TabItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/TabItem;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/TabItem;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getFragmentFactory ()Lkotlin/jvm/functions/Function0;
 	public final fun getId ()Ljava/lang/String;
 	public final fun getOrder ()I
 	public final fun getTitle ()Ljava/lang/String;
+	public final fun getTooltipTag ()Ljava/lang/String;
 	public fun hashCode ()I
 	public final fun isEnabled ()Z
 	public final fun isVisible ()Z
