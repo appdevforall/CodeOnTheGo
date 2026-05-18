@@ -21,6 +21,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.lifecycle.lifecycleScope
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
+import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.transition.TransitionManager
 import com.itsaky.androidide.R
@@ -60,18 +61,29 @@ class TemplateDetailsFragment :
 
     private val viewModel by activityViewModel<MainViewModel>()
     private var widgetsBindJob: Job? = null
+    private var hasReachedFormEnd = false
+    private var lastViewportWidth = -1
+    private var lastViewportHeight = -1
+
+    private val widgetsScrollListener = object : RecyclerView.OnScrollListener() {
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            super.onScrolled(recyclerView, dx, dy)
+            maybeUnlockProjectCreation(recyclerView)
+        }
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
         viewModel.template.observe(viewLifecycleOwner) {
             binding.widgets.adapter = null
+            resetProjectCreationGate()
             viewModel.postTransition(viewLifecycleOwner) { bindWithTemplate(it) }
         }
 
         viewModel.creatingProject.observe(viewLifecycleOwner) {
             TransitionManager.beginDelayedTransition(binding.root)
-            binding.finish.isEnabled = !it
+            updateFinishEnabledState()
             binding.previous.isEnabled = !it
         }
 
@@ -90,6 +102,11 @@ class TemplateDetailsFragment :
         }
 
         binding.finish.setOnClickListener {
+            if (!hasReachedFormEnd) {
+                flashError(string.msg_scroll_to_end_before_create_project)
+                return@setOnClickListener
+            }
+
             viewModel.creatingProject.value = true
             val template = viewModel.template.value ?: run {
                 viewModel.setScreen(MainViewModel.SCREEN_MAIN)
@@ -154,6 +171,7 @@ class TemplateDetailsFragment :
         }
 
         binding.widgets.layoutManager = LinearLayoutManager(requireContext())
+        binding.widgets.addOnScrollListener(widgetsScrollListener)
 
         binding.title.setOnLongClickListener {
             TooltipManager.showIdeCategoryTooltip(
@@ -183,6 +201,43 @@ class TemplateDetailsFragment :
             }
             _binding ?: return@launch
             binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
+            binding.widgets.post {
+                maybeUnlockProjectCreation(binding.widgets)
+            }
         }
     }
+
+    private fun resetProjectCreationGate() {
+        hasReachedFormEnd = false
+        lastViewportWidth = -1
+        lastViewportHeight = -1
+        updateFinishEnabledState()
+    }
+
+    private fun maybeUnlockProjectCreation(recyclerView: RecyclerView) {
+        if (hasReachedFormEnd) {
+            return
+        }
+
+        if (isLastFormItemVisible(recyclerView)) {
+            hasReachedFormEnd = true
+            updateFinishEnabledState()
+        }
+    }
+
+    private fun isLastFormItemVisible(recyclerView: RecyclerView): Boolean {
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return false
+        val lastIndex = (recyclerView.adapter?.itemCount ?: 0) - 1
+        if (lastIndex < 0) {
+            return false
+        }
+
+        return layoutManager.findLastVisibleItemPosition() >= lastIndex
+    }
+
+    private fun updateFinishEnabledState() {
+        binding.finish.isEnabled = !viewModel.creatingProject.value.orFalse()
+    }
+
+    private fun Boolean?.orFalse(): Boolean = this ?: false
 }

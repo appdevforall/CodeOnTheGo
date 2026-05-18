@@ -229,6 +229,7 @@
 	<string name="view_search_results">Search Results</string>
 	<string name="project_created_successfully">Project created successfully!</string>
 	<string name="project_creation_failed">Failed to create project</string>
+	<string name="msg_scroll_to_end_before_create_project">Scroll to the end of the project setup before creating the project.</string>
 	<string name="msg_folder_creation_failed">Failed to create folder</string>
 	<string name="msg_file_creation_failed">Failed to create file</string>
 	<string name="msg_layout_file_creation_failed">Failed to create layout file</string>
