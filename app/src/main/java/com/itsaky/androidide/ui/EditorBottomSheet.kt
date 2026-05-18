@@ -159,9 +159,10 @@ constructor(
 				tab.view.setOnLongClickListener { view ->
 					val tooltipTag =
 						pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
-					TooltipManager.showIdeCategoryTooltip(
+					TooltipManager.showTooltip(
 						context = context,
 						anchorView = view,
+						category = pagerAdapter.getTooltipCategory(position),
 						tag = tooltipTag,
 					)
 					true
@@ -338,7 +339,8 @@ constructor(
 	 */
 	fun setImeVisible(isVisible: Boolean) {
 		isImeVisible = isVisible
-		behavior.isGestureInsetBottomIgnored = isVisible
+		behavior.isGestureInsetBottomIgnored = true
+        behavior.peekHeight = if (isVisible) 0 else collapsedHeight.toInt()
 	}
 
 	fun setOffsetAnchor(view: View) {
@@ -350,7 +352,7 @@ constructor(
 
 					behavior.peekHeight = collapsedHeight.roundToInt()
 					behavior.expandedOffset = anchorOffset
-					behavior.isGestureInsetBottomIgnored = isImeVisible
+					behavior.isGestureInsetBottomIgnored = true
 
 					binding.root.updatePadding(bottom = anchorOffset + insetBottom)
 					binding.headerContainer.apply {

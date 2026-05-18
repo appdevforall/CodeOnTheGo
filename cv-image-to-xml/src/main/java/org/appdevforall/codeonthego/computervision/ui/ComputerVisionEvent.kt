@@ -12,4 +12,7 @@ sealed class ComputerVisionEvent {
     object OpenImagePicker : ComputerVisionEvent()
     object RequestCameraPermission : ComputerVisionEvent()
     data class UpdateGuides(val leftPct: Float, val rightPct: Float) : ComputerVisionEvent()
+    data class ImagePlaceholderTapped(val imageX: Float, val imageY: Float) : ComputerVisionEvent()
+    data class PlaceholderImageSelected(val uri: Uri) : ComputerVisionEvent()
+    data class RemovePlaceholderImage(val placeholderId: String) : ComputerVisionEvent()
 }

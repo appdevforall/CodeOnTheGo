@@ -82,7 +82,7 @@ internal class DirectInheritorsProvider: KtLspService, KotlinDirectInheritorsPro
 		modules
 			.asFlatSequence()
 			.filter { it.isSourceModule }.flatMap { it.computeFiles(extended = true) }
-			.map { index.getKtFile(it) }
+			.mapNotNull { index.getKtFile(it) }
 			.forEach { ktFile ->
 				ktFile.accept(object : KtTreeVisitorVoid() {
 					override fun visitClassOrObject(classOrObject: KtClassOrObject) {

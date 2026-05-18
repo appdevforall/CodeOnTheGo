@@ -145,7 +145,7 @@ internal object EditorSidebarActions {
 
             if (view != null && action != null) {
                 val tag = action.retrieveTooltipTag(false)
-                sidebarFragment.setupTooltip(view, tag)
+                sidebarFragment.setupTooltip(view, tag, action.retrieveTooltipCategory())
             }
         }
 
@@ -254,7 +254,7 @@ internal object EditorSidebarActions {
                 }
 
                 sideMenuItems.forEach { navItem ->
-                    val action = PluginSidebarActionItem(context, navItem, order++, pluginId)
+                    val action = PluginSidebarActionItem(context, navItem, order++, pluginId ?: "")
                     registry.registerAction(action)
                 }
             }

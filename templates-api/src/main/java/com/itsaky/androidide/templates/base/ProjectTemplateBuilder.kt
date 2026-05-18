@@ -17,26 +17,12 @@
 
 package com.itsaky.androidide.templates.base
 
-import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.templates.ModuleTemplate
 import com.itsaky.androidide.templates.ModuleTemplateData
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
-import com.itsaky.androidide.templates.base.root.buildGradleSrcGroovy
-import com.itsaky.androidide.templates.base.root.buildGradleSrcKts
-import com.itsaky.androidide.templates.base.root.buildGradleSrcKtsToml
-import com.itsaky.androidide.templates.base.root.composeTomlFileSrc
-import com.itsaky.androidide.templates.base.root.gradleWrapperProps
-import com.itsaky.androidide.templates.base.root.settingsGradleSrcStr
-import com.itsaky.androidide.templates.base.root.settingsGroovyGradleSrcStr
-import com.itsaky.androidide.templates.base.util.optonallyKts
-import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.transferToStream
-import org.adfa.constants.TOML_FILE_NAME
-import java.io.File
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
+
 
 /**
  * Builder for building project templates.
@@ -45,9 +31,6 @@ import java.util.zip.ZipInputStream
  */
 class ProjectTemplateBuilder : ExecutorDataTemplateBuilder<ProjectTemplateRecipeResult, ProjectTemplateData>() {
 	private var _defModule: ModuleTemplateData? = null
-
-	@PublishedApi
-	internal val defModuleTemplate: ModuleTemplate? = null
 
 	@PublishedApi
 	internal val modules = mutableListOf<ModuleTemplate>()
@@ -63,133 +46,6 @@ class ProjectTemplateBuilder : ExecutorDataTemplateBuilder<ProjectTemplateRecipe
 	fun setDefaultModuleData(data: ModuleTemplateData) {
 		_defModule = data
 	}
-
-	/**
-	 * Get the asset path for base root project template.
-	 *
-	 * @param path The path to the asset.
-	 * @see com.itsaky.androidide.templates.base.baseAsset
-	 */
-	fun baseAsset(path: String) =
-		com.itsaky.androidide.templates.base.util
-			.baseAsset("root", path)
-
-	/**
-	 * Get the `build.gradle[.kts] file for the project.
-	 */
-	fun buildGradleFile(): File = data.buildGradleFile()
-
-	/**
-	 * Writes the `build.gradle[.kts]` file in the project root directory.
-	 */
-	fun buildGradle() {
-		executor.save(buildGradleSrc(), buildGradleFile())
-	}
-
-	/**
-	 * Get the source for `build.gradle[.kts]` files.
-	 */
-	fun buildGradleSrc(): String =
-		if (data.useKts) {
-			if (data.useToml) {
-				buildGradleSrcKtsToml()
-			} else {
-				buildGradleSrcKts()
-			}
-		} else {
-			buildGradleSrcGroovy()
-		}
-
-	/**
-	 * Writes the `settings.gradle[.kts]` file in the project root directory.
-	 */
-	fun settingsGradle() {
-		executor.save(settingsGradleSrc(), settingsGradleFile())
-	}
-
-	/**
-	 * Get the `settings.gradle[.kts]` file for this project.
-	 */
-	fun settingsGradleFile(): File = File(data.projectDir, data.optonallyKts("settings.gradle"))
-
-	/**
-	 * Get the source for `settings.gradle[.kts]`.
-	 */
-	fun settingsGradleSrc(): String = if (data.useKts) settingsGradleSrcStr() else settingsGroovyGradleSrcStr()
-
-	/**
-	 * Writes the `gradle.properties` file in the root project.
-	 */
-	fun gradleProps() {
-		val name = "gradle.properties"
-		val gradleProps = File(data.projectDir, name)
-		executor.copyAsset(baseAsset(name), gradleProps)
-	}
-
-	/**
-	 * Writes/copies the Gradle Wrapper related files in the project directory.
-	 *
-	 */
-	fun gradleWrapper() {
-		ZipInputStream(
-			executor.openAsset(ToolsManager.getCommonAsset("gradle-wrapper.zip")).buffered(),
-		).use { zipIn ->
-			val entriesToCopy =
-				arrayOf("gradlew", "gradle/wrapper/gradle-wrapper.jar")
-
-			var zipEntry: ZipEntry? = zipIn.nextEntry
-			while (zipEntry != null) {
-				if (zipEntry.name in entriesToCopy) {
-					val fileOut = File(data.projectDir, zipEntry.name)
-					fileOut.parentFile!!.mkdirs()
-
-					fileOut.outputStream().buffered().use { outStream ->
-						zipIn.transferToStream(outStream)
-						outStream.flush()
-					}
-				}
-
-				zipEntry = zipIn.nextEntry
-			}
-
-			val gradlew = File(data.projectDir, "gradlew")
-
-			check(gradlew.exists()) {
-				"'$gradlew' does not exist!"
-			}
-		}
-
-		gradleWrapperProps()
-	}
-
-	/**
-	 * Writes the `.gitignore` file in the project directory.
-	 */
-	fun gitignore() {
-		val gitignore = File(data.projectDir, ".gitignore")
-		executor.copyAsset(baseAsset("gitignore"), gitignore)
-	}
-
-	fun tomlFile() {
-		val name = TOML_FILE_NAME
-		val tomlFileDest = File("${data.projectDir}/gradle", name)
-		executor.save(composeTomlFileSrc(), tomlFileDest)
-	}
-
-    fun keystore() {
-        val storeSrc = Environment.KEYSTORE_RELEASE
-        val storeDest = File(data.projectDir, Environment.KEYSTORE_RELEASE_NAME)
-        if (storeSrc.exists()) {
-            executor.copy(storeSrc, storeDest)
-        }
-
-
-        val propsSrc = Environment.KEYSTORE_PROPERTIES
-        val propsDest = File(data.projectDir, Environment.KEYSTORE_PROPERTIES_NAME)
-        if (propsSrc.exists()) {
-            executor.copy(propsSrc, propsDest)
-        }
-    }
 
 	override fun buildInternal(): ProjectTemplate =
 		ProjectTemplate(

@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.computervision.domain
 
+import org.appdevforall.codeonthego.computervision.domain.parser.FuzzyAttributeParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -129,6 +130,30 @@ class FuzzyAttributeParserTest {
         val result = FuzzyAttributeParser.parse(annotation, "Button")
 
         assertEquals("wrap_content", result["android:layout_height"])
+    }
+
+    @Test
+    fun `OCR dimension with trailing zero before dp is normalized`() {
+        val annotation = "height: 1500dp | width: 100dp"
+        val result = FuzzyAttributeParser.parse(annotation, "EditText")
+
+        assertEquals("150dp", result["android:layout_height"])
+    }
+
+    @Test
+    fun `zero padded dimension values are normalized`() {
+        val annotation = "height: 0010dp | width: 100dp"
+        val result = FuzzyAttributeParser.parse(annotation, "EditText")
+
+        assertEquals("10dp", result["android:layout_height"])
+    }
+
+    @Test
+    fun `all zero padded dimension values normalize to zero`() {
+        val annotation = "height: 0000dp | width: 100dp"
+        val result = FuzzyAttributeParser.parse(annotation, "EditText")
+
+        assertEquals("0dp", result["android:layout_height"])
     }
 
     @Test
