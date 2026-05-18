@@ -3,6 +3,7 @@ package com.itsaky.androidide.plugins.manager.loaders
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import com.itsaky.androidide.plugins.PluginApiVersion
 import com.itsaky.androidide.plugins.PluginMetadata
 import java.io.File
 import java.io.InputStreamReader
@@ -27,12 +28,26 @@ data class PluginManifest(
     @SerializedName("main_class")
     val mainClass: String,
     
+    @SerializedName("min_plugin_api_version")
+    val minPluginApiVersion: String? = null,
+
+    @Deprecated(
+        message = "IDE version strings are timestamps and cannot be compared. " +
+            "Use minPluginApiVersion instead. Kept so manifests from existing plugins keep parsing; " +
+            "will be removed in the next major plugin API release.",
+        replaceWith = ReplaceWith("minPluginApiVersion")
+    )
     @SerializedName("min_ide_version")
-    val minIdeVersion: String,
-    
+    val minIdeVersion: String? = null,
+
+    @Deprecated(
+        message = "IDE version strings are timestamps and cannot be compared. Plugin API " +
+            "compatibility is enforced through minPluginApiVersion. Kept so manifests from " +
+            "existing plugins keep parsing; will be removed in the next major plugin API release."
+    )
     @SerializedName("max_ide_version")
     val maxIdeVersion: String? = null,
-    
+
     @SerializedName("permissions")
     val permissions: List<String> = emptyList(),
     
@@ -89,13 +104,15 @@ data class ManifestBuildAction(
     val timeoutMs: Long = 600_000
 )
 
+@Suppress("DEPRECATION")
 fun PluginManifest.toPluginMetadata() = PluginMetadata(
     id = id,
     name = name,
     version = version,
     description = description,
     author = author,
-    minIdeVersion = minIdeVersion,
+    minIdeVersion = minIdeVersion ?: "1.0.0",
+    minPluginApiVersion = minPluginApiVersion ?: PluginApiVersion.CURRENT,
     dependencies = dependencies,
     permissions = permissions
 )

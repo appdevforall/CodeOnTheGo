@@ -28,6 +28,8 @@ import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
 import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
+import com.itsaky.androidide.plugins.manager.security.PluginApiIncompatibleException
+import com.itsaky.androidide.plugins.manager.security.PluginApiVersionChecker
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.context.PluginContextImpl
 import com.itsaky.androidide.plugins.manager.context.PluginLoggerImpl
@@ -394,6 +396,12 @@ class PluginManager private constructor(
                 return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
             }
 
+            PluginApiVersionChecker.requireCompatible(
+                pluginId = manifest.id,
+                required = manifest.minPluginApiVersion ?: "1.0.0",
+                current = PluginApiVersion.CURRENT,
+            )
+
             // Validate sidebar slots BEFORE loading plugin code
             if (manifest.sidebarItems > 0) {
                 val available = SidebarSlotManager.getAvailableSlotsForPlugins()
@@ -514,6 +522,12 @@ class PluginManager private constructor(
 
             activateLoadedPlugin(loadedPlugin)
             Result.success(plugin)
+        } catch (e: PluginApiIncompatibleException) {
+            reservedSlotsPluginId?.let { pluginId ->
+                SidebarSlotManager.releasePluginSlots(pluginId)
+            }
+            logger.error("Plugin API incompatibility for ${file.name}: ${e.message}")
+            Result.failure(e)
         } catch (e: Exception) {
             reservedSlotsPluginId?.let { pluginId ->
                 SidebarSlotManager.releasePluginSlots(pluginId)

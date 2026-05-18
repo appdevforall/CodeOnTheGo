@@ -331,7 +331,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             append("Version: ${plugin.metadata.version}\n")
             append("Author: ${plugin.metadata.author}\n")
             append("Description: ${plugin.metadata.description}\n")
-            append("Min IDE Version: ${plugin.metadata.minIdeVersion}\n")
+            append("Min Plugin API Version: ${plugin.metadata.minPluginApiVersion}\n")
             append("Permissions: ${plugin.metadata.permissions.joinToString(", ")}\n")
         }
 

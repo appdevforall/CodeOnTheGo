@@ -66,6 +66,7 @@ libsu-core = "6.0.0"
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
 spotless = "7.2.1"
+binary-compatibility-validator = "0.18.1"
 fragmentKtx = "1.8.8"
 
 protobuf = "4.32.1"
@@ -332,3 +333,4 @@ rikka-materialthemebuilder = { id = "dev.rikka.tools.materialthemebuilder", vers
 rikka-refine = { id = "dev.rikka.tools.refine", version.ref = "rikka-refine" }
 
 sonarqube = { id = "org.sonarqube", version.ref = "sonarqube" }
+binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binary-compatibility-validator" }

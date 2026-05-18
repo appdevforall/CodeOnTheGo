@@ -31,4 +31,6 @@ dependencies {
 	implementation(libs.brotli4j)
 	implementation(libs.commons.compress)
 	implementation(libs.tukaani.xz)
+
+	testImplementation(libs.tests.junit)
 }

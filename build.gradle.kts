@@ -45,7 +45,21 @@ plugins {
 	alias(libs.plugins.google.protobuf) apply false
 	alias(libs.plugins.spotless)
     alias(libs.plugins.sonarqube)
+    alias(libs.plugins.binary.compatibility.validator)
     id("jacoco")
+}
+
+apiValidation {
+	val pluginApiProjects = setOf("plugin-api")
+	rootProject.subprojects.forEach { subproject ->
+		if (subproject.name !in pluginApiProjects) {
+			ignoredProjects.add(subproject.name)
+		}
+	}
+
+	nonPublicMarkers.add("com.itsaky.androidide.plugins.InternalPluginApi")
+
+	ignoredClasses.add("com.itsaky.androidide.plugins.api.BuildConfig")
 }
 
 jacoco {

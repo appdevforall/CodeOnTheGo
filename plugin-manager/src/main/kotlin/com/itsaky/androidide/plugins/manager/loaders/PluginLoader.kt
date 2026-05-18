@@ -8,6 +8,7 @@ import android.content.res.AssetManager
 import android.content.res.Resources
 import android.os.Build
 import android.util.Log
+import com.itsaky.androidide.plugins.PluginApiVersion
 import dalvik.system.DexClassLoader
 import java.io.File
 import java.util.zip.ZipFile
@@ -240,8 +241,17 @@ class PluginLoader(
             val pluginDescription = metaData.getString("plugin.description") ?: ""
             val pluginAuthor = metaData.getString("plugin.author") ?: ""
             val pluginMainClass = metaData.getString("plugin.main_class") ?: return null
-            val pluginMinIdeVersion = metaData.getString("plugin.min_ide_version") ?: "1.0.0"
+            val pluginMinPluginApiVersion = metaData.getString("plugin.min_plugin_api_version")
+            val pluginMinIdeVersion = metaData.getString("plugin.min_ide_version")
             val pluginMaxIdeVersion = metaData.getString("plugin.max_ide_version")
+            if (pluginMinPluginApiVersion == null && pluginMinIdeVersion != null) {
+                Log.w(
+                    TAG,
+                    "Plugin '$pluginId' declares the deprecated 'plugin.min_ide_version' meta-data. " +
+                        "Migrate to 'plugin.min_plugin_api_version'. The legacy key is not used for " +
+                        "API compatibility checks and will be removed in the next major plugin API release."
+                )
+            }
 
             // Parse permissions
             val permissions = metaData.getString("plugin.permissions")?.split(",")?.map { it.trim() } ?: emptyList()
@@ -255,6 +265,7 @@ class PluginLoader(
             val iconDay = metaData.getString("plugin.icon_day")
             val iconNight = metaData.getString("plugin.icon_night")
 
+            @Suppress("DEPRECATION")
             return PluginManifest(
                 id = pluginId,
                 name = pluginName,
@@ -262,6 +273,7 @@ class PluginLoader(
                 description = pluginDescription,
                 author = pluginAuthor,
                 mainClass = pluginMainClass,
+                minPluginApiVersion = pluginMinPluginApiVersion ?: PluginApiVersion.CURRENT,
                 minIdeVersion = pluginMinIdeVersion,
                 maxIdeVersion = pluginMaxIdeVersion,
                 permissions = permissions,

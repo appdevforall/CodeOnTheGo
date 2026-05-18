@@ -18,11 +18,18 @@ data class PluginMetadata(
     val version: String,
     val description: String,
     val author: String,
+    @Deprecated(
+        message = "IDE version strings are timestamps and cannot be compared. " +
+            "Use minPluginApiVersion instead. Kept for binary compatibility with existing plugins; " +
+            "will be removed in the next major plugin API release.",
+        replaceWith = ReplaceWith("minPluginApiVersion")
+    )
     val minIdeVersion: String,
     val permissions: List<String> = emptyList(),
     val dependencies: List<String> = emptyList(),
     val iconDayPath: String? = null,
-    val iconNightPath: String? = null
+    val iconNightPath: String? = null,
+    val minPluginApiVersion: String = PluginApiVersion.CURRENT
 ) : Parcelable
 
 enum class PluginPermission(val key: String, val description: String) {

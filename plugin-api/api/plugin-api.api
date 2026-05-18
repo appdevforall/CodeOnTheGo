@@ -1,0 +1,1327 @@
+public abstract interface class com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun activate ()Z
+	public abstract fun deactivate ()Z
+	public abstract fun dispose ()V
+	public abstract fun initialize (Lcom/itsaky/androidide/plugins/PluginContext;)Z
+}
+
+public abstract interface annotation class com/itsaky/androidide/plugins/InternalPluginApi : java/lang/annotation/Annotation {
+}
+
+public final class com/itsaky/androidide/plugins/PluginApiVersion {
+	public static final field CURRENT Ljava/lang/String;
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/PluginApiVersion;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/PluginContext {
+	public abstract fun getAndroidContext ()Landroid/content/Context;
+	public abstract fun getEventBus ()Ljava/lang/Object;
+	public abstract fun getLogger ()Lcom/itsaky/androidide/plugins/PluginLogger;
+	public abstract fun getPluginId ()Ljava/lang/String;
+	public abstract fun getResources ()Lcom/itsaky/androidide/plugins/ResourceManager;
+	public abstract fun getServices ()Lcom/itsaky/androidide/plugins/ServiceRegistry;
+}
+
+public final class com/itsaky/androidide/plugins/PluginInfo {
+	public fun <init> (Lcom/itsaky/androidide/plugins/PluginMetadata;ZZLjava/lang/String;)V
+	public synthetic fun <init> (Lcom/itsaky/androidide/plugins/PluginMetadata;ZZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/PluginMetadata;
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (Lcom/itsaky/androidide/plugins/PluginMetadata;ZZLjava/lang/String;)Lcom/itsaky/androidide/plugins/PluginInfo;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/PluginInfo;Lcom/itsaky/androidide/plugins/PluginMetadata;ZZLjava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/PluginInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLoadError ()Ljava/lang/String;
+	public final fun getMetadata ()Lcom/itsaky/androidide/plugins/PluginMetadata;
+	public fun hashCode ()I
+	public final fun isEnabled ()Z
+	public final fun isLoaded ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/PluginLogger {
+	public abstract fun debug (Ljava/lang/String;)V
+	public abstract fun debug (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public abstract fun error (Ljava/lang/String;)V
+	public abstract fun error (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public abstract fun getPluginId ()Ljava/lang/String;
+	public abstract fun info (Ljava/lang/String;)V
+	public abstract fun info (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public abstract fun warn (Ljava/lang/String;)V
+	public abstract fun warn (Ljava/lang/String;Ljava/lang/Throwable;)V
+}
+
+public final class com/itsaky/androidide/plugins/PluginMetadata : android/os/Parcelable {
+	public static final field CREATOR Landroid/os/Parcelable$Creator;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Ljava/lang/String;
+	public final fun component11 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/util/List;
+	public final fun component8 ()Ljava/util/List;
+	public final fun component9 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/PluginMetadata;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/PluginMetadata;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/PluginMetadata;
+	public final fun describeContents ()I
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAuthor ()Ljava/lang/String;
+	public final fun getDependencies ()Ljava/util/List;
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getIconDayPath ()Ljava/lang/String;
+	public final fun getIconNightPath ()Ljava/lang/String;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getMinIdeVersion ()Ljava/lang/String;
+	public final fun getMinPluginApiVersion ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPermissions ()Ljava/util/List;
+	public final fun getVersion ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+	public final fun writeToParcel (Landroid/os/Parcel;I)V
+}
+
+public final class com/itsaky/androidide/plugins/PluginPermission : java/lang/Enum {
+	public static final field FILESYSTEM_READ Lcom/itsaky/androidide/plugins/PluginPermission;
+	public static final field FILESYSTEM_WRITE Lcom/itsaky/androidide/plugins/PluginPermission;
+	public static final field IDE_ENVIRONMENT_WRITE Lcom/itsaky/androidide/plugins/PluginPermission;
+	public static final field IDE_SETTINGS Lcom/itsaky/androidide/plugins/PluginPermission;
+	public static final field NATIVE_CODE Lcom/itsaky/androidide/plugins/PluginPermission;
+	public static final field NETWORK_ACCESS Lcom/itsaky/androidide/plugins/PluginPermission;
+	public static final field PROJECT_STRUCTURE Lcom/itsaky/androidide/plugins/PluginPermission;
+	public static final field SYSTEM_COMMANDS Lcom/itsaky/androidide/plugins/PluginPermission;
+	public final fun getDescription ()Ljava/lang/String;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getKey ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/PluginPermission;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/PluginPermission;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/ResourceManager {
+	public abstract fun getPluginDirectory ()Ljava/io/File;
+	public abstract fun getPluginFile (Ljava/lang/String;)Ljava/io/File;
+	public abstract fun getPluginResource (Ljava/lang/String;)[B
+	public abstract fun openPluginAsset (Ljava/lang/String;)Ljava/io/InputStream;
+	public abstract fun openPluginResource (Ljava/lang/String;)Ljava/io/InputStream;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/ServiceRegistry {
+	public abstract fun get (Ljava/lang/Class;)Ljava/lang/Object;
+	public abstract fun getAll (Ljava/lang/Class;)Ljava/util/List;
+	public abstract fun register (Ljava/lang/Class;Ljava/lang/Object;)V
+	public abstract fun unregister (Ljava/lang/Class;)V
+}
+
+public final class com/itsaky/androidide/plugins/base/PluginFragmentHelper {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/base/PluginFragmentHelper;
+	public static final fun clearAllContexts ()V
+	public static final fun getCurrentActivityContext (Ljava/lang/String;)Landroid/content/Context;
+	public static final fun getCurrentActivityTheme (Ljava/lang/String;)Landroid/content/res/Resources$Theme;
+	public static final fun getPluginContext (Ljava/lang/String;)Landroid/content/Context;
+	public static final fun getPluginInflater (Ljava/lang/String;Landroid/view/LayoutInflater;)Landroid/view/LayoutInflater;
+	public static final fun getServiceRegistry (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/ServiceRegistry;
+	public static final fun registerPluginContext (Ljava/lang/String;Landroid/content/Context;)V
+	public static final fun registerPluginContext (Ljava/lang/String;Landroid/content/Context;Z)V
+	public static synthetic fun registerPluginContext$default (Ljava/lang/String;Landroid/content/Context;ZILjava/lang/Object;)V
+	public static final fun registerServiceRegistry (Ljava/lang/String;Lcom/itsaky/androidide/plugins/ServiceRegistry;)V
+	public static final fun unregisterPluginContext (Ljava/lang/String;)V
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ArtifactType : java/lang/Enum {
+	public static final field AAR Lcom/itsaky/androidide/plugins/extensions/ArtifactType;
+	public static final field APK Lcom/itsaky/androidide/plugins/extensions/ArtifactType;
+	public static final field BUNDLE Lcom/itsaky/androidide/plugins/extensions/ArtifactType;
+	public static final field JAR Lcom/itsaky/androidide/plugins/extensions/ArtifactType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/ArtifactType;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/ArtifactType;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/BuildAction {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Z
+	public final fun component6 ()Lkotlin/jvm/functions/Function2;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lcom/itsaky/androidide/plugins/extensions/BuildAction;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/BuildAction;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/BuildAction;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getExecute ()Lkotlin/jvm/functions/Function2;
+	public final fun getIcon ()Ljava/lang/String;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isAsync ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/BuildActionCategory : java/lang/Enum {
+	public static final field BUILD Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+	public static final field CUSTOM Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+	public static final field DEPLOY Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+	public static final field LINT Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+	public static final field TEST Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/BuildActionExtension : com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun getBuildActions ()Ljava/util/List;
+	public fun onActionCompleted (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CommandResult;)V
+	public fun onActionStarted (Ljava/lang/String;)V
+	public fun toolbarActionsToHide ()Ljava/util/Set;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/BuildActionExtension$DefaultImpls {
+	public static fun onActionCompleted (Lcom/itsaky/androidide/plugins/extensions/BuildActionExtension;Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CommandResult;)V
+	public static fun onActionStarted (Lcom/itsaky/androidide/plugins/extensions/BuildActionExtension;Ljava/lang/String;)V
+	public static fun toolbarActionsToHide (Lcom/itsaky/androidide/plugins/extensions/BuildActionExtension;)Ljava/util/Set;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/BuildArtifact {
+	public fun <init> (Ljava/lang/String;Ljava/io/File;Lcom/itsaky/androidide/plugins/extensions/ArtifactType;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/io/File;
+	public final fun component3 ()Lcom/itsaky/androidide/plugins/extensions/ArtifactType;
+	public final fun copy (Ljava/lang/String;Ljava/io/File;Lcom/itsaky/androidide/plugins/extensions/ArtifactType;)Lcom/itsaky/androidide/plugins/extensions/BuildArtifact;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/BuildArtifact;Ljava/lang/String;Ljava/io/File;Lcom/itsaky/androidide/plugins/extensions/ArtifactType;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/BuildArtifact;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPath ()Ljava/io/File;
+	public final fun getType ()Lcom/itsaky/androidide/plugins/extensions/ArtifactType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/BuildResult {
+	public fun <init> (ZLjava/lang/String;Ljava/util/List;J)V
+	public synthetic fun <init> (ZLjava/lang/String;Ljava/util/List;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()J
+	public final fun copy (ZLjava/lang/String;Ljava/util/List;J)Lcom/itsaky/androidide/plugins/extensions/BuildResult;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/BuildResult;ZLjava/lang/String;Ljava/util/List;JILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/BuildResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArtifacts ()Ljava/util/List;
+	public final fun getDuration ()J
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getSuccess ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CodeAction {
+	public fun <init> (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;ZLkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;ZLkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public final fun component3 ()Z
+	public final fun component4 ()Lkotlin/jvm/functions/Function0;
+	public final fun copy (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;ZLkotlin/jvm/functions/Function0;)Lcom/itsaky/androidide/plugins/extensions/CodeAction;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CodeAction;Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;ZLkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CodeAction;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExecute ()Lkotlin/jvm/functions/Function0;
+	public final fun getKind ()Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isPreferred ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CodeActionContext {
+	public fun <init> (Lcom/itsaky/androidide/plugins/extensions/TextDocument;Lcom/itsaky/androidide/plugins/extensions/TextRange;Ljava/util/List;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/extensions/TextDocument;
+	public final fun component2 ()Lcom/itsaky/androidide/plugins/extensions/TextRange;
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Lcom/itsaky/androidide/plugins/extensions/TextDocument;Lcom/itsaky/androidide/plugins/extensions/TextRange;Ljava/util/List;)Lcom/itsaky/androidide/plugins/extensions/CodeActionContext;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CodeActionContext;Lcom/itsaky/androidide/plugins/extensions/TextDocument;Lcom/itsaky/androidide/plugins/extensions/TextRange;Ljava/util/List;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CodeActionContext;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDiagnostics ()Ljava/util/List;
+	public final fun getDocument ()Lcom/itsaky/androidide/plugins/extensions/TextDocument;
+	public final fun getRange ()Lcom/itsaky/androidide/plugins/extensions/TextRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CodeActionKind : java/lang/Enum {
+	public static final field QUICK_FIX Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public static final field REFACTOR Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public static final field REFACTOR_EXTRACT Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public static final field REFACTOR_INLINE Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public static final field REFACTOR_REWRITE Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public static final field SOURCE Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public static final field SOURCE_ORGANIZE_IMPORTS Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/CodeActionKind;
+}
+
+public abstract class com/itsaky/androidide/plugins/extensions/CommandOutput {
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CommandOutput$ExitCode : com/itsaky/androidide/plugins/extensions/CommandOutput {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/itsaky/androidide/plugins/extensions/CommandOutput$ExitCode;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CommandOutput$ExitCode;IILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CommandOutput$ExitCode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCode ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CommandOutput$StdErr : com/itsaky/androidide/plugins/extensions/CommandOutput {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/CommandOutput$StdErr;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CommandOutput$StdErr;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CommandOutput$StdErr;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLine ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CommandOutput$StdOut : com/itsaky/androidide/plugins/extensions/CommandOutput {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/CommandOutput$StdOut;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CommandOutput$StdOut;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CommandOutput$StdOut;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLine ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class com/itsaky/androidide/plugins/extensions/CommandResult {
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CommandResult$Cancelled : com/itsaky/androidide/plugins/extensions/CommandResult {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/CommandResult$Cancelled;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CommandResult$Cancelled;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CommandResult$Cancelled;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPartialStderr ()Ljava/lang/String;
+	public final fun getPartialStdout ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CommandResult$Failure : com/itsaky/androidide/plugins/extensions/CommandResult {
+	public fun <init> (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;J)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()J
+	public final fun copy (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Lcom/itsaky/androidide/plugins/extensions/CommandResult$Failure;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CommandResult$Failure;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;JILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CommandResult$Failure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDurationMs ()J
+	public final fun getError ()Ljava/lang/String;
+	public final fun getExitCode ()I
+	public final fun getStderr ()Ljava/lang/String;
+	public final fun getStdout ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CommandResult$Success : com/itsaky/androidide/plugins/extensions/CommandResult {
+	public fun <init> (ILjava/lang/String;Ljava/lang/String;J)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()J
+	public final fun copy (ILjava/lang/String;Ljava/lang/String;J)Lcom/itsaky/androidide/plugins/extensions/CommandResult$Success;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CommandResult$Success;ILjava/lang/String;Ljava/lang/String;JILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CommandResult$Success;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDurationMs ()J
+	public final fun getExitCode ()I
+	public final fun getStderr ()Ljava/lang/String;
+	public final fun getStdout ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class com/itsaky/androidide/plugins/extensions/CommandSpec {
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CommandSpec$GradleTask : com/itsaky/androidide/plugins/extensions/CommandSpec {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;)Lcom/itsaky/androidide/plugins/extensions/CommandSpec$GradleTask;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CommandSpec$GradleTask;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CommandSpec$GradleTask;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArguments ()Ljava/util/List;
+	public final fun getTaskPath ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CommandSpec$ShellCommand : com/itsaky/androidide/plugins/extensions/CommandSpec {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/util/Map;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/Map;)Lcom/itsaky/androidide/plugins/extensions/CommandSpec$ShellCommand;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CommandSpec$ShellCommand;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CommandSpec$ShellCommand;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArguments ()Ljava/util/List;
+	public final fun getEnvironment ()Ljava/util/Map;
+	public final fun getExecutable ()Ljava/lang/String;
+	public final fun getWorkingDirectory ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CompletionContext {
+	public fun <init> (Lcom/itsaky/androidide/plugins/extensions/TextDocument;Lcom/itsaky/androidide/plugins/extensions/Position;Ljava/lang/String;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/extensions/TextDocument;
+	public final fun component2 ()Lcom/itsaky/androidide/plugins/extensions/Position;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Lcom/itsaky/androidide/plugins/extensions/TextDocument;Lcom/itsaky/androidide/plugins/extensions/Position;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/CompletionContext;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CompletionContext;Lcom/itsaky/androidide/plugins/extensions/TextDocument;Lcom/itsaky/androidide/plugins/extensions/Position;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CompletionContext;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDocument ()Lcom/itsaky/androidide/plugins/extensions/TextDocument;
+	public final fun getPosition ()Lcom/itsaky/androidide/plugins/extensions/Position;
+	public final fun getTriggerCharacter ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CompletionItem {
+	public fun <init> (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/CompletionItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/CompletionItem;Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/CompletionItem;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public final fun getDocumentation ()Ljava/lang/String;
+	public final fun getInsertText ()Ljava/lang/String;
+	public final fun getKind ()Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public final fun getLabel ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/CompletionItemKind : java/lang/Enum {
+	public static final field CLASS Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field COLOR Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field CONSTRUCTOR Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field ENUM Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field FIELD Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field FILE Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field FUNCTION Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field INTERFACE Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field KEYWORD Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field METHOD Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field MODULE Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field PROPERTY Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field REFERENCE Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field SNIPPET Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field TEXT Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field UNIT Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field VALUE Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static final field VARIABLE Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/CompletionItemKind;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ContextMenuContext {
+	public fun <init> (Ljava/io/File;Ljava/lang/String;Ljava/lang/Integer;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/lang/String;Ljava/lang/Integer;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/io/File;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Ljava/util/Map;
+	public final fun copy (Ljava/io/File;Ljava/lang/String;Ljava/lang/Integer;Ljava/util/Map;)Lcom/itsaky/androidide/plugins/extensions/ContextMenuContext;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/ContextMenuContext;Ljava/io/File;Ljava/lang/String;Ljava/lang/Integer;Ljava/util/Map;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/ContextMenuContext;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdditionalData ()Ljava/util/Map;
+	public final fun getCursorPosition ()Ljava/lang/Integer;
+	public final fun getFile ()Ljava/io/File;
+	public final fun getSelectedText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/Diagnostic {
+	public fun <init> (Lcom/itsaky/androidide/plugins/extensions/TextRange;Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;Ljava/lang/String;)V
+	public synthetic fun <init> (Lcom/itsaky/androidide/plugins/extensions/TextRange;Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/extensions/TextRange;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (Lcom/itsaky/androidide/plugins/extensions/TextRange;Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/Diagnostic;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/Diagnostic;Lcom/itsaky/androidide/plugins/extensions/TextRange;Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/Diagnostic;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCode ()Ljava/lang/String;
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getRange ()Lcom/itsaky/androidide/plugins/extensions/TextRange;
+	public final fun getSeverity ()Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/DiagnosticSeverity : java/lang/Enum {
+	public static final field ERROR Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;
+	public static final field HINT Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;
+	public static final field INFORMATION Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;
+	public static final field WARNING Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/DiagnosticSeverity;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/DocumentationExtension : com/itsaky/androidide/plugins/IPlugin {
+	public fun getTier3DocsAssetPath ()Ljava/lang/String;
+	public abstract fun getTooltipCategory ()Ljava/lang/String;
+	public abstract fun getTooltipEntries ()Ljava/util/List;
+	public fun onDocumentationInstall ()Z
+	public fun onDocumentationUninstall ()V
+}
+
+public final class com/itsaky/androidide/plugins/extensions/DocumentationExtension$DefaultImpls {
+	public static fun getTier3DocsAssetPath (Lcom/itsaky/androidide/plugins/extensions/DocumentationExtension;)Ljava/lang/String;
+	public static fun onDocumentationInstall (Lcom/itsaky/androidide/plugins/extensions/DocumentationExtension;)Z
+	public static fun onDocumentationUninstall (Lcom/itsaky/androidide/plugins/extensions/DocumentationExtension;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/EditorExtension : com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun provideCodeActions (Lcom/itsaky/androidide/plugins/extensions/CodeActionContext;)Ljava/util/List;
+	public abstract fun provideCompletionItems (Lcom/itsaky/androidide/plugins/extensions/CompletionContext;)Ljava/util/List;
+	public abstract fun provideHover (Lcom/itsaky/androidide/plugins/extensions/TextPosition;)Lcom/itsaky/androidide/plugins/extensions/HoverInfo;
+	public abstract fun provideSyntaxHighlighting ()Lcom/itsaky/androidide/plugins/extensions/SyntaxHighlighter;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/EditorTabExtension : com/itsaky/androidide/plugins/IPlugin {
+	public fun canCloseEditorTab (Ljava/lang/String;)Z
+	public fun getMainEditorTabs ()Ljava/util/List;
+	public fun onEditorTabClosed (Ljava/lang/String;)V
+	public fun onEditorTabSelected (Ljava/lang/String;Landroidx/fragment/app/Fragment;)V
+}
+
+public final class com/itsaky/androidide/plugins/extensions/EditorTabExtension$DefaultImpls {
+	public static fun canCloseEditorTab (Lcom/itsaky/androidide/plugins/extensions/EditorTabExtension;Ljava/lang/String;)Z
+	public static fun getMainEditorTabs (Lcom/itsaky/androidide/plugins/extensions/EditorTabExtension;)Ljava/util/List;
+	public static fun onEditorTabClosed (Lcom/itsaky/androidide/plugins/extensions/EditorTabExtension;Ljava/lang/String;)V
+	public static fun onEditorTabSelected (Lcom/itsaky/androidide/plugins/extensions/EditorTabExtension;Ljava/lang/String;Landroidx/fragment/app/Fragment;)V
+}
+
+public final class com/itsaky/androidide/plugins/extensions/EditorTabItem {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lkotlin/jvm/functions/Function0;ZZIZZLjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lkotlin/jvm/functions/Function0;ZZIZZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Lkotlin/jvm/functions/Function0;
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun component7 ()I
+	public final fun component8 ()Z
+	public final fun component9 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lkotlin/jvm/functions/Function0;ZZIZZLjava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/EditorTabItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/EditorTabItem;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lkotlin/jvm/functions/Function0;ZZIZZLjava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/EditorTabItem;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFragmentFactory ()Lkotlin/jvm/functions/Function0;
+	public final fun getIcon ()Ljava/lang/Integer;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getOrder ()I
+	public final fun getTitle ()Ljava/lang/String;
+	public final fun getTooltip ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isCloseable ()Z
+	public final fun isEnabled ()Z
+	public final fun isPersistent ()Z
+	public final fun isVisible ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/FabAction {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZZLkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZZLkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun component7 ()Lkotlin/jvm/functions/Function0;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZZLkotlin/jvm/functions/Function0;)Lcom/itsaky/androidide/plugins/extensions/FabAction;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/FabAction;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZZLkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/FabAction;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAction ()Lkotlin/jvm/functions/Function0;
+	public final fun getContentDescription ()Ljava/lang/String;
+	public final fun getIcon ()I
+	public final fun getId ()Ljava/lang/String;
+	public final fun getScreenId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isEnabled ()Z
+	public final fun isVisible ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/FileOpenExtension : com/itsaky/androidide/plugins/IPlugin {
+	public fun canHandleFileOpen (Ljava/io/File;)Z
+	public fun getFileTabMenuItems (Ljava/io/File;)Ljava/util/List;
+	public fun handleFileOpen (Ljava/io/File;)Z
+	public fun onFileClosed (Ljava/io/File;)V
+	public fun onFileOpened (Ljava/io/File;)V
+}
+
+public final class com/itsaky/androidide/plugins/extensions/FileOpenExtension$DefaultImpls {
+	public static fun canHandleFileOpen (Lcom/itsaky/androidide/plugins/extensions/FileOpenExtension;Ljava/io/File;)Z
+	public static fun getFileTabMenuItems (Lcom/itsaky/androidide/plugins/extensions/FileOpenExtension;Ljava/io/File;)Ljava/util/List;
+	public static fun handleFileOpen (Lcom/itsaky/androidide/plugins/extensions/FileOpenExtension;Ljava/io/File;)Z
+	public static fun onFileClosed (Lcom/itsaky/androidide/plugins/extensions/FileOpenExtension;Ljava/io/File;)V
+	public static fun onFileOpened (Lcom/itsaky/androidide/plugins/extensions/FileOpenExtension;Ljava/io/File;)V
+}
+
+public final class com/itsaky/androidide/plugins/extensions/FileTabMenuItem {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZILkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZILkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Z
+	public final fun component5 ()Z
+	public final fun component6 ()I
+	public final fun component7 ()Lkotlin/jvm/functions/Function0;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZILkotlin/jvm/functions/Function0;)Lcom/itsaky/androidide/plugins/extensions/FileTabMenuItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/FileTabMenuItem;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZILkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/FileTabMenuItem;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAction ()Lkotlin/jvm/functions/Function0;
+	public final fun getIcon ()Ljava/lang/Integer;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getOrder ()I
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isEnabled ()Z
+	public final fun isVisible ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/HighlightRegion {
+	public fun <init> (IILcom/itsaky/androidide/plugins/extensions/HighlightType;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public final fun copy (IILcom/itsaky/androidide/plugins/extensions/HighlightType;)Lcom/itsaky/androidide/plugins/extensions/HighlightRegion;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/HighlightRegion;IILcom/itsaky/androidide/plugins/extensions/HighlightType;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/HighlightRegion;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEnd ()I
+	public final fun getStart ()I
+	public final fun getType ()Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/HighlightType : java/lang/Enum {
+	public static final field COMMENT Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static final field FUNCTION Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static final field IDENTIFIER Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static final field KEYWORD Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static final field NUMBER Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static final field OPERATOR Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static final field PARAMETER Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static final field STRING Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static final field TYPE Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/HighlightType;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/HoverInfo {
+	public fun <init> (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/TextRange;)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/TextRange;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lcom/itsaky/androidide/plugins/extensions/TextRange;
+	public final fun copy (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/TextRange;)Lcom/itsaky/androidide/plugins/extensions/HoverInfo;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/HoverInfo;Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/TextRange;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/HoverInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getContents ()Ljava/lang/String;
+	public final fun getRange ()Lcom/itsaky/androidide/plugins/extensions/TextRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/IModule {
+	public abstract fun getName ()Ljava/lang/String;
+	public abstract fun getProjectDir ()Ljava/io/File;
+	public abstract fun getSourceSets ()Ljava/util/List;
+	public abstract fun getType ()Lcom/itsaky/androidide/plugins/extensions/ModuleType;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/IProject {
+	public abstract fun getBuildFiles ()Ljava/util/List;
+	public abstract fun getModules ()Ljava/util/List;
+	public abstract fun getName ()Ljava/lang/String;
+	public abstract fun getRootDir ()Ljava/io/File;
+	public abstract fun getType ()Lcom/itsaky/androidide/plugins/extensions/ProjectType;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/MenuItem {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function0;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Lkotlin/jvm/functions/Function0;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLkotlin/jvm/functions/Function0;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/util/List;
+	public final fun component7 ()Lkotlin/jvm/functions/Function0;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;)Lcom/itsaky/androidide/plugins/extensions/MenuItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/MenuItem;Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/MenuItem;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAction ()Lkotlin/jvm/functions/Function0;
+	public final fun getIcon ()Ljava/lang/Integer;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getShortcut ()Ljava/lang/String;
+	public final fun getSubItems ()Ljava/util/List;
+	public final fun getTitle ()Ljava/lang/String;
+	public final fun getTooltipTag ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isEnabled ()Z
+	public final fun isVisible ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ModuleType : java/lang/Enum {
+	public static final field ANDROID_APP Lcom/itsaky/androidide/plugins/extensions/ModuleType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/ModuleType;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/ModuleType;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/NavigationItem {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Z
+	public final fun component5 ()Z
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()I
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Lkotlin/jvm/functions/Function0;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;)Lcom/itsaky/androidide/plugins/extensions/NavigationItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/NavigationItem;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/NavigationItem;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAction ()Lkotlin/jvm/functions/Function0;
+	public final fun getGroup ()Ljava/lang/String;
+	public final fun getIcon ()Ljava/lang/Integer;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getOrder ()I
+	public final fun getTitle ()Ljava/lang/String;
+	public final fun getTooltipTag ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isEnabled ()Z
+	public final fun isVisible ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/PluginBuildAction {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;Lcom/itsaky/androidide/plugins/extensions/CommandSpec;J)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;Lcom/itsaky/androidide/plugins/extensions/CommandSpec;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/Integer;
+	public final fun component5 ()Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+	public final fun component6 ()Lcom/itsaky/androidide/plugins/extensions/CommandSpec;
+	public final fun component7 ()J
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;Lcom/itsaky/androidide/plugins/extensions/CommandSpec;J)Lcom/itsaky/androidide/plugins/extensions/PluginBuildAction;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/PluginBuildAction;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;Lcom/itsaky/androidide/plugins/extensions/CommandSpec;JILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/PluginBuildAction;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCategory ()Lcom/itsaky/androidide/plugins/extensions/BuildActionCategory;
+	public final fun getCommand ()Lcom/itsaky/androidide/plugins/extensions/CommandSpec;
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getIcon ()Ljava/lang/Integer;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getTimeoutMs ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/PluginTooltipButton {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;IZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;IZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;IZ)Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;Ljava/lang/String;Ljava/lang/String;IZILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/PluginTooltipButton;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getDirectPath ()Z
+	public final fun getOrder ()I
+	public final fun getUri ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/PluginTooltipEntry {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lcom/itsaky/androidide/plugins/extensions/PluginTooltipEntry;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/PluginTooltipEntry;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/PluginTooltipEntry;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getButtons ()Ljava/util/List;
+	public final fun getDetail ()Ljava/lang/String;
+	public final fun getSummary ()Ljava/lang/String;
+	public final fun getTag ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/Position {
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun copy (II)Lcom/itsaky/androidide/plugins/extensions/Position;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/Position;IIILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/Position;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCharacter ()I
+	public final fun getLine ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ProjectConfig {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/io/File;IILcom/itsaky/androidide/plugins/extensions/ProjectLanguage;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/io/File;IILcom/itsaky/androidide/plugins/extensions/ProjectLanguage;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/io/File;
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+	public final fun component7 ()Ljava/util/Map;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/io/File;IILcom/itsaky/androidide/plugins/extensions/ProjectLanguage;Ljava/util/Map;)Lcom/itsaky/androidide/plugins/extensions/ProjectConfig;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/ProjectConfig;Ljava/lang/String;Ljava/lang/String;Ljava/io/File;IILcom/itsaky/androidide/plugins/extensions/ProjectLanguage;Ljava/util/Map;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/ProjectConfig;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdditionalOptions ()Ljava/util/Map;
+	public final fun getLanguage ()Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+	public final fun getMinSdkVersion ()I
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPackageName ()Ljava/lang/String;
+	public final fun getTargetDir ()Ljava/io/File;
+	public final fun getTargetSdkVersion ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/ProjectExtension : com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun canHandle (Lcom/itsaky/androidide/plugins/extensions/IProject;)Z
+	public abstract fun createProject-gIAlu-s (Lcom/itsaky/androidide/plugins/extensions/ProjectTemplate;Lcom/itsaky/androidide/plugins/extensions/ProjectConfig;)Ljava/lang/Object;
+	public abstract fun getBuildActions ()Ljava/util/List;
+	public abstract fun getProjectTemplates ()Ljava/util/List;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ProjectLanguage : java/lang/Enum {
+	public static final field BOTH Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+	public static final field JAVA Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+	public static final field KOTLIN Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ProjectTemplate {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/Integer;
+	public final fun component7 ()Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;)Lcom/itsaky/androidide/plugins/extensions/ProjectTemplate;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/ProjectTemplate;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/ProjectTemplate;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCategory ()Ljava/lang/String;
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getIcon ()Ljava/lang/String;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getLanguage ()Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
+	public final fun getMinApiLevel ()Ljava/lang/Integer;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ProjectType : java/lang/Enum {
+	public static final field ANDROID_APP Lcom/itsaky/androidide/plugins/extensions/ProjectType;
+	public static final field GRADLE_PLUGIN Lcom/itsaky/androidide/plugins/extensions/ProjectType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/ProjectType;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/ProjectType;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ShowAsAction : java/lang/Enum {
+	public static final field ALWAYS Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+	public static final field COLLAPSE_ACTION_VIEW Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+	public static final field IF_ROOM Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+	public static final field NEVER Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+	public static final field WITH_TEXT Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/SnippetContribution {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lcom/itsaky/androidide/plugins/extensions/SnippetContribution;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/SnippetContribution;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/SnippetContribution;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBody ()Ljava/util/List;
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getLanguage ()Ljava/lang/String;
+	public final fun getPrefix ()Ljava/lang/String;
+	public final fun getScope ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/SnippetExtension : com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun getSnippetContributions ()Ljava/util/List;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/SourceSet {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;Ljava/util/List;)Lcom/itsaky/androidide/plugins/extensions/SourceSet;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/SourceSet;Ljava/lang/String;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/SourceSet;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getResourceDirs ()Ljava/util/List;
+	public final fun getSrcDirs ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/SyntaxHighlighter {
+	public abstract fun highlight (Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/TabItem {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lkotlin/jvm/functions/Function0;
+	public final fun component4 ()Z
+	public final fun component5 ()Z
+	public final fun component6 ()I
+	public final fun component7 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/TabItem;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/TabItem;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/TabItem;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFragmentFactory ()Lkotlin/jvm/functions/Function0;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getOrder ()I
+	public final fun getTitle ()Ljava/lang/String;
+	public final fun getTooltipTag ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isEnabled ()Z
+	public final fun isVisible ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/TextDocument {
+	public abstract fun getLine (I)Ljava/lang/String;
+	public abstract fun getLineCount ()I
+	public abstract fun getText ()Ljava/lang/String;
+	public abstract fun getUri ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/TextPosition {
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun copy (II)Lcom/itsaky/androidide/plugins/extensions/TextPosition;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/TextPosition;IIILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/TextPosition;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getColumn ()I
+	public final fun getLine ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/TextRange {
+	public fun <init> (Lcom/itsaky/androidide/plugins/extensions/Position;Lcom/itsaky/androidide/plugins/extensions/Position;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/extensions/Position;
+	public final fun component2 ()Lcom/itsaky/androidide/plugins/extensions/Position;
+	public final fun copy (Lcom/itsaky/androidide/plugins/extensions/Position;Lcom/itsaky/androidide/plugins/extensions/Position;)Lcom/itsaky/androidide/plugins/extensions/TextRange;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/TextRange;Lcom/itsaky/androidide/plugins/extensions/Position;Lcom/itsaky/androidide/plugins/extensions/Position;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/TextRange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEnd ()Lcom/itsaky/androidide/plugins/extensions/Position;
+	public final fun getStart ()Lcom/itsaky/androidide/plugins/extensions/Position;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ToolbarAction {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;ZZILkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;ZZILkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun component7 ()I
+	public final fun component8 ()Lkotlin/jvm/functions/Function0;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;ZZILkotlin/jvm/functions/Function0;)Lcom/itsaky/androidide/plugins/extensions/ToolbarAction;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/ToolbarAction;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;ZZILkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/ToolbarAction;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAction ()Lkotlin/jvm/functions/Function0;
+	public final fun getIcon ()Ljava/lang/Integer;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getOrder ()I
+	public final fun getShowAsAction ()Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isEnabled ()Z
+	public final fun isVisible ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ToolbarActionIds {
+	public static final field DEBUG Ljava/lang/String;
+	public static final field DISCONNECT_LOG_SENDERS Ljava/lang/String;
+	public static final field FIND Ljava/lang/String;
+	public static final field FIND_IN_FILE Ljava/lang/String;
+	public static final field FIND_IN_PROJECT Ljava/lang/String;
+	public static final field GENERATE_XML Ljava/lang/String;
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/extensions/ToolbarActionIds;
+	public static final field LAUNCH_APP Ljava/lang/String;
+	public static final field PREVIEW_LAYOUT Ljava/lang/String;
+	public static final field PROJECT_SYNC Ljava/lang/String;
+	public static final field QUICK_RUN Ljava/lang/String;
+	public static final field REDO Ljava/lang/String;
+	public static final field RUN_TASKS Ljava/lang/String;
+	public static final field SAVE Ljava/lang/String;
+	public static final field UNDO Ljava/lang/String;
+	public final fun getALL ()Ljava/util/Set;
+	public final fun getBUILD_HIDEABLE ()Ljava/util/Set;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/UIExtension : com/itsaky/androidide/plugins/IPlugin {
+	public fun getContextMenuItems (Lcom/itsaky/androidide/plugins/extensions/ContextMenuContext;)Ljava/util/List;
+	public fun getEditorTabs ()Ljava/util/List;
+	public fun getFabActions ()Ljava/util/List;
+	public fun getMainMenuItems ()Ljava/util/List;
+	public fun getSideMenuItems ()Ljava/util/List;
+	public fun getToolbarActions ()Ljava/util/List;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/UIExtension$DefaultImpls {
+	public static fun getContextMenuItems (Lcom/itsaky/androidide/plugins/extensions/UIExtension;Lcom/itsaky/androidide/plugins/extensions/ContextMenuContext;)Ljava/util/List;
+	public static fun getEditorTabs (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
+	public static fun getFabActions (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
+	public static fun getMainMenuItems (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
+	public static fun getSideMenuItems (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
+	public static fun getToolbarActions (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
+}
+
+public final class com/itsaky/androidide/plugins/services/ArchiveFormat : java/lang/Enum {
+	public static final field GZIP Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
+	public static final field TAR Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
+	public static final field TAR_GZ Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
+	public static final field TAR_XZ Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
+	public static final field XZ Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
+	public static final field ZIP Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/BuildStatusListener {
+	public abstract fun onBuildFailed (Ljava/lang/String;)V
+	public abstract fun onBuildFinished ()V
+	public abstract fun onBuildStarted ()V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/CommandExecution {
+	public abstract fun await (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun cancel ()V
+	public abstract fun getExecutionId ()Ljava/lang/String;
+	public abstract fun getOutput ()Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class com/itsaky/androidide/plugins/services/CursorPosition {
+	public fun <init> (III)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun copy (III)Lcom/itsaky/androidide/plugins/services/CursorPosition;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/CursorPosition;IIIILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/CursorPosition;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getColumn ()I
+	public final fun getIndex ()I
+	public final fun getLine ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class com/itsaky/androidide/plugins/services/ExtractResult {
+}
+
+public final class com/itsaky/androidide/plugins/services/ExtractResult$Failure : com/itsaky/androidide/plugins/services/ExtractResult {
+	public fun <init> (Ljava/lang/Throwable;)V
+	public final fun component1 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/Throwable;)Lcom/itsaky/androidide/plugins/services/ExtractResult$Failure;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/ExtractResult$Failure;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/ExtractResult$Failure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ljava/lang/Throwable;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/ExtractResult$Success : com/itsaky/androidide/plugins/services/ExtractResult {
+	public fun <init> (JI)V
+	public final fun component1 ()J
+	public final fun component2 ()I
+	public final fun copy (JI)Lcom/itsaky/androidide/plugins/services/ExtractResult$Success;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/ExtractResult$Success;JIILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/ExtractResult$Success;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBytesWritten ()J
+	public final fun getFilesExtracted ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/FileChangeListener {
+	public abstract fun onFileChanged (Ljava/io/File;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeArchiveService {
+	public abstract fun extract (Ljava/io/InputStream;Lcom/itsaky/androidide/plugins/services/ArchiveFormat;Ljava/io/File;Lkotlin/jvm/functions/Function2;)Lcom/itsaky/androidide/plugins/services/ExtractResult;
+	public static synthetic fun extract$default (Lcom/itsaky/androidide/plugins/services/IdeArchiveService;Ljava/io/InputStream;Lcom/itsaky/androidide/plugins/services/ArchiveFormat;Ljava/io/File;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/ExtractResult;
+}
+
+public final class com/itsaky/androidide/plugins/services/IdeArchiveService$DefaultImpls {
+	public static synthetic fun extract$default (Lcom/itsaky/androidide/plugins/services/IdeArchiveService;Ljava/io/InputStream;Lcom/itsaky/androidide/plugins/services/ArchiveFormat;Ljava/io/File;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/ExtractResult;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeBuildService {
+	public abstract fun addBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
+	public abstract fun isBuildInProgress ()Z
+	public abstract fun isToolingServerStarted ()Z
+	public abstract fun removeBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeCommandService {
+	public abstract fun cancelCommand (Ljava/lang/String;)Z
+	public abstract fun executeCommand (Lcom/itsaky/androidide/plugins/extensions/CommandSpec;J)Lcom/itsaky/androidide/plugins/services/CommandExecution;
+	public static synthetic fun executeCommand$default (Lcom/itsaky/androidide/plugins/services/IdeCommandService;Lcom/itsaky/androidide/plugins/extensions/CommandSpec;JILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/CommandExecution;
+	public abstract fun getRunningCommandCount ()I
+	public abstract fun isCommandRunning (Ljava/lang/String;)Z
+}
+
+public final class com/itsaky/androidide/plugins/services/IdeCommandService$DefaultImpls {
+	public static synthetic fun executeCommand$default (Lcom/itsaky/androidide/plugins/services/IdeCommandService;Lcom/itsaky/androidide/plugins/extensions/CommandSpec;JILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/CommandExecution;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorService {
+	public abstract fun addFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
+	public abstract fun appendToLine (Ljava/io/File;ILjava/lang/String;)Z
+	public abstract fun deleteLine (Ljava/io/File;I)Z
+	public abstract fun getCurrentCursorPosition ()Lcom/itsaky/androidide/plugins/services/CursorPosition;
+	public abstract fun getCurrentFile ()Ljava/io/File;
+	public abstract fun getCurrentFileContent ()Ljava/lang/String;
+	public abstract fun getCurrentLanguageId ()Ljava/lang/String;
+	public abstract fun getCurrentLineText ()Ljava/lang/String;
+	public abstract fun getCurrentSelection ()Ljava/lang/String;
+	public abstract fun getCurrentSelectionRange ()Lcom/itsaky/androidide/plugins/services/SelectionRange;
+	public abstract fun getFileContent (Ljava/io/File;)Ljava/lang/String;
+	public abstract fun getFileLanguageId (Ljava/io/File;)Ljava/lang/String;
+	public abstract fun getLineCount (Ljava/io/File;)I
+	public abstract fun getLineText (Ljava/io/File;I)Ljava/lang/String;
+	public abstract fun getModifiedFiles ()Ljava/util/List;
+	public abstract fun getOpenFiles ()Ljava/util/List;
+	public abstract fun getWordAtCursor ()Ljava/lang/String;
+	public abstract fun insertLineBefore (Ljava/io/File;ILjava/lang/String;)Z
+	public abstract fun insertTextAtCursor (Ljava/lang/String;)Z
+	public abstract fun isFileModified (Ljava/io/File;)Z
+	public abstract fun isFileOpen (Ljava/io/File;)Z
+	public abstract fun openFile (Ljava/io/File;)Z
+	public abstract fun openFileAt (Ljava/io/File;II)Z
+	public abstract fun prependToLine (Ljava/io/File;ILjava/lang/String;)Z
+	public abstract fun removeFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
+	public abstract fun replaceLine (Ljava/io/File;ILjava/lang/String;)Z
+	public abstract fun replaceRange (Ljava/io/File;Lcom/itsaky/androidide/plugins/services/SelectionRange;Ljava/lang/String;)Z
+	public abstract fun replaceSelection (Ljava/lang/String;)Z
+	public abstract fun saveCurrentFile ()Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorTabService {
+	public abstract fun getAllPluginTabIds ()Ljava/util/List;
+	public abstract fun isPluginTab (Ljava/lang/String;)Z
+	public abstract fun isTabSystemAvailable ()Z
+	public abstract fun selectPluginTab (Ljava/lang/String;)Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeEnvironmentService {
+	public abstract fun getAndroidHomeDirectory ()Ljava/io/File;
+	public abstract fun getIdeHomeDirectory ()Ljava/io/File;
+	public abstract fun getNdkDirectory ()Ljava/io/File;
+	public abstract fun getPluginDataDirectory ()Ljava/io/File;
+	public abstract fun getTmpDirectory ()Ljava/io/File;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeFeatureFlagService {
+	public abstract fun isExperimentsEnabled ()Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeFileService {
+	public abstract fun appendToFile (Ljava/io/File;Ljava/lang/String;)Z
+	public abstract fun delete (Ljava/io/File;)Z
+	public abstract fun insertAfterPattern (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun readFile (Ljava/io/File;)Ljava/lang/String;
+	public abstract fun replaceInFile (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun writeBinary (Ljava/io/File;[B)Z
+	public abstract fun writeFile (Ljava/io/File;Ljava/lang/String;)Z
+	public abstract fun writeStream (Ljava/io/File;Ljava/io/InputStream;)J
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeProjectService {
+	public abstract fun getAllProjects ()Ljava/util/List;
+	public abstract fun getCurrentProject ()Lcom/itsaky/androidide/plugins/extensions/IProject;
+	public abstract fun getProjectByPath (Ljava/io/File;)Lcom/itsaky/androidide/plugins/extensions/IProject;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeSidebarService {
+	public abstract fun canAddSidebarItems (I)Z
+	public abstract fun getAvailableSidebarSlots ()I
+	public abstract fun getCurrentSidebarItemCount ()I
+	public abstract fun getDeclaredSidebarSlots ()I
+	public abstract fun getMaxSidebarItems ()I
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeSnippetService {
+	public abstract fun refreshSnippets (Ljava/lang/String;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeTemplateService {
+	public abstract fun createTemplateBuilder (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public abstract fun getRegisteredTemplates ()Ljava/util/List;
+	public abstract fun isTemplateRegistered (Ljava/lang/String;)Z
+	public abstract fun registerTemplate (Ljava/io/File;)Z
+	public abstract fun reloadTemplates ()V
+	public abstract fun unregisterTemplate (Ljava/lang/String;)Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeThemeService {
+	public abstract fun addThemeChangeListener (Lcom/itsaky/androidide/plugins/services/ThemeChangeListener;)V
+	public abstract fun isDarkMode ()Z
+	public abstract fun removeThemeChangeListener (Lcom/itsaky/androidide/plugins/services/ThemeChangeListener;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeTooltipService {
+	public abstract fun showTooltip (Landroid/view/View;Ljava/lang/String;)V
+	public abstract fun showTooltip (Landroid/view/View;Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeUIService {
+	public abstract fun getCurrentActivity ()Landroid/app/Activity;
+	public abstract fun isUIAvailable ()Z
+}
+
+public final class com/itsaky/androidide/plugins/services/SelectionRange {
+	public fun <init> (IIII)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun copy (IIII)Lcom/itsaky/androidide/plugins/services/SelectionRange;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/SelectionRange;IIIIILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/SelectionRange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEndColumn ()I
+	public final fun getEndLine ()I
+	public final fun getStartColumn ()I
+	public final fun getStartLine ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ThemeChangeListener {
+	public abstract fun onThemeChanged (Z)V
+}
+
+public final class com/itsaky/androidide/plugins/templates/CgtTemplateBuilder {
+	public static final field Companion Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder$Companion;
+	public fun <init> (Ljava/lang/String;)V
+	public final fun addCheckboxParameter (Ljava/lang/String;Ljava/lang/String;Z)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public static synthetic fun addCheckboxParameter$default (Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun addStaticFile (Ljava/lang/String;Ljava/io/InputStream;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun addStaticFile (Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun addStaticFile (Ljava/lang/String;[B)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun addStaticFromAssets (Ljava/lang/String;Ljava/lang/String;Lcom/itsaky/androidide/plugins/PluginContext;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun addTemplateFile (Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun addTemplateFromAssets (Ljava/lang/String;Ljava/lang/String;Lcom/itsaky/androidide/plugins/PluginContext;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun addTextParameter (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public static synthetic fun addTextParameter$default (Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun build (Ljava/io/File;)Ljava/io/File;
+	public final fun defaultSaveLocation (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun description (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun showLanguageOption ()Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun showMinSdkOption ()Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun showPackageNameOption ()Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun thumbnail ([B)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun thumbnailFromAssets (Ljava/lang/String;Lcom/itsaky/androidide/plugins/PluginContext;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun tooltipTag (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+	public final fun version (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/templates/CgtTemplateBuilder;
+}
+
+public final class com/itsaky/androidide/plugins/templates/CgtTemplateBuilder$Companion {
+}
+
