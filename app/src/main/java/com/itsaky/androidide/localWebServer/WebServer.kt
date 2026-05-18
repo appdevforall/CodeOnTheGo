@@ -332,7 +332,7 @@ clientSocket and the catch block logic are updated accordingly.
             }
         }
 
-        // --- DATABASE FETCH ---
+        // Database fetch
         val query = """
             SELECT C.content, CT.value, CT.compression, C.templateId
             FROM   Content C, ContentTypes CT
@@ -341,6 +341,7 @@ clientSocket and the catch block logic are updated accordingly.
         """
         val cursor = database.rawQuery(query, arrayOf(path))
 
+        // Process database fetch
         try {
             if (cursor.count != 1) {
                 return if (cursor.count == 0) sendError(writer, output, 404, "Not Found")
@@ -377,19 +378,14 @@ clientSocket and the catch block logic are updated accordingly.
             // decompressed.
             if (compression == "brotli") {
                 if (!brotliSupported || templateId > 0) {
-                    try {
-                        dbContent =
-                            BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
-                        compression = "none"
-                    } catch (e: Exception) {
-                        return sendError(writer, output, 500, "Internal Server Error 3")
-                    }
+                    dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+                    compression = "none"
                 } else {
                     compression = "br"
                 }
             }
 
-            //TEMPLATE PROCESSING
+            // Process templates
             // Note that templates must fit into a single blob record in the documentation database.
             if (templateId != 0) {
                 if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
@@ -421,19 +417,14 @@ clientSocket and the catch block logic are updated accordingly.
                     }
                 }
 
-                // 2. Decompress Article (Must be raw string for Pebble)
-                // val articleText = dbContent.toString(Charsets.UTF_8)
+                // Load JSON data into a template context Map<> for instantiation
+                val mapper = ObjectMapper()
+                val context: Map<String, Any> = mapper.readValue(dbContent.toString(Charsets.UTF_8), object : TypeReference<Map<String, Any>>() {})
 
-                try {
-                    val mapper = ObjectMapper()
-                    val context: Map<String, Any> = mapper.readValue(dbContent.toString(Charsets.UTF_8), object : TypeReference<Map<String, Any>>() {})
-                    // 3. Render Template
-                    val sw = StringWriter()
-                    compiledTemplate.evaluate(sw, context)
-                    dbContent = sw.toString().toByteArray()
-                } catch (e: Exception) {
-                    throw Exception("Error processing templated file at $path")
-                }
+                // Evaluate template with loaded data and return the output
+                val sw = StringWriter()
+                compiledTemplate.evaluate(sw, context)
+                dbContent = sw.toString().toByteArray()
             }
 
             writer.println("HTTP/1.1 200 OK")
