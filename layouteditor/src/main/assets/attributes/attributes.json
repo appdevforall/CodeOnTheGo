@@ -638,5 +638,101 @@
       "attributeName": "android:measureAllChildren",
       "argumentType": "boolean"
     }
+  ],
+  "com.google.android.material.textfield.TextInputEditText": [
+    {
+      "name": "android:hint",
+      "methodName": "setHint",
+      "className": "text.TextInputEditTextCaller",
+      "attributeName": "android:hint",
+      "argumentType": "text|string"
+    },
+    {
+      "name": "android:inputType",
+      "methodName": "setInputType",
+      "className": "text.TextInputEditTextCaller",
+      "attributeName": "android:inputType",
+      "argumentType": "flag",
+      "arguments": [
+        "date",
+        "datetime",
+        "none",
+        "number",
+        "numberDecimal",
+        "numberSigned",
+        "numberPassword",
+        "phone",
+        "text",
+        "textAutoComplete",
+        "textAutoCorrect",
+        "textCapCharacters",
+        "textCapSentences",
+        "textCapWords",
+        "textEmailAddress",
+        "textEmailSubject",
+        "textEnableTextConversionSuggestions",
+        "textFilter",
+        "textImeMultiLine",
+        "textLongMessage",
+        "textMultiLine",
+        "textNoSuggestions",
+        "textPassword",
+        "textPersonName",
+        "textPhonetic",
+        "textPostalAddress",
+        "textShortMessage",
+        "textUri",
+        "textVisiblePassword",
+        "textWebEditText",
+        "textWebEmailAddress",
+        "textWebPassword",
+        "time"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "android:textColorHint",
+      "methodName": "setHintTextColor",
+      "className": "text.TextInputEditTextCaller",
+      "attributeName": "android:textColorHint",
+      "argumentType": "color"
+    },
+    {
+      "name": "android:singleLine",
+      "methodName": "setSingleLine",
+      "className": "text.TextInputEditTextCaller",
+      "attributeName": "android:singleLine",
+      "argumentType": "boolean"
+    }
+  ],
+  "com.google.android.material.textfield.TextInputLayout": [
+    {
+      "name": "android:hint",
+      "methodName": "setHint",
+      "className": "text.TextInputLayoutCaller",
+      "attributeName": "android:hint",
+      "argumentType": "text|string"
+    },
+    {
+      "name": "app:hintEnabled",
+      "methodName": "setHintEnabled",
+      "className": "text.TextInputLayoutCaller",
+      "attributeName": "app:hintEnabled",
+      "argumentType": "boolean"
+    },
+    {
+      "name": "app:errorEnabled",
+      "methodName": "setErrorEnabled",
+      "className": "text.TextInputLayoutCaller",
+      "attributeName": "app:errorEnabled",
+      "argumentType": "boolean"
+    },
+    {
+      "name": "app:counterEnabled",
+      "methodName": "setCounterEnabled",
+      "className": "text.TextInputLayoutCaller",
+      "attributeName": "app:counterEnabled",
+      "argumentType": "boolean"
+    }
   ]
 }
