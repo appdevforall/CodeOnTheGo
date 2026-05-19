@@ -64,7 +64,7 @@ class WebServer(private val config: ServerConfig) {
     private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
     private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
 
-    private val comtentChunkSize = 1024 * 1024
+    private val contentChunkSize = 1024 * 1024
 
 
     //function to obtain the last modified date of a documentation.db database
@@ -358,12 +358,12 @@ clientSocket and the catch block logic are updated accordingly.
             val templateId = cursor.getInt(3)
 
             // Fragment handling for large content (> 1MB)
-            if (dbContent.size == comtentChunkSize) {
+            if (dbContent.size == contentChunkSize) {
                 val query2 = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
                 var fragmentNumber = 1
                 val combined = ByteArrayOutputStream().apply {write(dbContent)}
                 var dbContent2 = dbContent
-                while (dbContent2.size == comtentChunkSize) {
+                while (dbContent2.size == contentChunkSize) {
                     val path2 = "$path-$fragmentNumber"
                     val cursor2 = database.rawQuery(query2, arrayOf(path2))
                     try {
