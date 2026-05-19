@@ -159,9 +159,10 @@ constructor(
 				tab.view.setOnLongClickListener { view ->
 					val tooltipTag =
 						pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
-					TooltipManager.showIdeCategoryTooltip(
+					TooltipManager.showTooltip(
 						context = context,
 						anchorView = view,
+						category = pagerAdapter.getTooltipCategory(position),
 						tag = tooltipTag,
 					)
 					true

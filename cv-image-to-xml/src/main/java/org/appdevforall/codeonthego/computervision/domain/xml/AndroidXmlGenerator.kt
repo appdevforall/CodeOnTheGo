@@ -1,11 +1,9 @@
 package org.appdevforall.codeonthego.computervision.domain.xml
 
-import org.appdevforall.codeonthego.computervision.domain.LayoutGeometryProcessor
+import org.appdevforall.codeonthego.computervision.domain.LayoutTreeBuilder
 import org.appdevforall.codeonthego.computervision.domain.model.ScaledBox
 
-class AndroidXmlGenerator(
-    private val geometryProcessor: LayoutGeometryProcessor
-) {
+class AndroidXmlGenerator {
     internal fun buildXml(
         boxes: List<ScaledBox>,
         annotations: Map<ScaledBox, String>,
@@ -19,7 +17,7 @@ class AndroidXmlGenerator(
 
         appendHeaders(context, needScroll)
 
-        val layoutItems = geometryProcessor.buildLayoutTree(boxes)
+        val layoutItems = LayoutTreeBuilder.buildLayoutTree(boxes)
         val renderer = LayoutRenderer(context, annotations, selectedImageOverrides = selectedImageOverrides)
 
         layoutItems.forEach { item -> renderer.render(item, "        ") }
