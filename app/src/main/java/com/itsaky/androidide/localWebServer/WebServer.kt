@@ -64,6 +64,8 @@ class WebServer(private val config: ServerConfig) {
     private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
     private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
 
+    private val comtentChunkSize = 1024 * 1024
+
 
     //function to obtain the last modified date of a documentation.db database
     // this is used to see if there is a newer version of the database on the sdcard
@@ -346,7 +348,7 @@ clientSocket and the catch block logic are updated accordingly.
         try {
             if (cursor.count != 1) {
                 return if (cursor.count == 0) sendError(writer, output, 404, "Not Found")
-                else sendError(writer, output, 500, "Corrupt database")
+                else sendError(writer, output, 500, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
             }
 
             cursor.moveToFirst()
@@ -356,34 +358,34 @@ clientSocket and the catch block logic are updated accordingly.
             val templateId = cursor.getInt(3)
 
             // Fragment handling for large content (> 1MB)
-            if (dbContent.size == 1024 * 1024) {
+            if (dbContent.size == comtentChunkSize) {
                 val query2 = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
                 var fragmentNumber = 1
+                val combined = ByteArrayOutputStream().apply {write(dbContent)}
                 var dbContent2 = dbContent
-                while (dbContent2.size == 1024 * 1024) {
+                while (dbContent2.size == comtentChunkSize) {
                     val path2 = "$path-$fragmentNumber"
                     val cursor2 = database.rawQuery(query2, arrayOf(path2))
                     try {
                         if (cursor2.moveToFirst()) {
                             dbContent2 = cursor2.getBlob(0)
-                            dbContent += dbContent2
+                            combined.write(dbContent2)
                             fragmentNumber++
                         } else break
                     } finally { cursor2.close() }
                 }
+                dbContent = combined.toByteArray()
             }
 
             // If a document is stored in brotli form and the client doesn't support that encoding
             // decompress and send that to the client.
             // Pebble templates have to be in string form so the retrieved database content may need to be
             // decompressed.
-            if (compression == "brotli") {
-                if (!brotliSupported || templateId > 0) {
-                    dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
-                    compression = "none"
-                } else {
-                    compression = "br"
-                }
+            if (compression == "brotli" && (!brotliSupported || templateId > 0)) {
+                dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+                compression = "none"
+            } else if (compression == "brotli") {
+                compression = "br"
             }
 
             // If the file is associated with a template, instantiate that template and send the result to the client
@@ -423,29 +425,29 @@ clientSocket and the catch block logic are updated accordingly.
 
             val tQuery = "SELECT content FROM Templates WHERE id = ?"
             val tCursor = database.rawQuery(tQuery, arrayOf(templateId.toString()))
-            if (tCursor.count == 0) {
-                log.debug( "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
-                    templateId,
-                    path,
-                    dbMimeType,
-                    compression
-                )
-                throw Exception("Template ID $templateId not found in the database")
-            } else if (tCursor.count > 1) {
-                log.debug(
-                    "More than one template found, for ID {}, path {}, MIME type {}, compression {}}",
-                    templateId,
-                    path,
-                    dbMimeType,
-                    compression
-                )
-                throw Exception("Template ID $templateId is shared by more than one template")
-            } else {
-                tCursor.use {
-                    if (it.moveToFirst()) {
-                        val templateBlob = it.getBlob(0)
-                        pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
-                    } else {
+            tCursor.use { cursor ->
+                when {
+                    cursor.count == 0 -> {
+                        log.debug(
+                            "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
+                            templateId,
+                            path,
+                            dbMimeType,
+                            compression
+                        )
+                        throw Exception("Template ID $templateId not found in the database")
+                    }
+                    cursor.count > 1 -> {
+                        log.debug(
+                            "More than one template found, for ID {}, path {}, MIME type {}, compression {}}",
+                            templateId,
+                            path,
+                            dbMimeType,
+                            compression
+                        )
+                        throw Exception("Template ID $templateId is shared by more than one template")
+                    }
+                    !cursor.moveToFirst() -> {
                         log.debug(
                             "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
                             templateId,
@@ -454,6 +456,10 @@ clientSocket and the catch block logic are updated accordingly.
                             compression
                         )
                         throw Exception("Template ID $templateId not found in database.")
+                    }
+                    else -> {
+                        val templateBlob = cursor.getBlob(0)
+                        pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
                     }
                 }
             }
