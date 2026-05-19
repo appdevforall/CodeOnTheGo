@@ -150,18 +150,6 @@
 
     </ViewFlipper>
 
-    <com.itsaky.androidide.ui.EditorBottomSheet
-        android:id="@+id/bottom_sheet"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:behavior_hideable="false"
-        app:behavior_peekHeight="@dimen/editor_sheet_collapsed_height"
-        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior" />
-
-    <include
-        android:id="@+id/diagnosticInfo"
-        layout="@layout/layout_diagnostic_info" />
-
     <ImageButton
         android:id="@+id/btn_fullscreen_toggle"
         android:layout_width="48dp"
@@ -174,5 +162,17 @@
         android:src="@drawable/ic_fullscreen"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/desc_enter_fullscreen" />
+
+    <com.itsaky.androidide.ui.EditorBottomSheet
+        android:id="@+id/bottom_sheet"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:behavior_hideable="false"
+        app:behavior_peekHeight="@dimen/editor_sheet_collapsed_height"
+        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior" />
+
+    <include
+        android:id="@+id/diagnosticInfo"
+        layout="@layout/layout_diagnostic_info" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
