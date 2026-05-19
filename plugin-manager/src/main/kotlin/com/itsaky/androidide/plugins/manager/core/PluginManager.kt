@@ -882,6 +882,9 @@ class PluginManager private constructor(
 
     fun forceDisablePlugin(pluginId: String) {
         val loadedPlugin = loadedPlugins[pluginId] ?: return
+        runCatching { loadedPlugin.plugin.deactivate() }.onFailure { e ->
+            logger.error("Plugin deactivate threw during force-disable: $pluginId", e)
+        }
         loadedPlugin.isEnabled = false
         savePluginState(pluginId, false)
         logger.warn("Force-disabled plugin due to crashes: $pluginId")

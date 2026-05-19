@@ -6,5 +6,6 @@ class PluginCrashedEvent(
     val pluginId: String,
     val pluginName: String,
     val crashCount: Int,
-    val wasDisabled: Boolean
+    val wasDisabled: Boolean,
+    val stackTrace: String
 ) : Event()

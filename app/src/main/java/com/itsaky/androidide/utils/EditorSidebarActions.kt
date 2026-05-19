@@ -274,7 +274,9 @@ internal object EditorSidebarActions {
                         is PluginManager.CrashResult.Recorded -> result.crashCount
                         is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
                     }
-                    EventBus.getDefault().post(PluginCrashedEvent(pluginId, name, crashCount, wasDisabled))
+                    EventBus.getDefault().post(
+                        PluginCrashedEvent(pluginId, name, crashCount, wasDisabled, Log.getStackTraceString(e))
+                    )
                 }
             }
     }

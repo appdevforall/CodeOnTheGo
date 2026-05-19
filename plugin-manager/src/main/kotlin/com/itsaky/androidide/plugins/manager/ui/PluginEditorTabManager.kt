@@ -62,7 +62,11 @@ class PluginEditorTabManager {
             is PluginManager.CrashResult.Recorded -> result.crashCount
             is PluginManager.CrashResult.Disabled -> pm.crashTracker.getCrashCount(pluginId)
         }
-        runCatching { EventBus.getDefault().post(PluginCrashedEvent(pluginId, name, crashCount, wasDisabled)) }
+        runCatching {
+            EventBus.getDefault().post(
+                PluginCrashedEvent(pluginId, name, crashCount, wasDisabled, Log.getStackTraceString(error))
+            )
+        }
     }
 
     /**

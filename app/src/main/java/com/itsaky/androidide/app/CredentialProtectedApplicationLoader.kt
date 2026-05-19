@@ -174,7 +174,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
 			}
 
-			EventBus.getDefault().post(PluginCrashedEvent(pluginId, name, crashCount, wasDisabled))
+			EventBus.getDefault().post(
+				PluginCrashedEvent(pluginId, name, crashCount, wasDisabled, ThrowableUtils.getFullStackTrace(exception))
+			)
 			logger.warn("Plugin crash handled without killing process: {} (disabled={})", pluginId, wasDisabled)
 		}.onFailure { e ->
 			logger.error("Failed to handle plugin crash gracefully for: {}", pluginId, e)
@@ -332,7 +334,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 					is PluginManager.CrashResult.Recorded -> result.crashCount
 					is PluginManager.CrashResult.Disabled -> pm.crashTracker.getCrashCount(pluginId)
 				}
-				EventBus.getDefault().post(PluginCrashedEvent(pluginId, name, crashCount, wasDisabled))
+				EventBus.getDefault().post(
+					PluginCrashedEvent(pluginId, name, crashCount, wasDisabled, ThrowableUtils.getFullStackTrace(error))
+				)
 			}
 		}
 	}
