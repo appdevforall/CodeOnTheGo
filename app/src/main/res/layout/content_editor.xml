@@ -108,8 +108,7 @@
         <ViewFlipper
             android:id="@+id/editor_container"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginBottom="@dimen/editor_sheet_collapsed_height" />
+            android:layout_height="match_parent" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/no_editor_layout"
