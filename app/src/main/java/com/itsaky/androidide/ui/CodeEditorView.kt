@@ -79,7 +79,7 @@ import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File
 
-private const val MIN_FONT_SIZE = 6f
+private const val MIN_FONT_SIZE = 8f
 private const val DEFAULT_FONT_SIZE = 14f
 private const val MAX_FONT_SIZE = 32f
 private val ARCHIVE_EXTENSIONS = setOf("apk", "cgp", "zip")
