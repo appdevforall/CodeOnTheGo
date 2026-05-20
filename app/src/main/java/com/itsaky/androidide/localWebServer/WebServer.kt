@@ -429,7 +429,7 @@ clientSocket and the catch block logic are updated accordingly.
                 when {
                     cursor.count == 0 -> {
                         log.debug(
-                            "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
+                            "Template not found, for ID {}, path {}, MIME type {}, compression {}",
                             templateId,
                             path,
                             dbMimeType,
@@ -439,7 +439,7 @@ clientSocket and the catch block logic are updated accordingly.
                     }
                     cursor.count > 1 -> {
                         log.debug(
-                            "More than one template found, for ID {}, path {}, MIME type {}, compression {}}",
+                            "More than one template found, for ID {}, path {}, MIME type {}, compression {}",
                             templateId,
                             path,
                             dbMimeType,
@@ -449,7 +449,7 @@ clientSocket and the catch block logic are updated accordingly.
                     }
                     !cursor.moveToFirst() -> {
                         log.debug(
-                            "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
+                            "Template not found, for ID {}, path {}, MIME type {}, compression {}",
                             templateId,
                             path,
                             dbMimeType,
