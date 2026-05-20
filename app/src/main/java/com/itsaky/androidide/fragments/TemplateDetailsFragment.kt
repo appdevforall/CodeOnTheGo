@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.animation.ObjectAnimator
 import android.view.animation.LinearInterpolator
+import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 
 /**
@@ -193,9 +194,12 @@ class TemplateDetailsFragment :
     private fun updateFinishEnabledState() {
         val isCreating = viewModel.creatingProject.value ?: false
         val hasScrolledToBottom = scrollGateKeeper?.hasReachedEnd ?: false
+        val canFinish = !isCreating && hasScrolledToBottom
+        val stateDesc = if (canFinish) null else getString(string.msg_scroll_to_create_project)
 
         binding.finish.isEnabled = !isCreating && hasScrolledToBottom
         binding.scrollIndicator.isVisible = !hasScrolledToBottom
+        ViewCompat.setStateDescription(binding.finish, stateDesc)
     }
 
     private fun startBlinkingIndicator() {
