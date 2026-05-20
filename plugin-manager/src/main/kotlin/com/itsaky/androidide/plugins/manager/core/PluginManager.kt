@@ -50,6 +50,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeEnvironmentServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
+import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeFeatureFlagService
@@ -62,9 +63,12 @@ import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.SidebarSlotExceededException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -188,6 +192,9 @@ class PluginManager private constructor(
     private var templateReloadListener: (() -> Unit)? = null
     private var snippetRefreshListener: ((String) -> Unit)? = null
     val crashTracker = PluginCrashTracker(context, logger)
+
+    private val statePersistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val statePersistMutex = Mutex()
 
     fun setTemplateReloadListener(listener: (() -> Unit)?) {
         this.templateReloadListener = listener
@@ -883,6 +890,10 @@ class PluginManager private constructor(
 
     fun forceDisablePlugin(pluginId: String) {
         val loadedPlugin = loadedPlugins[pluginId] ?: return
+        cleanupSidebarActions(pluginId)
+        runCatching { PluginEditorTabManager.getInstance().removePluginTabs(pluginId) }.onFailure { e ->
+            logger.error("Failed to remove plugin tabs during force-disable: $pluginId", e)
+        }
         cleanupPluginContributions(loadedPlugin)
         runCatching { loadedPlugin.plugin.deactivate() }.onFailure { e ->
             logger.error("Plugin deactivate threw during force-disable: $pluginId", e)
@@ -984,27 +995,28 @@ class PluginManager private constructor(
      * Save plugin enabled state to persistent storage
      */
     private fun savePluginState(pluginId: String, enabled: Boolean) {
-        executeWithErrorHandling("save plugin state", pluginId) {
-            pluginStates[pluginId] = enabled
-            val prefsFile = File(context.filesDir, "plugin_states.properties")
-            val properties = java.util.Properties()
+        pluginStates[pluginId] = enabled
+        statePersistScope.launch {
+            statePersistMutex.withLock {
+                executeWithErrorHandling("save plugin state", pluginId) {
+                    val prefsFile = File(context.filesDir, "plugin_states.properties")
+                    val properties = java.util.Properties()
 
-            // Load existing states
-            if (prefsFile.exists()) {
-                prefsFile.inputStream().use { input ->
-                    properties.load(input)
+                    if (prefsFile.exists()) {
+                        prefsFile.inputStream().use { input ->
+                            properties.load(input)
+                        }
+                    }
+
+                    properties.setProperty(pluginId, enabled.toString())
+
+                    prefsFile.outputStream().use { output ->
+                        properties.store(output, "Plugin enabled/disabled states")
+                    }
+
+                    logger.debug("Saved plugin state: $pluginId = $enabled")
                 }
             }
-
-            // Update the state
-            properties.setProperty(pluginId, enabled.toString())
-
-            // Save back to file
-            prefsFile.outputStream().use { output ->
-                properties.store(output, "Plugin enabled/disabled states")
-            }
-
-            logger.debug("Saved plugin state: $pluginId = $enabled")
         }
     }
     
@@ -1038,15 +1050,19 @@ class PluginManager private constructor(
     }
 
     private fun removePluginState(pluginId: String) {
-        executeWithErrorHandling("remove plugin state", pluginId) {
-            pluginStates.remove(pluginId)
-            val prefsFile = File(context.filesDir, "plugin_states.properties")
-            if (prefsFile.exists()) {
-                val properties = java.util.Properties()
-                properties.load(prefsFile.inputStream())
-                properties.remove(pluginId)
-                properties.store(prefsFile.outputStream(), "Plugin states")
-                logger.debug("Removed plugin state: $pluginId")
+        pluginStates.remove(pluginId)
+        statePersistScope.launch {
+            statePersistMutex.withLock {
+                executeWithErrorHandling("remove plugin state", pluginId) {
+                    val prefsFile = File(context.filesDir, "plugin_states.properties")
+                    if (prefsFile.exists()) {
+                        val properties = java.util.Properties()
+                        properties.load(prefsFile.inputStream())
+                        properties.remove(pluginId)
+                        properties.store(prefsFile.outputStream(), "Plugin states")
+                        logger.debug("Removed plugin state: $pluginId")
+                    }
+                }
             }
         }
     }

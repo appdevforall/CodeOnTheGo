@@ -1,7 +1,13 @@
 package com.itsaky.androidide.plugins.manager.core
 
-import android.content.Context
 import com.itsaky.androidide.plugins.PluginLogger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import android.content.Context
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -13,6 +19,9 @@ class PluginCrashTracker(
 
     private val crashCounts = ConcurrentHashMap<String, AtomicInteger>()
     private val crashCountsFile get() = File(context.filesDir, "plugin_crash_counts.properties")
+
+    private val persistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val persistMutex = Mutex()
 
     init {
         loadCrashCounts()
@@ -96,21 +105,24 @@ class PluginCrashTracker(
         }
     }
 
-    @Synchronized
     private fun persistCrashCounts() {
-        runCatching {
-            val properties = java.util.Properties()
-            crashCounts.forEach { (pluginId, count) ->
-                val value = count.get()
-                if (value > 0) {
-                    properties.setProperty(pluginId, value.toString())
+        persistScope.launch {
+            persistMutex.withLock {
+                runCatching {
+                    val properties = java.util.Properties()
+                    crashCounts.forEach { (pluginId, count) ->
+                        val value = count.get()
+                        if (value > 0) {
+                            properties.setProperty(pluginId, value.toString())
+                        }
+                    }
+                    crashCountsFile.outputStream().use { output ->
+                        properties.store(output, "Plugin crash counts")
+                    }
+                }.onFailure { e ->
+                    logger.error("Failed to persist plugin crash counts", e)
                 }
             }
-            crashCountsFile.outputStream().use { output ->
-                properties.store(output, "Plugin crash counts")
-            }
-        }.onFailure { e ->
-            logger.error("Failed to persist plugin crash counts", e)
         }
     }
 

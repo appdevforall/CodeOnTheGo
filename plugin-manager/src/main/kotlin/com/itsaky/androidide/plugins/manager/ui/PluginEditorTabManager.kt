@@ -276,6 +276,33 @@ class PluginEditorTabManager {
     }
 
     /**
+     * Drop all tab and fragment registrations belonging to a single plugin.
+     * Used when a plugin is force-disabled so its tabs don't linger in the registry
+     * even if the editor activity is not currently registered for events.
+     */
+    fun removePluginTabs(pluginId: String) {
+        synchronized(this) {
+            val pluginManager = pluginManagerRef ?: return
+            val toRemove = pluginTabs
+                .filterValues { info ->
+                    pluginManager.getPluginIdForInstance(info.extension) == pluginId
+                }
+                .keys
+                .toList()
+
+            if (toRemove.isEmpty()) {
+                return
+            }
+
+            toRemove.forEach { tabId ->
+                pluginTabs.remove(tabId)
+                tabFragments.remove(tabId)
+            }
+            logger.info("Removed {} tab(s) for plugin: {}", toRemove.size, pluginId)
+        }
+    }
+
+    /**
      * Reload plugin tabs.
      */
     fun reloadPluginTabs(pluginManager: PluginManager) {
