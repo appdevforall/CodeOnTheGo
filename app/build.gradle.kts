@@ -780,13 +780,13 @@ tasks.register("recompressApk") {
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
 val skipLlamaAssets =
-	providers
-		.environmentVariable("SKIP_LLAMA_ASSETS")
-		.map { it.equals("true", ignoreCase = true) }
-		.getOrElse(false)
+    !System.getenv("INCLUDE_LLAMA_ASSETS")
+        .equals("true", ignoreCase = true)
 
 if (skipLlamaAssets) {
-	project.logger.lifecycle("SKIP_LLAMA_ASSETS enabled - debug assemble tasks will skip llama asset bundling.")
+    project.logger.lifecycle("INCLUDE_LLAMA_ASSETS is disabled - debug assemble tasks will skip llama asset bundling.")
+} else {
+    project.logger.lifecycle("INCLUDE_LLAMA_ASSETS enabled - assemble tasks will do llama asset bundling.")
 }
 
 val noCompress =
@@ -871,7 +871,7 @@ afterEvaluate {
 		if (!skipLlamaAssets) {
 			dependsOn(bundleLlamaV8Assets)
 		}
-		if (!isCiCd) {
+		if (!isCiCd && !skipLlamaAssets) {
 			dependsOn("assetsDownloadDebug")
 		}
 	}
@@ -894,7 +894,7 @@ afterEvaluate {
 		if (!skipLlamaAssets) {
 			dependsOn(bundleLlamaV7Assets)
 		}
-		if (!isCiCd) {
+		if (!isCiCd && !skipLlamaAssets) {
 			dependsOn("assetsDownloadDebug")
 		}
 	}

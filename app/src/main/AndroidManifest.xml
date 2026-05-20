@@ -110,9 +110,6 @@
             android:name=".activities.editor.HelpActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
         <activity
-            android:name=".activities.ContributorsActivity"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
-        <activity
             android:name=".activities.TerminalActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:windowSoftInputMode="adjustResize" />
