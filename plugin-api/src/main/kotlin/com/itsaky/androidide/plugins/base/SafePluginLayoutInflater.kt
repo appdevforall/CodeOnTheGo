@@ -17,7 +17,14 @@ class SafePluginLayoutInflater private constructor(
 ) : LayoutInflater(original, context) {
 
     override fun onCreateView(name: String, attrs: AttributeSet): View {
-        return createView(name, "android.widget.", attrs)
+        for (prefix in FRAMEWORK_PREFIXES) {
+            try {
+                return createView(name, prefix, attrs)
+            } catch (_: ClassNotFoundException) {
+                // try the next framework prefix
+            }
+        }
+        return super.onCreateView(name, attrs)
     }
 
     override fun cloneInContext(newContext: Context): LayoutInflater {
@@ -27,7 +34,7 @@ class SafePluginLayoutInflater private constructor(
     override fun inflate(resource: Int, root: ViewGroup?, attachToRoot: Boolean): View {
         return try {
             super.inflate(resource, root, attachToRoot)
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             PluginFragmentHelper.onPluginInflationError?.invoke(pluginId, e)
             createErrorView(root)
         }
@@ -62,6 +69,12 @@ class SafePluginLayoutInflater private constructor(
     }
 
     companion object {
+        private val FRAMEWORK_PREFIXES = arrayOf(
+            "android.widget.",
+            "android.webkit.",
+            "android.view.",
+        )
+
         fun wrap(inflater: LayoutInflater, pluginId: String): SafePluginLayoutInflater {
             return SafePluginLayoutInflater(inflater, inflater.context, pluginId)
         }

@@ -155,19 +155,15 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		runCatching {
 			writeException(exception)
 
-			Sentry.configureScope { scope ->
+			Sentry.withScope { scope ->
 				scope.setTag("plugin_crash", "true")
 				scope.setTag("plugin_id", pluginId)
+				Sentry.captureException(exception)
 			}
-			Sentry.captureException(exception)
 
 			val pluginManager = PluginManager.getInstance() ?: return
 			val result = pluginManager.recordPluginCrash(pluginId)
 
-			val name = when (result) {
-				is PluginManager.CrashResult.Disabled -> result.pluginName
-				is PluginManager.CrashResult.Recorded -> pluginId
-			}
 			val wasDisabled = result is PluginManager.CrashResult.Disabled
 			val crashCount = when (result) {
 				is PluginManager.CrashResult.Recorded -> result.crashCount
@@ -175,7 +171,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			}
 
 			EventBus.getDefault().post(
-				PluginCrashedEvent(pluginId, name, crashCount, wasDisabled, ThrowableUtils.getFullStackTrace(exception))
+				PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, ThrowableUtils.getFullStackTrace(exception))
 			)
 			logger.warn("Plugin crash handled without killing process: {} (disabled={})", pluginId, wasDisabled)
 		}.onFailure { e ->
@@ -325,17 +321,13 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			runCatching {
 				val pm = PluginManager.getInstance() ?: return@runCatching
 				val result = pm.recordPluginCrash(pluginId)
-				val name = when (result) {
-					is PluginManager.CrashResult.Disabled -> result.pluginName
-					is PluginManager.CrashResult.Recorded -> pluginId
-				}
 				val wasDisabled = result is PluginManager.CrashResult.Disabled
 				val crashCount = when (result) {
 					is PluginManager.CrashResult.Recorded -> result.crashCount
 					is PluginManager.CrashResult.Disabled -> pm.crashTracker.getCrashCount(pluginId)
 				}
 				EventBus.getDefault().post(
-					PluginCrashedEvent(pluginId, name, crashCount, wasDisabled, ThrowableUtils.getFullStackTrace(error))
+					PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, ThrowableUtils.getFullStackTrace(error))
 				)
 			}
 		}

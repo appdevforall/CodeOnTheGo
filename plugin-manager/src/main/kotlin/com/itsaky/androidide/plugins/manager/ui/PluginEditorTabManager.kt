@@ -56,7 +56,6 @@ class PluginEditorTabManager {
         logger.error("Plugin '{}' crashed in {}", pluginId, context, error)
         val pm = pluginManagerRef ?: return
         val result = pm.recordPluginCrash(pluginId)
-        val name = (result as? PluginManager.CrashResult.Disabled)?.pluginName ?: pluginId
         val wasDisabled = result is PluginManager.CrashResult.Disabled
         val crashCount = when (result) {
             is PluginManager.CrashResult.Recorded -> result.crashCount
@@ -64,7 +63,7 @@ class PluginEditorTabManager {
         }
         runCatching {
             EventBus.getDefault().post(
-                PluginCrashedEvent(pluginId, name, crashCount, wasDisabled, Log.getStackTraceString(error))
+                PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, Log.getStackTraceString(error))
             )
         }
     }

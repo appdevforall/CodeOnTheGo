@@ -68,6 +68,10 @@ object ContactDetails {
 }
 
 internal object EditorSidebarActions {
+
+    private var previousDestinationListener: NavController.OnDestinationChangedListener? = null
+    private var previousNavController: WeakReference<NavController>? = null
+
     @JvmStatic
     fun registerActions(context: Context) {
         val registry = ActionsRegistry.getInstance()
@@ -177,27 +181,33 @@ internal object EditorSidebarActions {
             }
         }
 
+        previousDestinationListener?.let { stale ->
+            previousNavController?.get()?.removeOnDestinationChangedListener(stale)
+        }
+
         val railRef = WeakReference(rail)
-        controller.addOnDestinationChangedListener(
-            object : NavController.OnDestinationChangedListener {
-                override fun onDestinationChanged(
-                    controller: NavController,
-                    destination: NavDestination,
-                    arguments: Bundle?
-                ) {
-                    val railView = railRef.get()
-                    if (railView == null) {
-                        controller.removeOnDestinationChangedListener(this)
-                        return
-                    }
-                    railView.menu.forEach { item ->
-                        if (destination.matchDestination(item.itemId)) {
-                            item.isChecked = true
-                            titleRef.get()?.text = item.title
-                        }
+        val destinationListener = object : NavController.OnDestinationChangedListener {
+            override fun onDestinationChanged(
+                controller: NavController,
+                destination: NavDestination,
+                arguments: Bundle?
+            ) {
+                val railView = railRef.get()
+                if (railView == null) {
+                    controller.removeOnDestinationChangedListener(this)
+                    return
+                }
+                railView.menu.forEach { item ->
+                    if (destination.matchDestination(item.itemId)) {
+                        item.isChecked = true
+                        titleRef.get()?.text = item.title
                     }
                 }
-            })
+            }
+        }
+        controller.addOnDestinationChangedListener(destinationListener)
+        previousDestinationListener = destinationListener
+        previousNavController = WeakReference(controller)
 
         rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
             it.isChecked = true
@@ -264,18 +274,16 @@ internal object EditorSidebarActions {
                         val action = PluginSidebarActionItem(context, navItem, order++, pluginId)
                         registry.registerAction(action)
                     }
-                } catch (e: Throwable) {
+                } catch (e: Exception) {
                     Log.e("EditorSidebarActions", "Plugin '$pluginId' crashed in getSideMenuItems()", e)
                     val result = pluginManager.recordPluginCrash(pluginId)
-                    val name = (result as? PluginManager.CrashResult.Disabled)?.pluginName
-                        ?: pluginId
                     val wasDisabled = result is PluginManager.CrashResult.Disabled
                     val crashCount = when (result) {
                         is PluginManager.CrashResult.Recorded -> result.crashCount
                         is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
                     }
                     EventBus.getDefault().post(
-                        PluginCrashedEvent(pluginId, name, crashCount, wasDisabled, Log.getStackTraceString(e))
+                        PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, Log.getStackTraceString(e))
                     )
                 }
             }

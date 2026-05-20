@@ -840,21 +840,21 @@ class PluginManager private constructor(
 
     fun enablePlugin(pluginId: String): Boolean {
         val loadedPlugin = loadedPlugins[pluginId] ?: return false
-        
+
         if (loadedPlugin.isEnabled) {
             logger.info("Plugin $pluginId is already enabled")
             return true
         }
-        
-        return try {
-            loadedPlugin.plugin.activate()
-            loadedPlugin.isEnabled = true
+
+        loadedPlugin.isEnabled = true
+        activateLoadedPlugin(loadedPlugin)
+        return if (loadedPlugin.isEnabled) {
             savePluginState(pluginId, true)
             crashTracker.resetCrashCount(pluginId)
             logger.info("Enabled plugin: $pluginId")
             true
-        } catch (e: Exception) {
-            logger.error("Failed to enable plugin: $pluginId", e)
+        } else {
+            logger.error("Failed to enable plugin: $pluginId (activation failed)")
             false
         }
     }
@@ -868,6 +868,7 @@ class PluginManager private constructor(
         }
 
         return try {
+            cleanupPluginContributions(loadedPlugin)
             loadedPlugin.plugin.deactivate()
             loadedPlugin.isEnabled = false
             savePluginState(pluginId, false)
@@ -882,6 +883,7 @@ class PluginManager private constructor(
 
     fun forceDisablePlugin(pluginId: String) {
         val loadedPlugin = loadedPlugins[pluginId] ?: return
+        cleanupPluginContributions(loadedPlugin)
         runCatching { loadedPlugin.plugin.deactivate() }.onFailure { e ->
             logger.error("Plugin deactivate threw during force-disable: $pluginId", e)
         }
@@ -890,19 +892,50 @@ class PluginManager private constructor(
         logger.warn("Force-disabled plugin due to crashes: $pluginId")
     }
 
+    private fun cleanupPluginContributions(loadedPlugin: LoadedPlugin) {
+        val pluginId = loadedPlugin.manifest.id
+        runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId) }
+            .onFailure { logger.error("Failed to clean project templates for: $pluginId", it) }
+        runCatching {
+            PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
+            snippetRefreshListener?.invoke(pluginId)
+        }.onFailure { logger.error("Failed to clean snippets for: $pluginId", it) }
+        runCatching { PluginBuildActionManager.getInstance().cleanupPlugin(pluginId) }
+            .onFailure { logger.error("Failed to clean build actions for: $pluginId", it) }
+        runCatching {
+            val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
+            if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()
+        }.onFailure { logger.error("Failed to cancel commands for: $pluginId", it) }
+        runCatching {
+            val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
+            if (templateService is IdeTemplateServiceImpl) templateService.cleanupAllTemplates()
+        }.onFailure { logger.error("Failed to cleanup templates for: $pluginId", it) }
+    }
+
     sealed class CrashResult {
-        data class Recorded(val pluginId: String, val crashCount: Int) : CrashResult()
-        data class Disabled(val pluginId: String, val pluginName: String) : CrashResult()
+        abstract val pluginId: String
+        abstract val pluginName: String
+
+        data class Recorded(
+            override val pluginId: String,
+            override val pluginName: String,
+            val crashCount: Int,
+        ) : CrashResult()
+
+        data class Disabled(
+            override val pluginId: String,
+            override val pluginName: String,
+        ) : CrashResult()
     }
 
     fun recordPluginCrash(pluginId: String): CrashResult {
         val count = crashTracker.recordCrash(pluginId)
+        val name = loadedPlugins[pluginId]?.manifest?.name ?: pluginId
         return if (crashTracker.shouldDisable(pluginId)) {
             forceDisablePlugin(pluginId)
-            val name = loadedPlugins[pluginId]?.manifest?.name ?: pluginId
             CrashResult.Disabled(pluginId, name)
         } else {
-            CrashResult.Recorded(pluginId, count)
+            CrashResult.Recorded(pluginId, name, count)
         }
     }
 
