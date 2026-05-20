@@ -7,9 +7,9 @@ import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Resources
 import android.os.Build
-import android.util.Log
 import com.itsaky.androidide.plugins.PluginApiVersion
 import dalvik.system.DexClassLoader
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.zip.ZipFile
 
@@ -21,7 +21,7 @@ class PluginLoader(
     private val pluginApk: File
 ) {
     companion object {
-        private const val TAG = "PluginLoader"
+        private val log = LoggerFactory.getLogger(PluginLoader::class.java)
     }
 
     private var pluginResources: Resources? = null
@@ -46,7 +46,7 @@ class PluginLoader(
             )
 
             if (pluginPackageInfo == null) {
-                Log.e(TAG, "Failed to get package info from APK: ${pluginApk.absolutePath}")
+                log.error("Failed to get package info from APK: {}", pluginApk.absolutePath)
                 return null
             }
 
@@ -60,9 +60,9 @@ class PluginLoader(
                 if (appInfo != null) {
                     pluginResources = packageManager.getResourcesForApplication(appInfo)
                 }
-                Log.i(TAG, "Successfully loaded resources using PackageManager")
+                log.info("Successfully loaded resources using PackageManager")
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to load resources via PackageManager, trying AssetManager: ${e.message}")
+                log.warn("Failed to load resources via PackageManager, trying AssetManager: {}", e.message)
 
                 // Fallback: Create AssetManager manually
                 @Suppress("DEPRECATION")
@@ -77,12 +77,12 @@ class PluginLoader(
                     context.resources.displayMetrics,
                     context.resources.configuration
                 )
-                Log.i(TAG, "Successfully loaded resources using AssetManager")
+                log.info("Successfully loaded resources using AssetManager")
             }
 
             return pluginResources
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load plugin resources: ${e.message}", e)
+            log.error("Failed to load plugin resources", e)
             return null
         }
     }
@@ -109,7 +109,7 @@ class PluginLoader(
             )
             pluginClassLoader = loader
 
-            Log.i(TAG, "Successfully created DexClassLoader for plugin APK (nativeLibPath=$nativeLibPath)")
+            log.info("Successfully created DexClassLoader for plugin APK (nativeLibPath={})", nativeLibPath)
             return loader
         } catch (e: Exception) {
             throw RuntimeException("Failed to load plugin classes: [${e.javaClass.simpleName}] ${e.message}", e)
@@ -123,13 +123,13 @@ class PluginLoader(
         // Ensure we have loaded resources first
         val resources = loadPluginResources()
         if (resources == null) {
-            Log.e(TAG, "Failed to load plugin resources")
+            log.error("Failed to load plugin resources")
             return null
         }
 
         val packageInfo = pluginPackageInfo
         if (packageInfo == null) {
-            Log.e(TAG, "Package info is null")
+            log.error("Package info is null")
             return null
         }
 
@@ -194,7 +194,7 @@ class PluginLoader(
         try {
             ZipFile(pluginApk).use { it.getEntry(entryPath) != null }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to inspect plugin APK for entry '$entryPath'", e)
+            log.warn("Failed to inspect plugin APK for entry '{}'", entryPath, e)
             false
         }
 
@@ -220,7 +220,7 @@ class PluginLoader(
                 extractEntry("icon_day", manifest.iconDay) to extractEntry("icon_night", manifest.iconNight)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to extract plugin icons for $pluginId", e)
+            log.warn("Failed to extract plugin icons for {}", pluginId, e)
             null to null
         }
     }
@@ -245,11 +245,11 @@ class PluginLoader(
             val pluginMinIdeVersion = metaData.getString("plugin.min_ide_version")
             val pluginMaxIdeVersion = metaData.getString("plugin.max_ide_version")
             if (pluginMinPluginApiVersion == null && pluginMinIdeVersion != null) {
-                Log.w(
-                    TAG,
-                    "Plugin '$pluginId' declares the deprecated 'plugin.min_ide_version' meta-data. " +
+                log.warn(
+                    "Plugin '{}' declares the deprecated 'plugin.min_ide_version' meta-data. " +
                         "Migrate to 'plugin.min_plugin_api_version'. The legacy key is not used for " +
-                        "API compatibility checks and will be removed in the next major plugin API release."
+                        "API compatibility checks and will be removed in the next major plugin API release.",
+                    pluginId,
                 )
             }
 
@@ -273,7 +273,7 @@ class PluginLoader(
                 description = pluginDescription,
                 author = pluginAuthor,
                 mainClass = pluginMainClass,
-                minPluginApiVersion = pluginMinPluginApiVersion ?: PluginApiVersion.CURRENT,
+                minPluginApiVersion = pluginMinPluginApiVersion ?: PluginApiVersion.CURRENT.raw,
                 minIdeVersion = pluginMinIdeVersion,
                 maxIdeVersion = pluginMaxIdeVersion,
                 permissions = permissions,
@@ -284,7 +284,7 @@ class PluginLoader(
                 iconNight = iconNight
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to extract plugin metadata: ${e.message}", e)
+            log.error("Failed to extract plugin metadata", e)
 
             // Fallback to JSON manifest if available
             return PluginManifestParser.parseFromJar(pluginApk)
@@ -307,7 +307,7 @@ class PluginLoader(
             val signatures = packageInfo.signatures
             return signatures != null && signatures.isNotEmpty()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to validate APK signature: ${e.message}", e)
+            log.error("Failed to validate APK signature", e)
             return false
         }
     }
@@ -326,7 +326,7 @@ class PluginLoader(
                 ?: legacySignatures
             signatures?.firstOrNull()?.toByteArray()
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to extract signature hash from ${pluginApk.absolutePath}", e)
+            log.warn("Failed to extract signature hash from {}", pluginApk.absolutePath, e)
             null
         }
     }

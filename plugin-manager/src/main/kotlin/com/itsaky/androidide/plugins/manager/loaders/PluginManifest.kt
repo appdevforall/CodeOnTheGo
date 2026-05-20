@@ -9,6 +9,13 @@ import java.io.File
 import java.io.InputStreamReader
 import java.util.jar.JarFile
 
+private const val IDE_VERSION_DEPRECATION_PREFIX =
+    "IDE version strings are timestamps and cannot be compared."
+
+private const val IDE_VERSION_DEPRECATION_LEGACY_PARSE_NOTE =
+    "Kept so manifests from existing plugins keep parsing; " +
+        "will be removed in the next major plugin API release."
+
 data class PluginManifest(
     @SerializedName("id")
     val id: String,
@@ -32,18 +39,18 @@ data class PluginManifest(
     val minPluginApiVersion: String? = null,
 
     @Deprecated(
-        message = "IDE version strings are timestamps and cannot be compared. " +
-            "Use minPluginApiVersion instead. Kept so manifests from existing plugins keep parsing; " +
-            "will be removed in the next major plugin API release.",
+        message = IDE_VERSION_DEPRECATION_PREFIX +
+            " Use minPluginApiVersion instead. " +
+            IDE_VERSION_DEPRECATION_LEGACY_PARSE_NOTE,
         replaceWith = ReplaceWith("minPluginApiVersion")
     )
     @SerializedName("min_ide_version")
     val minIdeVersion: String? = null,
 
     @Deprecated(
-        message = "IDE version strings are timestamps and cannot be compared. Plugin API " +
-            "compatibility is enforced through minPluginApiVersion. Kept so manifests from " +
-            "existing plugins keep parsing; will be removed in the next major plugin API release."
+        message = IDE_VERSION_DEPRECATION_PREFIX +
+            " Plugin API compatibility is enforced through minPluginApiVersion. " +
+            IDE_VERSION_DEPRECATION_LEGACY_PARSE_NOTE
     )
     @SerializedName("max_ide_version")
     val maxIdeVersion: String? = null,
@@ -112,7 +119,7 @@ fun PluginManifest.toPluginMetadata() = PluginMetadata(
     description = description,
     author = author,
     minIdeVersion = minIdeVersion ?: "1.0.0",
-    minPluginApiVersion = minPluginApiVersion ?: PluginApiVersion.CURRENT,
+    minPluginApiVersion = minPluginApiVersion ?: PluginApiVersion.CURRENT.raw,
     dependencies = dependencies,
     permissions = permissions
 )

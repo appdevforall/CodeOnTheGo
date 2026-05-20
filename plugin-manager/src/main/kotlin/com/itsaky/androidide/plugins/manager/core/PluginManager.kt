@@ -398,7 +398,7 @@ class PluginManager private constructor(
 
             PluginApiVersionChecker.requireCompatible(
                 pluginId = manifest.id,
-                required = manifest.minPluginApiVersion ?: "1.0.0",
+                requiredRaw = manifest.minPluginApiVersion ?: PluginApiVersion.CURRENT.raw,
                 current = PluginApiVersion.CURRENT,
             )
 

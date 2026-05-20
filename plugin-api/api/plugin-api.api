@@ -8,9 +8,30 @@ public abstract interface class com/itsaky/androidide/plugins/IPlugin {
 public abstract interface annotation class com/itsaky/androidide/plugins/InternalPluginApi : java/lang/annotation/Annotation {
 }
 
-public final class com/itsaky/androidide/plugins/PluginApiVersion {
-	public static final field CURRENT Ljava/lang/String;
-	public static final field INSTANCE Lcom/itsaky/androidide/plugins/PluginApiVersion;
+public final class com/itsaky/androidide/plugins/PluginApiVersion : java/lang/Comparable {
+	public static final field Companion Lcom/itsaky/androidide/plugins/PluginApiVersion$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/PluginApiVersion;
+	public synthetic fun compareTo (Ljava/lang/Object;)I
+	public fun compareTo-uhitrDM (Ljava/lang/String;)I
+	public static fun compareTo-uhitrDM (Ljava/lang/String;Ljava/lang/String;)I
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public static final fun getMajor-impl (Ljava/lang/String;)I
+	public static final fun getMinor-impl (Ljava/lang/String;)I
+	public static final fun getPatch-impl (Ljava/lang/String;)I
+	public final fun getRaw ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/PluginApiVersion$Companion {
+	public final fun getCURRENT-O0ps42g ()Ljava/lang/String;
+	public final fun parse-x-Jqn9o (Ljava/lang/String;)Ljava/lang/String;
+	public final fun parseOrThrow-dsqA1HQ (Ljava/lang/String;)Ljava/lang/String;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/PluginContext {
