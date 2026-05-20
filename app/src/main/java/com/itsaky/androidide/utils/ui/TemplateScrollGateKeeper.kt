@@ -59,7 +59,9 @@ class TemplateScrollGateKeeper(
     fun detach() {
         recyclerView.removeOnScrollListener(scrollListener)
         recyclerView.removeOnLayoutChangeListener(layoutChangeListener)
-        recyclerView.viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
+        if (recyclerView.viewTreeObserver.isAlive) {
+            recyclerView.viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
+        }
         onScrollStateChanged = null
     }
 

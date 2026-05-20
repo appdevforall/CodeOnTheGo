@@ -71,6 +71,7 @@
     android:id="@+id/scrollIndicator"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:importantForAccessibility="no"
     android:layout_marginEnd="8dp"
     android:src="@drawable/ic_arrow_down"
     app:tint="?attr/colorPrimary"

@@ -62,6 +62,7 @@ class TemplateDetailsFragment :
 
     private var scrollGateKeeper: TemplateScrollGateKeeper? = null
     private val projectCreationManager by lazy { ProjectCreationManager(requireContext()) }
+    private var blinkAnimator: ObjectAnimator? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -75,6 +76,10 @@ class TemplateDetailsFragment :
 
     override fun onDestroyView() {
         super.onDestroyView()
+
+        blinkAnimator?.cancel()
+        blinkAnimator = null
+
         scrollGateKeeper?.detach()
         scrollGateKeeper = null
     }
@@ -194,10 +199,11 @@ class TemplateDetailsFragment :
     }
 
     private fun startBlinkingIndicator() {
-        val animator = ObjectAnimator.ofFloat(binding.scrollIndicator, View.ALPHA, 1f, 0.2f, 1f)
-        animator.duration = 1200
-        animator.interpolator = LinearInterpolator()
-        animator.repeatCount = ObjectAnimator.INFINITE
-        animator.start()
+        blinkAnimator = ObjectAnimator.ofFloat(binding.scrollIndicator, View.ALPHA, 1f, 0.2f, 1f).apply {
+            duration = 1200
+            interpolator = LinearInterpolator()
+            repeatCount = ObjectAnimator.INFINITE
+            start()
+        }
     }
 }
