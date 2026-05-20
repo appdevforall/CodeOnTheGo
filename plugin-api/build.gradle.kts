@@ -21,6 +21,9 @@ android {
 kotlin {
 	compilerOptions {
 		jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+		// Pin to match the on-device Kotlin compiler so plugin-api.jar is consumable without -Xskip-metadata-version-check.
+		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1)
+		languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1)
 	}
 }
 
