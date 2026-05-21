@@ -65,24 +65,26 @@ class PluginCrashTracker(
         }
         if (classLoaders.isEmpty()) return null
 
-        var current: Throwable? = throwable
-        while (current != null) {
-            for (frame in current.stackTrace) {
-                for ((pluginId, classLoader) in classLoaders) {
-                    val loaded = runCatching {
-                        Class.forName(frame.className, false, classLoader)
-                    }.getOrNull() ?: continue
-
-                    if (loaded.classLoader === classLoader) {
-                        logger.info("Identified plugin $pluginId from stack trace class: ${frame.className}")
-                        return pluginId
-                    }
+        return generateSequence(throwable) { it.cause }
+            .flatMap { it.stackTrace.asSequence() }
+            .firstNotNullOfOrNull { frame ->
+                matchPluginForFrame(frame, classLoaders)?.also { pluginId ->
+                    logger.info("Identified plugin $pluginId from stack trace class: ${frame.className}")
                 }
             }
-            current = current.cause
-        }
+    }
 
-        return null
+    private fun matchPluginForFrame(
+        frame: StackTraceElement,
+        classLoaders: List<Pair<String, ClassLoader>>
+    ): String? {
+        return classLoaders.firstNotNullOfOrNull { (pluginId, classLoader) ->
+            val loaded = runCatching {
+                Class.forName(frame.className, false, classLoader)
+            }.getOrNull() ?: return@firstNotNullOfOrNull null
+
+            pluginId.takeIf { loaded.classLoader === classLoader }
+        }
     }
 
     private fun loadCrashCounts() {
