@@ -67,6 +67,18 @@
     app:layout_constraintBottom_toBottomOf="parent"
     app:layout_constraintStart_toStartOf="parent" />
 
+  <ImageView
+    android:id="@+id/scrollIndicator"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:importantForAccessibility="no"
+    android:layout_marginEnd="8dp"
+    android:src="@drawable/ic_arrow_down"
+    app:tint="?attr/colorPrimary"
+    app:layout_constraintEnd_toStartOf="@id/finish"
+    app:layout_constraintTop_toTopOf="@id/finish"
+    app:layout_constraintBottom_toBottomOf="@id/finish" />
+
   <com.google.android.material.button.MaterialButton
     android:id="@+id/finish"
     android:layout_width="wrap_content"
