@@ -38,6 +38,7 @@ jobs:
         id: previous
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: flox activate -d flox/base -- bash -eo pipefail {0}
         run: |
           PREVIOUS_TAG=$(gh release list --json tagName \
               --jq '[.[] | select(.tagName | test("^[0-9]+\\.[0-9]+$"))] | .[0].tagName // ""')
@@ -61,49 +62,6 @@ jobs:
           fi
           echo "version_id=$VERSION_ID" >> "$GITHUB_OUTPUT"
           echo "Jira version $VERSION → id $VERSION_ID"
-
-  release-plugin-api:
-    needs: prepare
-    runs-on: self-hosted
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Build plugin-api jar
-        run: |
-          flox activate -d flox/base -- \
-              ./gradlew --console=plain --no-daemon :plugin-api:createPluginApiJar
-
-      - name: Build plugin-builder jar
-        run: |
-          flox activate -d flox/base -- \
-              ./gradlew --console=plain --no-daemon -p plugin-api/plugin-builder :jar
-
-      - name: Stage plugin-api release assets
-        run: |
-          mkdir -p .release
-          cp plugin-api/build/libs/plugin-api-*.jar                     .release/plugin-api.jar
-          cp plugin-api/plugin-builder/build/libs/plugin-builder-*.jar  .release/gradle-plugin.jar
-          ( cd .release && sha256sum plugin-api.jar gradle-plugin.jar > checksums.txt )
-          ls -la .release
-
-      - name: Replace plugin-api-latest release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view plugin-api-latest >/dev/null 2>&1; then
-            gh release delete plugin-api-latest --cleanup-tag --yes
-          fi
-          gh release create plugin-api-latest \
-              --target "$GITHUB_SHA" \
-              --title "plugin-api (latest)" \
-              --notes "built from ${GITHUB_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
-              .release/plugin-api.jar \
-              .release/gradle-plugin.jar \
-              .release/checksums.txt
 
   pull-apk:
     needs: prepare
@@ -218,7 +176,7 @@ jobs:
         run: rm -rf "$STAGING_DIR"
 
   release-codeonthego:
-    needs: [prepare, pull-apk, release-plugin-api]
+    needs: [prepare, pull-apk]
     runs-on: self-hosted
     permissions:
       contents: write
@@ -233,6 +191,7 @@ jobs:
           GH_TOKEN:     ${{ github.token }}
           VERSION:      ${{ needs.prepare.outputs.version }}
           PREVIOUS_TAG: ${{ needs.prepare.outputs.previous_tag }}
+        shell: flox activate -d flox/base -- bash -eo pipefail {0}
         run: |
           if gh release view "$VERSION" >/dev/null 2>&1; then
             echo "Release $VERSION already exists; skipping creation."
@@ -329,6 +288,7 @@ jobs:
         env:
           GH_TOKEN:     ${{ steps.app-token.outputs.token }}
           NEXT_VERSION: ${{ needs.prepare.outputs.next_version }}
+        shell: flox activate -d flox/base -- bash -eo pipefail {0}
         run: |
           gh variable set NEXT_RELEASE_VERSION --body "$NEXT_VERSION" --repo "$GITHUB_REPOSITORY"
           echo "NEXT_RELEASE_VERSION set to $NEXT_VERSION"

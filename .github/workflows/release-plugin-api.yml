@@ -1,0 +1,56 @@
+name: Release plugin-api (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-plugin-api
+  cancel-in-progress: false
+
+jobs:
+
+  release-plugin-api:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Build plugin-api jar
+        run: |
+          flox activate -d flox/base -- \
+              ./gradlew --console=plain --no-daemon :plugin-api:createPluginApiJar
+
+      - name: Build plugin-builder jar
+        run: |
+          flox activate -d flox/base -- \
+              ./gradlew --console=plain --no-daemon -p plugin-api/plugin-builder :jar
+
+      - name: Stage plugin-api release assets
+        run: |
+          mkdir -p .release
+          cp plugin-api/build/libs/plugin-api-*.jar                     .release/plugin-api.jar
+          cp plugin-api/plugin-builder/build/libs/plugin-builder-*.jar  .release/gradle-plugin.jar
+          ( cd .release && sha256sum plugin-api.jar gradle-plugin.jar > checksums.txt )
+          ls -la .release
+
+      - name: Replace plugin-api-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: flox activate -d flox/base -- bash -eo pipefail {0}
+        run: |
+          if gh release view plugin-api-latest >/dev/null 2>&1; then
+            gh release delete plugin-api-latest --cleanup-tag --yes
+          fi
+          gh release create plugin-api-latest \
+              --target "$GITHUB_SHA" \
+              --title "plugin-api (latest)" \
+              --notes "built from ${GITHUB_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
+              .release/plugin-api.jar \
+              .release/gradle-plugin.jar \
+              .release/checksums.txt
