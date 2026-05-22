@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
@@ -25,6 +27,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
+import android.widget.TextView
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
@@ -33,6 +36,7 @@ import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.ImageUtils
 import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
+import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
@@ -57,6 +61,8 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
+import com.itsaky.androidide.activities.PluginManagerActivity
+import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
@@ -77,8 +83,10 @@ import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
 import com.itsaky.androidide.shortcuts.ShortcutManager
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
+import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
+import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
@@ -1095,6 +1103,88 @@ open class EditorHandlerActivity :
 		if (tab.text?.startsWith('*') == true) return
 
 		tab.text = "*${tab.text}"
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPluginCrashed(event: PluginCrashedEvent) {
+		if (event.wasDisabled) {
+			tearDownDisabledPluginContributions(event.pluginId)
+		}
+		showPluginCrashDialog(event)
+	}
+
+	private fun showPluginCrashDialog(event: PluginCrashedEvent) {
+		val dialogView = layoutInflater.inflate(R.layout.dialog_plugin_crash, null)
+		dialogView.findViewById<TextView>(R.id.plugin_crash_message).text =
+			if (event.wasDisabled) {
+				getString(string.msg_plugin_crash_disabled, event.pluginName)
+			} else {
+				getString(string.msg_plugin_crash, event.pluginName, event.crashCount)
+			}
+
+		val builder = newMaterialDialogBuilder(this)
+			.setTitle(string.title_plugin_crashed)
+			.setView(dialogView)
+			.setPositiveButton(string.dismiss, null)
+
+		if (event.wasDisabled) {
+			builder.setNegativeButton(string.plugin_manager) { _, _ ->
+				startActivity(Intent(this, PluginManagerActivity::class.java))
+			}
+		}
+
+		builder.show()
+
+		dialogView.findViewById<View>(R.id.plugin_crash_view_logs).setOnClickListener {
+			showPluginCrashLogDialog(event)
+		}
+	}
+
+	private fun showPluginCrashLogDialog(event: PluginCrashedEvent) {
+		newMaterialDialogBuilder(this)
+			.setTitle(getString(string.title_plugin_crash_log, event.pluginName))
+			.setMessage(event.stackTrace)
+			.setPositiveButton(string.close, null)
+			.setNeutralButton(string.copy) { _, _ ->
+				val clipboard = getSystemService(ClipboardManager::class.java)
+				clipboard?.setPrimaryClip(
+					ClipData.newPlainText(
+						getString(string.title_plugin_crash_log, event.pluginName),
+						event.stackTrace
+					)
+				)
+				flashSuccess(string.msg_crash_log_copied)
+			}
+			.show()
+	}
+
+	private fun tearDownDisabledPluginContributions(pluginId: String) {
+		runCatching {
+			val pluginManager = IDEApplication.getPluginManager() ?: return
+			val tabManager = PluginEditorTabManager.getInstance()
+
+			val tabsToClose = pluginTabIndices.keys.toList().filter { tabId ->
+				tabManager.getPluginIdForTab(tabId) == pluginId
+			}
+			tabsToClose.forEach { tabId ->
+				val index = pluginTabIndices[tabId] ?: return@forEach
+				closePluginTab(index)
+			}
+
+			tabManager.loadPluginTabs(pluginManager)
+
+			val registry = getInstance()
+			registry.clearActions(ActionItem.Location.EDITOR_SIDEBAR)
+			EditorSidebarActions.registerActions(this)
+			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
+				?.let { EditorSidebarActions.setup(it) }
+
+			invalidateOptionsMenu()
+
+			Log.i("EditorHandlerActivity", "Tore down contributions for disabled plugin: $pluginId")
+		}.onFailure { e ->
+			Log.e("EditorHandlerActivity", "Failed to tear down contributions for disabled plugin: $pluginId", e)
+		}
 	}
 
 	private fun updateTabs() {
