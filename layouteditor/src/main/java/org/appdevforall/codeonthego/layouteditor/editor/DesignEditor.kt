@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
@@ -363,11 +364,28 @@ class DesignEditor : LinearLayout {
 									context,
 								) as View
 
-							newView.layoutParams =
-								ViewGroup.LayoutParams(
-									ViewGroup.LayoutParams.WRAP_CONTENT,
-									ViewGroup.LayoutParams.WRAP_CONTENT,
-								)
+							newView.layoutParams = when (parent) {
+                                is LinearLayout -> {
+                                    LayoutParams(
+                                        LayoutParams.WRAP_CONTENT,
+                                        LayoutParams.WRAP_CONTENT,
+                                    )
+                                }
+
+                                is FrameLayout -> {
+                                    FrameLayout.LayoutParams(
+                                        LayoutParams.WRAP_CONTENT,
+                                        LayoutParams.WRAP_CONTENT,
+                                    )
+                                }
+
+                                else -> {
+                                    ViewGroup.LayoutParams(
+                                        LayoutParams.WRAP_CONTENT,
+                                        LayoutParams.WRAP_CONTENT,
+                                    )
+                                }
+                            }
 							rearrangeListeners(newView)
 
 							if (newView is ViewGroup) {

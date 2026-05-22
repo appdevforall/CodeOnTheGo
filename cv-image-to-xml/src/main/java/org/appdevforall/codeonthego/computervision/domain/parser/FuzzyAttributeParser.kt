@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.computervision.domain.parser
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
 import org.appdevforall.codeonthego.computervision.domain.grammar.UiGrammarValidator
+import org.appdevforall.codeonthego.computervision.domain.parser.sanitizer.OcrSanitizerFactory
 import java.lang.StringBuilder
 
 object FuzzyAttributeParser {
@@ -9,6 +10,7 @@ object FuzzyAttributeParser {
     private const val PIPE_DELIMITER = "|"
     private val multipleUnderscoresRegex = Regex("_+")
     private val inputTypeValues = InputTypeValueSet.values.map { it.lowercase() }.toSet()
+    private val sanitizer = OcrSanitizerFactory.createDefaultSanitizer()
 
     private val cleaners = mapOf(
         ValueType.TEXT_CONTENT to TextContentCleaner,
@@ -36,10 +38,7 @@ object FuzzyAttributeParser {
     }
 
     private fun tokenizeAnnotation(annotation: String): List<String> {
-        val sanitized = annotation
-            .replace(Regex("(?i)backgroundired"), "background red")
-            .replace(Regex("(?i)backgroundred"), "background red")
-            .replace(Regex("(?i)horizontal\\s+gravity\\s*:\\s*center\\s+layout"), "layout_gravity: center_horizontal")
+        val sanitized = sanitizer.sanitize(annotation)
 
         return if (sanitized.contains(PIPE_DELIMITER)) {
             sanitized.split(PIPE_DELIMITER).map { it.trim() }.filter { it.isNotEmpty() }

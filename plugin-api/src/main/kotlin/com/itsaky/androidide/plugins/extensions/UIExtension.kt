@@ -49,7 +49,7 @@ interface UIExtension : IPlugin {
     fun getFabActions(): List<FabAction> = emptyList()
 }
 
-data class MenuItem(
+data class MenuItem @JvmOverloads constructor(
     val id: String,
     val title: String,
     val isEnabled: Boolean = true,
@@ -65,7 +65,7 @@ data class MenuItem(
      * both the sidebar and the toolbar surfaces.
      */
     val tooltipTag: String? = null,
-
+    val icon: Int? = null,
 )
 
 data class ContextMenuContext(
@@ -81,7 +81,17 @@ data class TabItem(
     val fragmentFactory: () -> Fragment,
     val isEnabled: Boolean = true,
     val isVisible: Boolean = true,
-    val order: Int = 0
+    val order: Int = 0,
+    /**
+     * Optional tooltip tag to look up under the plugin's tooltip category
+     * (`plugin_<pluginId>`). When null, the IDE composes a tag using the
+     * convention `<pluginId>.<id>` so plugins do not need to manually
+     * namespace tags to avoid collisions across plugins. If the plugin's
+     * id can't be resolved at registration time, the IDE falls back to a
+     * generic placeholder tag under the IDE tooltip category. Mirrors the
+     * tooltipTag fallback already on NavigationItem and MenuItem.
+     */
+    val tooltipTag: String? = null
 )
 
 data class NavigationItem(

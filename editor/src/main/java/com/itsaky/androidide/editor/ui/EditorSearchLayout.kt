@@ -31,6 +31,7 @@ import android.widget.PopupMenu
 import android.widget.PopupWindow
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
 import com.itsaky.androidide.editor.databinding.LayoutFindInFileBinding
 import com.itsaky.androidide.editor.ui.ReplaceAction.doReplace
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -49,17 +50,16 @@ import java.util.regex.Pattern
  */
 @SuppressLint("ViewConstructor") // Always created dynamically
 class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(context) {
+  private val collapsedSheetMargin =
+    context.resources.getDimensionPixelSize(R.dimen.editor_sheet_peek_height)
 
   private var searchInputTextWatcher: TextWatcher? = null
   private var searchOptions = SearchOptions(true, false)
-  private val findInFileBinding: LayoutFindInFileBinding
-  private val optionsMenu: PopupMenu
-
-  private var isSearching = false
+  private val findInFileBinding: LayoutFindInFileBinding = LayoutFindInFileBinding.inflate(LayoutInflater.from(context))
+    private val optionsMenu: PopupMenu
 
   init {
-    findInFileBinding = LayoutFindInFileBinding.inflate(LayoutInflater.from(context))
-    findInFileBinding.prev.setOnClickListener(::onSearchActionClick)
+      findInFileBinding.prev.setOnClickListener(::onSearchActionClick)
     findInFileBinding.next.setOnClickListener(::onSearchActionClick)
     findInFileBinding.replace.setOnClickListener(::onSearchActionClick)
     findInFileBinding.close.setOnClickListener(::onSearchActionClick)
@@ -114,6 +114,10 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
         )
         true
       }
+    }
+    ViewCompat.setOnApplyWindowInsetsListener(findInFileBinding.root) { _, insets ->
+      updateActionsBottomMargin(insets.isVisible(WindowInsetsCompat.Type.ime()))
+      insets
     }
 
     addView(
@@ -269,7 +273,7 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
             try {
               Pattern.compile(it)
               it
-            } catch (error: Throwable) {
+            } catch (_: Throwable) {
               ""
             }
           } else {
@@ -280,6 +284,12 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
       if (query.isNotBlank()) {
         editor.searcher.search(query, searchOptions)
       }
+    }
+  }
+
+  private fun updateActionsBottomMargin(isImeVisible: Boolean) {
+    findInFileBinding.actionsContainer.updateLayoutParams<MarginLayoutParams> {
+      bottomMargin = if (isImeVisible) 0 else collapsedSheetMargin
     }
   }
 }
