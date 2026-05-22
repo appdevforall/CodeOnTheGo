@@ -28,18 +28,22 @@ import android.view.ViewGroup
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
+import com.github.appintro.SlideSelectionListener
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.OnboardingActivity
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
 import com.itsaky.androidide.events.InstallationEvent
+import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.flashError
@@ -49,6 +53,7 @@ import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.InstallationState
 import com.itsaky.androidide.viewmodel.InstallationViewModel
+import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -60,7 +65,8 @@ import org.slf4j.LoggerFactory
  */
 class PermissionsFragment :
 	OnboardingFragment(),
-	SlidePolicy {
+	SlidePolicy,
+	SlideSelectionListener {
 	var adapter: OnboardingPermissionsAdapter? = null
 	private val viewModel: InstallationViewModel by viewModels()
 	private var permissionsBinding: LayoutOnboardingPermissionsBinding? = null
@@ -89,6 +95,7 @@ class PermissionsFragment :
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(PermissionsFragment::class.java)
+		private const val KEY_PRIVACY_DISCLOSURE_SHOWN = "privacy.disclosure.shown"
 
 		@JvmStatic
 		fun newInstance(context: Context): PermissionsFragment =
@@ -352,6 +359,49 @@ class PermissionsFragment :
 			activity?.flashError(R.string.msg_grant_permissions)
 		} else if (!viewModel.isSetupComplete()) {
 			activity?.flashError(R.string.msg_complete_ide_setup)
+		}
+	}
+
+	override fun onSlideSelected() {
+		if (!isPrivacyDisclosureShown()) {
+			showPrivacyDialog()
+		}
+	}
+
+	override fun onSlideDeselected() {
+	}
+
+	private fun showPrivacyDialog() {
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(com.itsaky.androidide.resources.R.string.privacy_disclosure_title)
+			.setMessage(com.itsaky.androidide.resources.R.string.privacy_disclosure_message)
+			.setPositiveButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_accept) { dialog, _ ->
+				markPrivacyDisclosureAsShown()
+				dialog.dismiss()
+			}
+			.setNeutralButton(com.itsaky.androidide.resources.R.string.privacy_disclosure_learn_more) { _, _ ->
+				openPrivacyPolicy()
+				markPrivacyDisclosureAsShown()
+			}
+			.setCancelable(false)
+			.show()
+	}
+
+	private fun isPrivacyDisclosureShown(): Boolean {
+		return prefManager.getBoolean(KEY_PRIVACY_DISCLOSURE_SHOWN, false)
+	}
+
+	private fun markPrivacyDisclosureAsShown() {
+		prefManager.putBoolean(KEY_PRIVACY_DISCLOSURE_SHOWN, true)
+	}
+
+	private fun openPrivacyPolicy() {
+		try {
+			val privacyPolicyUrl = getString(R.string.privacy_policy_url)
+			val intent = Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
+			startActivity(intent)
+		} catch (e: Exception) {
+			Sentry.captureException(e)
 		}
 	}
 
