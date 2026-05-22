@@ -24,6 +24,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Compute CalVer version
         id: compute
@@ -79,6 +80,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+          persist-credentials: false
 
       - name: Reset staging directory
         run: |
@@ -185,6 +187,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Tag and create GitHub Release (idempotent)
         env:
@@ -266,6 +269,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+          persist-credentials: false
 
       - name: Close Jira version (idempotent)
         env:
