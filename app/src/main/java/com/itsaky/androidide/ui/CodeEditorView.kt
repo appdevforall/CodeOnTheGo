@@ -25,6 +25,8 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
+import android.view.ScaleGestureDetector.SimpleOnScaleGestureListener
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.isVisible
 import com.blankj.utilcode.util.SizeUtils
@@ -79,7 +81,7 @@ import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File
 
-private const val MIN_FONT_SIZE = 6f
+private const val MIN_FONT_SIZE = 8f
 private const val DEFAULT_FONT_SIZE = 14f
 private const val MAX_FONT_SIZE = 32f
 private val ARCHIVE_EXTENSIONS = setOf("apk", "cgp", "zip")
@@ -107,6 +109,8 @@ class CodeEditorView(
 		CoroutineScope(
 			Dispatchers.Default + CoroutineName("CodeEditorView"),
 		)
+
+    private lateinit var scaleGestureDetector: ScaleGestureDetector
 
 	/**
 	 * The [CoroutineContext][kotlin.coroutines.CoroutineContext] used to reading and writing the file
@@ -234,7 +238,31 @@ class CodeEditorView(
 		addView(searchLayout, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
 		readFileAndApplySelection(file, selection)
-	}
+
+        scaleGestureDetector =
+            ScaleGestureDetector(context, object : SimpleOnScaleGestureListener() {
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    val scaleFactor = detector.scaleFactor
+                    val delta = when {
+                        scaleFactor > 1f -> 1f
+                        scaleFactor < 1f -> -1f
+                        else -> 0f
+                    }
+
+                    if (delta != 0f) {
+                        changeFontSizeBy(delta)
+                    }
+
+                    return true
+                }
+            })
+
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        scaleGestureDetector.onTouchEvent(event)
+        return super.onTouchEvent(event)
+    }
 
 	override fun onHighlightLine(
 		file: String,
@@ -736,11 +764,9 @@ class CodeEditorView(
 	private fun changeFontSizeBy(delta: Float) {
 		val current = EditorPreferences.fontSize
 		val newSize = computeNewEditorFontSize(current, delta)
-		// HJE 2026-03-03 This works, but it seems weird that we set binding.editor.setTextSize(newSize) every time OUTSIDE the if ()
-		if (newSize != current) {
-			EditorPreferences.fontSize = newSize
-		}
-		binding.editor.setTextSize(newSize)
+        if (newSize == current) return
+        binding.editor.setTextSize(newSize)
+        EditorPreferences.fontSize = newSize
 	}
 }
 
