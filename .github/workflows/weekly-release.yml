@@ -263,6 +263,10 @@ jobs:
       contents: read
       actions: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
       - name: Close Jira version (idempotent)
         env:
           JIRA_EMAIL:     ${{ secrets.JIRA_EMAIL }}

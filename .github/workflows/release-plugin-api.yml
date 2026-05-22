@@ -44,13 +44,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: flox activate -d flox/base -- bash -eo pipefail {0}
         run: |
+          TARGET_SHA="$(git rev-parse HEAD)"
           if gh release view plugin-api-latest >/dev/null 2>&1; then
             gh release delete plugin-api-latest --cleanup-tag --yes
+            sleep 10
           fi
           gh release create plugin-api-latest \
-              --target "$GITHUB_SHA" \
+              --target "$TARGET_SHA" \
               --title "plugin-api (latest)" \
-              --notes "built from ${GITHUB_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
+              --notes "built from ${TARGET_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
               .release/plugin-api.jar \
               .release/gradle-plugin.jar \
               .release/checksums.txt
