@@ -2,10 +2,13 @@ package com.itsaky.androidide.plugins.manager.ui
 
 import android.util.Log
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.extensions.EditorTabExtension
 import com.itsaky.androidide.plugins.extensions.EditorTabItem
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
+import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
 
 /**
@@ -45,6 +48,26 @@ class PluginEditorTabManager {
         this.tabSelectionListener = listener
     }
 
+    private fun resolvePluginId(extension: EditorTabExtension): String? {
+        return pluginManagerRef?.getPluginIdForInstance(extension as IPlugin)
+    }
+
+    private fun handlePluginCrash(pluginId: String, context: String, error: Throwable) {
+        logger.error("Plugin '{}' crashed in {}", pluginId, context, error)
+        val pm = pluginManagerRef ?: return
+        val result = pm.recordPluginCrash(pluginId)
+        val wasDisabled = result is PluginManager.CrashResult.Disabled
+        val crashCount = when (result) {
+            is PluginManager.CrashResult.Recorded -> result.crashCount
+            is PluginManager.CrashResult.Disabled -> pm.crashTracker.getCrashCount(pluginId)
+        }
+        runCatching {
+            EventBus.getDefault().post(
+                PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, Log.getStackTraceString(error))
+            )
+        }
+    }
+
     /**
      * Load and register plugin editor tabs from all available plugins.
      */
@@ -62,8 +85,14 @@ class PluginEditorTabManager {
 
         editorTabExtensions.forEach { plugin ->
             logger.debug("Processing plugin: {}", plugin.javaClass.name)
+            val pluginId = resolvePluginId(plugin)
 
-            val tabItems = plugin.getMainEditorTabs()
+            val tabItems = try {
+                plugin.getMainEditorTabs()
+            } catch (e: Throwable) {
+                if (pluginId != null) handlePluginCrash(pluginId, "getMainEditorTabs()", e)
+                return@forEach
+            }
             logger.debug("Plugin {} returned {} main editor tabs", plugin.javaClass.name, tabItems.size)
 
             val filteredTabItems = tabItems
@@ -130,7 +159,13 @@ class PluginEditorTabManager {
         return synchronized(this) {
             tabFragments[tabId] ?: run {
                 val tabInfo = pluginTabs[tabId] ?: return null
-                val fragment = tabInfo.tabItem.fragmentFactory()
+                val fragment = try {
+                    tabInfo.tabItem.fragmentFactory()
+                } catch (e: Throwable) {
+                    val pluginId = resolvePluginId(tabInfo.extension)
+                    if (pluginId != null) handlePluginCrash(pluginId, "fragmentFactory()", e)
+                    return null
+                }
                 tabFragments[tabId] = fragment
                 logger.debug("Created fragment for plugin tab: {}", tabId)
 
@@ -170,7 +205,13 @@ class PluginEditorTabManager {
             val tabInfo = pluginTabs[tabId] ?: return
             val fragment = tabFragments[tabId] ?: return
 
-            tabInfo.extension.onEditorTabSelected(tabId, fragment)
+            try {
+                tabInfo.extension.onEditorTabSelected(tabId, fragment)
+            } catch (e: Throwable) {
+                val pluginId = resolvePluginId(tabInfo.extension)
+                if (pluginId != null) handlePluginCrash(pluginId, "onEditorTabSelected()", e)
+                return
+            }
             tabSelectionListener?.onTabSelected(tabId, fragment)
             logger.debug("Tab selection handled for plugin tab: {}", tabId)
         }
@@ -182,7 +223,14 @@ class PluginEditorTabManager {
     fun canCloseTab(tabId: String): Boolean {
         return synchronized(this) {
             val tabInfo = pluginTabs[tabId] ?: return true
-            tabInfo.extension.canCloseEditorTab(tabId) && tabInfo.tabItem.isCloseable
+            val canClose = try {
+                tabInfo.extension.canCloseEditorTab(tabId)
+            } catch (e: Throwable) {
+                val pluginId = resolvePluginId(tabInfo.extension)
+                if (pluginId != null) handlePluginCrash(pluginId, "canCloseEditorTab()", e)
+                true
+            }
+            canClose && tabInfo.tabItem.isCloseable
         }
     }
 
@@ -193,7 +241,12 @@ class PluginEditorTabManager {
         synchronized(this) {
             val tabInfo = pluginTabs[tabId] ?: return
 
-            tabInfo.extension.onEditorTabClosed(tabId)
+            try {
+                tabInfo.extension.onEditorTabClosed(tabId)
+            } catch (e: Throwable) {
+                val pluginId = resolvePluginId(tabInfo.extension)
+                if (pluginId != null) handlePluginCrash(pluginId, "onEditorTabClosed()", e)
+            }
             tabFragments.remove(tabId)
             tabSelectionListener?.onTabClosed(tabId)
             logger.debug("Closed plugin tab: {}", tabId)
@@ -219,6 +272,33 @@ class PluginEditorTabManager {
             logger.debug("Clearing all plugin editor tabs")
             pluginTabs.clear()
             tabFragments.clear()
+        }
+    }
+
+    /**
+     * Drop all tab and fragment registrations belonging to a single plugin.
+     * Used when a plugin is force-disabled so its tabs don't linger in the registry
+     * even if the editor activity is not currently registered for events.
+     */
+    fun removePluginTabs(pluginId: String) {
+        synchronized(this) {
+            val pluginManager = pluginManagerRef ?: return
+            val toRemove = pluginTabs
+                .filterValues { info ->
+                    pluginManager.getPluginIdForInstance(info.extension) == pluginId
+                }
+                .keys
+                .toList()
+
+            if (toRemove.isEmpty()) {
+                return
+            }
+
+            toRemove.forEach { tabId ->
+                pluginTabs.remove(tabId)
+                tabFragments.remove(tabId)
+            }
+            logger.info("Removed {} tab(s) for plugin: {}", toRemove.size, pluginId)
         }
     }
 

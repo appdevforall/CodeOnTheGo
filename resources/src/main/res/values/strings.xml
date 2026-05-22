@@ -436,7 +436,7 @@
 	<string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
 	<string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
 	<string name="btn_donate">Donate</string>
-	<string name="btn_docs">Documentation</string>
+	<string name="btn_docs">Help</string>
 	<string name="btn_close">Close</string>
 	<string name="msg_ignore_case">Ignore case</string>
 	<string name="msg_use_regex">Use regex</string>
@@ -881,6 +881,15 @@
 	<string name="plugin_details">Plugin Details</string>
 	<string name="plugin_permissions">Permissions</string>
 	<string name="plugin_dependencies">Dependencies</string>
+
+	<!-- Plugin crash dialog -->
+	<string name="title_plugin_crashed">Plugin crashed</string>
+	<string name="msg_plugin_crash">\"%1$s\" crashed (%2$d of 3).</string>
+	<string name="msg_plugin_crash_disabled">\"%1$s\" was disabled after repeated crashes.</string>
+	<string name="msg_plugin_crash_dev_hint">If you\'re the plugin developer, tap the info icon to view the crash logs.</string>
+	<string name="cd_plugin_crash_view_logs">View crash logs</string>
+	<string name="title_plugin_crash_log">Crash log: %1$s</string>
+	<string name="msg_crash_log_copied">Crash log copied to clipboard</string>
 
 	<!-- Message shown when the bootstrap installer is extract a file from the zip -->
 	<!-- The first parameter is the name of the zip entry -->
