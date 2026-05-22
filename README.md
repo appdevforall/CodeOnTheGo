@@ -23,7 +23,7 @@ Code on the Go is the successor to [AndroidIDE](https://github.com/AndroidIDEOff
 
 ## Installation
 
-[Download the Code on the Go APK from the App Dev for All website.](https://www.appdevforall.org/?utm_source=gh&utm_medium=readme)
+Download the [Code on the Go APK](https://www.appdevforall.org/?utm_source=gh&utm_medium=readme) from the [App Dev for All](https://www.appdevforall.org/?utm_source=gh&utm_medium=readme) website.
 
 
 ## Contributing
