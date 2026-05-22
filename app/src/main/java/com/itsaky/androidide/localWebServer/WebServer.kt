@@ -2,6 +2,7 @@ package org.appdevforall.localwebserver
 
 import android.database.sqlite.SQLiteDatabase
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import com.itsaky.androidide.utils.DatabaseVersionResolver
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -88,22 +89,7 @@ class WebServer(private val config: ServerConfig) {
 
     fun logDatabaseLastChanged() {
         try {
-            val query = """
-SELECT changeTime, who
-FROM   LastChange
-"""
-            val cursor = database.rawQuery(query, arrayOf())
-
-            try {
-                if (cursor.count > 0) {
-                    cursor.moveToFirst()
-                    log.debug("Database last change: {} {}.", cursor.getString(0), cursor.getString(1))
-                }
-
-            } finally {
-                cursor.close()
-            }
-
+            log.debug("Database last change: {}.", DatabaseVersionResolver.resolveDatabaseVersion(database))
         } catch (e: Exception) {
             log.error("Could not retrieve database last change info: {}", e.message)
         }
@@ -429,7 +415,7 @@ clientSocket and the catch block logic are updated accordingly.
                 when {
                     cursor.count == 0 -> {
                         log.debug(
-                            "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
+                            "Template not found, for ID {}, path {}, MIME type {}, compression {}",
                             templateId,
                             path,
                             dbMimeType,
@@ -439,7 +425,7 @@ clientSocket and the catch block logic are updated accordingly.
                     }
                     cursor.count > 1 -> {
                         log.debug(
-                            "More than one template found, for ID {}, path {}, MIME type {}, compression {}}",
+                            "More than one template found, for ID {}, path {}, MIME type {}, compression {}",
                             templateId,
                             path,
                             dbMimeType,
@@ -449,7 +435,7 @@ clientSocket and the catch block logic are updated accordingly.
                     }
                     !cursor.moveToFirst() -> {
                         log.debug(
-                            "Template not found, for ID {}, path {}, MIME type {}, compression {}}",
+                            "Template not found, for ID {}, path {}, MIME type {}, compression {}",
                             templateId,
                             path,
                             dbMimeType,
