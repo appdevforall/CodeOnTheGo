@@ -32,14 +32,10 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_CREATE_PROJECT
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_PREVIOUS
-import com.itsaky.androidide.roomData.recentproject.RecentProject
-import com.itsaky.androidide.tasks.executeAsyncProvideError
 import com.itsaky.androidide.templates.ParameterWidget
-import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
-import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.Template
-import com.itsaky.androidide.templates.impl.ConstraintVerifier
-import com.itsaky.androidide.utils.TemplateRecipeExecutor
+import com.itsaky.androidide.utils.ProjectCreationManager
+import com.itsaky.androidide.utils.ui.TemplateScrollGateKeeper
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -47,6 +43,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.animation.ObjectAnimator
+import android.view.animation.LinearInterpolator
+import androidx.core.view.ViewCompat
+import androidx.core.view.isVisible
 
 /**
  * A fragment which shows a wizard-like interface for creating templates.
@@ -61,24 +61,65 @@ class TemplateDetailsFragment :
     private val viewModel by activityViewModel<MainViewModel>()
     private var widgetsBindJob: Job? = null
 
+    private var scrollGateKeeper: TemplateScrollGateKeeper? = null
+    private val projectCreationManager by lazy { ProjectCreationManager(requireContext()) }
+    private var blinkAnimator: ObjectAnimator? = null
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        setupRecyclerView()
+        setupTooltips()
+        setupObservers()
+        setupClickListeners()
+        startBlinkingIndicator()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+
+        blinkAnimator?.cancel()
+        blinkAnimator = null
+
+        scrollGateKeeper?.detach()
+        scrollGateKeeper = null
+    }
+
+    private fun setupRecyclerView() {
+        binding.widgets.layoutManager = LinearLayoutManager(requireContext())
+
+        scrollGateKeeper = TemplateScrollGateKeeper(binding.widgets) {
+            updateFinishEnabledState()
+        }
+        scrollGateKeeper?.attach()
+    }
+
+    private fun setupObservers() {
         viewModel.template.observe(viewLifecycleOwner) {
             binding.widgets.adapter = null
+            scrollGateKeeper?.reset()
+            updateFinishEnabledState()
             viewModel.postTransition(viewLifecycleOwner) { bindWithTemplate(it) }
         }
 
-        viewModel.creatingProject.observe(viewLifecycleOwner) {
+        viewModel.creatingProject.observe(viewLifecycleOwner) { isCreating ->
             TransitionManager.beginDelayedTransition(binding.root)
-            binding.finish.isEnabled = !it
-            binding.previous.isEnabled = !it
+            updateFinishEnabledState()
+            binding.previous.isEnabled = !isCreating
         }
+    }
 
+    private fun setupClickListeners() {
         binding.previous.setOnClickListener {
             viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
         }
 
+        binding.finish.setOnClickListener {
+            handleProjectCreation()
+        }
+    }
+
+    private fun setupTooltips() {
         binding.previous.setOnLongClickListener {
             TooltipManager.showIdeCategoryTooltip(requireContext(), it, SETUP_PREVIOUS)
             true
@@ -89,58 +130,25 @@ class TemplateDetailsFragment :
             true
         }
 
-        binding.finish.setOnClickListener {
-            viewModel.creatingProject.value = true
-            val template = viewModel.template.value ?: run {
-                viewModel.setScreen(MainViewModel.SCREEN_MAIN)
-                return@setOnClickListener
-            }
+        binding.title.setOnLongClickListener {
+            TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, SETUP_OVERVIEW)
+            true
+        }
+    }
 
-            val isValid = template.parameters.fold(true) { isValid, param ->
-                if (param is StringParameter) {
-                    return@fold isValid && ConstraintVerifier.isValid(
-                        param.value,
-                        param.constraints
-                    )
-                } else isValid
-            }
+    private fun handleProjectCreation() {
+        val template = viewModel.template.value ?: run {
+            viewModel.setScreen(MainViewModel.SCREEN_MAIN)
+            return
+        }
 
-            if (!isValid) {
+        projectCreationManager.execute(
+            template = template,
+            onStart = { viewModel.creatingProject.value = true },
+            onSuccess = { result, project ->
                 viewModel.creatingProject.value = false
-                flashError(string.msg_invalid_project_details)
-                return@setOnClickListener
-            }
-
-            viewModel.creatingProject.value = true
-            val appContext = requireContext().applicationContext
-            executeAsyncProvideError({
-                template.recipe.execute(TemplateRecipeExecutor(appContext))
-            }) { result, err ->
-
-                viewModel.creatingProject.value = false
-                if (result == null || err != null || result !is ProjectTemplateRecipeResult) {
-                    err?.printStackTrace()
-                    if (err != null) {
-                        flashError(err.cause?.message ?: err.message)
-                    } else {
-                        flashError(string.project_creation_failed)
-                    }
-                    return@executeAsyncProvideError
-                }
-
                 viewModel.setScreen(MainViewModel.SCREEN_MAIN)
                 flashSuccess(string.project_created_successfully)
-
-                val now = System.currentTimeMillis().toString()
-
-                val project = RecentProject(
-                    location = result.data.projectDir.path,
-                    name = result.data.name,
-                    createdAt = now,
-                    lastModified = now,
-                    templateName = template.templateNameStr,
-                    language = result.data.language?.name ?: "unknown"
-                )
 
                 viewModel.postTransition(viewLifecycleOwner) {
                     // open the project
@@ -150,18 +158,12 @@ class TemplateDetailsFragment :
                         hasTemplateIssues = result.hasErrorsWarnings
                     )
                 }
+            },
+            onError = { errorMsg ->
+                viewModel.creatingProject.value = false
+                flashError(errorMsg)
             }
-        }
-
-        binding.widgets.layoutManager = LinearLayoutManager(requireContext())
-
-        binding.title.setOnLongClickListener {
-            TooltipManager.showIdeCategoryTooltip(
-                requireContext(), binding.root,
-                SETUP_OVERVIEW
-            )
-            true
-        }
+        )
     }
 
     private fun bindWithTemplate(template: Template<*>?) {
@@ -183,6 +185,29 @@ class TemplateDetailsFragment :
             }
             _binding ?: return@launch
             binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
+            binding.widgets.post {
+                scrollGateKeeper?.checkIfReachedEnd()
+            }
+        }
+    }
+
+    private fun updateFinishEnabledState() {
+        val isCreating = viewModel.creatingProject.value ?: false
+        val hasScrolledToBottom = scrollGateKeeper?.hasReachedEnd ?: false
+        val canFinish = !isCreating && hasScrolledToBottom
+        val stateDesc = if (canFinish) null else getString(string.msg_scroll_to_create_project)
+
+        binding.finish.isEnabled = !isCreating && hasScrolledToBottom
+        binding.scrollIndicator.isVisible = !hasScrolledToBottom
+        ViewCompat.setStateDescription(binding.finish, stateDesc)
+    }
+
+    private fun startBlinkingIndicator() {
+        blinkAnimator = ObjectAnimator.ofFloat(binding.scrollIndicator, View.ALPHA, 1f, 0.2f, 1f).apply {
+            duration = 1200
+            interpolator = LinearInterpolator()
+            repeatCount = ObjectAnimator.INFINITE
+            start()
         }
     }
 }
