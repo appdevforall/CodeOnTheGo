@@ -655,11 +655,6 @@
     <string name="permission_desc_notifications">Izinkan Code on the Go menampilkan notifikasi.</string>
     <string name="permission_title_accessibility">Aksesibilitas</string>
     <string name="permission_desc_accessibility">Izinkan Code on the Go mengakses layanan aksesibilitas untuk debugging.</string>
-    <string name="permissions_info_intro">Halaman berikutnya: perizinan</string>
-    <string name="permissions_info_notifications">• <b>Notifikasi</b> (untuk menerima pesan status) Pada Android 12 dan sebelumnya, notifikasi sudah diaktifkan.</string>
-    <string name="permissions_info_storage">• <b>Penyimpanan</b> (untuk membuat direktori dan file proyek)</string>
-    <string name="permissions_info_install">• <b>Instal paket</b> (untuk menginstal aplikasi yang Anda build)</string>
-    <string name="permissions_info_overlay_accessibility">• <b>Jendela mengambang</b> (untuk menggunakan debugger) Jika Anda tidak dapat mengaktifkan izin ini, buka <b>Pengaturan \u2192 Aplikasi \u2192 Code on the Go</b>. Pada menu opsi di pojok kanan atas, ketuk <b>Aktifkan pengaturan terbatas</b>. Kembali ke penginstalan dan berikan izin. (Langkah dapat berbeda pada setiap perangkat.)</string>
     <string name="finish_installation">Selesaikan penginstalan</string>
     <string name="onboarding_title_permissions">Izin</string>
     <string name="onboarding_subtitle_permissions">Code on the Go memerlukan izin berikut:</string>
