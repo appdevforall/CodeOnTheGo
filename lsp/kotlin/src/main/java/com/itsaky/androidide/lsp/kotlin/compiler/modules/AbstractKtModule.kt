@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.modules
 
+import io.sentry.Sentry
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaPlatformInterface
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KaContentScopeProvider
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KaModuleBase
@@ -25,10 +27,12 @@ internal abstract class AbstractKtModule(
 		val files = computeFiles(extended = true).toList()
 		_baseSearchScope = GlobalSearchScope.filesScope(project, files)
 		_contentScope = KaContentScopeProvider.getInstance(project).getRefinedContentScope(this)
+		Sentry.addBreadcrumb("createSearchScopes(mod=$this, base=${_baseSearchScope?.hashCode()}, content=${_contentScope?.hashCode()})")
 	}
 
 	fun invalidateSearchScope() {
 		synchronized(searchScopeLock) {
+			Sentry.addBreadcrumb("invalidateSearchScope(mod=$this)")
 			_baseSearchScope = null
 			_contentScope = null
 		}
@@ -51,6 +55,10 @@ internal abstract class AbstractKtModule(
 
 	override val directFriendDependencies: List<KtModule>
 		get() = emptyList()
+
+	@OptIn(KaExperimentalApi::class)
+	override val moduleDescription: String
+		get() = "module '$id' (ref=${hashCode()}, baseScope=${_baseSearchScope?.hashCode()}, contentScope=${_contentScope?.hashCode()}, deps=${directRegularDependencies.joinToString { it.id }})"
 
 	override fun toString(): String {
 		return id

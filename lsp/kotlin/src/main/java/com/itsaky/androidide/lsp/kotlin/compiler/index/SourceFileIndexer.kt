@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.projects.FileManager
+import io.sentry.Sentry
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFieldInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -22,6 +23,7 @@ import org.appdevforall.codeonthego.indexing.jvm.KotlinPropertyInfo
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaNamedFunctionSymbol
@@ -35,6 +37,7 @@ import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtModifierListOwner
 import org.jetbrains.kotlin.psi.KtNamedFunction
@@ -43,6 +46,8 @@ import org.jetbrains.kotlin.psi.KtParameter
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 import org.jetbrains.kotlin.psi.KtTypeAlias
+import org.jetbrains.kotlin.psi.debugText.getDebugText
+import org.jetbrains.kotlin.utils.exceptions.KotlinExceptionWithAttachments
 import java.time.Instant
 import kotlin.io.path.pathString
 
@@ -102,16 +107,35 @@ internal suspend fun indexSourceFile(
 	fileIndex.upsert(newFile.copy(symbolKeys = symbols.map { it.key }))
 }
 
+@OptIn(KaImplementationDetail::class)
 private fun KaSession.analyzeDeclaration(filePath: String, dcl: KtDeclaration): JvmSymbol? {
 	dcl.name ?: return null
-	return when (dcl) {
-		is KtNamedFunction -> analyzeFunction(filePath, dcl)
-		is KtClassOrObject -> analyzeClassOrObject(filePath, dcl)
-		is KtParameter     -> analyzeParameter(filePath, dcl)
-		is KtProperty      -> analyzeProperty(filePath, dcl)
-		is KtTypeAlias     -> analyzeTypeAlias(filePath, dcl)
-		else               -> null
-	}
+	return runCatching {
+		when (dcl) {
+			is KtNamedFunction -> analyzeFunction(filePath, dcl)
+			is KtClassOrObject -> analyzeClassOrObject(filePath, dcl)
+			is KtParameter -> analyzeParameter(filePath, dcl)
+			is KtProperty -> analyzeProperty(filePath, dcl)
+			is KtTypeAlias -> analyzeTypeAlias(filePath, dcl)
+			else -> null
+		}
+	}.onFailure { err ->
+		Sentry.captureException(err) { scope ->
+			scope.apply {
+				setExtra("fpth", filePath)
+				setExtra("dcl", dcl.name)
+				setExtra("dcl.dbg", dcl.getDebugText())
+				setExtra("par.dbg", (dcl.parent as? KtElement)?.getDebugText() ?: dcl.parent?.toString() ?: "none")
+				if (err is KotlinExceptionWithAttachments) {
+					err.attachments.forEachIndexed { index, attachment ->
+						val extraPrefix = "ktex.atc${index}"
+						setExtra("${extraPrefix}.pth", attachment.path)
+						setExtra("${extraPrefix}.encB", attachment.encodedBytes)
+					}
+				}
+			}
+		}
+	}.getOrNull()
 }
 
 /**
