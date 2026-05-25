@@ -30,8 +30,19 @@ fun TestContext<Unit>.initializeProjectAndCancelBuild() {
 
 fun TestContext<Unit>.initializeProjectRunAssembleTasksAndCancelBuild() {
     step("Initialize project, quick-run debug build, and run assemble task set") {
-        scenario(InitializationProjectAndCancelingBuildScenario(closeProjectAfterBuild = false))
-        scenario(RunAssembleTasksScenario())
-        scenario(InitializationProjectAndCancelingBuildScenario.CloseProjectScenario())
+        var failure: Throwable? = null
+        try {
+            scenario(InitializationProjectAndCancelingBuildScenario(closeProjectAfterBuild = false))
+            scenario(RunAssembleTasksScenario())
+        } catch (throwable: Throwable) {
+            failure = throwable
+            throw throwable
+        } finally {
+            runCatching {
+                scenario(InitializationProjectAndCancelingBuildScenario.CloseProjectScenario())
+            }.onFailure { closeFailure ->
+                failure?.addSuppressed(closeFailure) ?: throw closeFailure
+            }
+        }
     }
 }

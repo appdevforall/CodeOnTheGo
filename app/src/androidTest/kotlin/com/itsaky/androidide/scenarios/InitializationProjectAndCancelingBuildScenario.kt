@@ -180,7 +180,7 @@ class InitializationProjectAndCancelingBuildScenario(
                 val closeDrawer = targetContext.getString(R.string.cd_drawer_close)
                 val closeProject = targetContext.getString(R.string.title_close_project)
                 val closeWithoutSaving = targetContext.getString(R.string.close_without_saving)
-                val saveAndClose = "Save files and close project"
+                val saveAndClose = targetContext.getString(R.string.save_and_close)
 
                 fun findCloseDialogButton() =
                     listOf(

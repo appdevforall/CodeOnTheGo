@@ -33,6 +33,7 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     fun TestContext<Unit>.selectJavaLanguage() {
         step("Select the java language") {
+            val javaText = device.targetContext.getString(R.string.lang_java)
             ProjectSettingsScreen {
                 spinner {
                     isVisible()
@@ -40,7 +41,7 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
                     childAt<KSpinnerItem>(0) {
                         isVisible()
-                        hasText("Java")
+                        hasText(javaText)
                         click()
                     }
                 }
@@ -51,10 +52,11 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
     fun TestContext<Unit>.selectKotlinLanguage() {
         step("Select the kotlin language") {
             flakySafely(30000) {
+                val kotlinText = device.targetContext.getString(R.string.lang_kotlin)
                 openProjectLanguageDropdown()
 
                 val d = device.uiDevice
-                val kotlin = d.findObject(UiSelector().text("Kotlin"))
+                val kotlin = d.findObject(UiSelector().text(kotlinText))
                 check(kotlin.waitForExists(5_000)) { "Kotlin language option not found" }
                 kotlin.click()
                 d.waitForIdle()
@@ -64,23 +66,26 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     private fun TestContext<Unit>.openProjectLanguageDropdown() {
         val d = device.uiDevice
+        val javaText = device.targetContext.getString(R.string.lang_java)
+        val kotlinText = device.targetContext.getString(R.string.lang_kotlin)
+        val languageLabelText = device.targetContext.getString(R.string.wizard_language)
 
-        val javaValue = d.findObject(UiSelector().text("Java"))
+        val javaValue = d.findObject(UiSelector().text(javaText))
         if (javaValue.waitForExists(5_000)) {
             val bounds = javaValue.visibleBounds
             d.click(bounds.centerX(), bounds.centerY())
             d.waitForIdle()
-            if (d.findObject(UiSelector().text("Kotlin")).waitForExists(2_000)) {
+            if (d.findObject(UiSelector().text(kotlinText)).waitForExists(2_000)) {
                 return
             }
         }
 
-        val languageLabel = d.findObject(UiSelector().textMatches("(?i)Project language"))
+        val languageLabel = d.findObject(UiSelector().text(languageLabelText))
         if (languageLabel.waitForExists(5_000)) {
             val bounds = languageLabel.visibleBounds
             d.click(d.displayWidth - 80, bounds.centerY())
             d.waitForIdle()
-            if (d.findObject(UiSelector().text("Kotlin")).waitForExists(2_000)) {
+            if (d.findObject(UiSelector().text(kotlinText)).waitForExists(2_000)) {
                 return
             }
         }

@@ -434,23 +434,31 @@ fun Path.resolveParts(parts: Iterable<String>): Path =
 fun Path.relativeTo(base: Path): Path =
 	base.relativize(this)
 
+fun Path.normalizedAbsolute(): Path =
+	toAbsolutePath().normalize()
+
 fun convertCacheToLocalMavenRepo(source: Path, destination: Path, logger: Logger) {
 	val allowedExtensions = setOf("aar", "jar", "module", "pom")
+	val normalizedSource = source.normalizedAbsolute()
+	val normalizedDestination = destination.normalizedAbsolute()
 
-	require(Files.isDirectory(source)) {
-		"Maven cache directory does not exist or is not a directory: $source"
+	require(Files.isDirectory(normalizedSource)) {
+		"Maven cache directory does not exist or is not a directory: $normalizedSource"
+	}
+	require(!normalizedDestination.startsWith(normalizedSource)) {
+		"Local Maven output directory must not be inside the input cache: $normalizedDestination"
 	}
 
-	Files.createDirectories(destination)
+	Files.createDirectories(normalizedDestination)
 
-	source.toFile().walkTopDown()
+	normalizedSource.toFile().walkTopDown()
 		.filter { it.isFile }
 		.filter { it.extension.lowercase() in allowedExtensions }
 		.forEach { file ->
 			val filePath = file.toPath()
 			val relativeParent =
 				filePath.parent
-					?.let { source.relativize(it).map(Path::toString).toList() }
+					?.let { normalizedSource.relativize(it).map(Path::toString).toList() }
 					.orEmpty()
 
 			val targetParts =
@@ -460,30 +468,33 @@ fun convertCacheToLocalMavenRepo(source: Path, destination: Path, logger: Logger
 					relativeParent.dropLast(1)
 				}
 
-			val targetParent = destination.resolveParts(targetParts)
+			val targetParent = normalizedDestination.resolveParts(targetParts)
 			val targetFile = targetParent.resolve(file.name)
 
 			Files.createDirectories(targetParent)
 			Files.copy(filePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
-			logger.lifecycle("Copied ${filePath.relativeTo(source)} -> ${targetFile.relativeTo(destination)}")
+			logger.lifecycle("Copied ${filePath.relativeTo(normalizedSource)} -> ${targetFile.relativeTo(normalizedDestination)}")
 		}
 }
 
 fun zeroCompressMavenRepo(source: Path, destination: Path, validateArchives: Boolean, logger: Logger) {
-	require(Files.isDirectory(source)) {
-		"Maven repository directory does not exist or is not a directory: $source"
+	val normalizedSource = source.normalizedAbsolute()
+	val normalizedDestination = destination.normalizedAbsolute()
+
+	require(Files.isDirectory(normalizedSource)) {
+		"Maven repository directory does not exist or is not a directory: $normalizedSource"
 	}
-	require(!destination.startsWith(source)) {
-		"Zero-compressed output directory must not be inside the input repository: $destination"
+	require(!normalizedDestination.startsWith(normalizedSource)) {
+		"Zero-compressed output directory must not be inside the input repository: $normalizedDestination"
 	}
 
-	Files.createDirectories(destination)
+	Files.createDirectories(normalizedDestination)
 
-	source.toFile().walkTopDown()
+	normalizedSource.toFile().walkTopDown()
 		.filter { it.isFile }
 		.forEach { file ->
 			val sourceFile = file.toPath()
-			val targetFile = destination.resolve(source.relativize(sourceFile))
+			val targetFile = normalizedDestination.resolve(normalizedSource.relativize(sourceFile))
 
 			Files.createDirectories(targetFile.parent)
 
@@ -493,7 +504,7 @@ fun zeroCompressMavenRepo(source: Path, destination: Path, validateArchives: Boo
 					if (validateArchives) {
 						validateZeroCompressedArchive(sourceFile, targetFile)
 					}
-					logger.lifecycle("Zero-compressed ${sourceFile.relativeTo(source)}")
+					logger.lifecycle("Zero-compressed ${sourceFile.relativeTo(normalizedSource)}")
 				}
 				else -> Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
 			}

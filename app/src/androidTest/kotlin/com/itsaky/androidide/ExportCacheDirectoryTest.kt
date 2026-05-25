@@ -21,7 +21,8 @@ class ExportCacheDirectoryTest {
             args.getString(ARG_DESTINATION_RELATIVE_PATH) ?: DEFAULT_DESTINATION_RELATIVE_PATH
 
         val source = File(context.filesDir, SOURCE_RELATIVE_PATH)
-        val destination = File(Environment.getExternalStorageDirectory(), destinationRelativePath)
+        val externalBase = File(Environment.getExternalStorageDirectory(), EXPORT_BASE_DIRECTORY).canonicalFile
+        val destination = resolveSafeDestination(externalBase, destinationRelativePath)
 
         assumeTrue("Source does not exist: ${source.absolutePath}", source.exists())
         assumeTrue("Source is not a directory: ${source.absolutePath}", source.isDirectory)
@@ -36,9 +37,25 @@ class ExportCacheDirectoryTest {
         assertTrue("Destination does not exist: ${destination.absolutePath}", destination.exists())
     }
 
+    private fun resolveSafeDestination(base: File, relativePath: String): File {
+        require(relativePath.isNotBlank()) {
+            "Destination path must be a non-blank relative path"
+        }
+        require(!File(relativePath).isAbsolute) {
+            "Destination path must be relative"
+        }
+
+        val destination = File(base, relativePath.removePrefix("$EXPORT_BASE_DIRECTORY/")).canonicalFile
+        require(destination.toPath().startsWith(base.toPath())) {
+            "Destination must stay under ${base.absolutePath}: ${destination.absolutePath}"
+        }
+        return destination
+    }
+
     private companion object {
         const val SOURCE_RELATIVE_PATH = "home/.gradle/caches/modules-2/files-2.1"
         const val ARG_DESTINATION_RELATIVE_PATH = "androidide.exportCache.destination"
+        const val EXPORT_BASE_DIRECTORY = "CodeOnTheGoProjects"
         const val DEFAULT_DESTINATION_RELATIVE_PATH = "CodeOnTheGoProjects/gradle-cache/modules-2/files-2.1"
     }
 }

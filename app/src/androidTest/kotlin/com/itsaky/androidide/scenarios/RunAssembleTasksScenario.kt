@@ -2,6 +2,7 @@ package com.itsaky.androidide.scenarios
 
 import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiScrollable
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.R
 import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByDescription
@@ -70,7 +71,12 @@ class RunAssembleTasksScenario(
         tasks.forEach { task ->
             step("Select Gradle task $task") {
                 val d = device.uiDevice
-                check(d.findObject(UiSelector().text(task)).waitForExists(20_000)) {
+                var taskNode = d.findObject(UiSelector().text(task))
+                if (!taskNode.waitForExists(3_000)) {
+                    UiScrollable(UiSelector().scrollable(true)).scrollTextIntoView(task)
+                    taskNode = d.findObject(UiSelector().text(task))
+                }
+                check(taskNode.waitForExists(20_000)) {
                     "Task not found in Run tasks dialog: $task"
                 }
                 clickFirstAccessibilityNodeParentByText(task)
@@ -85,8 +91,10 @@ class RunAssembleTasksScenario(
             runButton.click()
             d.waitForIdle()
 
-            check(d.findObject(UiSelector().textContains(":app:assemble")).waitForExists(10_000)) {
-                "Run tasks confirmation did not show selected tasks"
+            tasks.forEach { task ->
+                check(d.findObject(UiSelector().textContains(task)).waitForExists(10_000)) {
+                    "Run tasks confirmation missing selected task: $task"
+                }
             }
 
             runButton.click()
