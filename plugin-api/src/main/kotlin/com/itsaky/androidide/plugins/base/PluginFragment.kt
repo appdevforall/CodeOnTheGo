@@ -15,6 +15,9 @@ import java.lang.ref.WeakReference
  */
 object PluginFragmentHelper {
 
+    @JvmStatic
+    var onPluginInflationError: ((pluginId: String, error: Throwable) -> Unit)? = null
+
     private val pluginContexts = mutableMapOf<String, Context>()
     private val serviceRegistries = mutableMapOf<String, ServiceRegistry>()
     private val legacyPlugins = mutableSetOf<String>()
@@ -107,10 +110,12 @@ object PluginFragmentHelper {
             contextRef = WeakReference(defaultInflater.context),
             themeRef = WeakReference(defaultInflater.context.theme)
         )
-        if (pluginId in legacyPlugins) {
-            return pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
+        val inflater = if (pluginId in legacyPlugins) {
+            pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
                 ?: defaultInflater.cloneInContext(pluginContext)
+        } else {
+            defaultInflater.cloneInContext(pluginContext)
         }
-        return defaultInflater.cloneInContext(pluginContext)
+        return SafePluginLayoutInflater.wrap(inflater, pluginId)
     }
 }
