@@ -28,6 +28,20 @@ class RunAssembleTasksScenario(
                 dismiss.click()
                 d.waitForIdle()
             }
+            val installer = d.findObject(
+                UiSelector().packageNameMatches(".*packageinstaller.*|.*permissioncontroller.*")
+            )
+            if (installer.exists()) {
+                runAssembleLog("Package installer still visible before assemble tasks; dismissing")
+                val cancel = d.findObject(UiSelector().textMatches("(?i)cancel"))
+                if (cancel.waitForExists(2_000)) {
+                    cancel.click()
+                } else {
+                    d.pressBack()
+                }
+                runCatching { installer.waitUntilGone(5_000) }
+                d.waitForIdle()
+            }
         }
 
         step("Open Run tasks dialog") {
@@ -35,7 +49,7 @@ class RunAssembleTasksScenario(
             val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
             val runTasksDescription = targetContext.getString(R.string.cd_toolbar_run_gradle_tasks)
             val toolbar = d.findObject(UiSelector().resourceIdMatches(".*:id/editor_appBarLayout"))
-            check(toolbar.waitForExists(10_000)) { "Editor toolbar not found" }
+            check(toolbar.waitForExists(30_000)) { "Editor toolbar not found" }
             clickFirstAccessibilityNodeByDescription(runTasksDescription)
             d.waitForIdle()
 

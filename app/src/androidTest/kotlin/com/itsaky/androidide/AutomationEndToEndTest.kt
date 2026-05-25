@@ -20,7 +20,6 @@ import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectPro
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.setProjectName
 import com.itsaky.androidide.screens.PermissionScreen
-import com.itsaky.androidide.screens.PermissionsInfoScreen
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Assert.assertEquals
@@ -76,7 +75,7 @@ class AutomationEndToEndTest : TestCase() {
 
         advancePastWelcomeScreen()
 
-        // ── Permissions Info Screen ──
+        // ── Permissions Screen (with privacy disclosure dialog overlay) ──
 
         step("Verify privacy disclosure dialog") {
             val d = device.uiDevice
@@ -91,44 +90,11 @@ class AutomationEndToEndTest : TestCase() {
             device.uiDevice.waitForIdle()
         }
 
-        step("Verify permissions info content") {
-            flakySafely(timeoutMs = 2_000) {
-                PermissionsInfoScreen {
-                    introText { isVisible() }
-                    permissionsList { isVisible() }
-                }
-            }
-        }
-
-        step("Verify NEXT button on permissions info") {
-            OnboardingScreen.nextButton { isVisible(); isClickable() }
-        }
-
         step("Verify privacy dialog does not reappear") {
             assertFalse(
                 "Dialog should not reappear",
                 device.uiDevice.findObject(UiSelector().text(dialogTitle)).exists(),
             )
-        }
-
-        // ── Permissions Screen ──
-
-        step("Advance to permissions list") {
-            val d = device.uiDevice
-            val nextObj = d.findObject(UiSelector().descriptionContains("NEXT"))
-            if (!nextObj.waitForExists(3_000)) {
-                throw AssertionError("NEXT button not found on permissions info slide")
-            }
-            clickFirstAccessibilityNodeByText(
-                searchText = "NEXT",
-                errorLabel = "NEXT",
-                matchBy = { node ->
-                    val desc = node.contentDescription?.toString() ?: ""
-                    val text = node.text?.toString() ?: ""
-                    desc.contains("NEXT", ignoreCase = true) || text.contains("NEXT", ignoreCase = true)
-                },
-            )
-            d.waitForIdle()
         }
 
         val required = PermissionsHelper.getRequiredPermissions(targetContext)

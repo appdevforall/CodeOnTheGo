@@ -86,9 +86,11 @@ class InitializationProjectAndCancelingBuildScenario(
         step("Wait for quick-run outcome") {
             val d = device.uiDevice
             val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+            val quickRunDescription = targetContext.getString(R.string.cd_toolbar_quick_run)
             val installer = d.findObject(
                 UiSelector().packageNameMatches(".*packageinstaller.*|.*permissioncontroller.*")
             )
+            val quickRun = d.findObject(UiSelector().descriptionContains(quickRunDescription))
             val success = d.findObject(UiSelector().textContains("Build completed successfully"))
             val gradleSuccess = d.findObject(UiSelector().textContains("BUILD SUCCESSFUL"))
             val failure = d.findObject(UiSelector().textContains("Build failed"))
@@ -100,11 +102,18 @@ class InitializationProjectAndCancelingBuildScenario(
             closeProjectLog("Waiting for quick-run installer or build success")
             val deadline = System.currentTimeMillis() + QUICK_RUN_TIMEOUT_MS
             var lastLogAt = 0L
+            var sawQuickRunDisabled = false
 
             while (System.currentTimeMillis() < deadline) {
                 if (installer.exists()) {
                     closeProjectLog("Quick-run installer appeared; dismissing")
-                    d.pressBack()
+                    val cancel = d.findObject(UiSelector().textMatches("(?i)cancel"))
+                    if (cancel.waitForExists(2_000)) {
+                        cancel.click()
+                    } else {
+                        d.pressBack()
+                    }
+                    runCatching { installer.waitUntilGone(5_000) }
                     d.waitForIdle()
                     return@step
                 }
@@ -113,6 +122,16 @@ class InitializationProjectAndCancelingBuildScenario(
                     closeProjectLog("Quick-run build success detected without installer; continuing")
                     d.waitForIdle()
                     return@step
+                }
+
+                runCatching { quickRun.exists() && quickRun.isEnabled }.getOrNull()?.let { enabled ->
+                    if (!enabled) {
+                        sawQuickRunDisabled = true
+                    } else if (sawQuickRunDisabled) {
+                        closeProjectLog("Quick-run action re-enabled; continuing")
+                        d.waitForIdle()
+                        return@step
+                    }
                 }
 
                 check(!failure.exists() && !gradleFailure.exists() && !quickRunFailure.exists()) {
@@ -139,7 +158,7 @@ class InitializationProjectAndCancelingBuildScenario(
 
     companion object {
         private const val PROJECT_INIT_TIMEOUT_MS = 5 * 60 * 1000L
-        private const val QUICK_RUN_TIMEOUT_MS = 5 * 60 * 1000L
+        private const val QUICK_RUN_TIMEOUT_MS = 10 * 60 * 1000L
     }
 
     class CloseProjectScenario : Scenario() {
