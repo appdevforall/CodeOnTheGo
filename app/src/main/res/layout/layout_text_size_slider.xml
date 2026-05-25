@@ -16,7 +16,7 @@
     android:layout_height="wrap_content"
     android:stepSize="1.0"
     android:value="14.0"
-    android:valueFrom="6.0"
+    android:valueFrom="8.0"
     android:valueTo="32.0"
     app:thumbElevation="4dp" />
 

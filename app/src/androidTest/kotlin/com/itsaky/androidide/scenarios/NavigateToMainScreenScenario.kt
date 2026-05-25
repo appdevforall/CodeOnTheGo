@@ -4,7 +4,6 @@ import com.itsaky.androidide.helper.advancePastWelcomeScreen
 import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
 import com.itsaky.androidide.helper.grantAllRequiredPermissionsThroughOnboardingUi
 import com.itsaky.androidide.helper.logOnboardingNavigation
-import com.itsaky.androidide.helper.passPermissionsInfoSlideWithPrivacyDialog
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.screens.InstallToolsScreen
 import com.itsaky.androidide.screens.PermissionScreen
@@ -63,24 +62,6 @@ class NavigateToMainScreenScenario : Scenario() {
             if (btn.waitForExists(1_000)) {
                 logOnboardingNavigation("Privacy dialog visible — accepting")
                 clickFirstAccessibilityNodeByText(accept)
-                d.waitForIdle()
-            }
-        }
-
-        // If NEXT button is visible (permissions info slide), advance to permissions list
-        step("Advance past permissions info (if showing)") {
-            val nextBtn = d.findObject(UiSelector().descriptionContains("NEXT"))
-            if (nextBtn.waitForExists(1_000)) {
-                logOnboardingNavigation("Permissions info slide — clicking NEXT")
-                clickFirstAccessibilityNodeByText(
-                    searchText = "NEXT",
-                    errorLabel = "NEXT",
-                    matchBy = { node ->
-                        val desc = node.contentDescription?.toString() ?: ""
-                        val text = node.text?.toString() ?: ""
-                        desc.contains("NEXT", ignoreCase = true) || text.contains("NEXT", ignoreCase = true)
-                    },
-                )
                 d.waitForIdle()
             }
         }

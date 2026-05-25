@@ -83,7 +83,7 @@ class LineSpansGenerator(internal var tree: TSTree, internal var lineCount: Int,
 
   companion object {
 
-    const val CACHE_THRESHOLD = 60
+    const val CACHE_THRESHOLD = 100
     const val TAG = "LineSpansGenerator"
     /**
      * Delay in milliseconds to batch UI redraws, preventing frame drops
