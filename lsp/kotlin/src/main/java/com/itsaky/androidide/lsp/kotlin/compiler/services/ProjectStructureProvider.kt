@@ -85,8 +85,6 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 		// Fast path: in-memory file registered by onFileContentChanged.
 		inMemoryVfToModule[virtualFile]?.let { return it }
 
-		val visited = mutableSetOf<KaModule>()
-
 		val backingFilePath = (element.containingFile as? KtFile)?.let {
 			it.backingFilePath ?: it.originalKtFile?.backingFilePath
 		}
@@ -99,15 +97,12 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 		// This covers the common case (element is in the same module or one of its direct
 		// library dependencies) without scanning every top-level module.
 		if (useSiteModule != null) {
-			searchVirtualFileInModule(virtualFile, useSiteModule, visited)?.let { return it }
+			searchVirtualFileInModule(virtualFile, useSiteModule, mutableSetOf())?.let { return it }
 		}
 
 		// Full scan: search every top-level module and their transitive dependencies.
-		// The shared `visited` set avoids re-visiting what we already searched above,
-		// but still reaches modules that are NOT in useSiteModule's dependency tree
-		// (e.g. a library module that is a sibling of useSiteModule, not a child of it).
 		modules.forEach { module ->
-			searchVirtualFileInModule(virtualFile, module, visited)?.let { return it }
+			searchVirtualFileInModule(virtualFile, module, mutableSetOf())?.let { return it }
 		}
 
 		// Path-based fallback for in-memory LightVirtualFiles created by onFileContentChanged.
