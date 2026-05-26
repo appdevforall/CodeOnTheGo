@@ -301,9 +301,8 @@ private fun KaSession.collectScopeCompletions(
 	val scopeContext = ctx.scopeContext
 
 	logger.info(
-		"Complete scope members of {}: [{}] matching '{}'",
+		"Complete scope members of {}: matching '{}'",
 		ktElement,
-		ktElement.text,
 		ctx.partial
 	)
 
