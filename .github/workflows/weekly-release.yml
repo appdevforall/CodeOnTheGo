@@ -22,7 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
           persist-credentials: false
 
@@ -79,7 +78,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           persist-credentials: false
 
       - name: Reset staging directory
@@ -185,7 +183,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
           persist-credentials: false
 
@@ -228,6 +225,10 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION:    auto
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
@@ -251,6 +252,7 @@ jobs:
           echo "Prepared: $DEST"
 
       - name: Upload to Cloudflare R2 (apk-repo bucket)
+        shell: flox activate -d flox/base -- bash -eo pipefail {0}
         env:
           R2_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           DEST:          ${{ steps.rename.outputs.dest }}
@@ -268,7 +270,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           persist-credentials: false
 
       - name: Close Jira version (idempotent)
