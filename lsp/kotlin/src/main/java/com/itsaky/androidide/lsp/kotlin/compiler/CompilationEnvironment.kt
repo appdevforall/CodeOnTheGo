@@ -21,6 +21,7 @@ import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.KeyedDebouncingAction
+import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -118,7 +119,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Suppress("UnstableApiUsage")
 @OptIn(K1Deprecation::class)
 internal class CompilationEnvironment(
-	name: String,
+	val name: String,
 	val kind: CompilationKind,
 	workspace: Workspace,
 	val ktProject: KotlinProjectModel,
@@ -408,12 +409,16 @@ internal class CompilationEnvironment(
 	}
 
 	fun refreshSources() {
-		ResolutionScopeProvider.getInstance(project)
-			.invalidateAll()
+		Sentry.addBreadcrumb("refreshSources (env=${name}, modules=${modules.size})")
+		project.write {
+			Sentry.addBreadcrumb("refreshSources(env=${name}): in-progress")
+			ResolutionScopeProvider.getInstance(project)
+				.invalidateAll()
 
-		modules.asFlatSequence()
-			.filterIsInstance<AbstractKtModule>()
-			.forEach { it.invalidateSearchScope() }
+			modules.asFlatSequence()
+				.filterIsInstance<AbstractKtModule>()
+				.forEach { it.invalidateSearchScope() }
+		}
 
 		ktSymbolIndex.refreshSources()
 		// TODO: Should also update/notify Java file services about possibly changed Java files
