@@ -18,6 +18,7 @@ version = 1
 jdk17.pkg-path = "jdk17"
 android-studio-tools.pkg-path = "android-studio-tools"
 gh.pkg-path = "gh"
+awscli2.pkg-path = "awscli2"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 
