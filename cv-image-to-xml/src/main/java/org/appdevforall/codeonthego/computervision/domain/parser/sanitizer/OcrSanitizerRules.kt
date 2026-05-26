@@ -3,8 +3,9 @@ package org.appdevforall.codeonthego.computervision.domain.parser.sanitizer
 
 class ColorSanitizer : DictionaryRegexSanitizer() {
     override val rawRules = mapOf(
-        "backgroundired" to "background red",
-        "backgroundred" to "background red"
+        "backgroundired" to "background: red",
+        "backgroundred" to "background: red",
+        "\\bback[a-z]*[-_.]?\\s*[:;]\\s*" to "background: "
     )
 }
 
@@ -16,8 +17,8 @@ class TextAttributeSanitizer : DictionaryRegexSanitizer() {
 
 class DimensionSanitizer : DictionaryRegexSanitizer() {
     override val rawRules = mapOf(
-        "[il]ayout\\.?\\s*w[io]l?[td]h\\.?" to "layout_width:",
-        "layout\\s*hei[sck]+t\\.?" to "layout_height:",
+        "[il]ay[a-z]*[-_.\\s]*w[a-z0-9]*\\.?\\s*[:;]\\s*" to "layout_width: ",
+        "[il]ay[a-z]*[-_.\\s]*hei[a-z0-9]*\\.?\\s*[:;]\\s*" to "layout_height: ",
         "m?w?at[ce]h[-_\\s]?p[ar]+ent" to "match_parent"
     )
 }
@@ -31,6 +32,8 @@ class MarginPaddingSanitizer : DictionaryRegexSanitizer() {
 
 class StructureSanitizer : DictionaryRegexSanitizer() {
     override val rawRules = mapOf(
-        "horizontal\\s+gravity\\s*:\\s*center\\s+layout" to "layout_gravity: center_horizontal"
+        "horizontal\\s+gravity\\s*:\\s*center\\s+layout" to "layout_gravity: center_horizontal",
+        "\\b[ilL][dl]\\b\\s*[:;]?" to "id: ",
+        "\\bS[ec][rt]\\b\\s*[:;]?" to "src: "
     )
 }
