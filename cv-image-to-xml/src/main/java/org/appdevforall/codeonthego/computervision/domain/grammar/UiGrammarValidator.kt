@@ -9,7 +9,9 @@ class UiGrammarValidator {
         CheckBoxGrammar,
         SwitchGrammar,
         RadioGroupGrammar,
-        SliderGrammar
+        SliderGrammar,
+        ButtonGrammar,
+        TextViewGrammar,
     ).associateBy { it.tag }
 
     fun enforceGrammar(rawParsedAttributes: Map<String, String>, tag: String): Map<String, String> {
