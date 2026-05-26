@@ -11,6 +11,14 @@ import com.kaspersky.kaspresso.testcases.api.scenario.Scenario
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 
 private const val RUN_ASSEMBLE_TAG = "RunAssembleTasks"
+private const val SHORT_UI_TIMEOUT_MS = 2_000L
+private const val DEFAULT_UI_TIMEOUT_MS = 3_000L
+private const val INSTALLER_GONE_TIMEOUT_MS = 5_000L
+private const val RUN_TASKS_DIALOG_TIMEOUT_MS = 10_000L
+private const val TASK_SELECTION_TIMEOUT_MS = 20_000L
+private const val EDITOR_TOOLBAR_TIMEOUT_MS = 30_000L
+private const val BUILD_LOG_INTERVAL_MS = 10_000L
+private const val POLL_INTERVAL_MS = 1_000L
 
 private fun runAssembleLog(message: String) {
     Log.e(RUN_ASSEMBLE_TAG, message)
@@ -25,7 +33,7 @@ class RunAssembleTasksScenario(
         step("Dismiss post-build overlays before running assemble tasks") {
             val d = device.uiDevice
             val dismiss = d.findObject(UiSelector().text("Dismiss"))
-            if (dismiss.waitForExists(3_000)) {
+            if (dismiss.waitForExists(DEFAULT_UI_TIMEOUT_MS)) {
                 dismiss.click()
                 d.waitForIdle()
             }
@@ -35,12 +43,12 @@ class RunAssembleTasksScenario(
             if (installer.exists()) {
                 runAssembleLog("Package installer still visible before assemble tasks; dismissing")
                 val cancel = d.findObject(UiSelector().textMatches("(?i)cancel"))
-                if (cancel.waitForExists(2_000)) {
+                if (cancel.waitForExists(SHORT_UI_TIMEOUT_MS)) {
                     cancel.click()
                 } else {
                     d.pressBack()
                 }
-                runCatching { installer.waitUntilGone(5_000) }
+                runCatching { installer.waitUntilGone(INSTALLER_GONE_TIMEOUT_MS) }
                 d.waitForIdle()
             }
         }
@@ -50,12 +58,12 @@ class RunAssembleTasksScenario(
             val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
             val runTasksDescription = targetContext.getString(R.string.cd_toolbar_run_gradle_tasks)
             val toolbar = d.findObject(UiSelector().resourceIdMatches(".*:id/editor_appBarLayout"))
-            check(toolbar.waitForExists(30_000)) { "Editor toolbar not found" }
+            check(toolbar.waitForExists(EDITOR_TOOLBAR_TIMEOUT_MS)) { "Editor toolbar not found" }
             clickFirstAccessibilityNodeByDescription(runTasksDescription)
             d.waitForIdle()
 
             val title = targetContext.getString(R.string.title_run_tasks)
-            check(d.findObject(UiSelector().text(title)).waitForExists(10_000)) {
+            check(d.findObject(UiSelector().text(title)).waitForExists(RUN_TASKS_DIALOG_TIMEOUT_MS)) {
                 "Run tasks dialog did not open"
             }
         }
@@ -63,7 +71,7 @@ class RunAssembleTasksScenario(
         step("Filter assemble tasks") {
             val d = device.uiDevice
             val search = d.findObject(UiSelector().className("android.widget.EditText"))
-            check(search.waitForExists(10_000)) { "Run tasks search field not found" }
+            check(search.waitForExists(RUN_TASKS_DIALOG_TIMEOUT_MS)) { "Run tasks search field not found" }
             search.setText("assemble")
             d.waitForIdle()
         }
@@ -72,11 +80,11 @@ class RunAssembleTasksScenario(
             step("Select Gradle task $task") {
                 val d = device.uiDevice
                 var taskNode = d.findObject(UiSelector().text(task))
-                if (!taskNode.waitForExists(3_000)) {
+                if (!taskNode.waitForExists(DEFAULT_UI_TIMEOUT_MS)) {
                     UiScrollable(UiSelector().scrollable(true)).scrollTextIntoView(task)
                     taskNode = d.findObject(UiSelector().text(task))
                 }
-                check(taskNode.waitForExists(20_000)) {
+                check(taskNode.waitForExists(TASK_SELECTION_TIMEOUT_MS)) {
                     "Task not found in Run tasks dialog: $task"
                 }
                 clickFirstAccessibilityNodeParentByText(task)
@@ -87,12 +95,12 @@ class RunAssembleTasksScenario(
         step("Confirm and run selected Gradle tasks") {
             val d = device.uiDevice
             val runButton = d.findObject(UiSelector().resourceIdMatches(".*:id/exec"))
-            check(runButton.waitForExists(10_000)) { "Run tasks execute button not found" }
+            check(runButton.waitForExists(RUN_TASKS_DIALOG_TIMEOUT_MS)) { "Run tasks execute button not found" }
             runButton.click()
             d.waitForIdle()
 
             tasks.forEach { task ->
-                check(d.findObject(UiSelector().textContains(task)).waitForExists(10_000)) {
+                check(d.findObject(UiSelector().textContains(task)).waitForExists(RUN_TASKS_DIALOG_TIMEOUT_MS)) {
                     "Run tasks confirmation missing selected task: $task"
                 }
             }
@@ -125,12 +133,12 @@ class RunAssembleTasksScenario(
                 }
 
                 val now = System.currentTimeMillis()
-                if (now - lastLogAt > 10_000L) {
+                if (now - lastLogAt > BUILD_LOG_INTERVAL_MS) {
                     runAssembleLog("Still waiting for selected assemble tasks to finish")
                     lastLogAt = now
                 }
 
-                Thread.sleep(1_000)
+                Thread.sleep(POLL_INTERVAL_MS)
                 d.waitForIdle()
             }
 

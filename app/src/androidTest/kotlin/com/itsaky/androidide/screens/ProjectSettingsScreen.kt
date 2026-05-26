@@ -11,6 +11,12 @@ import io.github.kakaocup.kakao.spinner.KSpinner
 import io.github.kakaocup.kakao.spinner.KSpinnerItem
 import io.github.kakaocup.kakao.text.KButton
 
+private const val KOTLIN_LANGUAGE_SELECTION_TIMEOUT_MS = 30_000L
+private const val LANGUAGE_OPTION_TIMEOUT_MS = 5_000L
+private const val LANGUAGE_DROPDOWN_EXPANSION_TIMEOUT_MS = 2_000L
+private const val PROJECT_NAME_FIELD_TIMEOUT_MS = 3_000L
+private const val LANGUAGE_DROPDOWN_FALLBACK_X_OFFSET = 80
+
 object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     override val layoutId: Int? = null
@@ -51,13 +57,13 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
     fun TestContext<Unit>.selectKotlinLanguage() {
         step("Select the kotlin language") {
-            flakySafely(30000) {
+            flakySafely(KOTLIN_LANGUAGE_SELECTION_TIMEOUT_MS) {
                 val kotlinText = device.targetContext.getString(R.string.lang_kotlin)
                 openProjectLanguageDropdown()
 
                 val d = device.uiDevice
                 val kotlin = d.findObject(UiSelector().text(kotlinText))
-                check(kotlin.waitForExists(5_000)) { "Kotlin language option not found" }
+                check(kotlin.waitForExists(LANGUAGE_OPTION_TIMEOUT_MS)) { "Kotlin language option not found" }
                 kotlin.click()
                 d.waitForIdle()
             }
@@ -71,21 +77,21 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
         val languageLabelText = device.targetContext.getString(R.string.wizard_language)
 
         val javaValue = d.findObject(UiSelector().text(javaText))
-        if (javaValue.waitForExists(5_000)) {
+        if (javaValue.waitForExists(LANGUAGE_OPTION_TIMEOUT_MS)) {
             val bounds = javaValue.visibleBounds
             d.click(bounds.centerX(), bounds.centerY())
             d.waitForIdle()
-            if (d.findObject(UiSelector().text(kotlinText)).waitForExists(2_000)) {
+            if (d.findObject(UiSelector().text(kotlinText)).waitForExists(LANGUAGE_DROPDOWN_EXPANSION_TIMEOUT_MS)) {
                 return
             }
         }
 
         val languageLabel = d.findObject(UiSelector().text(languageLabelText))
-        if (languageLabel.waitForExists(5_000)) {
+        if (languageLabel.waitForExists(LANGUAGE_OPTION_TIMEOUT_MS)) {
             val bounds = languageLabel.visibleBounds
-            d.click(d.displayWidth - 80, bounds.centerY())
+            d.click(d.displayWidth - LANGUAGE_DROPDOWN_FALLBACK_X_OFFSET, bounds.centerY())
             d.waitForIdle()
-            if (d.findObject(UiSelector().text(kotlinText)).waitForExists(2_000)) {
+            if (d.findObject(UiSelector().text(kotlinText)).waitForExists(LANGUAGE_DROPDOWN_EXPANSION_TIMEOUT_MS)) {
                 return
             }
         }
@@ -105,7 +111,7 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
         step("Set project name to '$name'") {
             val d = device.uiDevice
             val byText = d.findObject(UiSelector().textStartsWith("My Application"))
-            check(byText.waitForExists(3_000)) { "Project name field not found" }
+            check(byText.waitForExists(PROJECT_NAME_FIELD_TIMEOUT_MS)) { "Project name field not found" }
             setAccessibilityEditText("My Application", name, "project name")
             d.waitForIdle()
         }

@@ -28,6 +28,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
+private const val LAUNCH_SETTLE_DELAY_MS = 1_000L
+private const val PRIVACY_DIALOG_TIMEOUT_MS = 2_000L
+private const val PERMISSIONS_ASSERTION_TIMEOUT_MS = 3_000L
+private const val KOTLIN_LANGUAGE_TEMPLATE_COUNT = 7
+
 /**
  * Single continuous E2E test that drives the app from first launch through
  * onboarding, project creation, builds, and beyond.
@@ -57,7 +62,7 @@ class AutomationEndToEndTest : TestCase() {
 
         step("Launch app") {
             ActivityScenario.launch(SplashActivity::class.java)
-            Thread.sleep(1000)
+            Thread.sleep(LAUNCH_SETTLE_DELAY_MS)
         }
 
         // ── Welcome Screen ──
@@ -80,7 +85,7 @@ class AutomationEndToEndTest : TestCase() {
         step("Verify privacy disclosure dialog") {
             val d = device.uiDevice
             val title = d.findObject(UiSelector().text(dialogTitle))
-            assertTrue("Dialog title missing", title.waitForExists(2_000))
+            assertTrue("Dialog title missing", title.waitForExists(PRIVACY_DIALOG_TIMEOUT_MS))
             assertTrue("Accept button missing", d.findObject(UiSelector().text(acceptText)).exists())
             assertTrue("Learn more button missing", d.findObject(UiSelector().text(learnMoreText)).exists())
         }
@@ -100,7 +105,7 @@ class AutomationEndToEndTest : TestCase() {
         val required = PermissionsHelper.getRequiredPermissions(targetContext)
 
         step("Verify all permission items") {
-            flakySafely(timeoutMs = 3_000) {
+            flakySafely(timeoutMs = PERMISSIONS_ASSERTION_TIMEOUT_MS) {
                 PermissionScreen {
                     title { isVisible() }
                     subTitle { isVisible() }
@@ -136,7 +141,7 @@ class AutomationEndToEndTest : TestCase() {
         grantAllRequiredPermissionsThroughOnboardingUi()
 
         step("Confirm all permissions granted") {
-            flakySafely(timeoutMs = 3_000) {
+            flakySafely(timeoutMs = PERMISSIONS_ASSERTION_TIMEOUT_MS) {
                 assertTrue(PermissionsHelper.areAllPermissionsGranted(targetContext))
             }
         }
@@ -198,7 +203,7 @@ class AutomationEndToEndTest : TestCase() {
             TemplateConfig("Compose Activity", R.string.template_compose, "TestComposeActivity"),
         )
 
-        val kotlinLanguageTemplates = defaultLanguageTemplates.take(7).map { config ->
+        val kotlinLanguageTemplates = defaultLanguageTemplates.take(KOTLIN_LANGUAGE_TEMPLATE_COUNT).map { config ->
             config.copy(
                 label = "Kotlin ${config.label}",
                 projectName = "Kt${config.projectName}",

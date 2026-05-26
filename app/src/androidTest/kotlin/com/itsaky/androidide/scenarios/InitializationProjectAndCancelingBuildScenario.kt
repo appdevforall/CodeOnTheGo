@@ -10,6 +10,22 @@ import com.kaspersky.kaspresso.testcases.api.scenario.Scenario
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 
 private const val CLOSE_PROJECT_TAG = "CloseProjectScenario"
+private const val DEFAULT_TOOLBAR_BUTTON_TIMEOUT_MS = 10_000L
+private const val SHORT_UI_TIMEOUT_MS = 2_000L
+private const val DEFAULT_UI_TIMEOUT_MS = 3_000L
+private const val CLOSE_DIALOG_TIMEOUT_MS = 10_000L
+private const val INSTALLER_GONE_TIMEOUT_MS = 5_000L
+private const val POLL_INTERVAL_MS = 1_000L
+private const val PROJECT_STATUS_LOG_INTERVAL_MS = 15_000L
+private const val CLOSE_DIALOG_RETRY_DELAY_MS = 2_000L
+private const val PROJECT_MENU_FALLBACK_X_OFFSET = 48
+private const val PROJECT_MENU_FALLBACK_Y_OFFSET = 70
+private const val PROJECT_MENU_FALLBACK_Y = 140
+private const val SYSTEM_BACK_BUTTON_X_RATIO = 0.24f
+private const val SYSTEM_BACK_BUTTON_BOTTOM_OFFSET = 40
+private const val PRESS_BACK_RETRY_COUNT = 2
+private const val SYSTEM_BACK_TAP_RETRY_COUNT = 3
+private const val FALLBACK_CLOSE_RETRY_COUNT = 4
 
 private fun closeProjectLog(message: String) {
     Log.e(CLOSE_PROJECT_TAG, message)
@@ -20,7 +36,10 @@ class InitializationProjectAndCancelingBuildScenario(
     private val closeProjectAfterBuild: Boolean = true,
 ) : Scenario() {
 
-    private fun TestContext<Unit>.clickToolbarButton(description: String, waitMs: Long = 10_000) {
+    private fun TestContext<Unit>.clickToolbarButton(
+        description: String,
+        waitMs: Long = DEFAULT_TOOLBAR_BUTTON_TIMEOUT_MS,
+    ) {
         val d = device.uiDevice
         val btn = d.findObject(UiSelector().descriptionContains(description))
         check(btn.waitForExists(waitMs)) { "Toolbar button '$description' not found" }
@@ -32,7 +51,7 @@ class InitializationProjectAndCancelingBuildScenario(
         step("Dismiss first build notice and start init") {
             val d = device.uiDevice
             val okBtn = d.findObject(UiSelector().text("OK").className("android.widget.Button"))
-            if (okBtn.waitForExists(3_000)) {
+            if (okBtn.waitForExists(DEFAULT_UI_TIMEOUT_MS)) {
                 clickFirstAccessibilityNodeByText("OK")
                 d.waitForIdle()
             }
@@ -41,7 +60,7 @@ class InitializationProjectAndCancelingBuildScenario(
             val toolbar = d.findObject(
                 UiSelector().resourceIdMatches(".*:id/editor_appBarLayout")
             )
-            check(toolbar.waitForExists(3_000)) { "Editor toolbar not found" }
+            check(toolbar.waitForExists(DEFAULT_UI_TIMEOUT_MS)) { "Editor toolbar not found" }
             d.waitForIdle()
             // The button may be "Sync project" or "Quick run" depending on state
             clickToolbarButton("Sync project")
@@ -65,12 +84,12 @@ class InitializationProjectAndCancelingBuildScenario(
 
                 if (!initialized) {
                     val now = System.currentTimeMillis()
-                    if (now - lastLogAt > 15_000L) {
+                    if (now - lastLogAt > PROJECT_STATUS_LOG_INTERVAL_MS) {
                         closeProjectLog("Waiting for project initialization or enabled Quick run")
                         lastLogAt = now
                     }
-                    d.waitForIdle(2_000)
-                    Thread.sleep(1_000)
+                    d.waitForIdle(SHORT_UI_TIMEOUT_MS)
+                    Thread.sleep(POLL_INTERVAL_MS)
                 }
             }
 
@@ -108,12 +127,12 @@ class InitializationProjectAndCancelingBuildScenario(
                 if (installer.exists()) {
                     closeProjectLog("Quick-run installer appeared; dismissing")
                     val cancel = d.findObject(UiSelector().textMatches("(?i)cancel"))
-                    if (cancel.waitForExists(2_000)) {
+                    if (cancel.waitForExists(SHORT_UI_TIMEOUT_MS)) {
                         cancel.click()
                     } else {
                         d.pressBack()
                     }
-                    runCatching { installer.waitUntilGone(5_000) }
+                    runCatching { installer.waitUntilGone(INSTALLER_GONE_TIMEOUT_MS) }
                     d.waitForIdle()
                     return@step
                 }
@@ -139,13 +158,13 @@ class InitializationProjectAndCancelingBuildScenario(
                 }
 
                 val now = System.currentTimeMillis()
-                if (now - lastLogAt > 15_000L) {
+                if (now - lastLogAt > PROJECT_STATUS_LOG_INTERVAL_MS) {
                     closeProjectLog("Still waiting for quick-run installer or build success")
                     lastLogAt = now
                 }
 
-                d.waitForIdle(2_000)
-                Thread.sleep(1_000)
+                d.waitForIdle(SHORT_UI_TIMEOUT_MS)
+                Thread.sleep(POLL_INTERVAL_MS)
             }
 
             error("Quick-run timed out waiting for installer or build success")
@@ -166,7 +185,7 @@ class InitializationProjectAndCancelingBuildScenario(
             step("Dismiss post-build overlays") {
                 val d = device.uiDevice
                 val dismiss = d.findObject(UiSelector().text("Dismiss"))
-                if (dismiss.waitForExists(3_000)) {
+                if (dismiss.waitForExists(DEFAULT_UI_TIMEOUT_MS)) {
                     clickFirstAccessibilityNodeByText("Dismiss")
                     d.waitForIdle()
                 }
@@ -188,7 +207,7 @@ class InitializationProjectAndCancelingBuildScenario(
                         UiSelector().textContains("without saving"),
                         UiSelector().text(saveAndClose),
                     ).firstNotNullOfOrNull { selector ->
-                        d.findObject(selector).takeIf { it.waitForExists(2_000) && it.exists() }
+                        d.findObject(selector).takeIf { it.waitForExists(SHORT_UI_TIMEOUT_MS) && it.exists() }
                     }
 
                 fun findCloseProjectControl() =
@@ -198,52 +217,61 @@ class InitializationProjectAndCancelingBuildScenario(
                         UiSelector().text(closeProject),
                         UiSelector().textContains(closeProject),
                     ).firstNotNullOfOrNull { selector ->
-                        d.findObject(selector).takeIf { it.waitForExists(2_000) && it.exists() }
+                        d.findObject(selector).takeIf { it.waitForExists(SHORT_UI_TIMEOUT_MS) && it.exists() }
                     }
 
                 fun tapVisibleProjectMenuFallback() {
                     val toolbar = d.findObject(UiSelector().resourceIdMatches(".*:id/editor_appBarLayout"))
-                    val bounds = toolbar.takeIf { it.waitForExists(3_000) && it.exists() }?.visibleBounds
-                    val x = bounds?.let { it.left + 48 } ?: 48
-                    val y = bounds?.let { it.top + 70 } ?: 140
+                    val bounds = toolbar
+                        .takeIf { it.waitForExists(DEFAULT_UI_TIMEOUT_MS) && it.exists() }
+                        ?.visibleBounds
+                    val x = bounds?.let { it.left + PROJECT_MENU_FALLBACK_X_OFFSET } ?: PROJECT_MENU_FALLBACK_X_OFFSET
+                    val y = bounds?.let { it.top + PROJECT_MENU_FALLBACK_Y_OFFSET } ?: PROJECT_MENU_FALLBACK_Y
                     d.click(x, y)
                     d.waitForIdle()
                 }
 
                 fun tapSystemBackButton() {
-                    d.click((d.displayWidth * 0.24f).toInt(), d.displayHeight - 40)
+                    d.click(
+                        (d.displayWidth * SYSTEM_BACK_BUTTON_X_RATIO).toInt(),
+                        d.displayHeight - SYSTEM_BACK_BUTTON_BOTTOM_OFFSET,
+                    )
                     d.waitForIdle()
                 }
 
                 var closeDialogButton = findCloseDialogButton()
-                repeat(2) { attempt ->
+                repeat(PRESS_BACK_RETRY_COUNT) { attempt ->
                     if (closeDialogButton == null) {
-                        closeProjectLog("pressBack attempt ${attempt + 1}/2")
+                        closeProjectLog("pressBack attempt ${attempt + 1}/$PRESS_BACK_RETRY_COUNT")
                         d.pressBack()
                         d.waitForIdle()
-                        Thread.sleep(2_000)
+                        Thread.sleep(CLOSE_DIALOG_RETRY_DELAY_MS)
                         closeDialogButton = findCloseDialogButton()
-                        closeProjectLog("close dialog after pressBack attempt ${attempt + 1}: ${closeDialogButton != null}")
+                        closeProjectLog(
+                            "close dialog after pressBack attempt ${attempt + 1}: ${closeDialogButton != null}"
+                        )
                     }
                 }
 
                 if (closeDialogButton != null) {
-                    closeDialogButton?.click()
+                    closeDialogButton.click()
                     d.waitForIdle()
                     return@step
                 }
 
-                repeat(3) { attempt ->
+                repeat(SYSTEM_BACK_TAP_RETRY_COUNT) { attempt ->
                     if (closeDialogButton == null) {
-                        closeProjectLog("system Back button tap attempt ${attempt + 1}/3")
+                        closeProjectLog("system Back button tap attempt ${attempt + 1}/$SYSTEM_BACK_TAP_RETRY_COUNT")
                         tapSystemBackButton()
                         closeDialogButton = findCloseDialogButton()
-                        closeProjectLog("close dialog after system Back tap attempt ${attempt + 1}: ${closeDialogButton != null}")
+                        closeProjectLog(
+                            "close dialog after system Back tap attempt ${attempt + 1}: ${closeDialogButton != null}"
+                        )
                     }
                 }
 
                 if (closeDialogButton != null) {
-                    closeDialogButton?.click()
+                    closeDialogButton.click()
                     d.waitForIdle()
                     return@step
                 }
@@ -255,7 +283,7 @@ class InitializationProjectAndCancelingBuildScenario(
                         UiSelector().descriptionContains(openDrawer),
                         UiSelector().descriptionContains(closeDrawer),
                     ).firstNotNullOfOrNull { selector ->
-                        d.findObject(selector).takeIf { it.waitForExists(2_000) && it.exists() }
+                        d.findObject(selector).takeIf { it.waitForExists(SHORT_UI_TIMEOUT_MS) && it.exists() }
                     }
 
                     if (drawer != null) {
@@ -281,19 +309,19 @@ class InitializationProjectAndCancelingBuildScenario(
                     UiSelector().textContains("without saving"),
                     UiSelector().text(saveAndClose),
                 ).firstNotNullOfOrNull { selector ->
-                    d.findObject(selector).takeIf { it.waitForExists(10_000) && it.exists() }
+                    d.findObject(selector).takeIf { it.waitForExists(CLOSE_DIALOG_TIMEOUT_MS) && it.exists() }
                 }
 
                 if (closeButton != null) {
                     closeButton.click()
                 } else {
                     var projectClosed = false
-                    repeat(4) { attempt ->
+                    repeat(FALLBACK_CLOSE_RETRY_COUNT) { attempt ->
                         if (projectClosed) {
                             return@repeat
                         }
 
-                        closeProjectLog("fallback pressBack attempt ${attempt + 1}/4")
+                        closeProjectLog("fallback pressBack attempt ${attempt + 1}/$FALLBACK_CLOSE_RETRY_COUNT")
                         d.pressBack()
                         d.waitForIdle()
 
@@ -302,7 +330,7 @@ class InitializationProjectAndCancelingBuildScenario(
                             UiSelector().textContains("without saving"),
                             UiSelector().text(saveAndClose),
                         ).firstNotNullOfOrNull { selector ->
-                            d.findObject(selector).takeIf { it.waitForExists(3_000) && it.exists() }
+                            d.findObject(selector).takeIf { it.waitForExists(DEFAULT_UI_TIMEOUT_MS) && it.exists() }
                         }
 
                         if (fallbackCloseButton != null) {
@@ -310,7 +338,7 @@ class InitializationProjectAndCancelingBuildScenario(
                             projectClosed = true
                         }
 
-                        if (!projectClosed && attempt == 3) {
+                        if (!projectClosed && attempt == FALLBACK_CLOSE_RETRY_COUNT - 1) {
                             error("Close project dialog not found")
                         }
                     }
