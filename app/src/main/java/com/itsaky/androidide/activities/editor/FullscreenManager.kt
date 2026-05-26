@@ -117,15 +117,25 @@ class FullscreenManager(
 
     private val offsetListener = AppBarLayout.OnOffsetChangedListener { appBarLayout, verticalOffset ->
         val totalScrollRange = appBarLayout.totalScrollRange
-        if (totalScrollRange > 0) {
-            val collapseFraction = abs(verticalOffset).toFloat() / totalScrollRange.toFloat()
+        val effectiveScrollRange = if (totalScrollRange > 0) totalScrollRange else appBarLayout.height
+
+        if (effectiveScrollRange > 0) {
+            val collapseFraction = abs(verticalOffset).toFloat() / effectiveScrollRange.toFloat()
             appBarContent.alpha = 1f - collapseFraction
         }
-        
+
         if (!isFullscreenState) {
-            val visibleAppBarHeight = totalScrollRange + verticalOffset
+            val visibleAppBarHeight = effectiveScrollRange + verticalOffset
             editorContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
                 bottomMargin = defaultEditorBottomMargin + visibleAppBarHeight
+            }
+
+            if (verticalOffset == 0) {
+                val params = appBarContent.layoutParams as AppBarLayout.LayoutParams
+                if (params.scrollFlags != 0) {
+                    params.scrollFlags = 0
+                    appBarContent.layoutParams = params
+                }
             }
         }
     }
@@ -222,6 +232,7 @@ class FullscreenManager(
     private fun applyFullscreen(animate: Boolean) {
         closeDrawerAction()
 
+        setupScrollFlags()
         topBar.setExpanded(false, animate)
         appBarContent.alpha = 0f
 
