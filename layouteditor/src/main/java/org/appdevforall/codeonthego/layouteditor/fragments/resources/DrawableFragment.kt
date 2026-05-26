@@ -33,31 +33,40 @@ import org.appdevforall.codeonthego.layouteditor.adapters.models.DrawableFile
 import org.appdevforall.codeonthego.layouteditor.databinding.DialogSelectDpisBinding
 import org.appdevforall.codeonthego.layouteditor.databinding.FragmentResourcesBinding
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
-import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager.Companion.instance
 import org.appdevforall.codeonthego.layouteditor.tools.ImageConverter
+import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil.getLastSegmentFromPath
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker
-import org.appdevforall.codeonthego.layouteditor.utils.SBUtils
+import org.appdevforall.codeonthego.layouteditor.utils.ProjectResolver
 import org.appdevforall.codeonthego.layouteditor.utils.Utils
 import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 
-class DrawableFragment(
-    private var drawableList: MutableList<DrawableFile>
-) : Fragment() {
+class DrawableFragment : Fragment() {
     private var binding: FragmentResourcesBinding? = null
     private var mRecyclerView: RecyclerView? = null
 
     private var project: ProjectFile? = null
+    private var drawableList: MutableList<DrawableFile> = mutableListOf()
 
     private var adapter: DrawableResourceAdapter? = null
     var dpiAdapter: DPIsListAdapter? = null
     private var dpiList = mutableListOf("ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi")
 
     private val logger = LoggerFactory.getLogger(DrawableFragment::class.java)
+
+    companion object {
+        fun newInstance(project: ProjectFile): DrawableFragment {
+            val fragment = DrawableFragment()
+            val args = Bundle()
+            args.putParcelable(Constants.EXTRA_KEY_PROJECT, project)
+            fragment.arguments = args
+            return fragment
+        }
+    }
 
 
     override fun onCreateView(
@@ -69,7 +78,9 @@ class DrawableFragment(
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        project = instance.openedProject
+        project = ProjectResolver.getValidProjectOrShowError(arguments, view)
+        if (project == null) return
+
         loadDrawables()
         mRecyclerView = binding!!.recyclerView
         // Create the adapter and set it to the RecyclerView

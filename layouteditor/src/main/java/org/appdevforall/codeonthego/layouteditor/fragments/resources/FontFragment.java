@@ -31,9 +31,10 @@ import org.appdevforall.codeonthego.layouteditor.adapters.FontResourceAdapter;
 import org.appdevforall.codeonthego.layouteditor.adapters.models.FontItem;
 import org.appdevforall.codeonthego.layouteditor.databinding.FragmentResourcesBinding;
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutFontItemDialogBinding;
-import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
+import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil;
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker;
+import org.appdevforall.codeonthego.layouteditor.utils.ProjectResolver;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -49,17 +50,27 @@ public class FontFragment extends Fragment {
   private List<FontItem> fontList = new ArrayList<>();
   private ExecutorService executor;
 
+  public static FontFragment newInstance(ProjectFile project) {
+    FontFragment fragment = new FontFragment();
+    Bundle args = new Bundle();
+    args.putParcelable(Constants.EXTRA_KEY_PROJECT, project);
+    fragment.setArguments(args);
+    return fragment;
+  }
+
   @Override
   public android.view.View onCreateView(
     @NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
     binding = FragmentResourcesBinding.inflate(inflater, container, false);
-    project = ProjectManager.getInstance().getOpenedProject();
     return binding.getRoot();
   }
 
   @Override
   public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
+    project = ProjectResolver.getValidProjectOrShowError(getArguments(), view);
+    if (project == null) return;
+
     executor = Executors.newSingleThreadExecutor();
     adapter = new FontResourceAdapter(fontList);
     RecyclerView mRecyclerView = binding.recyclerView;
