@@ -4,6 +4,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.DEFAULT_JVM_TARGET
 import com.itsaky.androidide.lsp.kotlin.compiler.DEFAULT_LANGUAGE_VERSION
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.projects.api.ModuleProject
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaPlatformInterface
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
@@ -78,6 +79,10 @@ internal class KtSourceModule(
 
 	override val name: String
 		get() = module.name
+
+	@OptIn(KaExperimentalApi::class)
+	override val moduleDescription: String
+		get() = super<AbstractKtModule>.moduleDescription
 
 	override val languageVersionSettings: LanguageVersionSettings
 		get() = LanguageVersionSettingsImpl(
