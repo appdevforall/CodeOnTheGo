@@ -27,7 +27,9 @@ interface LayoutGrammar : WidgetGrammar {
             AttributeKey.GRAVITY.xmlName to CategoricalValidator(GravityValueSet.values),
             AttributeKey.LAYOUT_WEIGHT.xmlName to PassThroughValidator,
             AttributeKey.PADDING.xmlName to DimensionValidator,
-            AttributeKey.VISIBILITY.xmlName to CategoricalValidator(VisibilityValueSet.values)
+            AttributeKey.VISIBILITY.xmlName to CategoricalValidator(VisibilityValueSet.values),
+            AttributeKey.BACKGROUND.xmlName to PassThroughValidator,
+            AttributeKey.BACKGROUND_TINT.xmlName to PassThroughValidator
         )
 }
 
@@ -64,10 +66,7 @@ object ImageViewGrammar : LayoutGrammar {
     override val tag = "ImageView"
 
     override val attributes = super.attributes + mapOf(
-        AttributeKey.SRC.xmlName to PassThroughValidator,
-        AttributeKey.LAYOUT_GRAVITY.xmlName to CategoricalValidator(GravityValueSet.values),
-        AttributeKey.BACKGROUND.xmlName to PassThroughValidator,
-        AttributeKey.BACKGROUND_TINT.xmlName to PassThroughValidator
+        AttributeKey.SRC.xmlName to PassThroughValidator
     )
 }
 
@@ -106,5 +105,19 @@ object SliderGrammar : LayoutGrammar {
     override val attributes = super.attributes + mapOf(
         AttributeKey.TEXT.xmlName to PassThroughValidator,
         AttributeKey.STYLE.xmlName to SliderStyleValidator
+    )
+}
+
+object TextViewGrammar : TextGrammar {
+    override val tag = "TextView"
+    override val attributes = super.attributes + mapOf(
+        AttributeKey.TEXT.xmlName to PassThroughValidator
+    )
+}
+
+object ButtonGrammar : TextGrammar {
+    override val tag = "Button"
+    override val attributes = super.attributes + mapOf(
+        AttributeKey.TEXT.xmlName to PassThroughValidator
     )
 }

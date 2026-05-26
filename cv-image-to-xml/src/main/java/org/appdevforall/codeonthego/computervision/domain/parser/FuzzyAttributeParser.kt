@@ -25,6 +25,13 @@ object FuzzyAttributeParser {
         ValueType.RAW to ValueCleaner { it }
     )
 
+    private val numericTypes = setOf(
+        ValueType.DIMENSION,
+        ValueType.SP_DIMENSION,
+        ValueType.INTEGER,
+        ValueType.FLOAT
+    )
+
     fun parse(annotation: String?, tag: String): Map<String, String> {
         if (annotation.isNullOrBlank()) return emptyMap()
 
@@ -73,8 +80,19 @@ object FuzzyAttributeParser {
     }
 
     private fun shouldTreatTokenAsValue(token: String, currentKey: AttributeKey?): Boolean {
-        if (currentKey != AttributeKey.INPUT_TYPE) return false
-        return token.trim().lowercase() in inputTypeValues
+        val lowerToken = token.trim().lowercase()
+
+        return when {
+            currentKey == AttributeKey.INPUT_TYPE && lowerToken in inputTypeValues -> true
+            currentKey?.valueType == ValueType.COLOR && isColorToken(lowerToken) -> true
+            currentKey?.valueType == ValueType.DIMENSION && DimensionValueSet.allKeywords.any { it in lowerToken } -> true
+            currentKey?.valueType in numericTypes -> lowerToken.any { it.isDigit() }
+            else -> false
+        }
+    }
+
+    private fun isColorToken(token: String): Boolean {
+        return token.startsWith("#") || token.startsWith("@") || token in ColorCleaner.colorMap
     }
 
     private fun flushAttribute(key: AttributeKey?, rawValue: String, tag: String, destination: MutableMap<String, String>) {
@@ -85,7 +103,9 @@ object FuzzyAttributeParser {
 
         if (cleanedValue.isNotEmpty()) {
             val (xmlAttr, finalValue) = resolveXmlAttribute(key, cleanedValue, tag)
-            destination[xmlAttr] = finalValue
+            if (!destination.containsKey(xmlAttr)) {
+                destination[xmlAttr] = finalValue
+            }
         }
     }
 
