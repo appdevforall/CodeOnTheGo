@@ -82,7 +82,7 @@ internal class KtSourceModule(
 
 	@OptIn(KaExperimentalApi::class)
 	override val moduleDescription: String
-		get() = super<KaSourceModule>.moduleDescription
+		get() = super<AbstractKtModule>.moduleDescription
 
 	override val languageVersionSettings: LanguageVersionSettings
 		get() = LanguageVersionSettingsImpl(

@@ -116,7 +116,7 @@ internal class KtLibraryModule(
 
 	@OptIn(KaExperimentalApi::class)
 	override val moduleDescription: String
-		get() = super<KaLibraryModule>.moduleDescription
+		get() = super<AbstractKtModule>.moduleDescription
 
 	override val binaryRoots: Collection<Path>
 		get() = contentRoots
