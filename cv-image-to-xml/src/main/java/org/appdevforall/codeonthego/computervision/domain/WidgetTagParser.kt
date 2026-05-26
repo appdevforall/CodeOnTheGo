@@ -6,7 +6,7 @@ package org.appdevforall.codeonthego.computervision.domain
  */
 internal object WidgetTagParser {
     private val tagRegex = Regex("^(?i)(B|P|D|T|C|R|SW|S)-[A-Z0-9_]+$")
-    private val tagExtractRegex = Regex("^(?i)([A-Z0-9\\s]+)([\\s\\-_.]+)([A-Z0-9_\\-]+)")
+    private val tagExtractRegex = Regex("^(?i)(B|P|D|T|C|R|SW|S|8|8W|S8)([\\s\\-_.,|/]*)([A-Z0-9_\\-]+)")
     private val VALID_PREFIXES = setOf("B", "P", "D", "T", "C", "R", "SW", "S")
 
     fun isTag(text: String): Boolean {
@@ -75,7 +75,9 @@ internal object WidgetTagParser {
     private fun isValidTagMatch(match: MatchResult): Boolean {
         val separator = match.groupValues[2]
         val rawToken = match.groupValues[3]
-        return !(separator.isEmpty() && rawToken.firstOrNull()?.isLetter() == true)
+
+        if (separator.isNotEmpty()) return true
+        return rawToken.all(::isNumericLikeOcrChar)
     }
 
     private fun normalizePrefix(rawPrefix: String): String {
@@ -121,6 +123,6 @@ internal object WidgetTagParser {
      * Determines whether a character is a digit or a letter frequently confused with a digit by OCR.
      */
     private fun isNumericLikeOcrChar(char: Char): Boolean {
-        return char.isDigit() || char in setOf('O', 'I', 'L', 'Z', 'S', 'B', '!')
+        return char.isDigit() || char.uppercaseChar() in setOf('O', 'I', 'L', 'Z', 'S', 'B', '!')
     }
 }

@@ -24,66 +24,49 @@ internal object TextContentCleaner : ValueCleaner {
 
 
 internal object NumberCleaner : ValueCleaner {
-    private val ocrLetterOToZeroRegex = Regex("[oO]")
-    private val ocrLetterIToOneRegex = Regex("[lI]")
-    private val ocrLetterZToTwoRegex = Regex("[zZ]")
-    private val ocrLetterSToFiveRegex = Regex("[sS]")
-    private val ocrLetterBToSixRegex = Regex("[bB]")
+    private val ocrCharMap = mapOf(
+        'O' to '0', 'A' to '0', '@' to '0', 'Q' to '0',
+        'L' to '1', 'I' to '1', '|' to '1', '!' to '1', '/' to '1', '\\' to '1',
+        '(' to '1', ')' to '1', '[' to '1', ']' to '1',
+        'Z' to '2', 'S' to '5', 'B' to '6'
+    )
 
     override fun clean(rawValue: String): String {
-        val match = Regex("-?[\\doOlIzZsSbB]+").find(rawValue) ?: return rawValue
-        return match.value
-            .replace(ocrLetterOToZeroRegex, "0")
-            .replace(ocrLetterIToOneRegex, "1")
-            .replace(ocrLetterZToTwoRegex, "2")
-            .replace(ocrLetterSToFiveRegex, "5")
-            .replace(ocrLetterBToSixRegex, "6")
+        val translated = rawValue.map { ocrCharMap[it.uppercaseChar()] ?: it }.joinToString("")
+        return Regex("-?\\d+").find(translated)?.value ?: rawValue
     }
 }
 
 internal object DimensionCleaner : ValueCleaner {
-    private val matchKeywords = setOf("match", "parent")
-    private val wrapKeywords = setOf("wrap", "content", "wrapcan")
-    private val DIMENSION_CONSTANTS = listOf("wrap_content", "match_parent")
-    private val explicitDimensionRegex = Regex("^(-?\\d+)(dp|sp|px|dip)$")
+    private val leadingNumberRegex = Regex("^-?\\d+")
 
     override fun clean(rawValue: String): String {
-        val trimmedValue = rawValue.trim()
-        val normalized = trimmedValue.lowercase().replace(" ", "_")
+        val trimmedValue = rawValue.trim().lowercase()
+        val normalized = trimmedValue.replace(" ", "_")
 
-        if (matchKeywords.any { it in normalized }) return "match_parent"
-        if (wrapKeywords.any { it in normalized }) return "wrap_content"
+        if (DimensionValueSet.matchKeywords.any { it in normalized }) return DimensionValueSet.MATCH_PARENT
+        if (DimensionValueSet.wrapKeywords.any { it in normalized }) return DimensionValueSet.WRAP_CONTENT
 
-        val fuzzyResult = FuzzySearch.extractOne(normalized, DIMENSION_CONSTANTS)
+        val fuzzyResult = FuzzySearch.extractOne(normalized, DimensionValueSet.values)
         if (fuzzyResult.score >= 60) return fuzzyResult.string
 
-        val fixedUnit = normalized.replace(Regex("0p$|op$|olp$"), "dp")
-        explicitDimensionRegex.matchEntire(fixedUnit)?.let { match ->
-            val normalizedNumber = normalizeOcrDimensionNumber(match.groupValues[1])
-            return normalizedNumber + match.groupValues[2]
-        }
+        val unitMatch = Regex("(dp|sp|px|in|mm|pt)$").find(trimmedValue)
+        val originalUnit = unitMatch?.value ?: "dp"
 
-        val numericPart = NumberCleaner.clean(fixedUnit.replace("_", ""))
-        val normalizedNumericPart = normalizeOcrDimensionNumber(numericPart)
+        val firstToken = trimmedValue.substringBefore(" ")
+        val rawNumber = firstToken.removeSuffix(originalUnit).trim()
+        val numericPart = NumberCleaner.clean(rawNumber)
 
-        return if (numericPart != fixedUnit) "${normalizedNumericPart}dp" else trimmedValue
+        val numMatch = leadingNumberRegex.find(numericPart)?.value
+            ?: return trimmedValue
+        val correctedNum = removeOcrTrailingZero(numMatch)
+
+        return "$correctedNum$originalUnit"
     }
 
-    private fun normalizeOcrDimensionNumber(numericPart: String): String {
-        if (!numericPart.matches(Regex("-?\\d+"))) return numericPart
-
-        val isNegative = numericPart.startsWith("-")
-        val numericValue = numericPart.toLongOrNull() ?: return numericPart
-        val canonical = numericValue.toString()
-        val unsignedCanonical = canonical.removePrefix("-")
-
-        // OCR sometimes reads the trailing "dp" as a single zero, turning 150dp into 1500.
-        if (unsignedCanonical.endsWith('0') && unsignedCanonical.toLong() >= 1000L) {
-            val normalizedValue = numericValue / 10L
-            return normalizedValue.toString()
-        }
-
-        return if (isNegative && numericValue == 0L) "0" else canonical
+    private fun removeOcrTrailingZero(num: String): String {
+        val isOcrArtifact = num.endsWith("0") && (num.toLongOrNull() ?: 0L) >= 1000L
+        return if (isOcrArtifact) num.dropLast(1) else num
     }
 }
 
@@ -96,8 +79,10 @@ internal object SpDimensionCleaner : ValueCleaner {
 }
 
 internal object ColorCleaner : ValueCleaner {
-    private val colorMap = mapOf(
-        "red" to "#FF0000", "rel" to "#FF0000", "green" to "#00FF00", "blue" to "#0000FF",
+    val colorMap = mapOf(
+        "red" to "#FF0000", "rel" to "#FF0000", "rad" to "#FF0000", "reo" to "#FF0000",
+        "green" to "#00FF00",
+        "blue" to "#0000FF", "ine" to "#0000FF", "hne" to "#0000FF", "hlue" to "#0000FF", "ane" to "#0000FF", "lne" to "#0000FF",
         "black" to "#000000", "white" to "#FFFFFF", "gray" to "#808080",
         "grey" to "#808080", "dark_gray" to "#A9A9A9", "yellow" to "#FFFF00",
         "cyan" to "#00FFFF", "magenta" to "#FF00FF", "purple" to "#800080",
@@ -109,13 +94,14 @@ internal object ColorCleaner : ValueCleaner {
 
     override fun clean(rawValue: String): String {
         if (rawValue.startsWith("#") || rawValue.startsWith("@")) return rawValue
-        val normalizedValue = rawValue.lowercase().replace(" ", "_")
+
+        val normalizedValue = rawValue.lowercase().replace(Regex("[^a-z_]"), "").replace(" ", "_")
 
         val exactColor = colorMap[normalizedValue]
         if (exactColor != null) return exactColor
 
         val result = FuzzySearch.extractOne(normalizedValue, colorMap.keys.toList())
-        return if (result.score >= 75) colorMap[result.string] ?: rawValue else rawValue
+        return if (result.score >= 70) colorMap[result.string] ?: rawValue else rawValue
     }
 }
 
