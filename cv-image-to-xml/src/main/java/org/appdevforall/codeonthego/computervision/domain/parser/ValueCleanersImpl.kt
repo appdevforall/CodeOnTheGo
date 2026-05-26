@@ -38,18 +38,16 @@ internal object NumberCleaner : ValueCleaner {
 }
 
 internal object DimensionCleaner : ValueCleaner {
-    private val matchKeywords = setOf("match", "parent")
-    private val wrapKeywords = setOf("wrap", "content", "wrapcan")
-    private val DIMENSION_CONSTANTS = listOf("wrap_content", "match_parent")
+    private val leadingNumberRegex = Regex("^-?\\d+")
 
     override fun clean(rawValue: String): String {
         val trimmedValue = rawValue.trim().lowercase()
         val normalized = trimmedValue.replace(" ", "_")
 
-        if (matchKeywords.any { it in normalized }) return "match_parent"
-        if (wrapKeywords.any { it in normalized }) return "wrap_content"
+        if (DimensionValueSet.matchKeywords.any { it in normalized }) return DimensionValueSet.MATCH_PARENT
+        if (DimensionValueSet.wrapKeywords.any { it in normalized }) return DimensionValueSet.WRAP_CONTENT
 
-        val fuzzyResult = FuzzySearch.extractOne(normalized, DIMENSION_CONSTANTS)
+        val fuzzyResult = FuzzySearch.extractOne(normalized, DimensionValueSet.values)
         if (fuzzyResult.score >= 60) return fuzzyResult.string
 
         val unitMatch = Regex("(dp|sp|px|in|mm|pt)$").find(trimmedValue)
@@ -59,10 +57,16 @@ internal object DimensionCleaner : ValueCleaner {
         val rawNumber = firstToken.removeSuffix(originalUnit).trim()
         val numericPart = NumberCleaner.clean(rawNumber)
 
-        return Regex("^-?\\d+").find(numericPart)?.value?.let { num ->
-            val finalNum = if (num.endsWith("0") && num.toLong() >= 1000L) num.dropLast(1) else num
-            "${finalNum}$originalUnit"
-        } ?: trimmedValue
+        val numMatch = leadingNumberRegex.find(numericPart)?.value
+            ?: return trimmedValue
+        val correctedNum = removeOcrTrailingZero(numMatch)
+
+        return "$correctedNum$originalUnit"
+    }
+
+    private fun removeOcrTrailingZero(num: String): String {
+        val isOcrArtifact = num.endsWith("0") && (num.toLongOrNull() ?: 0L) >= 1000L
+        return if (isOcrArtifact) num.dropLast(1) else num
     }
 }
 

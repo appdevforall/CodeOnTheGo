@@ -110,8 +110,14 @@ object SliderGrammar : LayoutGrammar {
 
 object TextViewGrammar : TextGrammar {
     override val tag = "TextView"
+    override val attributes = super.attributes + mapOf(
+        AttributeKey.TEXT.xmlName to PassThroughValidator
+    )
 }
 
 object ButtonGrammar : TextGrammar {
     override val tag = "Button"
+    override val attributes = super.attributes + mapOf(
+        AttributeKey.TEXT.xmlName to PassThroughValidator
+    )
 }

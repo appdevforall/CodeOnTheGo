@@ -85,6 +85,7 @@ object FuzzyAttributeParser {
         return when {
             currentKey == AttributeKey.INPUT_TYPE && lowerToken in inputTypeValues -> true
             currentKey?.valueType == ValueType.COLOR && isColorToken(lowerToken) -> true
+            currentKey?.valueType == ValueType.DIMENSION && DimensionValueSet.allKeywords.any { it in lowerToken } -> true
             currentKey?.valueType in numericTypes -> lowerToken.any { it.isDigit() }
             else -> false
         }

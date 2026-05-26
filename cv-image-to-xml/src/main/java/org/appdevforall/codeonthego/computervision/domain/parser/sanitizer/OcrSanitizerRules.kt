@@ -33,7 +33,7 @@ class MarginPaddingSanitizer : DictionaryRegexSanitizer() {
 class StructureSanitizer : DictionaryRegexSanitizer() {
     override val rawRules = mapOf(
         "horizontal\\s+gravity\\s*:\\s*center\\s+layout" to "layout_gravity: center_horizontal",
-        "\\b[ilL][dl]\\s*[:;]?" to "id: ",
-        "\\bS[ec][rt]\\s*[:;]?" to "src: "
+        "\\b[ilL][dl]\\b\\s*[:;]?" to "id: ",
+        "\\bS[ec][rt]\\b\\s*[:;]?" to "src: "
     )
 }
