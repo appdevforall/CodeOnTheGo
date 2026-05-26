@@ -6,6 +6,9 @@
       "android-studio-tools": {
         "pkg-path": "android-studio-tools"
       },
+      "awscli2": {
+        "pkg-path": "awscli2"
+      },
       "gh": {
         "pkg-path": "gh"
       },
@@ -152,6 +155,138 @@
       ],
       "outputs": {
         "out": "/nix/store/jaaxg7lkp2d9md87qwgfbjw1fh97cyz9-android-studio-tools-13114758"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "awscli2",
+      "broken": false,
+      "derivation": "/nix/store/v5gxglicwhyknfwswhngrbawzdwnapp5-awscli2-2.27.2.drv",
+      "description": "Unified tool to manage your AWS services",
+      "install_id": "awscli2",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "awscli2-2.27.2",
+      "pname": "awscli2",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:22:26.435939Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.27.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/sc270lyggbhz78lcxh9khqmggayqpp6i-awscli2-2.27.2-dist",
+        "out": "/nix/store/b5fa0fplfpiyx8zwc9y7d08a57lsk229-awscli2-2.27.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "awscli2",
+      "broken": false,
+      "derivation": "/nix/store/7ykn42yxjf7ncyl2z00700hq214xs4jn-awscli2-2.27.2.drv",
+      "description": "Unified tool to manage your AWS services",
+      "install_id": "awscli2",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "awscli2-2.27.2",
+      "pname": "awscli2",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:39:56.495925Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.27.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/ss8xqzwn1l8qdbwlml439bx1ik13vxlk-awscli2-2.27.2-dist",
+        "out": "/nix/store/161s22pbddllc4mabgr5rvrpmhiffsp4-awscli2-2.27.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "awscli2",
+      "broken": false,
+      "derivation": "/nix/store/id7b0p6cwlkcsnfb767s820ig9xj0qnp-awscli2-2.27.2.drv",
+      "description": "Unified tool to manage your AWS services",
+      "install_id": "awscli2",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "awscli2-2.27.2",
+      "pname": "awscli2",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T04:56:01.820295Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.27.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/q9rzj2ikpl9vn4sns3ydsy7i8sachnha-awscli2-2.27.2-dist",
+        "out": "/nix/store/l18j8wgidf145m0zw6ydg8blim44hrkq-awscli2-2.27.2"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "awscli2",
+      "broken": false,
+      "derivation": "/nix/store/j2ajkr3y4c0fg9lxl22z30hd4spb74d9-awscli2-2.27.2.drv",
+      "description": "Unified tool to manage your AWS services",
+      "install_id": "awscli2",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=4faa5f5321320e49a78ae7848582f684d64783e9",
+      "name": "awscli2-2.27.2",
+      "pname": "awscli2",
+      "rev": "4faa5f5321320e49a78ae7848582f684d64783e9",
+      "rev_count": 806853,
+      "rev_date": "2025-05-27T18:28:29Z",
+      "scrape_date": "2025-05-29T05:14:30.638052Z",
+      "stabilities": [
+        "unstable",
+        "staging",
+        "stable",
+        "lts"
+      ],
+      "unfree": false,
+      "version": "2.27.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/r5cw3141myaf5lnzra9c0nc8prb2zv6y-awscli2-2.27.2-dist",
+        "out": "/nix/store/gx3hx0b3lbm11sishxl4k7a7ha4w405q-awscli2-2.27.2"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
