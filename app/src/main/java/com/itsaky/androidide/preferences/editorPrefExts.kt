@@ -94,7 +94,7 @@ private class TextSize(
   override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
     val binding = LayoutTextSizeSliderBinding.inflate(LayoutInflater.from(preference.context))
     var size = EditorPreferences.fontSize
-    if (size !in 6.0..32.0) {
+    if (size !in 6f..32f) {
       size = 14f
     }
     binding.slider.value = kotlin.math.round(size)
