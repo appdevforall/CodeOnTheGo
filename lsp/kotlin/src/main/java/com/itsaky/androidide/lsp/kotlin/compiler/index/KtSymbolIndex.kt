@@ -144,17 +144,6 @@ internal class KtSymbolIndex(
 		indexWorker.submitCommand(IndexCommand.RemoveFromIndex(path))
 	}
 
-	suspend fun onFileMoved(from: Path, to: Path) {
-		// always remove the source file from index
-		indexWorker.submitCommand(IndexCommand.RemoveFromIndex(from))
-
-		val toVf = getVirtualFileOrWarn(to) ?: return
-		indexWorker.apply {
-			submitCommand(IndexCommand.ScanSourceFile(toVf))
-			submitCommand(IndexCommand.IndexSourceFile(toVf))
-		}
-	}
-
 	fun queueOnFileChangedAsync(ktFile: KtFile) {
 		scope.launch {
 			queueOnFileChanged(ktFile)
@@ -165,8 +154,8 @@ internal class KtSymbolIndex(
 		indexWorker.submitCommand(IndexCommand.IndexModifiedFile(ktFile))
 	}
 
-	fun openKtFile(path: Path, ktFile: KtFile) {
-		openedFiles[path] = ktFile
+	fun openKtFile(path: Path, ktFile: KtFile): KtFile? {
+		return openedFiles.put(path, ktFile)
 	}
 
 	fun closeKtFile(path: Path) {
@@ -175,15 +164,30 @@ internal class KtSymbolIndex(
 
 	fun getOpenedKtFile(path: Path) = openedFiles[path]
 
-	fun getKtFile(vf: VirtualFile): KtFile? {
-		val path = vf.toNioPath()
+	fun getKtFile(vf: VirtualFile): KtFile? =
+		getKtFile(vf.toNioPath(), vf)
+
+	fun getKtFile(path: Path, vf: VirtualFile? = path.toVirtualFileOrNull()): KtFile? {
 		if (!DocumentUtils.isKotlinFile(path)) return null
 
-		openedFiles[path]?.also { return it }
-		ktFileCache.getIfPresent(path)?.also { return it }
+		openedFiles[path]?.also {
+			return it
+		}
+
+		ktFileCache.getIfPresent(path)?.also {
+			return it
+		}
+
+		var vf = vf
+		if (vf == null) {
+			vf = path.toVirtualFileOrNull()
+		}
+
+		if (vf == null) {
+			return null
+		}
 
 		val ktFile = loadKtFile(vf)
-
 		ktFileCache.put(path, ktFile)
 		return ktFile
 	}

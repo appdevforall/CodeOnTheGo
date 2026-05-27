@@ -523,6 +523,7 @@ internal class CompilationEnvironment(
 	}
 
 	fun onFileContentChanged(path: Path) {
+		val oldKtFile = ktSymbolIndex.getOpenedKtFile(path)
 		val newContent = FileManager.getDocumentContents(path)
 		val newKtFile = project.read {
 			parser.createFile(path.pathString, newContent)
@@ -534,12 +535,14 @@ internal class CompilationEnvironment(
 		val provider = ProjectStructureProvider.getInstance(project)
 		provider.registerInMemoryFile(path.pathString, newKtFile.virtualFile)
 
-		ktSymbolIndex.openKtFile(path, newKtFile)
-		ktSymbolIndex.queueOnFileChangedAsync(newKtFile)
-		fileAnalyzer.schedule(path)
 		project.write {
+			val toInvalidate = oldKtFile ?: newKtFile
 			KaSourceModificationService.getInstance(project)
-				.handleElementModification(newKtFile, KaElementModificationType.Unknown)
+				.handleElementModification(toInvalidate, KaElementModificationType.Unknown)
+
+			ktSymbolIndex.openKtFile(path, newKtFile)
+			ktSymbolIndex.queueOnFileChangedAsync(newKtFile)
+			fileAnalyzer.schedule(path)
 		}
 	}
 
