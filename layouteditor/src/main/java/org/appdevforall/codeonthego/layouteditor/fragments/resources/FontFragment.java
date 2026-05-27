@@ -83,8 +83,10 @@ public class FontFragment extends Fragment {
   @Override
   public void onDestroyView() {
     super.onDestroyView();
-    executor.shutdownNow();
-    binding = null;
+    if (executor != null) {
+      executor.shutdownNow();
+      binding = null;
+    }
   }
 
   private void loadFonts() {

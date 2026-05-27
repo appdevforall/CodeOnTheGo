@@ -61,15 +61,17 @@ class ResourceManagerActivity : BaseActivity() {
         lifecycleScope.launch {
             try {
                 val projectExtra = IntentCompat.getParcelableExtra(intent, Constants.EXTRA_KEY_PROJECT, ProjectFile::class.java)
-                project = ProjectManager.instance.openedProject ?: projectExtra
+                project = projectExtra ?: ProjectManager.instance.openedProject
 
                 if (project == null) {
                     finish()
                     return@launch
                 }
 
-                if (ProjectManager.instance.openedProject == null) {
-                    ProjectManager.instance.openProject(project)
+                project?.let { resolvedProject ->
+                    if (ProjectManager.instance.openedProject?.path != resolvedProject.path) {
+                        ProjectManager.instance.openProject(resolvedProject)
+                    }
                 }
 
                 setupViewPager()
@@ -204,6 +206,8 @@ class ResourceManagerActivity : BaseActivity() {
                     0 -> xmlPicker!!.launch("text/xml")
                     1 -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         launchPhotoPicker()
+                    } else {
+                        photoPicker?.launch("image/*")
                     }
                 }
             }

@@ -12,12 +12,10 @@ import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
 public class ProjectResolver {
     @Nullable
     public static ProjectFile resolveProject(@Nullable Bundle arguments) {
-        ProjectFile openedProject = ProjectManager.getInstance().getOpenedProject();
-
-        if (openedProject != null) return openedProject;
-        if (arguments != null) return arguments.getParcelable(Constants.EXTRA_KEY_PROJECT);
-
-        return null;
+        if (arguments != null && arguments.containsKey(Constants.EXTRA_KEY_PROJECT)) {
+            return arguments.getParcelable(Constants.EXTRA_KEY_PROJECT);
+        }
+        return ProjectManager.getInstance().getOpenedProject();
     }
 
     @Nullable
