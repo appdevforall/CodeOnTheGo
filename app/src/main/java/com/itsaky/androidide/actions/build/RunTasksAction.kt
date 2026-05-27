@@ -41,6 +41,7 @@ class RunTasksAction(context: Context, override val order: Int) : BaseBuildActio
   }
 
   override suspend fun execAction(data: ActionData): Any {
+    data.requireActivity().saveAll(requestSync = false)
     dialog?.dismiss()
     dialog = null
     dialog = RunTasksDialogFragment()
