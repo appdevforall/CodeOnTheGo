@@ -18,6 +18,18 @@ object GravityValueSet : AttributeValueSet {
     )
 }
 
+object DimensionValueSet : AttributeValueSet {
+    const val WRAP_CONTENT = "wrap_content"
+    const val MATCH_PARENT = "match_parent"
+
+    override val values = listOf(WRAP_CONTENT, MATCH_PARENT)
+
+    val matchKeywords = setOf("match", "parent")
+    val wrapKeywords = setOf("wrap", "content", "wrapcan")
+
+    val allKeywords = matchKeywords + wrapKeywords
+}
+
 object VisibilityValueSet : AttributeValueSet {
     override val values = listOf(
         "visible",
