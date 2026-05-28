@@ -314,6 +314,7 @@ clientSocket and the catch block logic are updated accordingly.
             if (debugEnabled) log.debug("Found a pr/ path, '{}'.", path)
 
             return when (path) {
+                "pr/bs" -> handleBsEndpoint(writer, output)
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
@@ -555,6 +556,31 @@ clientSocket and the catch block logic are updated accordingly.
         }
     }
 
+    private fun handleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        if (debugEnabled) log.debug("Entering handleBsEndpoint().")
+
+        var projectDatabase : SQLiteDatabase? = null
+        var outputStarted = false
+
+        try {
+            projectDatabase = SQLiteDatabase.openDatabase(config.projectDatabasePath,
+                null,
+                SQLiteDatabase.OPEN_READONLY)
+
+            outputStarted = realHandleBsEndpoint(writer, output, projectDatabase)
+
+        } catch (e: Exception) {
+            log.error("Error handling /pr/bs endpoint: {}", e.message)
+            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.", outputStarted)
+
+        } finally {
+            projectDatabase?.close()
+        }
+
+        if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
+    }
+
+
     private fun handleExEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         val flag = if (experimentsEnabled)  "{}" else "{display: none;}"
 
@@ -616,6 +642,63 @@ second response.
         }
 
         if (debugEnabled) log.debug("Leaving handlePrEndpoint().")
+    }
+
+    private fun realHandleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) : Boolean {
+        if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
+
+        val query = """
+SELECT id,
+       name,
+       DATETIME(create_at     / 1000, 'unixepoch'),
+       DATETIME(last_modified / 1000, 'unixepoch'),
+       location,
+       template_name,
+       language
+FROM     recent_project_table
+ORDER BY last_modified DESC"""
+
+        var html = getTableHtml("Projects", "Projects") + """
+<tr>
+<th>Id</th>
+<th>Name</th>
+<th>Created</th>
+<th>Modified &nbsp;&nbsp;<span style="font-family: sans-serif">V</span></th>
+<th>Directory</th>
+<th>Template</th>
+<th>Language</th>
+</tr>"""
+
+        val cursor = projectDatabase.rawQuery(query, arrayOf())
+
+        try {
+            if (debugEnabled) log.debug("Retrieved {} rows.", cursor.count)
+
+            while (cursor.moveToNext()) {
+                html += """<tr>
+<td>${escapeHtml(cursor.getString(0) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(1) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(2) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(3) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(4) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(5) ?: "")}</td>
+<td>${escapeHtml(cursor.getString(6) ?: "")}</td>
+</tr>"""
+            }
+
+            html += "</table></body></html>"
+
+        } finally {
+            cursor.close()
+        }
+
+        if (debugEnabled) log.debug("html is '{}'.", html) // May output a lot of stuff but better too much than too little. --DS, 23-Feb-2026
+
+        writeNormalToClient(writer, output, html)
+
+        if (debugEnabled) log.debug("Leaving realHandlePrEndpoint().")
+
+        return true
     }
 
     private fun realHandlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) : Boolean {
