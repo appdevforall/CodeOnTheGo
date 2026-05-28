@@ -167,7 +167,7 @@ internal class KtSymbolIndex(
 	fun getKtFile(vf: VirtualFile): KtFile? =
 		getKtFile(vf.toNioPath(), vf)
 
-	fun getKtFile(path: Path, vf: VirtualFile? = path.toVirtualFileOrNull()): KtFile? {
+	fun getKtFile(path: Path, virtualFile: VirtualFile? = null): KtFile? {
 		if (!DocumentUtils.isKotlinFile(path)) return null
 
 		openedFiles[path]?.also {
@@ -178,16 +178,16 @@ internal class KtSymbolIndex(
 			return it
 		}
 
-		var vf = vf
-		if (vf == null) {
-			vf = path.toVirtualFileOrNull()
+		var file = virtualFile
+		if (file == null) {
+			file = path.toVirtualFileOrNull()
 		}
 
-		if (vf == null) {
+		if (file == null) {
 			return null
 		}
 
-		val ktFile = loadKtFile(vf)
+		val ktFile = loadKtFile(file)
 		ktFileCache.put(path, ktFile)
 		return ktFile
 	}
