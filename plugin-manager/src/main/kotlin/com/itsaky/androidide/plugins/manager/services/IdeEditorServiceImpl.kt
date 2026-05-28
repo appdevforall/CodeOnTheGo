@@ -54,6 +54,9 @@ class IdeEditorServiceImpl(
         fun insertLineBefore(file: File, line: Int, text: String): Boolean = false
         fun deleteLine(file: File, line: Int): Boolean = false
         fun replaceRange(file: File, range: SelectionRange, newText: String): Boolean = false
+        fun addRemotePeerMarker(file: File, line: Int, column: Int, peerId: String, peerName: String, peerColor: Int): Boolean = false
+        fun removeRemotePeerMarker(file: File, peerId: String): Boolean = false
+        fun clearRemotePeerMarkers(file: File) {}
         fun addFileChangeCallback(callback: (File?) -> Unit) {}
         fun removeFileChangeCallback(callback: (File?) -> Unit) {}
     }
@@ -252,6 +255,31 @@ class IdeEditorServiceImpl(
         requireWrite()
         ensureFileAccessible(file)
         return editorProvider.replaceRange(file, range, newText)
+    }
+
+    override fun addRemotePeerMarker(
+        file: File,
+        line: Int,
+        column: Int,
+        peerId: String,
+        peerName: String,
+        peerColor: Int,
+    ): Boolean {
+        requireRead()
+        ensureFileAccessible(file)
+        return editorProvider.addRemotePeerMarker(file, line, column, peerId, peerName, peerColor)
+    }
+
+    override fun removeRemotePeerMarker(file: File, peerId: String): Boolean {
+        requireRead()
+        ensureFileAccessible(file)
+        return editorProvider.removeRemotePeerMarker(file, peerId)
+    }
+
+    override fun clearRemotePeerMarkers(file: File) {
+        requireRead()
+        ensureFileAccessible(file)
+        editorProvider.clearRemotePeerMarkers(file)
     }
 
     override fun addFileChangeListener(listener: FileChangeListener) {
