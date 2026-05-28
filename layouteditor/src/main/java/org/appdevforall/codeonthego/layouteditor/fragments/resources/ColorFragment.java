@@ -28,10 +28,11 @@ import org.appdevforall.codeonthego.layouteditor.adapters.ColorResourceAdapter;
 import org.appdevforall.codeonthego.layouteditor.adapters.models.ValuesItem;
 import org.appdevforall.codeonthego.layouteditor.databinding.FragmentResourcesBinding;
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutValuesItemDialogBinding;
-import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
+import org.appdevforall.codeonthego.layouteditor.utils.Constants;
 import org.appdevforall.codeonthego.layouteditor.tools.ColorPickerDialogFlag;
 import org.appdevforall.codeonthego.layouteditor.tools.ValuesResourceParser;
 import org.appdevforall.codeonthego.layouteditor.utils.NameErrorChecker;
+import org.appdevforall.codeonthego.layouteditor.utils.ProjectResolver;
 import org.appdevforall.codeonthego.layouteditor.utils.SBUtils;
 
 import java.io.FileInputStream;
@@ -52,6 +53,14 @@ public class ColorFragment extends Fragment {
     private List<ValuesItem> colorList = new ArrayList<>();
     ValuesResourceParser colorParser;
 
+    public static ColorFragment newInstance(ProjectFile project) {
+        ColorFragment fragment = new ColorFragment();
+        Bundle args = new Bundle();
+        args.putParcelable(Constants.EXTRA_KEY_PROJECT, project);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
     @Override
     public android.view.View onCreateView(
             @NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -62,7 +71,9 @@ public class ColorFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        ProjectFile project = ProjectManager.getInstance().getOpenedProject();
+        ProjectFile project = ProjectResolver.getValidProjectOrShowError(getArguments(), view);
+        if (project == null) return;
+
         try {
             loadColorsFromXML(project.getColorsPath());
         } catch (FileNotFoundException e) {
