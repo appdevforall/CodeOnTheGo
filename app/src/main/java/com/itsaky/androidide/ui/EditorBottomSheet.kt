@@ -112,6 +112,7 @@ constructor(
 
 	private var anchorOffset = 0
 	private var isImeVisible = false
+	private var isSearchModeActive = false
 	private var windowInsets: Insets? = null
 
 	private val insetBottom: Int
@@ -340,7 +341,20 @@ constructor(
 	fun setImeVisible(isVisible: Boolean) {
 		isImeVisible = isVisible
 		behavior.isGestureInsetBottomIgnored = true
-        behavior.peekHeight = if (isVisible) 0 else collapsedHeight.toInt()
+		applyPeekHeight()
+	}
+
+
+	fun setSearchModeActive(isActive: Boolean) {
+		isSearchModeActive = isActive
+		if (isActive && behavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
+			behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+		}
+		applyPeekHeight()
+	}
+
+	private fun applyPeekHeight() {
+		behavior.peekHeight = if (isImeVisible || isSearchModeActive) 0 else collapsedHeight.toInt()
 	}
 
 	fun setOffsetAnchor(view: View) {
