@@ -4,12 +4,15 @@ import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.tasks.JobCancelChecker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration
@@ -47,15 +50,38 @@ class KeyedDebouncingAction<T: Any>(
 		entry.channel.trySend(key)
 	}
 
+	@OptIn(ExperimentalCoroutinesApi::class)
 	private fun createEntry(): ActionEntry<T> {
 		val channel = Channel<T>(Channel.CONFLATED)
 		val job = scope.launch(actionContext) {
-			for (latestKey in channel) {
-				delay(debounceDuration)
-				ensureActive()
+			while (isActive) {
+				var latestKey = channel.receive()
+				var debouncing = true
+				while (debouncing) {
+					debouncing = select {
+						onTimeout(debounceDuration) { false }
+						channel.onReceive { newKey ->
+							latestKey = newKey
+							true
+						}
+					}
+				}
 
-				val cancelChecker = JobCancelChecker(currentCoroutineContext()[Job])
-				action(latestKey, cancelChecker)
+				ensureActive()
+				val actionJob = launch {
+					val cancelChecker = JobCancelChecker(currentCoroutineContext()[Job])
+					action(latestKey, cancelChecker)
+				}
+
+				select<Unit> {
+					actionJob.onJoin {}
+					channel.onReceive { newerKey ->
+						actionJob.cancel()
+						channel.trySend(newerKey)
+					}
+				}
+
+				actionJob.join()
 			}
 		}
 

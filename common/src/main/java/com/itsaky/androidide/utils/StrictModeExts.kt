@@ -1,10 +1,13 @@
 package com.itsaky.androidide.utils
 
 import android.os.StrictMode
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 @PublishedApi
-internal val logger = LoggerFactory.getLogger("StrictModeExts")
+internal object StrictModeExts {
+	val logger: Logger = LoggerFactory.getLogger("StrictModeExts")
+}
 
 inline fun copyThreadPolicy(
 	source: StrictMode.ThreadPolicy,
@@ -24,7 +27,7 @@ inline fun <R> permitThreadPolicy(
 	val currentPolicy = StrictMode.getThreadPolicy()
 	val newPolicy = copyThreadPolicy(currentPolicy, configurePolicy)
 	return try {
-		logger.warn("Allowing {} because: {}", action, reason)
+		StrictModeExts.logger.warn("Allowing {} because: {}", action, reason)
 		StrictMode.setThreadPolicy(newPolicy)
 		task()
 	} finally {
