@@ -66,6 +66,8 @@ data class MenuItem @JvmOverloads constructor(
      */
     val tooltipTag: String? = null,
     val icon: Int? = null,
+    val isEnabledProvider: (() -> Boolean)? = null,
+    val isVisibleProvider: (() -> Boolean)? = null,
 )
 
 data class ContextMenuContext(
