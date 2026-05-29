@@ -89,6 +89,10 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
           ClipboardUtils.copyText(BuildInfoUtils.getBuildInfoHeader())
           flashSuccess(R.string.copied)
         }
+
+        supportButton.setOnClickListener {
+          UrlManager.openUrl(getString(R.string.github_sponsors_url), null, this@AboutActivity)
+        }
       }
 
       socials.apply {
