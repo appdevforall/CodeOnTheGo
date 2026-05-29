@@ -27,9 +27,18 @@ import com.itsaky.androidide.plugins.AndroidIDEPlugin
 import com.itsaky.androidide.plugins.conf.configureAndroidModule
 import com.itsaky.androidide.plugins.conf.configureJavaModule
 import com.itsaky.androidide.plugins.conf.configureMavenPublish
+import org.gradle.api.logging.Logger
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.io.Serializable
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+import java.util.zip.CRC32
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 plugins {
 	id("build-logic.root-project")
@@ -358,5 +367,199 @@ tasks.register<JacocoReport>("jacocoAggregateReport") {
     executionData.setFrom(execFiles)
 }
 
+val mavenCacheDirProvider = providers.gradleProperty("mavenCacheDir").orElse("build/maven-cache")
+val localMavenRepoDirProvider = providers.gradleProperty("localMavenRepoDir").orElse("build/localMavenRepository")
+val mavenRepoDirProvider = providers.gradleProperty("mavenRepoDir").orElse(localMavenRepoDirProvider)
+val zeroMavenRepoDirProvider =
+	providers.gradleProperty("zeroMavenRepoDir")
+		.orElse(mavenRepoDirProvider.map { repoDir ->
+			val repoPath = file(repoDir).toPath()
+			val fileName = repoPath.fileName.toString()
+			repoPath.resolveSibling("$fileName-zero").toString()
+		})
 
+tasks.register("cacheToLocalMavenRepo") {
+	group = "cicd"
+	description = "Converts an exported Gradle module cache into a local Maven repository layout."
 
+	val source = mavenCacheDirProvider.map { file(it) }
+	val destination = localMavenRepoDirProvider.map { file(it) }
+
+	inputs.dir(source)
+	outputs.dir(destination)
+
+	doLast {
+		convertCacheToLocalMavenRepo(source.get().toPath(), destination.get().toPath(), logger)
+	}
+}
+
+tasks.register("zeroCompressMavenRepo") {
+	group = "cicd"
+	description = "Copies a Maven repository and rewrites all JAR/AAR archives with ZIP zero compression."
+
+	val source = mavenRepoDirProvider.map { file(it) }
+	val destination = zeroMavenRepoDirProvider.map { file(it) }
+	val validateArchives =
+		providers.gradleProperty("zeroMavenRepoValidate")
+			.map(String::toBoolean)
+			.orElse(true)
+
+	inputs.dir(source)
+	inputs.property("validateArchives", validateArchives)
+	outputs.dir(destination)
+
+	doLast {
+		zeroCompressMavenRepo(
+			source = source.get().toPath(),
+			destination = destination.get().toPath(),
+			validateArchives = validateArchives.get(),
+			logger = logger,
+		)
+	}
+}
+
+tasks.register("zeroCompressLocalMavenRepo") {
+	group = "cicd"
+	description = "Converts an exported Gradle cache to a local Maven repository, then zero-compresses all JAR/AAR archives."
+	dependsOn("cacheToLocalMavenRepo", "zeroCompressMavenRepo")
+}
+
+tasks.named("zeroCompressMavenRepo") {
+	mustRunAfter("cacheToLocalMavenRepo")
+}
+
+fun Path.resolveParts(parts: Iterable<String>): Path =
+	parts.fold(this) { path, part -> path.resolve(part) }
+
+fun Path.relativeTo(base: Path): Path =
+	base.relativize(this)
+
+fun Path.normalizedAbsolute(): Path =
+	toAbsolutePath().normalize()
+
+fun convertCacheToLocalMavenRepo(source: Path, destination: Path, logger: Logger) {
+	val allowedExtensions = setOf("aar", "jar", "module", "pom")
+	val normalizedSource = source.normalizedAbsolute()
+	val normalizedDestination = destination.normalizedAbsolute()
+
+	require(Files.isDirectory(normalizedSource)) {
+		"Maven cache directory does not exist or is not a directory: $normalizedSource"
+	}
+	require(!normalizedDestination.startsWith(normalizedSource)) {
+		"Local Maven output directory must not be inside the input cache: $normalizedDestination"
+	}
+
+	Files.createDirectories(normalizedDestination)
+
+	normalizedSource.toFile().walkTopDown()
+		.filter { it.isFile }
+		.filter { it.extension.lowercase() in allowedExtensions }
+		.forEach { file ->
+			val filePath = file.toPath()
+			val relativeParent =
+				filePath.parent
+					?.let { normalizedSource.relativize(it).map(Path::toString).toList() }
+					.orEmpty()
+
+			val targetParts =
+				if (relativeParent.firstOrNull()?.contains(".") == true) {
+					relativeParent.first().split(".") + relativeParent.drop(1).dropLast(1)
+				} else {
+					relativeParent.dropLast(1)
+				}
+
+			val targetParent = normalizedDestination.resolveParts(targetParts)
+			val targetFile = targetParent.resolve(file.name)
+
+			Files.createDirectories(targetParent)
+			Files.copy(filePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
+			logger.lifecycle("Copied ${filePath.relativeTo(normalizedSource)} -> ${targetFile.relativeTo(normalizedDestination)}")
+		}
+}
+
+fun zeroCompressMavenRepo(source: Path, destination: Path, validateArchives: Boolean, logger: Logger) {
+	val normalizedSource = source.normalizedAbsolute()
+	val normalizedDestination = destination.normalizedAbsolute()
+
+	require(Files.isDirectory(normalizedSource)) {
+		"Maven repository directory does not exist or is not a directory: $normalizedSource"
+	}
+	require(!normalizedDestination.startsWith(normalizedSource)) {
+		"Zero-compressed output directory must not be inside the input repository: $normalizedDestination"
+	}
+
+	Files.createDirectories(normalizedDestination)
+
+	normalizedSource.toFile().walkTopDown()
+		.filter { it.isFile }
+		.forEach { file ->
+			val sourceFile = file.toPath()
+			val targetFile = normalizedDestination.resolve(normalizedSource.relativize(sourceFile))
+
+			Files.createDirectories(targetFile.parent)
+
+			when (file.extension.lowercase()) {
+				"aar", "jar" -> {
+					zeroCompressArchive(sourceFile, targetFile)
+					if (validateArchives) {
+						validateZeroCompressedArchive(sourceFile, targetFile)
+					}
+					logger.lifecycle("Zero-compressed ${sourceFile.relativeTo(normalizedSource)}")
+				}
+				else -> Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
+			}
+		}
+}
+
+fun zeroCompressArchive(source: Path, destination: Path) {
+	ZipInputStream(Files.newInputStream(source).buffered()).use { input ->
+		ZipOutputStream(Files.newOutputStream(destination).buffered()).use { output ->
+			while (true) {
+				val entry = input.nextEntry ?: break
+				val bytes = if (entry.isDirectory) ByteArray(0) else input.readBytes()
+				val crc = CRC32().apply { update(bytes) }.value
+
+				val outputEntry =
+					ZipEntry(entry.name).apply {
+						comment = entry.comment
+						extra = entry.extra
+						method = ZipEntry.STORED
+						size = bytes.size.toLong()
+						compressedSize = bytes.size.toLong()
+						this.crc = crc
+						if (entry.time >= 0) {
+							time = entry.time
+						}
+					}
+
+				output.putNextEntry(outputEntry)
+				if (!entry.isDirectory) {
+					output.write(bytes)
+				}
+				output.closeEntry()
+				input.closeEntry()
+			}
+		}
+	}
+}
+
+fun validateZeroCompressedArchive(source: Path, destination: Path) {
+	ZipFile(source.toFile()).use { sourceZip ->
+		ZipFile(destination.toFile()).use { destinationZip ->
+			val sourceEntries = sourceZip.entries().asSequence().map { it.name }.toSet()
+			val destinationEntries = destinationZip.entries().asSequence().toList()
+			val destinationEntryNames = destinationEntries.map { it.name }.toSet()
+
+			require(sourceEntries == destinationEntryNames) {
+				"Entry mismatch after zero-compressing $source"
+			}
+
+			val compressedEntry =
+				destinationEntries.firstOrNull { !it.isDirectory && it.method != ZipEntry.STORED }
+
+			require(compressedEntry == null) {
+				"Archive entry was not zero-compressed in $destination: ${compressedEntry?.name}"
+			}
+		}
+	}
+}
