@@ -129,16 +129,16 @@ interface IdeEditorService {
     fun replaceRange(file: File, range: SelectionRange, newText: String): Boolean
 
     /**
-     * Draws (or moves) a remote-collaborator marker — a small colored, named caret badge —
-     * inside the editor for [file] at the 0-based [line]/[column]. Markers are keyed by
-     * [peerId]: calling again for the same (file, peerId) repositions the existing marker.
+     * Draws (or moves) a remote peer's cursor — a small colored, named caret badge —
+     * inside the editor for [file] at the 0-based [line]/[column]. Cursors are keyed by
+     * [peerId]: calling again for the same (file, peerId) repositions the existing cursor.
      * [peerColor] is an ARGB int. No-op (returns false) if the file isn't open in an editor.
      * Visual overlay only — never mutates file content. Requires FILESYSTEM_READ.
      *
      * Default-implemented (no-op) so adding it is a backward-compatible interface extension:
      * existing implementers and any prebuilt plugin-api lib keep compiling; the host overrides it.
      */
-    fun addRemotePeerMarker(
+    fun showPeerCursor(
         file: File,
         line: Int,
         column: Int,
@@ -147,11 +147,11 @@ interface IdeEditorService {
         peerColor: Int,
     ): Boolean = false
 
-    /** Removes the marker for [peerId] in [file], if present. Default-implemented no-op. */
-    fun removeRemotePeerMarker(file: File, peerId: String): Boolean = false
+    /** Hides the cursor for [peerId] in [file], if present. Default-implemented no-op. */
+    fun hidePeerCursor(file: File, peerId: String): Boolean = false
 
-    /** Removes all remote-peer markers in [file]. Default-implemented no-op. */
-    fun clearRemotePeerMarkers(file: File) {}
+    /** Removes all remote peer cursors in [file]. Default-implemented no-op. */
+    fun clearPeerCursors(file: File) {}
 
     fun addFileChangeListener(listener: FileChangeListener)
 

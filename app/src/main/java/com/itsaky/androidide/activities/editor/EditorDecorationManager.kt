@@ -21,7 +21,7 @@ class EditorDecorationManager(
     private val editorForFile: (File) -> CodeEditor?,
 ) {
 
-    private val markers: HashMap<String, HashMap<String, RemotePeerMarkerWindow>> = HashMap()
+    private val markers: HashMap<String, HashMap<String, PeerCursorWindow>> = HashMap()
 
     fun addMarker(
         file: File,
@@ -38,7 +38,7 @@ class EditorDecorationManager(
             existing
         } else {
             existing?.dismiss()
-            RemotePeerMarkerWindow(editor).also { byPeer[peerId] = it }
+            PeerCursorWindow(editor).also { byPeer[peerId] = it }
         }
         window.update(peerName, peerColor, line, column)
         return true
@@ -60,7 +60,7 @@ class EditorDecorationManager(
     }
 }
 
-class RemotePeerMarkerWindow(
+class PeerCursorWindow(
     val boundEditor: CodeEditor,
 ) : EditorPopupWindow(
     boundEditor,

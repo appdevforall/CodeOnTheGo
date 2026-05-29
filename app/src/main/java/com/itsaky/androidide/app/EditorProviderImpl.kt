@@ -262,7 +262,7 @@ class EditorProviderImpl(
         true
     }
 
-    override fun addRemotePeerMarker(
+    override fun showPeerCursor(
         file: File,
         line: Int,
         column: Int,
@@ -273,11 +273,11 @@ class EditorProviderImpl(
         decorationManager.addMarker(file, line, column, peerId, peerName, peerColor)
     }
 
-    override fun removeRemotePeerMarker(file: File, peerId: String): Boolean = onMain {
+    override fun hidePeerCursor(file: File, peerId: String): Boolean = onMain {
         decorationManager.removeMarker(file, peerId)
     }
 
-    override fun clearRemotePeerMarkers(file: File) {
+    override fun clearPeerCursors(file: File) {
         onMain { decorationManager.clear(file); true }
     }
 
