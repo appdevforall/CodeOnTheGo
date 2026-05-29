@@ -26,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap
 import io.pebbletemplates.pebble.template.PebbleTemplate
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kotlinx.serialization.builtins.UByteArraySerializer
+import okio.ByteString.Companion.toByteString
 
 
 data class ServerConfig(
@@ -62,8 +64,9 @@ class WebServer(private val config: ServerConfig) {
     private          val experimentsEnabled : Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader     : String  = "Accept-Encoding"
     private          val brotliCompression  : String  = "br"
-    private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
-    private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+    private          val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
+    private          val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+    private          var bookshelfTemplateId : Int = -1;
 
     private val contentChunkSize = 1024 * 1024
 
@@ -446,6 +449,7 @@ clientSocket and the catch block logic are updated accordingly.
                     }
                     else -> {
                         val templateBlob = cursor.getBlob(0)
+                        if (debugEnabled) log.debug("templateBlob = '${String(templateBlob)}'")
                         pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
                     }
                 }
@@ -455,6 +459,10 @@ clientSocket and the catch block logic are updated accordingly.
         // Load JSON data into a template context Map<> for instantiation
         val mapper = ObjectMapper()
         val context: Map<String, Any> = mapper.readValue(dbContent.toString(Charsets.UTF_8), object : TypeReference<Map<String, Any>>() {})
+
+        /*******************DEBUGGING ONLY*******************/
+        log.debug("context = ${context}")
+        /*******************DEBUGGING ONLY*******************/
 
         // Evaluate template with loaded data and return the output
         val sw = StringWriter()
@@ -559,22 +567,15 @@ clientSocket and the catch block logic are updated accordingly.
     private fun handleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleBsEndpoint().")
 
-        var projectDatabase : SQLiteDatabase? = null
         var outputStarted = false
 
         try {
-            projectDatabase = SQLiteDatabase.openDatabase(config.projectDatabasePath,
-                null,
-                SQLiteDatabase.OPEN_READONLY)
 
-            outputStarted = realHandleBsEndpoint(writer, output, projectDatabase)
+            outputStarted = realHandleBsEndpoint(writer, output)
 
         } catch (e: Exception) {
             log.error("Error handling /pr/bs endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.", outputStarted)
-
-        } finally {
-            projectDatabase?.close()
+            sendError(writer, output, 500, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
         }
 
         if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
@@ -644,59 +645,86 @@ second response.
         if (debugEnabled) log.debug("Leaving handlePrEndpoint().")
     }
 
-    private fun realHandleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) : Boolean {
+    private fun realHandleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) : Boolean {
         if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
-        val query = """
-SELECT id,
-       name,
-       DATETIME(create_at     / 1000, 'unixepoch'),
-       DATETIME(last_modified / 1000, 'unixepoch'),
-       location,
-       template_name,
-       language
-FROM     recent_project_table
-ORDER BY last_modified DESC"""
+        // Database fetch
+        val sql_query =
+"""
+SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
+  SELECT
+    JSON_OBJECT(
+      'category',    IFNULL(BC.category, 'General'),
+      'description', BC.description,
+      'books',       JSON_GROUP_ARRAY(JSON_OBJECT(
+        'title',       IFNULL(B.title, C.path),
+        'description', B.description,
+        'link',      C.path)
+        )
+    ) AS Item
+  FROM Content AS C,
+       Bookshelf AS B,
+       BookCategories AS BC
+  WHERE C.id = B.contentID
+  AND   B.bookCategoryID = BC.id
+  GROUP BY BC.category
+  ORDER BY BC.category,
+           B.title
+);
+""".trimIndent()
 
-        var html = getTableHtml("Projects", "Projects") + """
-<tr>
-<th>Id</th>
-<th>Name</th>
-<th>Created</th>
-<th>Modified &nbsp;&nbsp;<span style="font-family: sans-serif">V</span></th>
-<th>Directory</th>
-<th>Template</th>
-<th>Language</th>
-</tr>"""
+        var cursor = database.rawQuery(sql_query, arrayOf())
+        lateinit var jsonText : ByteArray
 
-        val cursor = projectDatabase.rawQuery(query, arrayOf())
-
+        // Process database fetch
         try {
-            if (debugEnabled) log.debug("Retrieved {} rows.", cursor.count)
-
-            while (cursor.moveToNext()) {
-                html += """<tr>
-<td>${escapeHtml(cursor.getString(0) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(1) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(2) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(3) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(4) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(5) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(6) ?: "")}</td>
-</tr>"""
+           if (cursor.count != 1) {
+                if (cursor.count == 0)
+                    sendError(writer, output, 404, "Not Found")
+                else
+                    sendError(writer, output, 500, "Corrupt database - ${cursor.count} bookshelf results found when one was expected.")
+                return false
             }
 
-            html += "</table></body></html>"
+            //get the JSON from the bookshelf table
+            cursor.moveToFirst()
+            jsonText = cursor.getBlob(0)
+            if (debugEnabled) log.debug("json content = '${String(jsonText)}'.")
+            if (debugEnabled) log.debug("before fetch bookshelf template ID = '${bookshelfTemplateId}'")
+
+            //Have we already fetched the template
+            if (bookshelfTemplateId == -1) {
+                cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
+
+                if (cursor.count != 1) {
+                    if (cursor.count == 0)
+                        sendError(writer, output, 404, "Not Found")
+                    else
+                        sendError(writer, output, 500, "Corrupt database - ${cursor.count} Bookshelf templates found when 1 was expected.")
+                    return false
+                }
+
+                cursor.moveToFirst()
+                bookshelfTemplateId = cursor.getInt(0);
+                if (debugEnabled) log.debug("after the fetch bookshelf template ID = '${bookshelfTemplateId}'")
+
+            }
+
+        } catch (e: Exception) {
+            log.error("Error processing request: {}", e.message)
+            sendError(writer, output, 500, "Internal Server Error", e.message ?: "")
 
         } finally {
             cursor.close()
         }
 
-        if (debugEnabled) log.debug("html is '{}'.", html) // May output a lot of stuff but better too much than too little. --DS, 23-Feb-2026
+        val result = instantiatePebbleTemplate(bookshelfTemplateId, jsonText, "/bookshelf", "application/json", "none")
 
-        writeNormalToClient(writer, output, html)
+        if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 
-        if (debugEnabled) log.debug("Leaving realHandlePrEndpoint().")
+        writeNormalToClient(writer, output, String(result))
+
+        if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
 
         return true
     }
