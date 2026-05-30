@@ -252,7 +252,12 @@ class CodeEditorView(
 			true
 		}
 
-		_searchLayout = EditorSearchLayout(context, binding.editor)
+		_searchLayout = EditorSearchLayout(context, binding.editor).apply {
+			onSearchModeChanged = { isActive ->
+				(this@CodeEditorView.context as? BaseEditorActivity)
+					?.setEditorSearchModeActive(isActive)
+			}
+		}
 		orientation = VERTICAL
 
 		removeAllViews()
