@@ -1,8 +1,10 @@
 package com.itsaky.androidide.activities
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
+import com.itsaky.androidide.R
 import com.itsaky.androidide.app.IDEActivity
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
@@ -12,7 +14,6 @@ class PluginScreenActivity : IDEActivity() {
 
     private var pluginId: String? = null
     private var fragmentClassName: String? = null
-    private var containerId: Int = View.NO_ID
 
     override fun onCreate(savedInstanceState: Bundle?) {
         pluginId = intent.getStringExtra(IdeUIService.EXTRA_PLUGIN_ID)
@@ -51,8 +52,7 @@ class PluginScreenActivity : IDEActivity() {
 
     override fun bindLayout(): View {
         return FrameLayout(this).apply {
-            id = View.generateViewId()
-            containerId = id
+            id = R.id.plugin_screen_container
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -69,9 +69,9 @@ class PluginScreenActivity : IDEActivity() {
             PluginFragmentFactory(supportFragmentManager.fragmentFactory)
 
         PluginFragmentFactory.registerPluginClassLoader(
-            pluginId = pluginId,
-            classLoader = classLoader,
-            fragmentClassNames = listOf(fragmentClassName)
+            pluginId,
+            classLoader,
+            listOf(fragmentClassName)
         )
     }
 
@@ -79,13 +79,19 @@ class PluginScreenActivity : IDEActivity() {
         classLoader: ClassLoader,
         fragmentClassName: String
     ) {
-        val fragment = supportFragmentManager.fragmentFactory.instantiate(
-            classLoader,
-            fragmentClassName
-        )
+        val fragment = runCatching {
+            supportFragmentManager.fragmentFactory.instantiate(
+                classLoader,
+                fragmentClassName
+            )
+        }.getOrElse { error ->
+            Log.e(TAG, "Failed to instantiate plugin fragment: $fragmentClassName", error)
+            finish()
+            return
+        }
 
         supportFragmentManager.beginTransaction()
-            .replace(containerId, fragment, TAG_PLUGIN_SCREEN)
+            .replace(R.id.plugin_screen_container, fragment, TAG_PLUGIN_SCREEN)
             .commit()
     }
 
@@ -101,6 +107,7 @@ class PluginScreenActivity : IDEActivity() {
     }
 
     companion object {
+        private const val TAG = "PluginScreenActivity"
         private const val TAG_PLUGIN_SCREEN = "plugin_screen"
     }
 }
