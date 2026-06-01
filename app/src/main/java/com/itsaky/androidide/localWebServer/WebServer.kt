@@ -41,6 +41,8 @@ data class ServerConfig(
             "/Download/CodeOnTheGo.webserver.debug",
     val experimentsEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
             "/Download/CodeOnTheGo.exp", // TODO: Centralize this concept. --DS, 9-Feb-2026
+    val clearCacheEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+            "/Download/CodeOnTheGo.webserver.cs0",
 
 // Yes, this is hack code.
     val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
@@ -62,6 +64,7 @@ class WebServer(private val config: ServerConfig) {
     private          val debugEnabled       : Boolean = File(config.debugEnablePath).exists()
     // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
     private          val experimentsEnabled : Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
+    private          val clearCacheEnabled : Boolean = File(config.clearCacheEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader     : String  = "Accept-Encoding"
     private          val brotliCompression  : String  = "br"
     private          val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
@@ -607,6 +610,7 @@ clientSocket and the catch block logic are updated accordingly.
      */
     private fun handleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleBsEndpoint().")
+        if(clearCacheEnabled) templateCache.clear()
 
         var outputStarted = false
 
