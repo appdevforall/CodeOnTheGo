@@ -1507,6 +1507,10 @@ abstract class BaseEditorActivity :
 		}
 	}
 
+	fun setEditorSearchModeActive(isActive: Boolean) {
+		contentOrNull?.bottomSheet?.setSearchModeActive(isActive)
+	}
+
 	private fun observeFileOperations() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
