@@ -46,7 +46,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import org.appdevforall.codeonthego.computervision.di.computerVisionModule
 import org.jetbrains.kotlin.cli.jvm.compiler.setupIdeaStandaloneExecution
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
@@ -198,7 +197,7 @@ class IDEApplication :
 		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
 		startKoin {
 			androidContext(this@IDEApplication)
-			modules(coreModule, pluginModule, computerVisionModule)
+			modules(coreModule, pluginModule)
 		}
 	}
 
