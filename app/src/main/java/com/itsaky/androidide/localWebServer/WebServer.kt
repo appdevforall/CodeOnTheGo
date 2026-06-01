@@ -246,6 +246,19 @@ clientSocket and the catch block logic are updated accordingly.
         return String(bytes, 0, len, Charsets.ISO_8859_1)
     }
 
+    /**
+     * Handles a single HTTP request on the given client socket and writes the corresponding HTTP response.
+     *
+     * Parses the request line and headers, enforces GET-only for normal routes, and routes high-priority
+     * "pr/" endpoints (including bookshelf, database table views, projects, and experiments). For other
+     * paths it reads content and metadata from the server's SQLite database, reassembles multi-fragment
+     * content, handles Brotli compression negotiation and decompression, optionally renders Pebble
+     * templates, and writes appropriate HTTP response headers and body. If a newer debug database is
+     * present on disk, swaps the server database to that file before serving the request. On errors
+     * sends an HTTP error response and logs the failure.
+     *
+     * @param clientSocket Connected client socket used for reading the request and writing the response.
+     */
     private fun handleClient(clientSocket: Socket) {
         if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
@@ -400,6 +413,17 @@ clientSocket and the catch block logic are updated accordingly.
         }
     }
 
+    /**
+     * Renders a Pebble template identified by `templateId` using the provided JSON data and returns the rendered output as bytes.
+     *
+     * @param templateId The database ID of the Pebble template to load and compile.
+     * @param dbContent JSON bytes that will be parsed and supplied as the template context.
+     * @param path The request/content path associated with this template (used for diagnostic/logging purposes).
+     * @param dbMimeType The MIME type of the stored content (used for diagnostic/logging purposes).
+     * @param compression The compression label of the stored content (e.g., "br", "none") (used for diagnostic/logging purposes).
+     * @return The rendered template encoded as UTF-8 bytes.
+     * @throws Exception If the template ID is not found, is duplicated in the database, or if template lookup/instantiation fails.
+     */
     private fun instantiatePebbleTemplate(templateId: Int, dbContent: ByteArray, path: String, dbMimeType: String, compression: String): ByteArray {
         if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
 
@@ -471,6 +495,14 @@ clientSocket and the catch block logic are updated accordingly.
     }
 
 
+    /**
+     * Serve an HTML page showing the 20 most recent rows of the `LastChange` table.
+     *
+     * Queries the table schema to determine column names, selects the latest 20 rows
+     * ordered by `changeTime`, escapes cell values for HTML, assembles an HTML table,
+     * and writes a normal 200 HTML response to the client. On database or rendering
+     * errors a 500 error response is sent. All database cursors are closed before returning.
+     */
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleDbEndpoint().")
 
@@ -564,6 +596,15 @@ clientSocket and the catch block logic are updated accordingly.
         }
     }
 
+    /**
+     * Handles the /pr/bs endpoint by invoking the bookshelf generator and sending a 500 error if generation fails.
+     *
+     * Calls realHandleBsEndpoint to produce and write the response body; if an exception occurs, sends an HTTP 500
+     * error using the reported output-start state so no additional headers/body are written after output has begun.
+     *
+     * @param writer PrintWriter used for writing textual HTTP response headers.
+     * @param output Raw OutputStream used for writing the response body bytes.
+     */
     private fun handleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleBsEndpoint().")
 
@@ -582,6 +623,11 @@ clientSocket and the catch block logic are updated accordingly.
     }
 
 
+    /**
+     * Writes a small CSS response that shows or hides elements with the
+     * `.code_on_the_go_experiment` class depending on the server's
+     * `experimentsEnabled` flag.
+     */
     private fun handleExEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         val flag = if (experimentsEnabled)  "{}" else "{display: none;}"
 
@@ -590,6 +636,12 @@ clientSocket and the catch block logic are updated accordingly.
         sendCSS(writer, output, ".code_on_the_go_experiment $flag")
     }
 
+    /**
+     * Handle the /pr/pr endpoint by opening the project database, delegating page generation to realHandlePrEndpoint, and sending an HTTP 500 error if generation fails.
+     *
+     * @param writer PrintWriter used to write response headers.
+     * @param output OutputStream used to write response body bytes.
+     */
     private fun handlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handlePrEndpoint().")
 
@@ -645,6 +697,13 @@ second response.
         if (debugEnabled) log.debug("Leaving handlePrEndpoint().")
     }
 
+    /**
+     * Builds the Bookshelf content, renders it with the `bookshelf` template, and sends the resulting response to the client.
+     *
+     * @param writer PrintWriter for sending HTTP headers and control output.
+     * @param output OutputStream for writing the response body bytes.
+     * @return `true` if the templated response was written to the client, `false` if an error response was sent or no output was produced.
+     */
     private fun realHandleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) : Boolean {
         if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
@@ -729,6 +788,14 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
         return true
     }
 
+    /**
+     * Builds an HTML table of recent projects from the provided project database and writes it to the client.
+     *
+     * @param writer PrintWriter used for writing HTTP response headers.
+     * @param output OutputStream used for writing the HTTP response body.
+     * @param projectDatabase Read-only SQLiteDatabase containing the `recent_project_table`.
+     * @return `true` if an HTML response was written to the client.
+     */
     private fun realHandlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) : Boolean {
         if (debugEnabled) log.debug("Entering realHandlePrEndpoint().")
 
