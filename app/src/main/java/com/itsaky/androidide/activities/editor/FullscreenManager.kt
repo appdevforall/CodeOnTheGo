@@ -110,11 +110,6 @@ class FullscreenManager(
     
     private var isFullscreenState = false
 
-    private val defaultEditorBottomMargin =
-        (editorContainer.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin
-
-
-
     private val offsetListener = AppBarLayout.OnOffsetChangedListener { appBarLayout, verticalOffset ->
         val totalScrollRange = appBarLayout.totalScrollRange
         val effectiveScrollRange = if (totalScrollRange > 0) totalScrollRange else appBarLayout.height
@@ -124,18 +119,11 @@ class FullscreenManager(
             appBarContent.alpha = 1f - collapseFraction
         }
 
-        if (!isFullscreenState) {
-            val visibleAppBarHeight = effectiveScrollRange + verticalOffset
-            editorContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                bottomMargin = defaultEditorBottomMargin + visibleAppBarHeight
-            }
-
-            if (verticalOffset == 0) {
-                val params = appBarContent.layoutParams as AppBarLayout.LayoutParams
-                if (params.scrollFlags != 0) {
-                    params.scrollFlags = 0
-                    appBarContent.layoutParams = params
-                }
+        if (!isFullscreenState && verticalOffset == 0) {
+            val params = appBarContent.layoutParams as AppBarLayout.LayoutParams
+            if (params.scrollFlags != 0) {
+                params.scrollFlags = 0
+                appBarContent.layoutParams = params
             }
         }
     }

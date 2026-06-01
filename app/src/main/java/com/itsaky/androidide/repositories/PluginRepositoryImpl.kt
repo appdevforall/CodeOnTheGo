@@ -145,6 +145,13 @@ class PluginRepositoryImpl(
             }
 
             manager.loadPlugins()
+
+            if (manager.getPlugin(pluginId) == null) {
+                throw IllegalStateException(
+                    manager.getLoadError(pluginId)
+                        ?: "Plugin \"$pluginId\" was installed but failed to load."
+                )
+            }
         }.onFailure { exception ->
             Log.e(TAG, "Failed to install plugin from file: ${pluginFile.absolutePath}", exception)
         }

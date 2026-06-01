@@ -183,6 +183,7 @@ class PluginManager private constructor(
     
     private val loadedPlugins = ConcurrentHashMap<String, LoadedPlugin>()
     private val pluginStates = ConcurrentHashMap<String, Boolean>()
+    private val loadFailures = ConcurrentHashMap<String, String>()
     private val pluginRegistry = PluginRegistry(context)
     private val securityManager = PluginSecurityManager()
     private val serviceRegistry = ServiceRegistryImpl()
@@ -255,15 +256,18 @@ class PluginManager private constructor(
 
         logger.info("Found ${pluginFiles.size} plugin files")
 
+        loadFailures.clear()
+
         // Load plugins in parallel
         val loadJobs = pluginFiles.map { pluginFile ->
             async {
-                try {
-                    logger.debug("Loading plugin: ${pluginFile.name}")
+                logger.debug("Loading plugin: ${pluginFile.name}")
+                val result = try {
                     loadPlugin(pluginFile)
                 } catch (e: Exception) {
-                    logger.error("Failed to load plugin from ${pluginFile.name}", e)
+                    Result.failure(e)
                 }
+                result.onFailure { error -> recordLoadFailure(pluginFile, error) }
             }
         }
 
@@ -752,6 +756,14 @@ class PluginManager private constructor(
     
     fun getPlugin(pluginId: String): IPlugin? {
         return loadedPlugins[pluginId]?.plugin
+    }
+
+    fun getLoadError(pluginId: String): String? = loadFailures[pluginId]
+
+    private fun recordLoadFailure(pluginFile: File, error: Throwable) {
+        logger.error("Failed to load plugin from ${pluginFile.name}", error)
+        val id = loadAndValidate(pluginFile).getOrNull()?.first?.id ?: pluginFile.nameWithoutExtension
+        loadFailures[id] = error.message ?: error.toString()
     }
     
     fun getAllPlugins(): List<PluginInfo> {
