@@ -354,7 +354,7 @@ constructor(
 	}
 
 	private fun applyPeekHeight() {
-		behavior.peekHeight = if (isImeVisible || isSearchModeActive) 0 else collapsedHeight.toInt()
+		behavior.peekHeight = if (isSearchModeActive) 0 else collapsedHeight.toInt()
 	}
 
 	fun setOffsetAnchor(view: View) {
