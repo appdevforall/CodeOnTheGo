@@ -28,11 +28,17 @@ class FileManagerViewModel : ViewModel() {
 
     fun renameFile(file: File, newName: String, context: Context? = null, onResult: ((Boolean) -> Unit)? = null) {
         viewModelScope.launch {
+            val destFile = File(file.parentFile, newName)
             val renamed = withContext(Dispatchers.IO) {
-                newName.length in 1..40 && FileUtils.rename(file, newName)
+                if (file.name.equals(newName, ignoreCase = true)) {
+                    val tempFile = File(file.parentFile, "$newName.tmp")
+                    file.renameTo(tempFile) && tempFile.renameTo(destFile)
+                } else {
+                    FileUtils.rename(file, newName)
+                }
             }
 
-            if (renamed) {
+            if (newName.length in 1..40 && renamed) {
                 // Notify system of the rename
                 val renameEvent = FileRenameEvent(file, File(file.parent, newName))
                 if (context != null) {
