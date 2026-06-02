@@ -35,8 +35,8 @@ class PluginActionItem(
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
-        enabled = menuItem.isEnabled
-        visible = menuItem.isVisible
+        enabled = menuItem.isEnabledProvider?.invoke() ?: menuItem.isEnabled
+        visible = menuItem.isVisibleProvider?.invoke() ?: menuItem.isVisible
     }
 
     override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
