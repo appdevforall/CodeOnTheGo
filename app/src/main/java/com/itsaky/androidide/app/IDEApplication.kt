@@ -46,7 +46,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import org.jetbrains.kotlin.cli.jvm.compiler.setupIdeaStandaloneExecution
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
@@ -103,9 +102,6 @@ class IDEApplication :
 			private set
 
 		init {
-			System.setProperty("java.awt.headless", "true")
-			setupIdeaStandaloneExecution()
-
 			@Suppress("Deprecation")
 			Shell.setDefaultBuilder(
 				Shell.Builder

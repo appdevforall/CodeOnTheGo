@@ -24,11 +24,23 @@ internal abstract class AbstractKtModule(
 			return
 		}
 
-		val files = computeFiles(extended = true).toList()
-		_baseSearchScope = GlobalSearchScope.filesScope(project, files)
+		_baseSearchScope = computeBaseContentScope()
 		_contentScope = KaContentScopeProvider.getInstance(project).getRefinedContentScope(this)
 		Sentry.addBreadcrumb("createSearchScopes(mod=$this, base=${_baseSearchScope?.hashCode()}, content=${_contentScope?.hashCode()})")
 	}
+
+	/**
+	 * Computes the base content scope for this module.
+	 *
+	 * The default is a snapshot of the currently resolvable [VirtualFile]s
+	 * ([computeFiles]). Subclasses whose membership is better expressed by path
+	 * (e.g. source modules, where files are created/deleted/refreshed while
+	 * editing) should override this with a path-predicate scope so that scope
+	 * membership stays consistent with the way the module is resolved in
+	 * `ProjectStructureProvider.getModule`.
+	 */
+	protected open fun computeBaseContentScope(): GlobalSearchScope =
+		GlobalSearchScope.filesScope(project, computeFiles(extended = true).toList())
 
 	fun invalidateSearchScope() {
 		synchronized(searchScopeLock) {
