@@ -517,7 +517,7 @@ abstract class BaseEditorActivity :
 
 		applyImmersiveModeInsets(systemBars)
 
-		handleKeyboardInsets(imeInsets)
+		handleKeyboardInsets(imeInsets, systemBars)
 	}
 
 	private fun applyStandardInsets(systemBars: Insets) {
@@ -530,7 +530,7 @@ abstract class BaseEditorActivity :
 		_binding?.content?.applyImmersiveModeInsets(systemBars)
 	}
 
-	private fun handleKeyboardInsets(imeInsets: Insets) {
+	private fun handleKeyboardInsets(imeInsets: Insets, systemBars: Insets) {
 		val isImeVisible = imeInsets.bottom > 0
 		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
 
@@ -539,7 +539,8 @@ abstract class BaseEditorActivity :
 				isImeVisible -> {
 					contentCardRealHeight?.let { baseHeight ->
 						updateLayoutParams<ViewGroup.LayoutParams> {
-							height = (baseHeight - imeInsets.bottom).coerceAtLeast(0)
+							val diff = (imeInsets.bottom - systemBars.bottom).coerceAtLeast(0)
+							height = (baseHeight - diff).coerceAtLeast(0)
 						}
 					}
 				}
