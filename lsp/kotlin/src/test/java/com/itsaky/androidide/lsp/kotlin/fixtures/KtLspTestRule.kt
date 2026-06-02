@@ -14,13 +14,11 @@ internal class KtLspTestRule : TestRule {
 
 	override fun apply(
 		statement: Statement?,
-		p1: Description?
+		description: Description?
 	): Statement {
-		return object : Statement() {
+		return tempDir.apply(object : Statement() {
 			override fun evaluate() {
 				try {
-					tempDir.create()
-
 					val sourceRoot = tempDir.newFolder("src").toPath()
 					env = KtLspTestEnvironment(listOf(sourceRoot))
 
@@ -34,6 +32,6 @@ internal class KtLspTestRule : TestRule {
 					}
 				}
 			}
-		}
+		}, description)
 	}
 }
