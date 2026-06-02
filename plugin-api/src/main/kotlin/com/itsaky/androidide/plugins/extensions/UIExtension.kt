@@ -65,8 +65,11 @@ data class MenuItem @JvmOverloads constructor(
      * both the sidebar and the toolbar surfaces.
      */
     val tooltipTag: String? = null,
-    val icon: Int? = null,
-)
+    val icon: Int? = null
+) {
+    var isEnabledProvider: (() -> Boolean)? = null
+    var isVisibleProvider: (() -> Boolean)? = null
+}
 
 data class ContextMenuContext(
     val file: java.io.File?,
