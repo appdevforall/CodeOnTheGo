@@ -255,6 +255,7 @@
 	<string name="msg_rename_file">Enter a new name for the file/folder.</string>
 	<string name="renamed">Renamed successfully</string>
 	<string name="rename_failed">Unable to rename file</string>
+    <string name="file_name_too_long">File name cannot exceed 40 characters</string>
 	<string name="deleted">Deleted successfully</string>
 	<string name="delete_failed">Unable to delete file</string>
 	<string name="copy_path">Copy path</string>
