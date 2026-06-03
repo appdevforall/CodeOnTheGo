@@ -1,6 +1,7 @@
 package com.itsaky.androidide.activities.editor
 
 import android.app.Activity
+import android.content.ContextWrapper
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.updateLayoutParams
@@ -228,9 +229,14 @@ class FullscreenManager(
 
         bottomSheetBehavior.isHideable = true
         
-        val isKeyboardOpen = KeyboardUtils.isSoftInputVisible(contentBinding.root.context as Activity)
+        val activity = contentBinding.root.context.let { context ->
+            generateSequence(context) { (it as? ContextWrapper)?.baseContext }
+                .filterIsInstance<Activity>()
+                .firstOrNull()
+        }
+        val isKeyboardOpen = activity?.let { KeyboardUtils.isSoftInputVisible(it) } ?: false
         val targetState = if (isKeyboardOpen) BottomSheetBehavior.STATE_COLLAPSED else BottomSheetBehavior.STATE_HIDDEN
-        
+
         if (bottomSheetBehavior.state != targetState) {
             bottomSheetBehavior.state = targetState
         }
