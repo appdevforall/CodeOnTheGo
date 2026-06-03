@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.FileUtils
@@ -28,8 +29,15 @@ class FileManagerViewModel : ViewModel() {
 
     fun renameFile(file: File, newName: String, context: Context? = null, onResult: ((Boolean) -> Unit)? = null) {
         viewModelScope.launch {
+            val destFile = File(file.parentFile, newName)
             val renamed = withContext(Dispatchers.IO) {
-                newName.length in 1..40 && FileUtils.rename(file, newName)
+                if (file.name.equals(newName, ignoreCase = true)) {
+                    val uniqueSuffix = System.currentTimeMillis()
+                    val tempFile = File(file.parentFile, "$newName-$uniqueSuffix.cotg")
+                    file.renameTo(tempFile) && tempFile.renameTo(destFile)
+                } else {
+                    FileUtils.rename(file, newName)
+                }
             }
 
             if (renamed) {

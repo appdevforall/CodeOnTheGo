@@ -204,8 +204,8 @@ class StructureView(
         super.dispatchDraw(canvas)
 
         for (text in textViewMap.keys) {
-            val view = textViewMap[text]
-            val parent = text.parent.parent as ViewGroup
+            val view = textViewMap[text] ?: continue
+            val parent = (text.parent?.parent as? ViewGroup) ?: continue
 
             val centerX = parent.x
             val centerY = parent.y + parent.height.toFloat() / 2
@@ -265,7 +265,7 @@ class StructureView(
 
                     val editText = view.editText ?: continue
                     val current = viewTextMap[editText] ?: continue
-                    val currentParent = current.parent.parent as ViewGroup
+                    val currentParent = (current.parent?.parent as? ViewGroup) ?: continue
 
                     drawLine(currentParent)
                 }
@@ -276,7 +276,7 @@ class StructureView(
                     for (i in 0 until view.childCount) {
                         val child = view.getChildAt(i)
                         val current = viewTextMap[child] ?: continue
-                        val currentParent = current.parent.parent as ViewGroup
+                        val currentParent = (current.parent?.parent as? ViewGroup) ?: continue
 
                         drawLine(currentParent)
                     }
