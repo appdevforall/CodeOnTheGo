@@ -31,7 +31,8 @@ class FileManagerViewModel : ViewModel() {
             val destFile = File(file.parentFile, newName)
             val renamed = withContext(Dispatchers.IO) {
                 if (file.name.equals(newName, ignoreCase = true)) {
-                    val tempFile = File(file.parentFile, "$newName.tmp")
+                    val uniqueSuffix = System.currentTimeMillis()
+                    val tempFile = File(file.parentFile, "$newName-$uniqueSuffix.cotg")
                     file.renameTo(tempFile) && tempFile.renameTo(destFile)
                 } else {
                     FileUtils.rename(file, newName)
