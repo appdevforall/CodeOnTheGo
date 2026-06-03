@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.FileUtils
@@ -39,7 +40,7 @@ class FileManagerViewModel : ViewModel() {
                 }
             }
 
-            if (newName.length in 1..40 && renamed) {
+            if (renamed) {
                 // Notify system of the rename
                 val renameEvent = FileRenameEvent(file, File(file.parent, newName))
                 if (context != null) {
