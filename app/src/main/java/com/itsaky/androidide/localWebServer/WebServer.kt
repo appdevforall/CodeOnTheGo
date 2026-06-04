@@ -1,5 +1,6 @@
 package org.appdevforall.localwebserver
 
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.itsaky.androidide.utils.DatabaseVersionResolver
@@ -26,6 +27,9 @@ import java.util.concurrent.ConcurrentHashMap
 import io.pebbletemplates.pebble.template.PebbleTemplate
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import android.os.Environment.getExternalStorageDirectory
+import kotlinx.serialization.builtins.UByteArraySerializer
+import okio.ByteString.Companion.toByteString
 
 
 data class ServerConfig(
@@ -33,12 +37,14 @@ data class ServerConfig(
     val databasePath: String,
     val fileDirPath: String,
     val bindName: String = "localhost",
-    val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+    val debugDatabasePath: String = getExternalStorageDirectory().toString() +
             "/Download/documentation.db",
-    val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+    val debugEnablePath: String = getExternalStorageDirectory().toString() +
             "/Download/CodeOnTheGo.webserver.debug",
-    val experimentsEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+    val experimentsEnablePath: String = getExternalStorageDirectory().toString() +
             "/Download/CodeOnTheGo.exp", // TODO: Centralize this concept. --DS, 9-Feb-2026
+    val clearCacheEnablePath: String = getExternalStorageDirectory().toString() +
+            "/Download/CodeOnTheGo.webserver.cs0",
 
 // Yes, this is hack code.
     val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
@@ -60,10 +66,14 @@ class WebServer(private val config: ServerConfig) {
     private          val debugEnabled       : Boolean = File(config.debugEnablePath).exists()
     // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
     private          val experimentsEnabled : Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
+    private          val clearCacheEnabled : Boolean = File(config.clearCacheEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader     : String  = "Accept-Encoding"
     private          val brotliCompression  : String  = "br"
-    private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
-    private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+    private          val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
+    private          val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+    private          var bookshelfTemplateId : Int = -1;
+    private          val HTTP_INTERNAL_SERVER_ERROR = 500
+    private          val HTTP_NOT_FOUND = 404
 
     private val contentChunkSize = 1024 * 1024
 
@@ -174,31 +184,7 @@ class WebServer(private val config: ServerConfig) {
                                 try {
                                     val output = socket.outputStream
 
-/*
-The code below handles rare errors sufficiently correctly. To make it "more correct" will complicate the code,
-adding more chances for bugs. Therefore I'm ignoring the CodeRabbit message below. --DS, 23-Feb-2026
-
-Avoid sending a 500 after a partial response.
-
-If handleClient already wrote headers/body before throwing, this fallback sendError will append another response and garble the stream. Gate the error send on a response-started flag from handleClient (or just log/close when unsure).
-🤖 Prompt for AI Agents
-
-Verify each finding against the current code and only fix it if needed.
-
-In `@app/src/main/java/com/itsaky/androidide/localWebServer/WebServer.kt` around
-lines 151 - 163, The fallback in the catch block unconditionally calls sendError
-which can corrupt the stream if handleClient already started sending a response;
-modify handleClient and the surrounding logic to track whether a response has
-started (e.g., add a responseStarted boolean returned by or set by handleClient,
-or expose a getResponseStarted() on the request handler) and only call sendError
-when responseStarted is false; otherwise avoid writing another response and
-instead log the error and close clientSocket (use clientSocket?.close()) to
-cleanly terminate the connection. Ensure references to handleClient, sendError,
-clientSocket and the catch block logic are updated accordingly.
-
-
- */
-                                    sendError(PrintWriter(output, true), output, 500, "Internal Server Error 1")
+                                    sendError(PrintWriter(output, true), output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 1")
 
                                 } catch (e2: Exception) {
                                     log.error("Error sending error response: {}", e2.message)
@@ -304,6 +290,7 @@ clientSocket and the catch block logic are updated accordingly.
         // if there is use that for our responses
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
         if (debugDatabaseTimestamp > databaseTimestamp) {
+            bookshelfTemplateId = -1
             database.close()
             database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
             databaseTimestamp = debugDatabaseTimestamp
@@ -318,7 +305,7 @@ clientSocket and the catch block logic are updated accordingly.
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'.")
+                else    -> sendError(writer, output, HTTP_NOT_FOUND, "Not Found", "Path requested: '$path'.")
             }
         }
 
@@ -334,8 +321,8 @@ clientSocket and the catch block logic are updated accordingly.
         // Process database fetch
         try {
             if (cursor.count != 1) {
-                return if (cursor.count == 0) sendError(writer, output, 404, "Not Found")
-                else sendError(writer, output, 500, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
+                return if (cursor.count == 0) sendError(writer, output, HTTP_NOT_FOUND, "Not Found")
+                else sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
             }
 
             cursor.moveToFirst()
@@ -391,12 +378,23 @@ clientSocket and the catch block logic are updated accordingly.
             output.flush()
         } catch (e: Exception) {
             log.error("Error processing request: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error", e.message ?: "")
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error", e.message ?: "")
         } finally {
             cursor.close()
         }
     }
 
+    /**
+     * Renders a Pebble template identified by `templateId` using the provided JSON data and returns the rendered output as bytes.
+     *
+     * @param templateId The database ID of the Pebble template to load and compile.
+     * @param dbContent JSON bytes that will be parsed and supplied as the template context.
+     * @param path The request/content path associated with this template (used for diagnostic/logging purposes).
+     * @param dbMimeType The MIME type of the stored content (used for diagnostic/logging purposes).
+     * @param compression The compression label of the stored content (e.g., "br", "none") (used for diagnostic/logging purposes).
+     * @return The rendered template encoded as UTF-8 bytes.
+     * @throws Exception If the template ID is not found, is duplicated in the database, or if template lookup/instantiation fails.
+     */
     private fun instantiatePebbleTemplate(templateId: Int, dbContent: ByteArray, path: String, dbMimeType: String, compression: String): ByteArray {
         if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
 
@@ -446,6 +444,7 @@ clientSocket and the catch block logic are updated accordingly.
                     }
                     else -> {
                         val templateBlob = cursor.getBlob(0)
+                        if (debugEnabled) log.debug("templateBlob = '${String(templateBlob)}'")
                         pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
                     }
                 }
@@ -463,6 +462,14 @@ clientSocket and the catch block logic are updated accordingly.
     }
 
 
+    /**
+     * Serve an HTML page showing the 20 most recent rows of the `LastChange` table.
+     *
+     * Queries the table schema to determine column names, selects the latest 20 rows
+     * ordered by `changeTime`, escapes cell values for HTML, assembles an HTML table,
+     * and writes a normal 200 HTML response to the client. On database or rendering
+     * errors a 500 error response is sent. All database cursors are closed before returning.
+     */
     private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleDbEndpoint().")
 
@@ -538,7 +545,7 @@ clientSocket and the catch block logic are updated accordingly.
             sendError(
                 writer,
                 output,
-                500,
+                HTTP_INTERNAL_SERVER_ERROR,
                 "Internal Server Error 4.1",
                 "Error creating output."
             )
@@ -552,35 +559,43 @@ clientSocket and the catch block logic are updated accordingly.
 
         } catch (e: Exception) {
             log.error("Error handling /pr/db endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 4", "Error generating database table.", true)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 4", "Error generating database table.", true)
         }
     }
 
+    /**
+     * Handles the /pr/bs endpoint by invoking the bookshelf generator and sending a 500 error if generation fails.
+     *
+     * Calls realHandleBsEndpoint to produce and write the response body; if an exception occurs, sends an HTTP 500
+     * error using the reported output-start state so no additional headers/body are written after output has begun.
+     *
+     * @param writer PrintWriter used for writing textual HTTP response headers.
+     * @param output Raw OutputStream used for writing the response body bytes.
+     */
     private fun handleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleBsEndpoint().")
+        if(clearCacheEnabled) templateCache.clear()
 
-        var projectDatabase : SQLiteDatabase? = null
         var outputStarted = false
 
         try {
-            projectDatabase = SQLiteDatabase.openDatabase(config.projectDatabasePath,
-                null,
-                SQLiteDatabase.OPEN_READONLY)
 
-            outputStarted = realHandleBsEndpoint(writer, output, projectDatabase)
+            outputStarted = realHandleBsEndpoint(writer, output)
 
         } catch (e: Exception) {
             log.error("Error handling /pr/bs endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.", outputStarted)
-
-        } finally {
-            projectDatabase?.close()
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
         }
 
         if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
     }
 
 
+    /**
+     * Writes a small CSS response that shows or hides elements with the
+     * `.code_on_the_go_experiment` class depending on the server's
+     * `experimentsEnabled` flag.
+     */
     private fun handleExEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         val flag = if (experimentsEnabled)  "{}" else "{display: none;}"
 
@@ -589,6 +604,12 @@ clientSocket and the catch block logic are updated accordingly.
         sendCSS(writer, output, ".code_on_the_go_experiment $flag")
     }
 
+    /**
+     * Handle the /pr/pr endpoint by opening the project database, delegating page generation to realHandlePrEndpoint, and sending an HTTP 500 error if generation fails.
+     *
+     * @param writer PrintWriter used to write response headers.
+     * @param output OutputStream used to write response body bytes.
+     */
     private fun handlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handlePrEndpoint().")
 
@@ -635,7 +656,7 @@ second response.
 
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.", outputStarted)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 6", "Error generating database table.", outputStarted)
             
         } finally {
             projectDatabase?.close()
@@ -644,63 +665,112 @@ second response.
         if (debugEnabled) log.debug("Leaving handlePrEndpoint().")
     }
 
-    private fun realHandleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) : Boolean {
+    /**
+     * Builds the Bookshelf content, renders it with the `bookshelf` template, and sends the resulting response to the client.
+     *
+     * @param writer PrintWriter for sending HTTP headers and control output.
+     * @param output OutputStream for writing the response body bytes.
+     * @return `true` if the templated response was written to the client, `false` if an error response was sent or no output was produced.
+     */
+    private fun realHandleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) : Boolean {
         if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
-        val query = """
-SELECT id,
-       name,
-       DATETIME(create_at     / 1000, 'unixepoch'),
-       DATETIME(last_modified / 1000, 'unixepoch'),
-       location,
-       template_name,
-       language
-FROM     recent_project_table
-ORDER BY last_modified DESC"""
+        // Database fetch
+        val sql_query =
+"""
+SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
+  SELECT
+    JSON_OBJECT(
+      'category',    IFNULL(BC.category, 'General'),
+      'description', BC.description,
+      'books',       JSON_GROUP_ARRAY(JSON_OBJECT(
+        'title',       IFNULL(B.title, C.path),
+        'description', B.description,
+        'link',        C.path,
+        'pdf',         IIF(SUBSTR(C.path, -4) == '.pdf', 1, 0) )
+        )
+    ) AS Item
+  FROM Content AS C,
+       Bookshelf AS B,
+       BookCategories AS BC
+  WHERE C.id = B.contentID
+  AND   B.bookCategoryID = BC.id
+  GROUP BY BC.category
+  ORDER BY BC.category,
+           B.title
+);
+""".trimIndent()
 
-        var html = getTableHtml("Projects", "Projects") + """
-<tr>
-<th>Id</th>
-<th>Name</th>
-<th>Created</th>
-<th>Modified &nbsp;&nbsp;<span style="font-family: sans-serif">V</span></th>
-<th>Directory</th>
-<th>Template</th>
-<th>Language</th>
-</tr>"""
+        var cursor = database.rawQuery(sql_query, arrayOf())
+        lateinit var jsonText : ByteArray
 
-        val cursor = projectDatabase.rawQuery(query, arrayOf())
-
+        // Process database fetch
         try {
-            if (debugEnabled) log.debug("Retrieved {} rows.", cursor.count)
-
-            while (cursor.moveToNext()) {
-                html += """<tr>
-<td>${escapeHtml(cursor.getString(0) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(1) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(2) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(3) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(4) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(5) ?: "")}</td>
-<td>${escapeHtml(cursor.getString(6) ?: "")}</td>
-</tr>"""
+            if(!isCursorOneRow(cursor, writer, output)) {
+                return false
             }
 
-            html += "</table></body></html>"
+            //get the JSON from the bookshelf table
+            cursor.moveToFirst()
+            jsonText = cursor.getBlob(0)
+            if (debugEnabled) log.debug("json content = '${String(jsonText)}'.")
+            if (debugEnabled) log.debug("before fetch bookshelf template ID = '${bookshelfTemplateId}'")
 
+            //Have we already fetched the template
+            if (bookshelfTemplateId == -1) {
+                /* safety first, close the cursor */
+                cursor.close()
+                cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
+
+                if(!isCursorOneRow(cursor, writer, output)) {
+                    return false
+                }
+
+                cursor.moveToFirst()
+                bookshelfTemplateId = cursor.getInt(0);
+                if (debugEnabled) log.debug("after the fetch bookshelf template ID = '${bookshelfTemplateId}'")
+
+            }
+
+        } catch (e: Exception) {
+            log.error("Error processing request: {}", e.message)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error", e.message ?: "")
+            return false
         } finally {
             cursor.close()
         }
 
-        if (debugEnabled) log.debug("html is '{}'.", html) // May output a lot of stuff but better too much than too little. --DS, 23-Feb-2026
+        val result = instantiatePebbleTemplate(bookshelfTemplateId, jsonText, "/bookshelf", "application/json", "none")
 
-        writeNormalToClient(writer, output, html)
+        if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 
-        if (debugEnabled) log.debug("Leaving realHandlePrEndpoint().")
+        writeNormalToClient(writer, output, String(result))
+
+        if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
 
         return true
     }
 
+
+    private fun isCursorOneRow(cursor: Cursor, writer: PrintWriter, output: java.io.OutputStream) : Boolean {
+        if (cursor.count == 1) {
+            return true
+        }
+        if (cursor.count == 0)
+            sendError(writer, output, HTTP_NOT_FOUND, "Corrupt database, no rows found, expected one.")
+        else
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - found ${cursor.count} rows when 1 was expected.")
+        return false
+    }
+
+    /**
+     * Builds an HTML table of recent projects from the provided project database and writes it to the client.
+     *
+     * @param writer PrintWriter used for writing HTTP response headers.
+     * @param output OutputStream used for writing the HTTP response body.
+     * @param projectDatabase Read-only SQLiteDatabase containing the `recent_project_table`.
+     * @return `true` if an HTML response was written to the client.
+     */
     private fun realHandlePrEndpoint(writer: PrintWriter, output: java.io.OutputStream, projectDatabase: SQLiteDatabase) : Boolean {
         if (debugEnabled) log.debug("Entering realHandlePrEndpoint().")
 
