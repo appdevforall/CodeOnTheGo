@@ -1,5 +1,6 @@
 package org.appdevforall.localwebserver
 
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.itsaky.androidide.utils.DatabaseVersionResolver
@@ -72,6 +73,7 @@ class WebServer(private val config: ServerConfig) {
     private          val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
     private          var bookshelfTemplateId : Int = -1;
     private          val HTTP_INTERNAL_SERVER_ERROR = 500
+    private          val HTTP_NOT_FOUND = 404
 
     private val contentChunkSize = 1024 * 1024
 
@@ -303,7 +305,7 @@ class WebServer(private val config: ServerConfig) {
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'.")
+                else    -> sendError(writer, output, HTTP_NOT_FOUND, "Not Found", "Path requested: '$path'.")
             }
         }
 
@@ -319,7 +321,7 @@ class WebServer(private val config: ServerConfig) {
         // Process database fetch
         try {
             if (cursor.count != 1) {
-                return if (cursor.count == 0) sendError(writer, output, 404, "Not Found")
+                return if (cursor.count == 0) sendError(writer, output, HTTP_NOT_FOUND, "Not Found")
                 else sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
             }
 
@@ -704,11 +706,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
 
         // Process database fetch
         try {
-           if (cursor.count != 1) {
-                if (cursor.count == 0)
-                    sendError(writer, output, 404, "Not Found")
-                else
-                    sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - ${cursor.count} bookshelf results found when one was expected.")
+            if(!isCursorOneRow(cursor, writer, output)) {
                 return false
             }
 
@@ -724,11 +722,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
                 cursor.close()
                 cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
 
-                if (cursor.count != 1) {
-                    if (cursor.count == 0)
-                        sendError(writer, output, 404, "Not Found")
-                    else
-                        sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - ${cursor.count} Bookshelf templates found when 1 was expected.")
+                if(!isCursorOneRow(cursor, writer, output)) {
                     return false
                 }
 
@@ -755,6 +749,18 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
         if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
 
         return true
+    }
+
+
+    private fun isCursorOneRow(cursor: Cursor, writer: PrintWriter, output: java.io.OutputStream) : Boolean {
+        if (cursor.count == 1) {
+            return true
+        }
+        if (cursor.count == 0)
+            sendError(writer, output, HTTP_NOT_FOUND, "Corrupt database, no rows found, expected one.")
+        else
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - found ${cursor.count} rows when 1 was expected.")
+        return false
     }
 
     /**
