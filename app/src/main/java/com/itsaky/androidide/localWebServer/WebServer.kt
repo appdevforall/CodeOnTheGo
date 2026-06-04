@@ -1,5 +1,6 @@
 package org.appdevforall.localwebserver
 
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.itsaky.androidide.utils.DatabaseVersionResolver
@@ -71,6 +72,8 @@ class WebServer(private val config: ServerConfig) {
     private          val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
     private          val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
     private          var bookshelfTemplateId : Int = -1;
+    private          val HTTP_INTERNAL_SERVER_ERROR = 500
+    private          val HTTP_NOT_FOUND = 404
 
     private val contentChunkSize = 1024 * 1024
 
@@ -181,7 +184,7 @@ class WebServer(private val config: ServerConfig) {
                                 try {
                                     val output = socket.outputStream
 
-                                    sendError(PrintWriter(output, true), output, 500, "Internal Server Error 1")
+                                    sendError(PrintWriter(output, true), output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 1")
 
                                 } catch (e2: Exception) {
                                     log.error("Error sending error response: {}", e2.message)
@@ -302,7 +305,7 @@ class WebServer(private val config: ServerConfig) {
                 "pr/db" -> handleDbEndpoint(writer, output)
                 "pr/pr" -> handlePrEndpoint(writer, output)
                 "pr/ex" -> handleExEndpoint(writer, output)
-                else    -> sendError(writer, output, 404, "Not Found", "Path requested: '$path'.")
+                else    -> sendError(writer, output, HTTP_NOT_FOUND, "Not Found", "Path requested: '$path'.")
             }
         }
 
@@ -318,8 +321,8 @@ class WebServer(private val config: ServerConfig) {
         // Process database fetch
         try {
             if (cursor.count != 1) {
-                return if (cursor.count == 0) sendError(writer, output, 404, "Not Found")
-                else sendError(writer, output, 500, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
+                return if (cursor.count == 0) sendError(writer, output, HTTP_NOT_FOUND, "Not Found")
+                else sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
             }
 
             cursor.moveToFirst()
@@ -375,7 +378,7 @@ class WebServer(private val config: ServerConfig) {
             output.flush()
         } catch (e: Exception) {
             log.error("Error processing request: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error", e.message ?: "")
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error", e.message ?: "")
         } finally {
             cursor.close()
         }
@@ -542,7 +545,7 @@ class WebServer(private val config: ServerConfig) {
             sendError(
                 writer,
                 output,
-                500,
+                HTTP_INTERNAL_SERVER_ERROR,
                 "Internal Server Error 4.1",
                 "Error creating output."
             )
@@ -556,7 +559,7 @@ class WebServer(private val config: ServerConfig) {
 
         } catch (e: Exception) {
             log.error("Error handling /pr/db endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 4", "Error generating database table.", true)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 4", "Error generating database table.", true)
         }
     }
 
@@ -581,7 +584,7 @@ class WebServer(private val config: ServerConfig) {
 
         } catch (e: Exception) {
             log.error("Error handling /pr/bs endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
         }
 
         if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
@@ -653,7 +656,7 @@ second response.
 
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.", outputStarted)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 6", "Error generating database table.", outputStarted)
             
         } finally {
             projectDatabase?.close()
@@ -703,11 +706,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
 
         // Process database fetch
         try {
-           if (cursor.count != 1) {
-                if (cursor.count == 0)
-                    sendError(writer, output, 404, "Not Found")
-                else
-                    sendError(writer, output, 500, "Corrupt database - ${cursor.count} bookshelf results found when one was expected.")
+            if(!isCursorOneRow(cursor, writer, output)) {
                 return false
             }
 
@@ -723,11 +722,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
                 cursor.close()
                 cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
 
-                if (cursor.count != 1) {
-                    if (cursor.count == 0)
-                        sendError(writer, output, 404, "Not Found")
-                    else
-                        sendError(writer, output, 500, "Corrupt database - ${cursor.count} Bookshelf templates found when 1 was expected.")
+                if (!isCursorOneRow(cursor, writer, output)) {
                     return false
                 }
 
@@ -739,7 +734,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
 
         } catch (e: Exception) {
             log.error("Error processing request: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error", e.message ?: "")
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error", e.message ?: "")
             return false
         } finally {
             cursor.close()
@@ -756,6 +751,19 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
         return true
     }
 
+
+    private fun isCursorOneRow(cursor: Cursor, writer: PrintWriter, output: java.io.OutputStream) : Boolean {
+        if (cursor.count == 1) {
+            return true
+        }
+        if (cursor.count == 0)
+            sendError(writer, output, HTTP_NOT_FOUND, "Corrupt database, no rows found, expected one.")
+        else
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - found ${cursor.count} rows when 1 was expected.")
+        return false
+    }
+
+    
     /**
      * Builds an HTML table of recent projects from the provided project database and writes it to the client.
      *
