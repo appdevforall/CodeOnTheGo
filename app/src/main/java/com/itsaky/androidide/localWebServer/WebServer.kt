@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap
 import io.pebbletemplates.pebble.template.PebbleTemplate
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import android.os.Environment.getExternalStorageDirectory
 import kotlinx.serialization.builtins.UByteArraySerializer
 import okio.ByteString.Companion.toByteString
 
@@ -35,12 +36,14 @@ data class ServerConfig(
     val databasePath: String,
     val fileDirPath: String,
     val bindName: String = "localhost",
-    val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+    val debugDatabasePath: String = getExternalStorageDirectory().toString() +
             "/Download/documentation.db",
-    val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+    val debugEnablePath: String = getExternalStorageDirectory().toString() +
             "/Download/CodeOnTheGo.webserver.debug",
-    val experimentsEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+    val experimentsEnablePath: String = getExternalStorageDirectory().toString() +
             "/Download/CodeOnTheGo.exp", // TODO: Centralize this concept. --DS, 9-Feb-2026
+    val clearCacheEnablePath: String = getExternalStorageDirectory().toString() +
+            "/Download/CodeOnTheGo.webserver.cs0",
 
 // Yes, this is hack code.
     val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database"
@@ -62,11 +65,13 @@ class WebServer(private val config: ServerConfig) {
     private          val debugEnabled       : Boolean = File(config.debugEnablePath).exists()
     // TODO: Use the centralized experiments flag instead of this ad-hoc check. --DS, 10-Feb-2026
     private          val experimentsEnabled : Boolean = File(config.experimentsEnablePath).exists() // Frozen at startup. Restart server if needed.
+    private          val clearCacheEnabled : Boolean = File(config.clearCacheEnablePath).exists() // Frozen at startup. Restart server if needed.
     private          val encodingHeader     : String  = "Accept-Encoding"
     private          val brotliCompression  : String  = "br"
     private          val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
     private          val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
     private          var bookshelfTemplateId : Int = -1;
+    private          val HTTP_INTERNAL_SERVER_ERROR = 500
 
     private val contentChunkSize = 1024 * 1024
 
@@ -177,31 +182,7 @@ class WebServer(private val config: ServerConfig) {
                                 try {
                                     val output = socket.outputStream
 
-/*
-The code below handles rare errors sufficiently correctly. To make it "more correct" will complicate the code,
-adding more chances for bugs. Therefore I'm ignoring the CodeRabbit message below. --DS, 23-Feb-2026
-
-Avoid sending a 500 after a partial response.
-
-If handleClient already wrote headers/body before throwing, this fallback sendError will append another response and garble the stream. Gate the error send on a response-started flag from handleClient (or just log/close when unsure).
-🤖 Prompt for AI Agents
-
-Verify each finding against the current code and only fix it if needed.
-
-In `@app/src/main/java/com/itsaky/androidide/localWebServer/WebServer.kt` around
-lines 151 - 163, The fallback in the catch block unconditionally calls sendError
-which can corrupt the stream if handleClient already started sending a response;
-modify handleClient and the surrounding logic to track whether a response has
-started (e.g., add a responseStarted boolean returned by or set by handleClient,
-or expose a getResponseStarted() on the request handler) and only call sendError
-when responseStarted is false; otherwise avoid writing another response and
-instead log the error and close clientSocket (use clientSocket?.close()) to
-cleanly terminate the connection. Ensure references to handleClient, sendError,
-clientSocket and the catch block logic are updated accordingly.
-
-
- */
-                                    sendError(PrintWriter(output, true), output, 500, "Internal Server Error 1")
+                                    sendError(PrintWriter(output, true), output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 1")
 
                                 } catch (e2: Exception) {
                                     log.error("Error sending error response: {}", e2.message)
@@ -246,19 +227,6 @@ clientSocket and the catch block logic are updated accordingly.
         return String(bytes, 0, len, Charsets.ISO_8859_1)
     }
 
-    /**
-     * Handles a single HTTP request on the given client socket and writes the corresponding HTTP response.
-     *
-     * Parses the request line and headers, enforces GET-only for normal routes, and routes high-priority
-     * "pr/" endpoints (including bookshelf, database table views, projects, and experiments). For other
-     * paths it reads content and metadata from the server's SQLite database, reassembles multi-fragment
-     * content, handles Brotli compression negotiation and decompression, optionally renders Pebble
-     * templates, and writes appropriate HTTP response headers and body. If a newer debug database is
-     * present on disk, swaps the server database to that file before serving the request. On errors
-     * sends an HTTP error response and logs the failure.
-     *
-     * @param clientSocket Connected client socket used for reading the request and writing the response.
-     */
     private fun handleClient(clientSocket: Socket) {
         if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
@@ -320,6 +288,7 @@ clientSocket and the catch block logic are updated accordingly.
         // if there is use that for our responses
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
         if (debugDatabaseTimestamp > databaseTimestamp) {
+            bookshelfTemplateId = -1
             database.close()
             database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
             databaseTimestamp = debugDatabaseTimestamp
@@ -351,7 +320,7 @@ clientSocket and the catch block logic are updated accordingly.
         try {
             if (cursor.count != 1) {
                 return if (cursor.count == 0) sendError(writer, output, 404, "Not Found")
-                else sendError(writer, output, 500, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
+                else sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - multiple records found when unique record expected, Path requested: '$path'.")
             }
 
             cursor.moveToFirst()
@@ -407,7 +376,7 @@ clientSocket and the catch block logic are updated accordingly.
             output.flush()
         } catch (e: Exception) {
             log.error("Error processing request: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error", e.message ?: "")
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error", e.message ?: "")
         } finally {
             cursor.close()
         }
@@ -483,10 +452,6 @@ clientSocket and the catch block logic are updated accordingly.
         // Load JSON data into a template context Map<> for instantiation
         val mapper = ObjectMapper()
         val context: Map<String, Any> = mapper.readValue(dbContent.toString(Charsets.UTF_8), object : TypeReference<Map<String, Any>>() {})
-
-        /*******************DEBUGGING ONLY*******************/
-        log.debug("context = ${context}")
-        /*******************DEBUGGING ONLY*******************/
 
         // Evaluate template with loaded data and return the output
         val sw = StringWriter()
@@ -578,7 +543,7 @@ clientSocket and the catch block logic are updated accordingly.
             sendError(
                 writer,
                 output,
-                500,
+                HTTP_INTERNAL_SERVER_ERROR,
                 "Internal Server Error 4.1",
                 "Error creating output."
             )
@@ -592,7 +557,7 @@ clientSocket and the catch block logic are updated accordingly.
 
         } catch (e: Exception) {
             log.error("Error handling /pr/db endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 4", "Error generating database table.", true)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 4", "Error generating database table.", true)
         }
     }
 
@@ -607,6 +572,7 @@ clientSocket and the catch block logic are updated accordingly.
      */
     private fun handleBsEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
         if (debugEnabled) log.debug("Entering handleBsEndpoint().")
+        if(clearCacheEnabled) templateCache.clear()
 
         var outputStarted = false
 
@@ -616,7 +582,7 @@ clientSocket and the catch block logic are updated accordingly.
 
         } catch (e: Exception) {
             log.error("Error handling /pr/bs endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
         }
 
         if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
@@ -688,7 +654,7 @@ second response.
 
         } catch (e: Exception) {
             log.error("Error handling /pr/pr endpoint: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error 6", "Error generating database table.", outputStarted)
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error 6", "Error generating database table.", outputStarted)
             
         } finally {
             projectDatabase?.close()
@@ -718,7 +684,8 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
       'books',       JSON_GROUP_ARRAY(JSON_OBJECT(
         'title',       IFNULL(B.title, C.path),
         'description', B.description,
-        'link',      C.path)
+        'link',        C.path,
+        'pdf',         IIF(SUBSTR(C.path, -4) == '.pdf', 1, 0) )
         )
     ) AS Item
   FROM Content AS C,
@@ -741,7 +708,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
                 if (cursor.count == 0)
                     sendError(writer, output, 404, "Not Found")
                 else
-                    sendError(writer, output, 500, "Corrupt database - ${cursor.count} bookshelf results found when one was expected.")
+                    sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - ${cursor.count} bookshelf results found when one was expected.")
                 return false
             }
 
@@ -753,13 +720,15 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
 
             //Have we already fetched the template
             if (bookshelfTemplateId == -1) {
+                /* safety first, close the cursor */
+                cursor.close()
                 cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
 
                 if (cursor.count != 1) {
                     if (cursor.count == 0)
                         sendError(writer, output, 404, "Not Found")
                     else
-                        sendError(writer, output, 500, "Corrupt database - ${cursor.count} Bookshelf templates found when 1 was expected.")
+                        sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Corrupt database - ${cursor.count} Bookshelf templates found when 1 was expected.")
                     return false
                 }
 
@@ -771,8 +740,8 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
 
         } catch (e: Exception) {
             log.error("Error processing request: {}", e.message)
-            sendError(writer, output, 500, "Internal Server Error", e.message ?: "")
-
+            sendError(writer, output, HTTP_INTERNAL_SERVER_ERROR, "Internal Server Error", e.message ?: "")
+            return false
         } finally {
             cursor.close()
         }
