@@ -61,10 +61,17 @@ class RenameAction(
 		builder.setPositiveButton(R.string.rename_file) { dialogInterface, _ ->
             val fileManagerViewModel: FileManagerViewModel by context.viewModels()
             val name: String = binding.name.editText?.text.toString().trim()
-            if (name.length !in 1..40) {
-                flashError(R.string.msg_invalid_name)
-                return@setPositiveButton
+            when {
+                name.isEmpty() -> {
+                    flashError(R.string.msg_invalid_name)
+                    return@setPositiveButton
+                }
+                name.length > 40 -> {
+                    flashError(R.string.file_name_too_long)
+                    return@setPositiveButton
+                }
             }
+
             dialogInterface.dismiss()
             fileManagerViewModel.renameFile(file, name, context) { renamed ->
                 if (!renamed) return@renameFile
