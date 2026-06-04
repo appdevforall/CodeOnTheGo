@@ -722,7 +722,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
                 cursor.close()
                 cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
 
-                if(!isCursorOneRow(cursor, writer, output)) {
+                if (!isCursorOneRow(cursor, writer, output)) {
                     return false
                 }
 
@@ -763,6 +763,7 @@ SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
         return false
     }
 
+    
     /**
      * Builds an HTML table of recent projects from the provided project database and writes it to the client.
      *
