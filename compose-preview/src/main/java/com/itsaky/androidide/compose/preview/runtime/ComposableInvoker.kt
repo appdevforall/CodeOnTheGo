@@ -26,7 +26,13 @@ object ComposableInvoker {
         return candidates.minByOrNull { it.parameterCount }?.also { it.isAccessible = true }
     }
 
-    fun invokeSafely(clazz: Class<*>, method: Method, composer: Composer) {
+    fun invokeSafely(
+        clazz: Class<*>,
+        method: Method,
+        composer: Composer,
+        parameterValue: Any? = null,
+        parameterIndex: Int = 0
+    ) {
         val isStatic = ReflectModifier.isStatic(method.modifiers)
 
         val instance = if (isStatic) {
@@ -45,7 +51,7 @@ object ComposableInvoker {
 
         when (val signature = ComposeSignature.analyze(method)) {
             is ComposeSignature.NoArgs -> executeInvocation { method.invoke(instance) }
-            is ComposeSignature.WithComposer -> invokeWithComposer(method, instance, signature, composer)
+            is ComposeSignature.WithComposer -> invokeWithComposer(method, instance, signature, composer, parameterValue, parameterIndex)
             is ComposeSignature.Unsupported -> {
                 throw PreviewSetupException("Unsupported signature: ${signature.reason}")
             }
@@ -56,13 +62,20 @@ object ComposableInvoker {
         method: Method,
         instance: Any?,
         signature: ComposeSignature.WithComposer,
-        composer: Composer
+        composer: Composer,
+        parameterValue: Any?,
+        parameterIndex: Int
     ) {
         val args = arrayOfNulls<Any>(signature.totalParams)
         val realParamsCount = signature.composerIndex
 
         for (i in 0 until realParamsCount) {
             args[i] = getDefaultValue(signature.types[i])
+        }
+
+        val suppliesArg = parameterValue != null && parameterIndex in 0 until realParamsCount
+        if (suppliesArg) {
+            args[parameterIndex] = parameterValue
         }
 
         args[signature.composerIndex] = composer
@@ -74,7 +87,19 @@ object ComposableInvoker {
         args.fill(COMPOSE_CHANGED_EVALUATE_ALL, fromIndex = changedStartIndex, toIndex = changedEndIndex)
         args.fill(COMPOSE_DEFAULT_USE_ALL_DEFAULTS, fromIndex = changedEndIndex, toIndex = signature.totalParams)
 
+        if (suppliesArg) {
+            clearDefaultBit(args, changedEndIndex, signature.totalParams, parameterIndex)
+        }
+
         executeInvocation { method.invoke(instance, *args) }
+    }
+
+    private fun clearDefaultBit(args: Array<Any?>, defaultStartIndex: Int, totalParams: Int, parameterIndex: Int) {
+        val defaultIntIndex = defaultStartIndex + parameterIndex / COMPOSE_PARAMS_PER_DEFAULT_INT
+        if (defaultIntIndex >= totalParams) return
+        val bit = 1 shl (parameterIndex % COMPOSE_PARAMS_PER_DEFAULT_INT)
+        val current = (args[defaultIntIndex] as? Int) ?: COMPOSE_DEFAULT_USE_ALL_DEFAULTS
+        args[defaultIntIndex] = current and bit.inv()
     }
 
     private fun executeInvocation(action: () -> Unit) {
@@ -103,6 +128,7 @@ object ComposableInvoker {
     }
 
     private const val COMPOSE_PARAMS_PER_CHANGED_INT = 10.0
+    private const val COMPOSE_PARAMS_PER_DEFAULT_INT = 32
     private const val COMPOSE_CHANGED_EVALUATE_ALL = 0
     private const val COMPOSE_DEFAULT_USE_ALL_DEFAULTS = -1
 }

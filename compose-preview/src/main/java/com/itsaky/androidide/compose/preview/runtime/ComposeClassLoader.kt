@@ -12,7 +12,14 @@ class ComposeClassLoader(private val context: Context) {
     private var runtimeDexFile: File? = null
     private var projectDexFiles: List<File> = emptyList()
 
+    private val optimizedDir: File by lazy {
+        File(context.codeCacheDir, OPTIMIZED_DIR_NAME).apply { mkdirs() }
+    }
+
     fun setRuntimeDex(runtimeDex: File?) {
+        if (runtimeDex?.absolutePath == runtimeDexFile?.absolutePath) {
+            return
+        }
         LOG.info("setRuntimeDex called: {} (current: {})",
             runtimeDex?.absolutePath ?: "null",
             runtimeDexFile?.absolutePath ?: "null")
@@ -23,6 +30,11 @@ class ComposeClassLoader(private val context: Context) {
 
     fun setProjectDexFiles(dexFiles: List<File>) {
         val existingFiles = dexFiles.filter { it.exists() }
+        if (existingFiles.mapTo(mutableSetOf()) { it.absolutePath } ==
+            projectDexFiles.mapTo(mutableSetOf()) { it.absolutePath }
+        ) {
+            return
+        }
         LOG.info("setProjectDexFiles called: {} files ({} exist)",
             dexFiles.size, existingFiles.size)
         projectDexFiles = existingFiles
@@ -52,13 +64,12 @@ class ComposeClassLoader(private val context: Context) {
 
     private fun getOrCreateLoader(dexFile: File): DexClassLoader {
         val runtimeDex = runtimeDexFile
-        val hasRuntimeDex = runtimeDex != null && runtimeDex.exists()
 
         val dexFiles = mutableListOf<File>()
         dexFiles.add(dexFile)
         dexFiles.addAll(projectDexFiles)
-        if (hasRuntimeDex) {
-            dexFiles.add(runtimeDex!!)
+        if (runtimeDex != null && runtimeDex.exists()) {
+            dexFiles.add(runtimeDex)
         }
 
         val cacheKey = buildCacheKey(dexFiles)
@@ -74,9 +85,9 @@ class ComposeClassLoader(private val context: Context) {
             return currentLoader!!
         }
 
-        release()
+        currentLoader = null
+        currentCacheKey = null
 
-        val optimizedDir = File(context.codeCacheDir, "compose_preview_opt")
         optimizedDir.deleteRecursively()
         optimizedDir.mkdirs()
 
@@ -105,16 +116,11 @@ class ComposeClassLoader(private val context: Context) {
     fun release() {
         currentLoader = null
         currentCacheKey = null
-
-        val optimizedDir = File(context.codeCacheDir, "compose_preview_opt")
-        if (optimizedDir.exists()) {
-            optimizedDir.deleteRecursively()
-        }
-
         LOG.debug("Released ComposeClassLoader resources")
     }
 
     companion object {
         private val LOG = LoggerFactory.getLogger(ComposeClassLoader::class.java)
+        private const val OPTIMIZED_DIR_NAME = "compose_preview_opt"
     }
 }

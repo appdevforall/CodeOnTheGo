@@ -15,7 +15,9 @@ import com.itsaky.androidide.compose.preview.databinding.FragmentComposePreviewB
 import com.itsaky.androidide.compose.preview.runtime.ComposeClassLoader
 import com.itsaky.androidide.compose.preview.runtime.ComposableRenderer
 import com.itsaky.androidide.resources.R as ResourcesR
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 class ComposePreviewFragment : Fragment() {
@@ -48,11 +50,10 @@ class ComposePreviewFragment : Fragment() {
         observeState()
 
         val filePath = arguments?.getString(ARG_FILE_PATH) ?: ""
-        viewModel.initialize(requireContext(), filePath)
-
         arguments?.getString(ARG_SOURCE_CODE)?.let {
             sourceCode = it
         }
+        viewModel.initialize(requireContext(), filePath, sourceCode)
     }
 
     private fun setupToolbar() {
@@ -63,7 +64,7 @@ class ComposePreviewFragment : Fragment() {
 
     private fun setupPreview() {
         classLoader = ComposeClassLoader(requireContext())
-        renderer = ComposableRenderer(binding.composePreview, classLoader!!)
+        renderer = ComposableRenderer(binding.composePreview)
     }
 
     private fun observeState() {
@@ -110,14 +111,15 @@ class ComposePreviewFragment : Fragment() {
             is PreviewState.Ready -> {
                 val loader = classLoader ?: return
                 val render = renderer ?: return
-                loader.setProjectDexFiles(state.projectDexFiles)
-                loader.setRuntimeDex(state.runtimeDex)
                 val config = state.previewConfigs.firstOrNull() ?: return
-                render.render(
-                    dexFile = state.dexFile,
-                    className = state.className,
-                    functionName = config.functionName
-                )
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val clazz = withContext(Dispatchers.IO) {
+                        loader.setProjectDexFiles(state.projectDexFiles)
+                        loader.setRuntimeDex(state.runtimeDex)
+                        loader.loadClass(state.dexFile, state.className)
+                    } ?: return@launch
+                    render.render(clazz, config.functionName, null, null)
+                }
             }
             is PreviewState.Error -> {
                 showError(state)
