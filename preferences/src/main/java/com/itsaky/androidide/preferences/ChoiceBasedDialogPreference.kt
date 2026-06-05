@@ -72,4 +72,8 @@ abstract class ChoiceBasedDialogPreference : DialogPreference(), PreferenceChoic
   }
 
   override fun onChoicesCancelled(preference: Preference) {}
+
+  final override fun onDialogCancelled(preference: Preference) {
+    onChoicesCancelled(preference)
+  }
 }
