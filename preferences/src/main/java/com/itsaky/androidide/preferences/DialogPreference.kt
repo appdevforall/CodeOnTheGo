@@ -34,7 +34,7 @@ abstract class DialogPreference : SimplePreference() {
     get() = this.title
 
   open val dialogMessage: Int? = null
-  open val dialogCancellable: Boolean = false
+  open val dialogCancellable: Boolean = true
   open val tooltipTag: String = ""
 
   override fun onPreferenceClick(preference: Preference): Boolean {
@@ -42,6 +42,7 @@ abstract class DialogPreference : SimplePreference() {
     dialog.setTitle(this.dialogTitle)
     dialogMessage?.let { dialog.setMessage(it) }
     dialog.setCancelable(this.dialogCancellable)
+    dialog.setOnCancelListener { onDialogCancelled(preference) }
     onConfigureDialog(preference, dialog)
     val alertDialog = dialog.create()
     alertDialog.show()
@@ -56,5 +57,13 @@ abstract class DialogPreference : SimplePreference() {
 
   protected open fun onConfigureDialog(preference: Preference,
     dialog: MaterialAlertDialogBuilder) {
+  }
+
+  /**
+   * Called when the dialog is cancelled by the user (e.g. the system back button), as opposed to
+   * being dismissed by an action button. The default behaviour discards any unconfirmed changes,
+   * matching the dialog's cancel button.
+   */
+  protected open fun onDialogCancelled(preference: Preference) {
   }
 }

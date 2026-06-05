@@ -21,7 +21,6 @@ import androidx.preference.Preference
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.internal.XmlPreferences
 import com.itsaky.androidide.resources.R.string
-import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import org.eclipse.lemminx.dom.builder.EmptyElements
 
@@ -211,9 +210,6 @@ private class EmptyElementsBehavior(
   override val summary: Int? = string.idepref_emptyElements_summary,
   override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) : SingleChoicePreference() {
-
-  @IgnoredOnParcel
-  override val dialogCancellable = true
 
   override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
     val entries = EmptyElements.entries
