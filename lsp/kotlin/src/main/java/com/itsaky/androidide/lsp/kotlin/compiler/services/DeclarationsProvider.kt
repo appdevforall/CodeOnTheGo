@@ -68,17 +68,10 @@ class DeclarationProviderMerger(private val project: Project) : KotlinDeclaratio
 		}
 }
 
-
-internal class DeclarationProvider(
-	val scope: GlobalSearchScope,
-	private val project: Project,
-	private val index: KtSymbolIndex
+internal abstract class AbstractDeclarationProvider(
+	protected val project: Project,
 ) : KotlinDeclarationProvider {
-
-	override val hasSpecificCallablePackageNamesComputation: Boolean
-		get() = false
-	override val hasSpecificClassifierPackageNamesComputation: Boolean
-		get() = false
+	protected abstract fun ktFilesForPackage(fqName: FqName): Sequence<KtFile>
 
 	override fun findFilesForFacade(facadeFqName: FqName): Collection<KtFile> {
 		if (facadeFqName.shortNameOrSpecial().isSpecial) return emptyList()
@@ -88,8 +81,8 @@ internal class DeclarationProvider(
 	}
 
 	override fun findInternalFilesForFacade(facadeFqName: FqName): Collection<KtFile> =
-		// We don't deserialize libraries from stubs so we can return empty here safely
-		// We don't take the KaBuiltinsModule into account for simplicity,
+	// We don't deserialize libraries from stubs so we can return empty here safely
+	// We don't take the KaBuiltinsModule into account for simplicity,
 		// that means we expect the kotlin stdlib to be included on the project
 		emptyList()
 
@@ -175,8 +168,18 @@ internal class DeclarationProvider(
 			.filter { it.isTopLevel }
 			.filter { it.nameAsName == callableId.callableName }
 			.toList()
+}
 
-	private fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> {
+internal class DeclarationProvider(
+	val scope: GlobalSearchScope,
+	project: Project,
+	private val index: KtSymbolIndex
+) : AbstractDeclarationProvider(project) {
+
+	override val hasSpecificCallablePackageNamesComputation = false
+	override val hasSpecificClassifierPackageNamesComputation = false
+
+	override fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> {
 		return index.filesForPackage(fqName.asString())
 			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath)) }
 			.filter { it in scope }
