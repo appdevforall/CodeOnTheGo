@@ -33,18 +33,25 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 @Ignore("Test utility provider")
 object XmlInflaterTest {
-	private var init = AtomicBoolean(false)
+	private val init = AtomicBoolean(false)
 	internal val activity by lazy { Robolectric.buildActivity(AppCompatActivity::class.java).get() }
 
 	fun initIfNeeded() {
-		if (init.get()) {
+		// Atomic claim of the init slot. If another caller already won the race,
+		// they are responsible for completing setup; we just return.
+		if (!init.compareAndSet(false, true)) {
 			return
 		}
 
-		ToolingApiTestLauncher.launchServer {
-			assertThat(result is InitializeResult.Success).isTrue()
-			runBlocking { IProjectManager.getInstance().setup(gradleBuild.get()) }
-			init.set(true)
+		try {
+			ToolingApiTestLauncher.launchServer {
+				assertThat(result is InitializeResult.Success).isTrue()
+				runBlocking { IProjectManager.getInstance().setup(gradleBuild.get()) }
+			}
+		} catch (error: Throwable) {
+			// Roll back so subsequent tests can retry rather than silently skipping setup.
+			init.set(false)
+			throw error
 		}
 	}
 }

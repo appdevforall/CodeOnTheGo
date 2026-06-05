@@ -83,6 +83,11 @@ subprojects {
         // Continue even if tests fail, so coverage data is written
         ignoreFailures = true
 
+        // Backstop: kill any individual Test task that runs longer than 10 minutes.
+        // Prevents a single hung test JVM (e.g. the Tooling API child) from burning
+        // the entire CI job budget.
+        timeout.set(java.time.Duration.ofMinutes(10))
+
         // Attach jacoco agent
         extensions.configure<JacocoTaskExtension> {
             isIncludeNoLocationClasses = true

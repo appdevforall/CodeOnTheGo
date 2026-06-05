@@ -51,6 +51,7 @@ import java.nio.file.Path
 import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.bufferedWriter
 import kotlin.io.path.deleteIfExists
@@ -193,10 +194,27 @@ object ToolingApiTestLauncher {
 			// perform the action
 			ToolingApiTestScope(server, gradleBuild, result).action()
 		} finally {
-			server.cancelCurrentBuild().get()
-			server.shutdown().get()
+			// Bound every shutdown step so a stalled child JVM or hung RPC can't wedge
+			// the calling test (and the whole Gradle worker) for hours.
+			try {
+				server.cancelCurrentBuild().get(SHUTDOWN_RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+			} catch (error: Throwable) {
+				println("[ToolingApiTestLauncher] cancelCurrentBuild failed or timed out: ${error.message}")
+			}
+			try {
+				server.shutdown().get(SHUTDOWN_RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+			} catch (error: Throwable) {
+				println("[ToolingApiTestLauncher] shutdown failed or timed out: ${error.message}")
+			}
+			if (!proc.waitFor(PROCESS_EXIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+				println("[ToolingApiTestLauncher] child JVM still alive after shutdown RPC; destroying forcibly")
+				proc.destroyForcibly()
+			}
 		}
 	}
+
+	private const val SHUTDOWN_RPC_TIMEOUT_SECONDS = 30L
+	private const val PROCESS_EXIT_TIMEOUT_SECONDS = 30L
 
 	private fun createProcessCmd(
 		jar: String,
