@@ -25,6 +25,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.work.Configuration
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
@@ -57,6 +58,7 @@ const val EXIT_CODE_CRASH = 1
 
 class IDEApplication :
 	BaseApplication(),
+	Configuration.Provider,
 	Application.ActivityLifecycleCallbacks by ActivityLifecycleCallbacksDelegate() {
 	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
@@ -188,6 +190,9 @@ class IDEApplication :
 			}
 		}
 	}
+
+	override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
 
 	private fun ensureKoinStarted() {
 		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
