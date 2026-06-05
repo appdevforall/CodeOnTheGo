@@ -35,6 +35,8 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import android.os.Handler
 import android.os.Looper
+import android.os.UserManager
+import androidx.work.WorkManager
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
@@ -74,6 +76,13 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		logger.info("Loading credential protected storage context components...")
 		application = app
 
+		if (!isCredentialStorageReady(app)) {
+            logger.error("Credential protected storage is not ready. Skipping credential protected initialization.")
+            return
+        }
+
+        initializeWorkManagerSafely(app)
+
 		Environment.init(app)
 
 		FeatureFlags.initialize()
@@ -109,6 +118,32 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			ToolsManager.init(app, null)
 		}
 	}
+
+    private fun isCredentialStorageReady(app: IDEApplication): Boolean {
+        val userManager = app.getSystemService(UserManager::class.java)
+
+        if (!userManager.isUserUnlocked) return false
+
+        val filesDir = app.filesDir
+        val noBackupDir = app.noBackupFilesDir
+
+        if (!filesDir.exists()) filesDir.mkdirs()
+        if (!noBackupDir.exists()) noBackupDir.mkdirs()
+
+        return filesDir.exists() &&
+            filesDir.isDirectory &&
+            noBackupDir.exists() &&
+            noBackupDir.isDirectory
+    }
+
+    private fun initializeWorkManagerSafely(app: IDEApplication) {
+        runCatching {
+            WorkManager.getInstance(app)
+        }.onFailure { error ->
+            logger.error("Failed to get WorkManager instance after storage validation", error)
+            Sentry.captureException(error)
+        }
+    }
 
 	fun handleUncaughtException(
 		thread: Thread,
