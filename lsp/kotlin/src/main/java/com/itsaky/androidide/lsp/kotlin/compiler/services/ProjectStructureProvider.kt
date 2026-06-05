@@ -17,7 +17,6 @@ import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.psi.KtFile
-import org.slf4j.LoggerFactory
 import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.pathString
@@ -25,8 +24,6 @@ import kotlin.io.path.pathString
 internal class ProjectStructureProvider : KtLspService, KotlinProjectStructureProviderBase() {
 
 	companion object {
-		private val logger = LoggerFactory.getLogger(ProjectStructureProvider::class.java)
-
 		fun getInstance(project: Project): ProjectStructureProvider {
 			return KotlinProjectStructureProvider.getInstance(project) as ProjectStructureProvider
 		}
