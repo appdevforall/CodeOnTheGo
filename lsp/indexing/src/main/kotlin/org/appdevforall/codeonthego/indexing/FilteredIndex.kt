@@ -30,7 +30,7 @@ open class FilteredIndex<T : Indexable>(
 	/**
 	 * Make a source's entries visible in query results.
 	 */
-	fun activateSource(sourceId: String) {
+	open fun activateSource(sourceId: String) {
 		activeSources.add(sourceId)
 	}
 
@@ -38,7 +38,7 @@ open class FilteredIndex<T : Indexable>(
 	 * Hide a source's entries from query results.
 	 * The data remains in the backing index.
 	 */
-	fun deactivateSource(sourceId: String) {
+	open fun deactivateSource(sourceId: String) {
 		activeSources.remove(sourceId)
 	}
 
@@ -49,7 +49,7 @@ open class FilteredIndex<T : Indexable>(
 	 * This is the typical call on project sync: pass in all
 	 * current classpath JAR paths.
 	 */
-	fun setActiveSources(sourceIds: Set<String>) {
+	open fun setActiveSources(sourceIds: Set<String>) {
 		activeSources.clear()
 		activeSources.addAll(sourceIds)
 	}
@@ -57,13 +57,13 @@ open class FilteredIndex<T : Indexable>(
 	/**
 	 * Returns the current set of active source IDs.
 	 */
-	fun activeSources(): Set<String> =
+	open fun activeSources(): Set<String> =
 		activeSources.toSet()
 
 	/**
 	 * Returns true if the source is currently active (visible).
 	 */
-	fun isActive(sourceId: String): Boolean =
+	open fun isActive(sourceId: String): Boolean =
 		sourceId in activeSources
 
 	/**
@@ -72,24 +72,24 @@ open class FilteredIndex<T : Indexable>(
 	 *
 	 * Use this to check if a JAR needs indexing at all.
 	 */
-	suspend fun isCached(sourceId: String): Boolean =
+	open suspend fun isCached(sourceId: String): Boolean =
 		backing.containsSource(sourceId)
 
 	override fun query(query: IndexQuery): Sequence<T> {
-		if (query.sourceId != null && query.sourceId !in activeSources) {
+		if (query.sourceId != null && !isActive(query.sourceId)) {
 			return emptySequence()
 		}
 		val original = backing.query(query)
-		return original.filter { it.sourceId in activeSources }
+		return original.filter { isActive(it.sourceId) }
 	}
 
 	override suspend fun get(key: String): T? {
 		val entry = backing.get(key) ?: return null
-		return if (entry.sourceId in activeSources) entry else null
+		return if (isActive(entry.sourceId)) entry else null
 	}
 
 	override suspend fun containsSource(sourceId: String): Boolean {
-		return sourceId in activeSources && backing.containsSource(sourceId)
+		return isActive(sourceId) && backing.containsSource(sourceId)
 	}
 
 	override fun distinctValues(fieldName: String): Sequence<String> {
