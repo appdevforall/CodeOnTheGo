@@ -1,8 +1,11 @@
 package com.itsaky.androidide.activities.editor
 
+import android.app.Activity
+import android.content.ContextWrapper
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.updateLayoutParams
+import com.blankj.utilcode.util.KeyboardUtils
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.R
@@ -225,8 +228,17 @@ class FullscreenManager(
         appBarContent.alpha = 0f
 
         bottomSheetBehavior.isHideable = true
-        if (bottomSheetBehavior.state != BottomSheetBehavior.STATE_HIDDEN) {
-            bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+        
+        val activity = contentBinding.root.context.let { context ->
+            generateSequence(context) { (it as? ContextWrapper)?.baseContext }
+                .filterIsInstance<Activity>()
+                .firstOrNull()
+        }
+        val isKeyboardOpen = activity?.let { KeyboardUtils.isSoftInputVisible(it) } ?: false
+        val targetState = if (isKeyboardOpen) BottomSheetBehavior.STATE_COLLAPSED else BottomSheetBehavior.STATE_HIDDEN
+
+        if (bottomSheetBehavior.state != targetState) {
+            bottomSheetBehavior.state = targetState
         }
 
         editorContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
