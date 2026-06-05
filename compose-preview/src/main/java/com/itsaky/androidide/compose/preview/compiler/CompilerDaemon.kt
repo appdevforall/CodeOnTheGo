@@ -284,9 +284,11 @@ class CompilerDaemon(
         idleTimeoutJob?.cancel()
         idleTimeoutJob = timeoutScope.launch {
             delay(IDLE_TIMEOUT_MS)
-            if (daemonProcess?.isAlive == true) {
-                LOG.info("Stopping idle compiler daemon after {}ms", IDLE_TIMEOUT_MS)
-                stopDaemon()
+            mutex.withLock {
+                if (daemonProcess?.isAlive == true) {
+                    LOG.info("Stopping idle compiler daemon after {}ms", IDLE_TIMEOUT_MS)
+                    stopDaemon()
+                }
             }
         }
     }
@@ -295,27 +297,38 @@ class CompilerDaemon(
         idleTimeoutJob?.cancel()
         idleTimeoutJob = null
 
-        try {
-            processWriter?.write("EXIT\n")
-            processWriter?.flush()
-            daemonProcess?.waitFor(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            LOG.debug("Error sending EXIT to daemon", e)
+        val process = daemonProcess
+        val writer = processWriter
+        val reader = processReader
+        val errReader = errorReader
+
+        daemonProcess = null
+        processWriter = null
+        processReader = null
+        errorReader = null
+
+        if (process == null && writer == null && reader == null && errReader == null) {
+            return
         }
 
-        try {
-            processWriter?.close()
-            processReader?.close()
-            errorReader?.close()
-            daemonProcess?.destroyForcibly()
-        } catch (e: Exception) {
-            LOG.warn("Error stopping daemon", e)
-        } finally {
-            daemonProcess = null
-            processWriter = null
-            processReader = null
-            errorReader = null
-        }
+        Thread({
+            try {
+                writer?.write("EXIT\n")
+                writer?.flush()
+                process?.waitFor(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            } catch (e: Exception) {
+                LOG.debug("Error sending EXIT to daemon", e)
+            }
+
+            try {
+                writer?.close()
+                reader?.close()
+                errReader?.close()
+                process?.destroyForcibly()
+            } catch (e: Exception) {
+                LOG.warn("Error stopping daemon", e)
+            }
+        }, "compose-daemon-shutdown").apply { isDaemon = true }.start()
     }
 
     fun shutdown() {
