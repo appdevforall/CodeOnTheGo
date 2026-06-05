@@ -132,9 +132,6 @@ private class TabSize(
 ) : SingleChoicePreference() {
 
   @IgnoredOnParcel
-  override val dialogCancellable = true
-
-  @IgnoredOnParcel
   private val tabSizes = intArrayOf(2, 4, 6, 8)
 
   override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
