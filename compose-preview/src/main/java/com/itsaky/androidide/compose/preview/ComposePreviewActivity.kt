@@ -364,19 +364,20 @@ class ComposePreviewActivity : AppCompatActivity() {
     }
 
     private fun buildPreviewInstances(state: PreviewState.Ready): List<PreviewInstance> {
-        return state.previewConfigs.flatMap { config ->
-            val context = resourceContextFactory.contextFor(state.resourceApk, buildConfiguration(config))
-            val provider = config.parameterProvider
-            if (provider == null) {
-                listOf(PreviewInstance(config, context, null, 0, 1))
-            } else {
-                val values = resolveParameterValues(state.dexFile, provider, config.parameterLimit)
-                if (values.isEmpty()) {
-                    listOf(PreviewInstance(config, context, null, 0, 1))
-                } else {
-                    values.mapIndexed { index, value -> PreviewInstance(config, context, value, index, values.size) }
-                }
-            }
+        return state.previewConfigs.flatMap { config -> instancesForConfig(config, state) }
+    }
+
+    private fun instancesForConfig(config: PreviewConfig, state: PreviewState.Ready): List<PreviewInstance> {
+        val context = resourceContextFactory.contextFor(state.resourceApk, buildConfiguration(config))
+        val single = listOf(PreviewInstance(config, context, null, 0, 1))
+
+        val provider = config.parameterProvider ?: return single
+
+        val values = resolveParameterValues(state.dexFile, provider, config.parameterLimit)
+        if (values.isEmpty()) return single
+
+        return values.mapIndexed { index, value ->
+            PreviewInstance(config, context, value, index, values.size)
         }
     }
 

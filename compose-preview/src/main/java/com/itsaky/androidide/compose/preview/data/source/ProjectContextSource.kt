@@ -99,22 +99,24 @@ class ProjectContextSource {
         val listing = resolveListingFile(File(artifact.assembleTaskOutputListingFilePath)) ?: return null
 
         return try {
-            val elements = JSONObject(listing.readText()).optJSONArray("elements") ?: return null
-            for (i in 0 until elements.length()) {
-                val outputFile = elements.optJSONObject(i)?.optString("outputFile").orEmpty()
-                if (outputFile.endsWith(".apk")) {
-                    val candidate = File(listing.parentFile, outputFile)
-                    if (candidate.exists()) {
-                        return candidate
-                    }
-                }
-            }
-            LOG.warn("No APK entry found in output listing {}", listing.absolutePath)
-            null
+            findApkInListing(listing)
         } catch (e: Exception) {
             LOG.error("Failed to parse APK output listing {}", listing.absolutePath, e)
             null
         }
+    }
+
+    private fun findApkInListing(listing: File): File? {
+        val elements = JSONObject(listing.readText()).optJSONArray("elements") ?: return null
+        for (i in 0 until elements.length()) {
+            val outputFile = elements.optJSONObject(i)?.optString("outputFile").orEmpty()
+            if (!outputFile.endsWith(".apk")) continue
+
+            val candidate = File(listing.parentFile, outputFile)
+            if (candidate.exists()) return candidate
+        }
+        LOG.warn("No APK entry found in output listing {}", listing.absolutePath)
+        return null
     }
 
     private fun resolveListingFile(reference: File): File? {
