@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
+import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.indexQuery
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor.KEY_IS_INDEXED
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor.KEY_PACKAGE
@@ -10,19 +11,19 @@ import java.io.Closeable
 /**
  * An index of [KtFileMetadata] entries, one per Kotlin source file.
  */
-class KtFileMetadataIndex private constructor(
-	private val backing: SQLiteIndex<KtFileMetadata>,
+class KtFileMetadataIndex(
+	private val backing: Index<KtFileMetadata>,
 ) : Closeable {
 
 	companion object {
 
 		/**
-		 * Creates a [KtFileMetadataIndex] backed by an in-memory SQLite database.
+		 * Creates a [KtFileMetadataIndex] backed by a SQLite database.
 		 *
 		 * The [context] is required by the AndroidX SQLite helpers even for in-memory
 		 * databases; it is not used for any file I/O.
 		 */
-		fun create(
+		fun sqliteBacked(
 			context: Context,
 			dbName: String? = null
 		): KtFileMetadataIndex =
