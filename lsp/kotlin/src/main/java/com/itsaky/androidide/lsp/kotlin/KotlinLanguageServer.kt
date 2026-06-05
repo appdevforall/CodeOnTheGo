@@ -144,7 +144,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 		indexingRegistry.register(
 			key = KT_SOURCE_FILE_META_INDEX_KEY,
-			index = KtFileMetadataIndex.create(
+			index = KtFileMetadataIndex.sqliteBacked(
 				context = context,
 				dbName = KT_SOURCE_FILE_META_INDEX_KEY.name
 			)
