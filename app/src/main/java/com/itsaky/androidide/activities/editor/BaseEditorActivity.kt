@@ -75,6 +75,8 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
+import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.FeedbackButtonManager
@@ -234,8 +236,8 @@ abstract class BaseEditorActivity :
 						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
 					}
 
-					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
-						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+					bottomSheetViewModel.sheetBehaviorState != STATE_COLLAPSED -> {
+						bottomSheetViewModel.setSheetState(sheetState = STATE_COLLAPSED)
 					}
 
 					binding.swipeReveal.isOpen -> {
@@ -517,7 +519,7 @@ abstract class BaseEditorActivity :
 
 		applyImmersiveModeInsets(systemBars)
 
-		handleKeyboardInsets(imeInsets)
+		handleKeyboardInsets(imeInsets, systemBars)
 	}
 
 	private fun applyStandardInsets(systemBars: Insets) {
@@ -530,7 +532,7 @@ abstract class BaseEditorActivity :
 		_binding?.content?.applyImmersiveModeInsets(systemBars)
 	}
 
-	private fun handleKeyboardInsets(imeInsets: Insets) {
+	private fun handleKeyboardInsets(imeInsets: Insets, systemBars: Insets) {
 		val isImeVisible = imeInsets.bottom > 0
 		_binding?.content?.bottomSheet?.setImeVisible(isImeVisible)
 
@@ -539,7 +541,8 @@ abstract class BaseEditorActivity :
 				isImeVisible -> {
 					contentCardRealHeight?.let { baseHeight ->
 						updateLayoutParams<ViewGroup.LayoutParams> {
-							height = (baseHeight - imeInsets.bottom).coerceAtLeast(0)
+							val diff = (imeInsets.bottom - systemBars.bottom).coerceAtLeast(0)
+							height = (baseHeight - diff).coerceAtLeast(0)
 						}
 					}
 				}
@@ -555,6 +558,14 @@ abstract class BaseEditorActivity :
 
 		if (this.isImeVisible != isImeVisible) {
 			this.isImeVisible = isImeVisible
+
+			if (editorViewModel.isFullscreen) {
+                // Hide the bottom sheet if in fullscreen mode, but only collapse it if keyboard
+                // is open so the symbol input view is visible
+                val targetState = if (isImeVisible) STATE_COLLAPSED else STATE_HIDDEN
+				editorBottomSheet?.state = targetState
+			}
+
 			onSoftInputChanged()
 		}
 	}
@@ -1053,7 +1064,7 @@ abstract class BaseEditorActivity :
 	}
 
 	open fun hideBottomSheet() {
-		bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+		bottomSheetViewModel.setSheetState(sheetState = STATE_COLLAPSED)
 	}
 
 	private fun updateBottomSheetState(state: BottomSheetViewModel.SheetState = BottomSheetViewModel.SheetState.EMPTY) {
@@ -1332,7 +1343,7 @@ abstract class BaseEditorActivity :
 		) {
 			bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_EXPANDED)
 			ThreadUtils.runOnUiThreadDelayed({
-				bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
+				bottomSheetViewModel.setSheetState(STATE_COLLAPSED)
 				app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
 			}, 1500)
 		}
