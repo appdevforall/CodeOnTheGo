@@ -30,8 +30,8 @@ class ComposeClassLoader(private val context: Context) {
 
     fun setProjectDexFiles(dexFiles: List<File>) {
         val existingFiles = dexFiles.filter { it.exists() }
-        if (existingFiles.mapTo(mutableSetOf()) { it.absolutePath } ==
-            projectDexFiles.mapTo(mutableSetOf()) { it.absolutePath }
+        if (existingFiles.map { it.absolutePath } ==
+            projectDexFiles.map { it.absolutePath }
         ) {
             return
         }

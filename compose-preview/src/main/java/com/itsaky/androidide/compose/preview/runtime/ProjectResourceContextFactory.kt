@@ -7,6 +7,7 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.lang.reflect.Method
 
 class ProjectResourceContextFactory(context: Context) {
 
@@ -41,10 +42,12 @@ class ProjectResourceContextFactory(context: Context) {
             return cachedAssets
         }
 
+        val addAssetPath = ADD_ASSET_PATH ?: return null
+
         return try {
             @Suppress("DEPRECATION")
             val assets = AssetManager::class.java.getDeclaredConstructor().newInstance()
-            val cookie = ADD_ASSET_PATH.invoke(assets, apk.absolutePath) as Int
+            val cookie = addAssetPath.invoke(assets, apk.absolutePath) as Int
             if (cookie == 0) {
                 LOG.error("addAssetPath returned 0 for {}", apk.absolutePath)
                 assets.close()
@@ -71,6 +74,13 @@ class ProjectResourceContextFactory(context: Context) {
 
     companion object {
         private val LOG = LoggerFactory.getLogger(ProjectResourceContextFactory::class.java)
-        private val ADD_ASSET_PATH = AssetManager::class.java.getMethod("addAssetPath", String::class.java)
+        private val ADD_ASSET_PATH: Method? by lazy {
+            try {
+                AssetManager::class.java.getMethod("addAssetPath", String::class.java)
+            } catch (e: Throwable) {
+                LOG.error("addAssetPath reflective lookup failed; project resources unavailable", e)
+                null
+            }
+        }
     }
 }
