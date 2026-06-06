@@ -10,6 +10,7 @@ import com.itsaky.androidide.compose.preview.data.repository.ComposePreviewRepos
 import com.itsaky.androidide.compose.preview.data.repository.InitializationResult
 import com.itsaky.androidide.compose.preview.domain.PreviewSourceParser
 import com.itsaky.androidide.compose.preview.domain.model.ParsedPreviewSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -35,7 +37,8 @@ sealed class PreviewState {
         val className: String,
         val previewConfigs: List<PreviewConfig>,
         val runtimeDex: File?,
-        val projectDexFiles: List<File> = emptyList()
+        val projectDexFiles: List<File> = emptyList(),
+        val resourceApk: File? = null
     ) : PreviewState()
     data class Error(
         val message: String,
@@ -48,8 +51,19 @@ enum class DisplayMode { ALL, SINGLE }
 
 data class PreviewConfig(
     val functionName: String,
+    val key: String,
+    val displayName: String,
+    val group: String? = null,
+    val widthDp: Int? = null,
     val heightDp: Int? = null,
-    val widthDp: Int? = null
+    val showBackground: Boolean = false,
+    val backgroundColor: Long? = null,
+    val uiMode: Int? = null,
+    val fontScale: Float? = null,
+    val locale: String? = null,
+    val parameterProvider: String? = null,
+    val parameterLimit: Int = Int.MAX_VALUE,
+    val parameterIndex: Int = 0
 )
 
 @OptIn(FlowPreview::class)
@@ -70,36 +84,36 @@ class ComposePreviewViewModel(
     private val _availablePreviews = MutableStateFlow<List<String>>(emptyList())
     val availablePreviews: StateFlow<List<String>> = _availablePreviews.asStateFlow()
 
-    private val sourceChanges = MutableSharedFlow<SourceUpdate>()
+    private val sourceChanges = MutableSharedFlow<String>()
 
     private var currentSource: String = ""
     private var cachedFilePath: String = ""
     private var modulePath: String? = null
     private var variantName: String = "debug"
+    private var resourceApk: File? = null
     private val isInitialized = AtomicBoolean(false)
     private var initializationDeferred = kotlinx.coroutines.CompletableDeferred<Unit>()
     private val initMutex = Mutex()
-
-    private data class SourceUpdate(
-        val source: String,
-        val parsedSource: ParsedPreviewSource
-    )
 
     init {
         viewModelScope.launch {
             sourceChanges
                 .debounce(DEBOUNCE_MS)
-                .distinctUntilChanged { old, new -> old.source == new.source }
-                .collect { update ->
-                    compilePreview(update.source, update.parsedSource)
+                .distinctUntilChanged()
+                .collect { source ->
+                    val parsed = withContext(Dispatchers.Default) { parseAndValidateSource(source) }
+                    if (parsed != null) {
+                        compilePreview(source, parsed)
+                    }
                 }
         }
     }
 
-    fun initialize(context: Context, filePath: String) {
+    fun initialize(context: Context, filePath: String, source: String) {
         if (!isInitialized.compareAndSet(false, true)) return
 
         cachedFilePath = filePath
+        currentSource = source
 
         viewModelScope.launch {
             _previewState.value = PreviewState.Initializing
@@ -110,10 +124,15 @@ class ComposePreviewViewModel(
                         is InitializationResult.Ready -> {
                             modulePath = result.projectContext.modulePath
                             variantName = result.projectContext.variantName
+                            resourceApk = result.projectContext.resourceApk
                             initializationDeferred.complete(Unit)
-                            _previewState.value = PreviewState.Idle
                             LOG.info("ViewModel initialized, modulePath={}, variant={}",
                                 modulePath, variantName)
+                            if (currentSource.isNotBlank()) {
+                                compileNow(currentSource)
+                            } else {
+                                _previewState.value = PreviewState.Idle
+                            }
                         }
                         is InitializationResult.NeedsBuild -> {
                             modulePath = result.modulePath
@@ -144,18 +163,15 @@ class ComposePreviewViewModel(
 
     fun onSourceChanged(source: String) {
         currentSource = source
-        val parsed = parseAndValidateSource(source) ?: return
-
         viewModelScope.launch {
-            sourceChanges.emit(SourceUpdate(source, parsed))
+            sourceChanges.emit(source)
         }
     }
 
     fun compileNow(source: String) {
         currentSource = source
-        val parsed = parseAndValidateSource(source) ?: return
-
         viewModelScope.launch {
+            val parsed = withContext(Dispatchers.Default) { parseAndValidateSource(source) } ?: return@launch
             compilePreview(source, parsed)
         }
     }
@@ -168,11 +184,13 @@ class ComposePreviewViewModel(
 
         val parsed = sourceParser.parse(source)
         if (parsed == null) {
+            LOG.warn("parse: rejected - missing package declaration (sourceLen={})", source.length)
             _previewState.value = PreviewState.Error("Missing package declaration in source")
             return null
         }
 
         if (parsed.previewConfigs.isEmpty()) {
+            LOG.warn("parse: no @Preview functions found in package {}", parsed.packageName)
             _previewState.value = PreviewState.Empty
             return null
         }
@@ -182,10 +200,10 @@ class ComposePreviewViewModel(
     }
 
     private fun updateAvailablePreviews(configs: List<PreviewConfig>) {
-        val functionNames = configs.map { it.functionName }
-        _availablePreviews.value = functionNames
-        if (_selectedPreview.value == null || !functionNames.contains(_selectedPreview.value)) {
-            _selectedPreview.value = functionNames.first()
+        val names = configs.map { it.displayName }
+        _availablePreviews.value = names
+        if (_selectedPreview.value == null || !names.contains(_selectedPreview.value)) {
+            _selectedPreview.value = names.firstOrNull()
         }
     }
 
@@ -211,11 +229,13 @@ class ComposePreviewViewModel(
                     className = result.className,
                     previewConfigs = parsed.previewConfigs,
                     runtimeDex = result.runtimeDex,
-                    projectDexFiles = result.projectDexFiles
+                    projectDexFiles = result.projectDexFiles,
+                    resourceApk = resourceApk
                 )
             }
             .onFailure { error ->
                 val diagnostics = if (error is CompilationException) error.diagnostics else emptyList()
+                LOG.error("compile: FAILED - {} ({} diagnostic(s))", error.message, diagnostics.size)
                 _previewState.value = PreviewState.Error(
                     message = error.message ?: "Compilation failed",
                     diagnostics = diagnostics
@@ -269,6 +289,7 @@ class ComposePreviewViewModel(
                         is InitializationResult.Ready -> {
                             modulePath = result.projectContext.modulePath
                             variantName = result.projectContext.variantName
+                            resourceApk = result.projectContext.resourceApk
                             isInitialized.set(true)
                             initializationDeferred.complete(Unit)
                             LOG.debug("refreshAfterBuild: initialization complete, state=Ready")
