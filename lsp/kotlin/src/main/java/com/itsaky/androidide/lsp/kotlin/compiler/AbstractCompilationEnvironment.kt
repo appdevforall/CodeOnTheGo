@@ -4,12 +4,12 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
-import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServiceProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAccessibilityChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAnnotationsProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
+import com.itsaky.androidide.lsp.kotlin.compiler.util.SLF4JLogger
 import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
@@ -51,6 +51,7 @@ import org.jetbrains.kotlin.com.intellij.core.CorePackageIndex
 import org.jetbrains.kotlin.com.intellij.ide.highlighter.JavaFileType
 import org.jetbrains.kotlin.com.intellij.mock.MockApplication
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
+import org.jetbrains.kotlin.com.intellij.openapi.diagnostic.Logger
 import org.jetbrains.kotlin.com.intellij.openapi.editor.impl.DocumentWriteAccessGuard
 import org.jetbrains.kotlin.com.intellij.openapi.roots.PackageIndex
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
@@ -99,6 +100,8 @@ internal abstract class AbstractCompilationEnvironment(
 		init {
 			System.setProperty("java.awt.headless", "true")
 			setupIdeaStandaloneExecution()
+
+			Logger.setFactory { name -> SLF4JLogger(name) }
 		}
 	}
 
