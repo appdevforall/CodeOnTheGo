@@ -172,11 +172,16 @@ internal abstract class AbstractCompilationEnvironment(
 			libraryRoots: List<JavaRoot>,
 		) -> KtSymbolIndex,
 	) {
+		val configuration = createCompilerConfiguration()
 		projectEnv = StandaloneProjectFactory.createProjectEnvironment(
 			projectDisposable = disposable,
 			applicationEnvironmentMode = applicationEnvironmentMode,
-			compilerConfiguration = createCompilerConfiguration(),
+			compilerConfiguration = configuration,
 		)
+
+		if (applicationEnvironmentMode == KotlinCoreApplicationEnvironmentMode.Production) {
+			KotlinApplicationEnvironmentPin.ensure(configuration)
+		}
 
 		project.registerRWLock()
 
@@ -197,8 +202,14 @@ internal abstract class AbstractCompilationEnvironment(
 			ClassTypePointerFactory::class.java,
 		)
 
-		appExtArea.getExtensionPoint(ClassTypePointerFactory.EP_NAME)
-			.registerExtension(PsiClassReferenceTypePointerFactory(), application)
+		val classTypePointerFactoryEp =
+			appExtArea.getExtensionPoint(ClassTypePointerFactory.EP_NAME)
+		if (classTypePointerFactoryEp.extensionList.isEmpty()) {
+			classTypePointerFactoryEp.registerExtension(
+				PsiClassReferenceTypePointerFactory(),
+				application,
+			)
+		}
 
 		CoreApplicationEnvironment.registerExtensionPoint(
 			appExtArea,
