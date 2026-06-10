@@ -20,7 +20,7 @@ import java.io.Closeable
 /**
  * An index of symbols from JVM source and binary files.
  */
-class JvmSymbolIndex(
+open class JvmSymbolIndex(
 	private val backing: Index<JvmSymbol>,
 	private val indexer: BackgroundIndexer<JvmSymbol>,
 ) : FilteredIndex<JvmSymbol>(backing), WritableIndex<JvmSymbol> by backing, Closeable {

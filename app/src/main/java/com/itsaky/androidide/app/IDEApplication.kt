@@ -25,6 +25,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.work.Configuration
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
@@ -46,8 +47,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import org.appdevforall.codeonthego.computervision.di.computerVisionModule
-import org.jetbrains.kotlin.cli.jvm.compiler.setupIdeaStandaloneExecution
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
@@ -59,6 +58,7 @@ const val EXIT_CODE_CRASH = 1
 
 class IDEApplication :
 	BaseApplication(),
+	Configuration.Provider,
 	Application.ActivityLifecycleCallbacks by ActivityLifecycleCallbacksDelegate() {
 	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
 
@@ -104,9 +104,6 @@ class IDEApplication :
 			private set
 
 		init {
-			System.setProperty("java.awt.headless", "true")
-			setupIdeaStandaloneExecution()
-
 			@Suppress("Deprecation")
 			Shell.setDefaultBuilder(
 				Shell.Builder
@@ -194,11 +191,14 @@ class IDEApplication :
 		}
 	}
 
+	override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
+
 	private fun ensureKoinStarted() {
 		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
 		startKoin {
 			androidContext(this@IDEApplication)
-			modules(coreModule, pluginModule, computerVisionModule)
+			modules(coreModule, pluginModule)
 		}
 	}
 

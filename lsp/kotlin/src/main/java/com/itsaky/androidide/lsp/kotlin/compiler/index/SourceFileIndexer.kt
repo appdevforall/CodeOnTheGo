@@ -204,6 +204,7 @@ private fun KaSession.kaTypeDisplayName(type: KaType): String {
 }
 
 private fun KaSession.analyzeFunction(filePath: String, dcl: KtNamedFunction): JvmSymbol? {
+	if (dcl.isLocal) return null
 	val fnName = dcl.name ?: return null
 	val visibility = dcl.jvmVisibility()
 	if (visibility == JvmVisibility.PRIVATE) return null
@@ -338,6 +339,7 @@ private fun KaSession.analyzeClassOrObject(filePath: String, dcl: KtClassOrObjec
 }
 
 private fun KaSession.analyzeProperty(filePath: String, dcl: KtProperty): JvmSymbol? {
+	if (dcl.isLocal) return null
 	val propName = dcl.name ?: return null
 	val visibility = dcl.jvmVisibility()
 	if (visibility == JvmVisibility.PRIVATE) return null

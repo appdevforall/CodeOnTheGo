@@ -323,7 +323,6 @@ dependencies {
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
-	implementation(projects.cvImageToXml)
 	implementation(projects.composePreview)
 	implementation(projects.gitCore)
 

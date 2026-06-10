@@ -53,6 +53,8 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
   private val collapsedSheetMargin =
     context.resources.getDimensionPixelSize(R.dimen.editor_sheet_peek_height)
 
+  var onSearchModeChanged: ((isActive: Boolean) -> Unit)? = null
+
   private var searchInputTextWatcher: TextWatcher? = null
   private var searchOptions = SearchOptions(true, false)
   private val findInFileBinding: LayoutFindInFileBinding = LayoutFindInFileBinding.inflate(LayoutInflater.from(context))
@@ -216,6 +218,7 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
       false
     }
     findInFileBinding.root.visibility = VISIBLE
+    onSearchModeChanged?.invoke(true)
 
     findInFileBinding.searchInput.requestFocus()
     findInFileBinding.searchInput.post {
@@ -233,6 +236,7 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
       findInFileBinding.root.visibility = GONE
       this.searchInputTextWatcher = null
       searcher.onClose()
+      onSearchModeChanged?.invoke(false)
     }
     if (!searcher.hasQuery()) {
       return
