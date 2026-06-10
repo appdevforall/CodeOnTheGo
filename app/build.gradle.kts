@@ -807,6 +807,11 @@ val noCompress =
 		"lstm_model",
 	)
 
+// Debug APKs DEFLATE jar assets (tooling-api-all.jar, cogo-plugin.jar) for
+// ~75% size reduction (ADFA-4188). Release keeps jars STORED because
+// tooling-api-all.jar ships as a brotli-encoded .jar.br.
+val noCompressDebug = noCompress - "jar"
+
 afterEvaluate {
 	tasks
 		.matching { it.name.contains("V8") && it.name.lowercase().contains("lint") }
@@ -863,7 +868,7 @@ afterEvaluate {
 				tasks.named("recompressApk").configure {
 					extensions.extraProperties["abi"] = "v8"
 					extensions.extraProperties["buildName"] = "debug"
-					extensions.extraProperties["noCompressExtensions"] = noCompress
+					extensions.extraProperties["noCompressExtensions"] = noCompressDebug
 				}
 			}
 		}
@@ -886,7 +891,7 @@ afterEvaluate {
 				tasks.named("recompressApk").configure {
 					extensions.extraProperties["abi"] = "v7"
 					extensions.extraProperties["buildName"] = "debug"
-					extensions.extraProperties["noCompressExtensions"] = noCompress
+					extensions.extraProperties["noCompressExtensions"] = noCompressDebug
 				}
 			}
 		}
