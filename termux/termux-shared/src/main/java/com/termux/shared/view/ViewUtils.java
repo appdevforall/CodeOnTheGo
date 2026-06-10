@@ -72,66 +72,43 @@ public class ViewUtils {
         boolean view_utils_logging_enabled = VIEW_UTILS_LOGGING_ENABLED;
 
         // windowRect - will hold available area where content remain visible to users
-        // Takes into account screen decorations (e.g. statusbar)
+        // Takes into account screen decorations (e.g. status bar)
         Rect windowRect = new Rect();
         view.getWindowVisibleDisplayFrame(windowRect);
 
-        // If there is actionbar, get his height
+        // If there is actionbar, get its height
         int actionBarHeight = 0;
-        boolean isInMultiWindowMode = false;
         Context context = view.getContext();
         if (context instanceof AppCompatActivity) {
             ActionBar actionBar = ((AppCompatActivity) context).getSupportActionBar();
             if (actionBar != null) actionBarHeight = actionBar.getHeight();
-            isInMultiWindowMode = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) && ((AppCompatActivity) context).isInMultiWindowMode();
         } else if (context instanceof Activity) {
             android.app.ActionBar actionBar = ((Activity) context).getActionBar();
             if (actionBar != null) actionBarHeight = actionBar.getHeight();
-            isInMultiWindowMode = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) && ((Activity) context).isInMultiWindowMode();
         }
 
         int displayOrientation = getDisplayOrientation(context);
 
-        // windowAvailableRect - takes into account actionbar and statusbar height
+        // windowAvailableRect - takes into account actionbar and status bar height
         Rect windowAvailableRect;
         windowAvailableRect = new Rect(windowRect.left, windowRect.top + actionBarHeight, windowRect.right, windowRect.bottom);
 
         // viewRect - holds position of the view in window
         // (methods as getGlobalVisibleRect, getHitRect, getDrawingRect can return different result,
-        // when partialy visible)
+        // when partially visible)
         Rect viewRect;
-        final int[] viewsLocationInWindow = new int[2];
-        view.getLocationInWindow(viewsLocationInWindow);
-        int viewLeft = viewsLocationInWindow[0];
-        int viewTop = viewsLocationInWindow[1];
+        final int[] viewsLocationInScreen = new int[2];
+        view.getLocationOnScreen(viewsLocationInScreen);
+        int viewLeft = viewsLocationInScreen[0];
+        int viewTop = viewsLocationInScreen[1];
 
         if (view_utils_logging_enabled) {
             Logger.logVerbose(LOG_TAG, "getWindowAndViewRects:");
             Logger.logVerbose(LOG_TAG, "windowRect: " + toRectString(windowRect) + ", windowAvailableRect: " + toRectString(windowAvailableRect));
-            Logger.logVerbose(LOG_TAG, "viewsLocationInWindow: " + toPointString(new Point(viewLeft, viewTop)));
+            Logger.logVerbose(LOG_TAG, "viewsLocationInScreen: " + toPointString(new Point(viewLeft, viewTop)));
             Logger.logVerbose(LOG_TAG, "activitySize: " + toPointString(getDisplaySize(context, true)) +
                 ", displaySize: " + toPointString(getDisplaySize(context, false)) +
                 ", displayOrientation=" + displayOrientation);
-        }
-
-        if (isInMultiWindowMode) {
-            if (displayOrientation == Configuration.ORIENTATION_PORTRAIT) {
-                // The windowRect.top of the window at the of split screen mode should start right
-                // below the status bar
-                if (statusBarHeight != windowRect.top) {
-                    if (view_utils_logging_enabled)
-                        Logger.logVerbose(LOG_TAG, "Window top does not equal statusBarHeight " + statusBarHeight + " in multi-window portrait mode. Window is possibly bottom app in split screen mode. Adding windowRect.top " + windowRect.top + " to viewTop.");
-                    viewTop += windowRect.top;
-                } else {
-                    if (view_utils_logging_enabled)
-                        Logger.logVerbose(LOG_TAG, "windowRect.top equals statusBarHeight " + statusBarHeight + " in multi-window portrait mode. Window is possibly top app in split screen mode.");
-                }
-
-            } else if (displayOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                // If window is on the right in landscape mode of split screen, the viewLeft actually
-                // starts at windowRect.left instead of 0 returned by getLocationInWindow
-                viewLeft += windowRect.left;
-            }
         }
 
         int viewRight = viewLeft + view.getWidth();
