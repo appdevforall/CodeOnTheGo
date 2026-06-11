@@ -33,14 +33,23 @@ import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.projects.util.findAppModule
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class LayoutInflaterTest {
+
+  // Fail any single test in this class after 2 minutes instead of hanging indefinitely.
+  // The Tooling API child JVM has been observed to wedge in CI; bounding the test here
+  // turns a 3-hour job timeout into a fast, attributable failure.
+  @get:Rule
+  val timeout: Timeout = Timeout(2, TimeUnit.MINUTES)
 
   @Before
   fun `setup project`() {

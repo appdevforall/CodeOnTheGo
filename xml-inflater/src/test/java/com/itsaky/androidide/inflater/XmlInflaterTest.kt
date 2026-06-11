@@ -29,22 +29,51 @@ import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Ignore
 import org.robolectric.Robolectric
-import java.util.concurrent.atomic.AtomicBoolean
 
 @Ignore("Test utility provider")
 object XmlInflaterTest {
-	private var init = AtomicBoolean(false)
+	private enum class State { UNINITIALIZED, READY, FAILED }
+
+	@Volatile private var state: State = State.UNINITIALIZED
+	@Volatile private var initError: Throwable? = null
+
 	internal val activity by lazy { Robolectric.buildActivity(AppCompatActivity::class.java).get() }
 
 	fun initIfNeeded() {
-		if (init.get()) {
-			return
+		// Fast path: once we've reached a terminal state, no synchronization needed.
+		when (state) {
+			State.READY -> return
+			State.FAILED -> throw IllegalStateException(
+				"XmlInflaterTest init previously failed; refusing to retry.",
+				initError,
+			)
+			State.UNINITIALIZED -> {} // fall through to slow path
 		}
 
-		ToolingApiTestLauncher.launchServer {
-			assertThat(result is InitializeResult.Success).isTrue()
-			runBlocking { IProjectManager.getInstance().setup(gradleBuild.get()) }
-			init.set(true)
+		// Slow path: exactly one thread runs setup; losers block on the monitor
+		// until the winner exits, then observe the terminal state and either
+		// proceed (READY) or throw (FAILED).
+		synchronized(this) {
+			when (state) {
+				State.READY -> return
+				State.FAILED -> throw IllegalStateException(
+					"XmlInflaterTest init previously failed; refusing to retry.",
+					initError,
+				)
+				State.UNINITIALIZED -> {
+					try {
+						ToolingApiTestLauncher.launchServer {
+							assertThat(result is InitializeResult.Success).isTrue()
+							runBlocking { IProjectManager.getInstance().setup(gradleBuild.get()) }
+						}
+						state = State.READY
+					} catch (error: Throwable) {
+						initError = error
+						state = State.FAILED
+						throw error
+					}
+				}
+			}
 		}
 	}
 }
