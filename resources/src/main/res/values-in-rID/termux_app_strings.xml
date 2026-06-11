@@ -96,7 +96,7 @@
   <string name="error_termux_service_start_failed_bg">Gagal memulai TermuxService saat aplikasi berada di latar belakang karena pembatasan latar belakang Android.</string>
 
   <!-- Termux App Preferences -->
-  <string name="termux_preferences_summary">Preferensi untuk terminal Termux</string>
+  <string name="termux_preferences_summary">Preferensi untuk emulator terminal</string>
 
   <!-- Debugging Preferences -->
   <string name="termux_debugging_preferences_title">Debugging</string>
