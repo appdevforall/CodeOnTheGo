@@ -72,7 +72,7 @@
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="theme_auto">Auto</string>
-    <string name="msg_dynamic_colors_dialog">This will close the application with all tasks!.</string>
+    <string name="msg_dynamic_colors_dialog">This will close the application with all tasks!</string>
     <string name="export_layout">Export Layout</string>
     <string name="invalid_data_intent">Invalid Data returned by Intent.</string>
     <string name="select_from_storage">Select file from Primary Storage.</string>
