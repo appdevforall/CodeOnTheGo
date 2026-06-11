@@ -72,7 +72,7 @@
     <string name="theme_dark">Gelap</string>
     <string name="theme_light">Terang</string>
     <string name="theme_auto">Otomatis</string>
-    <string name="msg_dynamic_colors_dialog">Ini akan menutup aplikasi beserta semua tugasnya!.</string>
+    <string name="msg_dynamic_colors_dialog">Ini akan menutup aplikasi beserta semua tugasnya!</string>
     <string name="export_layout">Ekspor Layout</string>
     <string name="invalid_data_intent">Data yang diterima tidak valid.</string>
     <string name="select_from_storage">Pilih file dari Penyimpanan Utama.</string>
