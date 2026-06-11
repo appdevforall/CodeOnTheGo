@@ -58,7 +58,6 @@ import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
 import com.itsaky.androidide.actions.build.PluginBuildActionItem
-import com.itsaky.androidide.actions.etc.GenerateXMLAction
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
@@ -101,9 +100,6 @@ class EditorActivityActions {
             registry.registerAction(FindInProjectAction(context, order++))
             registry.registerAction(LaunchAppAction(context, order++))
             registry.registerAction(DisconnectLogSendersAction(context, order++))
-            if (FeatureFlags.isExperimentsEnabled) {
-                registry.registerAction(action = GenerateXMLAction(context, order = order++))
-            }
 
             // Plugin contributions
             order = registerPluginActions(context, registry, order)

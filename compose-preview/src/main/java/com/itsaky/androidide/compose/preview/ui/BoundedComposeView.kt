@@ -19,6 +19,7 @@ class BoundedComposeView @JvmOverloads constructor(
 
     var maxHeightPx: Int = DEFAULT_MAX_HEIGHT_PX
     var explicitHeightPx: Int? = null
+    var explicitWidthPx: Int? = null
 
     init {
         addView(composeView)
@@ -35,6 +36,10 @@ class BoundedComposeView @JvmOverloads constructor(
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
 
+        val newWidthSpec = explicitWidthPx?.let {
+            MeasureSpec.makeMeasureSpec(it, MeasureSpec.EXACTLY)
+        } ?: widthMeasureSpec
+
         val newHeightSpec = when {
             explicitHeightPx != null -> {
                 MeasureSpec.makeMeasureSpec(explicitHeightPx!!, MeasureSpec.EXACTLY)
@@ -45,7 +50,7 @@ class BoundedComposeView @JvmOverloads constructor(
             else -> heightMeasureSpec
         }
 
-        super.onMeasure(widthMeasureSpec, newHeightSpec)
+        super.onMeasure(newWidthSpec, newHeightSpec)
     }
 
     companion object {

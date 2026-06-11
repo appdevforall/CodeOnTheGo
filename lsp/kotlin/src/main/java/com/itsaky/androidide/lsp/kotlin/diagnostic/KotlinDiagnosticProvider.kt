@@ -10,7 +10,6 @@ import com.itsaky.androidide.lsp.models.DiagnosticSeverity
 import com.itsaky.androidide.progress.ICancelChecker
 import kotlinx.coroutines.CancellationException
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
-import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticWithPsi
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaSeverity
@@ -31,14 +30,14 @@ internal data class KotlinDiagnosticExtra(
 context(env: CompilationEnvironment)
 internal fun collectDiagnosticsFor(file: Path, cancelChecker: ICancelChecker): DiagnosticResult {
 	try {
-		logger.info("Analyzing file: {}", file)
+		logger.info("analyzing file: {}", file)
 		return doAnalyze(file, cancelChecker)
 	} catch (err: Throwable) {
 		if (err is CancellationException) {
 			logger.debug("analysis cancelled")
 			throw err
 		}
-		logger.error("An error occurred analyzing file: {}", file, err)
+		logger.error("an error occurred analyzing file: {}", file, err)
 		return DiagnosticResult.NO_UPDATE
 	}
 }
@@ -75,7 +74,7 @@ private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResu
 			// This should be canceled as well
 			// The analysis API uses a no-op implementation of
 			// Intellij's ProgressManager for cancellations, so the following
-			// is really cancellable at the moment
+			// isn't really cancellable at the moment
 			analyzeMaybeDangling(ktFile) {
 				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 					.forEach { diagnostic ->

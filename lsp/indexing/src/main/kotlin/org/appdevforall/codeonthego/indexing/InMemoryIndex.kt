@@ -126,15 +126,32 @@ class InMemoryIndex<T : Indexable>(
         }
 
         for ((field, prefix) in query.prefixMatch) {
-            val buckets = prefixBuckets[field] ?: return@read emptySequence()
-            val lowerPrefix = prefix.lowercase()
-            val firstChar = lowerPrefix.firstOrNull() ?: continue
-            val bucket = buckets[firstChar] ?: return@read emptySequence()
-
-            val matching = bucket.asSequence()
-                .filter { it.lowerValue.startsWith(lowerPrefix) }
-                .map { it.key }
-                .toSet()
+            val buckets = prefixBuckets[field]
+            val matching: Set<String> = if (buckets != null) {
+                // Prefix-searchable: case-insensitive match via the lowercased buckets,
+                // mirroring SQLite's `lowerCol LIKE 'prefix%'`.
+                val lowerPrefix = prefix.lowercase()
+                val firstChar = lowerPrefix.firstOrNull()
+                if (firstChar == null) {
+                    // Empty prefix == "field present", matching SQLite's `LIKE '%'`
+                    // (which excludes rows where the column IS NULL).
+                    buckets.values.flatMapTo(mutableSetOf()) { entries -> entries.map { it.key } }
+                } else {
+                    val bucket = buckets[firstChar] ?: return@read emptySequence()
+                    bucket.asSequence()
+                        .filter { it.lowerValue.startsWith(lowerPrefix) }
+                        .map { it.key }
+                        .toSet()
+                }
+            } else {
+                // Not prefix-searchable: fall back to a case-sensitive prefix scan of the
+                // regular field map, mirroring SQLite's `col LIKE 'prefix%'` fallback.
+                val fieldMap = fieldMaps[field] ?: return@read emptySequence()
+                fieldMap.entries.asSequence()
+                    .filter { (value, _) -> value.startsWith(prefix) }
+                    .flatMap { (_, keys) -> keys.asSequence() }
+                    .toSet()
+            }
 
             candidates = intersect(candidates, matching)
         }
