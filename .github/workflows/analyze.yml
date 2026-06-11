@@ -93,6 +93,7 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar
 
       - name: Build and analyze
+        timeout-minutes: 60
         env:
           GRADLE_OPTS: "-Xmx10g -XX:MaxMetaspaceSize=512m"
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
