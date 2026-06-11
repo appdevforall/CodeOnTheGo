@@ -3,6 +3,7 @@ package com.itsaky.androidide.viewmodel
 import android.app.Application
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.itsaky.androidide.R
+import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.GitRepositoryManager
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -45,11 +46,12 @@ class CloneRepositoryViewModelTest {
 
     private lateinit var viewModel: CloneRepositoryViewModel
     private val context = mockk<Application>(relaxed = true)
+    private val credentialsManager = mockk<GitCredentialsManager>(relaxed = true)
 
     @Before
     fun setup() {
         mockkObject(GitRepositoryManager)
-        viewModel = CloneRepositoryViewModel(context)
+        viewModel = CloneRepositoryViewModel(context, credentialsManager)
 
         // Mock the application string responses for error messages
         every { context.getString(any(), *anyVararg()) } answers {
