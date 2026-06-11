@@ -6,7 +6,6 @@ import android.content.ContextWrapper;
 import android.content.res.Configuration;
 import android.graphics.Point;
 import android.graphics.Rect;
-import android.os.Build;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,35 +36,18 @@ public class ViewUtils {
     }
 
     /**
-     * Check if a {@link View} is fully visible and not hidden or partially covered by another view.
-     *
-     * https://stackoverflow.com/a/51078418/14686958
-     *
-     * @param view The {@link View} to check.
-     * @param statusBarHeight The status bar height received by {@link View.OnApplyWindowInsetsListener}.
-     * @return Returns {@code true} if view is fully visible.
-     */
-    public static boolean isViewFullyVisible(View view, int statusBarHeight) {
-        Rect[] windowAndViewRects = getWindowAndViewRects(view, statusBarHeight);
-        if (windowAndViewRects == null)
-            return false;
-        return windowAndViewRects[0].contains(windowAndViewRects[1]);
-    }
-
-    /**
      * Get the {@link Rect} of a {@link View} and the  {@link Rect} of the window inside which it
      * exists.
      *
      * https://stackoverflow.com/a/51078418/14686958
      *
      * @param view The {@link View} inside the window whose {@link Rect} to get.
-     * @param statusBarHeight The status bar height received by {@link View.OnApplyWindowInsetsListener}.
      * @return Returns {@link Rect[]} if view is visible where Rect[0] will contain window
      * {@link Rect} and Rect[1] will contain view {@link Rect}. This will be {@code null}
      * if view is not visible.
      */
     @Nullable
-    public static Rect[] getWindowAndViewRects(View view, int statusBarHeight) {
+    public static Rect[] getWindowAndViewRects(View view) {
         if (view == null || !view.isShown())
             return null;
 

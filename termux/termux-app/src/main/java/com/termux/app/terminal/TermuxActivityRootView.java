@@ -129,7 +129,7 @@ public class TermuxActivityRootView extends LinearLayout implements ViewTreeObse
         FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) getLayoutParams();
 
         // Get the position Rects of the bottom space view and the main window holding it
-        Rect[] windowAndViewRects = ViewUtils.getWindowAndViewRects(bottomSpaceView, mStatusBarHeight);
+        Rect[] windowAndViewRects = ViewUtils.getWindowAndViewRects(bottomSpaceView);
         if (windowAndViewRects == null)
             return;
 
