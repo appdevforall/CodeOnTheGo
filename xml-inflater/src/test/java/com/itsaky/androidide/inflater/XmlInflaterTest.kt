@@ -29,29 +29,51 @@ import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Ignore
 import org.robolectric.Robolectric
-import java.util.concurrent.atomic.AtomicBoolean
 
 @Ignore("Test utility provider")
 object XmlInflaterTest {
-	private val init = AtomicBoolean(false)
+	private enum class State { UNINITIALIZED, READY, FAILED }
+
+	@Volatile private var state: State = State.UNINITIALIZED
+	@Volatile private var initError: Throwable? = null
+
 	internal val activity by lazy { Robolectric.buildActivity(AppCompatActivity::class.java).get() }
 
 	fun initIfNeeded() {
-		// Atomic claim of the init slot. If another caller already won the race,
-		// they are responsible for completing setup; we just return.
-		if (!init.compareAndSet(false, true)) {
-			return
+		// Fast path: once we've reached a terminal state, no synchronization needed.
+		when (state) {
+			State.READY -> return
+			State.FAILED -> throw IllegalStateException(
+				"XmlInflaterTest init previously failed; refusing to retry.",
+				initError,
+			)
+			State.UNINITIALIZED -> {} // fall through to slow path
 		}
 
-		try {
-			ToolingApiTestLauncher.launchServer {
-				assertThat(result is InitializeResult.Success).isTrue()
-				runBlocking { IProjectManager.getInstance().setup(gradleBuild.get()) }
+		// Slow path: exactly one thread runs setup; losers block on the monitor
+		// until the winner exits, then observe the terminal state and either
+		// proceed (READY) or throw (FAILED).
+		synchronized(this) {
+			when (state) {
+				State.READY -> return
+				State.FAILED -> throw IllegalStateException(
+					"XmlInflaterTest init previously failed; refusing to retry.",
+					initError,
+				)
+				State.UNINITIALIZED -> {
+					try {
+						ToolingApiTestLauncher.launchServer {
+							assertThat(result is InitializeResult.Success).isTrue()
+							runBlocking { IProjectManager.getInstance().setup(gradleBuild.get()) }
+						}
+						state = State.READY
+					} catch (error: Throwable) {
+						initError = error
+						state = State.FAILED
+						throw error
+					}
+				}
 			}
-		} catch (error: Throwable) {
-			// Roll back so subsequent tests can retry rather than silently skipping setup.
-			init.set(false)
-			throw error
 		}
 	}
 }

@@ -196,14 +196,14 @@ object ToolingApiTestLauncher {
 		} finally {
 			// Bound every shutdown step so a stalled child JVM or hung RPC can't wedge
 			// the calling test (and the whole Gradle worker) for hours.
-			try {
+			runCatching {
 				server.cancelCurrentBuild().get(SHUTDOWN_RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-			} catch (error: Throwable) {
+			}.onFailure { error ->
 				println("[ToolingApiTestLauncher] cancelCurrentBuild failed or timed out: ${error.message}")
 			}
-			try {
+			runCatching {
 				server.shutdown().get(SHUTDOWN_RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-			} catch (error: Throwable) {
+			}.onFailure { error ->
 				println("[ToolingApiTestLauncher] shutdown failed or timed out: ${error.message}")
 			}
 			if (!proc.waitFor(PROCESS_EXIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
