@@ -149,7 +149,7 @@
     <string name="info_add_some_views">Tambahkan beberapa tampilan…</string>
     <string name="success_saved_to_gallery">Telah disimpan ke galeri.</string>
     <string name="error_failed_to_save_gallery">Gagal menyimpan…</string>
-    <string name="success_loaded">Memuat!</string>
+    <string name="success_loaded">Dimuat!</string>
     <string name="label_palette">Palette</string>
     <string name="tooltip_layouts">Layouts</string>
     <string name="tooltip_create_new_layout">Buat layout baru</string>
@@ -165,7 +165,7 @@
     <string name="gemini_api_key_saved_on">Kunci API Gemini telah disimpan di %s</string>
 
     <string name="ai_agent">Agen AI</string>
-    <string name="new_chat">Pesan baru</string>
+    <string name="new_chat">Obrolan baru</string>
     <string name="history">Histori</string>
     <string name="ai_settings">Pengaturan AI</string>
     <string name="agent_close">Tutup</string>
