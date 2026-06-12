@@ -34,6 +34,7 @@ import java.io.Serializable
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.time.Duration
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -82,6 +83,11 @@ subprojects {
     tasks.withType<Test> {
         // Continue even if tests fail, so coverage data is written
         ignoreFailures = true
+
+        // Backstop: kill any individual Test task that runs longer than 10 minutes.
+        // Prevents a single hung test JVM (e.g. the Tooling API child) from burning
+        // the entire CI job budget.
+        timeout.set(Duration.ofMinutes(10))
 
         // Attach jacoco agent
         extensions.configure<JacocoTaskExtension> {
