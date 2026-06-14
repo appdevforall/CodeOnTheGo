@@ -70,9 +70,16 @@ jobs:
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', '**/libs.versions.toml') }}
-          restore-keys: ${{ runner.os }}-gradle
+          # Exclude ~/.gradle/caches/build-cache-1 (Gradle's task-output build
+          # cache) — it ballooned the stage-branch entry to ~26 GB.
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Assemble V8 Debug
         run: |
@@ -89,21 +96,26 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
+          # Branch-scoped + content-hashed so the key rolls over and old
+          # entries age out under GitHub's 7-day LRU instead of pinning forever.
+          key: ${{ runner.os }}-sonar-${{ github.ref_name }}-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-sonar-${{ github.ref_name }}-
+            ${{ runner.os }}-sonar-
 
       - name: Build and analyze
         timeout-minutes: 60
         env:
           GRADLE_OPTS: "-Xmx10g -XX:MaxMetaspaceSize=512m"
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info -x lint --continue
+        run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info --no-build-cache -x lint --continue
 
       - name: Upload JaCoCo report
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
           path: build/reports/jacoco/jacocoAggregateReport/
+          retention-days: 7
 
       - name: Cleanup google-services.json
         if: always()
