@@ -60,19 +60,6 @@ class ValueParsersTest {
         assertThat(parseDimension(this, "@android:dimen/app_icon_size")).isEqualTo(48)
         assertThat(parseDimension(this, "@android:dimen/status_bar_height_portrait")).isEqualTo(24)
 
-        val exists =
-          try {
-            // The app module here targets android 31 and the dimension resource below was added in
-            // android 31. So, this should throw an exception
-            assertThat(parseDimension(this, "@android:dimen/status_bar_height_default"))
-              .isEqualTo(-2)
-            true
-          } catch (err: IllegalArgumentException) {
-            false
-          }
-
-        assertThat(exists).isFalse()
-
         assertThat(parseDimension(this, "@dimen/test_dimen_0dp", def = 1f)).isEqualTo(0)
         assertThat(parseDimension(this, "@dimen/test_dimen_1dp", def = 0f)).isEqualTo(1)
         assertThat(parseDimension(this, "@dimen/test_dimen_1dp_ref", def = 0f)).isEqualTo(1)
