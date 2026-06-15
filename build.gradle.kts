@@ -89,6 +89,22 @@ subprojects {
         // the entire CI job budget.
         timeout.set(Duration.ofMinutes(10))
 
+        // JPMS opens required by the unit-test stack on JDK 17+:
+        //   - jdk.unsupported/sun.misc: HiddenApiBypass.<clinit> reflectively
+        //     resolves sun.misc.Unsafe; without this the IDEApplication
+        //     static initializer fails and poisons every Robolectric test.
+        //   - java.base/java.lang(.reflect): Mockito's field injector calls
+        //     setAccessible on java.lang.Class fields.
+        //   - java.base/java.io, java.util: needed by Robolectric/Gradle worker
+        //     reflection in the same test JVM.
+        jvmArgs(
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.util=ALL-UNNAMED",
+            "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+        )
+
         // Attach jacoco agent
         extensions.configure<JacocoTaskExtension> {
             isIncludeNoLocationClasses = true
@@ -307,11 +323,36 @@ sonar {
         property("sonar.organization", "app-dev-for-all")
         property("sonar.androidVariant", "v8Debug")
         property("sonar.token", System.getenv("SONAR_TOKEN"))
+
+        // The Sonar Android sensor auto-scans every Android module for a
+        // lint XML at the standard AGP path and emits "Unable to import"
+        // for each module where lint never ran (~57 warnings, because the
+        // analyze workflow uses `-x lint`).  Pin the property to a single
+        // empty-but-valid report so the sensor finds something and the
+        // auto-scan never runs.  See :generateEmptySonarLintReport below.
+        property("sonar.androidLint.reportPaths",
+            project.layout.buildDirectory
+                .file("reports/sonar/empty-lint-report.xml").get().asFile.absolutePath
+        )
+    }
+}
+
+val generateEmptySonarLintReport by tasks.registering {
+    val output = project.layout.buildDirectory.file("reports/sonar/empty-lint-report.xml")
+    outputs.file(output)
+    doLast {
+        val file = output.get().asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?>
+            |<issues format="6" by="empty-placeholder"></issues>
+            |""".trimMargin()
+        )
     }
 }
 
 tasks.named("sonarqube") {
-    dependsOn("jacocoAggregateReport")
+    dependsOn("jacocoAggregateReport", generateEmptySonarLintReport)
 }
 
 tasks.register<JacocoReport>("jacocoAggregateReport") {
