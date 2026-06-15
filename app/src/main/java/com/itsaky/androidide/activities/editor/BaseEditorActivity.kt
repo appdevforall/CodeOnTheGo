@@ -1327,6 +1327,7 @@ abstract class BaseEditorActivity :
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				editorViewModel.uiState.collectLatest { uiState ->
 					fullscreenManager?.render(uiState.isFullscreen, animate = true)
+					binding.swipeReveal.setVerticalDragEnabled(!uiState.isFullscreen)
 				}
 			}
 		}
