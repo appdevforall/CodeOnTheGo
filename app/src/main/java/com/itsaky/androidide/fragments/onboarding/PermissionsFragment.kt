@@ -32,6 +32,7 @@ import androidx.core.net.toUri
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.withResumed
 import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
 import com.github.appintro.SlideSelectionListener
@@ -45,6 +46,7 @@ import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
 import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
+import com.itsaky.androidide.utils.OverlayPermissionGuide
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isTestMode
@@ -73,7 +75,6 @@ class PermissionsFragment :
 	private var recyclerView: RecyclerView? = null
 	private var finishButton: MaterialButton? = null
     private lateinit var pulseAnimation: Animation
-	private var awaitingOverlayGrantResult = false
 
 	private val storagePermissionRequestLauncher =
 		registerForActivityResult(
@@ -96,6 +97,8 @@ class PermissionsFragment :
 	companion object {
 		private val logger = LoggerFactory.getLogger(PermissionsFragment::class.java)
 		private const val KEY_PRIVACY_DISCLOSURE_SHOWN = "privacy.disclosure.shown"
+
+		private var awaitingOverlayGrantResult = false
 
 		@JvmStatic
 		fun newInstance(context: Context): PermissionsFragment =
@@ -231,12 +234,13 @@ class PermissionsFragment :
        }
        awaitingOverlayGrantResult = false
 
-       if (PermissionsHelper.canDrawOverlays(requireContext())) {
-          return
+       viewLifecycleScope.launch {
+          viewLifecycleOwner.withResumed {
+             if (!PermissionsHelper.canDrawOverlays(requireContext())) {
+                OverlayPermissionGuide.showRestrictedSettingsDialog(requireContext())
+             }
+          }
        }
-
-       flashError(getString(R.string.permission_overlay_restricted_settings_hint))
-       requestSettingsTogglePermission(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
     }
 
 	private fun startIdeSetup() {
