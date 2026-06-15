@@ -3,6 +3,15 @@
     "sentry": {
       "type": "http",
       "url": "https://mcp.sentry.dev/mcp"
+    },
+    "sonarqube": {
+      "command": "sonar",
+      "args": [
+        "run",
+        "mcp",
+        "--project",
+        "appdevforall_CodeOnTheGo"
+      ]
     }
   }
 }
