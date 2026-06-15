@@ -111,9 +111,15 @@ class IDEApplication :
 					.setFlags(Shell.FLAG_REDIRECT_STDERR),
 			)
 
-			HiddenApiBypass.setHiddenApiExemptions("")
-
 			if (!VMUtils.isJvm && !isTestMode()) {
+				// HiddenApiBypass.<clinit> reflectively resolves
+				// sun.misc.Unsafe.getUnsafe(); under Robolectric the Android
+				// shadow of Unsafe does not expose that method, so the call
+				// throws NoSuchMethodException and poisons IDEApplication
+				// static init for every unit test in this module.  The call
+				// is only meaningful on a real Android device anyway.
+				HiddenApiBypass.setHiddenApiExemptions("")
+
 				try {
 					if (isAtLeastR()) {
 						System.loadLibrary("adb")
