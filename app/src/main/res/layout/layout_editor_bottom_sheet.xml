@@ -47,6 +47,8 @@
       android:id="@+id/symbol_input"
         android:fadeScrollbars="false"
         android:scrollbarAlwaysDrawHorizontalTrack="true"
+        android:scrollbarSize="2dp"
+        android:scrollbarStyle="outsideInset"
         android:scrollbars="horizontal"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"/>
