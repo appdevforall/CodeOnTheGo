@@ -89,6 +89,22 @@ subprojects {
         // the entire CI job budget.
         timeout.set(Duration.ofMinutes(10))
 
+        // JPMS opens required by the unit-test stack on JDK 17+:
+        //   - jdk.unsupported/sun.misc: HiddenApiBypass.<clinit> reflectively
+        //     resolves sun.misc.Unsafe; without this the IDEApplication
+        //     static initializer fails and poisons every Robolectric test.
+        //   - java.base/java.lang(.reflect): Mockito's field injector calls
+        //     setAccessible on java.lang.Class fields.
+        //   - java.base/java.io, java.util: needed by Robolectric/Gradle worker
+        //     reflection in the same test JVM.
+        jvmArgs(
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.util=ALL-UNNAMED",
+            "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+        )
+
         // Attach jacoco agent
         extensions.configure<JacocoTaskExtension> {
             isIncludeNoLocationClasses = true
