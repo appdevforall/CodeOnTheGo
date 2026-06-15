@@ -137,14 +137,14 @@ open class EditorHandlerActivity :
 
 	private val pluginFontScalingListener = object : FragmentManager.FragmentLifecycleCallbacks() {
 		override fun onFragmentViewCreated(
-			fm: FragmentManager,
-			f: Fragment,
-			v: View,
+			mFragmentManager: FragmentManager,
+			mFragment: Fragment,
+			view: View,
 			savedInstanceState: Bundle?
 		) {
 			val scale = EditorPreferences.editorFontScale
-			if (scale != 1f && isPluginFragment(f)) {
-				applyPluginFontScale(v, scale)
+			if (scale != 1f && isPluginFragment(mFragment)) {
+				applyPluginFontScale(view, scale)
 			}
 		}
 	}
