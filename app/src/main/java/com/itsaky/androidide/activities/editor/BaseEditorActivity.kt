@@ -403,8 +403,6 @@ abstract class BaseEditorActivity :
 	private var gestureDetector: GestureDetector? = null
 	private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
 	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
-	private var suppressDrawerGesture = false
-	private val bottomSheetTabsHitRect = Rect()
 
 	private var editorAppBarInsetTop: Int = 0
 
@@ -1604,7 +1602,9 @@ abstract class BaseEditorActivity :
 						}
 
 						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
-						if (isDrawerOpenFling) {
+						// A horizontal fling that started on the bottom-sheet tab strip is the user
+						// scrolling tabs, not asking for the drawer.
+						if (isDrawerOpenFling && !isTouchOnBottomSheetTabs(e1)) {
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
 						}
@@ -1616,24 +1616,19 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+		// Pass the event to our gesture detector first
 		if (ev != null) {
-			// A fling that begins on the bottom-sheet tab strip is the user
-			// scrolling tabs, not asking for the file tree. Skip the drawer
-			// gesture detector for the whole touch sequence in that case.
-			if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-				suppressDrawerGesture = isTouchOnBottomSheetTabs(ev)
-			}
-			if (!suppressDrawerGesture) {
-				gestureDetector?.onTouchEvent(ev)
-			}
+			gestureDetector?.onTouchEvent(ev)
 		}
+		// Then, let the default dispatching happen
 		return super.dispatchTouchEvent(ev)
 	}
 
 	private fun isTouchOnBottomSheetTabs(ev: MotionEvent): Boolean {
-		val tabs = content.bottomSheet.binding.tabs
-		if (!tabs.getGlobalVisibleRect(bottomSheetTabsHitRect)) return false
-		return bottomSheetTabsHitRect.contains(ev.rawX.toInt(), ev.rawY.toInt())
+		val tabs = contentOrNull?.bottomSheet?.binding?.tabs ?: return false
+		val rect = Rect()
+		if (!tabs.getGlobalVisibleRect(rect)) return false
+		return rect.contains(ev.rawX.toInt(), ev.rawY.toInt())
 	}
 
 	private fun showTooltip(tag: String) {
