@@ -22,6 +22,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
@@ -402,6 +403,8 @@ abstract class BaseEditorActivity :
 	private var gestureDetector: GestureDetector? = null
 	private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
 	private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
+	private var suppressDrawerGesture = false
+	private val bottomSheetTabsHitRect = Rect()
 
 	private var editorAppBarInsetTop: Int = 0
 
@@ -1613,12 +1616,24 @@ abstract class BaseEditorActivity :
 	}
 
 	override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-		// Pass the event to our gesture detector first
 		if (ev != null) {
-			gestureDetector?.onTouchEvent(ev)
+			// A fling that begins on the bottom-sheet tab strip is the user
+			// scrolling tabs, not asking for the file tree. Skip the drawer
+			// gesture detector for the whole touch sequence in that case.
+			if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+				suppressDrawerGesture = isTouchOnBottomSheetTabs(ev)
+			}
+			if (!suppressDrawerGesture) {
+				gestureDetector?.onTouchEvent(ev)
+			}
 		}
-		// Then, let the default dispatching happen
 		return super.dispatchTouchEvent(ev)
+	}
+
+	private fun isTouchOnBottomSheetTabs(ev: MotionEvent): Boolean {
+		val tabs = content.bottomSheet.binding.tabs
+		if (!tabs.getGlobalVisibleRect(bottomSheetTabsHitRect)) return false
+		return bottomSheetTabsHitRect.contains(ev.rawX.toInt(), ev.rawY.toInt())
 	}
 
 	private fun showTooltip(tag: String) {

@@ -30,10 +30,8 @@ import android.widget.RelativeLayout
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.core.graphics.Insets
-import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.drawerlayout.widget.DrawerLayout
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
@@ -125,7 +123,6 @@ constructor(
 	private val buildOutputViewModel by (context as FragmentActivity).viewModels<BuildOutputViewModel>()
 	private lateinit var mediator: TabLayoutMediator
 	private var shareJob: Job? = null
-	private var drawerLockCallback: BottomSheetBehavior.BottomSheetCallback? = null
 
 	companion object {
 		private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
@@ -263,26 +260,6 @@ constructor(
 				insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())
 			insets
 		}
-
-		// Lock the start-edge drawer swipe whenever the bottom sheet is open.
-		// DrawerLayout's edge tracker otherwise fires when a tab-strip drag
-		// drifts toward the screen's left edge. Hamburger taps still work —
-		// LOCK_MODE_LOCKED_CLOSED only blocks user gestures, not openDrawer().
-		drawerLockCallback = object : BottomSheetBehavior.BottomSheetCallback() {
-			override fun onStateChanged(bottomSheet: View, newState: Int) {
-				val drawer = (context as FragmentActivity).findViewById<DrawerLayout>(R.id.editor_drawerLayout)
-					?: return
-				val lockMode = when (newState) {
-					BottomSheetBehavior.STATE_COLLAPSED,
-					BottomSheetBehavior.STATE_HIDDEN,
-					-> DrawerLayout.LOCK_MODE_UNLOCKED
-					else -> DrawerLayout.LOCK_MODE_LOCKED_CLOSED
-				}
-				drawer.setDrawerLockMode(lockMode, GravityCompat.START)
-			}
-
-			override fun onSlide(bottomSheet: View, slideOffset: Float) = Unit
-		}.also { behavior.addBottomSheetCallback(it) }
 	}
 
   override fun onDetachedFromWindow() {
@@ -291,11 +268,6 @@ constructor(
     if (this::mediator.isInitialized) {
         mediator.detach()
     }
-
-    drawerLockCallback?.let { behavior.removeBottomSheetCallback(it) }
-    drawerLockCallback = null
-    (context as FragmentActivity).findViewById<DrawerLayout>(R.id.editor_drawerLayout)
-        ?.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.START)
 
     binding.tabs.clearOnTabSelectedListeners()
     binding.shareOutputFab.setOnClickListener(null)
