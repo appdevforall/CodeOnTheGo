@@ -81,7 +81,17 @@ class InMemoryIndex<T : Indexable>(
     override suspend fun insert(entry: T) = lock.write { insertSingleLocked(entry) }
 
     override suspend fun removeBySource(sourceId: String) = lock.write {
-        val keys = sourceMap.remove(sourceId) ?: return@write
+        removeBySourceLocked(sourceId)
+    }
+
+    override suspend fun removeBySources(sourceIds: Collection<String>) = lock.write {
+        for (sourceId in sourceIds) {
+            removeBySourceLocked(sourceId)
+        }
+    }
+
+    private fun removeBySourceLocked(sourceId: String) {
+        val keys = sourceMap.remove(sourceId) ?: return
         for (key in keys) {
             val entry = primaryMap.remove(key) ?: continue
             removeFromSecondaryIndexes(entry)
