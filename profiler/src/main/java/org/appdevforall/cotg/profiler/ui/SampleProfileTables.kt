@@ -1,8 +1,17 @@
 package org.appdevforall.cotg.profiler.ui
 
+import org.appdevforall.cotg.profiler.model.ProcessInfo
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTableRow
 
 internal object SampleProfileTables {
+    val SAMPLE_PROCESSES: List<ProcessInfo> =
+        listOf(
+            ProcessInfo(1287, "com.example.app", "Example App", debuggable = true, profileable = true),
+            ProcessInfo(1422, "com.example.app:service", "Example App (service)", debuggable = true, profileable = false),
+            ProcessInfo(2051, "org.appdevforall.cotg", "Code on the Go", debuggable = false, profileable = true),
+            ProcessInfo(3310, "com.example.game", "Example Game", debuggable = false, profileable = true),
+        )
+
     val HEAP_ROWS: List<ProfilerTableRow> =
         listOf(
             ProfilerTableRow("byte[]", listOf("byte[]", "1,284", "4.2 MB", "4.2 MB")),

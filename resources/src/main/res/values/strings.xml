@@ -1341,5 +1341,7 @@
     <string name="profiler_process_picker_debuggable">debuggable</string>
     <string name="profiler_process_picker_profileable">profileable</string>
     <string name="profiler_process_picker_pid">%1$s · PID %2$d</string>
+    <string name="profiler_select_process">Select a process to profile</string>
+    <string name="profiler_no_processes">No debuggable or profileable processes found.</string>
 
 </resources>

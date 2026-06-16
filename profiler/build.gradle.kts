@@ -17,6 +17,7 @@ android {
 dependencies {
     api(projects.actions)
     api(libs.androidx.fragment)
+    api(libs.androidx.fragment.ktx)
     api(libs.androidx.lifecycle.viewmodel.ktx)
     api(libs.androidx.lifecycle.runtime.ktx)
 

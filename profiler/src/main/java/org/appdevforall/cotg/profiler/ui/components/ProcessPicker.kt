@@ -17,7 +17,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,17 +26,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.itsaky.androidide.profiler.R
+import org.appdevforall.cotg.profiler.model.ProcessInfo
 import org.appdevforall.cotg.profiler.ui.theme.Dimens
 import org.appdevforall.cotg.profiler.ui.theme.ProfilerTheme
-
-@Immutable
-data class ProcessInfo(
-    val pid: Int,
-    val packageName: String,
-    val label: String,
-    val debuggable: Boolean,
-    val profileable: Boolean,
-)
 
 @Composable
 fun ProcessPicker(

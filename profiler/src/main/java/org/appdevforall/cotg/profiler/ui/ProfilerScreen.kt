@@ -19,20 +19,22 @@ import com.itsaky.androidide.profiler.R
 import org.appdevforall.cotg.profiler.ProfilerIntent
 import org.appdevforall.cotg.profiler.ProfilerIntent.CpuHotspot
 import org.appdevforall.cotg.profiler.ProfilerIntent.DumpHeap
+import org.appdevforall.cotg.profiler.ProfilerIntent.SelectProcess
+import org.appdevforall.cotg.profiler.ProfilerMode
+import org.appdevforall.cotg.profiler.ProfilerUiState
 import org.appdevforall.cotg.profiler.ui.components.CellAlignment
+import org.appdevforall.cotg.profiler.ui.components.ProcessPicker
 import org.appdevforall.cotg.profiler.ui.components.ProfilerButton
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTable
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTableColumn
-import org.appdevforall.cotg.profiler.ui.components.ProfilerTableRow
 import org.appdevforall.cotg.profiler.ui.theme.Dimens
 import org.appdevforall.cotg.profiler.ui.theme.ProfilerTheme
 
 @Composable
 fun ProfilerScreenView(
+    state: ProfilerUiState,
     onIntent: (ProfilerIntent) -> Unit,
     modifier: Modifier = Modifier,
-    columns: List<ProfilerTableColumn> = emptyList(),
-    rows: List<ProfilerTableRow> = emptyList(),
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -66,14 +68,36 @@ fun ProfilerScreenView(
                     .fillMaxWidth()
                     .weight(1f),
             ) {
-                if (rows.isEmpty()) {
-                    EmptyState(message = stringResource(R.string.profiler_empty))
-                } else {
-                    ProfilerTable(
-                        columns = columns,
-                        rows = rows,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                when (state) {
+                    ProfilerUiState.Idle ->
+                        Hint(message = stringResource(R.string.profiler_empty))
+
+                    is ProfilerUiState.SelectingProcess ->
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.profiler_select_process),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            ProcessPicker(
+                                processes = state.processes,
+                                onSelect = { onIntent(SelectProcess(it)) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                emptyMessage = stringResource(R.string.profiler_no_processes),
+                            )
+                        }
+
+                    is ProfilerUiState.Results ->
+                        ProfilerTable(
+                            columns = columnsFor(state.mode),
+                            rows = state.rows,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                 }
             }
         }
@@ -81,7 +105,7 @@ fun ProfilerScreenView(
 }
 
 @Composable
-private fun EmptyState(message: String) {
+private fun Hint(message: String) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -95,6 +119,13 @@ private fun EmptyState(message: String) {
         )
     }
 }
+
+@Composable
+private fun columnsFor(mode: ProfilerMode): List<ProfilerTableColumn> =
+    when (mode) {
+        ProfilerMode.Heap -> heapColumns()
+        ProfilerMode.Cpu -> cpuColumns()
+    }
 
 @Composable
 private fun heapColumns(): List<ProfilerTableColumn> =
@@ -113,34 +144,54 @@ private fun cpuColumns(): List<ProfilerTableColumn> =
         ProfilerTableColumn(stringResource(R.string.profiler_col_total), 1.2f, CellAlignment.End),
     )
 
-@Preview(name = "Empty")
+@Preview(name = "Idle")
 @Composable
-private fun ProfilerScreenViewEmptyPreview() {
+private fun ProfilerScreenIdlePreview() {
     ProfilerTheme {
-        ProfilerScreenView(onIntent = {})
+        ProfilerScreenView(state = ProfilerUiState.Idle, onIntent = {})
     }
 }
 
-@Preview(name = "Heap")
+@Preview(name = "Select process")
 @Composable
-private fun ProfilerScreenViewHeapPreview() {
+private fun ProfilerScreenSelectingPreview() {
     ProfilerTheme {
         ProfilerScreenView(
+            state = ProfilerUiState.SelectingProcess(
+                mode = ProfilerMode.Heap,
+                processes = SampleProfileTables.SAMPLE_PROCESSES.filter { it.debuggable },
+            ),
             onIntent = {},
-            columns = heapColumns(),
-            rows = SampleProfileTables.HEAP_ROWS,
         )
     }
 }
 
-@Preview(name = "CPU")
+@Preview(name = "Heap results")
 @Composable
-private fun ProfilerScreenViewCpuPreview() {
+private fun ProfilerScreenHeapPreview() {
     ProfilerTheme {
         ProfilerScreenView(
+            state = ProfilerUiState.Results(
+                mode = ProfilerMode.Heap,
+                process = SampleProfileTables.SAMPLE_PROCESSES.first(),
+                rows = SampleProfileTables.HEAP_ROWS,
+            ),
             onIntent = {},
-            columns = cpuColumns(),
-            rows = SampleProfileTables.CPU_ROWS,
+        )
+    }
+}
+
+@Preview(name = "CPU results")
+@Composable
+private fun ProfilerScreenCpuPreview() {
+    ProfilerTheme {
+        ProfilerScreenView(
+            state = ProfilerUiState.Results(
+                mode = ProfilerMode.Cpu,
+                process = SampleProfileTables.SAMPLE_PROCESSES.first(),
+                rows = SampleProfileTables.CPU_ROWS,
+            ),
+            onIntent = {},
         )
     }
 }
