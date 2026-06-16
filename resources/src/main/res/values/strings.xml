@@ -1236,6 +1236,7 @@
     <string name="cloning_repo">Cloning repository…</string>
     <string name="pick_folder">Pick folder</string>
     <string name="git_title">Git</string>
+    <string name="profiler_title">Profiler</string>
     <string name="no_uncommitted_changes">No uncommitted changes</string>
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>
@@ -1327,5 +1328,15 @@
 	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
+    <string name="profiler_dump_heap">Dump heap</string>
+    <string name="profiler_cpu_hotspots">CPU hotspots</string>
+    <string name="profiler_empty">No profile data yet. Run a heap dump or CPU sample.</string>
+    <string name="profiler_col_class">Class</string>
+    <string name="profiler_col_count">Count</string>
+    <string name="profiler_col_shallow">Shallow</string>
+    <string name="profiler_col_retained">Retained</string>
+    <string name="profiler_col_symbol">Symbol</string>
+    <string name="profiler_col_self">Self</string>
+    <string name="profiler_col_total">Total</string>
 
 </resources>
