@@ -57,33 +57,12 @@ class ProfilerAction(context: Context, override val order: Int) :
     override suspend fun preExec(data: ActionData): Boolean {
         val activity = data.requireActivity()
 
-        val javaLsp = ILanguageServerRegistry.default
-            .getServer(JavaLanguageServer.SERVER_ID)
-        if (javaLsp?.debugAdapter?.isReady != true
-        ) {
-            withContext(Dispatchers.Main.immediate) {
-                showDebuggerNotReadyMessage(activity)
-            }
-            return false
-        }
-
         if (!canShowPairingNotification(activity)) {
             withContext(Dispatchers.Main.immediate) {
                 showNotificationPermissionDialog(activity, onError = {
                     log.error("Failed to open notification settings", it)
                 })
             }
-            return false
-        }
-
-        val overlayState = withContext(Dispatchers.Main.immediate) {
-            PermissionsHelper.getOverlayPermissionState(activity)
-        }
-
-        if (overlayState != PermissionsHelper.OverlayPermissionState.GRANTED) {
-            handleMissingOverlayPermission(activity, overlayState, onError = {
-                log.error("Failed to launch overlay settings", it)
-            })
             return false
         }
 
