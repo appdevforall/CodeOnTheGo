@@ -38,6 +38,7 @@ import com.itsaky.androidide.plugins.manager.pluginCategory
 import com.itsaky.androidide.plugins.manager.pluginTooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.FeatureFlags
+import org.appdevforall.cotg.profiler.ProfilerFragment
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
 
@@ -58,6 +59,7 @@ class EditorBottomSheetTabAdapter(
 		const val TAB_DEBUGGER = 5
         const val TAB_GIT = 6
 		const val TAB_AGENT = 7
+		const val TAB_PROFILER = 8
 	}
 
 	private val allTabs =
@@ -135,6 +137,16 @@ class EditorBottomSheetTabAdapter(
 					),
 				)
 			}
+
+			if(FeatureFlags.isExperimentsEnabled){
+                add(
+                    Tab(
+                        title = fragmentActivity.getString(R.string.profiler_title),
+                        fragmentClass = ProfilerFragment::class.java,
+                        itemId = TAB_PROFILER,
+                    ),
+                )
+            }
 		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
