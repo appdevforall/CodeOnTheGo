@@ -134,7 +134,9 @@ class EditorActivityActions {
             registry.registerAction(HelpAction(context, ORDER_HELP))
 
             // Profiler actions
-            registry.registerAction(ProfilerAction(context, ORDER_PROFILER))
+            if(FeatureFlags.isExperimentsEnabled){
+                registry.registerAction(ProfilerAction(context, ORDER_PROFILER))
+            }
         }
 
         @JvmStatic
