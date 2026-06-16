@@ -25,7 +25,7 @@ jobs:
         with:
           project: 'ADFA' 
           issuetype: 'Story' 
-          summary: 'GitHub Issue: ${{ github.event.issue.title }}'
+          summary: 'GHI: ${{ github.event.issue.title }}'
           description: |
             *GitHub Issue:* #${{ github.event.issue.number }}
             *URL:* ${{ github.event.issue.html_url }}
