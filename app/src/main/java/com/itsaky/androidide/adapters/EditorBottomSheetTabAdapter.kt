@@ -138,13 +138,15 @@ class EditorBottomSheetTabAdapter(
 				)
 			}
 
-			add(
-				Tab(
-					title = fragmentActivity.getString(R.string.profiler_title),
-					fragmentClass = ProfilerFragment::class.java,
-					itemId = TAB_PROFILER,
-				),
-			)
+			if(FeatureFlags.isExperimentsEnabled){
+                add(
+                    Tab(
+                        title = fragmentActivity.getString(R.string.profiler_title),
+                        fragmentClass = ProfilerFragment::class.java,
+                        itemId = TAB_PROFILER,
+                    ),
+                )
+            }
 		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
