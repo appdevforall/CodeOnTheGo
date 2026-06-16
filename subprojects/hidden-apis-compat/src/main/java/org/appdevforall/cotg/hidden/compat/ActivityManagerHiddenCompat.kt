@@ -32,9 +32,50 @@ object ActivityManagerHiddenCompat {
 	 */
 	fun getRunningAppProcesses(): List<ActivityManager.RunningAppProcessInfo> = activityManager.runningAppProcesses ?: emptyList()
 
+	/**
+	 * Dumps the heap of [process] (a pid or process name) for [userId] into [fd], picking the right
+	 * underlying `ActivityManager.dumpHeap` overload for the running platform. On API 29+ the dump is
+	 * asynchronous, so this blocks (up to [DUMP_HEAP_TIMEOUT_SECONDS]) until it finishes, meaning the
+	 * caller can safely close [fd] once this returns.
+	 *
+	 * @param path informational label recorded in the dump; the bytes are written to [fd].
+	 * @param managed dump the managed (Java) heap as `.hprof` (vs. native heap).
+	 * @param dumpBitmaps bitmap dump format; only honoured on API 35+, `null` to skip bitmaps.
+	 * @return whether the dump was successfully started.
+	 * @throws UnsupportedOperationException on platforms older than [Build.VERSION_CODES.O].
+	 */
+	fun dumpHeap(
+		process: String,
+		userId: Int,
+		path: String,
+		fd: ParcelFileDescriptor,
+		managed: Boolean = true,
+		mallocInfo: Boolean = false,
+		runGc: Boolean = true,
+		dumpBitmaps: String? = null,
+	): Boolean {
+		val sdk = Build.VERSION.SDK_INT
+		return when {
+			sdk >= Build.VERSION_CODES.VANILLA_ICE_CREAM ->
+				dumpHeapApi35(process, userId, managed, mallocInfo, runGc, dumpBitmaps, path, fd)
+
+			sdk >= Build.VERSION_CODES.Q ->
+				dumpHeapApi29(process, userId, managed, mallocInfo, runGc, path, fd)
+
+			sdk >= Build.VERSION_CODES.P ->
+				dumpHeapApi28(process, userId, managed, mallocInfo, runGc, path, fd)
+
+			sdk >= Build.VERSION_CODES.O ->
+				dumpHeapApi26(process, userId, managed, path, fd)
+
+			else ->
+				throw UnsupportedOperationException("Heap dump is not supported on SDK $sdk")
+		}
+	}
+
 	@SuppressLint("ObsoleteSdkInt")
 	@RequiresApi(Build.VERSION_CODES.O)
-	fun dumpHeapApi26(
+	private fun dumpHeapApi26(
 		process: String,
 		userId: Int,
 		managed: Boolean,
@@ -44,7 +85,7 @@ object ActivityManagerHiddenCompat {
 
 	@SuppressLint("ObsoleteSdkInt")
 	@RequiresApi(Build.VERSION_CODES.P)
-	fun dumpHeapApi28(
+	private fun dumpHeapApi28(
 		process: String,
 		userId: Int,
 		managed: Boolean,
@@ -60,7 +101,7 @@ object ActivityManagerHiddenCompat {
 	 * that the caller can safely close [fd] once this returns.
 	 */
 	@RequiresApi(Build.VERSION_CODES.Q)
-	fun dumpHeapApi29(
+	private fun dumpHeapApi29(
 		process: String,
 		userId: Int,
 		managed: Boolean,
@@ -82,7 +123,7 @@ object ActivityManagerHiddenCompat {
 	 * parameter. Pass `null` for [dumpBitmaps] to skip dumping bitmaps.
 	 */
 	@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-	fun dumpHeapApi35(
+	private fun dumpHeapApi35(
 		process: String,
 		userId: Int,
 		managed: Boolean,
