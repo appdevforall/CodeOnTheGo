@@ -38,25 +38,25 @@ dependencyResolutionManagement {
 	val dependencySubstitutions =
 		mapOf(
 			"build-deps" to
-					arrayOf(
-						"appintro",
-						"fuzzysearch",
-						"google-java-format",
-						"java-compiler",
-						"javac",
-						"javapoet",
-						"jaxp",
-						"jdk-compiler",
-						"jdk-jdeps",
-						"jdt",
-						"layoutlib-api",
-						"treeview",
-					),
+				arrayOf(
+					"appintro",
+					"fuzzysearch",
+					"google-java-format",
+					"java-compiler",
+					"javac",
+					"javapoet",
+					"jaxp",
+					"jdk-compiler",
+					"jdk-jdeps",
+					"jdt",
+					"layoutlib-api",
+					"treeview",
+				),
 			"build-deps-common" to
-					arrayOf(
-						"constants",
-						"desugaring-core",
-					),
+				arrayOf(
+					"constants",
+					"desugaring-core",
+				),
 		)
 
 	for ((build, modules) in dependencySubstitutions) {
@@ -156,9 +156,12 @@ include(
 	":subprojects:builder-model-impl",
 	":subprojects:flashbar",
 	":subprojects:framework-stubs",
+	":subprojects:hidden-apis",
+	":subprojects:hidden-apis-compat",
 	":subprojects:javac-services",
 	":subprojects:kotlin-analysis-api",
 	":subprojects:libjdwp",
+	":subprojects:privileged-services",
 	":subprojects:projects",
 	":subprojects:project-models",
 	":subprojects:shizuku-aidl",
@@ -192,7 +195,7 @@ include(
 	":llama-impl",
 	":llama-api",
 	":llama-impl",
-	":compose-preview"
+	":compose-preview",
 )
 
 object FDroidConfig {

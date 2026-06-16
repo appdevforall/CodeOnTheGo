@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.PACKAGE_NAME}.profiler"
+	namespace = "${BuildConfig.PACKAGE_NAME}.profiler"
 
     buildFeatures {
         compose = true
@@ -15,11 +15,21 @@ android {
 }
 
 dependencies {
-    api(projects.actions)
-    api(libs.androidx.fragment)
+	api(projects.actions)
+	implementation(projects.subprojects.privilegedServices)
+
+	api(libs.androidx.annotation)
+	api(libs.androidx.fragment)
     api(libs.androidx.fragment.ktx)
-    api(libs.androidx.lifecycle.viewmodel.ktx)
-    api(libs.androidx.lifecycle.runtime.ktx)
+	api(libs.androidx.lifecycle.viewmodel.ktx)
+	api(libs.androidx.lifecycle.runtime.ktx)
+
+    implementation(libs.shark.android)
+    implementation(libs.shark.hprof)
+    implementation(libs.shark.graph)
+
+    implementation(libs.rikka.hidden.compat)
+    implementation(libs.rikka.hidden.stub)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.runtime)
