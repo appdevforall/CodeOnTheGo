@@ -20,7 +20,9 @@ package com.itsaky.androidide.projects.classpath
 import com.google.common.collect.ImmutableSet
 import com.itsaky.androidide.javac.services.fs.CachedJarFileSystem
 import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider
+import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 import java.nio.file.FileVisitResult
 import java.nio.file.FileVisitResult.CONTINUE
 import java.nio.file.FileVisitResult.SKIP_SUBTREE
@@ -28,10 +30,15 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.zip.ZipException
 import kotlin.io.path.pathString
 
 /** @author Akash Yadav */
 class JarFsClasspathReader : IClasspathReader {
+
+  companion object {
+    private val log = LoggerFactory.getLogger(JarFsClasspathReader::class.java)
+  }
 
   override fun listClasses(files: Collection<File>): ImmutableSet<ClassInfo> {
     val builder = ImmutableSet.builder<ClassInfo>()
@@ -40,53 +47,60 @@ class JarFsClasspathReader : IClasspathReader {
         continue
       }
 
-      val fs = CachingJarFileSystemProvider.newFileSystem(path) as CachedJarFileSystem
-      for (rootDirectory in fs.rootDirectories) {
-        Files.walkFileTree(
-          rootDirectory,
-          emptySet(),
-          Int.MAX_VALUE,
-          object : SimpleFileVisitor<Path>() {
+      try {
+        val fs = CachingJarFileSystemProvider.newFileSystem(path) as CachedJarFileSystem
+        for (rootDirectory in fs.rootDirectories) {
+          Files.walkFileTree(
+            rootDirectory,
+            emptySet(),
+            Int.MAX_VALUE,
+            object : SimpleFileVisitor<Path>() {
 
-            override fun preVisitDirectory(
-              dir: Path?,
-              attrs: BasicFileAttributes?
-            ): FileVisitResult {
-              return if (fs.storeJARPackageDir(dir)) {
-                CONTINUE
-              } else {
-                SKIP_SUBTREE
+              override fun preVisitDirectory(
+                dir: Path?,
+                attrs: BasicFileAttributes?
+              ): FileVisitResult {
+                return if (fs.storeJARPackageDir(dir)) {
+                  CONTINUE
+                } else {
+                  SKIP_SUBTREE
+                }
+              }
+
+              override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                var name = file.pathString
+                if (name.endsWith("/package-info.class") || !name.endsWith(".class")) {
+                  return CONTINUE
+                }
+
+                name = name.substringBeforeLast(".class")
+
+                if (name.isBlank()) {
+                  return CONTINUE
+                }
+
+                if (name.startsWith('/')) {
+                  name = name.substring(1)
+                }
+
+                if (name.contains('/')) {
+                  name = name.replace('/', '.')
+                }
+
+                ClassInfo.create(name)?.also {
+                  builder.add(it)
+                }
+
+                return super.visitFile(file, attrs)
               }
             }
-
-            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-              var name = file.pathString
-              if (name.endsWith("/package-info.class") || !name.endsWith(".class")) {
-                return CONTINUE
-              }
-
-              name = name.substringBeforeLast(".class")
-
-              if (name.isBlank()) {
-                return CONTINUE
-              }
-
-              if (name.startsWith('/')) {
-                name = name.substring(1)
-              }
-
-              if (name.contains('/')) {
-                name = name.replace('/', '.')
-              }
-
-              ClassInfo.create(name)?.also {
-                builder.add(it)
-              }
-
-              return super.visitFile(file, attrs)
-            }
-          }
-        )
+          )
+        }
+      } catch (e: ZipException) {
+        // A corrupt or truncated JAR must not abort indexing of the remaining classpath entries.
+        log.warn("Skipping corrupt/unreadable JAR while indexing classpath: {}", path, e)
+      } catch (e: IOException) {
+        log.warn("Skipping JAR that could not be read while indexing classpath: {}", path, e)
       }
     }
     return builder.build()
