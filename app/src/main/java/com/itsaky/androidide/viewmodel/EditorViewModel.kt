@@ -346,6 +346,10 @@ class EditorViewModel : ViewModel() {
 
     fun getProjectName(): String {
         val manager = ProjectManagerImpl.getInstance()
+        val path = manager.projectDirPath
+        if (path.isBlank()) {
+            return ""
+        }
         return manager.projectDir.name
     }
 }

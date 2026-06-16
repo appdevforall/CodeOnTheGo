@@ -99,7 +99,7 @@ class ProjectManagerImpl :
 		private set
 
 	override val projectDirPath: String
-		get() = projectPath
+		get() = if (this::projectPath.isInitialized) projectPath else ""
 
 	override val projectSyncIssues: List<GradleModels.SyncIssue>
 		get() = gradleBuild?.syncIssueList ?: emptyList()
