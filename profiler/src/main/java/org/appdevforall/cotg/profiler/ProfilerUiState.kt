@@ -13,9 +13,20 @@ sealed interface ProfilerUiState {
         val processes: List<ProcessInfo>,
     ) : ProfilerUiState
 
+    /** A profiling action (e.g. heap dump) is in progress for [process]. */
+    data class Running(
+        val mode: ProfilerMode,
+        val process: ProcessInfo,
+    ) : ProfilerUiState
+
     data class Results(
         val mode: ProfilerMode,
         val process: ProcessInfo,
         val rows: List<ProfilerTableRow>,
+    ) : ProfilerUiState
+
+    /** A recoverable failure or unavailable-service message shown to the user. */
+    data class Error(
+        val message: String,
     ) : ProfilerUiState
 }

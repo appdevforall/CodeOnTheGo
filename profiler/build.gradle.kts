@@ -16,6 +16,7 @@ android {
 
 dependencies {
 	api(projects.actions)
+    implementation(projects.logger)
 	implementation(projects.subprojects.privilegedServices)
 
 	api(libs.androidx.annotation)

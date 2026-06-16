@@ -67,6 +67,7 @@ public class ServiceStarter {
 		Pair<IBinder, String> result = UserService.create(args);
 
 		if (result == null) {
+			Log.e(TAG, "main: unable to create user service");
 			System.exit(1);
 			return;
 		}
@@ -75,6 +76,7 @@ public class ServiceStarter {
 		token = result.second;
 
 		if (!sendBinder(service, token)) {
+			Log.e(TAG, "main: unable to send binder for service " + (service != null ? service.toString() : "null-service"));
 			System.exit(1);
 		}
 

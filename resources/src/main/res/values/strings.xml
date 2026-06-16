@@ -1343,5 +1343,10 @@
     <string name="profiler_process_picker_pid">%1$s · PID %2$d</string>
     <string name="profiler_select_process">Select a process to profile</string>
     <string name="profiler_no_processes">No debuggable or profileable processes found.</string>
+    <string name="profiler_running">Capturing heap dump from %1$s…</string>
+    <string name="profiler_cpu_not_implemented">CPU profiling isn\'t available yet.</string>
+    <string name="profiler_service_unavailable">Profiler service unavailable. Make sure Shizuku is running.</string>
+    <string name="profiler_heap_dump_failed">Heap dump failed: %1$s</string>
+    <string name="profiler_retry">Back</string>
 
 </resources>
