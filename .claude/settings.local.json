@@ -1,0 +1,11 @@
+{
+  "enabledMcpjsonServers": [
+    "sentry",
+    "sonarqube"
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew :profiler:compileDebugKotlin --console=plain)"
+    ]
+  }
+}

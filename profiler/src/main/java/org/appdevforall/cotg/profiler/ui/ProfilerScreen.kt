@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -92,11 +94,20 @@ fun ProfilerScreenView(
                             )
                         }
 
+                    is ProfilerUiState.Running ->
+                        Loading(message = stringResource(R.string.profiler_running, state.process.label))
+
                     is ProfilerUiState.Results ->
                         ProfilerTable(
                             columns = columnsFor(state.mode),
                             rows = state.rows,
                             modifier = Modifier.fillMaxSize(),
+                        )
+
+                    is ProfilerUiState.Error ->
+                        ErrorMessage(
+                            message = state.message,
+                            onDismiss = { onIntent(ProfilerIntent.Reset) },
                         )
                 }
             }
@@ -121,19 +132,58 @@ private fun Hint(message: String) {
 }
 
 @Composable
+private fun Loading(message: String) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Dimens.paddingMd, Alignment.CenterVertically),
+    ) {
+        CircularProgressIndicator()
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun ErrorMessage(message: String, onDismiss: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(Dimens.paddingLg),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Dimens.paddingMd, Alignment.CenterVertically),
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+        )
+        Button(onClick = onDismiss) {
+            Text(text = stringResource(R.string.profiler_retry))
+        }
+    }
+}
+
+@Composable
 private fun columnsFor(mode: ProfilerMode): List<ProfilerTableColumn> =
     when (mode) {
         ProfilerMode.Heap -> heapColumns()
         ProfilerMode.Cpu -> cpuColumns()
     }
 
+// Shark exposes per-class count and shallow size via its public API (retained size relies on its
+// internal dominator-tree types), so the runtime heap table shows Class / Count / Shallow.
 @Composable
 private fun heapColumns(): List<ProfilerTableColumn> =
     listOf(
         ProfilerTableColumn(stringResource(R.string.profiler_col_class), 3f),
         ProfilerTableColumn(stringResource(R.string.profiler_col_count), 1f, CellAlignment.End),
         ProfilerTableColumn(stringResource(R.string.profiler_col_shallow), 1.4f, CellAlignment.End),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_retained), 1.4f, CellAlignment.End),
     )
 
 @Composable
