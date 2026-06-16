@@ -2,11 +2,13 @@ package com.itsaky.androidide.utils
 
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.tasks.JobCancelChecker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
@@ -30,8 +32,11 @@ class KeyedDebouncingAction<T: Any>(
 		val job: Job,
 	) {
 		fun cancel() {
-			channel.close()
+			// Cancel the job FIRST, then close the channel. Closing the channel first
+			// wakes a parked receive() with a ClosedReceiveChannelException before the
+			// job is cancelled, which can crash a worker that has no exception handling.
 			job.cancel()
+			channel.close()
 		}
 	}
 
@@ -55,33 +60,41 @@ class KeyedDebouncingAction<T: Any>(
 		val channel = Channel<T>(Channel.CONFLATED)
 		val job = scope.launch(actionContext) {
 			while (isActive) {
-				var latestKey = channel.receive()
-				var debouncing = true
-				while (debouncing) {
-					debouncing = select {
-						onTimeout(debounceDuration) { false }
-						channel.onReceive { newKey ->
-							latestKey = newKey
-							true
+				try {
+					var latestKey = channel.receive()
+					var debouncing = true
+					while (debouncing) {
+						debouncing = select {
+							onTimeout(debounceDuration) { false }
+							channel.onReceive { newKey ->
+								latestKey = newKey
+								true
+							}
 						}
 					}
-				}
 
-				ensureActive()
-				val actionJob = launch {
-					val cancelChecker = JobCancelChecker(currentCoroutineContext()[Job])
-					action(latestKey, cancelChecker)
-				}
-
-				select<Unit> {
-					actionJob.onJoin {}
-					channel.onReceive { newerKey ->
-						actionJob.cancel()
-						channel.trySend(newerKey)
+					ensureActive()
+					val actionJob = launch {
+						val cancelChecker = JobCancelChecker(currentCoroutineContext()[Job])
+						action(latestKey, cancelChecker)
 					}
-				}
 
-				actionJob.join()
+					select<Unit> {
+						actionJob.onJoin {}
+						channel.onReceive { newerKey ->
+							actionJob.cancel()
+							channel.trySend(newerKey)
+						}
+					}
+
+					actionJob.join()
+				} catch (e: ClosedReceiveChannelException) {
+					// The channel was closed (entry cancelled). Stop the worker cleanly
+					// instead of letting the exception propagate to an uncaught handler.
+					break
+				} catch (e: CancellationException) {
+					throw e
+				}
 			}
 		}
 
