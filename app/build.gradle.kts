@@ -69,6 +69,7 @@ plugins {
 	id("com.itsaky.androidide.desugaring")
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
+	alias(libs.plugins.rikka.refine)
 	kotlin("plugin.serialization")
 }
 
