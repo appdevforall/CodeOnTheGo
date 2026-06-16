@@ -15,7 +15,6 @@ import java.util.concurrent.TimeUnit
  * @author Akash Yadav
  */
 object ActivityManagerHiddenCompat {
-
 	/**
 	 * Maximum time to wait for an asynchronous heap dump (API 29+) to finish before returning.
 	 */
@@ -31,8 +30,7 @@ object ActivityManagerHiddenCompat {
 	 * Snapshot of the currently running processes, used to seed a live process list before a
 	 * process observer starts delivering deltas.
 	 */
-	fun getRunningAppProcesses(): List<ActivityManager.RunningAppProcessInfo> =
-		activityManager.runningAppProcesses ?: emptyList()
+	fun getRunningAppProcesses(): List<ActivityManager.RunningAppProcessInfo> = activityManager.runningAppProcesses ?: emptyList()
 
 	@SuppressLint("ObsoleteSdkInt")
 	@RequiresApi(Build.VERSION_CODES.O)
@@ -41,7 +39,7 @@ object ActivityManagerHiddenCompat {
 		userId: Int,
 		managed: Boolean,
 		path: String,
-		fd: ParcelFileDescriptor
+		fd: ParcelFileDescriptor,
 	) = activityManager.dumpHeap(process, userId, managed, path, fd)
 
 	@SuppressLint("ObsoleteSdkInt")
@@ -53,7 +51,7 @@ object ActivityManagerHiddenCompat {
 		mallocInfo: Boolean,
 		runGc: Boolean,
 		path: String,
-		fd: ParcelFileDescriptor
+		fd: ParcelFileDescriptor,
 	) = activityManager.dumpHeap(process, userId, managed, mallocInfo, runGc, path, fd)
 
 	/**
@@ -69,7 +67,7 @@ object ActivityManagerHiddenCompat {
 		mallocInfo: Boolean,
 		runGc: Boolean,
 		path: String,
-		fd: ParcelFileDescriptor
+		fd: ParcelFileDescriptor,
 	): Boolean {
 		val latch = CountDownLatch(1)
 		val finishCallback = RemoteCallback({ latch.countDown() }, null)
@@ -92,7 +90,7 @@ object ActivityManagerHiddenCompat {
 		runGc: Boolean,
 		dumpBitmaps: String?,
 		path: String,
-		fd: ParcelFileDescriptor
+		fd: ParcelFileDescriptor,
 	): Boolean {
 		val latch = CountDownLatch(1)
 		val finishCallback = RemoteCallback({ latch.countDown() }, null)
