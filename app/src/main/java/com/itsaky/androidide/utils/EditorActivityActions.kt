@@ -58,6 +58,7 @@ import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
 import com.itsaky.androidide.actions.build.PluginBuildActionItem
+import com.itsaky.androidide.actions.profiler.ProfilerAction
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
@@ -79,6 +80,7 @@ class EditorActivityActions {
         private const val ORDER_OPEN_WITH = 500
         private const val ORDER_RENAME = 600
         private const val ORDER_HELP = 1000
+        private const val ORDER_PROFILER = 1100
 
         @JvmStatic
         fun register(context: Context) {
@@ -130,6 +132,11 @@ class EditorActivityActions {
             registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
             registry.registerAction(RenameAction(context, ORDER_RENAME))
             registry.registerAction(HelpAction(context, ORDER_HELP))
+
+            // Profiler actions
+            if(FeatureFlags.isExperimentsEnabled){
+                registry.registerAction(ProfilerAction(context, ORDER_PROFILER))
+            }
         }
 
         @JvmStatic
