@@ -121,8 +121,14 @@ class JavaModule(
 
 	override fun getRuntimeDexFiles(): Set<File> = emptySet()
 
-	override fun getCompileModuleProjects(): List<ModuleProject> {
+	override fun getCompileModuleProjects(visited: MutableSet<String>): List<ModuleProject> {
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+
+		// Guard against cyclic project-dependency graphs: expand each module at most once.
+		if (!visited.add(path)) {
+			return emptyList()
+		}
+
 		return this.dependencyList
 			.filter { it.hasModule() && it.scope == SCOPE_COMPILE }
 			.mapNotNull { root.findByPath(it.module.projectPath) }

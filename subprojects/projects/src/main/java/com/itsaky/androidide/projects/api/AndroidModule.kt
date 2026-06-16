@@ -240,8 +240,29 @@ open class AndroidModule(
 		result: MutableSet<File>,
 		excludeSourceGeneratedClassPath: Boolean = false,
 	) {
+		collectLibraries(
+			root = root,
+			libraries = libraries,
+			result = result,
+			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
+			visited = HashSet(),
+		)
+	}
+
+	private fun collectLibraries(
+		root: Workspace,
+		libraries: List<AndroidModels.GraphItem>,
+		result: MutableSet<File>,
+		excludeSourceGeneratedClassPath: Boolean,
+		visited: MutableSet<String>,
+	) {
 		val libraryMap = variantDependencies.librariesMap
 		for (library in libraries) {
+			// Guard against cyclic dependency graphs: expand each graph node at most once.
+			if (!visited.add(library.key)) {
+				continue
+			}
+
 			val lib = libraryMap[library.key] ?: continue
 			if (lib.type == AndroidModels.LibraryType.Project) {
 				val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
@@ -256,12 +277,27 @@ open class AndroidModule(
 				result.add(lib.artifact)
 			}
 
-			collectLibraries(root, library.dependencyList, result)
+			// Note: the recursive call intentionally keeps the original behavior of not propagating
+			// `excludeSourceGeneratedClassPath` (it defaults to false here); only the visited-set
+			// cycle guard is added.
+			collectLibraries(
+				root = root,
+				libraries = library.dependencyList,
+				result = result,
+				excludeSourceGeneratedClassPath = false,
+				visited = visited,
+			)
 		}
 	}
 
-	override fun getCompileModuleProjects(): List<ModuleProject> {
+	override fun getCompileModuleProjects(visited: MutableSet<String>): List<ModuleProject> {
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+
+		// Guard against cyclic project-dependency graphs: expand each module at most once.
+		if (!visited.add(path)) {
+			return emptyList()
+		}
+
 		val result = mutableListOf<ModuleProject>()
 
 		val libraries = variantDependencies.mainArtifact.compileDependencyList
@@ -278,7 +314,7 @@ open class AndroidModule(
 			}
 
 			result.add(module)
-			result.addAll(module.getCompileModuleProjects())
+			result.addAll(module.getCompileModuleProjects(visited))
 		}
 
 		return result

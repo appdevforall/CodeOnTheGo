@@ -127,7 +127,18 @@ abstract class ModuleProject(
 	 * Get the list of module projects with compile scope. This includes transitive module projects as
 	 * well.
 	 */
-	abstract fun getCompileModuleProjects(): List<ModuleProject>
+	fun getCompileModuleProjects(): List<ModuleProject> = getCompileModuleProjects(HashSet())
+
+	/**
+	 * Get the list of module projects with compile scope (including transitive ones), guarding against
+	 * cyclic project-dependency graphs.
+	 *
+	 * @param visited The set of already-expanded module paths. Each module is expanded at most once,
+	 * keyed by its [path], so a cyclic dependency graph terminates instead of recursing until the
+	 * stack overflows. Implementations must add their own [path] before recursing into dependencies
+	 * and must thread the same set through every recursive call.
+	 */
+	abstract fun getCompileModuleProjects(visited: MutableSet<String>): List<ModuleProject>
 
 	/**
 	 * Check if the given module is a dependency of this module.
