@@ -21,6 +21,13 @@ class AgentFragmentContainer : EmptyStateFragment<FragmentAgentContainerBinding>
 		super.onViewCreated(view, savedInstanceState)
 		emptyStateViewModel.setEmptyMessage("No git actions yet")
 		emptyStateViewModel.setEmpty(false)
+	}
+
+	// Deferred to onResume so the disclaimer only fires when the Agent tab is
+	// actually visible. ViewPager2 + FragmentStateAdapter pre-creates adjacent
+	// pages through onViewCreated; only the visible page reaches onResume.
+	override fun onResume() {
+		super.onResume()
 		showDisclaimerDialogIfNeeded()
 	}
 
