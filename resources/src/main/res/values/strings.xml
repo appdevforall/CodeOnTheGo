@@ -1338,5 +1338,8 @@
     <string name="profiler_col_symbol">Symbol</string>
     <string name="profiler_col_self">Self</string>
     <string name="profiler_col_total">Total</string>
+    <string name="profiler_process_picker_debuggable">debuggable</string>
+    <string name="profiler_process_picker_profileable">profileable</string>
+    <string name="profiler_process_picker_pid">%1$s · PID %2$d</string>
 
 </resources>
