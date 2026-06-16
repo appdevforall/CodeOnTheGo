@@ -91,11 +91,17 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 	}
 
 	override fun clearOutput() {
+		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
+		// when the fragment is detached, otherwise an IllegalStateException is thrown.
+		if (!isAdded || activity == null) return
 		buildOutputViewModel.clear()
 		super.clearOutput()
 	}
 
 	override fun getShareableContent(): String {
+		// Same guard as clearOutput(): touching buildOutputViewModel while detached
+		// triggers requireActivity() via activityViewModels and crashes.
+		if (!isAdded || activity == null) return ""
 		val snapshot = buildOutputViewModel.getCachedContentSnapshot()
 		return if (snapshot.isEmpty()) "" else BuildInfoUtils.BASIC_INFO + System.lineSeparator() + snapshot
 	}
