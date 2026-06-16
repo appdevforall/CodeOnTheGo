@@ -395,22 +395,30 @@ open class EditorHandlerActivity :
 	}
 
 	private fun restoreOpenedPluginTabs() {
-		try {
-			val prefs = (application as BaseApplication).prefManager
-			val json = prefs.getString(PREF_KEY_OPEN_PLUGIN_TABS, null) ?: return
+		lifecycleScope.launch {
+			try {
+				val prefs = (application as BaseApplication).prefManager
+				val json = withContext(Dispatchers.IO) {
+					prefs.getString(PREF_KEY_OPEN_PLUGIN_TABS, null)
+				} ?: return@launch
 
-			val tabIds = Gson().fromJson(json, Array<String>::class.java)?.toList() ?: return
-			Log.d("EditorHandlerActivity", "Restoring plugin tabs: $tabIds")
+				// Decoding the cached JSON off the main thread avoids a UI stall on startup.
+				val tabIds = withContext(Dispatchers.Default) {
+					Gson().fromJson(json, Array<String>::class.java)?.toList()
+				} ?: return@launch
+				Log.d("EditorHandlerActivity", "Restoring plugin tabs: $tabIds")
 
-			tabIds.forEach { tabId ->
-				if (!pluginTabIndices.containsKey(tabId)) {
-					selectPluginTabById(tabId)
+				// Tab selection touches UI state, so keep it on the main thread.
+				tabIds.forEach { tabId ->
+					if (!pluginTabIndices.containsKey(tabId)) {
+						selectPluginTabById(tabId)
+					}
 				}
-			}
 
-			prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null)
-		} catch (e: Exception) {
-			Log.e("EditorHandlerActivity", "Failed to restore plugin tabs", e)
+				withContext(Dispatchers.IO) { prefs.putString(PREF_KEY_OPEN_PLUGIN_TABS, null) }
+			} catch (e: Exception) {
+				Log.e("EditorHandlerActivity", "Failed to restore plugin tabs", e)
+			}
 		}
 	}
 
