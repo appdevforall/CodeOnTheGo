@@ -69,7 +69,6 @@ plugins {
 	id("com.itsaky.androidide.desugaring")
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
-	alias(libs.plugins.rikka.refine)
 	kotlin("plugin.serialization")
 }
 
@@ -184,7 +183,7 @@ android {
 }
 
 sentry {
-      includeProguardMapping = false
+	includeProguardMapping = false
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
@@ -371,11 +370,11 @@ dependencies {
 	implementation(project(":llama-api"))
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 
-    // Pebble template engine
-    implementation("io.pebbletemplates:pebble:4.1.1")
+	// Pebble template engine
+	implementation("io.pebbletemplates:pebble:4.1.1")
 
-    // Jackson JSON parsing dependency
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+	// Jackson JSON parsing dependency
+	implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 }
 
 tasks.register("downloadDocDb") {
@@ -566,7 +565,7 @@ fun createAssetsZip(arch: String) {
 			"documentation.db",
 			bootstrapName,
 			"plugin-artifacts.zip",
-            "core.cgt"
+			"core.cgt"
 		).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
 			if (!filePath.exists()) {
@@ -780,13 +779,13 @@ tasks.register("recompressApk") {
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
 
 val skipLlamaAssets =
-    !System.getenv("INCLUDE_LLAMA_ASSETS")
-        .equals("true", ignoreCase = true)
+	!System.getenv("INCLUDE_LLAMA_ASSETS")
+		.equals("true", ignoreCase = true)
 
 if (skipLlamaAssets) {
-    project.logger.lifecycle("INCLUDE_LLAMA_ASSETS is disabled - debug assemble tasks will skip llama asset bundling.")
+	project.logger.lifecycle("INCLUDE_LLAMA_ASSETS is disabled - debug assemble tasks will skip llama asset bundling.")
 } else {
-    project.logger.lifecycle("INCLUDE_LLAMA_ASSETS enabled - assemble tasks will do llama asset bundling.")
+	project.logger.lifecycle("INCLUDE_LLAMA_ASSETS enabled - assemble tasks will do llama asset bundling.")
 }
 
 val noCompress =
@@ -1090,12 +1089,12 @@ val debugAssets =
 			"localMvnRepository.zip",
 			"debug",
 		),
-        Asset(
-          "assets/core.cgt",
-          "https://appdevforall.org/dev-assets/debug/core.cgt",
-          "core.cgt",
-          "debug",
-        ),
+		Asset(
+		"assets/core.cgt",
+		"https://appdevforall.org/dev-assets/debug/core.cgt",
+		"core.cgt",
+		"debug",
+		),
 	)
 
 val releaseAssets =
@@ -1148,12 +1147,12 @@ val releaseAssets =
 			"v8/bootstrap.zip.br",
 			"release",
 		),
-        Asset(
-          "assets/release/common/data/common/core.cgt.br",
-          "https://appdevforall.org/dev-assets/release/core.cgt.br",
-          "core.cgt.br",
-          "release",
-        ),
+		Asset(
+		"assets/release/common/data/common/core.cgt.br",
+		"https://appdevforall.org/dev-assets/release/core.cgt.br",
+		"core.cgt.br",
+		"release",
+		),
 	)
 
 fun assetsBatch(
