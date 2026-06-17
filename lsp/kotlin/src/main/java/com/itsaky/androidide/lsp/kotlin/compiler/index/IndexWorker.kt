@@ -61,9 +61,13 @@ internal class IndexWorker(
 		while (isActive) {
 			when (val cmd = queue.take()) {
 				is IndexCommand.RemoveFromIndex -> {
-					val filePath = cmd.path.pathString
-					fileIndex.remove(filePath)
-					sourceIndex.removeBySource(filePath)
+					applyRemovals(
+						first = cmd,
+						fileIndex = fileIndex,
+						sourceIndex = sourceIndex,
+						pollNext = { queue.pollIndexQueue() },
+						pushBack = { queue.pushBackIndexQueue(it) },
+					)
 				}
 
 				is IndexCommand.IndexSourceFile -> {
@@ -150,4 +154,52 @@ internal class IndexWorker(
 			}
 		}
 	}
+}
+
+/**
+ * Apply [first] plus any consecutive, immediately-available [IndexCommand.RemoveFromIndex]
+ * commands as a single batched removal.
+ *
+ * Symbol removals are collapsed into one [JvmSymbolIndex.removeBySources] call — a single
+ * SQLite transaction — instead of issuing one `DELETE FROM jvm_symbols` (one transaction)
+ * per file, which is the N+1 this fix targets (Sentry APPDEVFORALL-SE).
+ *
+ * [pollNext] returns the next already-queued index command without blocking, or `null`
+ * when none is ready. A polled command that is *not* a removal is handed to [pushBack] so
+ * it is processed (in order) on the next loop iteration rather than dropped.
+ *
+ * @param first      The removal command that triggered this batch.
+ * @param fileIndex  Per-file metadata index (has no batch API; removed one by one).
+ * @param sourceIndex Symbol index; removed via the batched [JvmSymbolIndex.removeBySources].
+ * @param pollNext   Non-blocking poll of the next queued index command.
+ * @param pushBack   Returns a non-removal command to the front of the queue.
+ */
+internal suspend fun applyRemovals(
+	first: IndexCommand.RemoveFromIndex,
+	fileIndex: KtFileMetadataIndex,
+	sourceIndex: JvmSymbolIndex,
+	pollNext: () -> IndexCommand?,
+	pushBack: (IndexCommand) -> Unit,
+) {
+	val paths = ArrayList<String>()
+	paths.add(first.path.pathString)
+
+	while (true) {
+		val next = pollNext() ?: break
+		if (next is IndexCommand.RemoveFromIndex) {
+			paths.add(next.path.pathString)
+		} else {
+			// Not batchable — return it so the main loop handles it next, in order.
+			pushBack(next)
+			break
+		}
+	}
+
+	// Per-file metadata index has no batch API; remove individually.
+	for (path in paths) {
+		fileIndex.remove(path)
+	}
+
+	// Collapse all symbol removals into a single transaction.
+	sourceIndex.removeBySources(paths)
 }
