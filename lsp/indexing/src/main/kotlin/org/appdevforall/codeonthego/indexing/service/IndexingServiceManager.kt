@@ -42,8 +42,10 @@ class IndexingServiceManager(
 	/**
 	 * Register an [IndexingService].
 	 *
-	 * Must be called before [onProjectSynced]. Services are initialized
-	 * in registration order.
+	 * Must be called before [onProjectSynced]. Services are initialized in an
+	 * unspecified order (they are held in a [ConcurrentHashMap]), so a service's
+	 * [IndexingService.initialize] must not depend on another service having
+	 * been initialized first.
 	 *
 	 * @throws IllegalStateException if called after initialization.
 	 */
