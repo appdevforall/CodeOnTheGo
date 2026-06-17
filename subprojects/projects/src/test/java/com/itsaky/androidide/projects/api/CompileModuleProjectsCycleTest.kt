@@ -144,4 +144,34 @@ class CompileModuleProjectsCycleTest {
 
     assertThat(result.map { it.path }).containsExactly(":b", ":c", ":a")
   }
+
+  @Test(timeout = 30_000)
+  fun `diamond shared dependency terminates and is not treated as a cycle`() {
+    // a -> b -> d, a -> c -> d. `d` is a shared dependency reached by two paths, NOT a cycle:
+    // it must be expanded (no infinite loop) and must not trip the cycle guard.
+    val a = androidModule(":a", listOf(":b", ":c"))
+    val b = androidModule(":b", listOf(":d"))
+    val c = androidModule(":c", listOf(":d"))
+    val d = androidModule(":d", emptyList())
+    installWorkspace(a, b, c, d)
+
+    val result = a.getCompileModuleProjects()
+
+    // Terminates (timeout would fail otherwise) and reaches every module in the diamond.
+    assertThat(result.map { it.path }.toSet()).containsExactly(":b", ":c", ":d")
+  }
+
+  @Test
+  fun `formatDependencyCycle renders the loop from the first occurrence of the repeated module`() {
+    // Two-node, self, and longer cycles render as the chain the user must break.
+    assertThat(ModuleProject.formatDependencyCycle(listOf(":a", ":b"), ":a"))
+      .isEqualTo(":a -> :b -> :a")
+    assertThat(ModuleProject.formatDependencyCycle(listOf(":a"), ":a"))
+      .isEqualTo(":a -> :a")
+    assertThat(ModuleProject.formatDependencyCycle(listOf(":a", ":b", ":c"), ":a"))
+      .isEqualTo(":a -> :b -> :c -> :a")
+    // The chain starts at the FIRST occurrence of the repeated node, dropping any prefix before it.
+    assertThat(ModuleProject.formatDependencyCycle(listOf(":a", ":b", ":c"), ":b"))
+      .isEqualTo(":b -> :c -> :b")
+  }
 }

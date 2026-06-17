@@ -121,10 +121,21 @@ class JavaModule(
 
 	override fun getRuntimeDexFiles(): Set<File> = emptySet()
 
-	override fun getCompileModuleProjects(visited: MutableSet<String>): List<ModuleProject> {
+	override fun getCompileModuleProjects(
+		visited: MutableSet<String>,
+		recursionPath: ArrayDeque<String>,
+	): List<ModuleProject> {
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
 
-		// Guard against cyclic project-dependency graphs: expand each module at most once.
+		// True cycle guard (defensive: this override is non-recursive — it returns only direct
+		// compile-scope module dependencies — so it cannot itself extend the recursion path, but the
+		// check keeps behavior consistent with AndroidModule if that ever changes).
+		if (recursionPath.contains(path)) {
+			reportDependencyCycle(recursionPath, path)
+			return emptyList()
+		}
+
+		// Already fully expanded elsewhere (a diamond / shared dependency, not a cycle): dedup.
 		if (!visited.add(path)) {
 			return emptyList()
 		}

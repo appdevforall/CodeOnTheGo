@@ -290,34 +290,49 @@ open class AndroidModule(
 		}
 	}
 
-	override fun getCompileModuleProjects(visited: MutableSet<String>): List<ModuleProject> {
+	override fun getCompileModuleProjects(
+		visited: MutableSet<String>,
+		recursionPath: ArrayDeque<String>,
+	): List<ModuleProject> {
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
 
-		// Guard against cyclic project-dependency graphs: expand each module at most once.
+		// True cycle: this module is already an ancestor on the current recursion path
+		// (e.g. :a -> :b -> :a). Report it and break the cycle.
+		if (recursionPath.contains(path)) {
+			reportDependencyCycle(recursionPath, path)
+			return emptyList()
+		}
+
+		// Already fully expanded elsewhere (a diamond / shared dependency, not a cycle): dedup.
 		if (!visited.add(path)) {
 			return emptyList()
 		}
 
-		val result = mutableListOf<ModuleProject>()
+		recursionPath.addLast(path)
+		try {
+			val result = mutableListOf<ModuleProject>()
 
-		val libraries = variantDependencies.mainArtifact.compileDependencyList
-		val libraryMap = variantDependencies.librariesMap
-		for (library in libraries) {
-			val lib = libraryMap[library.key] ?: continue
-			if (lib.type != AndroidModels.LibraryType.Project) {
-				continue
+			val libraries = variantDependencies.mainArtifact.compileDependencyList
+			val libraryMap = variantDependencies.librariesMap
+			for (library in libraries) {
+				val lib = libraryMap[library.key] ?: continue
+				if (lib.type != AndroidModels.LibraryType.Project) {
+					continue
+				}
+
+				val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
+				if (module !is ModuleProject) {
+					continue
+				}
+
+				result.add(module)
+				result.addAll(module.getCompileModuleProjects(visited, recursionPath))
 			}
 
-			val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
-			if (module !is ModuleProject) {
-				continue
-			}
-
-			result.add(module)
-			result.addAll(module.getCompileModuleProjects(visited))
+			return result
+		} finally {
+			recursionPath.removeLast()
 		}
-
-		return result
 	}
 
 	override fun hasExternalDependency(
