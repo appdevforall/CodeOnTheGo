@@ -124,16 +124,17 @@ class IndexingServiceManager(
 	override fun close() {
 		log.info("Shutting down indexing services")
 
-		// Close services (reverse registration order) and the registry, and
-		// block until they finish. Callers (e.g. ProjectManagerImpl.destroy())
-		// rely on shutdown being complete when close() returns -- the Closeable
-		// contract -- before they drop their reference to the manager.
+		// Close all services and the registry, and block until they finish.
+		// Callers (e.g. ProjectManagerImpl.destroy()) rely on shutdown being
+		// complete when close() returns -- the Closeable contract -- before they
+		// drop their reference to the manager.
 		//
-		// Each close runs concurrently on Dispatchers.Default and is bounded by
-		// SERVICE_CLOSE_TIMEOUT so a cooperatively-cancellable service cannot
-		// stall teardown indefinitely. Failures are isolated per service.
+		// Services are closed concurrently on Dispatchers.Default (so no ordering
+		// is implied), and each close is bounded by SERVICE_CLOSE_TIMEOUT so a
+		// cooperatively-cancellable service cannot stall teardown indefinitely.
+		// Failures are isolated per service.
 		runBlocking {
-			val serviceJobs = services.values.reversed().map { service ->
+			val serviceJobs = services.values.map { service ->
 				launch(Dispatchers.Default) {
 					withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
 						try {
