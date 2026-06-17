@@ -178,6 +178,32 @@ class ProjectManagerImpl :
 			// wait for the indexing to finish
 			jobs.toList().awaitAll()
 		}
+
+		reportUnreadableClasspathJars(workspace)
+	}
+
+	/**
+	 * Surface any classpath JARs that were corrupt/unreadable during indexing (e.g. a truncated
+	 * download or incomplete offline provisioning) to the user — naming the offending dependency and
+	 * offering a recovery path (re-sync) — instead of silently dropping its code-completion symbols.
+	 */
+	private fun reportUnreadableClasspathJars(workspace: Workspace) {
+		val names = workspace.subProjects
+			.filterIsInstance<ModuleProject>()
+			.flatMap { it.unreadableClasspathJars }
+			.map { it.name }
+			.distinct()
+		if (names.isEmpty()) {
+			return
+		}
+
+		val shown = names.take(3).joinToString(", ")
+		val more = if (names.size > 3) " and ${names.size - 3} more" else ""
+		log.warn("Skipped {} unreadable classpath JAR(s) during indexing: {}", names.size, names)
+		flashError(
+			"Some dependencies couldn't be read and were skipped, so code completion may be " +
+				"incomplete: $shown$more. Sync the project to re-download dependencies.",
+		)
 	}
 
 	override fun getAndroidModules(): List<AndroidModule> {

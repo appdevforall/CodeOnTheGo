@@ -101,4 +101,20 @@ class JarFsClasspathReaderCorruptJarTest {
     // Sanity: a non-trivial number of classes were indexed from the valid jar.
     assertThat(classes.size).isGreaterThan(100)
   }
+
+  /**
+   * The reader must EXPOSE the skipped JARs (not just log them) so the caller can name the offending
+   * dependency to the user and offer a recovery path (re-sync) instead of silently dropping symbols.
+   */
+  @Test
+  fun unreadableJarsAreCollectedForUserReporting() {
+    val reader = JarFsClasspathReader()
+    reader.listClasses(listOf(corruptJar, zeroByteJar, validJar))
+
+    val skipped = reader.unreadableJars.map { it.name }.toSet()
+    // Both the truncated and the zero-byte JAR are reported...
+    assertThat(skipped).containsExactly("corrupt.jar", "empty.jar")
+    // ...and the valid JAR is NOT reported as unreadable.
+    assertThat(skipped).doesNotContain("valid.jar")
+  }
 }

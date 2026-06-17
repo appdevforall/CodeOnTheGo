@@ -40,7 +40,19 @@ class JarFsClasspathReader : IClasspathReader {
     private val log = LoggerFactory.getLogger(JarFsClasspathReader::class.java)
   }
 
+  private val _unreadableJars = mutableListOf<File>()
+
+  /**
+   * JARs skipped during the most recent [listClasses] call because they were corrupt or could not
+   * be read (e.g. a truncated download / incomplete offline provisioning). Exposed so a caller can
+   * surface them to the user and offer a recovery path, instead of silently dropping that library's
+   * symbols. Reset at the start of every [listClasses] call.
+   */
+  val unreadableJars: List<File>
+    get() = _unreadableJars
+
   override fun listClasses(files: Collection<File>): ImmutableSet<ClassInfo> {
+    _unreadableJars.clear()
     val builder = ImmutableSet.builder<ClassInfo>()
     for (path in files.map(File::toPath)) {
       if (!Files.exists(path)) {
@@ -99,8 +111,10 @@ class JarFsClasspathReader : IClasspathReader {
       } catch (e: ZipException) {
         // A corrupt or truncated JAR must not abort indexing of the remaining classpath entries.
         log.warn("Skipping corrupt/unreadable JAR while indexing classpath: {}", path, e)
+        _unreadableJars.add(path.toFile())
       } catch (e: IOException) {
         log.warn("Skipping JAR that could not be read while indexing classpath: {}", path, e)
+        _unreadableJars.add(path.toFile())
       }
     }
     return builder.build()
