@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="@string/inline_suggestions_category"
+        android:key="inline_suggestions_category">
+
+        <SwitchPreferenceCompat
+            android:key="@string/key_inline_suggestion_enabled"
+            android:title="@string/inline_suggestion_enabled_title"
+            android:summary="@string/inline_suggestion_enabled_summary"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/key_inline_suggestion_auto_trigger"
+            android:title="@string/inline_suggestion_auto_trigger_title"
+            android:summary="@string/inline_suggestion_auto_trigger_summary"
+            android:defaultValue="true"
+            android:dependency="@string/key_inline_suggestion_enabled" />
+
+        <SeekBarPreference
+            android:key="@string/key_inline_suggestion_char_threshold"
+            android:title="@string/inline_suggestion_char_threshold_title"
+            android:summary="@string/inline_suggestion_char_threshold_summary"
+            android:defaultValue="3"
+            android:min="2"
+            android:max="5"
+            app:showSeekBarValue="true"
+            android:dependency="@string/key_inline_suggestion_auto_trigger" />
+
+        <SeekBarPreference
+            android:key="@string/key_inline_suggestion_debounce_ms"
+            android:title="@string/inline_suggestion_debounce_title"
+            android:summary="@string/inline_suggestion_debounce_summary"
+            android:defaultValue="300"
+            android:min="100"
+            android:max="1000"
+            app:showSeekBarValue="true"
+            android:dependency="@string/key_inline_suggestion_auto_trigger" />
+
+        <SeekBarPreference
+            android:key="@string/key_inline_suggestion_max_lines"
+            android:title="@string/inline_suggestion_max_lines_title"
+            android:summary="@string/inline_suggestion_max_lines_summary"
+            android:defaultValue="5"
+            android:min="1"
+            android:max="10"
+            app:showSeekBarValue="true"
+            android:dependency="@string/key_inline_suggestion_enabled" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/key_inline_suggestion_toolbar_button"
+            android:title="@string/inline_suggestion_toolbar_button_title"
+            android:summary="@string/inline_suggestion_toolbar_button_summary"
+            android:defaultValue="true"
+            android:dependency="@string/key_inline_suggestion_enabled" />
+
+    </PreferenceCategory>
+</PreferenceScreen>
