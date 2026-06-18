@@ -214,10 +214,10 @@ class EmbeddingIndexingService(
             try {
                 // Generate embedding using LLM
                 val embeddingVector = withContext(Dispatchers.Default) {
-                    controller.generateEmbedding(chunk.content)
+                    controller.encodeForEmbeddings(chunk.content)
                 }
 
-                if (embeddingVector == null || embeddingVector.isEmpty()) {
+                if (embeddingVector.isEmpty()) {
                     log.debug(
                         "Failed to generate embedding for chunk {} in file {}",
                         chunkIndex,
