@@ -46,6 +46,7 @@ class LlmCommandReceiver : BroadcastReceiver() {
 
         // Action types
         private const val ACTION_TYPE_VECTOR_SEARCH = "vector_search"
+        private const val ACTION_TYPE_FILE_EXPLORER = "file_explorer"
         private const val ACTION_TYPE_FEATURE_B = "feature_b"  // Placeholder for future
         private const val ACTION_TYPE_FEATURE_C = "feature_c"  // Placeholder for future
 
@@ -55,6 +56,12 @@ class LlmCommandReceiver : BroadcastReceiver() {
         // Vector search parameters
         private const val EXTRA_QUERY = "query"
         private const val EXTRA_MAX_FILES = "max_files"
+
+        // File explorer parameters
+        private const val EXTRA_OPERATION = "operation"  // list, read, tree
+        private const val EXTRA_PATH = "path"            // relative path from project root
+        private const val EXTRA_PATTERN = "pattern"      // glob pattern for filtering
+        private const val EXTRA_DEPTH = "depth"          // max depth for tree
 
         // Future feature parameters (placeholders)
         private const val EXTRA_INPUT = "input"
@@ -87,11 +94,12 @@ class LlmCommandReceiver : BroadcastReceiver() {
         // Route to appropriate handler based on action type
         when (action) {
             ACTION_TYPE_VECTOR_SEARCH -> handleVectorSearch(context, intent)
+            ACTION_TYPE_FILE_EXPLORER -> handleFileExplorer(context, intent)
             ACTION_TYPE_FEATURE_B -> handleFeatureB(context, intent)
             ACTION_TYPE_FEATURE_C -> handleFeatureC(context, intent)
             else -> {
                 log.error("LlmCommandReceiver: unknown action type '$action'")
-                log.error("Supported actions: $ACTION_TYPE_VECTOR_SEARCH, $ACTION_TYPE_FEATURE_B, $ACTION_TYPE_FEATURE_C")
+                log.error("Supported actions: $ACTION_TYPE_VECTOR_SEARCH, $ACTION_TYPE_FILE_EXPLORER, $ACTION_TYPE_FEATURE_B, $ACTION_TYPE_FEATURE_C")
             }
         }
     }
