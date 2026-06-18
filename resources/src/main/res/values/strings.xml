@@ -1193,6 +1193,8 @@
 
     <string name="retry">Retry</string>
     <string name="open_ai_settings">Open AI Settings</string>
+    <string name="ai_settings">AI Settings</string>
+    <string name="test_vector_search">Test Vector Search</string>
     <string name="new_chat">New chat</string>
     <string name="experimental_ai_use_at_your_own_risk">⚠️ Experimental AI. Use at your own risk.</string>
     <string name="current_ai_backend">Current AI Backend</string>

@@ -255,6 +255,21 @@ Java_android_llama_cpp_LLamaAndroid_load_1model(JNIEnv *env, jobject, jstring fi
         return 0;
     }
 
+    // Log model type information for debugging
+    bool has_encoder = llama_model_has_encoder(model);
+    bool has_decoder = llama_model_has_decoder(model);
+    LOGi("Model loaded: encoder=%s decoder=%s",
+         has_encoder ? "YES" : "NO",
+         has_decoder ? "YES" : "NO");
+
+    if (has_encoder && !has_decoder) {
+        LOGi("This is an encoder-only model (e.g., BERT-style)");
+    } else if (!has_encoder && has_decoder) {
+        LOGi("This is a decoder-only model (e.g., GPT-style)");
+    } else if (has_encoder && has_decoder) {
+        LOGi("This is an encoder-decoder model (e.g., T5-style)");
+    }
+
     return reinterpret_cast<jlong>(model);
 }
 
@@ -275,16 +290,24 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
         return 0;
     }
 
-    int default_threads = std::max(1, std::min(8, (int) sysconf(_SC_NPROCESSORS_ONLN) - 2));
+    // More conservative thread calculation for Android to avoid OpenMP assertions
+    // Cap at 4 threads to prevent issues with big.LITTLE architectures
+    int cpu_count = (int) sysconf(_SC_NPROCESSORS_ONLN);
+    int default_threads = std::max(1, std::min(4, cpu_count / 2));
     int n_threads = g_n_threads.load();
     if (n_threads <= 0) {
         n_threads = default_threads;
+    } else {
+        // Ensure configured threads don't exceed safe limit
+        n_threads = std::min(n_threads, 4);
     }
     int n_threads_batch = g_n_threads_batch.load();
     if (n_threads_batch <= 0) {
         n_threads_batch = n_threads;
+    } else {
+        n_threads_batch = std::min(n_threads_batch, 4);
     }
-    LOGi("Using %d threads (batch=%d)", n_threads, n_threads_batch);
+    LOGi("Using %d threads (batch=%d) from %d CPUs", n_threads, n_threads_batch, cpu_count);
 
     llama_context_params ctx_params = llama_context_default_params();
 
@@ -292,14 +315,57 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
     ctx_params.n_ctx = configured_ctx > 0 ? configured_ctx : 4096;
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads_batch;
+    // CRITICAL FIX: Set n_batch and n_ubatch to match the batch size we create (2048)
+    // This prevents crashes when encode() is called for encoder/encoder-decoder models
+    // Default n_ubatch is only 512, which causes SIGABRT when batch has 2048 tokens
+    ctx_params.n_batch = 2048;
+    ctx_params.n_ubatch = 2048;
+
+    // Enable embeddings extraction for encoder models (for vector search)
+    // Read architecture from GGUF metadata (more reliable than llama_model_has_encoder)
+    char arch_buf[64] = {0};
+    int arch_len = llama_model_meta_val_str(model, "general.architecture", arch_buf, sizeof(arch_buf));
+    std::string architecture = (arch_len > 0) ? std::string(arch_buf) : "";
+
+    // Check for encoder-only architectures
+    bool is_encoder_model = (architecture == "bert" ||
+                             architecture == "nomic-bert" ||
+                             architecture == "jina-bert-v2");
+
+    bool has_encoder = llama_model_has_encoder(model);
+    bool has_decoder = llama_model_has_decoder(model);
+
+    LOGi("Model architecture: '%s' (from GGUF metadata)", architecture.c_str());
+    LOGi("Model type detection: encoder=%s decoder=%s",
+         has_encoder ? "YES" : "NO", has_decoder ? "YES" : "NO");
+
+    if (is_encoder_model) {
+        ctx_params.embeddings = true;
+        ctx_params.pooling_type = LLAMA_POOLING_TYPE_MEAN;  // Use mean pooling for embeddings
+        LOGi("Enabling embeddings mode for encoder model (architecture: %s)", architecture.c_str());
+    }
 
     llama_context *context = llama_init_from_model(model, ctx_params);
 
     if (!context) {
-        LOGe("llama_new_context_with_model() returned null)");
+        LOGe("llama_init_from_model() returned null");
         env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
-                      "llama_new_context_with_model() returned null)");
+                      "llama_init_from_model() returned null");
         return 0;
+    }
+
+    LOGi("Context created successfully: n_ctx=%d, n_batch=%d, n_ubatch=%d, embeddings=%s",
+         ctx_params.n_ctx, ctx_params.n_batch, ctx_params.n_ubatch,
+         ctx_params.embeddings ? "enabled" : "disabled");
+
+    // Log model type information
+    if (is_encoder_model) {
+        LOGi("This is an encoder-only model (e.g., BERT-style)");
+        LOGi("Designed for embeddings/classification, not text generation");
+    } else if (has_encoder && has_decoder) {
+        LOGi("This is an encoder-decoder model (e.g., T5-style)");
+    } else if (!has_encoder && has_decoder) {
+        LOGi("This is a decoder-only model (e.g., GPT-style)");
     }
 
     return reinterpret_cast<jlong>(context);
@@ -686,8 +752,12 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
     if (batch->n_tokens > 0) {
         // llama_decode will output logits only for the last token of the prompt
         batch->logits[batch->n_tokens - 1] = true;
-        if (llama_decode(context, *batch) != 0) {
-            LOGe("llama_decode() failed");
+        int decode_result = llama_decode(context, *batch);
+        if (decode_result != 0) {
+            LOGe("llama_decode() failed in completion_init with error code: %d", decode_result);
+            env->ThrowNew(env->FindClass("java/lang/RuntimeException"),
+                         "Failed to decode prompt. This may indicate a threading or memory issue.");
+            return 0;
         }
     }
 
@@ -816,8 +886,10 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
 
     env->CallVoidMethod(intvar_ncur, la_int_var_inc);
 
-    if (llama_decode(context, *batch) != 0) {
-        LOGe("llama_decode() returned null");
+    int decode_result = llama_decode(context, *batch);
+    if (decode_result != 0) {
+        LOGe("llama_decode() failed in completion_loop with error code: %d", decode_result);
+        // Don't throw exception here, just stop generation gracefully
         return nullptr;
     }
 
@@ -877,6 +949,125 @@ Java_android_llama_cpp_LLamaAndroid_tokenize(
         env->SetIntArrayRegion(result, 0, tokens_list.size(),
                                reinterpret_cast<const jint *>(tokens_list.data()));
     }
+
+    return result;
+}
+
+/**
+ * Extract embeddings from the context after encoding.
+ * Used for vector search / semantic similarity tasks with encoder models.
+ * Returns a float array containing the embedding vector.
+ */
+extern "C"
+JNIEXPORT jfloatArray JNICALL
+Java_android_llama_cpp_LLamaAndroid_get_1embeddings(JNIEnv *env, jobject, jlong context_pointer) {
+    auto context = reinterpret_cast<llama_context *>(context_pointer);
+    if (!context) {
+        LOGe("get_embeddings: context is null");
+        return env->NewFloatArray(0);
+    }
+
+    // Get embeddings from the context (after encoding)
+    float* embeddings = llama_get_embeddings(context);
+    if (!embeddings) {
+        LOGe("llama_get_embeddings() returned null - ensure embeddings mode is enabled");
+        return env->NewFloatArray(0);
+    }
+
+    // Get embedding dimension from model
+    const auto model = llama_get_model(context);
+    const auto n_embd = llama_model_n_embd(model);
+
+    LOGi("Extracting embeddings: dimension=%d", n_embd);
+
+    // Create Java float array and copy embeddings
+    jfloatArray result = env->NewFloatArray(n_embd);
+    if (!result) {
+        LOGe("Failed to allocate float array for embeddings");
+        return env->NewFloatArray(0);
+    }
+
+    env->SetFloatArrayRegion(result, 0, n_embd, embeddings);
+
+    return result;
+}
+
+/**
+ * Encode text and immediately extract embeddings in one atomic operation.
+ * This ensures embeddings are retrieved before any other operation clears them.
+ * Used for vector search with encoder models.
+ */
+extern "C"
+JNIEXPORT jfloatArray JNICALL
+Java_android_llama_cpp_LLamaAndroid_encode_1for_1embeddings(
+        JNIEnv *env,
+        jobject,
+        jlong context_pointer,
+        jlong batch_pointer,
+        jstring text_j
+) {
+    auto context = reinterpret_cast<llama_context *>(context_pointer);
+    auto batch = reinterpret_cast<llama_batch *>(batch_pointer);
+
+    if (!context || !batch) {
+        LOGe("encode_for_embeddings: context or batch is null");
+        return env->NewFloatArray(0);
+    }
+
+    // Convert Java string to C++ string
+    const char *text_cstr = env->GetStringUTFChars(text_j, nullptr);
+    std::string text(text_cstr);
+    env->ReleaseStringUTFChars(text_j, text_cstr);
+
+    // Get model for later use
+    const auto model = llama_get_model(context);
+
+    // Tokenize the text
+    bool parse_special = false;
+    const auto tokens = common_tokenize(context, text, true, parse_special);
+
+    if (tokens.empty()) {
+        LOGe("encode_for_embeddings: tokenization resulted in empty tokens");
+        return env->NewFloatArray(0);
+    }
+
+    LOGi("encode_for_embeddings: tokenized to %zu tokens", tokens.size());
+
+    // Clear KV cache before encoding
+    llama_memory_clear(llama_get_memory(context), true);
+
+    // Clear and populate batch
+    common_batch_clear(*batch);
+    for (size_t i = 0; i < tokens.size(); i++) {
+        common_batch_add(*batch, tokens[i], i, {0}, i == tokens.size() - 1);
+    }
+
+    // Encode the batch
+    int encode_result = llama_encode(context, *batch);
+    if (encode_result != 0) {
+        LOGe("encode_for_embeddings: llama_encode() failed with code %d", encode_result);
+        return env->NewFloatArray(0);
+    }
+
+    // Immediately get embeddings while they're still valid
+    float* embeddings = llama_get_embeddings(context);
+    if (!embeddings) {
+        LOGe("encode_for_embeddings: llama_get_embeddings() returned null");
+        return env->NewFloatArray(0);
+    }
+
+    // Get embedding dimension
+    const auto n_embd = llama_model_n_embd(model);
+    LOGi("encode_for_embeddings: extracted embeddings with dimension=%d", n_embd);
+
+    // Create Java float array and copy embeddings
+    jfloatArray result = env->NewFloatArray(n_embd);
+    if (!result) {
+        LOGe("encode_for_embeddings: failed to allocate float array");
+        return env->NewFloatArray(0);
+    }
+
+    env->SetFloatArrayRegion(result, 0, n_embd, embeddings);
 
     return result;
 }

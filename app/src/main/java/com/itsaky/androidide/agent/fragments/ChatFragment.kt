@@ -29,8 +29,12 @@ import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.Sender
+import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
+import com.itsaky.androidide.api.commands.VectorSearchTestCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.utils.flashInfo
@@ -294,6 +298,11 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 					true
 				}
 
+				R.id.menu_test_vector_search -> {
+					testVectorSearch()
+					true
+				}
+
 				else -> false
 			}
 		}
@@ -495,5 +504,77 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 	private fun hideKeyboard() {
 		val inputMethodManager = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
 		inputMethodManager?.hideSoftInputFromWindow(binding.promptInputEdittext.windowToken, 0)
+	}
+
+	private fun testVectorSearch() {
+		val log = org.slf4j.LoggerFactory.getLogger("VectorSearchTest")
+
+		lifecycleScope.launch {
+			try {
+				log.info("Starting vector search test from menu...")
+
+				val engine = LlmInferenceEngineProvider.instance
+
+				// Ensure model is loaded (it's loaded lazily when first message is sent)
+				if (!engine.isModelLoaded) {
+					log.info("Model not loaded yet, loading now...")
+
+					// Get model path from preferences
+					val prefs = com.itsaky.androidide.app.BaseApplication.baseInstance.prefManager
+					val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+					val modelHash = prefs.getString(PREF_KEY_LOCAL_MODEL_SHA256, null)
+
+					if (modelPath.isNullOrBlank()) {
+						log.error("No model path configured")
+						withContext<Unit>(Dispatchers.Main) {
+							requireActivity().flashInfo("No model configured. Please select a model in AI Settings.")
+						}
+						return@launch
+					}
+
+					val loaded = withContext(Dispatchers.IO) {
+						engine.initModelFromFile(requireContext(), modelPath, modelHash)
+					}
+
+					if (!loaded) {
+						log.error("Failed to load model from: $modelPath")
+						withContext<Unit>(Dispatchers.Main) {
+							requireActivity().flashInfo("Failed to load model. Check logcat for details.")
+						}
+						return@launch
+					}
+
+					log.info("Model loaded successfully: ${engine.loadedModelName}")
+				} else {
+					log.info("Model already loaded: ${engine.loadedModelName}")
+				}
+
+				// Run the test with query "main" and max 10 files
+				val command = VectorSearchTestCommand("main", engine, maxFiles = 10)
+				val result = withContext(Dispatchers.IO) {
+					command.execute()
+				}
+
+				// Log the result
+				if (result.success) {
+					log.info("Vector search test completed successfully")
+					log.info("Result:\n${result.data}")
+					withContext<Unit>(Dispatchers.Main) {
+						requireActivity().flashInfo("Vector search test completed - see logcat")
+					}
+				} else {
+					log.error("Vector search test failed: ${result.message}")
+					log.error("Error details: ${result.error_details}")
+					withContext<Unit>(Dispatchers.Main) {
+						requireActivity().flashInfo("Vector search test failed: ${result.message}")
+					}
+				}
+			} catch (e: Exception) {
+				log.error("Exception during vector search test", e)
+				withContext<Unit>(Dispatchers.Main) {
+					requireActivity().flashInfo("Vector search test error: ${e.message}")
+				}
+			}
+		}
 	}
 }

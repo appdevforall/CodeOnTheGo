@@ -37,6 +37,30 @@ class LLamaAndroid : ILlamaController {
         }
     }
 
+    override suspend fun getEmbeddings(): FloatArray {
+        return withContext(runLoop) {
+            when (val state = threadLocalState.get()) {
+                is State.Loaded -> get_embeddings(state.context)
+                else -> {
+                    log.warn("Cannot get embeddings - model not loaded")
+                    FloatArray(0)
+                }
+            }
+        }
+    }
+
+    override suspend fun encodeForEmbeddings(text: String): FloatArray {
+        return withContext(runLoop) {
+            when (val state = threadLocalState.get()) {
+                is State.Loaded -> encode_for_embeddings(state.context, state.batch, text)
+                else -> {
+                    log.warn("Cannot encode for embeddings - model not loaded")
+                    FloatArray(0)
+                }
+            }
+        }
+    }
+
     override suspend fun countTokens(text: String): Int {
         return tokenize(text).size
     }
@@ -121,6 +145,10 @@ class LLamaAndroid : ILlamaController {
     ): String?
 
     private external fun kv_cache_clear(context: Long)
+
+    private external fun get_embeddings(context: Long): FloatArray
+
+    private external fun encode_for_embeddings(context: Long, batch: Long, text: String): FloatArray
 
     override fun stop() {
         log.info("Stop requested for current generation.")
