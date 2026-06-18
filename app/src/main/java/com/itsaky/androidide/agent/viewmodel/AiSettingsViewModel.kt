@@ -11,6 +11,9 @@ import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.LlmInferenceEngine
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
+import com.itsaky.androidide.agent.repository.ModelPurpose
+import com.itsaky.androidide.agent.repository.ModelPurpose.Companion.getPreferenceKey
+import com.itsaky.androidide.agent.repository.ModelPurpose.Companion.getSha256PreferenceKey
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
@@ -184,5 +187,134 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
 
     fun clearGeminiApiKey() {
         EncryptedPrefs.clearGeminiApiKey(getApplication())
+    }
+
+    // --- Multi-Model Support ---
+
+    /**
+     * State for models organized by purpose
+     */
+    data class ModelPurposeState(
+        val purpose: ModelPurpose,
+        val savedPath: String? = null,
+        val loadingState: ModelLoadingState = ModelLoadingState.Idle
+    )
+
+    private val _modelStates = MutableLiveData<Map<ModelPurpose, ModelPurposeState>>(emptyMap())
+    val modelStates: LiveData<Map<ModelPurpose, ModelPurposeState>> get() = _modelStates
+
+    /**
+     * Get available model purposes (currently showing only CHAT and EMBEDDINGS)
+     */
+    fun getAvailableModelPurposes(): List<ModelPurpose> {
+        return listOf(
+            ModelPurpose.CHAT,
+            ModelPurpose.EMBEDDINGS
+            // Will add SPEECH_TO_TEXT and CODE_COMPLETION when implemented
+        )
+    }
+
+    /**
+     * Load initial model states for all purposes
+     */
+    fun loadModelPurposeStates() {
+        val prefs = BaseApplication.baseInstance.prefManager
+        val states = mutableMapOf<ModelPurpose, ModelPurposeState>()
+
+        for (purpose in getAvailableModelPurposes()) {
+            val savedPath = prefs.getString(purpose.getPreferenceKey(), null)
+            states[purpose] = ModelPurposeState(
+                purpose = purpose,
+                savedPath = savedPath,
+                loadingState = ModelLoadingState.Idle
+            )
+        }
+
+        _modelStates.value = states
+    }
+
+    /**
+     * Save model path for a specific purpose
+     */
+    fun saveModelPath(purpose: ModelPurpose, uriString: String) {
+        val prefs = BaseApplication.baseInstance.prefManager
+        prefs.putString(purpose.getPreferenceKey(), uriString)
+
+        // Update state
+        val currentStates = _modelStates.value.orEmpty().toMutableMap()
+        currentStates[purpose] = currentStates[purpose]?.copy(savedPath = uriString)
+            ?: ModelPurposeState(purpose, savedPath = uriString)
+        _modelStates.value = currentStates
+    }
+
+    /**
+     * Get saved model path for a specific purpose
+     */
+    fun getModelPath(purpose: ModelPurpose): String? {
+        val prefs = BaseApplication.baseInstance.prefManager
+        return prefs.getString(purpose.getPreferenceKey(), null)
+    }
+
+    /**
+     * Save SHA-256 for a model purpose
+     */
+    fun saveModelSha256(purpose: ModelPurpose, hash: String?) {
+        val prefs = BaseApplication.baseInstance.prefManager
+        val normalized = hash?.trim().orEmpty()
+        prefs.putString(purpose.getSha256PreferenceKey(), normalized)
+    }
+
+    /**
+     * Get SHA-256 for a model purpose
+     */
+    fun getModelSha256(purpose: ModelPurpose): String? {
+        val prefs = BaseApplication.baseInstance.prefManager
+        val value = prefs.getString(purpose.getSha256PreferenceKey(), null)
+        return value?.trim().takeIf { !it.isNullOrBlank() }
+    }
+
+    /**
+     * Load a model for a specific purpose
+     */
+    fun loadModelForPurpose(purpose: ModelPurpose, path: String, context: Context) {
+        val currentState = _engineState.value
+
+        if (currentState !is EngineState.Initialized) {
+            updateModelPurposeState(
+                purpose,
+                ModelLoadingState.Error("Engine not initialized")
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            updateModelPurposeState(purpose, ModelLoadingState.Loading)
+
+            val expectedHash = getModelSha256(purpose)
+            val success = llmInferenceEngine.initModelFromFile(context, path, expectedHash)
+
+            if (success && llmInferenceEngine.loadedModelName != null) {
+                updateModelPurposeState(
+                    purpose,
+                    ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
+                )
+                saveModelPath(purpose, path)
+            } else {
+                updateModelPurposeState(
+                    purpose,
+                    ModelLoadingState.Error("Failed to load model")
+                )
+            }
+        }
+    }
+
+    /**
+     * Update the loading state for a specific model purpose
+     */
+    private fun updateModelPurposeState(purpose: ModelPurpose, state: ModelLoadingState) {
+        val currentStates = _modelStates.value.orEmpty().toMutableMap()
+        val existing = currentStates[purpose] ?: ModelPurposeState(purpose)
+        currentStates[purpose] = existing.copy(loadingState = state)
+        _modelStates.value = currentStates
     }
 }

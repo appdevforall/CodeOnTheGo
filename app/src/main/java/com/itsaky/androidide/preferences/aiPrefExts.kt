@@ -47,9 +47,29 @@ class VoiceCodeGroup(
     init {
         addPreference(VoiceCodeEnabled())
         addPreference(SttModePreference())
-        addPreference(VoiceLanguagePreference())
+        addPreference(createVoiceLanguagePreference())
         addPreference(PreviewBeforeInsertPreference())
         addPreference(TypingAnimationPreference())
+    }
+
+    private fun createVoiceLanguagePreference(): SimpleClickablePreference {
+        return SimpleClickablePreference(
+            key = "voice_language",
+            title = R.string.voice_language_title,
+            summary = R.string.voice_language_summary,
+            icon = null,
+            onClick = { preference ->
+                VoiceLanguageDialog.show(preference.context) { newLanguage ->
+                    val displayName = VoicePreferences.getLanguageDisplayName(preference.context, newLanguage)
+                    Toast.makeText(
+                        preference.context,
+                        "Language: $displayName",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                true
+            }
+        )
     }
 }
 
@@ -112,33 +132,6 @@ class SttModePreference(
         ).show()
 
         return true
-    }
-}
-
-@Parcelize
-class VoiceLanguagePreference(
-    override val key: String = "voice_language",
-    override val title: Int = R.string.voice_language_title,
-    override val summary: Int? = R.string.voice_language_summary,
-    override val icon: Int? = null
-) : SimpleClickablePreference() {
-
-    override fun onClick(preference: Preference): Boolean {
-        VoiceLanguageDialog.show(preference.context) { newLanguage ->
-            val displayName = VoicePreferences.getLanguageDisplayName(preference.context, newLanguage)
-            Toast.makeText(
-                preference.context,
-                "Language: $displayName",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
-        return true
-    }
-
-    override fun onCreatePreference(preference: Preference) {
-        super.onCreatePreference(preference)
-        val currentLanguage = VoicePreferences.getVoiceLanguage(preference.context)
-        preference.summary = VoicePreferences.getLanguageDisplayName(preference.context, currentLanguage)
     }
 }
 

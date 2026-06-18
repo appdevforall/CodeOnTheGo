@@ -21,6 +21,7 @@ import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.itsaky.androidide.R
 import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.ModelPurpose
 import com.itsaky.androidide.agent.repository.Util.getCurrentBackend
 import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
 import com.itsaky.androidide.agent.viewmodel.EngineState
@@ -48,8 +49,17 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                 requireContext().contentResolver.takePersistableUriPermission(it, takeFlags)
 
                 val uriString = it.toString()
-                viewModel.loadModelFromUri(uriString, requireContext())
-                flashInfo("Attempting to load selected model...")
+
+                // If browsing for a specific purpose, load for that purpose
+                currentBrowsingPurpose?.let { purpose ->
+                    viewModel.loadModelForPurpose(purpose, uriString, requireContext())
+                    flashInfo("Loading ${purpose.displayName}...")
+                    currentBrowsingPurpose = null
+                } ?: run {
+                    // Fallback to legacy single model loading
+                    viewModel.loadModelFromUri(uriString, requireContext())
+                    flashInfo("Attempting to load selected model...")
+                }
             }
         }
 
@@ -95,8 +105,8 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         when (backend) {
             AiBackend.LOCAL_LLM -> {
                 val localLlmView = LayoutInflater.from(requireContext())
-                    .inflate(R.layout.layout_settings_local_llm, container, true)
-                updateLocalLlmUi(localLlmView)
+                    .inflate(R.layout.layout_settings_local_llm_multi, container, true)
+                setupMultiModelUi(localLlmView)
             }
             AiBackend.GEMINI -> {
                 val geminiApiView = LayoutInflater.from(requireContext())
@@ -105,6 +115,146 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             }
         }
     }
+
+    /**
+     * Setup UI for managing multiple models by purpose
+     */
+    private fun setupMultiModelUi(view: View) {
+        val engineStatusTextView = view.findViewById<TextView>(R.id.engine_status_text)
+        val modelPurposesContainer = view.findViewById<android.widget.LinearLayout>(R.id.model_purposes_container)
+        val simplePromptSwitch = view.findViewById<MaterialSwitch>(R.id.switch_simple_local_prompt)
+
+        // Setup simple prompt switch
+        simplePromptSwitch?.apply {
+            isChecked = viewModel.isUseSimpleLocalPromptEnabled()
+            setOnCheckedChangeListener { _, isChecked ->
+                viewModel.setUseSimpleLocalPrompt(isChecked)
+            }
+        }
+
+        // Observe engine state
+        viewModel.engineState.observe(viewLifecycleOwner) { state ->
+            when (state) {
+                is EngineState.Initializing, EngineState.Uninitialized -> {
+                    engineStatusTextView.text = getString(R.string.ai_setting_initializing_engine)
+                }
+                is EngineState.Initialized -> {
+                    engineStatusTextView.text = getString(R.string.ai_setting_engine_ready)
+                }
+                is EngineState.Error -> {
+                    engineStatusTextView.text = state.message
+                }
+            }
+        }
+
+        // Load model states
+        viewModel.loadModelPurposeStates()
+
+        // Create cards for each model purpose
+        for (purpose in viewModel.getAvailableModelPurposes()) {
+            val purposeCard = createModelPurposeCard(purpose, modelPurposesContainer)
+            modelPurposesContainer.addView(purposeCard)
+        }
+
+        // Observe model states
+        viewModel.modelStates.observe(viewLifecycleOwner) { states ->
+            updateModelPurposeCards(modelPurposesContainer, states)
+        }
+    }
+
+    /**
+     * Create a card for a specific model purpose
+     */
+    private fun createModelPurposeCard(
+        purpose: ModelPurpose,
+        container: android.view.ViewGroup
+    ): View {
+        val inflater = LayoutInflater.from(requireContext())
+        val card = inflater.inflate(R.layout.layout_model_purpose_item, container, false)
+
+        // Set purpose info
+        card.findViewById<TextView>(R.id.purpose_title).text = purpose.displayName
+        card.findViewById<TextView>(R.id.purpose_description).text = purpose.description
+        card.tag = purpose.name // Tag for finding the card later
+
+        // Setup browse button
+        card.findViewById<Button>(R.id.btn_browse).setOnClickListener {
+            currentBrowsingPurpose = purpose
+            filePickerLauncher.launch(arrayOf("*/*"))
+        }
+
+        // Setup load saved button
+        card.findViewById<Button>(R.id.btn_load_saved).setOnClickListener {
+            viewModel.getModelPath(purpose)?.let { path ->
+                viewModel.loadModelForPurpose(purpose, path, requireContext())
+                flashInfo("Loading ${purpose.displayName}...")
+            }
+        }
+
+        // Setup SHA input
+        val shaInput = card.findViewById<TextInputEditText>(R.id.sha_input)
+        shaInput.setText(viewModel.getModelSha256(purpose).orEmpty())
+        shaInput.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                viewModel.saveModelSha256(purpose, shaInput.text?.toString())
+            }
+        }
+
+        return card
+    }
+
+    /**
+     * Update all model purpose cards with current states
+     */
+    private fun updateModelPurposeCards(
+        container: android.view.ViewGroup,
+        states: Map<ModelPurpose, AiSettingsViewModel.ModelPurposeState>
+    ) {
+        for (i in 0 until container.childCount) {
+            val card = container.getChildAt(i)
+            val purposeName = card.tag as? String ?: continue
+            val purpose = ModelPurpose.valueOf(purposeName)
+            val state = states[purpose] ?: continue
+
+            val modelStatus = card.findViewById<TextView>(R.id.model_status)
+            val modelPath = card.findViewById<TextView>(R.id.selected_model_path)
+            val loadSavedButton = card.findViewById<Button>(R.id.btn_load_saved)
+            val browseButton = card.findViewById<Button>(R.id.btn_browse)
+
+            // Update status text
+            when (state.loadingState) {
+                is ModelLoadingState.Idle -> {
+                    modelStatus.text = "No model loaded"
+                }
+                is ModelLoadingState.Loading -> {
+                    modelStatus.text = "Loading..."
+                }
+                is ModelLoadingState.Loaded -> {
+                    modelStatus.text = "✅ ${state.loadingState.modelName}"
+                }
+                is ModelLoadingState.Error -> {
+                    modelStatus.text = "❌ ${state.loadingState.message}"
+                }
+            }
+
+            // Update saved path display
+            if (state.savedPath != null) {
+                modelPath.visibility = View.VISIBLE
+                val fileName = state.savedPath.toUri().getFileName(requireContext())
+                modelPath.text = "Saved: $fileName"
+            } else {
+                modelPath.visibility = View.GONE
+            }
+
+            // Update button states
+            val engineReady = viewModel.engineState.value is EngineState.Initialized
+            loadSavedButton.isEnabled = engineReady && state.savedPath != null
+            browseButton.isEnabled = engineReady
+        }
+    }
+
+    // Track which purpose is currently being browsed
+    private var currentBrowsingPurpose: ModelPurpose? = null
 
     private fun updateLocalLlmUi(view: View) {
         val modelPathTextView = view.findViewById<TextView>(R.id.selected_model_path)

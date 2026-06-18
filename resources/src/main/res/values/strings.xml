@@ -1347,4 +1347,6 @@
 	<string name="voice_typing_animation_title">Typing Animation</string>
 	<string name="voice_typing_animation_summary">Animate code insertion</string>
 
+	<string name="voice_code">Voice Code</string>
+
 </resources>
