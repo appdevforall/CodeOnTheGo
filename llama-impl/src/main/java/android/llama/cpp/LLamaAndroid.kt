@@ -150,10 +150,12 @@ class LLamaAndroid : ILlamaController {
 
     private external fun encode_for_embeddings(context: Long, batch: Long, text: String): FloatArray
 
+    private external fun generate_embeddings(context: Long, batch: Long, text: String): FloatArray
+
     override suspend fun generateEmbedding(text: String): FloatArray {
         return withContext(runLoop) {
             when (val state = threadLocalState.get()) {
-                is State.Loaded -> encode_for_embeddings(state.context, state.batch, text)
+                is State.Loaded -> generate_embeddings(state.context, state.batch, text)
                 else -> FloatArray(0) // Return empty array if not loaded
             }
         }
@@ -163,7 +165,7 @@ class LLamaAndroid : ILlamaController {
         return withContext(runLoop) {
             when (val state = threadLocalState.get()) {
                 is State.Loaded -> {
-                    val testEmbedding = encode_for_embeddings(state.context, state.batch, " ")
+                    val testEmbedding = generate_embeddings(state.context, state.batch, " ")
                     testEmbedding.size
                 }
                 else -> 384 // Default for all-MiniLM-L6-v2

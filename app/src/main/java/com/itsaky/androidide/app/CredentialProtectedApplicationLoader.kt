@@ -7,6 +7,7 @@ import com.blankj.utilcode.util.ThrowableUtils
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
+import com.itsaky.androidide.editor.InlineSuggestionLlmConfig
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.managers.ToolsManager
@@ -107,6 +108,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 		initializePluginSystem()
 		installPluginCrashLooperGuard()
+
+		// Configure LLM for inline code suggestions
+		InlineSuggestionLlmConfig.configure()
 
 		app.coroutineScope.launch(Dispatchers.IO) {
 			// color schemes are stored in files

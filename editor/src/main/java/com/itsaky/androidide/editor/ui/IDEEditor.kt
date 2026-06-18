@@ -18,11 +18,13 @@
 package com.itsaky.androidide.editor.ui
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Rect
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -610,6 +612,22 @@ constructor(
         }
     }
 
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val inlineComponent = getComponent(InlineSuggestionComponent::class.java)
+        if (inlineComponent?.onKeyEvent(event) == true) {
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+
+        if (!isReleased) {
+            getComponent(InlineSuggestionComponent::class.java)?.draw(canvas)
+        }
+    }
+
     override fun copyTextToClipboard(
         text: CharSequence,
         start: Int,
@@ -883,12 +901,16 @@ constructor(
         window.setAdapter(CompletionListAdapter())
         replaceComponent(EditorAutoCompletion::class.java, window)
 
+        replaceComponent(InlineSuggestionComponent::class.java, InlineSuggestionComponent(this))
+
         getComponent(EditorTextActionWindow::class.java).isEnabled = false
 
         subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
             if (isReleased) {
                 return@subscribeEvent
             }
+
+            getComponent(InlineSuggestionComponent::class.java)?.onContentChange(event)
 
             markModified()
             file ?: return@subscribeEvent
@@ -900,10 +922,12 @@ constructor(
             }
         }
 
-        subscribeEvent(SelectionChangeEvent::class.java) { _, _ ->
+        subscribeEvent(SelectionChangeEvent::class.java) { event, _ ->
             if (isReleased) {
                 return@subscribeEvent
             }
+
+            getComponent(InlineSuggestionComponent::class.java)?.onSelectionChange(event)
 
             if (_diagnosticWindow?.isShowing == true) {
                 _diagnosticWindow?.dismiss()

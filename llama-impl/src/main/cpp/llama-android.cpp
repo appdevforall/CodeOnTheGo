@@ -1071,3 +1071,61 @@ Java_android_llama_cpp_LLamaAndroid_encode_1for_1embeddings(
 
     return result;
 }
+
+/**
+ * Generate embeddings for text (alternative implementation using sequence embeddings).
+ * This is the cleaner implementation used by inline suggestions.
+ */
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_android_llama_cpp_LLamaAndroid_generate_1embeddings(
+        JNIEnv *env,
+        jobject /* this */,
+        jlong context_ptr,
+        jlong batch_ptr,
+        jstring text) {
+    auto *context = reinterpret_cast<llama_context *>(context_ptr);
+    auto *batch = reinterpret_cast<llama_batch *>(batch_ptr);
+
+    if (!context || !batch) {
+        return env->NewFloatArray(0);
+    }
+
+    const char *text_chars = env->GetStringUTFChars(text, nullptr);
+    std::string text_str(text_chars);
+    env->ReleaseStringUTFChars(text, text_chars);
+
+    bool parse_special = false;
+    const std::vector<llama_token> tokens_list = common_tokenize(context, text_str, true, parse_special);
+
+    if (tokens_list.empty()) {
+        return env->NewFloatArray(0);
+    }
+
+    common_batch_clear(*batch);
+
+    for (size_t i = 0; i < tokens_list.size(); i++) {
+        common_batch_add(*batch, tokens_list[i], i, {0}, false);
+    }
+
+    if (llama_encode(context, *batch) != 0) {
+        LOGe("llama_encode() failed");
+        return env->NewFloatArray(0);
+    }
+
+    const int32_t n_embd = llama_model_n_embd(llama_get_model(context));
+    if (n_embd <= 0) {
+        return env->NewFloatArray(0);
+    }
+
+    float *embeddings = llama_get_embeddings_seq(context, 0);
+    if (!embeddings) {
+        return env->NewFloatArray(0);
+    }
+
+    jfloatArray result = env->NewFloatArray(n_embd);
+    if (result) {
+        env->SetFloatArrayRegion(result, 0, n_embd, embeddings);
+    }
+
+    return result;
+}

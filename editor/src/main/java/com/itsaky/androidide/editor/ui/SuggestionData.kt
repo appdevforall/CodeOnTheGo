@@ -15,27 +15,23 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import com.itsaky.androidide.build.config.BuildConfig
+package com.itsaky.androidide.editor.ui
 
-plugins {
-	id("com.android.library")
-	id("kotlin-android")
-	id("kotlin-parcelize")
-}
+import com.itsaky.androidide.models.Position
 
-android {
-	namespace = "${BuildConfig.PACKAGE_NAME}.preferences"
-}
-
-dependencies {
-	implementation(projects.common)
-	implementation(projects.eventbusEvents)
-	implementation(projects.idetooltips)
-	implementation(projects.resources)
-	implementation(projects.shared)
-	implementation(libs.androidx.annotation)
-	implementation(libs.androidx.preference)
-	implementation(libs.google.material)
-
-	testImplementation(libs.tests.junit)
-}
+/**
+ * Data class representing an inline code suggestion.
+ *
+ * @property text Multi-line suggestion text
+ * @property startPosition Position where suggestion starts in the document
+ * @property cursorLine Line number where cursor was when suggestion requested
+ * @property cursorColumn Column number where cursor was when suggestion requested
+ * @property requestTimestamp Unix timestamp when suggestion was requested (for cache expiry)
+ */
+data class SuggestionData(
+    val text: String,
+    val startPosition: Position,
+    val cursorLine: Int,
+    val cursorColumn: Int,
+    val requestTimestamp: Long
+)

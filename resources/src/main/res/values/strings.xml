@@ -1329,6 +1329,34 @@
 	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
+	<string name="inline_suggestion_trigger">Get AI suggestion (Ctrl+Space)</string>
+
+	<!-- Inline Suggestions Settings -->
+	<string name="inline_suggestions_category">Inline Suggestions</string>
+	<string name="key_inline_suggestion_enabled">inline_suggestion_enabled</string>
+	<string name="inline_suggestion_enabled_title">Enable inline suggestions</string>
+	<string name="inline_suggestion_enabled_summary">Show AI-powered code suggestions as ghost text</string>
+
+	<string name="key_inline_suggestion_auto_trigger">inline_suggestion_auto_trigger</string>
+	<string name="inline_suggestion_auto_trigger_title">Auto-trigger suggestions</string>
+	<string name="inline_suggestion_auto_trigger_summary">Automatically show suggestions after typing</string>
+
+	<string name="key_inline_suggestion_char_threshold">inline_suggestion_char_threshold</string>
+	<string name="inline_suggestion_char_threshold_title">Character threshold</string>
+	<string name="inline_suggestion_char_threshold_summary">Number of characters to type before auto-trigger</string>
+
+	<string name="key_inline_suggestion_debounce_ms">inline_suggestion_debounce_ms</string>
+	<string name="inline_suggestion_debounce_title">Delay before suggestion</string>
+	<string name="inline_suggestion_debounce_summary">Milliseconds to wait after typing stops (100-1000ms)</string>
+
+	<string name="key_inline_suggestion_max_lines">inline_suggestion_max_lines</string>
+	<string name="inline_suggestion_max_lines_title">Maximum suggestion lines</string>
+	<string name="inline_suggestion_max_lines_summary">Limit multi-line suggestions (1-10 lines)</string>
+
+	<string name="key_inline_suggestion_toolbar_button">inline_suggestion_toolbar_button</string>
+	<string name="inline_suggestion_toolbar_button_title">Show toolbar button</string>
+	<string name="inline_suggestion_toolbar_button_summary">Display manual trigger button in editor toolbar</string>
+	<string name="inline_suggestions_settings_summary">Configure AI-powered code suggestions</string>
 
 	<!-- AI Settings -->
 	<string name="title_ai_settings">AI &amp; Voice</string>

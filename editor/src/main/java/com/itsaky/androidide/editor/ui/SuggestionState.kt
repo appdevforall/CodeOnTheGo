@@ -15,27 +15,27 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import com.itsaky.androidide.build.config.BuildConfig
+package com.itsaky.androidide.editor.ui
 
-plugins {
-	id("com.android.library")
-	id("kotlin-android")
-	id("kotlin-parcelize")
-}
+/**
+ * State machine for inline suggestion lifecycle.
+ *
+ * Transitions:
+ * IDLE → WAITING → REQUESTING → SHOWING → ACCEPTING/IDLE
+ */
+enum class SuggestionState {
+    /** No suggestion active */
+    IDLE,
 
-android {
-	namespace = "${BuildConfig.PACKAGE_NAME}.preferences"
-}
+    /** Characters typed, waiting for debounce timer */
+    WAITING,
 
-dependencies {
-	implementation(projects.common)
-	implementation(projects.eventbusEvents)
-	implementation(projects.idetooltips)
-	implementation(projects.resources)
-	implementation(projects.shared)
-	implementation(libs.androidx.annotation)
-	implementation(libs.androidx.preference)
-	implementation(libs.google.material)
+    /** LLM request in flight */
+    REQUESTING,
 
-	testImplementation(libs.tests.junit)
+    /** Suggestion visible as ghost text */
+    SHOWING,
+
+    /** Tab pressed, committing suggestion */
+    ACCEPTING
 }
