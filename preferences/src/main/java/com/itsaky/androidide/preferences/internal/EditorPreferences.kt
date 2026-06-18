@@ -49,6 +49,15 @@ object EditorPreferences {
 	const val COLOR_SCHEME = "idepref_editor_colorScheme"
 	const val DEFAULT_COLOR_SCHEME = "default"
 
+	// Inline Suggestions
+	const val INLINE_SUGGESTION_ENABLED = InlineSuggestionPreferences.ENABLED
+	const val INLINE_SUGGESTION_AUTO_TRIGGER = InlineSuggestionPreferences.AUTO_TRIGGER
+	const val INLINE_SUGGESTION_CHAR_THRESHOLD = InlineSuggestionPreferences.CHAR_THRESHOLD
+	const val INLINE_SUGGESTION_DEBOUNCE_MS = InlineSuggestionPreferences.DEBOUNCE_MS
+	const val INLINE_SUGGESTION_MAX_LINES = InlineSuggestionPreferences.MAX_LINES
+	const val INLINE_SUGGESTION_MANUAL_SHORTCUT = InlineSuggestionPreferences.MANUAL_SHORTCUT
+	const val INLINE_SUGGESTION_SHOW_TOOLBAR_BUTTON = InlineSuggestionPreferences.SHOW_TOOLBAR_BUTTON
+
 	var completionsMatchLower: Boolean
 		get() = prefManager.getBoolean(COMPLETIONS_MATCH_LOWER, false)
 		set(value) {

@@ -36,4 +36,6 @@ dependencies {
 	implementation(libs.androidx.annotation)
 	implementation(libs.androidx.preference)
 	implementation(libs.google.material)
+
+	testImplementation(libs.tests.junit)
 }
