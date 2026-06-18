@@ -214,7 +214,7 @@ class EmbeddingIndexingService(
             try {
                 // Generate embedding using LLM
                 val embeddingVector = withContext(Dispatchers.Default) {
-                    controller.encodeForEmbeddings(chunk.content)
+                    controller.generateEmbedding(chunk.content)
                 }
 
                 if (embeddingVector.isEmpty()) {

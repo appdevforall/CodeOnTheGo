@@ -20,4 +20,19 @@ interface ILlamaController {
     suspend fun unload()
     fun stop()
     suspend fun clearKvCache()
+
+    /**
+     * Generate an embedding vector for the given text.
+     *
+     * @param text The text to generate an embedding for
+     * @return A float array representing the embedding vector
+     */
+    suspend fun generateEmbedding(text: String): FloatArray
+
+    /**
+     * Get the dimension of embeddings produced by the current model.
+     *
+     * @return The embedding dimension
+     */
+    suspend fun getEmbeddingDimension(): Int
 }
