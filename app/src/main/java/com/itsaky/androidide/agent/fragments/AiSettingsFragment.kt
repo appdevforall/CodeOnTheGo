@@ -63,6 +63,23 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             }
         }
 
+    private val directoryPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+            uri?.let {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                requireContext().contentResolver.takePersistableUriPermission(it, takeFlags)
+
+                val uriString = it.toString()
+
+                // Save directory path for SPEECH_TO_TEXT purpose
+                currentBrowsingPurpose?.let { purpose ->
+                    viewModel.saveModelPath(purpose, uriString)
+                    flashInfo("${purpose.displayName} directory saved: ${it.lastPathSegment}")
+                    currentBrowsingPurpose = null
+                }
+            }
+        }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentAiSettingsBinding.bind(view)
@@ -180,14 +197,31 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         // Setup browse button
         card.findViewById<Button>(R.id.btn_browse).setOnClickListener {
             currentBrowsingPurpose = purpose
-            filePickerLauncher.launch(arrayOf("*/*"))
+
+            // Use directory picker for SPEECH_TO_TEXT, file picker for others
+            when (purpose) {
+                ModelPurpose.SPEECH_TO_TEXT -> {
+                    directoryPickerLauncher.launch(null)
+                }
+                else -> {
+                    filePickerLauncher.launch(arrayOf("*/*"))
+                }
+            }
         }
 
         // Setup load saved button
         card.findViewById<Button>(R.id.btn_load_saved).setOnClickListener {
             viewModel.getModelPath(purpose)?.let { path ->
-                viewModel.loadModelForPurpose(purpose, path, requireContext())
-                flashInfo("Loading ${purpose.displayName}...")
+                when (purpose) {
+                    ModelPurpose.SPEECH_TO_TEXT -> {
+                        // STT doesn't load into engine, just verify path exists
+                        flashInfo("${purpose.displayName} path: ${Uri.parse(path).lastPathSegment}")
+                    }
+                    else -> {
+                        viewModel.loadModelForPurpose(purpose, path, requireContext())
+                        flashInfo("Loading ${purpose.displayName}...")
+                    }
+                }
             }
         }
 
@@ -222,18 +256,30 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             val browseButton = card.findViewById<Button>(R.id.btn_browse)
 
             // Update status text
-            when (state.loadingState) {
-                is ModelLoadingState.Idle -> {
-                    modelStatus.text = "No model loaded"
+            when (purpose) {
+                ModelPurpose.SPEECH_TO_TEXT -> {
+                    // STT doesn't load into engine, just show if path is configured
+                    if (state.savedPath != null) {
+                        modelStatus.text = "✅ Directory configured"
+                    } else {
+                        modelStatus.text = "No directory selected"
+                    }
                 }
-                is ModelLoadingState.Loading -> {
-                    modelStatus.text = "Loading..."
-                }
-                is ModelLoadingState.Loaded -> {
-                    modelStatus.text = "✅ ${state.loadingState.modelName}"
-                }
-                is ModelLoadingState.Error -> {
-                    modelStatus.text = "❌ ${state.loadingState.message}"
+                else -> {
+                    when (state.loadingState) {
+                        is ModelLoadingState.Idle -> {
+                            modelStatus.text = "No model loaded"
+                        }
+                        is ModelLoadingState.Loading -> {
+                            modelStatus.text = "Loading..."
+                        }
+                        is ModelLoadingState.Loaded -> {
+                            modelStatus.text = "✅ ${state.loadingState.modelName}"
+                        }
+                        is ModelLoadingState.Error -> {
+                            modelStatus.text = "❌ ${state.loadingState.message}"
+                        }
+                    }
                 }
             }
 
@@ -248,8 +294,19 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
             // Update button states
             val engineReady = viewModel.engineState.value is EngineState.Initialized
-            loadSavedButton.isEnabled = engineReady && state.savedPath != null
-            browseButton.isEnabled = engineReady
+
+            when (purpose) {
+                ModelPurpose.SPEECH_TO_TEXT -> {
+                    // STT doesn't need engine, just needs path selection
+                    loadSavedButton.isEnabled = state.savedPath != null
+                    browseButton.isEnabled = true
+                }
+                else -> {
+                    // Other models need engine to be ready
+                    loadSavedButton.isEnabled = engineReady && state.savedPath != null
+                    browseButton.isEnabled = engineReady
+                }
+            }
         }
     }
 
