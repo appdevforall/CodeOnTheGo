@@ -76,12 +76,46 @@ class GhostTextRenderer(private val editor: IDEEditor) {
     fun onDraw(canvas: Canvas) {
         val suggestion = currentSuggestion ?: return
 
-        // Initialize paint properties on first draw
-        updatePaintProperties()
+        try {
+            updatePaintProperties()
 
-        // Drawing logic will be implemented in next task
-        // For now, just log that we would draw
-        log.debug("onDraw called with suggestion: ${suggestion.text.take(20)}...")
+            val paint = ghostPaint ?: return
+            val lines = suggestion.text.split("\n")
+            val maxLines = 5  // Global constraint: max 5 lines
+            val linesToDraw = lines.take(maxLines)
+
+            // Get text metrics
+            val lineHeight = paint.fontSpacing
+            val charWidth = paint.measureText("M")
+
+            // Calculate cursor screen position
+            val cursorLine = suggestion.cursorLine
+            val cursorColumn = suggestion.cursorColumn
+
+            // Base position - starting from cursor
+            // Y position: approximate based on line height
+            // X position: approximate based on character width
+            val baseY = (cursorLine + 1) * lineHeight
+            val baseX = cursorColumn * charWidth
+
+            // Draw each line of the suggestion
+            linesToDraw.forEachIndexed { index, line ->
+                if (line.isNotEmpty()) {
+                    val drawX = if (index == 0) baseX else 0f
+                    val drawY = baseY + (index * lineHeight)
+
+                    // Only draw if visible in viewport
+                    if (drawY > 0 && drawY < canvas.height) {
+                        canvas.drawText(line, drawX, drawY, paint)
+                    }
+                }
+            }
+
+            log.trace("Drew ghost text: ${linesToDraw.size} lines")
+        } catch (e: Exception) {
+            log.error("Error drawing ghost text", e)
+            hide()
+        }
     }
 
     private fun updatePaintProperties() {
