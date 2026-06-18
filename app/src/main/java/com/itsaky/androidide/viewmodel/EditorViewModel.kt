@@ -73,6 +73,13 @@ class EditorViewModel : ViewModel() {
         _searchResults.value = results
     }
 
+    private val _vectorSearchResults = MutableStateFlow<Map<File, List<SearchResult>>>(emptyMap())
+    val vectorSearchResults: StateFlow<Map<File, List<SearchResult>>> = _vectorSearchResults.asStateFlow()
+
+    fun onVectorSearchResultsReady(results: Map<File, List<SearchResult>>) {
+        _vectorSearchResults.value = results
+    }
+
     /**
      * Holds information about the currently selected editor fragment. First value in the pair is the
      * index of the editor opened. Second value is the file that is opened.
