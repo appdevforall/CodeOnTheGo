@@ -130,7 +130,7 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
     }
 
     /**
-     * Called for key events. Intercepts Tab, Esc, and Ctrl+Space.
+     * Called for key events. Intercepts Tab, Esc, and Ctrl+Alt+C.
      *
      * @return true if event consumed, false to pass through
      */
@@ -139,8 +139,8 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
             return false
         }
 
-        // Check for Ctrl+Space (manual trigger)
-        if (event.keyCode == KeyEvent.KEYCODE_SPACE && event.isCtrlPressed) {
+        // Check for Ctrl+Alt+C (manual trigger)
+        if (event.keyCode == KeyEvent.KEYCODE_C && event.isCtrlPressed && event.isAltPressed) {
             manualTrigger()
             return true
         }

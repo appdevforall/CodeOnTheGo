@@ -105,6 +105,11 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         binding.voiceCodeEnabledSwitch.setOnCheckedChangeListener { _, isChecked ->
             VoicePreferences.setVoiceCodeEnabled(requireContext(), isChecked)
             updateSttModeAvailability(isChecked)
+
+            // Notify editor activities to refresh their toolbar
+            requireActivity().sendBroadcast(
+                android.content.Intent("com.itsaky.androidide.VOICE_CODE_SETTING_CHANGED")
+            )
         }
 
         // Setup STT mode toggle: OFF = Cloud, ON = Offline

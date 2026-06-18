@@ -1329,7 +1329,7 @@
 	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
-	<string name="inline_suggestion_trigger">Get AI suggestion (Ctrl+Space)</string>
+	<string name="inline_suggestion_trigger">Get AI suggestion (Ctrl+Alt+C)</string>
 
 	<!-- Inline Suggestions Settings -->
 	<string name="inline_suggestions_category">Inline Suggestions</string>

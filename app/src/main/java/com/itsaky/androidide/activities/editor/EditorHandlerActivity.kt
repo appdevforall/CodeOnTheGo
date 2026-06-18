@@ -131,6 +131,9 @@ open class EditorHandlerActivity :
 
 	private var pluginEditorProvider: EditorProviderImpl? = null
 
+	private var voiceCodeSettingReceiver: android.content.BroadcastReceiver? = null
+	private var inlineSuggestionPrefsListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
+
 	private fun getTabPositionForFileIndex(fileIndex: Int): Int {
 		val safeContent = contentOrNull ?: return -1
 		val totalTabs = safeContent.tabs.tabCount
@@ -275,6 +278,19 @@ open class EditorHandlerActivity :
 			saveOpenedFiles()
 			saveOpenedPluginTabs()
 		}
+
+		// Unregister voice code setting broadcast receiver
+		voiceCodeSettingReceiver?.let {
+			unregisterReceiver(it)
+			voiceCodeSettingReceiver = null
+		}
+
+		// Unregister inline suggestion preference listener
+		inlineSuggestionPrefsListener?.let {
+			(application as com.itsaky.androidide.app.BaseApplication).prefManager
+				.unregisterOnSharedPreferenceChangeListener(it)
+			inlineSuggestionPrefsListener = null
+		}
 	}
 
 	private fun saveOpenedPluginTabs() {
@@ -296,6 +312,30 @@ open class EditorHandlerActivity :
 		checkForExternalFileChanges()
 		// Invalidate the options menu to reflect any changes
 		invalidateOptionsMenu()
+
+		// Register broadcast receiver for voice code setting changes
+		voiceCodeSettingReceiver = object : android.content.BroadcastReceiver() {
+			override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+				// Refresh toolbar when voice code setting changes
+				invalidateOptionsMenu()
+			}
+		}
+		registerReceiver(
+			voiceCodeSettingReceiver,
+			android.content.IntentFilter("com.itsaky.androidide.VOICE_CODE_SETTING_CHANGED"),
+			android.content.Context.RECEIVER_NOT_EXPORTED
+		)
+
+		// Register preference listener for inline suggestion toolbar button changes
+		inlineSuggestionPrefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+			if (key == com.itsaky.androidide.preferences.internal.InlineSuggestionPreferences.SHOW_TOOLBAR_BUTTON ||
+				key == com.itsaky.androidide.preferences.internal.InlineSuggestionPreferences.ENABLED) {
+				// Refresh toolbar when inline suggestion settings change
+				invalidateOptionsMenu()
+			}
+		}
+		(application as com.itsaky.androidide.app.BaseApplication).prefManager
+			.registerOnSharedPreferenceChangeListener(inlineSuggestionPrefsListener!!)
 	}
 
 	/**
