@@ -19,6 +19,8 @@ package com.itsaky.androidide.editor.ui
 
 import android.graphics.Canvas
 import android.view.KeyEvent
+import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.preferences.internal.InlineSuggestionPreferences
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.widget.component.EditorBuiltinComponent
@@ -29,6 +31,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 
 /**
@@ -55,7 +59,8 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
     private var temporarilyHidden: Boolean = false
 
     init {
-        log.info("InlineSuggestionComponent initialized")
+        enabled = InlineSuggestionPreferences.enabled
+        log.info("InlineSuggestionComponent initialized (enabled: $enabled)")
     }
 
     override fun isEnabled(): Boolean = enabled
@@ -69,11 +74,22 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
 
     fun onAttachedToWindow() {
         log.debug("Component attached to window")
+        org.greenrobot.eventbus.EventBus.getDefault().register(this)
     }
 
     fun onDetachedFromWindow() {
         log.debug("Component detached from window")
+        org.greenrobot.eventbus.EventBus.getDefault().unregister(this)
         cleanup()
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onPreferenceChanged(event: PreferenceChangeEvent) {
+        when (event.key) {
+            InlineSuggestionPreferences.ENABLED -> {
+                setEnabled(InlineSuggestionPreferences.enabled)
+            }
+        }
     }
 
     /**
@@ -97,8 +113,8 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
         // Increment character counter
         charactersSinceLastRequest++
 
-        // If we've typed 3+ characters, start debounce timer
-        if (charactersSinceLastRequest >= 3) {  // Global constraint: 3 chars
+        // If we've typed enough characters, start debounce timer
+        if (charactersSinceLastRequest >= InlineSuggestionPreferences.charThreshold) {
             scheduleRequest()
         }
     }
@@ -150,9 +166,9 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
 
         suggestionState = SuggestionState.WAITING
 
-        // Start 300ms debounce timer (Global constraint)
+        // Start debounce timer using preference
         debounceJob = scope.launch {
-            delay(300)
+            delay(InlineSuggestionPreferences.debounceMs.toLong())
 
             if (enabled && editor.isEditable) {
                 suggestionState = SuggestionState.REQUESTING

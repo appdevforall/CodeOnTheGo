@@ -19,6 +19,7 @@ package com.itsaky.androidide.editor.ui
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import com.itsaky.androidide.preferences.internal.InlineSuggestionPreferences
 import org.slf4j.LoggerFactory
 
 /**
@@ -81,7 +82,7 @@ class GhostTextRenderer(private val editor: IDEEditor) {
 
             val paint = ghostPaint ?: return
             val lines = suggestion.text.split("\n")
-            val maxLines = 5  // Global constraint: max 5 lines
+            val maxLines = InlineSuggestionPreferences.maxLines
             val linesToDraw = lines.take(maxLines)
 
             // Get text metrics
