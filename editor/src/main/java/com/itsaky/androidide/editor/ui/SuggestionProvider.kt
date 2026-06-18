@@ -102,7 +102,7 @@ class SuggestionProvider(
                 return null
             }
 
-            if (!llmModelCheck()) {
+            if (llmModelCheck?.invoke() != true) {
                 log.debug("No model loaded, cannot provide suggestions")
                 return null
             }
@@ -127,11 +127,11 @@ class SuggestionProvider(
 
             // Request completion with timeout (10 seconds)
             val response = withTimeout(10_000) {
-                llmInference(
+                llmInference?.invoke(
                     prompt,
                     listOf("\n\n", "```", "<|eot_id|>"),  // Stop at blank line or code fence
                     false  // Don't clear KV cache for faster completions
-                )
+                ) ?: ""
             }
 
             // Clean and process response
