@@ -214,7 +214,14 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
                     }
                 }
             }.onSuccess { profile ->
-                _state.value = ProfilerUiState.CpuResult(process, profile)
+                if (profile.totalMicros <= 0L || profile.methods.isEmpty()) {
+                    // simpleperf produced no usable samples (e.g. too short a session, idle/dead
+                    // target, or a failed report) — surface a clear message instead of an empty table.
+                    logger.warn("CPU profiling produced no samples for pid={}", process.pid)
+                    setError(R.string.profiler_cpu_no_samples)
+                } else {
+                    _state.value = ProfilerUiState.CpuResult(process, profile)
+                }
             }.onFailure { error ->
                 logger.error("CPU profiling stop/parse failed for pid={}", process.pid, error)
                 setError(getString(R.string.profiler_cpu_failed, error.message ?: error.javaClass.simpleName))

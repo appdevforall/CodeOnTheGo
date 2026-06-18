@@ -10,7 +10,6 @@ import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
-import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
