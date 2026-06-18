@@ -65,6 +65,7 @@ class ProfilerServiceConnection(
             return
         }
         try {
+            logger.info("trying to bind profiler user service")
             Shizuku.bindUserService(args, connection)
             bound = true
         } catch (t: Throwable) {
@@ -78,6 +79,7 @@ class ProfilerServiceConnection(
         if (!bound) return
         bound = false
         try {
+            logger.info("trying to unbind profiler user service")
             Shizuku.unbindUserService(args, connection, /* remove = */ true)
         } catch (t: Throwable) {
             logger.warn("Failed to unbind profiler user service", t)
