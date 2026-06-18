@@ -55,7 +55,7 @@ object InlineSuggestionLlmConfig {
         }
 
         // Inject model check function with validation
-        SuggestionProvider.llmModelCheck = {
+        SuggestionProvider.llmModelCheck = llmModelCheck@{
             val isLoaded = engine.isModelLoaded
             val modelName = engine.loadedModelName ?: "unknown"
 

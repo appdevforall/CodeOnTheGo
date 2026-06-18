@@ -655,6 +655,8 @@
     <string name="permission_overlay_restricted_settings_hint">Jika Anda tidak dapat mengaktifkan izin ini, buka Info aplikasi Code on the Go, ketuk menu titik tiga, lalu aktifkan pengaturan terbatas.</string>
     <string name="permission_title_notifications">Notifikasi</string>
     <string name="permission_desc_notifications">Izinkan Code on the Go menampilkan notifikasi.</string>
+    <string name="permission_title_microphone">Mikrofon</string>
+    <string name="permission_desc_microphone">Izinkan Code on the Go menggunakan mikrofon untuk fitur suara-ke-kode.</string>
     <string name="permission_title_accessibility">Aksesibilitas</string>
     <string name="permission_desc_accessibility">Izinkan Code on the Go mengakses layanan aksesibilitas untuk debugging.</string>
     <string name="finish_installation">Selesaikan penginstalan</string>

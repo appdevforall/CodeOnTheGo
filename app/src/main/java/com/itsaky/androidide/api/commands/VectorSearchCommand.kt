@@ -117,8 +117,8 @@ class VectorSearchCommand(
 
             // Return success with summary
             ToolResult.success(
-                message = "Found ${results.size} semantic matches",
-                data = "Found ${results.size} semantic code matches for query: '$query'"
+                message = "Found ${resultsWithScores.size} semantic matches",
+                data = "Found ${resultsWithScores.size} semantic code matches for query: '$query'"
             )
         } catch (e: Exception) {
             log.error("Vector search failed", e)
