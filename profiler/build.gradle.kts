@@ -34,6 +34,7 @@ dependencies {
 	api(projects.actions)
     implementation(projects.logger)
 	implementation(projects.subprojects.privilegedServices)
+	implementation(projects.subprojects.flamegraph)
 
 	api(libs.androidx.annotation)
 	api(libs.androidx.fragment)
