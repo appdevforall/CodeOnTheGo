@@ -88,6 +88,15 @@ object PermissionsHelper {
 
 		permissions.add(
 			OnboardingPermissionItem(
+				Manifest.permission.RECORD_AUDIO,
+				R.string.permission_title_microphone,
+				R.string.permission_desc_microphone,
+				canRecordAudio(context),
+			),
+		)
+
+		permissions.add(
+			OnboardingPermissionItem(
 				Manifest.permission.SYSTEM_ALERT_WINDOW,
 				R.string.permission_title_overlay_window,
 				if (isOverlaySupported) R.string.permission_desc_overlay_window else R.string.permission_overlay_unsupported_hint,
@@ -125,6 +134,9 @@ object PermissionsHelper {
 	fun canRequestPackageInstalls(context: Context): Boolean =
 		context.packageManager.canRequestPackageInstalls()
 
+	fun canRecordAudio(context: Context): Boolean =
+		checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+
 	fun isPermissionGranted(
 		context: Context,
 		permission: String,
@@ -132,6 +144,7 @@ object PermissionsHelper {
 		Manifest.permission_group.STORAGE -> isStoragePermissionGranted(context)
 		Manifest.permission.REQUEST_INSTALL_PACKAGES -> context.packageManager.canRequestPackageInstalls()
 		Manifest.permission.SYSTEM_ALERT_WINDOW -> canDrawOverlays(context)
+		Manifest.permission.RECORD_AUDIO -> canRecordAudio(context)
 		else -> checkSelfPermission(context, permission)
 	}
 

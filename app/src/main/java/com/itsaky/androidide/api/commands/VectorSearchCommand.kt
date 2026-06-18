@@ -64,6 +64,11 @@ class VectorSearchCommand(
         @Volatile
         var lastSearchResults: List<CodeEmbedding> = emptyList()
             private set
+
+        // Store last search results with similarity scores
+        @Volatile
+        var lastSearchResultsWithScores: List<Pair<CodeEmbedding, Float>> = emptyList()
+            private set
     }
 
     override fun execute(): ToolResult = runBlocking {
@@ -101,13 +106,14 @@ class VectorSearchCommand(
                 log.info("Using existing index with ${existingEmbeddings.size} embeddings")
             }
 
-            // Perform search with proper similarity threshold
-            val results = service.search(query, limit = limit, threshold = DEFAULT_SIMILARITY_THRESHOLD)
+            // Perform search with proper similarity threshold and get scores
+            val resultsWithScores = service.searchWithScores(query, limit = limit, threshold = DEFAULT_SIMILARITY_THRESHOLD)
 
-            log.info("Vector search returned ${results.size} results (threshold: $DEFAULT_SIMILARITY_THRESHOLD)")
+            log.info("Vector search returned ${resultsWithScores.size} results (threshold: $DEFAULT_SIMILARITY_THRESHOLD)")
 
-            // Store results for retrieval
-            lastSearchResults = results
+            // Store results for retrieval (both formats)
+            lastSearchResults = resultsWithScores.map { it.codeEmbedding }
+            lastSearchResultsWithScores = resultsWithScores.map { it.codeEmbedding to it.similarity }
 
             // Return success with summary
             ToolResult.success(

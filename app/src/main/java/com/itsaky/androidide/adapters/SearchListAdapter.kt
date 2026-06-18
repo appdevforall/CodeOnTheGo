@@ -76,6 +76,16 @@ class SearchListAdapter(
     override fun onBindViewHolder(p1: ChildVH, p2: Int) {
       val match = matches[p2]
       val binding = p1.binding
+
+      // Show similarity score if available (vector search results)
+      if (match.similarity != null) {
+        binding.similarityBadge.visibility = android.view.View.VISIBLE
+        val percentage = (match.similarity * 100).toInt()
+        binding.similarityBadge.text = "$percentage%"
+      } else {
+        binding.similarityBadge.visibility = android.view.View.GONE
+      }
+
       CompletableFuture.runAsync {
         try {
           val scheme = SchemeAndroidIDE.newInstance(binding.text.context)

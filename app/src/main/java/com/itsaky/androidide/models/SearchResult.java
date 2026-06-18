@@ -23,11 +23,21 @@ public class SearchResult extends Range {
   public File file;
   public String line;
   public String match;
+  public Float similarity; // Similarity score for vector search results (0.0 to 1.0)
 
   public SearchResult(Range src, File file, String line, String match) {
     super(src.getStart(), src.getEnd());
     this.file = file;
     this.line = line;
     this.match = match;
+    this.similarity = null; // null for keyword search results
+  }
+
+  public SearchResult(Range src, File file, String line, String match, float similarity) {
+    super(src.getStart(), src.getEnd());
+    this.file = file;
+    this.line = line;
+    this.match = match;
+    this.similarity = similarity;
   }
 }

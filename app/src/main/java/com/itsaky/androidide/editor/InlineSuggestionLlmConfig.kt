@@ -54,9 +54,30 @@ object InlineSuggestionLlmConfig {
             )
         }
 
-        // Inject model check function
+        // Inject model check function with validation
         SuggestionProvider.llmModelCheck = {
-            engine.isModelLoaded
+            val isLoaded = engine.isModelLoaded
+            val modelName = engine.loadedModelName ?: "unknown"
+
+            if (isLoaded) {
+                // Check if it's an embedding model (not suitable for text generation)
+                val isEmbeddingModel = modelName.contains("minilm", ignoreCase = true) ||
+                                      modelName.contains("embedding", ignoreCase = true) ||
+                                      modelName.contains("bge-", ignoreCase = true) ||
+                                      modelName.contains("e5-", ignoreCase = true)
+
+                if (isEmbeddingModel) {
+                    log.warn("Embedding model detected: $modelName - not suitable for code completion")
+                    log.warn("Please load a generative model (CodeLlama, DeepSeek Coder, etc.) for code completion")
+                    return@llmModelCheck false
+                }
+
+                log.debug("Model check passed: $modelName")
+            } else {
+                log.debug("No model loaded for inline suggestions")
+            }
+
+            isLoaded
         }
 
         configured = true

@@ -134,10 +134,10 @@ class EditorViewModel : ViewModel() {
                     command.execute()
                 }
 
-                // Retrieve CodeEmbedding results from command
+                // Retrieve CodeEmbedding results with similarity scores from command
                 if (result.success) {
-                    val embeddings = VectorSearchCommand.lastSearchResults
-                    val searchResults = convertEmbeddingsToSearchResults(embeddings)
+                    val embeddingsWithScores = VectorSearchCommand.lastSearchResultsWithScores
+                    val searchResults = convertEmbeddingsToSearchResults(embeddingsWithScores)
                     _vectorSearchResults.value = searchResults
 
                     if (searchResults.isEmpty()) {
@@ -145,7 +145,7 @@ class EditorViewModel : ViewModel() {
                         ILogger.ROOT.info("Semantic search completed: 0 results")
                     } else {
                         _vectorSearchState.value = VectorSearchState.SUCCESS
-                        ILogger.ROOT.info("Semantic search completed: ${embeddings.size} results")
+                        ILogger.ROOT.info("Semantic search completed: ${embeddingsWithScores.size} results")
                     }
                 } else {
                     ILogger.ROOT.warn("Semantic search failed: ${result.message}")
@@ -161,15 +161,15 @@ class EditorViewModel : ViewModel() {
     }
 
     /**
-     * Converts CodeEmbedding results to SearchResult format for UI display.
+     * Converts CodeEmbedding results with similarity scores to SearchResult format for UI display.
      */
     private fun convertEmbeddingsToSearchResults(
-        embeddings: List<CodeEmbedding>
+        embeddingsWithScores: List<Pair<CodeEmbedding, Float>>
     ): Map<File, List<SearchResult>> {
-        return embeddings
-            .groupBy { File(it.filePath) }
+        return embeddingsWithScores
+            .groupBy { File(it.first.filePath) }
             .mapValues { (_, chunks) ->
-                chunks.map { chunk ->
+                chunks.map { (chunk, similarity) ->
                     // Create Range for the chunk
                     val startPos = Position(chunk.startLine, 0)
                     val endPos = Position(chunk.endLine, 0)
@@ -179,7 +179,7 @@ class EditorViewModel : ViewModel() {
                     val line = "${chunk.startLine}: ${chunk.chunkText.lines().firstOrNull() ?: ""}"
                     val match = chunk.chunkText.take(100).trim() // Preview text
 
-                    SearchResult(range, file, line, match)
+                    SearchResult(range, file, line, match, similarity)
                 }
             }
     }
