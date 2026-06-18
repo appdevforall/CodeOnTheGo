@@ -44,10 +44,24 @@ typealias LlmModelCheckFunction = () -> Boolean
  */
 class SuggestionProvider(
     private val editor: IDEEditor,
-    private val cache: SuggestionCache = DefaultSuggestionCache(),
-    private val llmInference: LlmInferenceFunction? = null,
-    private val llmModelCheck: LlmModelCheckFunction? = null
+    private val cache: SuggestionCache = DefaultSuggestionCache()
 ) {
+
+    companion object {
+        /**
+         * LLM inference function to be injected by app module.
+         * Set this once at app startup before editors are created.
+         */
+        @Volatile
+        var llmInference: LlmInferenceFunction? = null
+
+        /**
+         * LLM model check function to be injected by app module.
+         * Set this once at app startup before editors are created.
+         */
+        @Volatile
+        var llmModelCheck: LlmModelCheckFunction? = null
+    }
 
     private val log = LoggerFactory.getLogger(SuggestionProvider::class.java)
 

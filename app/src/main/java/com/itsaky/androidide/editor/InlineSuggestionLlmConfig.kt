@@ -18,7 +18,7 @@
 package com.itsaky.androidide.editor
 
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
-import com.itsaky.androidide.editor.ui.InlineSuggestionComponent
+import com.itsaky.androidide.editor.ui.SuggestionProvider
 import org.slf4j.LoggerFactory
 
 /**
@@ -46,7 +46,7 @@ object InlineSuggestionLlmConfig {
         val engine = LlmInferenceEngineProvider.instance
 
         // Inject LLM inference function
-        InlineSuggestionComponent.llmInference = { prompt, stopStrings, clearCache ->
+        SuggestionProvider.llmInference = { prompt, stopStrings, clearCache ->
             engine.runInference(
                 prompt = prompt,
                 stopStrings = stopStrings,
@@ -55,7 +55,7 @@ object InlineSuggestionLlmConfig {
         }
 
         // Inject model check function
-        InlineSuggestionComponent.llmModelCheck = {
+        SuggestionProvider.llmModelCheck = {
             engine.isModelLoaded
         }
 
