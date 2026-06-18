@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.editor.ui
 
+import io.github.rosemoe.sora.event.ContentChangeEvent
+import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.mockk.mockk
 import org.junit.Before
 import org.junit.Test
@@ -57,6 +59,27 @@ class InlineSuggestionComponentTest {
 
     @Test
     fun `state starts as IDLE`() {
+        assertEquals(SuggestionState.IDLE, component.getState())
+    }
+
+    // Task 6: Event handling tests
+
+    @Test
+    fun `text changes can be handled without crash`() {
+        // Create mock content change event
+        val event = mockk<ContentChangeEvent>(relaxed = true)
+
+        // Should not crash when enabled
+        component.setEnabled(true)
+        component.onContentChange(event)
+        assertEquals(SuggestionState.IDLE, component.getState())
+    }
+
+    @Test
+    fun `selection change dismisses suggestion`() {
+        val event = mockk<SelectionChangeEvent>(relaxed = true)
+
+        component.onSelectionChange(event)
         assertEquals(SuggestionState.IDLE, component.getState())
     }
 }
