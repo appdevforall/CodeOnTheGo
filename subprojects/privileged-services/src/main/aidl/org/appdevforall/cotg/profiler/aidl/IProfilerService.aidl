@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.profiler.aidl;
 
 import org.appdevforall.cotg.profiler.aidl.IProcessListObserver;
+import org.appdevforall.cotg.profiler.aidl.ICpuProfileObserver;
 
 interface IProfilerService {
 
@@ -17,4 +18,10 @@ interface IProfilerService {
     // last observer is removed. Dead clients are dropped automatically via linkToDeath.
     void registerProcessListObserver(IProcessListObserver observer) = 4;
     void unregisterProcessListObserver(IProcessListObserver observer) = 5;
+
+    // CPU profiling (single session). startCpuProfiling runs simpleperf on the target process and
+    // streams live CPU-usage samples to [observer]. stopCpuProfiling stops the recording, converts
+    // the perf.data to a protobuf report-sample dump, and writes it to [reportOut].
+    void startCpuProfiling(int pid, in String packageName, ICpuProfileObserver observer) = 6;
+    void stopCpuProfiling(in ParcelFileDescriptor reportOut) = 7;
 }

@@ -91,6 +91,8 @@ import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
@@ -270,6 +272,15 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
 		)
+
+		if (state.launchProfilerAfterInstall) {
+			// The "Profile" action built a profileable APK and just launched it; surface the
+			// Profiler tab so the user can immediately profile the running app.
+			bottomSheetViewModel.setSheetState(
+				sheetState = BottomSheetBehavior.STATE_EXPANDED,
+				currentTab = BottomSheetViewModel.TAB_PROFILER,
+			)
+		}
 	}
 
 	private fun showPluginInstallDialog(cgpFile: File) {

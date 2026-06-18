@@ -24,13 +24,20 @@ import org.appdevforall.cotg.profiler.ProfilerIntent.DumpHeap
 import org.appdevforall.cotg.profiler.ProfilerIntent.SelectProcess
 import org.appdevforall.cotg.profiler.ProfilerMode
 import org.appdevforall.cotg.profiler.ProfilerUiState
+import org.appdevforall.cotg.profiler.cpu.CpuCallNode
+import org.appdevforall.cotg.profiler.cpu.CpuMethodRow
+import org.appdevforall.cotg.profiler.cpu.CpuProfile
+import org.appdevforall.cotg.profiler.cpu.CpuSample
 import org.appdevforall.cotg.profiler.ui.components.CellAlignment
+import org.appdevforall.cotg.profiler.ui.components.CpuUsageGraph
 import org.appdevforall.cotg.profiler.ui.components.ProcessPicker
 import org.appdevforall.cotg.profiler.ui.components.ProfilerButton
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTable
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTableColumn
+import org.appdevforall.cotg.profiler.ui.components.ProfilerTableRow
 import org.appdevforall.cotg.profiler.ui.theme.Dimens
 import org.appdevforall.cotg.profiler.ui.theme.ProfilerTheme
+import java.util.Locale
 
 @Composable
 fun ProfilerScreenView(
@@ -97,10 +104,43 @@ fun ProfilerScreenView(
                     is ProfilerUiState.Running ->
                         Loading(message = stringResource(R.string.profiler_running, state.process.label))
 
+                    is ProfilerUiState.Profiling ->
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(Dimens.paddingMd),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.profiler_cpu_recording, state.process.label),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            CpuUsageGraph(
+                                samples = state.samples,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                            )
+                            ProfilerButton(
+                                onClick = { onIntent(ProfilerIntent.StopProfiling) },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = stringResource(R.string.profiler_cpu_stop),
+                            )
+                        }
+
+                    is ProfilerUiState.Processing ->
+                        Loading(message = stringResource(R.string.profiler_cpu_processing))
+
                     is ProfilerUiState.Results ->
                         ProfilerTable(
                             columns = columnsFor(state.mode),
                             rows = state.rows,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+
+                    is ProfilerUiState.CpuResult ->
+                        ProfilerTable(
+                            columns = cpuColumns(),
+                            rows = cpuRows(state.profile),
                             modifier = Modifier.fillMaxSize(),
                         )
 
@@ -189,10 +229,30 @@ private fun heapColumns(): List<ProfilerTableColumn> =
 @Composable
 private fun cpuColumns(): List<ProfilerTableColumn> =
     listOf(
-        ProfilerTableColumn(stringResource(R.string.profiler_col_symbol), 3f),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_self), 1.2f, CellAlignment.End),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_total), 1.2f, CellAlignment.End),
+        ProfilerTableColumn(stringResource(R.string.profiler_col_method), 3f),
+        ProfilerTableColumn(stringResource(R.string.profiler_col_total_us), 1.3f, CellAlignment.End),
+        ProfilerTableColumn(stringResource(R.string.profiler_col_total_pct), 1f, CellAlignment.End),
+        ProfilerTableColumn(stringResource(R.string.profiler_col_children_us), 1.3f, CellAlignment.End),
+        ProfilerTableColumn(stringResource(R.string.profiler_col_children_pct), 1f, CellAlignment.End),
     )
+
+private fun cpuRows(profile: CpuProfile): List<ProfilerTableRow> =
+    profile.methods.map { method ->
+        ProfilerTableRow(
+            id = method.name,
+            cells = listOf(
+                method.name,
+                formatMicros(method.totalMicros),
+                formatPercent(method.totalPercent),
+                formatMicros(method.childrenMicros),
+                formatPercent(method.childrenPercent),
+            ),
+        )
+    }
+
+private fun formatMicros(micros: Long): String = String.format(Locale.US, "%,d", micros)
+
+private fun formatPercent(percent: Float): String = String.format(Locale.US, "%.1f%%", percent)
 
 @Preview(name = "Idle")
 @Composable
@@ -231,16 +291,33 @@ private fun ProfilerScreenHeapPreview() {
     }
 }
 
+@Preview(name = "CPU profiling")
+@Composable
+private fun ProfilerScreenProfilingPreview() {
+    val samples = (0..20).map { CpuSample(it * 500L, 30f + (it % 5) * 12f) }
+    ProfilerTheme {
+        ProfilerScreenView(
+            state = ProfilerUiState.Profiling(SampleProfileTables.SAMPLE_PROCESSES.first(), samples),
+            onIntent = {},
+        )
+    }
+}
+
 @Preview(name = "CPU results")
 @Composable
 private fun ProfilerScreenCpuPreview() {
+    val profile = CpuProfile(
+        root = CpuCallNode("(root)", selfMicros = 0, totalMicros = 1_530, children = emptyList()),
+        totalMicros = 1_530,
+        methods = listOf(
+            CpuMethodRow("android.view.Choreographer.doFrame", 1_530, 100f, 1_048, 68.5f),
+            CpuMethodRow("android.view.View.draw", 902, 59f, 688, 45f),
+            CpuMethodRow("libc.so nativePollOnce", 388, 25.4f, 0, 0f),
+        ),
+    )
     ProfilerTheme {
         ProfilerScreenView(
-            state = ProfilerUiState.Results(
-                mode = ProfilerMode.Cpu,
-                process = SampleProfileTables.SAMPLE_PROCESSES.first(),
-                rows = SampleProfileTables.CPU_ROWS,
-            ),
+            state = ProfilerUiState.CpuResult(SampleProfileTables.SAMPLE_PROCESSES.first(), profile),
             onIntent = {},
         )
     }
