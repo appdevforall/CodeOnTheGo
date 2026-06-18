@@ -27,6 +27,8 @@ import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
 import com.itsaky.androidide.agent.viewmodel.EngineState
 import com.itsaky.androidide.agent.viewmodel.ModelLoadingState
 import com.itsaky.androidide.databinding.FragmentAiSettingsBinding
+import com.itsaky.androidide.speech.VoicePreferences
+import com.itsaky.androidide.ui.voice.VoiceLanguageDialog
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.getFileName
 import java.text.SimpleDateFormat
@@ -85,6 +87,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         _binding = FragmentAiSettingsBinding.bind(view)
 
         setupToolbar()
+        setupSpeechToCode()
         setupBackendSelector()
     }
 
@@ -92,6 +95,52 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         binding.settingsToolbar.setNavigationOnClickListener {
             findNavController().popBackStack()
         }
+    }
+
+    private fun setupSpeechToCode() {
+        // Setup voice code enabled switch
+        val voiceEnabled = VoicePreferences.isVoiceCodeEnabled(requireContext())
+        binding.voiceCodeEnabledSwitch.isChecked = voiceEnabled
+
+        binding.voiceCodeEnabledSwitch.setOnCheckedChangeListener { _, isChecked ->
+            VoicePreferences.setVoiceCodeEnabled(requireContext(), isChecked)
+            updateSttModeAvailability(isChecked)
+        }
+
+        // Setup STT mode toggle: OFF = Cloud, ON = Offline
+        val sttMode = VoicePreferences.getSttMode(requireContext())
+        binding.sttModeToggle.isChecked = (sttMode == VoicePreferences.STT_MODE_MOONSHINE)
+        binding.sttModeStatusText.text = if (sttMode == VoicePreferences.STT_MODE_CLOUD) {
+            "Cloud (Google)"
+        } else {
+            "Offline (Moonshine)"
+        }
+
+        binding.sttModeToggle.setOnCheckedChangeListener { _, isChecked ->
+            val newMode = if (isChecked) VoicePreferences.STT_MODE_MOONSHINE else VoicePreferences.STT_MODE_CLOUD
+            VoicePreferences.setSttMode(requireContext(), newMode)
+            binding.sttModeStatusText.text = if (newMode == VoicePreferences.STT_MODE_CLOUD) {
+                "Cloud (Google)"
+            } else {
+                "Offline (Moonshine)"
+            }
+        }
+
+        // Setup voice language button
+        binding.voiceLanguageButton.setOnClickListener {
+            VoiceLanguageDialog.show(requireContext()) { newLanguage ->
+                flashInfo("Voice language: ${VoicePreferences.getLanguageDisplayName(requireContext(), newLanguage)}")
+            }
+        }
+
+        // Initial state
+        updateSttModeAvailability(voiceEnabled)
+    }
+
+    private fun updateSttModeAvailability(enabled: Boolean) {
+        binding.sttModeContainer.alpha = if (enabled) 1.0f else 0.5f
+        binding.sttModeToggle.isEnabled = enabled
+        binding.voiceLanguageButton.isEnabled = enabled
     }
 
     private fun setupBackendSelector() {
