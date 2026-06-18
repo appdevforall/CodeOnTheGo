@@ -43,6 +43,22 @@ import org.slf4j.LoggerFactory
  */
 class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinComponent {
 
+    companion object {
+        /**
+         * LLM inference function to be injected by app module.
+         * Set this once at app startup before editors are created.
+         */
+        @Volatile
+        var llmInference: LlmInferenceFunction? = null
+
+        /**
+         * LLM model check function to be injected by app module.
+         * Set this once at app startup before editors are created.
+         */
+        @Volatile
+        var llmModelCheck: LlmModelCheckFunction? = null
+    }
+
     private val log = LoggerFactory.getLogger(InlineSuggestionComponent::class.java)
 
     private var currentSuggestion: SuggestionData? = null
@@ -51,7 +67,7 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
     private var debounceJob: Job? = null
 
     private val renderer = GhostTextRenderer(editor)
-    private val provider = SuggestionProvider(editor)
+    private val provider = SuggestionProvider(editor, llmInference = llmInference, llmModelCheck = llmModelCheck)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
