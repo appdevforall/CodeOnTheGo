@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Voice-to-Code Feature Strings -->
+
+    <!-- Recording Overlay -->
+    <string name="recording">Recording…</string>
+    <string name="slide_left_to_cancel">← Slide left to cancel</string>
+    <string name="processing_voice">Processing…</string>
+
+    <!-- Microphone Button -->
+    <string name="voice_code">Voice Code</string>
+    <string name="voice_code_description">Speak to generate code</string>
+    <string name="start_recording">Start voice recording</string>
+    <string name="stop_recording">Stop recording</string>
+
+    <!-- Preview Bottom Sheet -->
+    <string name="voice_command_result">Voice Command Result</string>
+    <string name="transcription">Transcription:</string>
+    <string name="generated_code">Generated Code:</string>
+    <string name="insert_code">Insert</string>
+    <string name="try_again">Try Again</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Errors -->
+    <string name="error_no_speech">No speech detected, try again</string>
+    <string name="error_recognition_failed">Couldn\'t understand, please speak clearly</string>
+    <string name="error_generation_timeout">Generation taking too long, try a simpler command</string>
+    <string name="error_permission_denied">Microphone permission required for voice coding</string>
+    <string name="error_llm_not_loaded">AI model not loaded. Please load a model in settings.</string>
+    <string name="error_recording_failed">Failed to start recording</string>
+    <string name="error_processing_failed">Failed to process voice command</string>
+
+    <!-- Permissions -->
+    <string name="permission_microphone_title">Microphone Permission</string>
+    <string name="permission_microphone_message">CodeOnTheGo needs microphone access to enable voice coding. Your voice is processed locally and never sent to external servers.</string>
+    <string name="permission_grant">Grant Permission</string>
+    <string name="permission_deny">Not Now</string>
+
+    <!-- Settings -->
+    <string name="voice_settings">Voice Settings</string>
+    <string name="enable_voice_code">Enable Voice Code</string>
+    <string name="enable_voice_code_summary">Use voice to generate code</string>
+    <string name="show_typing_animation">Show Typing Animation</string>
+    <string name="show_typing_animation_summary">Animate code insertion for better visual feedback</string>
+    <string name="preview_before_insert">Preview Before Insert</string>
+    <string name="preview_before_insert_summary">Show preview panel before inserting code</string>
+    <string name="voice_language">Voice Language</string>
+    <string name="voice_language_summary">Language for speech recognition</string>
+
+    <!-- Success Messages -->
+    <string name="code_inserted">Code inserted successfully</string>
+    <string name="recording_cancelled">Recording cancelled</string>
+
+    <!-- Duration Format -->
+    <string name="recording_duration">Recording… %1$d:%2$02d</string>
+</resources>
