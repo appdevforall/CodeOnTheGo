@@ -6,7 +6,11 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
 private const val TAG = "AudioRecorder"
 
@@ -25,10 +29,13 @@ class AudioRecorder(private val context: Context) {
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val BYTES_PER_SAMPLE = 2 // 16-bit = 2 bytes
+        private const val BUFFER_SIZE_MULTIPLIER = 2
     }
 
     private var audioRecord: AudioRecord? = null
     private var isRecording = false
+    private var recordingJob: Job? = null
+    private val audioBuffer = ByteArrayOutputStream()
 
     /**
      * Initialize audio recorder and check permissions.
@@ -43,7 +50,7 @@ class AudioRecorder(private val context: Context) {
                 SAMPLE_RATE,
                 CHANNEL_CONFIG,
                 AUDIO_FORMAT,
-                bufferSize * 2 // Double for safety
+                bufferSize * BUFFER_SIZE_MULTIPLIER
             )
 
             Log.d(TAG, "AudioRecord initialized (state: ${audioRecord?.state})")
@@ -56,17 +63,49 @@ class AudioRecorder(private val context: Context) {
 
     /**
      * Start recording audio.
+     * Launches a background coroutine to continuously read audio data.
      */
-    fun startRecording(): Boolean {
-        return try {
-            require(audioRecord != null) { "AudioRecord not initialized" }
-            audioRecord?.startRecording()
-            isRecording = true
-            Log.d(TAG, "Recording started")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start recording", e)
-            false
+    suspend fun startRecording(): Boolean {
+        return withContext(Dispatchers.Default) {
+            try {
+                require(audioRecord != null) { "AudioRecord not initialized" }
+
+                // Clear previous audio data
+                audioBuffer.reset()
+
+                // Start AudioRecord
+                audioRecord?.startRecording()
+                isRecording = true
+                Log.d(TAG, "Recording started")
+
+                // Start reading audio data in background
+                recordingJob = launch {
+                    val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+                    val buffer = ByteArray(bufferSize)
+
+                    Log.d(TAG, "Started audio capture loop (buffer size: $bufferSize)")
+
+                    while (isActive && isRecording) {
+                        val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+
+                        if (bytesRead > 0) {
+                            synchronized(audioBuffer) {
+                                audioBuffer.write(buffer, 0, bytesRead)
+                            }
+                        } else if (bytesRead < 0) {
+                            Log.w(TAG, "Error reading audio: $bytesRead")
+                        }
+                    }
+
+                    Log.d(TAG, "Audio capture loop ended")
+                }
+
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start recording", e)
+                isRecording = false
+                false
+            }
         }
     }
 
@@ -81,11 +120,24 @@ class AudioRecorder(private val context: Context) {
                 require(audioRecord != null) { "AudioRecord not initialized" }
                 require(isRecording) { "Not recording" }
 
-                audioRecord?.stop()
+                // Stop recording flag (stops the capture loop)
                 isRecording = false
 
-                Log.d(TAG, "Recording stopped")
-                byteArrayOf() // TODO: Return captured audio
+                // Wait for recording job to finish
+                recordingJob?.join()
+                recordingJob = null
+
+                // Stop AudioRecord
+                audioRecord?.stop()
+
+                // Get captured audio
+                val capturedAudio = synchronized(audioBuffer) {
+                    audioBuffer.toByteArray()
+                }
+
+                Log.d(TAG, "Recording stopped, captured ${capturedAudio.size} bytes")
+
+                capturedAudio
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to stop recording", e)
                 byteArrayOf()
@@ -134,12 +186,21 @@ class AudioRecorder(private val context: Context) {
      */
     fun release() {
         try {
+            // Stop recording if active
             if (isRecording) {
-                audioRecord?.stop()
                 isRecording = false
+                recordingJob?.cancel()
+                recordingJob = null
+                audioRecord?.stop()
             }
+
+            // Release AudioRecord
             audioRecord?.release()
             audioRecord = null
+
+            // Clear buffer
+            audioBuffer.reset()
+
             Log.d(TAG, "AudioRecord released")
         } catch (e: Exception) {
             Log.e(TAG, "Error releasing AudioRecord", e)

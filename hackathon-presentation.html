@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Local LLM Hackathon Technical Deep Dive - Speech-to-Code, Inline Suggestions, Vector Search">
+    <meta name="author" content="CodeOnTheGo Team">
+    <meta name="keywords" content="local LLM, speech-to-code, inline suggestions, vector search, mobile development">
     <title>Local LLM Hackathon - Technical Deep Dive</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
@@ -261,23 +264,26 @@ pre code {
             <h2>Unified Architecture: Shared LLM Core</h2>
 
             <div class="mermaid">
-graph TB
-    subgraph "Application Layer"
-        A[Speech-to-Code Pipeline]
-        B[Inline Suggestions Component]
-        C[Vector Search Service]
+graph LR
+    subgraph APP["Application Layer"]
+        A["🎤 Speech-to-Code<br/>Pipeline"]
+        B["✨ Inline Suggestions<br/>Component"]
+        C["🔍 Vector Search<br/>Service"]
     end
 
-    subgraph "LLM Infrastructure"
-        D[ILlamaController Interface]
-        E[Model Loading & Management]
-        F[Token Generation]
-        G[Embedding Generation]
+    subgraph LLM["LLM Infrastructure"]
+        D["ILlamaController<br/>Interface"]
+        E["Model Loading &<br/>Management"]
     end
 
-    subgraph "Native Layer"
-        H[llama.cpp]
-        I[GGUF Models]
+    subgraph GEN["Generation APIs"]
+        F["Token<br/>Generation"]
+        G["Embedding<br/>Generation"]
+    end
+
+    subgraph NATIVE["Native Layer"]
+        H["llama.cpp"]
+        I["GGUF Models"]
     end
 
     A --> D
@@ -290,11 +296,15 @@ graph TB
     E --> H
     H --> I
 
-    style A fill:#1565C0
-    style B fill:#1565C0
-    style C fill:#1565C0
-    style D fill:#2E7D32
-    style H fill:#D32F2F
+    style A fill:#1565C0,color:#fff
+    style B fill:#1565C0,color:#fff
+    style C fill:#1565C0,color:#fff
+    style D fill:#2E7D32,color:#fff
+    style E fill:#2E7D32,color:#fff
+    style F fill:#2E7D32,color:#fff
+    style G fill:#2E7D32,color:#fff
+    style H fill:#D32F2F,color:#fff
+    style I fill:#D32F2F,color:#fff
             </div>
 
             <p style="text-align: center; margin-top: 30px; font-size: 1.2rem;">
@@ -375,10 +385,10 @@ graph LR
             </div>
         </div>
 
-        <div class="slide" id="slide-6">
-            <h2>Speech-to-Code: Pipeline Flow</h2>
+        <div class="slide" id="slide-6" style="padding: 40px 80px; overflow-y: auto;">
+            <h2 style="margin-bottom: 15px;">Speech-to-Code: Pipeline Flow</h2>
 
-            <div class="mermaid">
+            <div class="mermaid" style="max-height: 70vh; overflow-y: auto;">
 sequenceDiagram
     participant User
     participant UI
@@ -410,10 +420,10 @@ sequenceDiagram
             </p>
         </div>
 
-        <div class="slide" id="slide-7">
-            <h2>Speech-to-Code: Performance & UX</h2>
+        <div class="slide" id="slide-7" style="padding: 40px 80px; overflow-y: auto;">
+            <h2 style="margin-bottom: 15px;">Speech-to-Code: Performance & UX</h2>
 
-            <h3>Latency Breakdown (from SpeechToCodePipeline.kt)</h3>
+            <h3 style="margin-top: 15px; margin-bottom: 10px;">Latency Breakdown (from SpeechToCodePipeline.kt)</h3>
             <div class="stats-grid">
                 <div class="stat-box">
                     <span class="stat-number">200-400ms</span>
@@ -568,16 +578,281 @@ graph TB
                 <li><strong>Memory:</strong> Cache cleared on low memory warning</li>
             </ul>
         </div>
-        <!-- More slides will be added in subsequent tasks -->
+
+        <div class="slide" id="slide-12">
+            <h2>🔍 Vector Search: Semantic Code Search</h2>
+
+            <h3>The Problem with Keyword Search</h3>
+            <ul>
+                <li>Search "authentication" → misses "login", "signin", "verify user"</li>
+                <li>Search "database" → misses "repository", "DAO", "data access"</li>
+                <li>No understanding of semantic similarity</li>
+            </ul>
+
+            <h3>Embedding-Based Solution</h3>
+            <ul>
+                <li><strong>Code Chunking:</strong> Split files into 200-500 char semantic chunks</li>
+                <li><strong>Embedding Generation:</strong> Convert chunks to 384-dim vectors via local LLM</li>
+                <li><strong>Similarity Search:</strong> Cosine similarity between query embedding and code embeddings</li>
+                <li><strong>On-Demand Indexing:</strong> Index project on first search, cache in SQLite</li>
+            </ul>
+
+            <p style="margin-top: 30px;">
+                <strong>Result:</strong> Search "auth" finds authentication logic even without exact keyword match
+            </p>
+        </div>
+
+        <div class="slide" id="slide-13">
+            <h2>Vector Search: Module Architecture</h2>
+
+            <div class="mermaid">
+graph TB
+    subgraph "App Module"
+        A[EditorViewModel]
+        B[VectorSearchCommand]
+        C[SearchResultFragment]
+    end
+
+    subgraph "vector-search Module"
+        D[VectorSearchService]
+        E[CodeChunker]
+        F[CodeEmbedding]
+        G[VectorMath]
+        H[CodeEmbeddingDescriptor]
+    end
+
+    subgraph "Infrastructure"
+        I[SQLiteIndex]
+        J[ILlamaController]
+    end
+
+    A --> B
+    B --> D
+    D --> E
+    D --> G
+    D --> J
+    E --> F
+    F --> I
+    H --> I
+    C --> A
+
+    style D fill:#1565C0
+    style E fill:#2E7D32
+    style J fill:#D32F2F
+    style I fill:#F57C00
+            </div>
+
+            <p style="text-align: center; margin-top: 20px;">
+                <strong>Module Structure:</strong> Standalone <code>vector-search</code> library<br>
+                Dependencies: <code>llama-api</code>, <code>lsp:indexing</code>
+            </p>
+        </div>
+
+        <div class="slide" id="slide-14" style="padding: 40px 80px; overflow-y: auto;">
+            <h2 style="margin-bottom: 15px;">Vector Search: On-Demand Indexing</h2>
+
+            <div class="mermaid" style="max-height: 75vh;">
+flowchart TD
+    A[User enters search query] --> B{Project indexed?}
+    B -->|No| C[Show Indexing project...]
+    C --> D[Scan for kt/java/xml files]
+    D --> E[For each file]
+    E --> F[CodeChunker.chunkFile]
+    F --> G[Generate embeddings via LLM]
+    G --> H[Store CodeEmbedding in SQLiteIndex]
+    H --> I{More files?}
+    I -->|Yes| E
+    I -->|No| J[Indexing complete]
+
+    B -->|Yes| K[Load embeddings from SQLite]
+    J --> K
+    K --> L[VectorSearchService.search]
+    L --> M[Generate query embedding]
+    M --> N[Calculate cosine similarity]
+    N --> O[Sort by similarity]
+    O --> P[Return top 20 results]
+    P --> Q[Display in SearchResultFragment]
+
+    style C fill:#FF9800,color:#000
+    style G fill:#2E7D32,color:#fff
+    style L fill:#1565C0,color:#fff
+            </div>
+        </div>
+
+        <div class="slide" id="slide-15">
+            <h2>Vector Search: Search Pipeline</h2>
+
+            <h3>VectorSearchService.search() Implementation</h3>
+            <pre><code>suspend fun search(
+    query: String,
+    limit: Int = 20,
+    threshold: Float = 0.0f
+): List<CodeEmbedding> {
+    return withContext(Dispatchers.Default) {
+        // 1. Generate embedding for query
+        val queryEmbedding = llamaController.generateEmbedding(query)
+
+        // 2. Load all code embeddings from SQLite
+        val allEmbeddings = index.query(IndexQuery.ALL)
+
+        // 3. Calculate cosine similarity for each
+        allEmbeddings.map { codeEmbedding ->
+            val similarity = VectorMath.cosineSimilarity(
+                queryEmbedding,
+                codeEmbedding.embedding
+            )
+            Pair(codeEmbedding, similarity)
+        }
+        // 4. Filter by threshold, sort, take top K
+        .filter { (_, score) -> score >= threshold }
+        .sortedByDescending { (_, score) -> score }
+        .take(limit)
+        .map { (embedding, _) -> embedding }
+    }
+}</code></pre>
+
+            <p style="margin-top: 20px;">
+                <strong>Performance:</strong> 100-500ms for 1000 embeddings (cosine similarity is fast!)
+            </p>
+        </div>
+
+        <div class="slide" id="slide-16">
+            <h2>📡 ADB Broadcast Receiver: Remote LLM Control</h2>
+
+            <h3>Problem & Solution</h3>
+            <p><strong>Problem:</strong> Need to test and automate LLM features externally (CI/CD, scripts, external tools)</p>
+            <p><strong>Solution:</strong> BroadcastReceiver that exposes LLM features via ADB commands</p>
+
+            <h3>Architecture</h3>
+            <div class="mermaid">
+graph LR
+    A["External Tool<br/>(CLI/Script/CI)"] -->|ADB broadcast| B["LlmCommandReceiver"]
+    B --> C{Action Router}
+    C -->|vector_search| D["VectorSearchTestCommand"]
+    C -->|feature_b| E["Future: Feature B"]
+    C -->|feature_c| F["Future: Feature C"]
+
+    D --> G["LlmInferenceEngine"]
+    E --> G
+    F --> G
+
+    G --> H["Results to Logcat"]
+
+    style B fill:#1565C0,color:#fff
+    style C fill:#2E7D32,color:#fff
+    style D fill:#F57C00,color:#fff
+    style G fill:#D32F2F,color:#fff
+            </div>
+
+            <h3>Usage Example: Vector Search via ADB</h3>
+            <pre><code>adb shell am broadcast \
+  -a com.itsaky.androidide.LLM_COMMAND \
+  --es action "vector_search" \
+  --es query "authentication" \
+  --ei max_files 10
+
+# Output in logcat shows search results</code></pre>
+
+            <h3>Key Features</h3>
+            <ul>
+                <li>🔌 <strong>Extensible design:</strong> Easy to add new actions/features</li>
+                <li>🚀 <strong>Auto model loading:</strong> Loads LLM model if not already loaded</li>
+                <li>📊 <strong>Detailed logging:</strong> Results output to logcat for easy debugging</li>
+                <li>🔧 <strong>CRUD operations:</strong> Enables Create, Read, Update operations via broadcast</li>
+            </ul>
+        </div>
+
+        <div class="slide" id="slide-17">
+            <h2>🏆 Technical Achievements</h2>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <span class="stat-number">68</span>
+                    <span class="stat-label">Commits</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-number">650ms</span>
+                    <span class="stat-label">Min Speech Latency</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">Local Inference</span>
+                </div>
+            </div>
+
+            <h3>Key Innovations</h3>
+            <div class="two-column">
+                <div>
+                    <p><strong>🎤 Speech-to-Code:</strong></p>
+                    <ul>
+                        <li>Dual STT support (Cloud + Moonshine)</li>
+                        <li>Preview-before-insert UX pattern</li>
+                        <li>Spanish language support</li>
+                        <li>Sub-second end-to-end latency</li>
+                    </ul>
+                </div>
+                <div>
+                    <p><strong>✨ Inline Suggestions:</strong></p>
+                    <ul>
+                        <li>Custom Sora component architecture</li>
+                        <li>Ghost text canvas rendering</li>
+                        <li>LRU caching for performance</li>
+                        <li>Multi-line completions</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <p><strong>🔍 Vector Search:</strong></p>
+                <ul>
+                    <li>Standalone <code>vector-search</code> module</li>
+                    <li>On-demand indexing strategy</li>
+                    <li>384-dim embeddings via local LLM</li>
+                    <li>Cosine similarity search (100-500ms)</li>
+                </ul>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <p><strong>📡 ADB Broadcast Receiver:</strong></p>
+                <ul>
+                    <li>Remote LLM control via ADB commands</li>
+                    <li>Extensible action routing system</li>
+                    <li>Auto model loading</li>
+                    <li>Enables CI/CD integration</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="slide" id="slide-18">
+            <h1 style="margin-top: 20%; text-align: center;">Questions?</h1>
+
+            <div style="margin-top: 80px; text-align: center;">
+                <h3>Key Repositories</h3>
+                <p style="font-size: 1.2rem; margin-top: 30px;">
+                    <strong>CodeOnTheGo:</strong> Android IDE with local LLM integration<br>
+                    <strong>Commits:</strong> 62fc4f19..HEAD (68 commits)<br>
+                    <strong>Date Range:</strong> June 18, 2026
+                </p>
+
+                <div style="margin-top: 60px; font-size: 1.1rem; color: #9E9E9E;">
+                    <p>Thank you!</p>
+                    <p>🚀 Local LLMs on Mobile • 100% On-Device Inference • Zero Cloud Dependencies</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="controls">
-        <span class="slide-number">1 / 18</span>
+        <span class="slide-number">1 / 19</span>
+    </div>
+
+    <div style="position: fixed; bottom: 30px; left: 30px; background: rgba(33, 150, 243, 0.1); padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; color: #9E9E9E; backdrop-filter: blur(10px);">
+        ← → Space: Navigate | Home/End: Jump
     </div>
 
     <script>
         let currentSlide = 0;
-        const totalSlides = 18;
+        const totalSlides = 19;
 
         function showSlide(n) {
             const slides = document.querySelectorAll('.slide');

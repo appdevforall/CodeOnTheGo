@@ -191,10 +191,16 @@ class VectorSearchCommand(
                 // Generate embeddings for each chunk
                 for ((chunkIndex, chunk) in chunks.withIndex()) {
                     try {
+                        // Add small delay every 10 chunks to prevent overwhelming native code
+                        if (totalChunks > 0 && totalChunks % 10 == 0) {
+                            kotlinx.coroutines.delay(100) // 100ms breathing room
+                            log.debug("Pausing briefly after $totalChunks chunks to prevent native memory pressure")
+                        }
+
                         val embedding = llmEngine.generateEmbeddings(chunk.content)
 
                         if (embedding.isEmpty()) {
-                            log.warn("Empty embedding for file: ${file.name}, chunk $chunkIndex")
+                            log.warn("Empty embedding for file: ${file.name}, chunk $chunkIndex - skipping")
                             continue
                         }
 
@@ -213,7 +219,8 @@ class VectorSearchCommand(
                         index.insert(codeEmbedding)
                         totalChunks++
                     } catch (e: Exception) {
-                        log.warn("Failed to embed chunk $chunkIndex in ${file.name}", e)
+                        log.error("Failed to embed chunk $chunkIndex in ${file.name}", e)
+                        // Continue with next chunk instead of failing entire file
                     }
                 }
 

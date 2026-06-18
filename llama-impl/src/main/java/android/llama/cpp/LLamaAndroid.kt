@@ -154,9 +154,45 @@ class LLamaAndroid : ILlamaController {
 
     override suspend fun generateEmbedding(text: String): FloatArray {
         return withContext(runLoop) {
-            when (val state = threadLocalState.get()) {
-                is State.Loaded -> generate_embeddings(state.context, state.batch, text)
-                else -> FloatArray(0) // Return empty array if not loaded
+            try {
+                // Validate input
+                if (text.isBlank()) {
+                    log.warn("Cannot generate embedding for empty text")
+                    return@withContext FloatArray(0)
+                }
+
+                // Limit text length to prevent context overflow (max 512 tokens ~ 2048 chars)
+                val truncatedText = if (text.length > 2048) {
+                    log.warn("Text too long (${text.length} chars), truncating to 2048")
+                    text.take(2048)
+                } else {
+                    text
+                }
+
+                when (val state = threadLocalState.get()) {
+                    is State.Loaded -> {
+                        try {
+                            generate_embeddings(state.context, state.batch, truncatedText)
+                        } catch (e: Exception) {
+                            log.error("Native embedding generation failed, attempting KV cache clear", e)
+                            // Try to recover by clearing KV cache and retrying once
+                            try {
+                                kv_cache_clear(state.context)
+                                generate_embeddings(state.context, state.batch, truncatedText)
+                            } catch (retryError: Exception) {
+                                log.error("Embedding generation failed after KV cache clear", retryError)
+                                FloatArray(0)
+                            }
+                        }
+                    }
+                    else -> {
+                        log.warn("Cannot generate embedding - model not loaded")
+                        FloatArray(0)
+                    }
+                }
+            } catch (e: Exception) {
+                log.error("Unexpected error in generateEmbedding", e)
+                FloatArray(0)
             }
         }
     }

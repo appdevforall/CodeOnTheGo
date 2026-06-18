@@ -220,6 +220,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             flashError(getString(string.msg_template_warnings))
         }
 
+		// Initialize voice-to-code functionality
+		setupVoiceCode()
 	}
 
 	private fun observeStates() {

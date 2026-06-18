@@ -62,7 +62,7 @@ object InlineSuggestionLlmConfig {
         }
 
         // Inject model loader function for lazy loading
-        SuggestionProvider.llmModelLoader = { context ->
+        SuggestionProvider.llmModelLoader = llmModelLoader@{ context ->
             try {
                 val prefs = BaseApplication.baseInstance.prefManager
                 val modelPath = prefs.getString(ModelPurpose.CODE_COMPLETION.getPreferenceKey(), null)

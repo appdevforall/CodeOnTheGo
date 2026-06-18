@@ -142,7 +142,7 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
                 val started = audioRecorder?.startRecording() ?: false
                 if (started) {
                     _recordingState.value = RecordingState.Recording(0L, emptyList())
-                    Log.d(TAG, "Recording started")
+                    Log.d(TAG, "Recording started successfully")
                 } else {
                     Log.e(TAG, "Failed to start recording")
                     _error.value = VoiceError.Unknown("Failed to start recording")
