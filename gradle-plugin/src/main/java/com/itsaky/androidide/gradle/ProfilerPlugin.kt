@@ -27,7 +27,7 @@ import javax.xml.transform.stream.StreamResult
  * @author Akash Yadav
  */
 class ProfilerPlugin : Plugin<Project> {
-	override fun apply(target: Project) =
+	override fun apply(target: Project): Unit =
 		target
 			.run {
 				if (!target.plugins.hasPlugin(APP_PLUGIN)) {
