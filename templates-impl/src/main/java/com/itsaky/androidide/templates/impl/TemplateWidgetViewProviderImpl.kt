@@ -360,6 +360,9 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
       root.setHint(name)
     }
     resetStartAndEndIcons(context, root)
+    if (showClearIcon) {
+      root.endIconMode = TextInputLayout.END_ICON_CLEAR_TEXT
+    }
     root.editText!!.addTextChangedListener(object : SingleTextWatcher() {
       override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
         onTextChanged(s?.toString() ?: "")

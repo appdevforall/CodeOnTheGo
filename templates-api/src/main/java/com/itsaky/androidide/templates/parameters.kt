@@ -300,6 +300,8 @@ class BooleanParameterBuilder : ParameterBuilder<Boolean>() {
  *     is clicked. Click listener to the icon will be set on if this is non-null.
  * @property onEndIconClick Function which will be used when the end icon is
  *     clicked. Click listener to the icon will be set on if this is non-null.
+ * @property showClearIcon Whether a Material clear-text (X) end icon should be
+ *     shown, allowing the user to empty the field in one tap.
  */
 abstract class TextFieldParameter<T>(
     @StringRes name: Int,
@@ -311,7 +313,8 @@ abstract class TextFieldParameter<T>(
     val inputType: Int?,
     @StyleableRes val imeOptions: Int?,
     val maxLines: Int?, tooltipTag: String?, constraints: List<ParameterConstraint>,
-    id: Int?, nameStr: String?
+    id: Int?, nameStr: String?,
+    val showClearIcon: Boolean = false
 ) : Parameter<T>(name, description, default, tooltipTag, constraints, id, nameStr)
 
 abstract class TextFieldParameterBuilder<T>(
@@ -322,6 +325,7 @@ abstract class TextFieldParameterBuilder<T>(
     var inputType: Int? = null,
     var imeOptions: Int? = null,
     var maxLines: Int? = null,
+    var showClearIcon: Boolean = false,
 ) : ParameterBuilder<T>()
 
 class StringParameter(
@@ -337,11 +341,12 @@ class StringParameter(
     tooltipTag: String?,
     constraints: List<ParameterConstraint>,
     id: Int?,
-    nameStr: String?
+    nameStr: String?,
+    showClearIcon: Boolean = false
 ) : TextFieldParameter<String>(
     name, description, default, startIcon, endIcon,
     onStartIconClick, onEndIconClick, inputType, imeOptions, maxLines, tooltipTag, constraints,
-    id, nameStr
+    id, nameStr, showClearIcon
 )
 
 class StringParameterBuilder : TextFieldParameterBuilder<String>() {
@@ -361,7 +366,8 @@ class StringParameterBuilder : TextFieldParameterBuilder<String>() {
             tooltipTag = tooltipTag,
             constraints = constraints,
             id = id,
-            nameStr = nameStr
+            nameStr = nameStr,
+            showClearIcon = showClearIcon
         )
     }
 }
@@ -438,6 +444,7 @@ inline fun projectNameParameter(
         name = string.project_app_name
         default = "My Application"
         startIcon = { R.drawable.ic_android }
+        showClearIcon = true
         constraints = listOf(NONEMPTY)
         inputType =
             android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
