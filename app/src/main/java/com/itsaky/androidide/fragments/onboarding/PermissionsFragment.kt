@@ -89,6 +89,13 @@ class PermissionsFragment :
 			onPermissionsUpdated()
 		}
 
+	private val microphonePermissionRequestLauncher =
+		registerForActivityResult(
+			ActivityResultContracts.RequestPermission(),
+		) {
+			onPermissionsUpdated()
+		}
+
 	private val permissions by lazy {
 		PermissionsHelper.getRequiredPermissions(requireContext())
 	}
@@ -301,6 +308,8 @@ class PermissionsFragment :
 					Settings.ACTION_APP_NOTIFICATION_SETTINGS,
 					setData = false,
 				)
+
+			Manifest.permission.RECORD_AUDIO -> requestMicrophonePermission()
 		}
 	}
 
@@ -330,6 +339,10 @@ class PermissionsFragment :
 				Manifest.permission.WRITE_EXTERNAL_STORAGE,
 			),
 		)
+	}
+
+	private fun requestMicrophonePermission() {
+		microphonePermissionRequestLauncher.launch(Manifest.permission.RECORD_AUDIO)
 	}
 
 	private fun requestSettingsTogglePermission(
