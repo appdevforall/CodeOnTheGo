@@ -50,7 +50,7 @@ class VectorSearchCommand(
     companion object {
         private const val MAX_FILES_TO_INDEX = 500 // Increased from 100 for better coverage
         private val SUPPORTED_EXTENSIONS = setOf("kt", "java", "xml")
-        private const val DEFAULT_SIMILARITY_THRESHOLD = 0.3f // Minimum similarity for relevant results
+        private const val DEFAULT_SIMILARITY_THRESHOLD = 0.05f // Lowered to capture more results with general-purpose models
 
         @Volatile
         private var embeddingIndex: SQLiteIndex<CodeEmbedding>? = null

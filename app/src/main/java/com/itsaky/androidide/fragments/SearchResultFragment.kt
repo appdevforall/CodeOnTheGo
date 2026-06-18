@@ -78,6 +78,11 @@ class SearchResultFragment : Fragment() {
             updateVectorResults(results)
           }
         }
+        launch {
+          editorViewModel.vectorSearchState.collectLatest { state ->
+            updateVectorPlaceholder(state)
+          }
+        }
       }
     }
   }
@@ -114,6 +119,8 @@ class SearchResultFragment : Fragment() {
   }
 
   private fun updateVectorVisibility() {
+    if (!isAdded || _binding == null) return
+
     val hasResults = binding.vectorResults.adapter?.itemCount ?: 0 > 0
     binding.vectorResults.visibility = if (isVectorExpanded && hasResults) View.VISIBLE else View.GONE
     binding.vectorPlaceholder.visibility = if (isVectorExpanded && !hasResults) View.VISIBLE else View.GONE
@@ -152,6 +159,20 @@ class SearchResultFragment : Fragment() {
           editorActivity?.hideBottomSheet()
         }
       )
+      updateVectorVisibility()
+    }
+  }
+
+  private fun updateVectorPlaceholder(state: EditorViewModel.VectorSearchState) {
+    if (isAdded && _binding != null) {
+      val placeholderText = when (state) {
+        EditorViewModel.VectorSearchState.IDLE -> getString(R.string.search_vector_idle)
+        EditorViewModel.VectorSearchState.LOADING -> getString(R.string.search_vector_loading)
+        EditorViewModel.VectorSearchState.NO_RESULTS -> getString(R.string.search_vector_no_results)
+        EditorViewModel.VectorSearchState.ERROR -> getString(R.string.search_vector_error)
+        EditorViewModel.VectorSearchState.SUCCESS -> "" // Shouldn't show placeholder when there are results
+      }
+      binding.vectorPlaceholder.text = placeholderText
       updateVectorVisibility()
     }
   }

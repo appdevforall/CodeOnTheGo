@@ -72,6 +72,7 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 		}
 
 	private lateinit var chatAdapter: ChatAdapter
+	private var adapterDataObserver: RecyclerView.AdapterDataObserver? = null
 	private val selectedContext = mutableListOf<String>()
 	private val selectedImageUris = mutableListOf<Uri>()
 	private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
@@ -221,17 +222,20 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 			ChatAdapter(markwon) { action, message ->
 				handleMessageAction(action, message)
 			}
-		chatAdapter.registerAdapterDataObserver(
-			object : RecyclerView.AdapterDataObserver() {
-				override fun onItemRangeInserted(
-					positionStart: Int,
-					itemCount: Int,
-				) {
-					super.onItemRangeInserted(positionStart, itemCount)
+
+		// Create and register the adapter data observer
+		adapterDataObserver = object : RecyclerView.AdapterDataObserver() {
+			override fun onItemRangeInserted(
+				positionStart: Int,
+				itemCount: Int,
+			) {
+				super.onItemRangeInserted(positionStart, itemCount)
+				if (::chatAdapter.isInitialized) {
 					binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
 				}
-			},
-		)
+			}
+		}
+		adapterDataObserver?.let { chatAdapter.registerAdapterDataObserver(it) }
 
 		binding.chatRecyclerView.adapter = chatAdapter
 		binding.chatRecyclerView.layoutManager =
@@ -447,6 +451,30 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 		// Clean up the listener to prevent leaks or unwanted behavior
 		activity?.window?.decorView?.setOnApplyWindowInsetsListener(null)
 		chatViewModel.saveAllSessionsAndState(requireActivity().getPreferences(Context.MODE_PRIVATE))
+	}
+
+	override fun onDestroyView() {
+		// Unregister the adapter data observer to prevent memory leaks
+		adapterDataObserver?.let { observer ->
+			if (::chatAdapter.isInitialized) {
+				try {
+					chatAdapter.unregisterAdapterDataObserver(observer)
+				} catch (e: IllegalStateException) {
+					// Observer was not registered, ignore
+				}
+			}
+		}
+		adapterDataObserver = null
+
+		// Clear the adapter from the RecyclerView
+		binding.chatRecyclerView.adapter = null
+
+		// Clear references
+		selectedContext.clear()
+		selectedImageUris.clear()
+
+		// Call super to clean up binding and other resources
+		super.onDestroyView()
 	}
 
 	private fun updateContextChips() {

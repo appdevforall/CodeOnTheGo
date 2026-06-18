@@ -94,12 +94,12 @@ class LlmCommandReceiver : BroadcastReceiver() {
         // Route to appropriate handler based on action type
         when (action) {
             ACTION_TYPE_VECTOR_SEARCH -> handleVectorSearch(context, intent)
-            ACTION_TYPE_FILE_EXPLORER -> handleFileExplorer(context, intent)
+            // ACTION_TYPE_FILE_EXPLORER -> handleFileExplorer(context, intent)  // TODO: Implement handleFileExplorer
             ACTION_TYPE_FEATURE_B -> handleFeatureB(context, intent)
             ACTION_TYPE_FEATURE_C -> handleFeatureC(context, intent)
             else -> {
                 log.error("LlmCommandReceiver: unknown action type '$action'")
-                log.error("Supported actions: $ACTION_TYPE_VECTOR_SEARCH, $ACTION_TYPE_FILE_EXPLORER, $ACTION_TYPE_FEATURE_B, $ACTION_TYPE_FEATURE_C")
+                log.error("Supported actions: $ACTION_TYPE_VECTOR_SEARCH, $ACTION_TYPE_FEATURE_B, $ACTION_TYPE_FEATURE_C")
             }
         }
     }

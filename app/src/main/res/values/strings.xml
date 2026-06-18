@@ -26,4 +26,8 @@
     <string name="search_section_keyword_results">Keyword Results</string>
     <string name="search_section_vector_results">Vector Code Results</string>
     <string name="search_section_working">Working on it</string>
+    <string name="search_vector_loading">Searching with AI…</string>
+    <string name="search_vector_no_results">No semantic matches found</string>
+    <string name="search_vector_error">Semantic search unavailable. Load an embedding model in AI Settings.</string>
+    <string name="search_vector_idle">AI-powered semantic search will appear here</string>
 </resources>

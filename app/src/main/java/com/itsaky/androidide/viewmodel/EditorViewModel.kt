@@ -81,6 +81,20 @@ class EditorViewModel : ViewModel() {
     private val _vectorSearchResults = MutableStateFlow<Map<File, List<SearchResult>>>(emptyMap())
     val vectorSearchResults: StateFlow<Map<File, List<SearchResult>>> = _vectorSearchResults.asStateFlow()
 
+    /**
+     * State of vector search: idle, loading, success, no_results, error
+     */
+    enum class VectorSearchState {
+        IDLE,           // No search performed yet
+        LOADING,        // Search in progress
+        SUCCESS,        // Search completed with results
+        NO_RESULTS,     // Search completed but found no results
+        ERROR           // Search failed
+    }
+
+    private val _vectorSearchState = MutableStateFlow(VectorSearchState.IDLE)
+    val vectorSearchState: StateFlow<VectorSearchState> = _vectorSearchState.asStateFlow()
+
     fun onVectorSearchResultsReady(results: Map<File, List<SearchResult>>) {
         _vectorSearchResults.value = results
     }
@@ -95,11 +109,14 @@ class EditorViewModel : ViewModel() {
     fun performSemanticSearch(query: String) {
         if (query.isBlank()) {
             _vectorSearchResults.value = emptyMap()
+            _vectorSearchState.value = VectorSearchState.IDLE
             return
         }
 
         viewModelScope.launch {
             try {
+                _vectorSearchState.value = VectorSearchState.LOADING
+
                 // Get LLM engine
                 val engine = LlmInferenceEngineProvider.instance
 
@@ -107,6 +124,7 @@ class EditorViewModel : ViewModel() {
                 if (!engine.isModelLoaded) {
                     ILogger.ROOT.warn("Cannot perform semantic search: model not loaded")
                     _vectorSearchResults.value = emptyMap()
+                    _vectorSearchState.value = VectorSearchState.ERROR
                     return@launch
                 }
 
@@ -121,14 +139,23 @@ class EditorViewModel : ViewModel() {
                     val embeddings = VectorSearchCommand.lastSearchResults
                     val searchResults = convertEmbeddingsToSearchResults(embeddings)
                     _vectorSearchResults.value = searchResults
-                    ILogger.ROOT.info("Semantic search completed: ${embeddings.size} results")
+
+                    if (searchResults.isEmpty()) {
+                        _vectorSearchState.value = VectorSearchState.NO_RESULTS
+                        ILogger.ROOT.info("Semantic search completed: 0 results")
+                    } else {
+                        _vectorSearchState.value = VectorSearchState.SUCCESS
+                        ILogger.ROOT.info("Semantic search completed: ${embeddings.size} results")
+                    }
                 } else {
                     ILogger.ROOT.warn("Semantic search failed: ${result.message}")
                     _vectorSearchResults.value = emptyMap()
+                    _vectorSearchState.value = VectorSearchState.ERROR
                 }
             } catch (e: Exception) {
                 ILogger.ROOT.error("Semantic search error", e)
                 _vectorSearchResults.value = emptyMap()
+                _vectorSearchState.value = VectorSearchState.ERROR
             }
         }
     }
