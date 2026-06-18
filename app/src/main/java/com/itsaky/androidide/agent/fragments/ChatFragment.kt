@@ -33,7 +33,9 @@ import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.utils.flashSuccess
 import io.noties.markwon.Markwon
 import io.noties.markwon.linkify.LinkifyPlugin
 import kotlinx.coroutines.Dispatchers
@@ -294,6 +296,11 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 					true
 				}
 
+				R.id.menu_test_vector_search -> {
+					testVectorSearch()
+					true
+				}
+
 				else -> false
 			}
 		}
@@ -495,5 +502,85 @@ class ChatFragment : EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding
 	private fun hideKeyboard() {
 		val inputMethodManager = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
 		inputMethodManager?.hideSoftInputFromWindow(binding.promptInputEdittext.windowToken, 0)
+	}
+
+	/**
+	 * Test vector search functionality with a sample query.
+	 * Displays results in logcat for debugging.
+	 */
+	private fun testVectorSearch() {
+		viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+			try {
+				val engine = com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider.instance
+
+				// Show toast on main thread
+				withContext(Dispatchers.Main) {
+					requireActivity().flashInfo("Starting vector search test...")
+				}
+
+				// Check if model is loaded
+				if (!engine.isModelLoaded) {
+					org.slf4j.LoggerFactory.getLogger("VectorSearchTest")
+						.warn("Model not loaded, attempting to load...")
+
+					val prefs = com.itsaky.androidide.app.BaseApplication.baseInstance.prefManager
+					val modelPath = prefs.getString(
+						com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH,
+						null
+					)
+					val modelHash = prefs.getString(
+						com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256,
+						null
+					)
+
+					if (modelPath.isNullOrBlank()) {
+						withContext(Dispatchers.Main) {
+							requireActivity().flashError("No model configured. Please configure a model in AI Settings.")
+						}
+						return@launch
+					}
+
+					val loaded = engine.initModelFromFile(requireContext(), modelPath, modelHash)
+					if (!loaded) {
+						withContext(Dispatchers.Main) {
+							requireActivity().flashError("Failed to load model")
+						}
+						return@launch
+					}
+				}
+
+				// Execute vector search command with test query
+				val command = com.itsaky.androidide.api.commands.VectorSearchCommand(
+					query = "main",
+					llmEngine = engine,
+					limit = 10
+				)
+
+				val result = command.execute()
+
+				// Display results in logcat
+				val log = org.slf4j.LoggerFactory.getLogger("VectorSearchTest")
+				if (result.success) {
+					log.info("=== Vector Search Test Results ===")
+					log.info(result.data ?: "No data")
+					log.info("===================================")
+
+					withContext(Dispatchers.Main) {
+						requireActivity().flashSuccess("Vector search completed! Check logcat for results.")
+					}
+				} else {
+					log.error("Vector search failed: ${result.message}")
+					withContext(Dispatchers.Main) {
+						requireActivity().flashError("Vector search failed: ${result.message}")
+					}
+				}
+			} catch (e: Exception) {
+				org.slf4j.LoggerFactory.getLogger("VectorSearchTest")
+					.error("Vector search test exception", e)
+				withContext(Dispatchers.Main) {
+					requireActivity().flashError("Error: ${e.message}")
+				}
+			}
+		}
 	}
 }

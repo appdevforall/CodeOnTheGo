@@ -16,6 +16,10 @@
         android:title="@string/ai_settings"
         android:icon="@drawable/ic_settings" />
     <item
+        android:id="@+id/menu_test_vector_search"
+        android:title="@string/test_vector_search"
+        android:icon="@drawable/ic_search" />
+    <item
         android:id="@+id/menu_chat_close"
         android:title="@string/close" />
 </menu>
