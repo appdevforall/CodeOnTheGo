@@ -17,8 +17,15 @@
 
 package com.itsaky.androidide.editor
 
+import android.content.Context
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
+import com.itsaky.androidide.agent.repository.ModelPurpose
+import com.itsaky.androidide.agent.repository.ModelPurpose.Companion.getPreferenceKey
+import com.itsaky.androidide.agent.repository.ModelPurpose.Companion.getSha256PreferenceKey
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.editor.ui.SuggestionProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 /**
@@ -52,6 +59,37 @@ object InlineSuggestionLlmConfig {
                 stopStrings = stopStrings,
                 clearCache = clearCache
             )
+        }
+
+        // Inject model loader function for lazy loading
+        SuggestionProvider.llmModelLoader = { context ->
+            try {
+                val prefs = BaseApplication.baseInstance.prefManager
+                val modelPath = prefs.getString(ModelPurpose.CODE_COMPLETION.getPreferenceKey(), null)
+                val modelHash = prefs.getString(ModelPurpose.CODE_COMPLETION.getSha256PreferenceKey(), null)
+
+                if (modelPath.isNullOrBlank()) {
+                    log.info("No CODE_COMPLETION model configured. Please select a model in AI Settings.")
+                    return@llmModelLoader false
+                }
+
+                log.info("Lazy loading CODE_COMPLETION model: $modelPath")
+
+                val loaded = withContext(Dispatchers.IO) {
+                    engine.initModelFromFile(context, modelPath, modelHash)
+                }
+
+                if (loaded) {
+                    log.info("Successfully loaded CODE_COMPLETION model: ${engine.loadedModelName}")
+                } else {
+                    log.error("Failed to load CODE_COMPLETION model from: $modelPath")
+                }
+
+                loaded
+            } catch (e: Exception) {
+                log.error("Error during lazy model loading", e)
+                false
+            }
         }
 
         // Inject model check function with validation

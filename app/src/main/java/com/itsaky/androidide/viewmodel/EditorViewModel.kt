@@ -166,22 +166,29 @@ class EditorViewModel : ViewModel() {
     private fun convertEmbeddingsToSearchResults(
         embeddingsWithScores: List<Pair<CodeEmbedding, Float>>
     ): Map<File, List<SearchResult>> {
-        return embeddingsWithScores
-            .groupBy { File(it.first.filePath) }
-            .mapValues { (_, chunks) ->
-                chunks.map { (chunk, similarity) ->
-                    // Create Range for the chunk
-                    val startPos = Position(chunk.startLine, 0)
-                    val endPos = Position(chunk.endLine, 0)
-                    val range = Range(startPos, endPos)
+        ILogger.ROOT.info("Converting ${embeddingsWithScores.size} embeddings to search results")
 
-                    val file = File(chunk.filePath)
-                    val line = "${chunk.startLine}: ${chunk.chunkText.lines().firstOrNull() ?: ""}"
-                    val match = chunk.chunkText.take(100).trim() // Preview text
+        val grouped = embeddingsWithScores.groupBy { File(it.first.filePath) }
+        ILogger.ROOT.info("Grouped into ${grouped.size} files")
 
-                    SearchResult(range, file, line, match, similarity)
-                }
+        val result = grouped.mapValues { (file, chunks) ->
+            ILogger.ROOT.info("File ${file.name} has ${chunks.size} chunks")
+            chunks.map { (chunk, similarity) ->
+                // Create Range for the chunk
+                val startPos = Position(chunk.startLine, 0)
+                val endPos = Position(chunk.endLine, 0)
+                val range = Range(startPos, endPos)
+
+                val filePath = File(chunk.filePath)
+                val line = "${chunk.startLine}: ${chunk.chunkText.lines().firstOrNull() ?: ""}"
+                val match = chunk.chunkText.take(100).trim() // Preview text
+
+                SearchResult(range, filePath, line, match, similarity)
             }
+        }
+
+        ILogger.ROOT.info("Conversion complete, returning ${result.size} files with ${result.values.sumOf { it.size }} total results")
+        return result
     }
 
     /**

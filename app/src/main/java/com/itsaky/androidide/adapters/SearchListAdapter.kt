@@ -54,12 +54,14 @@ class SearchListAdapter(
     val binding = p1.binding
     val file = keys[p2]
     val matches = results[file] ?: listOf()
+    android.util.Log.d("SearchListAdapter", "onBindViewHolder: file=${file.name}, matches=${matches.size}")
     val color = binding.icon.context.resolveAttr(R.attr.colorPrimary)
     binding.title.text = file.name
     binding.icon.setImageResource(FileExtension.Factory.forFile(file, false).icon)
     binding.icon.setColorFilter(color, SRC_ATOP)
     binding.items.layoutManager = LinearLayoutManager(binding.items.context)
     binding.items.adapter = ChildAdapter(matches)
+    android.util.Log.d("SearchListAdapter", "ChildAdapter created with ${matches.size} items")
     binding.root.setOnClickListener { onFileClick(file) }
   }
 
@@ -76,6 +78,7 @@ class SearchListAdapter(
     override fun onBindViewHolder(p1: ChildVH, p2: Int) {
       val match = matches[p2]
       val binding = p1.binding
+      android.util.Log.d("SearchListAdapter", "ChildAdapter onBindViewHolder: index=$p2, similarity=${match.similarity}, line=${match.line}")
 
       // Show similarity score if available (vector search results)
       if (match.similarity != null) {

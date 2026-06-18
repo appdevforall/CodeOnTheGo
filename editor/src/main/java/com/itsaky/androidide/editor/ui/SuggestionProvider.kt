@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.editor.ui
 
+import android.content.Context
 import android.util.LruCache
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.preferences.internal.InlineSuggestionPreferences
@@ -36,6 +37,12 @@ typealias LlmInferenceFunction = suspend (String, List<String>, Boolean) -> Stri
  * Function type for checking if LLM model is loaded.
  */
 typealias LlmModelCheckFunction = () -> Boolean
+
+/**
+ * Function type for lazy loading a model.
+ * Takes a Context and returns true if model was successfully loaded.
+ */
+typealias LlmModelLoaderFunction = suspend (Context) -> Boolean
 
 /**
  * Provides inline code suggestions from local LLM.
@@ -61,6 +68,13 @@ class SuggestionProvider(
          */
         @Volatile
         var llmModelCheck: LlmModelCheckFunction? = null
+
+        /**
+         * LLM model loader function for lazy loading.
+         * Set this once at app startup before editors are created.
+         */
+        @Volatile
+        var llmModelLoader: LlmModelLoaderFunction? = null
     }
 
     private val log = LoggerFactory.getLogger(SuggestionProvider::class.java)
@@ -102,9 +116,23 @@ class SuggestionProvider(
                 return null
             }
 
+            // Check if model is loaded, attempt lazy loading if not
             if (llmModelCheck?.invoke() != true) {
-                log.debug("No model loaded, cannot provide suggestions")
-                return null
+                log.debug("No model loaded, attempting lazy load...")
+
+                // Try to lazy load the CODE_COMPLETION model
+                val loaded = llmModelLoader?.invoke(editor.context)
+                if (loaded == true) {
+                    log.info("Model lazy loaded successfully")
+                    // Verify it's not an embedding model after loading
+                    if (llmModelCheck?.invoke() != true) {
+                        log.warn("Loaded model failed validation (likely an embedding model)")
+                        return null
+                    }
+                } else {
+                    log.debug("No model loaded, cannot provide suggestions")
+                    return null
+                }
             }
 
             // Extract context around cursor

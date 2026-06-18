@@ -148,6 +148,14 @@ class SearchResultFragment : Fragment() {
 
   private fun updateVectorResults(results: Map<File, List<SearchResult>>) {
     if (isAdded && _binding != null) {
+      android.util.Log.d("SearchResultFragment", "updateVectorResults called with ${results.size} files")
+      results.forEach { (file, matches) ->
+        android.util.Log.d("SearchResultFragment", "  File: ${file.name}, matches: ${matches.size}")
+        matches.forEach { match ->
+          android.util.Log.d("SearchResultFragment", "    - similarity: ${match.similarity}, line: ${match.line}")
+        }
+      }
+
       binding.vectorResults.adapter = SearchListAdapter(
         results,
         onFileClick = { file ->
