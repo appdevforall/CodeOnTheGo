@@ -4,6 +4,8 @@
     android:installLocation="internalOnly"
     tools:ignore="Instantiatable">
 
+    <uses-sdk tools:overrideLibrary="android.llama.cpp" />
+
     <permission
         android:name="com.itsaky.androidide.permission.BIND_LOG_SERVICE"
         android:description="@string/permdesc_bind_logger_service"

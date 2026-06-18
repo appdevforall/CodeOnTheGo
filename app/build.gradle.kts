@@ -371,7 +371,10 @@ dependencies {
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.google.genai)
 	implementation(project(":llama-api"))
-	debugImplementation(project(":llama-impl"))
+	debugImplementation(project(":llama-impl")) {
+		exclude(group = "androidx.core", module = "core-ktx")
+		exclude(group = "androidx.appcompat", module = "appcompat")
+	}
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 
     // Pebble template engine
