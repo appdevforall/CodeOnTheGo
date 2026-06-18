@@ -154,6 +154,7 @@ include(
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
 	":subprojects:builder-model-impl",
+	":subprojects:flamegraph",
 	":subprojects:flashbar",
 	":subprojects:framework-stubs",
 	":subprojects:hidden-apis",
