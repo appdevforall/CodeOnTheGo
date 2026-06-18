@@ -24,7 +24,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.FileUtils
 import com.google.gson.GsonBuilder
+import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
+import com.itsaky.androidide.api.commands.VectorSearchCommand
 import com.itsaky.androidide.models.OpenedFilesCache
+import com.itsaky.androidide.models.Position
+import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -38,6 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.vectorsearch.CodeEmbedding
 import java.io.File
 import java.io.IOException
 import java.util.Collections
@@ -78,6 +83,78 @@ class EditorViewModel : ViewModel() {
 
     fun onVectorSearchResultsReady(results: Map<File, List<SearchResult>>) {
         _vectorSearchResults.value = results
+    }
+
+    /**
+     * Performs semantic code search using vector embeddings.
+     * Indexes project on first search, then uses cached embeddings for subsequent searches.
+     * Updates vectorSearchResults StateFlow with results.
+     *
+     * @param query The search query (e.g., "authentication", "database")
+     */
+    fun performSemanticSearch(query: String) {
+        if (query.isBlank()) {
+            _vectorSearchResults.value = emptyMap()
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                // Get LLM engine
+                val engine = LlmInferenceEngineProvider.instance
+
+                // Ensure model is loaded
+                if (!engine.isModelLoaded) {
+                    ILogger.ROOT.warn("Cannot perform semantic search: model not loaded")
+                    _vectorSearchResults.value = emptyMap()
+                    return@launch
+                }
+
+                // Execute vector search command
+                val command = VectorSearchCommand(query, engine, limit = 20)
+                val result = withContext(Dispatchers.IO) {
+                    command.execute()
+                }
+
+                // Retrieve CodeEmbedding results from command
+                if (result.success) {
+                    val embeddings = VectorSearchCommand.lastSearchResults
+                    val searchResults = convertEmbeddingsToSearchResults(embeddings)
+                    _vectorSearchResults.value = searchResults
+                    ILogger.ROOT.info("Semantic search completed: ${embeddings.size} results")
+                } else {
+                    ILogger.ROOT.warn("Semantic search failed: ${result.message}")
+                    _vectorSearchResults.value = emptyMap()
+                }
+            } catch (e: Exception) {
+                ILogger.ROOT.error("Semantic search error", e)
+                _vectorSearchResults.value = emptyMap()
+            }
+        }
+    }
+
+    /**
+     * Converts CodeEmbedding results to SearchResult format for UI display.
+     */
+    private fun convertEmbeddingsToSearchResults(
+        embeddings: List<CodeEmbedding>
+    ): Map<File, List<SearchResult>> {
+        return embeddings
+            .groupBy { File(it.filePath) }
+            .mapValues { (_, chunks) ->
+                chunks.map { chunk ->
+                    // Create Range for the chunk
+                    val startPos = Position(chunk.startLine, 0)
+                    val endPos = Position(chunk.endLine, 0)
+                    val range = Range(startPos, endPos)
+
+                    val file = File(chunk.filePath)
+                    val line = "${chunk.startLine}: ${chunk.chunkText.lines().firstOrNull() ?: ""}"
+                    val match = chunk.chunkText.take(100).trim() // Preview text
+
+                    SearchResult(range, file, line, match)
+                }
+            }
     }
 
     /**

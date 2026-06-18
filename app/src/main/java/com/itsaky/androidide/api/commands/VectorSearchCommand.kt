@@ -58,6 +58,11 @@ class VectorSearchCommand(
         private var vectorSearchService: VectorSearchService? = null
 
         private val indexLock = Any()
+
+        // Store last search results for retrieval by EditorViewModel
+        @Volatile
+        var lastSearchResults: List<CodeEmbedding> = emptyList()
+            private set
     }
 
     override fun execute(): ToolResult = runBlocking {
@@ -100,25 +105,13 @@ class VectorSearchCommand(
 
             log.info("Vector search returned ${results.size} results")
 
-            // Format results for display
-            val output = buildString {
-                appendLine("=== Vector Search Results ===")
-                appendLine("Query: $query")
-                appendLine("Found ${results.size} matches")
-                appendLine()
-                results.forEachIndexed { index, result ->
-                    appendLine("${index + 1}. ${File(result.filePath).name}")
-                    appendLine("   Lines: ${result.startLine}-${result.endLine}")
-                    appendLine("   Path: ${result.filePath}")
-                    appendLine("   Language: ${result.language}")
-                    appendLine("   Preview: ${result.chunkText.take(150).replace("\n", " ")}...")
-                    appendLine()
-                }
-            }
+            // Store results for retrieval
+            lastSearchResults = results
 
+            // Return success with summary
             ToolResult.success(
                 message = "Found ${results.size} semantic matches",
-                data = output
+                data = "Found ${results.size} semantic code matches for query: '$query'"
             )
         } catch (e: Exception) {
             log.error("Vector search failed", e)
