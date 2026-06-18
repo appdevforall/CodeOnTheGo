@@ -880,12 +880,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					show(supportFragmentManager, "search_in_project_progress")
 				}
 
+				// Perform keyword search
 				RecursiveFileSearcher.searchRecursiveAsync(
 					text,
 					extensionList,
 					searchDirs,
 				) { results ->
 					handleSearchResults(results)
+
+					// Also trigger semantic search in parallel
+					editorViewModel.performSemanticSearch(text)
 				}
 			}
 		}
