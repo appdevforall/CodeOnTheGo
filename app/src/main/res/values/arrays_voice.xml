@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Voice Language Options -->
+    <string-array name="voice_languages">
+        <item>English (United States)</item>
+        <item>Español (España)</item>
+        <item>Español (México)</item>
+        <item>Español (Argentina)</item>
+    </string-array>
+
+    <string-array name="voice_language_values">
+        <item>en-US</item>
+        <item>es-ES</item>
+        <item>es-MX</item>
+        <item>es-AR</item>
+    </string-array>
+
+    <!-- Language display names for UI -->
+    <string-array name="voice_language_display">
+        <item>🇺🇸 English</item>
+        <item>🇪🇸 Español (España)</item>
+        <item>🇲🇽 Español (México)</item>
+        <item>🇦🇷 Español (Argentina)</item>
+    </string-array>
+</resources>

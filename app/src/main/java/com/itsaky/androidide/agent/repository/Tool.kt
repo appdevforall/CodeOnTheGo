@@ -3,6 +3,7 @@ package com.itsaky.androidide.agent.repository
 import android.content.Context
 import android.os.BatteryManager
 import com.itsaky.androidide.api.commands.ListFilesCommand
+import com.itsaky.androidide.api.commands.VectorSearchTestCommand
 import com.itsaky.androidide.projects.IProjectManager
 import java.io.File
 import java.time.LocalDateTime
@@ -78,6 +79,36 @@ class ListFilesTool : Tool {
             result.data?.ifBlank { result.message ?: "" } ?: result.message ?: ""
         } else {
             listOfNotNull(result.message, result.error_details).joinToString("\n")
+        }
+    }
+}
+
+/**
+ * Tool for testing vector search functionality.
+ * Indexes project source files and searches using semantic embeddings.
+ */
+class VectorSearchTool(
+    private val llmEngine: LlmInferenceEngine
+) : Tool {
+    override val name: String = "vector_search_test"
+    override val description: String =
+        "Test vector search by indexing project source code and finding semantically similar files. Args: query (required) - what to search for, max_files (optional, default 10) - max files to index."
+
+    override fun execute(context: Context, args: Map<String, String>): String {
+        val query = args["query"]
+        if (query.isNullOrBlank()) {
+            return "[Tool Result for $name]: Error - 'query' argument is required."
+        }
+
+        val maxFiles = args["max_files"]?.toIntOrNull() ?: 10
+
+        val command = VectorSearchTestCommand(query, llmEngine, maxFiles)
+        val result = command.execute()
+
+        return if (result.success) {
+            result.data ?: result.message ?: "Vector search completed"
+        } else {
+            "[Tool Result for $name]: ${result.message}\n${result.error_details ?: ""}"
         }
     }
 }

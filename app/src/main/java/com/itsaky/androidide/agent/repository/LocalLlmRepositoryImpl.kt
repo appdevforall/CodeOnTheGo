@@ -87,6 +87,7 @@ class LocalLlmRepositoryImpl(
         GetDateTimeTool(),
         GetWeatherTool(),
         ListFilesTool(),
+        VectorSearchTool(engine),
     ).associateBy { it.name }
 
     private val masterSystemPrompt: String by lazy {

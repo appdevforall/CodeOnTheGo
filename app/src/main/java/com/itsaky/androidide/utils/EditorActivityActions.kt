@@ -56,6 +56,7 @@ import com.itsaky.androidide.actions.filetree.OpenWithAction
 import com.itsaky.androidide.actions.filetree.RenameAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
+import com.itsaky.androidide.actions.voice.VoiceCodeAction
 import com.itsaky.androidide.actions.PluginActionItem
 import com.itsaky.androidide.actions.build.PluginBuildActionItem
 import com.itsaky.androidide.plugins.extensions.UIExtension
@@ -95,6 +96,7 @@ class EditorActivityActions {
             registry.registerAction(RedoAction(context, order++))
             registry.registerAction(SaveFileAction(context, order++))
             registry.registerAction(PreviewLayoutAction(context, order++))
+            registry.registerAction(VoiceCodeAction(context, order++))
             registry.registerAction(FindAction(context, order++))
             registry.registerAction(FindInFileAction(context, order++))
             registry.registerAction(FindInProjectAction(context, order++))

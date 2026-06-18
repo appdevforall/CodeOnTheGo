@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@drawable/bg_voice_preview_sheet">
+
+    <!-- Header -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/voice_command_result"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Transcription Chip -->
+    <com.google.android.material.chip.Chip
+        android:id="@+id/transcriptionChip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="create a function"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp"
+        app:chipIcon="@drawable/ic_voice_mic"
+        app:chipIconSize="18dp" />
+
+    <!-- Confidence and Latency Info -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:id="@+id/confidenceText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Confidence: 95%"
+            android:textSize="12sp"
+            android:alpha="0.7" />
+
+        <TextView
+            android:id="@+id/latencyText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Generated in 850ms"
+            android:textSize="12sp"
+            android:alpha="0.7" />
+
+    </LinearLayout>
+
+    <!-- Code Preview Section -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/generated_code"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Code Editor Preview -->
+    <com.itsaky.androidide.editor.ui.IDEEditor
+        android:id="@+id/codePreview"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:background="@android:color/black"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <!-- Cancel Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/cancelButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/cancel"
+            android:layout_marginEnd="8dp"
+            style="@style/Widget.Material3.Button.TextButton" />
+
+        <!-- Try Again Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tryAgainButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/try_again"
+            android:layout_marginEnd="8dp"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
+
+        <!-- Insert Button (Primary) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/insertButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/insert_code"
+            app:icon="@android:drawable/ic_input_add"
+            style="@style/Widget.Material3.Button" />
+
+    </LinearLayout>
+
+</LinearLayout>

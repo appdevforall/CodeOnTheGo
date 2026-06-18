@@ -231,6 +231,18 @@
             </intent-filter>
         </receiver>
 
+        <!--
+         Receiver for LLM-related commands triggered via ADB broadcasts.
+         Extensible design supports multiple features: vector search, etc.
+         -->
+        <receiver
+            android:name=".agent.receivers.LlmCommandReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.itsaky.androidide.LLM_COMMAND" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".services.builder.GradleBuildService"
             android:exported="false" />

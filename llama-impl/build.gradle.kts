@@ -5,9 +5,11 @@ plugins {
 
 android {
 	namespace = "android.llama.cpp"
+	compileSdk = 34
 
 	defaultConfig {
-		minSdk = 33
+		minSdk = 26  // Match app minSdk to avoid manifest merge conflicts
+		targetSdk = 34
 		consumerProguardFiles("proguard-rules.pro")
 		ndk {
 			// Add NDK properties if wanted, e.g.
