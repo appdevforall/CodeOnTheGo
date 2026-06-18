@@ -14,8 +14,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.cotg.profiler.aidl.ICpuProfileObserver
 import org.appdevforall.cotg.profiler.aidl.IProcessListObserver
 import org.appdevforall.cotg.profiler.aidl.IProfilerService
+import org.appdevforall.cotg.profiler.cpu.CpuSample
+import org.appdevforall.cotg.profiler.cpu.SimpleperfReportParser
 import org.appdevforall.cotg.profiler.model.ProcessInfo
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -36,6 +39,37 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
     private val processLock = Any()
     private val liveProcesses = LinkedHashMap<Int, AidlProcessInfo>()
     private val _processes = MutableStateFlow<List<ProcessInfo>>(emptyList())
+
+    /** The process being CPU-profiled (non-null only while a session is live). */
+    @Volatile
+    private var profilingProcess: ProcessInfo? = null
+    private val cpuSamples = mutableListOf<CpuSample>()
+
+    private val cpuObserver =
+        object : ICpuProfileObserver.Stub() {
+            override fun onProfilingStarted() {
+                logger.debug("CPU profiling started")
+            }
+
+            override fun onCpuSample(elapsedMillis: Long, cpuPercent: Float) {
+                val process = profilingProcess ?: return
+                val snapshot =
+                    synchronized(cpuSamples) {
+                        cpuSamples.add(CpuSample(elapsedMillis, cpuPercent))
+                        cpuSamples.toList()
+                    }
+                _state.update {
+                    if (it is ProfilerUiState.Profiling) ProfilerUiState.Profiling(process, snapshot) else it
+                }
+            }
+
+            override fun onProfilingError(message: String?) {
+                logger.warn("CPU profiling error: {}", message)
+                profilingProcess = null
+                synchronized(cpuSamples) { cpuSamples.clear() }
+                setError(message ?: getString(R.string.profiler_cpu_failed_generic))
+            }
+        }
 
     private val processObserver =
         object : IProcessListObserver.Stub() {
@@ -108,6 +142,7 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
             ProfilerIntent.DumpHeap -> startSelection(ProfilerMode.Heap)
             ProfilerIntent.CpuHotspot -> startSelection(ProfilerMode.Cpu)
             is ProfilerIntent.SelectProcess -> onProcessSelected(intent.process)
+            ProfilerIntent.StopProfiling -> stopCpuProfiling()
             ProfilerIntent.Reset -> _state.value = ProfilerUiState.Idle
         }
     }
@@ -128,7 +163,62 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
         val mode = (_state.value as? ProfilerUiState.SelectingProcess)?.mode ?: return
         when (mode) {
             ProfilerMode.Heap -> dumpHeap(process)
-            ProfilerMode.Cpu -> setError(R.string.profiler_cpu_not_implemented)
+            ProfilerMode.Cpu -> startCpuProfiling(process)
+        }
+    }
+
+    private fun startCpuProfiling(process: ProcessInfo) {
+        val service = service ?: run {
+            setError(R.string.profiler_service_unavailable)
+            return
+        }
+        profilingProcess = process
+        synchronized(cpuSamples) { cpuSamples.clear() }
+        _state.value = ProfilerUiState.Profiling(process, emptyList())
+        runCatching { service.startCpuProfiling(process.pid, process.packageName, cpuObserver) }
+            .onFailure {
+                logger.error("Failed to start CPU profiling for pid={}", process.pid, it)
+                profilingProcess = null
+                setError(getString(R.string.profiler_cpu_failed, it.message ?: it.javaClass.simpleName))
+            }
+    }
+
+    private fun stopCpuProfiling() {
+        val process = profilingProcess ?: return
+        val service = service ?: run {
+            setError(R.string.profiler_service_unavailable)
+            return
+        }
+        profilingProcess = null
+        _state.value = ProfilerUiState.Processing(process)
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val file = File(
+                        getApplication<Application>().cacheDir,
+                        "cpu-${process.pid}-${System.currentTimeMillis()}.report",
+                    )
+                    try {
+                        ParcelFileDescriptor.open(
+                            file,
+                            ParcelFileDescriptor.MODE_CREATE or
+                                ParcelFileDescriptor.MODE_WRITE_ONLY or
+                                ParcelFileDescriptor.MODE_TRUNCATE,
+                        ).use { pfd ->
+                            // Blocks until simpleperf stops and the report-sample dump is written.
+                            service.stopCpuProfiling(pfd)
+                        }
+                        SimpleperfReportParser.parse(file)
+                    } finally {
+                        file.delete()
+                    }
+                }
+            }.onSuccess { profile ->
+                _state.value = ProfilerUiState.CpuResult(process, profile)
+            }.onFailure { error ->
+                logger.error("CPU profiling stop/parse failed for pid={}", process.pid, error)
+                setError(getString(R.string.profiler_cpu_failed, error.message ?: error.javaClass.simpleName))
+            }
         }
     }
 

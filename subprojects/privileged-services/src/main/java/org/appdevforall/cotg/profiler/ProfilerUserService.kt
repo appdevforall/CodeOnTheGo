@@ -13,6 +13,7 @@ import android.os.RemoteException
 import android.os.ServiceManager
 import android.util.Log
 import org.appdevforall.cotg.hidden.compat.ActivityManagerHiddenCompat
+import org.appdevforall.cotg.profiler.aidl.ICpuProfileObserver
 import org.appdevforall.cotg.profiler.aidl.IProcessListObserver
 import org.appdevforall.cotg.profiler.aidl.IProfilerService
 import org.appdevforall.cotg.profiler.aidl.ProcessInfo
@@ -68,6 +69,10 @@ class ProfilerUserService : IProfilerService.Stub() {
 
 	/** The "activity" service binder we observe; tracked so we can detect a system_server restart. */
 	private var activityBinder: IBinder? = null
+
+	/** Guards the single CPU profiling session. */
+	private val cpuLock = Any()
+	private var cpuSession: CpuProfilingSession? = null
 
 	/** Registered app-process clients. Dead clients are dropped (and may trigger teardown). */
 	private val clients =
@@ -131,6 +136,10 @@ class ProfilerUserService : IProfilerService.Stub() {
 	}
 
 	override fun exit() {
+		synchronized(cpuLock) {
+			cpuSession?.let { runCatching { it.abort() } }
+			cpuSession = null
+		}
 		runCatching { ActivityManagerApis.unregisterProcessObserver(processObserver) }
 		workerThread.quitSafely()
 		exitProcess(0)
@@ -416,6 +425,31 @@ class ProfilerUserService : IProfilerService.Stub() {
 	) {
 		// For a package, the process name matches the package name (for the default process).
 		dumpHeap(out, process = packageName)
+	}
+
+	override fun startCpuProfiling(
+		pid: Int,
+		packageName: String?,
+		observer: ICpuProfileObserver,
+	) {
+		synchronized(cpuLock) {
+			if (cpuSession?.isActive() == true) {
+				runCatching { observer.onProfilingError("A CPU profiling session is already running") }
+				return
+			}
+			val session = CpuProfilingSession(pid, packageName, observer)
+			cpuSession = if (session.start()) session else null
+		}
+	}
+
+	override fun stopCpuProfiling(reportOut: ParcelFileDescriptor) {
+		val session = synchronized(cpuLock) { cpuSession.also { cpuSession = null } }
+		if (session == null) {
+			// Nothing recording: hand the client an empty report so it isn't left waiting.
+			runCatching { ParcelFileDescriptor.AutoCloseOutputStream(reportOut).close() }
+			return
+		}
+		session.stop(reportOut)
 	}
 
 	/**

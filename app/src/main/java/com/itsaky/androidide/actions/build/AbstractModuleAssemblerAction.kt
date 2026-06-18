@@ -23,6 +23,13 @@ abstract class AbstractModuleAssemblerAction(
 	@StringRes private val labelRes: Int,
 	@DrawableRes private val iconRes: Int,
 ) : AbstractCancellableRunAction(context, labelRes, iconRes) {
+	/**
+	 * Extra Gradle arguments (e.g. `-P` properties) to pass for this action's build. Subclasses
+	 * override this to influence the build; for example, the profiler action enables a profileable APK.
+	 */
+	protected open val gradleArgs: List<String>
+		get() = emptyList()
+
 	override fun doExec(data: ActionData): Boolean {
 		val projectManager = IProjectManager.getInstance()
 
@@ -65,6 +72,11 @@ abstract class AbstractModuleAssemblerAction(
 		actionScope.launch {
 			activity.saveAllResult()
 		}
-		buildViewModel.runQuickBuild(module, variant, launchInDebugMode = id == DebugAction.ID)
+		buildViewModel.runQuickBuild(
+			module,
+			variant,
+			launchInDebugMode = id == DebugAction.ID,
+			gradleArgs = gradleArgs,
+		)
 	}
 }

@@ -7,18 +7,12 @@ import androidx.annotation.RequiresApi
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.build.AbstractRunAction
 import com.itsaky.androidide.actions.canShowPairingNotification
-import com.itsaky.androidide.actions.handleMissingOverlayPermission
-import com.itsaky.androidide.actions.showDebuggerNotReadyMessage
 import com.itsaky.androidide.actions.showNotificationPermissionDialog
 import com.itsaky.androidide.actions.showPairingDialog
-import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
-import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.PermissionsHelper
-import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.isAtLeastR
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
@@ -32,6 +26,10 @@ class ProfilerAction(context: Context, override val order: Int) :
 	) {
 
 	override val id: String = ID
+
+	// Build a profileable APK: the Gradle plugin reads this property and applies
+	// ProfilerPlugin to inject <profileable android:shell="true"/> into the merged manifest.
+	override val gradleArgs: List<String> = listOf("-P$PROPERTY_PROFILEABLE_ENABLED=true")
 
 	companion object {
 		const val ID = "ide.editor.build.profiler"

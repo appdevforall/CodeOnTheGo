@@ -10,6 +10,10 @@ import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +34,7 @@ class BuildViewModel : ViewModel() {
 		module: AndroidModule,
 		variant: AndroidModels.AndroidVariant,
 		launchInDebugMode: Boolean,
+		gradleArgs: List<String> = emptyList(),
 	) {
 		if (_buildState.value is BuildState.InProgress) {
 			log.warn("Build is already in progress. Ignoring new request.")
@@ -62,9 +67,16 @@ class BuildViewModel : ViewModel() {
 						"${module.path}:${variant.mainArtifact.assembleTaskName}"
 					}
 
+				val message =
+					TaskExecutionMessage(
+						tasks = listOf(taskName),
+						buildId = buildService.nextBuildId(BuildRunType.TaskRun),
+						buildParams = GradleBuildParams(gradleArgs = gradleArgs),
+					)
+
 				val result =
 					withContext(Dispatchers.IO) {
-						buildService.executeTasks(tasks = listOf(taskName))
+						buildService.executeTasks(message)
 					}.await()
 
 				if (result == null || !result.isSuccessful) {
@@ -97,7 +109,13 @@ class BuildViewModel : ViewModel() {
 					throw RuntimeException("APK file specified does not exist: $apkFile")
 				}
 
-				_buildState.value = BuildState.AwaitingInstall(apkFile, launchInDebugMode)
+				_buildState.value =
+					BuildState.AwaitingInstall(
+						apkFile,
+						launchInDebugMode,
+						// Surface the Profiler tab after launch when this build requested a profileable APK.
+						launchProfilerAfterInstall = gradleArgs.any { it == "-P$PROPERTY_PROFILEABLE_ENABLED=true" },
+					)
 			} catch (e: Exception) {
 				if (e is CancellationException) {
 					log.info("Build was cancelled by the user.")
