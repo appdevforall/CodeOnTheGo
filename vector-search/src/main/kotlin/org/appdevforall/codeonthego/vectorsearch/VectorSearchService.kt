@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.slf4j.LoggerFactory
+import java.io.File
 
 /**
  * Semantic search service for code using embeddings.
@@ -41,6 +42,14 @@ class VectorSearchService(
     companion object {
         private val log = LoggerFactory.getLogger(VectorSearchService::class.java)
     }
+
+    /**
+     * Search result with similarity score for debugging and ranking.
+     */
+    data class SearchResult(
+        val codeEmbedding: CodeEmbedding,
+        val similarity: Float
+    )
 
     /**
      * Performs semantic search across all indexed code.
@@ -74,7 +83,7 @@ class VectorSearchService(
             log.debug("Generated query embedding with dimension: {}", queryEmbedding.size)
 
             // Query all embeddings and compute similarity
-            val allResults = index.query(IndexQuery.ALL)
+            val resultsWithScores = index.query(IndexQuery.ALL)
                 .map { codeEmbedding ->
                     val similarity = VectorMath.cosineSimilarity(queryEmbedding, codeEmbedding.embedding)
                     Pair(codeEmbedding, similarity)
@@ -82,10 +91,78 @@ class VectorSearchService(
                 .filter { (_, similarity) -> similarity >= threshold }
                 .sortedByDescending { (_, similarity) -> similarity }
                 .take(limit)
-                .map { (codeEmbedding, _) -> codeEmbedding }
                 .toList()
 
-            log.debug("Search returned {} results", allResults.size)
+            // Log top results with similarity scores for debugging
+            if (resultsWithScores.isNotEmpty()) {
+                log.debug("Top 5 results:")
+                resultsWithScores.take(5).forEachIndexed { index, (embedding, score) ->
+                    log.debug("  [{}] {} - similarity: {:.3f}", index + 1,
+                        File(embedding.filePath).name, score)
+                }
+            }
+
+            log.debug("Search returned {} results (threshold: {})", resultsWithScores.size, threshold)
+
+            // Return just the embeddings (for backward compatibility)
+            resultsWithScores.map { it.first }
+        }
+
+        return results
+    }
+
+    /**
+     * Performs semantic search and returns results with similarity scores.
+     *
+     * @param query Search query string
+     * @param limit Maximum number of results to return
+     * @param threshold Minimum cosine similarity score (0.0 to 1.0). Defaults to 0.3.
+     * @return List of SearchResult with similarity scores, sorted by similarity (highest first)
+     * @throws IllegalArgumentException if query is empty
+     */
+    suspend fun searchWithScores(
+        query: String,
+        limit: Int = 20,
+        threshold: Float = 0.3f,
+    ): List<SearchResult> {
+        if (query.isBlank()) {
+            throw IllegalArgumentException("Query cannot be empty")
+        }
+
+        log.debug("Search with scores started: '{}' (limit={}, threshold={})", query, limit, threshold)
+
+        val results = withContext(Dispatchers.Default) {
+            // Generate embedding for the query
+            val queryEmbedding = llamaController.generateEmbedding(query)
+
+            if (queryEmbedding.isEmpty()) {
+                log.debug("Empty embedding returned")
+                return@withContext emptyList()
+            }
+
+            log.debug("Generated query embedding with dimension: {}", queryEmbedding.size)
+
+            // Query all embeddings and compute similarity
+            val allResults = index.query(IndexQuery.ALL)
+                .map { codeEmbedding ->
+                    val similarity = VectorMath.cosineSimilarity(queryEmbedding, codeEmbedding.embedding)
+                    SearchResult(codeEmbedding, similarity)
+                }
+                .filter { it.similarity >= threshold }
+                .sortedByDescending { it.similarity }
+                .take(limit)
+                .toList()
+
+            // Log top results
+            if (allResults.isNotEmpty()) {
+                log.debug("Top 5 results with scores:")
+                allResults.take(5).forEachIndexed { index, result ->
+                    log.debug("  [{}] {} - {:.3f}", index + 1,
+                        File(result.codeEmbedding.filePath).name, result.similarity)
+                }
+            }
+
+            log.debug("Search with scores returned {} results", allResults.size)
             allResults
         }
 

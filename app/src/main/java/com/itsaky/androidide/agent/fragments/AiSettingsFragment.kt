@@ -337,8 +337,8 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             }
 
             // Update button states
-            val engineReady = viewModel.engineState.value is EngineState.Initialized
-
+            // Always enable browse button - browsing files doesn't need engine
+            // Enable load button if there's a saved path - engine will initialize on-demand
             when (purpose) {
                 ModelPurpose.SPEECH_TO_TEXT -> {
                     // STT doesn't need engine, just needs path selection
@@ -346,9 +346,9 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                     browseButton.isEnabled = true
                 }
                 else -> {
-                    // Other models need engine to be ready
-                    loadSavedButton.isEnabled = engineReady && state.savedPath != null
-                    browseButton.isEnabled = engineReady
+                    // Other models: allow loading if path exists (engine init on-demand)
+                    loadSavedButton.isEnabled = state.savedPath != null
+                    browseButton.isEnabled = true
                 }
             }
         }

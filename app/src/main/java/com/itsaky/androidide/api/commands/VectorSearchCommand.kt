@@ -48,8 +48,9 @@ class VectorSearchCommand(
     private val log = LoggerFactory.getLogger(VectorSearchCommand::class.java)
 
     companion object {
-        private const val MAX_FILES_TO_INDEX = 100
+        private const val MAX_FILES_TO_INDEX = 500 // Increased from 100 for better coverage
         private val SUPPORTED_EXTENSIONS = setOf("kt", "java", "xml")
+        private const val DEFAULT_SIMILARITY_THRESHOLD = 0.3f // Minimum similarity for relevant results
 
         @Volatile
         private var embeddingIndex: SQLiteIndex<CodeEmbedding>? = null
@@ -100,10 +101,10 @@ class VectorSearchCommand(
                 log.info("Using existing index with ${existingEmbeddings.size} embeddings")
             }
 
-            // Perform search
-            val results = service.search(query, limit = limit, threshold = 0.0f)
+            // Perform search with proper similarity threshold
+            val results = service.search(query, limit = limit, threshold = DEFAULT_SIMILARITY_THRESHOLD)
 
-            log.info("Vector search returned ${results.size} results")
+            log.info("Vector search returned ${results.size} results (threshold: $DEFAULT_SIMILARITY_THRESHOLD)")
 
             // Store results for retrieval
             lastSearchResults = results

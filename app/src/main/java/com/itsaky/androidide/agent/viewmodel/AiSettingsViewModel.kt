@@ -73,9 +73,26 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
             if (success) {
                 _engineState.value = EngineState.Initialized
 
+                // Load pending model if any
                 pendingModelUri?.let { queuedPath ->
                     loadModelFromUri(queuedPath, getApplication())
                     pendingModelUri = null
+                }
+
+                // Auto-load saved CHAT model if available and no model is loaded
+                if (!llmInferenceEngine.isModelLoaded) {
+                    getModelPath(ModelPurpose.CHAT)?.let { savedChatPath ->
+                        Log.d("AiSettingsViewModel", "Auto-loading saved CHAT model: $savedChatPath")
+                        loadModelForPurpose(ModelPurpose.CHAT, savedChatPath, getApplication())
+                    }
+                } else {
+                    // Update state to reflect already loaded model
+                    llmInferenceEngine.loadedModelName?.let { modelName ->
+                        updateModelPurposeState(
+                            ModelPurpose.CHAT,
+                            ModelLoadingState.Loaded(modelName)
+                        )
+                    }
                 }
 
                 Log.d("AiSettingsViewModel", "LLM Inference Engine initialized successfully.")
@@ -210,8 +227,8 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         return listOf(
             ModelPurpose.CHAT,
             ModelPurpose.EMBEDDINGS,
-            ModelPurpose.SPEECH_TO_TEXT
-            // Will add CODE_COMPLETION when implemented
+            ModelPurpose.SPEECH_TO_TEXT,
+            ModelPurpose.CODE_COMPLETION
         )
     }
 
@@ -280,10 +297,27 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     fun loadModelForPurpose(purpose: ModelPurpose, path: String, context: Context) {
         val currentState = _engineState.value
 
+        // If engine is not initialized, trigger initialization first
+        if (currentState is EngineState.Uninitialized) {
+            initializeLlmEngine()
+            updateModelPurposeState(purpose, ModelLoadingState.Loading)
+            // Will be loaded after engine initializes
+            pendingModelUri = path
+            return
+        }
+
+        // If still initializing, queue the load
+        if (currentState is EngineState.Initializing) {
+            updateModelPurposeState(purpose, ModelLoadingState.Loading)
+            pendingModelUri = path
+            return
+        }
+
+        // If engine failed to initialize, show error
         if (currentState !is EngineState.Initialized) {
             updateModelPurposeState(
                 purpose,
-                ModelLoadingState.Error("Engine not initialized")
+                ModelLoadingState.Error("Engine initialization failed")
             )
             return
         }

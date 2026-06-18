@@ -126,11 +126,12 @@ class SuggestionProvider(
             log.debug("Requesting suggestion from LLM (context: ${contextBefore.length} chars before, ${contextAfter.length} chars after)")
 
             // Request completion with timeout (10 seconds)
+            // IMPORTANT: Always clear KV cache to avoid state conflicts with chat/other operations
             val response = withTimeout(10_000) {
                 llmInference?.invoke(
                     prompt,
                     listOf("\n\n", "```", "<|eot_id|>"),  // Stop at blank line or code fence
-                    false  // Don't clear KV cache for faster completions
+                    true  // Clear KV cache to ensure clean state for code completion
                 ) ?: ""
             }
 

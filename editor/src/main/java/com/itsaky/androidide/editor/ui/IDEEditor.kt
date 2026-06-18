@@ -514,6 +514,16 @@ constructor(
         super.replaceComponent(clazz, replacement)
     }
 
+    /**
+     * Manually trigger an inline suggestion request.
+     * This bypasses the character threshold and debounce delay.
+     */
+    fun triggerInlineSuggestion() {
+        if (::inlineSuggestionComponent.isInitialized) {
+            inlineSuggestionComponent.manualTrigger()
+        }
+    }
+
     // not overridable
     final override fun <T : EditorBuiltinComponent?> getComponent(clazz: Class<T>): T & Any =
         super.getComponent(clazz)

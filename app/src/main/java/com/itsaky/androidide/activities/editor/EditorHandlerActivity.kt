@@ -505,7 +505,7 @@ open class EditorHandlerActivity :
 				hint = getString(string.inline_suggestion_trigger),
 				onClick = {
 					val editor = getCurrentEditor() ?: return@addMenuItem
-					editor.editor?.getComponent(InlineSuggestionComponent::class.java)?.manualTrigger()
+					editor.editor?.triggerInlineSuggestion()
 				},
 				onLongClick = {},
 				shouldAddMargin = false,
