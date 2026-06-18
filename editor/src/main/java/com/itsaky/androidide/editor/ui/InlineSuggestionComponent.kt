@@ -162,9 +162,33 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
     }
 
     private suspend fun requestSuggestion() {
-        // Will implement in next task with actual LLM call
-        log.debug("Request suggestion (not implemented yet)")
-        suggestionState = SuggestionState.IDLE
+        try {
+            val cursor = editor.cursor
+            val position = com.itsaky.androidide.models.Position(
+                cursor.leftLine,
+                cursor.leftColumn,
+                editor.text.getCharIndex(cursor.leftLine, cursor.leftColumn)
+            )
+
+            val fileContent = editor.text.toString()
+            val language = editor.file?.extension ?: "txt"
+
+            val suggestion = provider.requestSuggestion(position, fileContent, language)
+
+            if (suggestion != null) {
+                currentSuggestion = suggestion
+                suggestionState = SuggestionState.SHOWING
+                renderer.show(suggestion)
+                editor.postInvalidate()
+                log.info("Suggestion shown: ${suggestion.text.take(30)}...")
+            } else {
+                suggestionState = SuggestionState.IDLE
+                log.debug("No suggestion returned")
+            }
+        } catch (e: Exception) {
+            log.error("Error requesting suggestion", e)
+            suggestionState = SuggestionState.IDLE
+        }
     }
 
     private fun acceptSuggestion() {
@@ -206,6 +230,19 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
         provider.cancelActiveRequest()
         provider.clearCache()
         scope.cancel()
+    }
+
+    /**
+     * Draw the inline suggestion. Called by editor's draw cycle.
+     */
+    fun draw(canvas: Canvas) {
+        if (!enabled || temporarilyHidden) {
+            return
+        }
+
+        if (suggestionState == SuggestionState.SHOWING && renderer.isVisible()) {
+            renderer.onDraw(canvas)
+        }
     }
 
     /**
