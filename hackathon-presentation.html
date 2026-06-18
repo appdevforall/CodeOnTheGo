@@ -256,6 +256,52 @@ pre code {
                 <p><strong>Key Tech:</strong> SQLiteIndex, cosine similarity, on-demand indexing</p>
             </div>
         </div>
+
+        <div class="slide" id="slide-3">
+            <h2>Unified Architecture: Shared LLM Core</h2>
+
+            <div class="mermaid">
+graph TB
+    subgraph "Application Layer"
+        A[Speech-to-Code Pipeline]
+        B[Inline Suggestions Component]
+        C[Vector Search Service]
+    end
+
+    subgraph "LLM Infrastructure"
+        D[ILlamaController Interface]
+        E[Model Loading & Management]
+        F[Token Generation]
+        G[Embedding Generation]
+    end
+
+    subgraph "Native Layer"
+        H[llama.cpp]
+        I[GGUF Models]
+    end
+
+    A --> D
+    B --> D
+    C --> G
+    D --> F
+    D --> G
+    F --> E
+    G --> E
+    E --> H
+    H --> I
+
+    style A fill:#1565C0
+    style B fill:#1565C0
+    style C fill:#1565C0
+    style D fill:#2E7D32
+    style H fill:#D32F2F
+            </div>
+
+            <p style="text-align: center; margin-top: 30px; font-size: 1.2rem;">
+                All three features leverage the same <code>ILlamaController</code> for inference<br>
+                <span class="highlight">Benefit:</span> Shared model loading, unified memory management, consistent performance
+            </p>
+        </div>
         <!-- More slides will be added in subsequent tasks -->
     </div>
 
