@@ -25,6 +25,14 @@ object SimpleperfReportParser {
     private const val MAGIC = "SIMPLEPERF"
     private const val MAX_METHOD_ROWS = 100
 
+    /** Returned when the report stream is empty/truncated (no usable samples). */
+    private val EMPTY_PROFILE =
+        CpuProfile(
+            root = CpuCallNode(name = "(root)", selfMicros = 0, totalMicros = 0, children = emptyList()),
+            totalMicros = 0,
+            methods = emptyList(),
+        )
+
     private class FileEntry(val path: String, val symbols: List<String>)
 
     /** A buffered sample: [weight] (ns) and its callchain as interleaved (fileId, symbolId) pairs. */
@@ -51,12 +59,19 @@ object SimpleperfReportParser {
     fun parse(input: InputStream): CpuProfile {
         val data = DataInputStream(input)
 
+        // An empty/too-short stream means simpleperf produced no report (e.g. a failed or aborted
+        // recording, or a perf.data with no samples that never got written). Treat it as an empty
+        // profile rather than throwing an EOFException.
         val magic = ByteArray(MAGIC.length)
-        data.readFully(magic)
-        require(String(magic, Charsets.US_ASCII) == MAGIC) {
-            "Not a simpleperf report-sample protobuf stream"
+        try {
+            data.readFully(magic)
+            readLe16(data) // format version, not needed
+        } catch (e: EOFException) {
+            return EMPTY_PROFILE
         }
-        readLe16(data) // format version, not needed
+        if (String(magic, Charsets.US_ASCII) != MAGIC) {
+            throw IllegalArgumentException("Not a simpleperf report-sample protobuf stream")
+        }
 
         val files = HashMap<Int, FileEntry>()
         val samples = ArrayList<RawSample>()
@@ -66,7 +81,12 @@ object SimpleperfReportParser {
             val size = readLe32(data) ?: break
             if (size == 0) break
             val bytes = ByteArray(size)
-            data.readFully(bytes)
+            try {
+                data.readFully(bytes)
+            } catch (e: EOFException) {
+                // Truncated stream (e.g. recording killed mid-flush); use whatever was buffered.
+                break
+            }
             val record = SimpleperfReportProto.Record.parseFrom(bytes)
 
             when {

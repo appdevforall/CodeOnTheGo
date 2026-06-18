@@ -1353,6 +1353,7 @@
     <string name="profiler_cpu_processing">Generating CPU report…</string>
     <string name="profiler_cpu_failed">CPU profiling failed: %1$s</string>
     <string name="profiler_cpu_failed_generic">CPU profiling failed.</string>
+    <string name="profiler_cpu_no_samples">No CPU samples were captured. Try profiling for a bit longer.</string>
     <string name="profiler_col_method">Method</string>
     <string name="profiler_col_total_us">Total (µs)</string>
     <string name="profiler_col_total_pct">Total %</string>
