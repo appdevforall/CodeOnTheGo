@@ -75,9 +75,11 @@ class MoonshineSTT(private val context: Context) {
     /**
      * Initialize Moonshine STT by loading ONNX models.
      *
+     * @param customModelPath Optional custom path to ONNX model directory.
+     *                        If null, uses default path or path from preferences.
      * @return true if initialization successful, false otherwise
      */
-    fun initialize(): Boolean {
+    fun initialize(customModelPath: String? = null): Boolean {
         if (isInitialized) {
             Log.d(TAG, "Already initialized")
             return true
@@ -87,12 +89,20 @@ class MoonshineSTT(private val context: Context) {
             Log.d(TAG, "Initializing Moonshine STT...")
             val startTime = System.currentTimeMillis()
 
+            // Determine model directory (priority: custom path > preferences > default)
+            val modelDirPath = customModelPath
+                ?: VoicePreferences.getOfflineSttModelPath(context)
+                ?: MODEL_DIR
+
             // Check if model directory exists
-            val modelDir = File(MODEL_DIR)
+            val modelDir = File(modelDirPath)
             if (!modelDir.exists() || !modelDir.isDirectory) {
-                Log.e(TAG, "Model directory not found: $MODEL_DIR")
+                Log.e(TAG, "Model directory not found: $modelDirPath")
+                Log.i(TAG, "Tip: Configure an offline STT model in Settings → AI & Voice → Speech-to-Text Model")
                 return false
             }
+
+            Log.d(TAG, "Loading Moonshine models from: $modelDirPath")
 
             // Initialize ORT environment
             ortEnv = OrtEnvironment.getEnvironment()

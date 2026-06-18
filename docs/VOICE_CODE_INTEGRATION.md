@@ -221,3 +221,55 @@ Options:
 ## License
 
 GPL-3.0 - Same as CodeOnTheGo
+
+## Configuring Offline Speech-to-Text Models
+
+Starting from this version, you can configure offline STT models through the AI Settings:
+
+### How to Add Offline STT Model:
+
+1. **Navigate to AI Settings**:
+   - Open Settings → Configure → AI & Voice
+
+2. **Select Speech-to-Text Model**:
+   - Scroll to "Speech-to-Text Model" card
+   - Tap "Browse" to select your ONNX model directory
+   - The directory should contain:
+     - `preprocess.onnx`
+     - `encode.int8.onnx`
+     - `uncached_decode.int8.onnx`
+     - `cached_decode.int8.onnx`
+     - `tokens.txt`
+
+3. **Configure STT Mode**:
+   - Go to Settings → Configure → AI & Voice → Speech to Code
+   - Under "Speech Recognition", select "Offline (Moonshine)"
+
+### Supported STT Models:
+
+- **Moonshine Tiny** (recommended for mobile):
+  - Download from: https://huggingface.co/UsefulSensors/moonshine-tiny
+  - Size: ~118MB total
+  - Languages: English (more coming soon)
+  - Accuracy: ~92%
+  - Latency: 200-400ms
+
+- **Moonshine Base**:
+  - Larger model, better accuracy
+  - Size: ~250MB
+  - Slightly slower but more accurate
+
+### Fallback Behavior:
+
+If no offline model is configured, the system will:
+1. Check the configured STT model path in AI Settings
+2. Fall back to `/sdcard/Download/models/moonshine/` (default)
+3. If offline model unavailable, use Cloud STT (requires internet)
+
+### Benefits of Offline STT:
+
+✅ Privacy - No audio sent to cloud  
+✅ Faster - 200-400ms vs 500-800ms  
+✅ Works offline - No internet needed  
+✅ Cost-effective - No API calls  
+

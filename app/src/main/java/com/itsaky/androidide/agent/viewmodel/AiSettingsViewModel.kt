@@ -210,7 +210,8 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         return listOf(
             ModelPurpose.CHAT,
             ModelPurpose.EMBEDDINGS
-            // Will add SPEECH_TO_TEXT and CODE_COMPLETION when implemented
+            ModelPurpose.SPEECH_TO_TEXT
+            // Will add CODE_COMPLETION when implemented
         )
     }
 

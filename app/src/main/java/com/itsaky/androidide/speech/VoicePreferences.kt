@@ -174,4 +174,22 @@ object VoicePreferences {
             else -> mode
         }
     }
+
+    /**
+     * Check if offline STT model is configured.
+     * Returns true if a Speech-to-Text model path is saved in preferences.
+     */
+    fun isOfflineSttModelConfigured(context: Context): Boolean {
+        val prefs = getPrefs(context)
+        val sttModelPath = prefs.getString("local_model_path_speech_to_text", null)
+        return !sttModelPath.isNullOrBlank()
+    }
+
+    /**
+     * Get the path to the configured offline STT model.
+     */
+    fun getOfflineSttModelPath(context: Context): String? {
+        val prefs = getPrefs(context)
+        return prefs.getString("local_model_path_speech_to_text", null)
+    }
 }
