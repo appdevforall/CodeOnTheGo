@@ -10,14 +10,23 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import com.itsaky.androidide.profiler.R
+import org.appdevforall.cotg.flamegraph.Flamegraph
+import org.appdevforall.cotg.flamegraph.rememberFlamegraphState
 import org.appdevforall.cotg.profiler.ProfilerIntent
 import org.appdevforall.cotg.profiler.ProfilerIntent.CpuHotspot
 import org.appdevforall.cotg.profiler.ProfilerIntent.DumpHeap
@@ -28,6 +37,7 @@ import org.appdevforall.cotg.profiler.cpu.CpuCallNode
 import org.appdevforall.cotg.profiler.cpu.CpuMethodRow
 import org.appdevforall.cotg.profiler.cpu.CpuProfile
 import org.appdevforall.cotg.profiler.cpu.CpuSample
+import org.appdevforall.cotg.profiler.cpu.toFlameNode
 import org.appdevforall.cotg.profiler.ui.components.CellAlignment
 import org.appdevforall.cotg.profiler.ui.components.CpuUsageGraph
 import org.appdevforall.cotg.profiler.ui.components.ProcessPicker
@@ -138,11 +148,7 @@ fun ProfilerScreenView(
                         )
 
                     is ProfilerUiState.CpuResult ->
-                        ProfilerTable(
-                            columns = cpuColumns(),
-                            rows = cpuRows(state.profile),
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        CpuResultTabs(profile = state.profile, modifier = Modifier.fillMaxSize())
 
                     is ProfilerUiState.Error ->
                         ErrorMessage(
@@ -150,6 +156,50 @@ fun ProfilerScreenView(
                             onDismiss = { onIntent(ProfilerIntent.Reset) },
                         )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CpuResultTabs(profile: CpuProfile, modifier: Modifier = Modifier) {
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val flameRoot = remember(profile) { profile.root.toFlameNode() }
+    val flamegraphState = rememberFlamegraphState()
+
+    Column(modifier = modifier) {
+        TabRow(selectedTabIndex = selectedTab) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text(stringResource(R.string.profiler_tab_table)) },
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = { Text(stringResource(R.string.profiler_tab_flamegraph)) },
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(top = Dimens.paddingMd),
+        ) {
+            when (selectedTab) {
+                0 ->
+                    ProfilerTable(
+                        columns = cpuColumns(),
+                        rows = cpuRows(profile),
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                else ->
+                    Flamegraph(
+                        root = flameRoot,
+                        state = flamegraphState,
+                        modifier = Modifier.fillMaxSize(),
+                    )
             }
         }
     }
@@ -307,7 +357,23 @@ private fun ProfilerScreenProfilingPreview() {
 @Composable
 private fun ProfilerScreenCpuPreview() {
     val profile = CpuProfile(
-        root = CpuCallNode("(root)", selfMicros = 0, totalMicros = 1_530, children = emptyList()),
+        root = CpuCallNode(
+            "(root)", selfMicros = 0, totalMicros = 1_530,
+            children = listOf(
+                CpuCallNode(
+                    "android.view.Choreographer.doFrame", selfMicros = 240, totalMicros = 1_142,
+                    children = listOf(
+                        CpuCallNode(
+                            "android.view.View.draw", selfMicros = 214, totalMicros = 902,
+                            children = listOf(
+                                CpuCallNode("android.graphics.Canvas.drawPath", selfMicros = 688, totalMicros = 688, children = emptyList()),
+                            ),
+                        ),
+                    ),
+                ),
+                CpuCallNode("libc.so nativePollOnce", selfMicros = 388, totalMicros = 388, children = emptyList()),
+            ),
+        ),
         totalMicros = 1_530,
         methods = listOf(
             CpuMethodRow("android.view.Choreographer.doFrame", 1_530, 100f, 1_048, 68.5f),

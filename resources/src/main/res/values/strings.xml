@@ -1358,5 +1358,7 @@
     <string name="profiler_col_total_pct">Total %</string>
     <string name="profiler_col_children_us">Children (µs)</string>
     <string name="profiler_col_children_pct">Children %</string>
+    <string name="profiler_tab_table">Table</string>
+    <string name="profiler_tab_flamegraph">Flame graph</string>
 
 </resources>
