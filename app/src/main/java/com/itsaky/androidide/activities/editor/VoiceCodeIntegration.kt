@@ -24,7 +24,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
+import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.speech.VoicePreferences
 import com.itsaky.androidide.ui.voice.VoicePreviewBottomSheet
 import com.itsaky.androidide.ui.voice.VoiceRecordingOverlay
@@ -65,9 +65,9 @@ fun ProjectHandlerActivity.setupVoiceCode() {
         val viewModel = ViewModelProvider(this)[SpeechToCodeViewModel::class.java]
 
         // Set LLM controller if available
-        val llmRepository = LocalLlmRepositoryImpl.getInstance(this)
-        llmRepository?.getLlamaController()?.let { controller ->
-            viewModel.setLlamaController(controller)
+        val llmEngine = LlmInferenceEngineProvider.instance
+        llmEngine.getLlamaController()?.let { controller ->
+            viewModel.setController(controller)
             Log.d(TAG, "LLM controller set for voice code")
         } ?: run {
             Log.w(TAG, "LLM controller not available for voice code")
@@ -110,11 +110,6 @@ private fun ProjectHandlerActivity.setupVoiceCodeObservers(viewModel: SpeechToCo
                 }
                 recordingOverlay?.updateDuration(state.durationMs)
                 recordingOverlay?.updateWaveform(state.amplitudes.toFloatArray())
-
-                // Set cancel listener
-                recordingOverlay?.setOnCancelListener {
-                    viewModel.cancelRecording()
-                }
             }
             is SpeechToCodeViewModel.RecordingState.Processing -> {
                 recordingOverlay?.showProcessing()
@@ -163,8 +158,6 @@ private fun ProjectHandlerActivity.setupVoiceCodeObservers(viewModel: SpeechToCo
                     "Code generation timed out. Please try again."
                 is SpeechToCodeViewModel.VoiceError.PermissionDenied ->
                     "Microphone permission required for voice code."
-                is SpeechToCodeViewModel.VoiceError.NoLlmController ->
-                    "AI model not loaded. Please check AI settings."
                 is SpeechToCodeViewModel.VoiceError.Unknown ->
                     "Error: ${error.message}"
             }

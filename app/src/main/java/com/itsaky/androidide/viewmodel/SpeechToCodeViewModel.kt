@@ -80,6 +80,7 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
     // Core components (placeholders for now)
     private var audioRecorder: AudioRecorder? = null
     private var pipeline: SpeechToCodePipeline? = null
+    private var llamaController: com.itsaky.androidide.llamacpp.api.ILlamaController? = null
     private var recordingStartTime: Long = 0L
 
     init {
@@ -87,27 +88,45 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
+     * Set the LLaMA controller for code generation.
+     */
+    fun setController(controller: com.itsaky.androidide.llamacpp.api.ILlamaController) {
+        llamaController = controller
+        Log.d(TAG, "LLaMA controller set")
+    }
+
+    /**
      * Initialize audio recorder and pipeline.
      * Call this when permissions are granted.
+     * @return true if initialization succeeded, false otherwise
      */
-    fun initialize() {
-        viewModelScope.launch {
-            try {
-                audioRecorder = AudioRecorder(getApplication())
-                val initialized = audioRecorder?.initialize() ?: false
+    suspend fun initialize(): Boolean {
+        return try {
+            audioRecorder = AudioRecorder(getApplication())
+            val initialized = audioRecorder?.initialize() ?: false
 
-                if (initialized) {
-                    Log.d(TAG, "AudioRecorder initialized successfully")
-                    // TODO: Initialize pipeline with STT and LLM
-                    // pipeline = SpeechToCodePipeline(stt, llamaController, recognizer)
-                } else {
-                    Log.e(TAG, "Failed to initialize AudioRecorder")
-                    _error.value = VoiceError.Unknown("Failed to initialize audio recorder")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Initialization error", e)
-                _error.value = VoiceError.Unknown(e.message ?: "Initialization failed")
+            if (initialized) {
+                Log.d(TAG, "AudioRecorder initialized successfully")
+                // Initialize pipeline with STT and LLM
+                pipeline = SpeechToCodePipeline(
+                    context = getApplication(),
+                    llamaController = llamaController ?: run {
+                        Log.w(TAG, "No LLaMA controller available")
+                        return false
+                    },
+                    intentRecognizer = VoiceCommandRecognizer()
+                )
+                pipeline?.initialize() ?: false
+                true
+            } else {
+                Log.e(TAG, "Failed to initialize AudioRecorder")
+                _error.value = VoiceError.Unknown("Failed to initialize audio recorder")
+                false
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Initialization error", e)
+            _error.value = VoiceError.Unknown(e.message ?: "Initialization failed")
+            false
         }
     }
 
@@ -155,18 +174,23 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
                     return@launch
                 }
 
-                // TODO: Process through pipeline
-                // For now, create placeholder preview
-                _previewData.value = PreviewData(
-                    transcription = "Voice command placeholder",
-                    generatedCode = "// Generated code will appear here\n// Duration: ${recordingDuration}ms",
-                    intent = "PLACEHOLDER",
-                    confidence = 0.9f,
-                    latencyMs = recordingDuration
-                )
+                // Process through pipeline
+                val result = pipeline?.processAudio(audioBytes)
+
+                if (result != null) {
+                    _previewData.value = PreviewData(
+                        transcription = result.command,
+                        generatedCode = result.code,
+                        intent = result.command,
+                        confidence = result.confidence,
+                        latencyMs = result.totalLatencyMs
+                    )
+                    Log.d(TAG, "Processing complete: ${result.command}")
+                } else {
+                    _error.value = VoiceError.Unknown("Pipeline not initialized")
+                }
 
                 _recordingState.value = RecordingState.Idle
-                Log.d(TAG, "Processing complete")
             } catch (e: Exception) {
                 Log.e(TAG, "Processing error", e)
                 _error.value = VoiceError.Unknown(e.message ?: "Processing failed")

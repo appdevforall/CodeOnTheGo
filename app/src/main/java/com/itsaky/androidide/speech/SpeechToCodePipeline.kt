@@ -79,7 +79,7 @@ class SpeechToCodePipeline(
             Log.d(TAG, "Step 1/3: STT transcription...")
             val sttStart = System.currentTimeMillis()
 
-            val transcription = when {
+            val transcription: AndroidSpeechRecognizer.TranscriptionResult = when {
                 VoicePreferences.isUsingCloudStt(context) -> {
                     Log.d(TAG, "Using Cloud STT (Android SpeechRecognizer)")
                     withTimeout(TRANSCRIPTION_TIMEOUT_CLOUD_MS) {
@@ -89,7 +89,13 @@ class SpeechToCodePipeline(
                 VoicePreferences.isUsingMoonshineStt(context) -> {
                     Log.d(TAG, "Using Moonshine offline STT")
                     withTimeout(TRANSCRIPTION_TIMEOUT_MOONSHINE_MS) {
-                        moonshineStt.transcribe(audioBytes, sampleRate = 16000)
+                        val result = moonshineStt.transcribe(audioBytes, sampleRate = 16000)
+                        // Convert MoonshineSTT.TranscriptionResult to AndroidSpeechRecognizer.TranscriptionResult
+                        AndroidSpeechRecognizer.TranscriptionResult(
+                            text = result.text,
+                            confidence = result.confidence,
+                            latencyMs = result.latencyMs
+                        )
                     }
                 }
                 else -> {
