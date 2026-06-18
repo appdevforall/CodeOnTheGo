@@ -1,51 +1,58 @@
 package org.appdevforall.cotg.profiler
 
 import androidx.compose.runtime.Immutable
-import org.appdevforall.cotg.profiler.cpu.CpuProfile
 import org.appdevforall.cotg.profiler.cpu.CpuSample
 import org.appdevforall.cotg.profiler.model.ProcessInfo
-import org.appdevforall.cotg.profiler.ui.components.ProfilerTableRow
 
+/**
+ * Profiler UI state machine.
+ *
+ * Flow: `Idle → ChooseProcess → Profiling → (Completed | Failed)`, and any non-[Idle] state returns
+ * to [Idle] (cancel / start-another). Only [Idle] shows the task-selection buttons; while a run is
+ * in flight (a [Profiling] state) the user can only stop/cancel it — a second run can't be started.
+ */
 @Immutable
 sealed interface ProfilerUiState {
+    /** Choose a profiling task (heap dump / CPU hotspots). The only state that shows the start buttons. */
     data object Idle : ProfilerUiState
 
-    data class SelectingProcess(
+    /** Picking which process to profile for [mode]. */
+    data class ChooseProcess(
         val mode: ProfilerMode,
         val processes: List<ProcessInfo>,
     ) : ProfilerUiState
 
-    /** A profiling action (e.g. heap dump) is in progress for [process]. */
-    data class Running(
-        val mode: ProfilerMode,
+    /** A profiling run is in flight, typed by the [ProfilerReport] it produces. */
+    sealed interface Profiling<out R : ProfilerReport> : ProfilerUiState {
+        val process: ProcessInfo
+
+        /** Heap dump in progress (one-shot, cancellable). */
+        @Immutable
+        data class HeapDump(
+            override val process: ProcessInfo,
+        ) : Profiling<ProfilerReport.HeapDump>
+
+        /**
+         * Live CPU sampling. [samples] grows as usage is sampled; [finalizing] is true after the user
+         * taps Stop while the perf.data is converted into the report.
+         */
+        @Immutable
+        data class CpuSampling(
+            override val process: ProcessInfo,
+            val samples: List<CpuSample>,
+            val finalizing: Boolean = false,
+        ) : Profiling<ProfilerReport.CpuSampling>
+    }
+
+    /** A run finished successfully; [report] holds the produced data. */
+    data class Completed(
         val process: ProcessInfo,
+        val report: ProfilerReport,
     ) : ProfilerUiState
 
-    /** CPU profiling is live: simpleperf is recording and [samples] grows as usage is sampled. */
-    data class Profiling(
-        val process: ProcessInfo,
-        val samples: List<CpuSample>,
-    ) : ProfilerUiState
-
-    /** CPU profiling stopped; the recording is being converted/parsed into a report. */
-    data class Processing(
-        val process: ProcessInfo,
-    ) : ProfilerUiState
-
-    data class Results(
-        val mode: ProfilerMode,
-        val process: ProcessInfo,
-        val rows: List<ProfilerTableRow>,
-    ) : ProfilerUiState
-
-    /** CPU profiling result: the parsed [profile] (call tree, kept for the future flamegraph). */
-    data class CpuResult(
-        val process: ProcessInfo,
-        val profile: CpuProfile,
-    ) : ProfilerUiState
-
-    /** A recoverable failure or unavailable-service message shown to the user. */
-    data class Error(
+    /** A run failed, or was cancelled by the user ([cancelled] = true). */
+    data class Failed(
         val message: String,
+        val cancelled: Boolean = false,
     ) : ProfilerUiState
 }

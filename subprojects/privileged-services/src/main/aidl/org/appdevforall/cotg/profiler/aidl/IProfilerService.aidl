@@ -24,4 +24,8 @@ interface IProfilerService {
     // the perf.data to a protobuf report-sample dump, and writes it to [reportOut].
     void startCpuProfiling(int pid, in String packageName, ICpuProfileObserver observer) = 6;
     void stopCpuProfiling(in ParcelFileDescriptor reportOut) = 7;
+
+    // Aborts the current CPU session (including an in-flight report generation triggered by
+    // stopCpuProfiling): kills simpleperf/report-sample and discards any leftover temp files.
+    void cancelCpuProfiling() = 8;
 }

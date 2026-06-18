@@ -443,13 +443,24 @@ class ProfilerUserService : IProfilerService.Stub() {
 	}
 
 	override fun stopCpuProfiling(reportOut: ParcelFileDescriptor) {
-		val session = synchronized(cpuLock) { cpuSession.also { cpuSession = null } }
+		// Keep [cpuSession] set while we finalize so cancelCpuProfiling() can still reach (and kill)
+		// this session's report generation; clear it only once stop() returns.
+		val session = synchronized(cpuLock) { cpuSession }
 		if (session == null) {
 			// Nothing recording: hand the client an empty report so it isn't left waiting.
 			runCatching { ParcelFileDescriptor.AutoCloseOutputStream(reportOut).close() }
 			return
 		}
-		session.stop(reportOut)
+		try {
+			session.stop(reportOut)
+		} finally {
+			synchronized(cpuLock) { if (cpuSession === session) cpuSession = null }
+		}
+	}
+
+	override fun cancelCpuProfiling() {
+		val session = synchronized(cpuLock) { cpuSession.also { cpuSession = null } }
+		session?.let { runCatching { it.cancel() } }
 	}
 
 	/**
