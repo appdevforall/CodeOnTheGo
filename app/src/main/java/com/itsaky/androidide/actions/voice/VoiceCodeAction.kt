@@ -25,7 +25,9 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.activities.editor.startVoiceRecording
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.speech.VoicePreferences
 
 /**
  * Action for voice-to-code functionality.
@@ -56,11 +58,18 @@ class VoiceCodeAction() : EditorActivityAction() {
         super.prepare(data)
         val activity = data.getActivity()
 
-        // Check if microphone permission is granted
+        // First check if voice code feature is enabled in settings
         enabled = activity?.let {
-            ContextCompat.checkSelfPermission(it, Manifest.permission.RECORD_AUDIO) ==
-                PackageManager.PERMISSION_GRANTED
+            VoicePreferences.isVoiceCodeEnabled(it)
         } ?: false
+
+        // Check if microphone permission is granted
+        if (enabled) {
+            enabled = activity?.let {
+                ContextCompat.checkSelfPermission(it, Manifest.permission.RECORD_AUDIO) ==
+                    PackageManager.PERMISSION_GRANTED
+            } ?: false
+        }
 
         // Disable if no editor open
         if (enabled) {
@@ -71,22 +80,26 @@ class VoiceCodeAction() : EditorActivityAction() {
     override suspend fun execAction(data: ActionData): Boolean {
         val activity = data.getActivity() as? EditorHandlerActivity ?: return false
 
+        // Check if voice code is enabled
+        if (!VoicePreferences.isVoiceCodeEnabled(activity)) {
+            activity.runOnUiThread {
+                android.widget.Toast.makeText(
+                    activity,
+                    "Voice code is disabled. Enable it in AI Settings.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+            return false
+        }
+
         // Check permission
         if (!checkMicrophonePermission(activity)) {
             requestMicrophonePermission(activity)
             return false
         }
 
-        // Quick tap: Show voice mode panel
-        // For now, just show a toast
-        // TODO: Implement voice mode panel
-        activity.runOnUiThread {
-            android.widget.Toast.makeText(
-                activity,
-                "Voice mode panel (coming soon). Use long-press for quick recording.",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
-        }
+        // Start voice recording
+        activity.startVoiceRecording()
 
         return true
     }

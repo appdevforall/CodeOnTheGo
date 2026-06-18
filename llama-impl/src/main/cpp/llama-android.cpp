@@ -1098,13 +1098,17 @@ Java_android_llama_cpp_LLamaAndroid_generate_1embeddings(
     const std::vector<llama_token> tokens_list = common_tokenize(context, text_str, true, parse_special);
 
     if (tokens_list.empty()) {
+        LOGe("generate_embeddings: tokenization resulted in empty tokens");
         return env->NewFloatArray(0);
     }
 
+    LOGi("generate_embeddings: tokenized to %zu tokens", tokens_list.size());
+
     common_batch_clear(*batch);
 
+    // Mark all tokens as outputs for sequence embeddings (pooling)
     for (size_t i = 0; i < tokens_list.size(); i++) {
-        common_batch_add(*batch, tokens_list[i], i, {0}, false);
+        common_batch_add(*batch, tokens_list[i], i, {0}, true);
     }
 
     if (llama_encode(context, *batch) != 0) {
@@ -1114,13 +1118,17 @@ Java_android_llama_cpp_LLamaAndroid_generate_1embeddings(
 
     const int32_t n_embd = llama_model_n_embd(llama_get_model(context));
     if (n_embd <= 0) {
+        LOGe("generate_embeddings: invalid embedding dimension %d", n_embd);
         return env->NewFloatArray(0);
     }
 
     float *embeddings = llama_get_embeddings_seq(context, 0);
     if (!embeddings) {
+        LOGe("generate_embeddings: llama_get_embeddings_seq() returned null");
         return env->NewFloatArray(0);
     }
+
+    LOGi("generate_embeddings: extracted embeddings with dimension=%d", n_embd);
 
     jfloatArray result = env->NewFloatArray(n_embd);
     if (result) {
