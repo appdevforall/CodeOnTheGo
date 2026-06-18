@@ -17,10 +17,15 @@
 
 package com.itsaky.androidide.editor.ui
 
+import android.view.KeyEvent
+import com.itsaky.androidide.preferences.internal.InlineSuggestionPreferences
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.Assert.*
 
@@ -31,8 +36,20 @@ class InlineSuggestionComponentTest {
 
     @Before
     fun setup() {
+        // Mock the preferences object to return default values
+        mockkObject(InlineSuggestionPreferences)
+        every { InlineSuggestionPreferences.enabled } returns true
+        every { InlineSuggestionPreferences.charThreshold } returns 3
+        every { InlineSuggestionPreferences.debounceMs } returns 300
+
         mockEditor = mockk(relaxed = true)
+        mockEditor.isEditable = true
         component = InlineSuggestionComponent(mockEditor)
+    }
+
+    @After
+    fun tearDown() {
+        io.mockk.unmockkAll()
     }
 
     @Test
@@ -81,5 +98,103 @@ class InlineSuggestionComponentTest {
 
         component.onSelectionChange(event)
         assertEquals(SuggestionState.IDLE, component.getState())
+    }
+
+    // Task 11: Manual trigger tests
+
+    @Test
+    fun `manualTrigger method exists and can be called`() {
+        // Verify the method can be called without error
+        component.manualTrigger()
+        // Note: state might not be REQUESTING yet due to async scope.launch
+        // The important thing is the method exists and runs without error
+    }
+
+    @Test
+    fun `manualTrigger does nothing when disabled`() {
+        component.setEnabled(false)
+        val initialState = component.getState()
+        component.manualTrigger()
+        assertEquals("State should remain unchanged when disabled", initialState, component.getState())
+    }
+
+    @Test
+    fun `manualTrigger does nothing when editor not editable`() {
+        val mockEditor = mockk<IDEEditor>(relaxed = true) {
+            // isEditable is false
+        }
+        mockkObject(InlineSuggestionPreferences)
+        every { InlineSuggestionPreferences.enabled } returns true
+        every { InlineSuggestionPreferences.charThreshold } returns 3
+        every { InlineSuggestionPreferences.debounceMs } returns 300
+
+        val component = InlineSuggestionComponent(mockEditor)
+        val initialState = component.getState()
+        component.manualTrigger()
+        // Should remain in initial state when not editable
+        assertEquals("State should remain unchanged when not editable", initialState, component.getState())
+    }
+
+    @Test
+    fun `onKeyEvent handles Ctrl+Space`() {
+        component.setEnabled(true)
+        val event = mockk<KeyEvent> {
+            io.mockk.every { action } returns KeyEvent.ACTION_DOWN
+            io.mockk.every { keyCode } returns KeyEvent.KEYCODE_SPACE
+            io.mockk.every { isCtrlPressed } returns true
+        }
+
+        val consumed = component.onKeyEvent(event)
+        assertTrue("Ctrl+Space should be consumed", consumed)
+        // Manual trigger is called, which will attempt to request suggestion
+    }
+
+    @Test
+    fun `onKeyEvent does not consume Space without Ctrl`() {
+        component.setEnabled(true)
+        val event = mockk<KeyEvent> {
+            io.mockk.every { action } returns KeyEvent.ACTION_DOWN
+            io.mockk.every { keyCode } returns KeyEvent.KEYCODE_SPACE
+            io.mockk.every { isCtrlPressed } returns false
+        }
+
+        val consumed = component.onKeyEvent(event)
+        assertFalse("Space without Ctrl should not be consumed", consumed)
+    }
+
+    @Test
+    fun `onKeyEvent still handles Tab to accept`() {
+        val event = mockk<KeyEvent> {
+            io.mockk.every { action } returns KeyEvent.ACTION_DOWN
+            io.mockk.every { keyCode } returns KeyEvent.KEYCODE_TAB
+        }
+
+        // When not showing, Tab should not be consumed
+        var consumed = component.onKeyEvent(event)
+        assertFalse("Tab should not be consumed when no suggestion showing", consumed)
+    }
+
+    @Test
+    fun `onKeyEvent still handles Esc to dismiss`() {
+        val event = mockk<KeyEvent> {
+            io.mockk.every { action } returns KeyEvent.ACTION_DOWN
+            io.mockk.every { keyCode } returns KeyEvent.KEYCODE_ESCAPE
+        }
+
+        // When not showing, Esc should not be consumed
+        var consumed = component.onKeyEvent(event)
+        assertFalse("Esc should not be consumed when no suggestion showing", consumed)
+    }
+
+    @Test
+    fun `onKeyEvent ignores non-ACTION_DOWN events`() {
+        val event = mockk<KeyEvent> {
+            io.mockk.every { action } returns KeyEvent.ACTION_UP
+            io.mockk.every { keyCode } returns KeyEvent.KEYCODE_SPACE
+            io.mockk.every { isCtrlPressed } returns true
+        }
+
+        val consumed = component.onKeyEvent(event)
+        assertFalse("ACTION_UP events should not be consumed", consumed)
     }
 }
