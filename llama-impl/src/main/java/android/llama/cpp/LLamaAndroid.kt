@@ -122,6 +122,29 @@ class LLamaAndroid : ILlamaController {
 
     private external fun kv_cache_clear(context: Long)
 
+    private external fun generate_embeddings(context: Long, batch: Long, text: String): FloatArray
+
+    override suspend fun generateEmbedding(text: String): FloatArray {
+        return withContext(runLoop) {
+            when (val state = threadLocalState.get()) {
+                is State.Loaded -> generate_embeddings(state.context, state.batch, text)
+                else -> FloatArray(0) // Return empty array if not loaded
+            }
+        }
+    }
+
+    override suspend fun getEmbeddingDimension(): Int {
+        return withContext(runLoop) {
+            when (val state = threadLocalState.get()) {
+                is State.Loaded -> {
+                    val testEmbedding = generate_embeddings(state.context, state.batch, " ")
+                    testEmbedding.size
+                }
+                else -> 384 // Default for all-MiniLM-L6-v2
+            }
+        }
+    }
+
     override fun stop() {
         log.info("Stop requested for current generation.")
         isStopped.set(true)
