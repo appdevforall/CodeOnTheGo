@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local LLM Hackathon - Technical Deep Dive</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <div class="presentation">
+        <div class="slide active" id="slide-0">
+            <!-- Slide 1 content will go here -->
+        </div>
+        <!-- More slides will be added in subsequent tasks -->
+    </div>
+
+    <div class="controls">
+        <span class="slide-number">1 / 18</span>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const totalSlides = 18;
+
+        function showSlide(n) {
+            const slides = document.querySelectorAll('.slide');
+            if (n >= totalSlides) currentSlide = totalSlides - 1;
+            if (n < 0) currentSlide = 0;
+            else currentSlide = n;
+
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active');
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                }
+            });
+
+            document.querySelector('.slide-number').textContent = `${currentSlide + 1} / ${totalSlides}`;
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+
+        function prevSlide() {
+            showSlide(currentSlide - 1);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                prevSlide();
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                showSlide(0);
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                showSlide(totalSlides - 1);
+            }
+        });
+
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#1a1a1a',
+                primaryColor: '#2196F3',
+                primaryTextColor: '#e0e0e0',
+                primaryBorderColor: '#2196F3',
+                lineColor: '#2196F3',
+                secondaryColor: '#424242',
+                tertiaryColor: '#616161'
+            }
+        });
+    </script>
+</body>
+</html>
