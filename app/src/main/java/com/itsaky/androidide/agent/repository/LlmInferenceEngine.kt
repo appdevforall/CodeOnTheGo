@@ -449,6 +449,39 @@ class LlmInferenceEngine(
             .flowOn(ioDispatcher)
     }
 
+    /**
+     * Generate embeddings from text using an encoder model.
+     * Used for vector search / semantic similarity.
+     * The text is encoded (not generated) and embeddings are extracted atomically.
+     *
+     * @param text The text to encode
+     * @return Float array containing the embedding vector, or empty array if model not loaded
+     */
+    suspend fun generateEmbeddings(text: String): FloatArray {
+        val controller = llamaController ?: run {
+            log.warn("Cannot generate embeddings - engine not initialized")
+            return FloatArray(0)
+        }
+        if (!isModelLoaded) {
+            log.warn("Cannot generate embeddings - model not loaded")
+            return FloatArray(0)
+        }
+
+        return withContext(ioDispatcher) {
+            try {
+                // Use atomic encode+extract operation to ensure embeddings aren't cleared
+                controller.encodeForEmbeddings(text)
+            } catch (e: Exception) {
+                log.error("Failed to generate embeddings", e)
+                FloatArray(0)
+            }
+        }
+    }
+
+    fun getLlamaController(): ILlamaController? {
+        return llamaController
+    }
+
     fun stop() {
         if (!isInitialized) return
         try {
