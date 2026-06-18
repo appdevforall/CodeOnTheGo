@@ -5,6 +5,189 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Local LLM Hackathon - Technical Deep Dive</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #0d0d0d;
+    color: #e0e0e0;
+    overflow: hidden;
+}
+
+.presentation {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+.slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    padding: 60px 80px;
+    background: #1a1a1a;
+}
+
+.slide.active {
+    display: flex;
+    flex-direction: column;
+    opacity: 1;
+}
+
+h1 {
+    font-size: 3.5rem;
+    margin-bottom: 20px;
+    color: #2196F3;
+    text-align: center;
+}
+
+h2 {
+    font-size: 2.5rem;
+    margin-bottom: 30px;
+    color: #2196F3;
+    border-bottom: 3px solid #2196F3;
+    padding-bottom: 10px;
+}
+
+h3 {
+    font-size: 1.8rem;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    color: #64B5F6;
+}
+
+p, li {
+    font-size: 1.3rem;
+    line-height: 1.8;
+    margin-bottom: 15px;
+}
+
+ul {
+    margin-left: 40px;
+}
+
+code {
+    background: #0d0d0d;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    color: #4CAF50;
+    font-size: 1.1rem;
+}
+
+pre {
+    background: #0d0d0d;
+    padding: 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 20px 0;
+    border-left: 4px solid #2196F3;
+}
+
+pre code {
+    background: none;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.controls {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: rgba(33, 150, 243, 0.1);
+    padding: 10px 20px;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
+    border: 1px solid #2196F3;
+}
+
+.slide-number {
+    font-size: 1.1rem;
+    color: #2196F3;
+    font-weight: bold;
+}
+
+.mermaid {
+    display: flex;
+    justify-content: center;
+    margin: 30px 0;
+}
+
+.highlight {
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+    margin: 30px 0;
+}
+
+.stat-box {
+    background: #0d0d0d;
+    padding: 25px;
+    border-radius: 12px;
+    border: 2px solid #2196F3;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 3rem;
+    color: #2196F3;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.stat-label {
+    font-size: 1.2rem;
+    color: #9E9E9E;
+}
+
+.two-column {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    margin: 20px 0;
+}
+
+.feature-icon {
+    font-size: 4rem;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 1024px) {
+    .slide {
+        padding: 40px 50px;
+    }
+    h1 {
+        font-size: 2.5rem;
+    }
+    h2 {
+        font-size: 2rem;
+    }
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    .two-column {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 </head>
 <body>
     <div class="presentation">
