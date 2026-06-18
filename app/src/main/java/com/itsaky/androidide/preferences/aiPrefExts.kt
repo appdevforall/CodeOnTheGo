@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.preferences
 
+import android.content.Context
 import android.widget.Toast
 import androidx.preference.Preference
 import com.itsaky.androidide.R
@@ -87,10 +88,10 @@ class VoiceCodeEnabled(
         return true
     }
 
-    override fun onCreatePreference(preference: Preference) {
-        super.onCreatePreference(preference)
-        (preference as? androidx.preference.SwitchPreference)?.isChecked =
-            VoicePreferences.isVoiceCodeEnabled(preference.context)
+    override fun onCreatePreference(context: android.content.Context): Preference {
+        val pref = super.onCreatePreference(context) as androidx.preference.SwitchPreference
+        pref.isChecked = VoicePreferences.isVoiceCodeEnabled(context)
+        return pref
     }
 }
 
@@ -109,19 +110,25 @@ class SttModePreference(
         return arrayOf(
             PreferenceChoices.Entry(
                 label = "Cloud (Google)",
-                isChecked = currentMode == VoicePreferences.STT_MODE_CLOUD,
-                value = VoicePreferences.STT_MODE_CLOUD
+                _isChecked = currentMode == VoicePreferences.STT_MODE_CLOUD,
+                data = VoicePreferences.STT_MODE_CLOUD
             ),
             PreferenceChoices.Entry(
                 label = "Offline (Moonshine)",
-                isChecked = currentMode == VoicePreferences.STT_MODE_MOONSHINE,
-                value = VoicePreferences.STT_MODE_MOONSHINE
+                _isChecked = currentMode == VoicePreferences.STT_MODE_MOONSHINE,
+                data = VoicePreferences.STT_MODE_MOONSHINE
             )
         )
     }
 
-    override fun onChoiceConfirmed(preference: Preference, entry: PreferenceChoices.Entry): Boolean {
-        val mode = entry.value as String
+    override fun onChoiceConfirmed(
+        preference: Preference,
+        entry: PreferenceChoices.Entry?,
+        position: Int
+    ) {
+        if (entry == null) return
+
+        val mode = entry.data as String
         VoicePreferences.setSttMode(preference.context, mode)
 
         val modeDisplay = VoicePreferences.getSttModeDisplayName(mode)
@@ -130,8 +137,6 @@ class SttModePreference(
             "STT mode: $modeDisplay",
             Toast.LENGTH_SHORT
         ).show()
-
-        return true
     }
 }
 
@@ -148,10 +153,10 @@ class PreviewBeforeInsertPreference(
         return true
     }
 
-    override fun onCreatePreference(preference: Preference) {
-        super.onCreatePreference(preference)
-        (preference as? androidx.preference.SwitchPreference)?.isChecked =
-            VoicePreferences.isPreviewBeforeInsertEnabled(preference.context)
+    override fun onCreatePreference(context: Context): Preference {
+        val pref = super.onCreatePreference(context) as androidx.preference.SwitchPreference
+        pref.isChecked = VoicePreferences.isPreviewBeforeInsertEnabled(context)
+        return pref
     }
 }
 
@@ -168,9 +173,9 @@ class TypingAnimationPreference(
         return true
     }
 
-    override fun onCreatePreference(preference: Preference) {
-        super.onCreatePreference(preference)
-        (preference as? androidx.preference.SwitchPreference)?.isChecked =
-            VoicePreferences.isTypingAnimationEnabled(preference.context)
+    override fun onCreatePreference(context: Context): Preference {
+        val pref = super.onCreatePreference(context) as androidx.preference.SwitchPreference
+        pref.isChecked = VoicePreferences.isTypingAnimationEnabled(context)
+        return pref
     }
 }

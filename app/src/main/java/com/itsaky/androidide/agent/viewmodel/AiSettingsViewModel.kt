@@ -209,7 +209,7 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     fun getAvailableModelPurposes(): List<ModelPurpose> {
         return listOf(
             ModelPurpose.CHAT,
-            ModelPurpose.EMBEDDINGS
+            ModelPurpose.EMBEDDINGS,
             ModelPurpose.SPEECH_TO_TEXT
             // Will add CODE_COMPLETION when implemented
         )

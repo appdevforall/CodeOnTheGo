@@ -38,7 +38,8 @@ class AndroidSpeechRecognizer(private val context: Context) {
 
     data class TranscriptionResult(
         val text: String,
-        val confidence: Float = 0.9f
+        val confidence: Float = 0.9f,
+        val latencyMs: Long = 0L
     )
 
     private var speechRecognizer: SpeechRecognizer? = null
@@ -81,9 +82,11 @@ class AndroidSpeechRecognizer(private val context: Context) {
      * Start speech recognition and wait for result.
      */
     private suspend fun recognizeSpeech(): TranscriptionResult = suspendCancellableCoroutine { continuation ->
+        val startTime = System.currentTimeMillis()
+
         if (speechRecognizer == null) {
             Log.e(TAG, "SpeechRecognizer not initialized")
-            continuation.resume(TranscriptionResult("", 0f))
+            continuation.resume(TranscriptionResult("", 0f, System.currentTimeMillis() - startTime))
             return@suspendCancellableCoroutine
         }
 
@@ -135,7 +138,8 @@ class AndroidSpeechRecognizer(private val context: Context) {
                     else -> "Unknown error: $error"
                 }
                 Log.e(TAG, "Speech recognition error: $errorMessage")
-                continuation.resume(TranscriptionResult("", 0f))
+                val latencyMs = System.currentTimeMillis() - startTime
+                continuation.resume(TranscriptionResult("", 0f, latencyMs))
             }
 
             override fun onResults(results: Bundle?) {
@@ -144,9 +148,10 @@ class AndroidSpeechRecognizer(private val context: Context) {
 
                 val text = recognizedTexts?.firstOrNull() ?: ""
                 val confidence = confidences?.firstOrNull() ?: 0.9f
+                val latencyMs = System.currentTimeMillis() - startTime
 
-                Log.d(TAG, "Speech recognition result: '$text' (confidence: $confidence)")
-                continuation.resume(TranscriptionResult(text, confidence))
+                Log.d(TAG, "Speech recognition result: '$text' (confidence: $confidence, latency: ${latencyMs}ms)")
+                continuation.resume(TranscriptionResult(text, confidence, latencyMs))
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
