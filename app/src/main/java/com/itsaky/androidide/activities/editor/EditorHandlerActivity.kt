@@ -57,11 +57,12 @@ import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
 import com.itsaky.androidide.editor.language.treesitter.LogLanguage
 import com.itsaky.androidide.editor.language.treesitter.TSLanguageRegistry
 import com.itsaky.androidide.editor.language.treesitter.XMLLanguage
+import com.itsaky.androidide.activities.PluginManagerActivity
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.editor.ui.InlineSuggestionComponent
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
-import com.itsaky.androidide.activities.PluginManagerActivity
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -75,6 +76,7 @@ import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginDrawableResolver
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.preferences.internal.InlineSuggestionPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
@@ -90,6 +92,7 @@ import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.hasVisibleDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -102,7 +105,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
-import com.itsaky.androidide.utils.hasVisibleDialog
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -488,6 +490,24 @@ open class EditorHandlerActivity :
 					TooltipManager.scheduleActiveTooltipDismiss()
 				},
 				shouldAddMargin = !isLast,
+			)
+		}
+
+		// Add inline suggestion button if preference is enabled
+		if (InlineSuggestionPreferences.showToolbarButton) {
+			val icon = ResourcesCompat.getDrawable(
+				resources,
+				com.itsaky.androidide.editor.R.drawable.ic_inline_suggestion,
+				theme
+			)
+			content.projectActionsToolbar.addMenuItem(
+				icon = icon,
+				hint = getString(string.inline_suggestion_trigger),
+				onClick = {
+					val editor = getCurrentEditor() ?: return@addMenuItem
+					editor.editor.getComponent(InlineSuggestionComponent::class.java)?.manualTrigger()
+				},
+				shouldAddMargin = false,
 			)
 		}
 	}
