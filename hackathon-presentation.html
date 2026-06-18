@@ -374,6 +374,74 @@ graph LR
                 </div>
             </div>
         </div>
+
+        <div class="slide" id="slide-6">
+            <h2>Speech-to-Code: Pipeline Flow</h2>
+
+            <div class="mermaid">
+sequenceDiagram
+    participant User
+    participant UI
+    participant Pipeline
+    participant STT
+    participant LLM
+    participant Editor
+
+    User->>UI: Long press mic button
+    UI->>UI: Show recording overlay + waveform
+    User->>UI: Speak command
+    User->>UI: Release button
+    UI->>Pipeline: processAudio(audioBytes)
+    Pipeline->>STT: transcribe(audioBytes)
+    STT-->>Pipeline: TranscriptionResult(200-400ms)
+    Pipeline->>Pipeline: VoiceCommandRecognizer(50-100ms)
+    Pipeline->>LLM: generate(prompt)
+    LLM-->>Pipeline: code(400-800ms)
+    Pipeline-->>UI: GenerationResult
+    UI->>UI: Show PreviewBottomSheet
+    User->>UI: Tap "Insert"
+    UI->>Editor: insertTextWithAnimation(code)
+    Editor->>User: Code appears with typing effect
+            </div>
+
+            <p style="text-align: center; margin-top: 20px;">
+                <strong>Total Latency:</strong> 650-1300ms (90th percentile)<br>
+                <strong>Bottleneck:</strong> LLM generation (400-800ms)
+            </p>
+        </div>
+
+        <div class="slide" id="slide-7">
+            <h2>Speech-to-Code: Performance & UX</h2>
+
+            <h3>Latency Breakdown (from SpeechToCodePipeline.kt)</h3>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <span class="stat-number">200-400ms</span>
+                    <span class="stat-label">Moonshine STT</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-number">50-100ms</span>
+                    <span class="stat-label">Intent Recognition</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-number">400-800ms</span>
+                    <span class="stat-label">LLM Code Generation</span>
+                </div>
+            </div>
+
+            <h3>State Machine</h3>
+            <pre><code>IDLE → RECORDING → PROCESSING → PREVIEW → (INSERT | CANCEL) → IDLE
+                ↓
+              ERROR → Toast → IDLE</code></pre>
+
+            <h3>Key Achievements</h3>
+            <ul>
+                <li>✅ Preview-before-insert builds user trust</li>
+                <li>✅ Typing animation creates viral "wow" moment</li>
+                <li>✅ Dual STT support (cloud + offline)</li>
+                <li>✅ Spanish language support via Android SpeechRecognizer</li>
+            </ul>
+        </div>
         <!-- More slides will be added in subsequent tasks -->
     </div>
 
