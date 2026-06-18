@@ -113,8 +113,23 @@ abstract class ModuleProject(
 	 * source files of this module or its dependencies. Defaults to `false`.
 	 * @return The source directories.
 	 */
-	abstract fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File>
+	fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File> =
+		getCompileClasspaths(excludeSourceGeneratedClassPath, HashSet())
 	fun getCompileClasspaths() = getCompileClasspaths(false)
+
+	/**
+	 * Variant of [getCompileClasspaths] that guards against cyclic project-dependency graphs.
+	 *
+	 * @param visited module paths already expanded in this traversal. Each module contributes its
+	 * classpaths at most once; a module already in [visited] returns an empty set, so a cyclic graph
+	 * (e.g. `:a -> :b -> :a`) terminates instead of recursing until the stack overflows. The
+	 * user-facing cycle report is emitted once by [getCompileModuleProjects]; this method only breaks
+	 * the cycle.
+	 */
+	abstract fun getCompileClasspaths(
+		excludeSourceGeneratedClassPath: Boolean,
+		visited: MutableSet<String>,
+	): Set<File>
 
 	/**
 	 * Get the intermediate build output classpaths for this module.

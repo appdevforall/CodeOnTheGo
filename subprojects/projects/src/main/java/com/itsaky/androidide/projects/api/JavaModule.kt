@@ -86,15 +86,21 @@ class JavaModule(
 
 	override fun getModuleClasspaths(): Set<File> = mutableSetOf(classesJar)
 
-	override fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File> {
+	override fun getCompileClasspaths(
+		excludeSourceGeneratedClassPath: Boolean,
+		visited: MutableSet<String>,
+	): Set<File> {
+		// Guard against cyclic project-dependency graphs: contribute each module's classpaths once.
+		if (!visited.add(path)) {
+			return emptySet()
+		}
+
 		val classpaths =
 			if (excludeSourceGeneratedClassPath) mutableSetOf() else getModuleClasspaths().toMutableSet()
 
 		getCompileModuleProjects().forEach {
 			classpaths.addAll(
-				it.getCompileClasspaths(
-					excludeSourceGeneratedClassPath
-				)
+				it.getCompileClasspaths(excludeSourceGeneratedClassPath, visited)
 			)
 		}
 

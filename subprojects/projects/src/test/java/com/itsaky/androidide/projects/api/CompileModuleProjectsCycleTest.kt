@@ -161,6 +161,31 @@ class CompileModuleProjectsCycleTest {
     assertThat(result.map { it.path }.toSet()).containsExactly(":b", ":c", ":d")
   }
 
+  @Test(timeout = 30_000)
+  fun `getCompileClasspaths terminates on a cyclic module graph`() {
+    // a -> b -> a. Pre-fix the sibling classpath traversal had no cross-module guard, so
+    // a.getCompileClasspaths -> b.getCompileClasspaths -> a.getCompileClasspaths -> ... overflowed
+    // the stack just like getCompileModuleProjects did. With the fix it terminates.
+    val a = androidModule(":a", listOf(":b"))
+    val b = androidModule(":b", listOf(":a"))
+    installWorkspace(a, b)
+
+    val result = a.getCompileClasspaths()
+
+    // Terminates (timeout would fail otherwise) and still contributes this module's own classpaths.
+    assertThat(result).contains(a.getGeneratedJar())
+  }
+
+  @Test(timeout = 30_000)
+  fun `getCompileClasspaths terminates on a self dependency cycle`() {
+    val a = androidModule(":a", listOf(":a"))
+    installWorkspace(a)
+
+    val result = a.getCompileClasspaths()
+
+    assertThat(result).contains(a.getGeneratedJar())
+  }
+
   @Test
   fun `formatDependencyCycle renders the loop from the first occurrence of the repeated module`() {
     // Two-node, self, and longer cycles render as the chain the user must break.

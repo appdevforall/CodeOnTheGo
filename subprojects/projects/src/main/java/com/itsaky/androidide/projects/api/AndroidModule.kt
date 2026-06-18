@@ -141,8 +141,18 @@ open class AndroidModule(
 			addAll(getSelectedVariant()?.mainArtifact?.classJars ?: emptyList())
 		}
 
-	override fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File> {
+	override fun getCompileClasspaths(
+		excludeSourceGeneratedClassPath: Boolean,
+		visited: MutableSet<String>,
+	): Set<File> {
 		val project = IProjectManager.getInstance().workspace ?: return emptySet()
+
+		// Guard against cyclic project-dependency graphs: contribute each module's classpaths at most
+		// once so a cycle (:a -> :b -> :a) terminates instead of recursing until the stack overflows.
+		if (!visited.add(path)) {
+			return emptySet()
+		}
+
 		val result = mutableSetOf<File>()
 		if (excludeSourceGeneratedClassPath) {
 			// TODO: The mainArtifact.classJars are technically generated from source files
@@ -159,6 +169,8 @@ open class AndroidModule(
 			libraries = variantDependencies.mainArtifact?.compileDependencyList ?: emptyList(),
 			result = result,
 			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
+			visited = HashSet(),
+			moduleVisited = visited,
 		)
 		return result
 	}
@@ -238,27 +250,13 @@ open class AndroidModule(
 		root: Workspace,
 		libraries: List<AndroidModels.GraphItem>,
 		result: MutableSet<File>,
-		excludeSourceGeneratedClassPath: Boolean = false,
-	) {
-		collectLibraries(
-			root = root,
-			libraries = libraries,
-			result = result,
-			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
-			visited = HashSet(),
-		)
-	}
-
-	private fun collectLibraries(
-		root: Workspace,
-		libraries: List<AndroidModels.GraphItem>,
-		result: MutableSet<File>,
 		excludeSourceGeneratedClassPath: Boolean,
 		visited: MutableSet<String>,
+		moduleVisited: MutableSet<String>,
 	) {
 		val libraryMap = variantDependencies.librariesMap
 		for (library in libraries) {
-			// Guard against cyclic dependency graphs: expand each graph node at most once.
+			// Guard against cyclic dependency graphs within this module: expand each graph node once.
 			if (!visited.add(library.key)) {
 				continue
 			}
@@ -270,7 +268,8 @@ open class AndroidModule(
 					continue
 				}
 
-				result.addAll(module.getCompileClasspaths(excludeSourceGeneratedClassPath))
+				// Cross-module recursion threads moduleVisited so a cyclic PROJECT graph terminates.
+				result.addAll(module.getCompileClasspaths(excludeSourceGeneratedClassPath, moduleVisited))
 			} else if (lib.type == AndroidModels.LibraryType.ExternalAndroidLibrary && lib.hasAndroidLibraryData()) {
 				result.addAll(lib.androidLibraryData.compileJarFiles)
 			} else if (lib.type == AndroidModels.LibraryType.ExternalJavaLibrary && lib.hasArtifactPath()) {
@@ -286,6 +285,7 @@ open class AndroidModule(
 				result = result,
 				excludeSourceGeneratedClassPath = false,
 				visited = visited,
+				moduleVisited = moduleVisited,
 			)
 		}
 	}
