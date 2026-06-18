@@ -6,6 +6,7 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.openApplicationModuleChooser
+import com.itsaky.androidide.actions.profiler.ProfilerAction
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -76,6 +77,7 @@ abstract class AbstractModuleAssemblerAction(
 			module,
 			variant,
 			launchInDebugMode = id == DebugAction.ID,
+			launchProfilerAfterInstall = id == ProfilerAction.ID,
 			gradleArgs = gradleArgs,
 		)
 	}

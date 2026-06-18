@@ -34,6 +34,7 @@ class BuildViewModel : ViewModel() {
 		module: AndroidModule,
 		variant: AndroidModels.AndroidVariant,
 		launchInDebugMode: Boolean,
+		launchProfilerAfterInstall: Boolean = false,
 		gradleArgs: List<String> = emptyList(),
 	) {
 		if (_buildState.value is BuildState.InProgress) {
@@ -113,8 +114,7 @@ class BuildViewModel : ViewModel() {
 					BuildState.AwaitingInstall(
 						apkFile,
 						launchInDebugMode,
-						// Surface the Profiler tab after launch when this build requested a profileable APK.
-						launchProfilerAfterInstall = gradleArgs.any { it == "-P$PROPERTY_PROFILEABLE_ENABLED=true" },
+						launchProfilerAfterInstall = launchProfilerAfterInstall,
 					)
 			} catch (e: Exception) {
 				if (e is CancellationException) {
