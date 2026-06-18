@@ -144,6 +144,8 @@ constructor(
     private var fileVersion = 0
     internal var isModified = false
 
+    private lateinit var inlineSuggestionComponent: InlineSuggestionComponent
+
     private val selectionChangeHandler = Handler(Looper.getMainLooper())
     private var selectionChangeRunner: Runnable? =
         Runnable {
@@ -613,8 +615,7 @@ constructor(
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        val inlineComponent = getComponent(InlineSuggestionComponent::class.java)
-        if (inlineComponent?.onKeyEvent(event) == true) {
+        if (::inlineSuggestionComponent.isInitialized && inlineSuggestionComponent.onKeyEvent(event)) {
             return true
         }
         return super.onKeyDown(keyCode, event)
@@ -623,8 +624,8 @@ constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        if (!isReleased) {
-            getComponent(InlineSuggestionComponent::class.java)?.draw(canvas)
+        if (!isReleased && ::inlineSuggestionComponent.isInitialized) {
+            inlineSuggestionComponent.draw(canvas)
         }
     }
 
@@ -901,7 +902,8 @@ constructor(
         window.setAdapter(CompletionListAdapter())
         replaceComponent(EditorAutoCompletion::class.java, window)
 
-        replaceComponent(InlineSuggestionComponent::class.java, InlineSuggestionComponent(this))
+        // Initialize inline suggestions component (custom component, not registered with Sora)
+        inlineSuggestionComponent = InlineSuggestionComponent(this)
 
         getComponent(EditorTextActionWindow::class.java).isEnabled = false
 
@@ -910,7 +912,9 @@ constructor(
                 return@subscribeEvent
             }
 
-            getComponent(InlineSuggestionComponent::class.java)?.onContentChange(event)
+            if (::inlineSuggestionComponent.isInitialized) {
+                inlineSuggestionComponent.onContentChange(event)
+            }
 
             markModified()
             file ?: return@subscribeEvent
@@ -927,7 +931,9 @@ constructor(
                 return@subscribeEvent
             }
 
-            getComponent(InlineSuggestionComponent::class.java)?.onSelectionChange(event)
+            if (::inlineSuggestionComponent.isInitialized) {
+                inlineSuggestionComponent.onSelectionChange(event)
+            }
 
             if (_diagnosticWindow?.isShowing == true) {
                 _diagnosticWindow?.dismiss()

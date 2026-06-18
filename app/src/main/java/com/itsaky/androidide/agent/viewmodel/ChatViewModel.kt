@@ -19,6 +19,8 @@ import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
+import com.itsaky.androidide.agent.repository.ModelPurpose
+import com.itsaky.androidide.agent.repository.ModelPurpose.Companion.getPreferenceKey
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_SHA256
@@ -192,7 +194,8 @@ class ChatViewModel : ViewModel() {
 	fun checkBackendStatusOnResume(context: Context) {
 		val prefs = BaseApplication.baseInstance.prefManager
 		val currentBackendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)!!
-		val currentModelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+		// Get CHAT model path from multi-model system
+		val currentModelPath = prefs.getString(ModelPurpose.CHAT.getPreferenceKey(), null)
 		val backend = AiBackend.valueOf(currentBackendName)
 
 		val configChanged =

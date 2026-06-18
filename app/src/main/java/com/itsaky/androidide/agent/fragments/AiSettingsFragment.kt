@@ -95,21 +95,16 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
     }
 
     private fun setupBackendSelector() {
-        val backends = viewModel.getAvailableBackends()
-        val backendNames = backends.map { it.name }
-        val adapter = ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_spinner_dropdown_item,
-            backendNames
-        )
-        binding.backendAutocomplete.setAdapter(adapter)
-
         val currentBackend = getCurrentBackend()
-        binding.backendAutocomplete.setText(currentBackend.name, false)
+
+        // Setup toggle: OFF = Local LLM, ON = Gemini
+        binding.backendToggle.isChecked = (currentBackend == AiBackend.GEMINI)
+        binding.backendStatusText.text = currentBackend.name
         updateBackendSpecificUi(currentBackend)
 
-        binding.backendAutocomplete.setOnItemClickListener { _, _, position, _ ->
-            val selectedBackend = backends[position]
+        binding.backendToggle.setOnCheckedChangeListener { _, isChecked ->
+            val selectedBackend = if (isChecked) AiBackend.GEMINI else AiBackend.LOCAL_LLM
+            binding.backendStatusText.text = selectedBackend.name
             viewModel.saveBackend(selectedBackend)
             updateBackendSpecificUi(selectedBackend)
         }
