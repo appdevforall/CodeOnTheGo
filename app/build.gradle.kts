@@ -326,6 +326,9 @@ dependencies {
 	implementation(projects.composePreview)
 	implementation(projects.gitCore)
 
+	// Vector search support
+	implementation(project(":vector-search"))
+
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
 	compileOnly(projects.subprojects.toolingApiImpl)

@@ -191,7 +191,8 @@ include(
 	":llama-impl",
 	":llama-api",
 	":llama-impl",
-	":compose-preview"
+	":compose-preview",
+	":vector-search"
 )
 
 object FDroidConfig {
