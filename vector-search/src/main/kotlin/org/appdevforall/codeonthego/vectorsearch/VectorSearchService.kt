@@ -64,7 +64,7 @@ class VectorSearchService(
 
         val results = withContext(Dispatchers.Default) {
             // Generate embedding for the query
-            val queryEmbedding = llamaController.encodeForEmbeddings(query)
+            val queryEmbedding = llamaController.generateEmbedding(query)
 
             if (queryEmbedding.isEmpty()) {
                 log.debug("Empty embedding returned")
@@ -117,7 +117,7 @@ class VectorSearchService(
 
         val results = withContext(Dispatchers.Default) {
             // Generate embedding for the query
-            val queryEmbedding = llamaController.encodeForEmbeddings(query)
+            val queryEmbedding = llamaController.generateEmbedding(query)
 
             if (queryEmbedding.isEmpty()) {
                 log.debug("Empty embedding returned")
@@ -171,7 +171,7 @@ class VectorSearchService(
 
         val results = withContext(Dispatchers.Default) {
             // Generate embedding for the query
-            val queryEmbedding = llamaController.encodeForEmbeddings(query)
+            val queryEmbedding = llamaController.generateEmbedding(query)
 
             if (queryEmbedding.isEmpty()) {
                 log.debug("Empty embedding returned")
