@@ -4,28 +4,33 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.itsaky.androidide.profiler.R
+import org.appdevforall.cotg.flamegraph.FlameOrientation
 import org.appdevforall.cotg.flamegraph.Flamegraph
 import org.appdevforall.cotg.flamegraph.rememberFlamegraphState
 import org.appdevforall.cotg.profiler.ProfilerIntent
@@ -36,6 +41,10 @@ import org.appdevforall.cotg.profiler.cpu.CpuCallNode
 import org.appdevforall.cotg.profiler.cpu.CpuMethodRow
 import org.appdevforall.cotg.profiler.cpu.CpuProfile
 import org.appdevforall.cotg.profiler.cpu.CpuSample
+import org.appdevforall.cotg.profiler.cpu.collapseSystemFrames
+import org.appdevforall.cotg.profiler.cpu.maxSelfMicros
+import org.appdevforall.cotg.profiler.cpu.nodeAtPath
+import org.appdevforall.cotg.profiler.cpu.pathLabels
 import org.appdevforall.cotg.profiler.cpu.toFlameNode
 import org.appdevforall.cotg.profiler.ui.components.CellAlignment
 import org.appdevforall.cotg.profiler.ui.components.CpuUsageGraph
@@ -43,7 +52,6 @@ import org.appdevforall.cotg.profiler.ui.components.ProcessPicker
 import org.appdevforall.cotg.profiler.ui.components.ProfilerButton
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTable
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTableColumn
-import org.appdevforall.cotg.profiler.ui.components.ProfilerTableRow
 import org.appdevforall.cotg.profiler.ui.theme.Dimens
 import org.appdevforall.cotg.profiler.ui.theme.ProfilerTheme
 import java.util.Locale
@@ -183,7 +191,7 @@ private fun ProfilerContent(
                     )
 
                 is ProfilerReport.CpuSampling ->
-                    CpuResultTabs(profile = report.profile, modifier = Modifier.fillMaxSize())
+                    CpuResultView(profile = report.profile, modifier = Modifier.fillMaxSize())
             }
 
         is ProfilerUiState.Failed ->
@@ -194,45 +202,128 @@ private fun ProfilerContent(
     }
 }
 
+/**
+ * The CPU result: a single interactive flamegraph. Frames are heat-colored by self (exclusive) time
+ * so hotspots pop; tapping a frame fills the [CpuDetailStrip] with its self/total time and call path.
+ * Two toggles keep it compact and useful: hide framework/runtime frames (collapsing them so app code
+ * nested beneath stays visible) and flip the graph direction (top-down icicle ↔ bottom-up flame).
+ */
 @Composable
-private fun CpuResultTabs(profile: CpuProfile, modifier: Modifier = Modifier) {
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val flameRoot = remember(profile) { profile.root.toFlameNode() }
+private fun CpuResultView(profile: CpuProfile, modifier: Modifier = Modifier) {
+    var hideSystem by rememberSaveable { mutableStateOf(false) }
+    var bottomUp by rememberSaveable { mutableStateOf(false) }
     val flamegraphState = rememberFlamegraphState()
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    Column(modifier = modifier) {
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text(stringResource(R.string.profiler_tab_table)) },
+    val displayRoot = remember(profile, hideSystem) {
+        if (hideSystem) profile.root.collapseSystemFrames() else profile.root
+    }
+    val maxSelf = remember(displayRoot) { displayRoot.maxSelfMicros() }
+    val flameRoot = remember(displayRoot, maxSelf, dark) {
+        displayRoot.toFlameNode { heatColor(it.selfMicros, maxSelf, dark) }
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
+        ) {
+            FilterChip(
+                selected = hideSystem,
+                onClick = {
+                    hideSystem = !hideSystem
+                    // The path keys are indices into the (now different) tree — drop the selection.
+                    flamegraphState.reset()
+                },
+                label = { Text(stringResource(R.string.profiler_hide_system_frames)) },
             )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text(stringResource(R.string.profiler_tab_flamegraph)) },
+            FilterChip(
+                selected = bottomUp,
+                onClick = { bottomUp = !bottomUp },
+                label = { Text(stringResource(R.string.profiler_orientation_toggle)) },
             )
         }
-        Box(
+
+        Flamegraph(
+            root = flameRoot,
+            state = flamegraphState,
+            orientation = if (bottomUp) FlameOrientation.BottomUp else FlameOrientation.TopDown,
+            rowHeight = 18.dp,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .padding(top = Dimens.paddingMd),
-        ) {
-            when (selectedTab) {
-                0 ->
-                    ProfilerTable(
-                        columns = cpuColumns(),
-                        rows = cpuRows(profile),
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                .weight(1f),
+        )
 
-                else ->
-                    Flamegraph(
-                        root = flameRoot,
-                        state = flamegraphState,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+        CpuDetailStrip(
+            node = displayRoot.nodeAtPath(flamegraphState.selectedKey),
+            pathLabels = displayRoot.pathLabels(flamegraphState.selectedKey),
+            totalMicros = profile.totalMicros,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * Bottom strip showing the tapped frame's exclusive/inclusive time (relative to the whole profile)
+ * and its root→frame call path. Shows a hint when nothing is selected.
+ */
+@Composable
+private fun CpuDetailStrip(
+    node: CpuCallNode?,
+    pathLabels: List<String>,
+    totalMicros: Long,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(Dimens.cornerSm),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Dimens.paddingSm),
+            verticalArrangement = Arrangement.spacedBy(Dimens.paddingXs),
+        ) {
+            if (node == null) {
+                Text(
+                    text = stringResource(R.string.profiler_cpu_tap_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                return@Column
+            }
+            Text(
+                text = node.name,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(
+                    R.string.profiler_cpu_self,
+                    formatMicros(node.selfMicros),
+                    formatPercent(percentOf(node.selfMicros, totalMicros)),
+                ) + "  ·  " + stringResource(
+                    R.string.profiler_cpu_total,
+                    formatMicros(node.totalMicros),
+                    formatPercent(percentOf(node.totalMicros, totalMicros)),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (pathLabels.size > 1) {
+                Text(
+                    text = pathLabels.joinToString("  ›  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -284,33 +375,12 @@ private fun heapColumns(): List<ProfilerTableColumn> =
         ProfilerTableColumn(stringResource(R.string.profiler_col_shallow), 1.4f, CellAlignment.End),
     )
 
-@Composable
-private fun cpuColumns(): List<ProfilerTableColumn> =
-    listOf(
-        ProfilerTableColumn(stringResource(R.string.profiler_col_method), 3f),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_total_us), 1.3f, CellAlignment.End),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_total_pct), 1f, CellAlignment.End),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_children_us), 1.3f, CellAlignment.End),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_children_pct), 1f, CellAlignment.End),
-    )
-
-private fun cpuRows(profile: CpuProfile): List<ProfilerTableRow> =
-    profile.methods.map { method ->
-        ProfilerTableRow(
-            id = method.name,
-            cells = listOf(
-                method.name,
-                formatMicros(method.totalMicros),
-                formatPercent(method.totalPercent),
-                formatMicros(method.childrenMicros),
-                formatPercent(method.childrenPercent),
-            ),
-        )
-    }
-
 private fun formatMicros(micros: Long): String = String.format(Locale.US, "%,d", micros)
 
 private fun formatPercent(percent: Float): String = String.format(Locale.US, "%.1f%%", percent)
+
+private fun percentOf(part: Long, total: Long): Float =
+    if (total > 0L) (part.toDouble() / total * 100.0).toFloat() else 0f
 
 @Preview(name = "Idle")
 @Composable
