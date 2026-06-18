@@ -302,6 +302,78 @@ graph TB
                 <span class="highlight">Benefit:</span> Shared model loading, unified memory management, consistent performance
             </p>
         </div>
+
+        <div class="slide" id="slide-4">
+            <h2>🎤 Speech-to-Code: WhatsApp-Style Voice Coding</h2>
+
+            <h3>Design Goals</h3>
+            <ul>
+                <li><strong>Viral Appeal:</strong> Familiar long-press pattern from WhatsApp</li>
+                <li><strong>Trust Building:</strong> Preview-before-insert prevents errors</li>
+                <li><strong>Fast Execution:</strong> 650-1300ms total latency (STT + LLM)</li>
+                <li><strong>Safety:</strong> Preview panel before code insertion</li>
+            </ul>
+
+            <h3>User Flow</h3>
+            <ol>
+                <li>Long-press mic button → recording overlay with waveform</li>
+                <li>Speak command: <em>"create a RecyclerView adapter for user list"</em></li>
+                <li>Release button → processing (STT + Intent + LLM)</li>
+                <li>Preview panel shows transcription + generated code</li>
+                <li>Tap "Insert" → code appears with typing animation</li>
+            </ol>
+
+            <p style="margin-top: 30px;">
+                <strong>Files:</strong> <code>SpeechToCodePipeline.kt</code>, <code>SpeechToCodeViewModel.kt</code>, <code>VoiceCodeAction.kt</code>
+            </p>
+        </div>
+
+        <div class="slide" id="slide-5">
+            <h2>Speech-to-Code: Architecture</h2>
+
+            <div class="mermaid">
+graph LR
+    A[VoiceMicButton] --> B[SpeechToCodeViewModel]
+    B --> C[SpeechToCodePipeline]
+    C --> D[STT Engine]
+    C --> E[VoiceCommandRecognizer]
+    C --> F[ILlamaController]
+
+    D --> G[CloudSTT: AndroidSpeechRecognizer]
+    D --> H[OfflineSTT: MoonshineSTT]
+
+    E --> I[Intent Patterns]
+    F --> J[Code Generation]
+
+    J --> K[PreviewBottomSheet]
+    K --> L[IDEEditor.insertText]
+
+    style C fill:#1565C0
+    style D fill:#2E7D32
+    style F fill:#2E7D32
+    style K fill:#D32F2F
+            </div>
+
+            <h3>Key Components</h3>
+            <div class="two-column">
+                <div>
+                    <p><strong>SpeechToCodePipeline:</strong></p>
+                    <ul>
+                        <li>Coordinates STT → Intent → LLM</li>
+                        <li>Handles timeouts and errors</li>
+                        <li>Returns GenerationResult with latency</li>
+                    </ul>
+                </div>
+                <div>
+                    <p><strong>Dual STT Support:</strong></p>
+                    <ul>
+                        <li>Cloud: Android SpeechRecognizer</li>
+                        <li>Offline: Moonshine (200-400ms)</li>
+                        <li>User preference in AI Settings</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
         <!-- More slides will be added in subsequent tasks -->
     </div>
 
