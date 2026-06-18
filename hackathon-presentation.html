@@ -504,6 +504,70 @@ graph TB
                 Renders ghost text via custom <code>Canvas</code> drawing, not DOM manipulation
             </p>
         </div>
+
+        <div class="slide" id="slide-10">
+            <h2>Inline Suggestions: Ghost Text Rendering</h2>
+
+            <h3>GhostTextRenderer Implementation</h3>
+            <pre><code>class GhostTextRenderer(private val editor: IDEEditor) {
+    private val ghostPaint: Paint = Paint().apply {
+        color = Color.argb(102, 128, 128, 128)  // 40% opacity
+        textSize = editor.textSizePx
+        typeface = editor.typefaceText
+    }
+
+    fun drawSuggestion(canvas: Canvas, suggestion: SuggestionData) {
+        // 1. Calculate cursor position in screen coordinates
+        // 2. Split multi-line suggestions
+        // 3. Render each line with proper indentation
+        // 4. Clip to visible region
+    }
+}</code></pre>
+
+            <h3>Rendering Flow</h3>
+            <ol>
+                <li>Hook into Sora's <code>onDraw</code> lifecycle</li>
+                <li>Calculate ghost text position from cursor coordinates</li>
+                <li>Measure text using editor's font/size</li>
+                <li>Draw each line with vertical offset</li>
+                <li>Apply transparency and clipping</li>
+            </ol>
+        </div>
+
+        <div class="slide" id="slide-11">
+            <h2>Inline Suggestions: LLM Integration & Caching</h2>
+
+            <h3>SuggestionProvider Strategy</h3>
+            <div class="two-column">
+                <div>
+                    <p><strong>Context Building:</strong></p>
+                    <pre><code>data class SuggestionContext(
+    val fileContent: String,
+    val cursorPosition: Position,
+    val language: String,
+    val previousLines: List<String>,
+    val currentLinePrefix: String
+)</code></pre>
+                </div>
+                <div>
+                    <p><strong>Caching:</strong></p>
+                    <ul>
+                        <li>LRU cache: 20 recent suggestions</li>
+                        <li>Key: Hash(file, cursor, context)</li>
+                        <li>Expiry: 30s or on file edit</li>
+                        <li>Prevents redundant LLM calls</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Performance Optimizations</h3>
+            <ul>
+                <li><strong>Debouncing:</strong> 300ms idle before LLM request</li>
+                <li><strong>Cancellation:</strong> Cancel in-flight requests on new input</li>
+                <li><strong>Thread Safety:</strong> All LLM calls on background thread</li>
+                <li><strong>Memory:</strong> Cache cleared on low memory warning</li>
+            </ul>
+        </div>
         <!-- More slides will be added in subsequent tasks -->
     </div>
 
