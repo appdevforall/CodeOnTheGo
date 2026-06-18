@@ -29,10 +29,12 @@
     <string name="error_llm_not_loaded">AI model not loaded. Please load a model in settings.</string>
     <string name="error_recording_failed">Failed to start recording</string>
     <string name="error_processing_failed">Failed to process voice command</string>
+    <string name="error_no_internet">Speech recognition requires internet connection</string>
+    <string name="error_network_timeout">Network timeout. Please check your connection.</string>
 
     <!-- Permissions -->
     <string name="permission_microphone_title">Microphone Permission</string>
-    <string name="permission_microphone_message">CodeOnTheGo needs microphone access to enable voice coding. Your voice is processed locally and never sent to external servers.</string>
+    <string name="permission_microphone_message">CodeOnTheGo needs microphone access to enable voice coding. Your voice is processed via Google Speech Recognition.</string>
     <string name="permission_grant">Grant Permission</string>
     <string name="permission_deny">Not Now</string>
 
@@ -45,7 +47,10 @@
     <string name="preview_before_insert">Preview Before Insert</string>
     <string name="preview_before_insert_summary">Show preview panel before inserting code</string>
     <string name="voice_language">Voice Language</string>
-    <string name="voice_language_summary">Language for speech recognition</string>
+    <string name="voice_language_summary">Language for speech recognition (requires internet)</string>
+    <string name="select_language">Select Language</string>
+    <string name="language_changed">Language changed to %s</string>
+    <string name="current_language">Current: %s</string>
 
     <!-- Success Messages -->
     <string name="code_inserted">Code inserted successfully</string>
@@ -53,4 +58,8 @@
 
     <!-- Duration Format -->
     <string name="recording_duration">Recording… %1$d:%2$02d</string>
+
+    <!-- Language Info -->
+    <string name="using_cloud_recognition">Using Google Speech Recognition (requires internet)</string>
+    <string name="voice_language_info">Speech is recognized using your selected language. Make sure to speak in the selected language for best results.</string>
 </resources>
