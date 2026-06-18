@@ -130,13 +130,19 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
     }
 
     /**
-     * Called for key events. Intercepts Tab and Esc.
+     * Called for key events. Intercepts Tab, Esc, and Ctrl+Space.
      *
      * @return true if event consumed, false to pass through
      */
     fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.action != KeyEvent.ACTION_DOWN) {
             return false
+        }
+
+        // Check for Ctrl+Space (manual trigger)
+        if (event.keyCode == KeyEvent.KEYCODE_SPACE && event.isCtrlPressed) {
+            manualTrigger()
+            return true
         }
 
         return when (event.keyCode) {
@@ -158,6 +164,36 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
             }
             else -> false
         }
+    }
+
+    /**
+     * Manually trigger a suggestion request immediately, bypassing the character
+     * threshold and debounce delay.
+     *
+     * Used for Ctrl+Space shortcut and toolbar button.
+     */
+    fun manualTrigger() {
+        if (!enabled || !editor.isEditable) {
+            log.debug("Manual trigger ignored (disabled or not editable)")
+            return
+        }
+
+        if (suggestionState == SuggestionState.SHOWING) {
+            // Already showing, dismiss and request new
+            dismissSuggestion()
+        }
+
+        // Cancel any in-flight request
+        debounceJob?.cancel()
+        provider.cancelActiveRequest()
+
+        // Request immediately
+        suggestionState = SuggestionState.REQUESTING
+        scope.launch {
+            requestSuggestion()
+        }
+
+        log.info("Manual trigger activated")
     }
 
     private fun scheduleRequest() {
