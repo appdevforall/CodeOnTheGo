@@ -30,12 +30,18 @@ object VoicePreferences {
     private const val PREF_VOICE_LANGUAGE = "voice_language"
     private const val PREF_SHOW_TYPING_ANIMATION = "voice_show_typing_animation"
     private const val PREF_PREVIEW_BEFORE_INSERT = "voice_preview_before_insert"
+    private const val PREF_STT_MODE = "voice_stt_mode"
+
+    // STT Mode constants
+    const val STT_MODE_CLOUD = "cloud"
+    const val STT_MODE_MOONSHINE = "moonshine"
 
     // Default values
     private const val DEFAULT_LANGUAGE = "en-US"
     private const val DEFAULT_ENABLED = true
     private const val DEFAULT_TYPING_ANIMATION = true
     private const val DEFAULT_PREVIEW = true
+    private const val DEFAULT_STT_MODE = STT_MODE_CLOUD
 
     /**
      * Get SharedPreferences instance.
@@ -125,5 +131,47 @@ object VoicePreferences {
      */
     fun getAvailableLanguageDisplayNames(context: Context): List<String> {
         return getAvailableLanguages().map { getLanguageDisplayName(context, it) }
+    }
+
+    /**
+     * Get selected STT mode ("cloud" or "moonshine").
+     */
+    fun getSttMode(context: Context): String {
+        return getPrefs(context).getString(PREF_STT_MODE, DEFAULT_STT_MODE) ?: DEFAULT_STT_MODE
+    }
+
+    /**
+     * Set STT mode.
+     */
+    fun setSttMode(context: Context, mode: String) {
+        require(mode == STT_MODE_CLOUD || mode == STT_MODE_MOONSHINE) {
+            "Invalid STT mode: $mode"
+        }
+        getPrefs(context).edit().putString(PREF_STT_MODE, mode).apply()
+    }
+
+    /**
+     * Check if using cloud-based STT (Android SpeechRecognizer).
+     */
+    fun isUsingCloudStt(context: Context): Boolean {
+        return getSttMode(context) == STT_MODE_CLOUD
+    }
+
+    /**
+     * Check if using offline Moonshine STT.
+     */
+    fun isUsingMoonshineStt(context: Context): Boolean {
+        return getSttMode(context) == STT_MODE_MOONSHINE
+    }
+
+    /**
+     * Get display name for STT mode.
+     */
+    fun getSttModeDisplayName(mode: String): String {
+        return when (mode) {
+            STT_MODE_CLOUD -> "Cloud (Android SpeechRecognizer)"
+            STT_MODE_MOONSHINE -> "Offline (Moonshine)"
+            else -> mode
+        }
     }
 }

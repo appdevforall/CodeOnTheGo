@@ -378,6 +378,9 @@ dependencies {
 
     // Jackson JSON parsing dependency
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+
+    // OnnxRuntime for Moonshine STT
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.0")
 }
 
 tasks.register("downloadDocDb") {

@@ -1330,4 +1330,21 @@
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
 
+	<!-- AI Settings -->
+	<string name="title_ai_settings">AI &amp; Voice</string>
+	<string name="idepref_ai_summary">Configure AI assistant and speech-to-code</string>
+
+	<!-- Voice Code Settings -->
+	<string name="title_voice_code">Speech to Code</string>
+	<string name="voice_code_enabled_title">Enable Voice Code</string>
+	<string name="voice_code_enabled_summary">Long-press microphone to speak code</string>
+	<string name="voice_stt_mode_title">Speech Recognition</string>
+	<string name="voice_stt_mode_summary">Choose cloud or offline recognition</string>
+	<string name="voice_language_title">Voice Language</string>
+	<string name="voice_language_summary">Select language for speech input</string>
+	<string name="voice_preview_title">Preview Before Insert</string>
+	<string name="voice_preview_summary">Show generated code before inserting</string>
+	<string name="voice_typing_animation_title">Typing Animation</string>
+	<string name="voice_typing_animation_summary">Animate code insertion</string>
+
 </resources>

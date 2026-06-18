@@ -1,9 +1,9 @@
 package com.itsaky.androidide.speech
 
+import android.content.Context
 import android.util.Log
 import com.itsaky.androidide.llamacpp.api.ILlamaController
 import kotlinx.coroutines.withTimeout
-import org.appdevforall.moonshine.MoonshineSTT
 
 private const val TAG = "SpeechToCodePipeline"
 
@@ -12,17 +12,17 @@ private const val TAG = "SpeechToCodePipeline"
  *
  * Latency breakdown:
  * - Audio capture: handled by caller
- * - STT (Moonshine): 200-400ms
+ * - STT (Cloud): 500-800ms | (Moonshine): 200-400ms
  * - Intent recognition: 50-100ms (pattern matching)
  * - LLM code generation: 400-800ms
- * - Total: 650-1300ms (90th percentile)
+ * - Total: 650-1700ms depending on STT mode
  *
- * @param stt Moonshine STT engine
+ * @param context Android context for preferences
  * @param llamaController LLM for code generation
  * @param intentRecognizer Pattern matcher for intent detection
  */
 class SpeechToCodePipeline(
-    private val stt: MoonshineSTT,
+    private val context: Context,
     private val llamaController: ILlamaController,
     private val intentRecognizer: VoiceCommandRecognizer
 ) {
@@ -35,9 +35,34 @@ class SpeechToCodePipeline(
     )
 
     companion object {
-        private const val TRANSCRIPTION_TIMEOUT_MS = 1000L
+        private const val TRANSCRIPTION_TIMEOUT_CLOUD_MS = 5000L // Cloud STT needs more time
+        private const val TRANSCRIPTION_TIMEOUT_MOONSHINE_MS = 1000L
         private const val INTENT_TIMEOUT_MS = 200L
         private const val GENERATION_TIMEOUT_MS = 2000L
+    }
+
+    // Lazy initialization of STT engines
+    private val cloudStt by lazy { AndroidSpeechRecognizer(context) }
+    private val moonshineStt by lazy { MoonshineSTT(context) }
+
+    /**
+     * Initialize the selected STT engine.
+     */
+    suspend fun initialize(): Boolean {
+        return when {
+            VoicePreferences.isUsingCloudStt(context) -> {
+                val language = VoicePreferences.getVoiceLanguage(context)
+                cloudStt.initialize(language)
+                true
+            }
+            VoicePreferences.isUsingMoonshineStt(context) -> {
+                moonshineStt.initialize()
+            }
+            else -> {
+                Log.e(TAG, "Unknown STT mode")
+                false
+            }
+        }
     }
 
     /**
@@ -50,12 +75,29 @@ class SpeechToCodePipeline(
         val pipelineStart = System.currentTimeMillis()
 
         return try {
-            // Step 1: Speech-to-Text (200-400ms)
+            // Step 1: Speech-to-Text
             Log.d(TAG, "Step 1/3: STT transcription...")
             val sttStart = System.currentTimeMillis()
-            val transcription = withTimeout(TRANSCRIPTION_TIMEOUT_MS) {
-                stt.transcribe(audioBytes, sampleRate = 16000)
+
+            val transcription = when {
+                VoicePreferences.isUsingCloudStt(context) -> {
+                    Log.d(TAG, "Using Cloud STT (Android SpeechRecognizer)")
+                    withTimeout(TRANSCRIPTION_TIMEOUT_CLOUD_MS) {
+                        cloudStt.transcribe(audioBytes, sampleRate = 16000)
+                    }
+                }
+                VoicePreferences.isUsingMoonshineStt(context) -> {
+                    Log.d(TAG, "Using Moonshine offline STT")
+                    withTimeout(TRANSCRIPTION_TIMEOUT_MOONSHINE_MS) {
+                        moonshineStt.transcribe(audioBytes, sampleRate = 16000)
+                    }
+                }
+                else -> {
+                    Log.e(TAG, "Unknown STT mode")
+                    AndroidSpeechRecognizer.TranscriptionResult("", 0f, 0L)
+                }
             }
+
             val sttDurationMs = System.currentTimeMillis() - sttStart
             Log.d(TAG, "STT: '${transcription.text}' in ${sttDurationMs}ms")
 
@@ -132,6 +174,18 @@ class SpeechToCodePipeline(
             |
             |Generate only the code, no explanation.
             |""".trimMargin()
+    }
+
+    /**
+     * Release resources.
+     */
+    fun cleanup() {
+        if (VoicePreferences.isUsingMoonshineStt(context)) {
+            moonshineStt.cleanup()
+        }
+        if (VoicePreferences.isUsingCloudStt(context)) {
+            cloudStt.release()
+        }
     }
 }
 

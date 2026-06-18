@@ -36,6 +36,7 @@ class ConfigurationPreferences(
 	init {
 		addPreference(GeneralPreferencesScreen())
 		addPreference(EditorPreferencesScreen())
+		addPreference(AIPreferencesScreen())
 		addPreference(BuildAndRunPreferences())
 		addPreference(TermuxPreferences())
 		addPreference(GitPreferencesScreen())
