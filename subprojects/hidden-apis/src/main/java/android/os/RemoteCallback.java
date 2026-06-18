@@ -1,7 +1,5 @@
-package android.app;
+package android.os;
 
-import android.os.Bundle;
-import android.os.Handler;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 

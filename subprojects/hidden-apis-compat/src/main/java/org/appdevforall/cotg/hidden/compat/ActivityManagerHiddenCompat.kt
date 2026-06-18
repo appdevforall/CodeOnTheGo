@@ -3,10 +3,12 @@ package org.appdevforall.cotg.hidden.compat
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.app.IActivityManager
-import android.app.RemoteCallback
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.RemoteCallback
 import androidx.annotation.RequiresApi
+import org.appdevforall.cotg.hidden.compat.ActivityManagerHiddenCompat.DUMP_HEAP_TIMEOUT_SECONDS
+import org.appdevforall.cotg.hidden.compat.ActivityManagerHiddenCompat.dumpHeapApi29
 import rikka.hidden.compat.util.SystemServiceBinder
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit

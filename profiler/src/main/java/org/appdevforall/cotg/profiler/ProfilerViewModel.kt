@@ -78,7 +78,7 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onServiceConnected(service: IProfilerService) {
-        logger.info("onServiceConnected: service={}", service)
+        logger.debug("onServiceConnected: service={}", service)
         this.service = service
         runCatching { service.registerProcessListObserver(processObserver) }
             .onFailure {
@@ -88,7 +88,7 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onServiceDisconnected() {
-        logger.info("onServiceDisconnected")
+        logger.debug("onServiceDisconnected")
         val previous = service
         service = null
         runCatching { previous?.unregisterProcessListObserver(processObserver) }
@@ -97,11 +97,13 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onServiceUnavailable() {
+        logger.debug("onServiceUnavailable")
         service = null
         setError(R.string.profiler_service_unavailable)
     }
 
     fun onIntent(intent: ProfilerIntent) {
+        logger.debug("onIntent: intent={}", intent)
         when (intent) {
             ProfilerIntent.DumpHeap -> startSelection(ProfilerMode.Heap)
             ProfilerIntent.CpuHotspot -> startSelection(ProfilerMode.Cpu)
