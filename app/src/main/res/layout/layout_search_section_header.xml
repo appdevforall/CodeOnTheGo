@@ -40,7 +40,6 @@
         android:id="@+id/chevron_icon"
         android:layout_width="24dp"
         android:layout_height="24dp"
-        android:src="@drawable/ic_chevron_up"
-        android:contentDescription="@string/search_section_keyword_results" />
+        android:src="@drawable/ic_chevron_up" />
 
 </LinearLayout>
