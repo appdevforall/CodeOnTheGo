@@ -371,6 +371,7 @@ dependencies {
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.google.genai)
 	implementation(project(":llama-api"))
+	debugImplementation(project(":llama-impl"))
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 
     // Pebble template engine
