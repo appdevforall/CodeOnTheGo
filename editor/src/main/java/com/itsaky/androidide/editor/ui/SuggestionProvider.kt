@@ -34,6 +34,9 @@ class SuggestionProvider(
 
     private val log = LoggerFactory.getLogger(SuggestionProvider::class.java)
 
+    // activeRequest will be assigned when LLM integration is added in Task 5
+    // It will track the coroutine job for the current suggestion request
+    // allowing cancellation of in-flight LLM queries
     private var activeRequest: Job? = null
 
     /**
@@ -83,7 +86,7 @@ class SuggestionProvider(
         log.debug("Suggestion cache cleared")
     }
 
-    private fun computeCacheKey(
+    fun computeCacheKey(
         position: Position,
         fileContent: String,
         language: String

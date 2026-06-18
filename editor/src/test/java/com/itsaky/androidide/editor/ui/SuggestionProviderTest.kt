@@ -1,3 +1,20 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package com.itsaky.androidide.editor.ui
 
 import com.itsaky.androidide.models.Position
@@ -50,6 +67,8 @@ class SuggestionProviderTest {
     @Test
     fun `cache stores and retrieves suggestions`() = runBlocking {
         val position = Position(1, 5, 5)
+        val fileContent = "val x = 1"
+        val language = "kotlin"
         val suggestion = SuggestionData(
             text = "test code",
             startPosition = position,
@@ -58,8 +77,8 @@ class SuggestionProviderTest {
             requestTimestamp = System.currentTimeMillis()
         )
 
-        // Store suggestion in cache
-        val key = "1:5:kotlin:${suggestion.text.hashCode()}"
+        // Store suggestion in cache using actual computeCacheKey logic
+        val key = provider.computeCacheKey(position, fileContent, language)
         mockCache.put(key, suggestion)
 
         // Retrieve it
@@ -122,6 +141,8 @@ class SuggestionProviderTest {
     @Test
     fun `cache respects expiry time`() = runBlocking {
         val position = Position(1, 5, 5)
+        val fileContent = "val x"
+        val language = "kotlin"
         val expiredTime = System.currentTimeMillis() - 31_000  // 31 seconds ago
         val suggestion = SuggestionData(
             text = "old suggestion",
@@ -131,17 +152,18 @@ class SuggestionProviderTest {
             requestTimestamp = expiredTime
         )
 
-        val key = "expired_key"
+        // Put expired suggestion in cache using actual computeCacheKey logic
+        val key = provider.computeCacheKey(position, fileContent, language)
         mockCache.put(key, suggestion)
 
         // Make a request - should not return expired cache entry
         val result = provider.requestSuggestion(
             cursorPosition = position,
-            fileContent = "val x",
-            language = "kotlin"
+            fileContent = fileContent,
+            language = language
         )
 
-        // Result should be null because LLM is not integrated
+        // Result should be null because cache entry is expired and LLM is not integrated
         assertNull(result)
     }
 }
