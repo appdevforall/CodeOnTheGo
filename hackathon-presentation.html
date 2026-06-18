@@ -192,7 +192,69 @@ pre code {
 <body>
     <div class="presentation">
         <div class="slide active" id="slide-0">
-            <!-- Slide 1 content will go here -->
+            <h1 style="margin-top: 15%; margin-bottom: 40px;">🚀 Local LLM Hackathon</h1>
+            <h2 style="border: none; text-align: center; color: #e0e0e0;">Leveraging Local LLMs for Mobile Development</h2>
+            <p style="text-align: center; margin-top: 60px; font-size: 1.5rem; color: #9E9E9E;">
+                Technical Deep Dive<br>
+                June 18, 2026<br>
+                68 commits • 3 features • 100% local inference
+            </p>
+        </div>
+
+        <div class="slide" id="slide-1">
+            <h2>Hackathon Overview</h2>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <span class="stat-number">68</span>
+                    <span class="stat-label">Commits Since 62fc4f19</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-number">3</span>
+                    <span class="stat-label">Major Features</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">Local Inference</span>
+                </div>
+            </div>
+
+            <h3>Features Implemented</h3>
+            <ul>
+                <li><span class="highlight">🎤 Speech-to-Code:</span> WhatsApp-style voice coding with 650-1300ms latency</li>
+                <li><span class="highlight">✨ Inline Suggestions:</span> Copilot-style ghost text completions in Sora editor</li>
+                <li><span class="highlight">🔍 Vector Search:</span> Semantic code search using embedding-based similarity</li>
+            </ul>
+        </div>
+
+        <div class="slide" id="slide-2">
+            <h2>Three Pillars of Local LLM Integration</h2>
+
+            <div class="two-column">
+                <div>
+                    <div class="feature-icon">🎤</div>
+                    <h3>Speech-to-Code</h3>
+                    <p><strong>Problem:</strong> Typing on mobile is slow</p>
+                    <p><strong>Solution:</strong> Voice commands → STT → LLM → code insertion</p>
+                    <p><strong>Key Tech:</strong> Moonshine STT, Android SpeechRecognizer, local LLM pipeline</p>
+                </div>
+
+                <div>
+                    <div class="feature-icon">✨</div>
+                    <h3>Inline Suggestions</h3>
+                    <p><strong>Problem:</strong> No autocomplete for complex patterns</p>
+                    <p><strong>Solution:</strong> Ghost text multi-line completions</p>
+                    <p><strong>Key Tech:</strong> Sora editor components, custom rendering, LLM caching</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 30px; text-align: center;">
+                <div class="feature-icon">🔍</div>
+                <h3>Vector Search</h3>
+                <p><strong>Problem:</strong> Keyword search misses semantic matches</p>
+                <p><strong>Solution:</strong> Embedding-based similarity search</p>
+                <p><strong>Key Tech:</strong> SQLiteIndex, cosine similarity, on-demand indexing</p>
+            </div>
         </div>
         <!-- More slides will be added in subsequent tasks -->
     </div>
