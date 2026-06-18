@@ -166,7 +166,7 @@ class GradleBuildService :
 			}
 		} ?: "unknown"
 
-	internal fun nextBuildId(runType: BuildRunType): BuildId =
+	override fun nextBuildId(runType: BuildRunType): BuildId =
 		BuildId(
 			buildSessionId = buildSessionId,
 			buildId = buildId.incrementAndGet(),
