@@ -292,6 +292,8 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
     ctx_params.n_ctx = configured_ctx > 0 ? configured_ctx : 4096;
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads_batch;
+    ctx_params.embeddings = true;  // Enable embeddings mode for vector search
+    ctx_params.pooling_type = LLAMA_POOLING_TYPE_MEAN;  // Use mean pooling for embeddings
 
     llama_context *context = llama_init_from_model(model, ctx_params);
 
@@ -908,8 +910,9 @@ Java_android_llama_cpp_LLamaAndroid_generate_1embeddings(
 
     common_batch_clear(*batch);
 
+    // For embeddings, ALL tokens need logits enabled (set to true)
     for (size_t i = 0; i < tokens_list.size(); i++) {
-        common_batch_add(*batch, tokens_list[i], i, {0}, false);
+        common_batch_add(*batch, tokens_list[i], i, {0}, true);
     }
 
     if (llama_encode(context, *batch) != 0) {
