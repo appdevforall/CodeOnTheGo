@@ -36,23 +36,6 @@ internal fun resolveFocus(root: FlameNode<*>, key: String?): FrameRef {
     return FrameRef(resolved, node)
 }
 
-/** Path of nodes from the true root down to [focusedKey] inclusive — used to render breadcrumbs. */
-internal fun ancestryPath(root: FlameNode<*>, focusedKey: String?): List<FrameRef> {
-    val out = ArrayList<FrameRef>()
-    out.add(FrameRef(ROOT_KEY, root))
-    if (focusedKey.isNullOrEmpty()) return out
-    var node: FlameNode<*> = root
-    var key = ROOT_KEY
-    for (part in focusedKey.split('/')) {
-        val index = part.toIntOrNull() ?: break
-        val child = node.children.getOrNull(index) ?: break
-        key = childKey(key, index)
-        node = child
-        out.add(FrameRef(key, node))
-    }
-    return out
-}
-
 /**
  * Whether the frame at [framePathKey] belongs to the highlighted subtree of [selectedKey] — the
  * selected frame itself or any descendant. A null/empty selection highlights everything (no fade).

@@ -57,7 +57,7 @@ private const val MAX_SCALE = 64f
  *
  * Tap a frame to highlight it and its subtree while everything else fades into the background (or
  * supply [onNodeClick] to override); tap empty space to clear. Pinch to zoom in horizontally and
- * drag to pan/scroll. [FlamegraphBreadcrumbs] shows the highlighted frame's path.
+ * drag to pan/scroll.
  *
  * @param onNodeClick null = built-in highlight; a non-null handler takes full control (no auto
  *   highlight). [onNodeLongClick] also highlights the long-pressed frame.
