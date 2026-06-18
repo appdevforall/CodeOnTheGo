@@ -175,7 +175,7 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
         // Insert text at cursor
         val text = editor.text
         val cursor = text.cursor
-        text.insert(cursor.leftLine, cursor.rightLine, suggestion.text)
+        text.insert(cursor.leftLine, cursor.leftColumn, suggestion.text)
 
         // Move cursor to end of inserted text
         val lines = suggestion.text.split("\n")
