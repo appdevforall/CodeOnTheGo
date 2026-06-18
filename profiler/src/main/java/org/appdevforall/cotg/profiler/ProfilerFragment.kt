@@ -9,22 +9,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import org.appdevforall.cotg.profiler.service.ProfilerServiceConnection
+import androidx.fragment.app.activityViewModels
 import org.appdevforall.cotg.profiler.ui.ProfilerScreenView
 import org.appdevforall.cotg.profiler.ui.theme.ProfilerTheme
 
 class ProfilerFragment : Fragment() {
-    private val viewModel: ProfilerViewModel by viewModels()
-
-    private val connection: ProfilerServiceConnection by lazy {
-        ProfilerServiceConnection(
-            context = requireContext().applicationContext,
-            onConnected = viewModel::onServiceConnected,
-            onDisconnected = viewModel::onServiceDisconnected,
-            onUnavailable = viewModel::onServiceUnavailable,
-        )
-    }
+    // Activity-scoped: the ViewModel (and the service connection it owns) survives this fragment's
+    // view being destroyed/recreated when the bottom-sheet tab changes.
+    private val viewModel: ProfilerViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -36,24 +28,18 @@ class ProfilerFragment : Fragment() {
             setContent {
                 val state by viewModel.state.collectAsState()
                 ProfilerTheme {
-                    ProfilerScreenView(state = state, onIntent = {
-                        connection.connect()
-                        viewModel.onIntent(it)
-                    })
+                    ProfilerScreenView(state = state, onIntent = viewModel::onIntent)
                 }
             }
         }
 
-    // Bind only once this tab is actually visible (resumed). In the editor's ViewPager2 bottom
-    // sheet, offscreen tabs are only STARTED, so this avoids spawning the privileged process for a
-    // pre-created adjacent tab that the user never opens.
+    // Bind only once this tab is actually visible. In the editor's ViewPager2 bottom sheet only the
+    // visible page reaches onResume, so this avoids spawning the privileged process for pre-created
+    // adjacent tabs. The connection lives in the (activity-scoped) ViewModel and is NOT torn down on
+    // onStop, so an in-flight profiling session keeps running across tab switches; it is released
+    // only when the ViewModel is cleared (editor activity destroyed).
     override fun onResume() {
         super.onResume()
-        connection.connect()
-    }
-
-    override fun onStop() {
-        connection.disconnect()
-        super.onStop()
+        viewModel.connect()
     }
 }

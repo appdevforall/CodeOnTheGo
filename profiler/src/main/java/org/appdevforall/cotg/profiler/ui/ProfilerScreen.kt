@@ -3,10 +3,10 @@ package org.appdevforall.cotg.profiler.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -28,10 +29,8 @@ import com.itsaky.androidide.profiler.R
 import org.appdevforall.cotg.flamegraph.Flamegraph
 import org.appdevforall.cotg.flamegraph.rememberFlamegraphState
 import org.appdevforall.cotg.profiler.ProfilerIntent
-import org.appdevforall.cotg.profiler.ProfilerIntent.CpuHotspot
-import org.appdevforall.cotg.profiler.ProfilerIntent.DumpHeap
-import org.appdevforall.cotg.profiler.ProfilerIntent.SelectProcess
 import org.appdevforall.cotg.profiler.ProfilerMode
+import org.appdevforall.cotg.profiler.ProfilerReport
 import org.appdevforall.cotg.profiler.ProfilerUiState
 import org.appdevforall.cotg.profiler.cpu.CpuCallNode
 import org.appdevforall.cotg.profiler.cpu.CpuMethodRow
@@ -65,99 +64,133 @@ fun ProfilerScreenView(
                 .padding(Dimens.paddingMd),
             verticalArrangement = Arrangement.spacedBy(Dimens.paddingMd),
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
-            ) {
-                ProfilerButton(
-                    onClick = { onIntent(DumpHeap) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = stringResource(R.string.profiler_dump_heap),
-                )
-                ProfilerButton(
-                    onClick = { onIntent(CpuHotspot) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = stringResource(R.string.profiler_cpu_hotspots),
-                )
-            }
+            ProfilerControls(state = state, onIntent = onIntent)
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
             ) {
-                when (state) {
-                    ProfilerUiState.Idle ->
-                        Hint(message = stringResource(R.string.profiler_empty))
-
-                    is ProfilerUiState.SelectingProcess ->
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.profiler_select_process),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            ProcessPicker(
-                                processes = state.processes,
-                                onSelect = { onIntent(SelectProcess(it)) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                emptyMessage = stringResource(R.string.profiler_no_processes),
-                            )
-                        }
-
-                    is ProfilerUiState.Running ->
-                        Loading(message = stringResource(R.string.profiler_running, state.process.label))
-
-                    is ProfilerUiState.Profiling ->
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(Dimens.paddingMd),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.profiler_cpu_recording, state.process.label),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            CpuUsageGraph(
-                                samples = state.samples,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                            )
-                            ProfilerButton(
-                                onClick = { onIntent(ProfilerIntent.StopProfiling) },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = stringResource(R.string.profiler_cpu_stop),
-                            )
-                        }
-
-                    is ProfilerUiState.Processing ->
-                        Loading(message = stringResource(R.string.profiler_cpu_processing))
-
-                    is ProfilerUiState.Results ->
-                        ProfilerTable(
-                            columns = columnsFor(state.mode),
-                            rows = state.rows,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-
-                    is ProfilerUiState.CpuResult ->
-                        CpuResultTabs(profile = state.profile, modifier = Modifier.fillMaxSize())
-
-                    is ProfilerUiState.Error ->
-                        ErrorMessage(
-                            message = state.message,
-                            onDismiss = { onIntent(ProfilerIntent.Reset) },
-                        )
-                }
+                ProfilerContent(state = state, onIntent = onIntent)
             }
         }
+    }
+}
+
+/**
+ * The top control row. Start buttons appear only in [ProfilerUiState.Idle]; every other state shows
+ * a single button — "Cancel"/"Stop" for an in-flight run, "Start another profile" once finished —
+ * so a second profiling task can't be started while one is running.
+ */
+@Composable
+private fun ColumnScope.ProfilerControls(
+    state: ProfilerUiState,
+    onIntent: (ProfilerIntent) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
+    ) {
+        when (state) {
+            ProfilerUiState.Idle -> {
+                ProfilerButton(
+                    onClick = { onIntent(ProfilerIntent.DumpHeap) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(R.string.profiler_dump_heap),
+                )
+                ProfilerButton(
+                    onClick = { onIntent(ProfilerIntent.CpuHotspot) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(R.string.profiler_cpu_hotspots),
+                )
+            }
+
+            is ProfilerUiState.ChooseProcess ->
+                ControlButton(R.string.profiler_cancel) { onIntent(ProfilerIntent.Reset) }
+
+            is ProfilerUiState.Profiling.HeapDump ->
+                ControlButton(R.string.profiler_cancel) { onIntent(ProfilerIntent.StopProfiling) }
+
+            is ProfilerUiState.Profiling.CpuSampling ->
+                // While sampling the button stops & generates the report; while the report is being
+                // generated the same button cancels it (see ProfilerViewModel.onStopProfiling).
+                ControlButton(
+                    if (state.finalizing) R.string.profiler_cancel else R.string.profiler_cpu_stop,
+                ) { onIntent(ProfilerIntent.StopProfiling) }
+
+            is ProfilerUiState.Completed, is ProfilerUiState.Failed ->
+                ControlButton(R.string.profiler_start_another) { onIntent(ProfilerIntent.Reset) }
+        }
+    }
+}
+
+@Composable
+private fun ControlButton(@androidx.annotation.StringRes labelRes: Int, onClick: () -> Unit) {
+    ProfilerButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        label = stringResource(labelRes),
+    )
+}
+
+@Composable
+private fun ProfilerContent(
+    state: ProfilerUiState,
+    onIntent: (ProfilerIntent) -> Unit,
+) {
+    when (state) {
+        ProfilerUiState.Idle ->
+            CenteredMessage(stringResource(R.string.profiler_empty))
+
+        is ProfilerUiState.ChooseProcess ->
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
+            ) {
+                Text(
+                    text = stringResource(R.string.profiler_select_process),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ProcessPicker(
+                    processes = state.processes,
+                    onSelect = { onIntent(ProfilerIntent.SelectProcess(it)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    emptyMessage = stringResource(R.string.profiler_no_processes),
+                )
+            }
+
+        is ProfilerUiState.Profiling.HeapDump ->
+            Loading(stringResource(R.string.profiler_running, state.process.label))
+
+        is ProfilerUiState.Profiling.CpuSampling ->
+            if (state.finalizing) {
+                Loading(stringResource(R.string.profiler_cpu_processing))
+            } else {
+                CpuUsageGraph(samples = state.samples, modifier = Modifier.fillMaxSize())
+            }
+
+        is ProfilerUiState.Completed ->
+            when (val report = state.report) {
+                is ProfilerReport.HeapDump ->
+                    ProfilerTable(
+                        columns = heapColumns(),
+                        rows = report.rows,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                is ProfilerReport.CpuSampling ->
+                    CpuResultTabs(profile = report.profile, modifier = Modifier.fillMaxSize())
+            }
+
+        is ProfilerUiState.Failed ->
+            CenteredMessage(
+                message = state.message,
+                color = MaterialTheme.colorScheme.error,
+            )
     }
 }
 
@@ -206,7 +239,10 @@ private fun CpuResultTabs(profile: CpuProfile, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun Hint(message: String) {
+private fun CenteredMessage(
+    message: String,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -215,7 +251,7 @@ private fun Hint(message: String) {
             text = message,
             modifier = Modifier.padding(Dimens.paddingLg),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = color,
             textAlign = TextAlign.Center,
         )
     }
@@ -237,34 +273,6 @@ private fun Loading(message: String) {
         )
     }
 }
-
-@Composable
-private fun ErrorMessage(message: String, onDismiss: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(Dimens.paddingLg),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Dimens.paddingMd, Alignment.CenterVertically),
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-            textAlign = TextAlign.Center,
-        )
-        Button(onClick = onDismiss) {
-            Text(text = stringResource(R.string.profiler_retry))
-        }
-    }
-}
-
-@Composable
-private fun columnsFor(mode: ProfilerMode): List<ProfilerTableColumn> =
-    when (mode) {
-        ProfilerMode.Heap -> heapColumns()
-        ProfilerMode.Cpu -> cpuColumns()
-    }
 
 // Shark exposes per-class count and shallow size via its public API (retained size relies on its
 // internal dominator-tree types), so the runtime heap table shows Class / Count / Shallow.
@@ -312,12 +320,12 @@ private fun ProfilerScreenIdlePreview() {
     }
 }
 
-@Preview(name = "Select process")
+@Preview(name = "Choose process")
 @Composable
-private fun ProfilerScreenSelectingPreview() {
+private fun ProfilerScreenChooseProcessPreview() {
     ProfilerTheme {
         ProfilerScreenView(
-            state = ProfilerUiState.SelectingProcess(
+            state = ProfilerUiState.ChooseProcess(
                 mode = ProfilerMode.Heap,
                 processes = SampleProfileTables.SAMPLE_PROCESSES.filter { it.debuggable },
             ),
@@ -326,36 +334,38 @@ private fun ProfilerScreenSelectingPreview() {
     }
 }
 
-@Preview(name = "Heap results")
+@Preview(name = "CPU sampling")
 @Composable
-private fun ProfilerScreenHeapPreview() {
+private fun ProfilerScreenCpuSamplingPreview() {
+    val samples = (0..20).map { CpuSample(it * 500L, 30f + (it % 5) * 12f) }
     ProfilerTheme {
         ProfilerScreenView(
-            state = ProfilerUiState.Results(
-                mode = ProfilerMode.Heap,
-                process = SampleProfileTables.SAMPLE_PROCESSES.first(),
-                rows = SampleProfileTables.HEAP_ROWS,
+            state = ProfilerUiState.Profiling.CpuSampling(
+                SampleProfileTables.SAMPLE_PROCESSES.first(),
+                samples,
             ),
             onIntent = {},
         )
     }
 }
 
-@Preview(name = "CPU profiling")
+@Preview(name = "Heap result")
 @Composable
-private fun ProfilerScreenProfilingPreview() {
-    val samples = (0..20).map { CpuSample(it * 500L, 30f + (it % 5) * 12f) }
+private fun ProfilerScreenHeapResultPreview() {
     ProfilerTheme {
         ProfilerScreenView(
-            state = ProfilerUiState.Profiling(SampleProfileTables.SAMPLE_PROCESSES.first(), samples),
+            state = ProfilerUiState.Completed(
+                process = SampleProfileTables.SAMPLE_PROCESSES.first(),
+                report = ProfilerReport.HeapDump(SampleProfileTables.HEAP_ROWS),
+            ),
             onIntent = {},
         )
     }
 }
 
-@Preview(name = "CPU results")
+@Preview(name = "CPU result")
 @Composable
-private fun ProfilerScreenCpuPreview() {
+private fun ProfilerScreenCpuResultPreview() {
     val profile = CpuProfile(
         root = CpuCallNode(
             "(root)", selfMicros = 0, totalMicros = 1_530,
@@ -383,7 +393,21 @@ private fun ProfilerScreenCpuPreview() {
     )
     ProfilerTheme {
         ProfilerScreenView(
-            state = ProfilerUiState.CpuResult(SampleProfileTables.SAMPLE_PROCESSES.first(), profile),
+            state = ProfilerUiState.Completed(
+                process = SampleProfileTables.SAMPLE_PROCESSES.first(),
+                report = ProfilerReport.CpuSampling(profile),
+            ),
+            onIntent = {},
+        )
+    }
+}
+
+@Preview(name = "Failed (cancelled)")
+@Composable
+private fun ProfilerScreenFailedPreview() {
+    ProfilerTheme {
+        ProfilerScreenView(
+            state = ProfilerUiState.Failed("Profiling was cancelled.", cancelled = true),
             onIntent = {},
         )
     }

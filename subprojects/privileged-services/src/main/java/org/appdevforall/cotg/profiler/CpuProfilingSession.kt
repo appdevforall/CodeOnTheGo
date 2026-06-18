@@ -38,10 +38,18 @@ class CpuProfilingSession(
 	}
 
 	private val perfDataPath = "/data/local/tmp/cotg-perf-$pid-${System.currentTimeMillis()}.data"
+	private val reportPath = "$perfDataPath.report"
 	private val active = AtomicBoolean(false)
+
+	/** Set by [cancel] so an in-flight [stop] bails out instead of producing a report. */
+	private val cancelled = AtomicBoolean(false)
 
 	private var recordProcess: Process? = null
 	private var recordPid: Int = -1
+	/** The report-sample process, tracked (volatile) so [cancel] can kill it from another thread. */
+	@Volatile
+	private var reportProcess: Process? = null
+	@Volatile
 	private var sampler: ScheduledExecutorService? = null
 	private var startNanos = 0L
 
@@ -123,8 +131,8 @@ class CpuProfilingSession(
 			}
 		}
 
-		val reportPath = "$perfDataPath.report"
 		try {
+			if (cancelled.get()) return // cancelled while stopping the recorder: skip report generation
 			ParcelFileDescriptor.AutoCloseOutputStream(reportOut).use { output ->
 				runCatching {
 					val reportCmd =
@@ -136,6 +144,7 @@ class CpuProfilingSession(
 							"-o", reportPath,
 						)
 					val report = ProcessBuilder(reportCmd).redirectErrorStream(true).start()
+					reportProcess = report
 					val reportOutput = report.inputStream.bufferedReader().readText()
 					val code = report.waitFor()
 					if (code != 0) {
@@ -145,6 +154,7 @@ class CpuProfilingSession(
 				}.onFailure { Log.e(TAG, "Failed to generate report-sample for pid=$pid", it) }
 			}
 		} finally {
+			reportProcess = null
 			runCatching { File(perfDataPath).delete() }
 			runCatching { File(reportPath).delete() }
 		}
@@ -160,6 +170,25 @@ class CpuProfilingSession(
 			runCatching { proc.destroyForcibly() }
 		}
 		runCatching { File(perfDataPath).delete() }
+	}
+
+	/**
+	 * Cancels the session because the client backed out — kills both the simpleperf recorder and any
+	 * in-flight report-sample process, and discards the leftover temp files. Unlike [abort]/[stop]
+	 * this is intentionally NOT `@Synchronized`: it must be able to interrupt a [stop] call that is
+	 * blocked waiting on those child processes, so it only touches thread-safe / volatile state.
+	 */
+	fun cancel() {
+		cancelled.set(true)
+		active.set(false)
+		stopSampler()
+		recordProcess?.let { proc ->
+			if (recordPid > 0) runCatching { android.os.Process.sendSignal(recordPid, OsConstants.SIGKILL) }
+			runCatching { proc.destroyForcibly() }
+		}
+		reportProcess?.let { runCatching { it.destroyForcibly() } }
+		runCatching { File(perfDataPath).delete() }
+		runCatching { File(reportPath).delete() }
 	}
 
 	private fun startSampler() {
