@@ -173,7 +173,6 @@ CoGo is meant to work **without a network** — editing, building, and running a
 These aren't established rules yet — flagging them as candidates for the team:
 
 - **Backward compatibility:** `MIN_SDK=28` — review new APIs for guard/desugaring; remember user-built apps target `MIN_SDK_FOR_APPS_BUILT_WITH_COGO=16`.
-- **Performance budget for startup & editor:** watch added work in `Application.onCreate`, `tooling-api` startup, and per-keystroke editor paths; flag synchronous heavy work there.
-- **Feature flags / kill switches** for risky surfaces (AI agent, plugins, web server) so we can disable in the field without a release.
+- **Experimental feature flag** — lets end users opt into not-yet-stabilized features (early access), with stable defaults for everyone else. This is a user-facing early-access toggle, not a kill switch for us to disable features in the field.
 
 Add to or push back on any of these — this doc is meant to evolve with the team.
