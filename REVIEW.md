@@ -18,6 +18,8 @@ How to give a good review on Code On The Go. This is a coaching doc, not a gate 
 - [ ] **No duplication:** the change reuses existing helpers instead of copy-pasting.
 - [ ] **Docs:** public classes/functions have KDoc/Javadoc explaining *why*, not *what*.
 - [ ] **Strings** are in `strings.xml`, not inline literals.
+- [ ] **Accessibility:** every actionable view has a `contentDescription` (XML *or* programmatic); decorative views are marked `importantForAccessibility="no"`.
+- [ ] **Contextual help:** new interactive elements (and any new screen/panel) have long-press help wired to the 3-tier tooltip system.
 - [ ] **Analytics:** meaningful user/build actions emit an event (see below).
 - [ ] **Scope/size:** PR is focused and within the ~500 LOC / 10-file guideline (`AGENTS.md`).
 
@@ -113,7 +115,27 @@ Keep event names/params stable and low-cardinality; **no PII, file paths with us
 - **Strings in `strings.xml`.** User-facing text must be a string resource, never an inline literal — lint flags `HardcodedText`, and externalized strings feed our Crowdin translation flow. Use plurals/`getQuantityString` and positional args for formatting. Log messages and analytics keys are *not* user-facing and stay in code.
 - **Dependencies:** don't add one without checking `gradle/libs.versions.toml` first — we probably already have it (`AGENTS.md`).
 
-## 8. Architecture alignment
+## 8. Accessibility — every actionable view speaks
+
+CoGo serves visually-impaired developers, so screen-reader support (TalkBack) is a correctness requirement for UI work, not a nice-to-have. The pattern below is what ADFA-2667 established — hold new UI to it.
+
+- **Label every actionable view.** Buttons, `ImageButton`s, and icon-only controls need a `contentDescription`. In layouts: `android:contentDescription="@string/cd_…"`. An unlabeled icon button is announced as "unlabeled button" — useless.
+- **Don't forget views built in code.** The easy miss is anything *not* in XML — toolbar action items, RecyclerView rows, dynamically-inflated buttons. Set `contentDescription` programmatically when you create them (see `EditorHandlerActivity.getToolbarContentDescription()`, `MainActionsListAdapter`, `DiagnosticItemAdapter` from ADFA-2667).
+- **Silence decoration.** Purely visual views — separators, background images, an icon sitting next to a label that already says the same thing — get `android:importantForAccessibility="no"` (or `View.IMPORTANT_FOR_ACCESSIBILITY_NO`) so TalkBack skips them instead of reading noise.
+- **Describe the action, not the picture.** Prefer what tapping *does* over what the icon *looks like*: `cd_sync_project`, not "circular arrows icon". When a control toggles state, make the description state-aware — `cd_drawer_open` vs. `cd_drawer_close`, expand vs. collapse — rather than one ambiguous label.
+- **Externalize, with the `cd_` convention.** Content-description strings live in `strings.xml` named `cd_*` (so they're greppable, translatable via Crowdin, and not inline literals). Reuse an existing `cd_` string before adding a near-duplicate.
+- **Bonus: it stabilizes tests.** Our UI tests drive views through accessibility actions (`ACTION_CLICK`), which need these labels — so good a11y and reliable instrumentation tests are the same work.
+
+## 9. Contextual help — long-press works everywhere
+
+Help in CoGo is reached by **long-press**, anywhere, and opens a progressive three-tier experience: **Tier 1 & 2 are tooltips** (anchored popups from `idetooltips`, via `showIDETooltip`'s `level` argument), and **Tier 3 is a full help web page** reached from the tooltip's "See More" link. This is a product promise — a long-press should never be met with silence. See [`idetooltips/README.md`](idetooltips/README.md) for the system itself.
+
+- **Wire up help on new interactive elements.** Any view that does something when tapped — buttons, icon controls, menu items, list rows, toolbar actions — gets long-press help. A new actionable view with no tooltip affordance is an incomplete change, the same as a missing `contentDescription`.
+- **Cover new screens and panels too.** Even where individual pixels aren't interactive, a new screen/panel/dialog needs at least a top-level help entry so help is reachable from anywhere on that surface.
+- **The affordance is the requirement, not finished copy.** Tooltip *content* may still be getting authored — that's fine — but the long-press must already be wired and route into the tier system. Don't ship UI that can never surface help.
+- **Reuse the system; don't reinvent it.** Use `showIDETooltip` / the `idetooltips` module rather than a one-off popup, so all three tiers and the tooltip store stay consistent.
+
+## 10. Architecture alignment
 
 Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md):
 - New screens follow **UDF**: `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, repository for data. Don't put I/O or business logic in Fragments/Activities.
@@ -121,7 +143,7 @@ Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md):
 - **Persistence:** raw SQLite or filesystem — **not Room** (Recent Projects is the lone legacy exception).
 - **UI safety:** never place our UI over the two Android system bars — the top status bar and the bottom navigation bar (`AGENTS.md`).
 
-## 9. PR hygiene
+## 11. PR hygiene
 
 - Focused and reviewable: aim for the **~500 LOC / 10-file** ceiling; split larger work into stacked PRs.
 - Title/branch follow `ADFA-####`; description says *what changed, why, how it was verified*, and flags anything intentionally out of scope (e.g. "UI-only, no unit test").
@@ -133,7 +155,6 @@ Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md):
 
 These aren't established rules yet — flagging them as candidates for the team:
 
-- **Accessibility:** require `contentDescription` on actionable views and adequate touch targets. (We already lean on accessibility actions in UI tests — `ACTION_CLICK` — so this is low-cost and improves both a11y and test stability.)
 - **Backward compatibility:** `MIN_SDK=28` — review new APIs for guard/desugaring; remember user-built apps target `MIN_SDK_FOR_APPS_BUILT_WITH_COGO=16`.
 - **Performance budget for startup & editor:** watch added work in `Application.onCreate`, `tooling-api` startup, and per-keystroke editor paths; flag synchronous heavy work there.
 - **Offline-first:** CoGo is meant to work without a network. New features should degrade gracefully offline; analytics/Sentry/Gemini calls must be non-blocking and failure-tolerant.
