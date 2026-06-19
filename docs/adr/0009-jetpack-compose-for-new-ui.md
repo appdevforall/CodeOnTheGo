@@ -29,7 +29,7 @@ That split has a cost: two ways to build a screen, manual view-state wiring, boi
 **Negative / costs**
 - A **mixed codebase** for the foreseeable future — Compose and Views coexist; contributors must know both, and interop (`ComposeView` / `AndroidView`) is needed at the seams.
 - New Compose dependencies and compiler plugin; some learning curve and added build surface.
-- **Cross-cutting UI rules written for XML need Compose equivalents** — notably accessibility (`contentDescription` → `Modifier.semantics`/`contentDescription`, decorative views → `null` semantics) and the long-press 3-tier help affordance. See REVIEW.md §8–§9.
+- **Cross-cutting UI rules written for XML need Compose equivalents** — notably accessibility (`contentDescription` → `Modifier.semantics`/`contentDescription`, decorative views → `null` semantics) and the long-press 3-tier help affordance. See REVIEW.md §8–§9. The help affordance has no Compose entry point yet — building the bridge is tracked as a prerequisite in **ADFA-4381**; sequence it before the first Compose feature screen.
 
 ## Alternatives considered
 

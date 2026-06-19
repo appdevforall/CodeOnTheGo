@@ -140,7 +140,7 @@ Help in CoGo is reached by **long-press**, anywhere, and opens a progressive thr
 - **Cover new screens and panels too.** Even where individual pixels aren't interactive, a new screen/panel/dialog needs at least a top-level help entry so help is reachable from anywhere on that surface.
 - **The affordance is the requirement, not finished copy.** Tooltip *content* may still be getting authored — that's fine — but the long-press must already be wired and route into the tier system. Don't ship UI that can never surface help.
 - **Reuse the system; don't reinvent it.** Wire help through the `idetooltips` module — today that's the `View.displayTooltipOnLongPress(context, anchorView, category, tag)` extension (`setOnLongClickListener` → `TooltipManager.showTooltip`) — rather than a one-off popup, so all three tiers and the tooltip store stay consistent.
-- **Compose has no native entry point yet.** The helper above is View-based (it needs an `anchorView`). Until `idetooltips` grows a Compose API, a new composable surface wires help via `AndroidView` interop or a thin wrapper that exposes the anchor — flag it in review rather than skipping help, and prefer building the reusable `Modifier`/wrapper once over copy-pasting interop at each call site.
+- **Compose has no native entry point yet** (tracked by **ADFA-4381**). The helper above is View-based (it needs an `anchorView`). Until `idetooltips` grows a Compose API, a new composable surface wires help via `AndroidView` interop or a thin wrapper that exposes the anchor — flag it in review rather than skipping help, and prefer building the reusable `Modifier`/wrapper once over copy-pasting interop at each call site.
 
 ## 10. Architecture alignment
 
