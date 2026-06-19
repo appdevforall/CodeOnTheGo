@@ -76,10 +76,15 @@ internal suspend fun indexSourceFile(
 ) {
 	// Defensive backstop: this runs on the debounced/async index scope, so a disposal path that
 	// didn't first drain & join the workers could otherwise touch PSI on a disposed project and
-	// throw "Project is already disposed" (APPDEVFORALL-17R). Covers the toMetadata read below.
+	// throw "Project is already disposed" (APPDEVFORALL-17R). Cheap fast-path before the reads below.
 	if (project.isDisposed) return
 
-	val newFile = ktFile.toMetadata(project, isIndexed = true)
+	// Re-check disposal *inside* the read lock so it is atomic with toMetadata()'s PSI access:
+	// the fast-path check above can race a concurrent disposal before toMetadata enters its read.
+	val newFile = project.read {
+		if (project.isDisposed) return@read null
+		ktFile.toMetadata(project, isIndexed = true)
+	} ?: return
 	val existingFile = fileIndex.get(newFile.filePath)
 	cancelChecker.abortIfCancelled()
 

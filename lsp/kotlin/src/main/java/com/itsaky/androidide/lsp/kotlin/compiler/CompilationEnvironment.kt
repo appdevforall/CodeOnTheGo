@@ -17,13 +17,15 @@ import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import io.sentry.Sentry
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
@@ -301,9 +303,14 @@ internal class CompilationEnvironment(
 	override fun close() {
 		ktProject.removeListener(this)
 
-		// fileAnalyzer also reads from the project; cancel its scope before super.close()
-		// stops the index workers and disposes the project (APPDEVFORALL-17R / ADFA-4384).
-		coroutineScope.cancel(CancellationException("CompilationEnvironment closing"))
+		// fileAnalyzer reads the project (collectDiagnosticsFor). Cancel AND join it before
+		// super.close() disposes the project, so an in-flight read can't touch a disposed project
+		// (APPDEVFORALL-17R / ADFA-4384). Bounded so a slow read can't block shutdown indefinitely.
+		runBlocking {
+			withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT_MS) {
+				coroutineScope.coroutineContext[Job]?.cancelAndJoin()
+			}
+		}
 
 		super.close()
 	}
