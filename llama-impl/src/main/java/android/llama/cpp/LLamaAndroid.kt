@@ -149,7 +149,6 @@ class LLamaAndroid : ILlamaController {
                     val model = load_model(pathToModel)
                     if (model == 0L) throw IllegalStateException("load_model() failed")
 
-                    // Log model information for diagnostics
                     val modelDesc = try {
                         get_model_desc(model)
                     } catch (e: Exception) {
@@ -164,23 +163,19 @@ class LLamaAndroid : ILlamaController {
                         throw IllegalStateException("new_context() failed")
                     }
 
-                    // Check if this is an embedding-only model (not suitable for text generation)
                     val poolingType = try {
                         get_pooling_type(context)
                     } catch (e: UnsatisfiedLinkError) {
-                        // Function not available in pre-built AAR - will detect via decode error instead
                         log.warn("get_pooling_type() not available (old AAR), will validate during inference")
-                        -1 // Unknown
+                        -1
                     } catch (e: Exception) {
                         log.warn("Failed to get pooling type", e)
-                        -1 // Unknown
+                        -1
                     }
 
                     if (poolingType >= 0) {
                         log.info("Model pooling type: {} (0=generative, 1=mean, 2=cls, 3=last, 4=rank)", poolingType)
 
-                        // Pooling types: NONE=0, MEAN=1, CLS=2, LAST=3, RANK=4
-                        // Models with pooling (1-4) are embedding models, not suitable for chat
                         if (poolingType != 0) {
                             free_context(context)
                             free_model(model)
@@ -200,17 +195,15 @@ class LLamaAndroid : ILlamaController {
                     val sampler = new_sampler()
                     if (sampler == 0L) throw IllegalStateException("new_sampler() failed")
 
-                    // CRITICAL: Test the model with a tiny inference to validate it's not an embedding model
-                    // This prevents crashes during actual user interaction
                     log.info("Validating model can perform text generation (dry run test)...")
                     try {
                         val testResult = completion_init(
                             context,
                             batch,
-                            "Hi",  // Minimal test prompt
-                            false,  // No chat formatting
-                            1,      // Only 1 token output
-                            emptyArray()  // No stop strings
+                            "Hi",
+                            false,
+                            1,
+                            emptyArray()
                         )
 
                         if (testResult <= 0) {
@@ -219,11 +212,9 @@ class LLamaAndroid : ILlamaController {
 
                         log.info("Model validation passed - {} tokens processed", testResult)
 
-                        // Clear the test from KV cache
                         kv_cache_clear(context)
 
                     } catch (e: Exception) {
-                        // Model failed validation - clean up and reject
                         log.error("Model validation failed - this is likely an embedding model or incompatible architecture", e)
 
                         free_sampler(sampler)
@@ -255,13 +246,6 @@ class LLamaAndroid : ILlamaController {
         }
     }
 
-
-    /*
-
-        formatChat: Boolean = false,
-        stop: List<String> = emptyList(),
-        clearCache: Boolean = false
-     */
     override fun send(
         message: String,
         formatChat: Boolean,
@@ -272,7 +256,6 @@ class LLamaAndroid : ILlamaController {
             is State.Loaded -> {
                 log.debug("Starting inference - formatChat={}, clearCache={}, nlen={}", formatChat, clearCache, nlen)
 
-                // Defensive check: verify this is not an embedding model
                 try {
                     val poolingType = get_pooling_type(state.context)
                     log.debug("Model pooling_type: {}", poolingType)
@@ -290,7 +273,6 @@ class LLamaAndroid : ILlamaController {
                     throw e
                 }
 
-                // Check context size vs message length
                 try {
                     val contextSize = model_n_ctx(state.context)
                     val tokenCount = tokenize(state.context, message, true).size
@@ -338,13 +320,11 @@ class LLamaAndroid : ILlamaController {
                     log.debug("completion_init succeeded with {} tokens", result)
                     IntVar(result)
                 } catch (e: IllegalStateException) {
-                    // Re-throw our own exceptions
                     throw e
                 } catch (e: Exception) {
                     log.error("completion_init failed", e)
                     val errorMsg = e.message ?: ""
 
-                    // Check for embedding model indicators in error message
                     if (errorMsg.contains("embed", ignoreCase = true) ||
                         errorMsg.contains("encode", ignoreCase = true) ||
                         errorMsg.contains("pooling", ignoreCase = true)) {
@@ -394,14 +374,12 @@ class LLamaAndroid : ILlamaController {
                         emit(str)
                         loopCount++
 
-                        // Safety limit for infinite loops
                         if (loopCount > 10000) {
                             log.error("Generation loop exceeded 10000 iterations, stopping")
                             break
                         }
 
                     } catch (e: IllegalStateException) {
-                        // Re-throw our own error messages
                         throw e
                     } catch (e: Exception) {
                         log.error("Error during generation loop at iteration {} ({} tokens emitted)", loopCount, totalEmitted, e)

@@ -295,7 +295,6 @@ class LlmInferenceEngine(
         val displayName = resolveModelDisplayName(context, modelUri)
 
         return try {
-            // Validate file format before attempting to load
             validateModelFormat(displayName)
 
             val destinationFile = File(context.cacheDir, "local_model.gguf")
@@ -318,7 +317,6 @@ class LlmInferenceEngine(
             log.info("Successfully loaded local model: {}", loadedModelName)
             true
         } catch (e: IllegalStateException) {
-            // Check if this is an embedding model error
             if (e.message?.contains("embedding model") == true) {
                 log.error("Cannot use embedding model for chat: {}", displayName, e)
                 throw IllegalArgumentException(
@@ -332,7 +330,6 @@ class LlmInferenceEngine(
                 throw e
             }
         } catch (e: IllegalArgumentException) {
-            // Re-throw validation errors (file format, etc.)
             log.error("Model validation failed: {}", displayName, e)
             resetLoadedModelState()
             throw e
@@ -490,7 +487,6 @@ class LlmInferenceEngine(
     private fun validateModelFormat(filename: String) {
         val lowerName = filename.lowercase()
 
-        // Check for unsupported formats
         when {
             lowerName.endsWith(".onnx") -> {
                 throw IllegalArgumentException(
@@ -546,11 +542,9 @@ class LlmInferenceEngine(
             }
             !lowerName.endsWith(".gguf") -> {
                 log.warn("Model file '{}' doesn't have .gguf extension. May fail to load.", filename)
-                // Don't throw - maybe it's a GGUF file with wrong extension
             }
         }
 
-        // Additional check for common embedding model patterns in filename
         if (lowerName.contains("all-mini") ||
             lowerName.contains("all-mpnet") ||
             lowerName.contains("e5-") ||

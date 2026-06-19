@@ -38,18 +38,15 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     private val llmInferenceEngine: LlmInferenceEngine = LlmInferenceEngineProvider.instance
     private var pendingModelUri: String? = null
 
-    // --- State LiveData ---
     private val _savedModelPath = MutableLiveData<String?>(null)
     val savedModelPath: LiveData<String?> get() = _savedModelPath
 
     private val _modelLoadingState = MutableLiveData<ModelLoadingState>()
     val modelLoadingState: LiveData<ModelLoadingState> get() = _modelLoadingState
 
-    // NEW: LiveData to track if the engine library is ready
     private val _engineState = MutableLiveData<EngineState>(EngineState.Uninitialized)
     val engineState: LiveData<EngineState> get() = _engineState
 
-    // --- Initialization ---
     init {
         initializeLlmEngine()
         checkInitialSavedModel()
@@ -138,8 +135,6 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         }
         _savedModelPath.value = getLocalModelPath()
     }
-
-    // --- Preference and Key Management (No changes needed here) ---
 
     fun getAvailableBackends(): List<AiBackend> = AiBackend.entries
 

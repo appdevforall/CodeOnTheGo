@@ -123,7 +123,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         val browseButton = view.findViewById<Button>(R.id.btn_browse_model)
         val loadSavedButton = view.findViewById<Button>(R.id.loadSavedButton)
         val modelStatusTextView = view.findViewById<TextView>(R.id.model_status_text_view)
-        val engineStatusTextView = view.findViewById<TextView>(R.id.engine_status_text) // <-- NEW: Get reference to the new TextView
+        val engineStatusTextView = view.findViewById<TextView>(R.id.engine_status_text)
         val simplePromptSwitch = view.findViewById<MaterialSwitch>(R.id.switch_simple_local_prompt)
         val shaInput = view.findViewById<TextInputEditText>(R.id.local_model_sha_input)
 
