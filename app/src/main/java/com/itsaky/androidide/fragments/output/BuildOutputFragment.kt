@@ -90,6 +90,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		super.onDestroyView()
 	}
 
+	/** Clears the build output, guarding against access while the fragment is detached. */
 	override fun clearOutput() {
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
@@ -98,6 +99,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 		super.clearOutput()
 	}
 
+	/** Returns the shareable build output, or an empty string when the fragment is detached. */
 	override fun getShareableContent(): String {
 		// Same guard as clearOutput(): touching buildOutputViewModel while detached
 		// triggers requireActivity() via activityViewModels and crashes.

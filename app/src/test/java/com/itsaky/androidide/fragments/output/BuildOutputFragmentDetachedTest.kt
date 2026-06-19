@@ -40,6 +40,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class BuildOutputFragmentDetachedTest {
 
+  /** Verifies clearOutput() is a safe no-op on a detached fragment instead of crashing. */
   @Test
   fun `clearOutput on a detached fragment does not crash`() {
     // A freshly-constructed fragment that was never added to an activity is "detached":
@@ -55,6 +56,7 @@ class BuildOutputFragmentDetachedTest {
     fragment.clearOutput()
   }
 
+  /** Verifies getShareableContent() returns an empty string on a detached fragment instead of crashing. */
   @Test
   fun `getShareableContent on a detached fragment returns empty without crashing`() {
     val fragment = BuildOutputFragment()
