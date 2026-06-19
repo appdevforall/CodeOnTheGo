@@ -1,0 +1,17 @@
+graph LR
+    A[External Tool] -->|ADB broadcast| B[LlmCommandReceiver]
+    B --> C{Action Router}
+    C -->|vector_search| D[VectorSearchTestCommand]
+    C -->|feature_b| E[Future Feature B]
+    C -->|feature_c| F[Future Feature C]
+
+    D --> G[LlmInferenceEngine]
+    E --> G
+    F --> G
+
+    G --> H[Results to Logcat]
+
+    style B fill:#1565C0,color:#fff
+    style C fill:#2E7D32,color:#fff
+    style D fill:#F57C00,color:#fff
+    style G fill:#D32F2F,color:#fff

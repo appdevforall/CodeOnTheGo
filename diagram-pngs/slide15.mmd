@@ -1,0 +1,14 @@
+graph LR
+    A[Search Query] --> B[Check Index]
+    B --> C[Index Files]
+    C --> D[Chunk Code]
+    D --> E[Generate Embeddings]
+    E --> F[Store SQLite]
+    F --> G[Load Embeddings]
+    G --> H[Compute Similarity]
+    H --> I[Sort Results]
+    I --> J[Display Results]
+
+    style C fill:#FF9800,color:#fff
+    style E fill:#2E7D32,color:#fff
+    style G fill:#1565C0,color:#fff

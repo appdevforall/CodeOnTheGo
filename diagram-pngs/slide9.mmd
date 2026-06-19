@@ -1,0 +1,15 @@
+graph LR
+    A[User Types] --> B[Debounce Timer]
+    B --> C[Build Context]
+    C --> D[Check Cache]
+    D --> E[Call LLM API]
+    E --> F[Generate Code]
+    F --> G[Store Cache]
+    G --> H[Render Ghost Text]
+    H --> I[User Accepts]
+    I --> J[Insert Code]
+
+    style B fill:#FF9800,color:#fff
+    style E fill:#2E7D32,color:#fff
+    style D fill:#1565C0,color:#fff
+    style H fill:#9C27B0,color:#fff

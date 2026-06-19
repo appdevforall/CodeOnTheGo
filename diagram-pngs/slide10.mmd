@@ -1,0 +1,26 @@
+graph TB
+    A[IDEEditor] --> B[InlineSuggestionComponent]
+    B --> C[GhostTextRenderer]
+    B --> D[SuggestionProvider]
+    B --> E[State Machine]
+
+    C --> F[Canvas Drawing]
+    C --> G[Multi-line Layout]
+
+    D --> H[LLM Repository]
+    D --> I[Context Builder]
+    D --> J[LRU Cache]
+
+    E --> K[IDLE]
+    E --> L[WAITING]
+    E --> M[REQUESTING]
+    E --> N[SHOWING]
+    E --> O[ACCEPTING]
+
+    F --> P[Sora onDraw Hook]
+    H --> Q[ILlamaController]
+
+    style B fill:#1565C0,color:#fff
+    style C fill:#2E7D32,color:#fff
+    style D fill:#2E7D32,color:#fff
+    style Q fill:#D32F2F,color:#fff

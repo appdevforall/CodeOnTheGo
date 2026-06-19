@@ -359,7 +359,49 @@ pre code {
         <div class="slide" id="slide-3" style="padding: 15px 50px;">
             <h2 style="margin-bottom: 8px; font-size: 1.4rem;">Unified Architecture: Shared LLM Core</h2>
 
-            <img src="diagram-pngs/slide3.png" alt="Slide 3 Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+            <div class="mermaid" style="margin-bottom: 5px;">
+graph LR
+    subgraph APP["Application Layer"]
+        A["🎤 Speech-to-Code Pipeline"]
+        B["✨ Inline Suggestions Component"]
+        C["🔍 Vector Search Service"]
+    end
+
+    subgraph LLM["LLM Infrastructure"]
+        D["ILlamaController Interface"]
+        E["Model Loading & Management"]
+    end
+
+    subgraph GEN["Generation APIs"]
+        F["Token Generation"]
+        G["Embedding Generation"]
+    end
+
+    subgraph NATIVE["Native Layer"]
+        H["llama.cpp"]
+        I["GGUF Models"]
+    end
+
+    A --> D
+    B --> D
+    C --> G
+    D --> F
+    D --> G
+    F --> E
+    G --> E
+    E --> H
+    H --> I
+
+    style A fill:#1565C0,color:#fff
+    style B fill:#1565C0,color:#fff
+    style C fill:#1565C0,color:#fff
+    style D fill:#2E7D32,color:#fff
+    style E fill:#2E7D32,color:#fff
+    style F fill:#2E7D32,color:#fff
+    style G fill:#2E7D32,color:#fff
+    style H fill:#D32F2F,color:#fff
+    style I fill:#D32F2F,color:#fff
+            </div>
 
             <p style="text-align: center; margin-top: 5px; font-size: 0.85rem; line-height: 1.3;">
                 All features leverage the same <code>ILlamaController</code> for inference<br>
@@ -395,7 +437,23 @@ pre code {
         <div class="slide" id="slide-5">
             <h2>Speech-to-Code: Architecture</h2>
 
-            <img src="diagram-pngs/slide5.png" alt="Slide 5 Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+            <div class="mermaid">
+graph LR
+    A[Mic Button] --> B[ViewModel]
+    B --> C[Pipeline]
+    C --> D[STT Engine]
+    D --> E[Moonshine STT]
+    E --> F[Intent Recognition]
+    F --> G[LLM Controller]
+    G --> H[Code Generation]
+    H --> I[Preview Sheet]
+    I --> J[Editor Insert]
+
+    style C fill:#1565C0,color:#fff
+    style D fill:#2E7D32,color:#fff
+    style G fill:#2E7D32,color:#fff
+    style I fill:#D32F2F,color:#fff
+            </div>
 
             <h3>Key Components</h3>
             <div class="two-column">
@@ -421,7 +479,31 @@ pre code {
         <div class="slide" id="slide-6" style="padding: 40px 80px; overflow-y: auto;">
             <h2 style="margin-bottom: 15px;">Speech-to-Code: Pipeline Flow</h2>
 
-            <img src="diagram-pngs/slide6.png" alt="Slide 6 Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+            <div class="mermaid" style="max-height: 70vh; overflow-y: auto;">
+sequenceDiagram
+    participant User
+    participant UI
+    participant Pipeline
+    participant STT
+    participant LLM
+    participant Editor
+
+    User->>UI: Long press mic button
+    UI->>UI: Show recording overlay + waveform
+    User->>UI: Speak command
+    User->>UI: Release button
+    UI->>Pipeline: processAudio(audioBytes)
+    Pipeline->>STT: transcribe(audioBytes)
+    STT-->>Pipeline: TranscriptionResult(200-400ms)
+    Pipeline->>Pipeline: VoiceCommandRecognizer(50-100ms)
+    Pipeline->>LLM: generate(prompt)
+    LLM-->>Pipeline: code(400-800ms)
+    Pipeline-->>UI: GenerationResult
+    UI->>UI: Show PreviewBottomSheet
+    User->>UI: Tap "Insert"
+    UI->>Editor: insertTextWithAnimation(code)
+    Editor->>User: Code appears with typing effect
+            </div>
 
             <p style="text-align: center; margin-top: 20px;">
                 <strong>Total Latency:</strong> 650-1300ms (90th percentile)<br>
@@ -489,7 +571,23 @@ pre code {
         <div class="slide" id="slide-9" style="padding: 20px 60px;">
             <h2 style="margin-bottom: 10px; font-size: 1.4rem;">Inline Suggestions: Pipeline Flow</h2>
 
-            <img src="diagram-pngs/slide9.png" alt="Slide 9 Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+            <div class="mermaid" style="max-height: 65vh; max-width: 85%; margin: 0 auto;">
+graph LR
+    A[User Types] --> B[Debounce Timer]
+    B --> C[Build Context]
+    C --> D[Check Cache]
+    D --> E[Call LLM API]
+    E --> F[Generate Code]
+    F --> G[Store Cache]
+    G --> H[Render Ghost Text]
+    H --> I[User Accepts]
+    I --> J[Insert Code]
+
+    style B fill:#FF9800,color:#fff
+    style E fill:#2E7D32,color:#fff
+    style D fill:#1565C0,color:#fff
+    style H fill:#9C27B0,color:#fff
+            </div>
 
             <p style="text-align: center; margin-top: 10px; font-size: 0.9rem;">
                 <strong>Performance:</strong> 300-600ms from trigger to display
@@ -499,7 +597,34 @@ pre code {
         <div class="slide" id="slide-10" style="padding: 20px 60px;">
             <h2 style="margin-bottom: 10px; font-size: 1.4rem;">Inline Suggestions: Sora Component Architecture</h2>
 
-            <img src="diagram-pngs/slide10.png" alt="Slide 10 Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+            <div class="mermaid" style="max-height: 65vh; max-width: 90%; margin: 0 auto;">
+graph TB
+    A[IDEEditor] --> B[InlineSuggestionComponent]
+    B --> C[GhostTextRenderer]
+    B --> D[SuggestionProvider]
+    B --> E[State Machine]
+
+    C --> F[Canvas Drawing]
+    C --> G[Multi-line Layout]
+
+    D --> H[LLM Repository]
+    D --> I[Context Builder]
+    D --> J[LRU Cache]
+
+    E --> K[IDLE]
+    E --> L[WAITING]
+    E --> M[REQUESTING]
+    E --> N[SHOWING]
+    E --> O[ACCEPTING]
+
+    F --> P[Sora onDraw Hook]
+    H --> Q[ILlamaController]
+
+    style B fill:#1565C0,color:#fff
+    style C fill:#2E7D32,color:#fff
+    style D fill:#2E7D32,color:#fff
+    style Q fill:#D32F2F,color:#fff
+            </div>
 
             <p style="text-align: center; margin-top: 10px; font-size: 0.9rem; line-height: 1.3;">
                 <strong>Key Insight:</strong> Follows Sora's component pattern<br>
@@ -597,7 +722,42 @@ pre code {
         <div class="slide" id="slide-14" style="padding: 30px 80px; overflow-y: auto;">
             <h2 style="margin-bottom: 15px;">Vector Search: Module Architecture</h2>
 
-            <img src="diagram-pngs/slide14.png" alt="Slide 14 Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+            <div class="mermaid" style="max-height: 65vh;">
+graph TB
+    subgraph "App Module"
+        A[EditorViewModel]
+        B[VectorSearchCommand]
+        C[SearchResultFragment]
+    end
+
+    subgraph "vector-search Module"
+        D[VectorSearchService]
+        E[CodeChunker]
+        F[CodeEmbedding]
+        G[VectorMath]
+        H[CodeEmbeddingDescriptor]
+    end
+
+    subgraph "Infrastructure"
+        I[SQLiteIndex]
+        J[ILlamaController]
+    end
+
+    A --> B
+    B --> D
+    D --> E
+    D --> G
+    D --> J
+    E --> F
+    F --> I
+    H --> I
+    C --> A
+
+    style D fill:#1565C0,color:#fff
+    style E fill:#2E7D32,color:#fff
+    style J fill:#D32F2F,color:#fff
+    style I fill:#F57C00,color:#fff
+            </div>
 
             <p style="text-align: center; margin-top: 12px; font-size: 1rem; line-height: 1.5;">
                 <strong>Module Structure:</strong> Standalone <code>vector-search</code> library<br>
@@ -608,7 +768,22 @@ pre code {
         <div class="slide" id="slide-15" style="padding: 20px 60px;">
             <h2 style="margin-bottom: 10px; font-size: 1.4rem;">Vector Search: On-Demand Indexing</h2>
 
-            <img src="diagram-pngs/slide15.png" alt="Slide 15 Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+            <div class="mermaid" style="max-height: 65vh; max-width: 85%; margin: 0 auto;">
+graph LR
+    A[Search Query] --> B[Check Index]
+    B --> C[Index Files]
+    C --> D[Chunk Code]
+    D --> E[Generate Embeddings]
+    E --> F[Store SQLite]
+    F --> G[Load Embeddings]
+    G --> H[Compute Similarity]
+    H --> I[Sort Results]
+    I --> J[Display Results]
+
+    style C fill:#FF9800,color:#fff
+    style E fill:#2E7D32,color:#fff
+    style G fill:#1565C0,color:#fff
+            </div>
         </div>
 
         <div class="slide" id="slide-16">
@@ -656,7 +831,25 @@ pre code {
             <p style="font-size: 0.85rem; margin: 4px 0;"><strong>Solution:</strong> BroadcastReceiver that exposes LLM features via ADB commands</p>
 
             <h3 style="margin: 8px 0 6px 0; font-size: 1.1rem;">Architecture</h3>
-            <img src="diagram-pngs/slide17.png" alt="Slide 17 Diagram" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+            <div class="mermaid" style="max-height: 40vh;">
+graph LR
+    A[External Tool] -->|ADB broadcast| B[LlmCommandReceiver]
+    B --> C{Action Router}
+    C -->|vector_search| D[VectorSearchTestCommand]
+    C -->|feature_b| E[Future Feature B]
+    C -->|feature_c| F[Future Feature C]
+
+    D --> G[LlmInferenceEngine]
+    E --> G
+    F --> G
+
+    G --> H[Results to Logcat]
+
+    style B fill:#1565C0,color:#fff
+    style C fill:#2E7D32,color:#fff
+    style D fill:#F57C00,color:#fff
+    style G fill:#D32F2F,color:#fff
+            </div>
 
             <h3 style="margin: 8px 0 6px 0; font-size: 1.1rem;">Usage Example</h3>
             <pre style="font-size: 0.75rem; padding: 8px; margin: 6px 0;"><code>adb shell am broadcast \
@@ -805,7 +998,36 @@ pre code {
             }
         });
 
-        
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#1a1a1a',
+                primaryColor: '#2196F3',
+                primaryTextColor: '#e0e0e0',
+                primaryBorderColor: '#2196F3',
+                lineColor: '#2196F3',
+                secondaryColor: '#424242',
+                tertiaryColor: '#616161',
+                fontSize: '14px'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                nodeSpacing: 40,
+                rankSpacing: 40,
+                padding: 10
+            },
+            sequence: {
+                diagramMarginX: 30,
+                diagramMarginY: 10,
+                boxTextMargin: 5,
+                noteMargin: 10,
+                messageMargin: 30
+            }
+        });
     </script>
 </body>
 </html>

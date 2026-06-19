@@ -1,0 +1,41 @@
+graph LR
+    subgraph APP["Application Layer"]
+        A["🎤 Speech-to-Code Pipeline"]
+        B["✨ Inline Suggestions Component"]
+        C["🔍 Vector Search Service"]
+    end
+
+    subgraph LLM["LLM Infrastructure"]
+        D["ILlamaController Interface"]
+        E["Model Loading & Management"]
+    end
+
+    subgraph GEN["Generation APIs"]
+        F["Token Generation"]
+        G["Embedding Generation"]
+    end
+
+    subgraph NATIVE["Native Layer"]
+        H["llama.cpp"]
+        I["GGUF Models"]
+    end
+
+    A --> D
+    B --> D
+    C --> G
+    D --> F
+    D --> G
+    F --> E
+    G --> E
+    E --> H
+    H --> I
+
+    style A fill:#1565C0,color:#fff
+    style B fill:#1565C0,color:#fff
+    style C fill:#1565C0,color:#fff
+    style D fill:#2E7D32,color:#fff
+    style E fill:#2E7D32,color:#fff
+    style F fill:#2E7D32,color:#fff
+    style G fill:#2E7D32,color:#fff
+    style H fill:#D32F2F,color:#fff
+    style I fill:#D32F2F,color:#fff

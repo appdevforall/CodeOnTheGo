@@ -6,13 +6,14 @@ HTML-based technical presentation for Local LLM Hackathon showcasing:
 - 🎤 Speech-to-Code (WhatsApp-style voice coding)
 - ✨ Inline Suggestions (Copilot-style completions)
 - 🔍 Vector Search (Semantic code search)
+- 📡 ADB Broadcast Receiver (Remote LLM control)
 
 ## Usage
 
 ### Opening the Presentation
 
 1. Open `hackathon-presentation.html` in any modern browser
-2. Presentation starts on slide 1/18
+2. Presentation starts on slide 1/20
 
 ### Navigation
 
@@ -23,7 +24,7 @@ HTML-based technical presentation for Local LLM Hackathon showcasing:
 
 ### Features
 
-- 18 slides with technical deep dive content
+- 20 slides with technical deep dive content
 - Dark theme optimized for presentations
 - Mermaid.js diagrams for architecture visualization
 - Responsive design (1024px+)
@@ -47,8 +48,9 @@ HTML-based technical presentation for Local LLM Hackathon showcasing:
 14. Vector Search: Architecture
 15. Vector Search: Indexing flow
 16. Vector Search: Search pipeline
-17. Technical achievements
-18. Q&A
+17. ADB Broadcast Receiver: Remote LLM control
+18. Technical achievements
+20. Q&A
 
 ## Technical Details
 

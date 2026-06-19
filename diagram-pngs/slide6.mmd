@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant User
+    participant UI
+    participant Pipeline
+    participant STT
+    participant LLM
+    participant Editor
+
+    User->>UI: Long press mic button
+    UI->>UI: Show recording overlay + waveform
+    User->>UI: Speak command
+    User->>UI: Release button
+    UI->>Pipeline: processAudio(audioBytes)
+    Pipeline->>STT: transcribe(audioBytes)
+    STT-->>Pipeline: TranscriptionResult(200-400ms)
+    Pipeline->>Pipeline: VoiceCommandRecognizer(50-100ms)
+    Pipeline->>LLM: generate(prompt)
+    LLM-->>Pipeline: code(400-800ms)
+    Pipeline-->>UI: GenerationResult
+    UI->>UI: Show PreviewBottomSheet
+    User->>UI: Tap "Insert"
+    UI->>Editor: insertTextWithAnimation(code)
+    Editor->>User: Code appears with typing effect
