@@ -6,7 +6,7 @@
 
 ## Context
 
-The app bundles large native components per ABI — llama.cpp, plus the on-device toolchain/Termux binaries. A universal APK carrying both `armeabi-v7a` and `arm64-v8a` copies of everything would be very large. Code On The Go is distributed primarily as a **direct APK download** from the App Dev for All website, not exclusively through Google Play, so we cannot rely on Play's automatic per-ABI splitting to slim downloads.
+The app bundles large native components per ABI — llama.cpp, plus the on-device toolchain/Termux binaries. A universal APK carrying both `armeabi-v7a` and `arm64-v8a` copies of everything would be very large. Code On The Go is distributed primarily as a **direct APK download** from the App Dev for All website, not exclusively through Google Play, so we can't rely on Play's automatic per-ABI splitting to slim downloads.
 
 ## Decision
 

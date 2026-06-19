@@ -6,7 +6,7 @@
 
 ## Context
 
-The app needs dependency injection to wire ViewModels, repositories, and managers across many modules. On a build this large (~80 modules), annotation-processing-based DI (Dagger/Hilt via `kapt`/KSP) adds noticeable compile time and couples DI to the Android Gradle plugin and the build graph. The team values fast iteration and simple, testable wiring.
+The app needs dependency injection to wire ViewModels, repositories, and managers across many modules. On a build this large (~80 modules), annotation-processing DI (Dagger/Hilt via `kapt`/KSP) adds noticeable compile time and couples DI to the Android Gradle plugin and the build graph. The team values fast iteration and simple, testable wiring.
 
 ## Decision
 
@@ -24,7 +24,7 @@ Use **Koin** for dependency injection.
 
 **Negative / costs**
 - DI errors surface at **runtime**, not compile time — a missing binding fails when resolved, so DI paths need test coverage.
-- `ServiceLocator` is a deliberate service-locator escape hatch; over-use reintroduces hidden global state. Keep it limited and prefer constructor injection.
+- `ServiceLocator` is a deliberate escape hatch; over-use reintroduces hidden global state. Keep it limited and prefer constructor injection.
 
 ## Alternatives considered
 

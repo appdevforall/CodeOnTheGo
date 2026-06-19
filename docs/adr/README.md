@@ -2,13 +2,13 @@
 
 This directory holds **Architecture Decision Records (ADRs)** — short documents capturing a significant architectural decision, its context, and its consequences. They explain *why* the codebase is the way it is, so a decision isn't silently undone later.
 
-Format is lightweight **MADR / Nygard**: Context → Decision → Consequences → Alternatives. Most records here are *retroactive* — they document decisions already embedded in the code.
+Format is lightweight **MADR / Nygard**: Context → Decision → Consequences → Alternatives. Most records here are *retroactive*, documenting decisions already embedded in the code.
 
 ## Conventions
 
 - One decision per file, named `NNNN-kebab-title.md` with a zero-padded sequence number.
 - **Status** lifecycle: `Proposed` → `Accepted` → `Superseded by NNNN` / `Deprecated`. Don't edit a decision after it's accepted; write a new ADR that supersedes it.
-- Keep it short and concrete. Link related ADRs and the relevant code paths.
+- Keep it short and concrete. Link related ADRs and relevant code paths.
 
 ## Index
 

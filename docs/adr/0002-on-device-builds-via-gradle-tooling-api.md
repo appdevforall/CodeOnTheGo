@@ -6,7 +6,7 @@
 
 ## Context
 
-The product's core promise is to build and deploy *real* Android apps on the device, offline. That means producing the same results as a desktop Gradle build — correct dependency resolution, AGP behavior, manifest merging, R8/D8 — not an approximation.
+The product's core promise is to build and deploy *real* Android apps on-device, offline — producing the same results as a desktop Gradle build (correct dependency resolution, AGP behavior, manifest merging, R8/D8), not an approximation.
 
 Gradle is memory-hungry and can OOM or crash, especially on a phone. Running it inside the IDE process would couple the build's lifecycle and memory to the UI: a build OOM would take down the editor, and a stuck build couldn't be cleanly killed.
 

@@ -6,9 +6,9 @@
 
 ## Context
 
-Code On The Go is the rebranded successor to **AndroidIDE**. The product name, branding, and assets changed, but the inherited codebase carries the original identity deeply: the application id and Gradle namespace are `com.itsaky.androidide` (`BuildConfig.PACKAGE_NAME`), `rootProject.name` is `AndroidIDE`, and there are many thousands of references plus the generated `R` class, the manifest, package-qualified vendored substitutions, signing identity, and existing installs in the field.
+Code On The Go is the rebranded successor to **AndroidIDE**. The product name, branding, and assets changed, but the inherited codebase carries the original identity deeply: the application id and Gradle namespace are `com.itsaky.androidide` (`BuildConfig.PACKAGE_NAME`), `rootProject.name` is `AndroidIDE`, plus many thousands of references, the generated `R` class, the manifest, package-qualified vendored substitutions, signing identity, and existing installs in the field.
 
-Changing an Android **application id** breaks the update path for installed users (a different app id is a different app) and disrupts signing/identity continuity. A package rename of this size also ripples through the vendored `com.itsaky.androidide.build:*` substitutions ([ADR 0003](0003-vendored-forked-desktop-toolchain.md)).
+Changing an Android **application id** breaks the update path for installed users (a different app id is a different app) and disrupts signing/identity continuity. A rename of this size also ripples through the vendored `com.itsaky.androidide.build:*` substitutions ([ADR 0003](0003-vendored-forked-desktop-toolchain.md)).
 
 ## Decision
 
@@ -21,12 +21,12 @@ Changing an Android **application id** breaks the update path for installed user
 - Avoids a massive, high-risk refactor and the churn it would cause across vendored substitutions and the `R` class.
 
 **Negative / costs**
-- The codebase namespace doesn't match the product name, which is confusing to newcomers. This is called out explicitly in [CLAUDE.md](../../CLAUDE.md) and [ARCHITECTURE.md](../../ARCHITECTURE.md) so the mismatch is expected, not surprising.
+- The codebase namespace doesn't match the product name, confusing to newcomers. [CLAUDE.md](../../CLAUDE.md) and [ARCHITECTURE.md](../../ARCHITECTURE.md) call this out so the mismatch is expected, not surprising.
 - Care is needed to ensure user-facing strings/branding are overridden and no "AndroidIDE" naming leaks to users.
 
 ## Alternatives considered
 
-- **Full rename to `org.appdevforall.*`** — rejected: breaks updates for existing users, requires enormous error-prone churn, and risks destabilizing the vendored substitutions for little functional gain.
+- **Full rename to `org.appdevforall.*`** — rejected: breaks updates for existing users, requires enormous error-prone churn, and risks destabilizing the vendored substitutions for little gain.
 - **Partial rename** (some modules) — rejected: produces an inconsistent namespace with the same risks and no clean payoff.
 
 ## Related

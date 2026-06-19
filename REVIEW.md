@@ -118,30 +118,30 @@ Keep event names/params stable and low-cardinality; **no PII, file paths with us
 
 ## 8. Accessibility — every actionable view speaks
 
-CoGo serves visually-impaired developers, so screen-reader support (TalkBack) is a correctness requirement for UI work, not a nice-to-have. The pattern below is what ADFA-2667 established — hold new UI to it. New UI is Compose ([§10](#10-architecture-alignment) / [ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)), so each rule below gives both the View and the Compose form; the requirement is identical in either toolkit.
+CoGo serves visually-impaired developers, so TalkBack support is a correctness requirement, not a nice-to-have (pattern set by ADFA-2667). New UI is Compose ([§10](#10-architecture-alignment) / [ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)), so each rule gives the View and Compose form — the requirement is the same in either.
 
 - **Label every actionable view.** Buttons, `ImageButton`s, and icon-only controls need a `contentDescription`.
-  - *View:* `android:contentDescription="@string/cd_…"`. An unlabeled icon button is announced as "unlabeled button" — useless.
-  - *Compose:* pass the `contentDescription` argument on `Icon`/`Image`; for a custom clickable or an `IconButton` (whose inner `Icon` is usually `contentDescription = null`), put the label on the control with `Modifier.semantics { contentDescription = … }`.
-- **Don't forget the elements built in code.**
-  - *View:* the easy miss is anything *not* in XML — toolbar action items, RecyclerView rows, dynamically-inflated buttons. Set `contentDescription` programmatically when you create them (see `EditorHandlerActivity.getToolbarContentDescription()`, `MainActionsListAdapter`, `DiagnosticItemAdapter` from ADFA-2667).
-  - *Compose:* `Icon`/`Image` *force* you to pass `contentDescription`, so the miss is supplying a vague one — or `null` on something that's actually actionable. Don't reach for `null` just to satisfy the signature.
-- **Silence decoration.** Purely visual elements — separators, background images, an icon sitting next to a label that already says the same thing — should be skipped by TalkBack, not read as noise.
+  - *View:* `android:contentDescription="@string/cd_…"`; an unlabeled icon button reads as "unlabeled button".
+  - *Compose:* pass `contentDescription` on `Icon`/`Image`; for a custom clickable or `IconButton` (whose inner `Icon` is usually `null`), label the control via `Modifier.semantics { contentDescription = … }`.
+- **Don't forget elements built in code.**
+  - *View:* the miss is anything *not* in XML — toolbar actions, RecyclerView rows, inflated buttons. Set `contentDescription` when you create them (see `EditorHandlerActivity.getToolbarContentDescription()`, `MainActionsListAdapter`, `DiagnosticItemAdapter`).
+  - *Compose:* `Icon`/`Image` force a `contentDescription`, so the miss is a vague label — or a lazy `null` on something actionable.
+- **Silence decoration.** Separators, background images, an icon beside a label that already says the same thing — skip them, don't read them as noise.
   - *View:* `android:importantForAccessibility="no"` (or `View.IMPORTANT_FOR_ACCESSIBILITY_NO`).
-  - *Compose:* pass `contentDescription = null` on the decorative `Icon`/`Image`; to drop a whole subtree from the tree, use `Modifier.clearAndSetSemantics { }`.
-- **Describe the action, not the picture.** Prefer what tapping *does* over what the icon *looks like*: `cd_sync_project`, not "circular arrows icon". When a control toggles state, make the description state-aware — `cd_drawer_open` vs. `cd_drawer_close`, expand vs. collapse — rather than one ambiguous label. (Same in both toolkits; in Compose pull the text with `stringResource(R.string.cd_…)`.)
-- **Externalize, with the `cd_` convention.** Content-description strings live in `strings.xml` named `cd_*` (so they're greppable, translatable via Crowdin, and not inline literals). Reuse an existing `cd_` string before adding a near-duplicate. Note the lint `HardcodedText` check does **not** see Compose literals — a hardcoded `contentDescription = "Sync"` won't be flagged, so reviewers must catch it.
-- **Bonus: it stabilizes tests.** Screen-reader semantics are also what UI tests match on — `ACTION_CLICK` for Views, `onNodeWithContentDescription(…)` for Compose — so good a11y and reliable instrumentation tests are the same work.
+  - *Compose:* `contentDescription = null` on the decorative `Icon`/`Image`, or `Modifier.clearAndSetSemantics { }` to drop a subtree.
+- **Describe the action, not the picture.** `cd_sync_project`, not "circular arrows icon". For toggles, make it state-aware — `cd_drawer_open` vs. `cd_drawer_close` — not one ambiguous label. (In Compose, pull text with `stringResource(R.string.cd_…)`.)
+- **Externalize, with the `cd_` convention.** Content descriptions live in `strings.xml` as `cd_*` — greppable, translatable, reusable; check for an existing one first. `HardcodedText` lint does **not** catch Compose literals, so reviewers must.
+- **Bonus — it stabilizes tests.** Screen-reader semantics are what UI tests match on (`ACTION_CLICK` for Views, `onNodeWithContentDescription(…)` for Compose), so a11y and reliable instrumentation tests are the same work.
 
 ## 9. Contextual help — long-press works everywhere
 
-Help in CoGo is reached by **long-press**, anywhere, and opens a progressive three-tier experience: **Tier 1 & 2 are tooltips** (anchored popups from `idetooltips`, via `showIDETooltip`'s `level` argument), and **Tier 3 is a full help web page** reached from the tooltip's "See More" link. This is a product promise — a long-press should never be met with silence. See [`idetooltips/README.md`](idetooltips/README.md) for the system itself.
+Help in CoGo is reached by **long-press**, anywhere: a progressive three-tier experience — **Tiers 1 & 2 are tooltips** (anchored popups from `idetooltips`), **Tier 3 is a full help web page** via the tooltip's "See More" link. A long-press should never be met with silence.
 
-- **Wire up help on new interactive elements.** Any view that does something when tapped — buttons, icon controls, menu items, list rows, toolbar actions — gets long-press help. A new actionable view with no tooltip affordance is an incomplete change, the same as a missing `contentDescription`.
-- **Cover new screens and panels too.** Even where individual pixels aren't interactive, a new screen/panel/dialog needs at least a top-level help entry so help is reachable from anywhere on that surface.
-- **The affordance is the requirement, not finished copy.** Tooltip *content* may still be getting authored — that's fine — but the long-press must already be wired and route into the tier system. Don't ship UI that can never surface help.
-- **Reuse the system; don't reinvent it.** Wire help through the `idetooltips` module — today that's the `View.displayTooltipOnLongPress(context, anchorView, category, tag)` extension (`setOnLongClickListener` → `TooltipManager.showTooltip`) — rather than a one-off popup, so all three tiers and the tooltip store stay consistent.
-- **Compose has no native entry point yet** (tracked by **ADFA-4381**). The helper above is View-based (it needs an `anchorView`). Until `idetooltips` grows a Compose API, a new composable surface wires help via `AndroidView` interop or a thin wrapper that exposes the anchor — flag it in review rather than skipping help, and prefer building the reusable `Modifier`/wrapper once over copy-pasting interop at each call site.
+- **Wire up help on new interactive elements.** Anything tappable — buttons, icon controls, menu items, list rows, toolbar actions — gets long-press help. A new actionable view with no tooltip is as incomplete as a missing `contentDescription`.
+- **Cover new screens and panels too.** Even where pixels aren't interactive, a new screen/panel/dialog needs a top-level help entry so help is always reachable.
+- **The affordance is the requirement, not finished copy.** Tooltip content may still be in authoring — fine — but the long-press must be wired and routed into the tier system. Don't ship UI that can never surface help.
+- **Reuse the system.** Wire help through `idetooltips` — today the `View.displayTooltipOnLongPress(context, anchorView, category, tag)` extension (`setOnLongClickListener` → `TooltipManager.showTooltip`) — not a one-off popup.
+- **Compose has no native entry point yet** (tracked by **ADFA-4381**). The helper is View-based (needs an `anchorView`), so until `idetooltips` grows a Compose API, a composable wires help via `AndroidView` interop. Flag it in review rather than skipping help, and build the reusable `Modifier`/wrapper once instead of copy-pasting interop.
 
 ## 10. Architecture alignment
 

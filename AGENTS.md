@@ -1,37 +1,37 @@
-Code On The Go is an Android app which allows the user to edit, build and deploy their own new Android apps. It is an Integrated Development Environment similar to Eclipse or VSCode.
+Code On The Go is an Android IDE — it lets users edit, build, and deploy their own Android apps on-device, like Eclipse or VSCode.
 
-There is at least one Android emulator available. Use `adb devices -l | grep -v offline` to find it. Then use the ANDROID_SERIAL environment variable.
+There is at least one Android emulator available. Find it with `adb devices -l | grep -v offline`, then use the `ANDROID_SERIAL` env var.
 
-For new persistence, use SQLite or the filesystem — never add Room. (See ARCHITECTURE.md for the full persistence model and the one legacy Room exception.)
+For new persistence, use SQLite or the filesystem — never add Room. (See ARCHITECTURE.md for the full model and the one legacy exception.)
 
-Avoid adding dependencies - we probably already have everything loaded that you need. Look in build.gradle.kts for details.
+Avoid adding dependencies — we almost certainly already have what you need. Check `build.gradle.kts`.
 
-Always plan before building. As part of the plan, estimate the projected size of the change, both number of files and lines of code. When that estimate is greater than 500 lines of code or more than 10 files, you must organize the work into 2 or more smaller change sets, so that the user can help you make 2 or more PRs (Pull Requests).
+Plan before building, and size the change (files + LOC). If it will exceed 500 LOC or 10 files, split it into 2+ change sets so the user can land them as separate PRs.
 
-When you change code, update the docs that describe it in the same change — a module's `README.md`, `ARCHITECTURE.md`, or an ADR — so a doc never outlives the API it documents. See REVIEW.md (Code quality) for the rule. If the doc fix is genuinely out of scope, file a ticket rather than leaving it to drift.
+When you change code, update the docs that describe it in the same change — a module's `README.md`, `ARCHITECTURE.md`, or an ADR — so a doc never outlives the API it documents. See REVIEW.md (Code quality). If the doc fix is out of scope, file a ticket rather than let it drift.
 
 Keep docs, tickets, commit messages, and PR descriptions crisp — say it once, lead with the point, cut hedging and restated context. Brevity is the soul of wit; a reader's attention is the scarce resource.
 
-Always protect the two critical Android interaction locations: (1) the top bar containing the time, notification icons, and status icons, and (2) the bottom bar containing the home button, back button, and app selector. Never put UI elements of our app on top of those Android reserved areas.
+Never draw our UI over the two Android system bars: the top status bar (clock, notifications, status icons) and the bottom navigation bar (home, back, recents).
 
 ## Official/Public Actions Run in CI, Not Locally
 
-Anything official or public-facing must happen through version-controlled GitHub Actions (`.github/workflows/*.yml`) — never from the user's laptop or a local machine. This includes uploading SonarQube/SonarCloud analyses, publishing releases or artifacts, deploying, and pushing to external services. The repo holds tokens like `SONAR_TOKEN` as GitHub secrets scoped to those workflows by design; do not go hunting for them locally. When asked to run something like the sonar task on the local machine, treat it as **local verification only** (run the tests/build to confirm a fix works) and let the official analysis happen in CI.
+Anything official or public-facing runs only through version-controlled GitHub Actions (`.github/workflows/*.yml`), never locally — SonarQube/SonarCloud uploads, releases, artifact publishing, deploys, pushes to external services. Tokens like `SONAR_TOKEN` are GitHub secrets scoped to those workflows; don't hunt for them locally. Asked to run e.g. the sonar task locally, treat it as verification only (build/test to confirm a fix) and let the official analysis happen in CI.
 
 ## Reading Jira Tickets
 
-Prefer the local authenticated `jira` CLI for reading tickets — it is configured via the `JIRA_API_TOKEN`, `JIRA_HOST`, and `JIRA_USER` environment variables. Example: `jira issue view ADFA-1234`. Do NOT start the Atlassian MCP OAuth flow for ticket reads; that heavyweight authentication is unnecessary when the CLI is available.
+Read tickets with the local authenticated `jira` CLI (e.g. `jira issue view ADFA-1234`), configured via `JIRA_API_TOKEN`, `JIRA_HOST`, and `JIRA_USER`. Don't start the Atlassian MCP OAuth flow for reads — it's unnecessary when the CLI works.
 
 ## SonarQube MCP Server
 
-The sonarqube MCP server runs in a Docker container, so Docker must be running before launching Claude Code. Its first launch pulls a ~225MB image (`mcp/sonarqube:latest`), which exceeds Claude Code's 30s MCP handshake timeout — so the initial connect reports a timeout even though nothing is broken. Pre-pull the image (or let one launch finish) so subsequent `/mcp` reconnects succeed. A `docker system prune` removes the image and reintroduces the slow first launch.
+The sonarqube MCP server runs in Docker, so Docker must be up before launching Claude Code. Its first launch pulls a ~225MB image (`mcp/sonarqube:latest`) that exceeds Claude Code's 30s MCP handshake timeout — so the first connect reports a timeout though nothing is broken. Pre-pull the image (or let one launch finish) so later `/mcp` reconnects succeed. `docker system prune` removes it and brings back the slow first launch.
 
 ## Resolving CI Job Names
 
-When the user references a CI/CD job by name (e.g., "the sonar job", "the analyze workflow"), read `.github/workflows/*.yml` first. The workflow YAML is the authoritative source for the exact gradle/shell invocation — do not introspect gradle tasks or grep build files to reverse-engineer the command.
+When the user names a CI/CD job ("the sonar job", "the analyze workflow"), read `.github/workflows/*.yml` — the YAML is the authoritative gradle/shell invocation. Don't reverse-engineer it from gradle tasks or build files.
 
 ## Multi-line git/gh Messages
 
-**Default to writing the body to a tempfile** via the Write tool, then `git commit -F /tmp/msg.txt` or `gh pr create --body-file /tmp/body.md`. Treat heredoc/`--body "$(cat <<EOF ...)"` as the exception, only for short messages with no shell-special characters.
+Default to writing the body to a tempfile via the Write tool, then `git commit -F /tmp/msg.txt` or `gh pr create --body-file /tmp/body.md`. Use heredoc/`--body "$(cat <<EOF ...)"` only for short messages with no shell-special characters.
 
 Many characters break the inline `"$(cat <<'EOF' ... EOF)"` pattern: apostrophes trigger `bash: eval: unexpected EOF` (the outer `"$( ... )"` parses the apostrophe even though `<<'EOF'` quotes the heredoc), and backticks or arrows like `→` trigger `bad substitution`. The tempfile approach sidesteps all of them.

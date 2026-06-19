@@ -6,7 +6,7 @@
 
 ## Context
 
-Historically the IDE's own UI is **View-based** — XML layouts, `Fragment`s, and `RecyclerView` with Material Components (see [ADR 0006](0006-koin-dependency-injection.md) context and ARCHITECTURE.md). Newer surfaces already moved to a Unidirectional Data Flow (UDF) architecture — `ViewModel` + `StateFlow`, sealed UI-state/effect types, repositories, Koin DI — but still rendered through XML and `findViewById`/binding.
+Historically the IDE's own UI is **View-based** — XML layouts, `Fragment`s, and `RecyclerView` with Material Components (see [ADR 0006](0006-koin-dependency-injection.md) context and ARCHITECTURE.md). Newer surfaces already moved to a Unidirectional Data Flow (UDF) architecture — `ViewModel` + `StateFlow`, sealed UI-state/effect types, repositories, Koin DI — but still render through XML and `findViewById`/binding.
 
 That split has a cost: two ways to build a screen, manual view-state wiring, boilerplate binding code, and UI logic that's awkward to unit-test. Jetpack Compose collapses the view layer into Kotlin, binds naturally to `StateFlow` via `collectAsState()`, and fits the UDF pattern the team already follows. Unlike most ADRs here, this one is **forward-looking** — it sets direction for new work rather than documenting an existing decision.
 
@@ -29,11 +29,11 @@ That split has a cost: two ways to build a screen, manual view-state wiring, boi
 **Negative / costs**
 - A **mixed codebase** for the foreseeable future — Compose and Views coexist; contributors must know both, and interop (`ComposeView` / `AndroidView`) is needed at the seams.
 - New Compose dependencies and compiler plugin; some learning curve and added build surface.
-- **Cross-cutting UI rules written for XML need Compose equivalents** — notably accessibility (`contentDescription` → `Modifier.semantics`/`contentDescription`, decorative views → `null` semantics) and the long-press 3-tier help affordance. See REVIEW.md §8–§9. The help affordance has no Compose entry point yet — building the bridge is tracked as a prerequisite in **ADFA-4381**; sequence it before the first Compose feature screen.
+- **Cross-cutting UI rules written for XML need Compose equivalents** — notably accessibility (`contentDescription` → `Modifier.semantics`/`contentDescription`, decorative views → `null` semantics) and the long-press 3-tier help affordance (see REVIEW.md §8–§9). The help affordance has no Compose entry point yet — building the bridge is tracked as a prerequisite in **ADFA-4381**; sequence it before the first Compose feature screen.
 
 ## Alternatives considered
 
-- **Stay View-based** — rejected: perpetuates two-way-to-build-a-screen and the binding boilerplate; doesn't leverage the `StateFlow` UDF the team already standardized on.
+- **Stay View-based** — rejected: perpetuates two ways to build a screen and the binding boilerplate; doesn't leverage the `StateFlow` UDF the team already standardized on.
 - **Compose, and mandate migrating existing screens** — rejected: a forced migration of all legacy UI is high-risk churn with little user-facing value. Migrate opportunistically instead.
 
 ## Related

@@ -1,21 +1,21 @@
 # Architecture
 
-> Audience: engineers working in this repository. This describes how the code is *actually* organized today, including the places where the codebase is mid-migration. Where a pattern is the agreed target for new code, it is called out explicitly.
+> Audience: engineers working in this repository. This describes how the code is *actually* organized today, including where the codebase is mid-migration. Patterns that are the agreed target for new code are called out explicitly.
 
 ## Overview
 
 Code On The Go (CoGo) is a full Android IDE that runs **on the device** — it edits, builds, and deploys real Android apps offline, embedding a Termux toolchain and running an actual Gradle build in a separate process via the `tooling-api`. It is the maintained successor to AndroidIDE, so the codebase namespace is still `com.itsaky.androidide`.
 
-There is **no single architectural philosophy** across the whole app. It is a large, layered application that is still **predominantly View-based**, where newer feature surfaces (plugin manager, AI agent, git, project list) follow a deliberate **Unidirectional Data Flow (UDF)** with Koin DI, `ViewModel` + `StateFlow`, sealed UI-state/effect types, and repositories — while older surfaces still use `LiveData` and talk to GreenRobot EventBus directly. New work follows the UDF pattern documented below, and new UI is built in **Jetpack Compose** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)) — Compose replaces the view layer only; the UDF stack (ViewModel + `StateFlow`, Koin, repositories) is unchanged. Existing XML/View screens remain until they're substantially reworked.
+There is **no single architectural philosophy** across the whole app. This large, layered application is still **predominantly View-based**: newer feature surfaces (plugin manager, AI agent, git, project list) follow a deliberate **Unidirectional Data Flow (UDF)** with Koin DI, `ViewModel` + `StateFlow`, sealed UI-state/effect types, and repositories, while older surfaces still use `LiveData` and talk to GreenRobot EventBus directly. New work follows the UDF pattern documented below, and new UI is built in **Jetpack Compose** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)) — Compose replaces the view layer only; the UDF stack (ViewModel + `StateFlow`, Koin, repositories) is unchanged. Existing XML/View screens remain until substantially reworked.
 
 ## Core Architecture & Data Flow
 
-The intended layering for feature code is **UI → ViewModel → Repository → data source**, with state flowing up and events/intents flowing down. Dependencies are provided by Koin (`coreModule`, `pluginModule`) and constructor-injected into ViewModels.
+Feature code layers as **UI → ViewModel → Repository → data source**, with state flowing up and events/intents flowing down. Koin provides dependencies (`coreModule`, `pluginModule`), constructor-injected into ViewModels.
 
 - **Data sources** — Room (`RecentProjectRoomDatabase` + DAO, `suspend` functions), raw SQLite (`SQLiteOpenHelper`, e.g. `localWebServer/WebServer`), the filesystem/preferences, the embedded `tooling-api` (on-device Gradle), and external clients (Gemini via the Google GenAI SDK, on-device llama.cpp, JGit). Most are exposed through `suspend` functions.
 - **Repositories** — e.g. `agent/repository/GeminiRepository`, `repositories/PluginRepository`, `repositories/BreakpointRepository`. They wrap data sources and hide threading/IO from the ViewModel.
 - **ViewModels** — run work in `viewModelScope` on `Dispatchers.IO`, hold a private `MutableStateFlow`/`MutableSharedFlow`, and expose read-only `StateFlow`/`SharedFlow`. One-shot effects (toasts, navigation, dialogs) go through a separate `SharedFlow` of a sealed `*UiEffect` type.
-- **UI (Fragments / Activities / Views)** — collect state in a lifecycle-aware coroutine and render it; user actions are sent back to the ViewModel as method calls or sealed `*UiEvent` intents. The UI is **Android Views + Fragments + RecyclerView adapters**, not Jetpack Compose (`compose-preview` is a tool for previewing the *user's* Compose code, not CoGo's own UI).
+- **UI (Fragments / Activities / Views)** — collect state in a lifecycle-aware coroutine and render it; user actions return to the ViewModel as method calls or sealed `*UiEvent` intents. The existing UI is **Android Views + Fragments + RecyclerView adapters**; new UI is Jetpack Compose ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)). (`compose-preview` previews the *user's* Compose code, not CoGo's own.)
 
 ```
                 ┌─────────────────────────────────────────────┐
@@ -49,7 +49,7 @@ The intended layering for feature code is **UI → ViewModel → Repository → 
   (build progress, install results, editor signals) outside the UDF spine.
 ```
 
-**EventBus is a deliberate side-channel.** Long-running, cross-module signals (build/install lifecycle, editor events) are broadcast via GreenRobot EventBus (`@Subscribe(threadMode = ThreadMode.MAIN)`) and the `eventbus-events` module's shared event types. Treat it as the integration bus *between* subsystems; do not use it to replace a ViewModel's own state inside a single screen.
+**EventBus is a deliberate side-channel.** Long-running, cross-module signals (build/install lifecycle, editor events) are broadcast via GreenRobot EventBus (`@Subscribe(threadMode = ThreadMode.MAIN)`) and the `eventbus-events` module's shared event types. Treat it as the integration bus *between* subsystems; don't use it to replace a ViewModel's own state inside a single screen.
 
 ## Module Structure
 
@@ -76,9 +76,9 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 
 ## Build & Module Configuration
 
-These structural facts shape every module. The day-to-day build *commands* live in `CLAUDE.md`; the rules that produce those commands live here.
+These structural facts shape every module. Day-to-day build *commands* live in `CLAUDE.md`; the rules that produce them live here.
 
-- **Centralized convention logic.** All Android module setup flows through `composite-builds/build-logic` (`conf/AndroidModuleConf.kt`). Modules stay thin; configuration is shared, so understanding any module's setup starts here.
+- **Centralized convention logic.** All Android module setup flows through `composite-builds/build-logic` (`conf/AndroidModuleConf.kt`). Modules stay thin and share configuration, so understanding any module's setup starts here.
 - **ABI product flavors.** Every Android module *except* `:plugin-api` gets two flavors on the `abi` dimension — `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) — defined centrally. There is no flavorless variant; tasks are `assembleV8Debug`, `assembleV7Release`, etc.
 - **SDK levels** (`build-logic/.../build/config/BuildConfig.kt`): `COMPILE_SDK=36`, `MIN_SDK=28`, `TARGET_SDK=28`. `MIN_SDK_FOR_APPS_BUILT_WITH_COGO=16` is the floor for the apps a *user* builds with CoGo — distinct from CoGo's own `MIN_SDK`.
 - **Native asset bundling.** The on-device LLM (`llama-impl`) ships as a per-flavor native AAR, wired through the root `build.gradle.kts` (`bundleLlamaV8Assets` / `assembleV8Assets`, …); prebuilt per-flavor assets live under `assets/release/v7/` and `assets/release/v8/`.
@@ -110,7 +110,7 @@ These structural facts shape every module. The day-to-day build *commands* live 
 - **Process/long-task state** uses dedicated sealed hierarchies — e.g. `BuildState`, `TaskState`, `InstallationState`, `ApkInstallationViewModel.SessionState`, `agent/AgentState`.
 - **Legacy screens** still expose `LiveData` (~8 ViewModels) instead of `StateFlow` (~20). When touching one substantially, prefer migrating it to `StateFlow`.
 
-Real example from `ui/models/PluginManagerUiState.kt` — the pattern to copy for new screens:
+Real example from `ui/models/PluginManagerUiState.kt` — copy this pattern for new screens:
 
 ```kotlin
 // Persistent, immutable UI state — exposed as StateFlow<PluginManagerUiState>
@@ -163,8 +163,7 @@ fun onEvent(event: PluginManagerUiEvent) = viewModelScope.launch(Dispatchers.IO)
 
 ## Testing Guidelines
 
-Test code lives both alongside each module and in the shared `testing:{unit,android,lsp,tooling,common}` harnesses. Run with the flox wrapper, e.g.
-`flox activate -d flox/local -- ./gradlew :testing:unit:test` or a module's `:module:test --tests "…"`.
+Test code lives both alongside each module and in the shared `testing:{unit,android,lsp,tooling,common}` harnesses. Run with the flox wrapper, e.g. `flox activate -d flox/local -- ./gradlew :testing:unit:test` or a module's `:module:test --tests "…"`.
 
 | Layer | Runner / Tools | What to test |
 |---|---|---|
@@ -176,5 +175,5 @@ Preferences and conventions:
 - **Assertions: Google Truth** (`assertThat(x).isEqualTo(...)`) over raw JUnit asserts.
 - **Mocking: MockK** for new code; relax it deliberately rather than over-stubbing.
 - For UDF ViewModels, drive `onEvent(...)`/method calls against a fake or mocked repository and assert the emitted `UiState` sequence (collect the `StateFlow`); assert effects by collecting the effect `SharedFlow`.
-- On the M2 emulator, prefer short `flakySafely` timeouts (2–3s) and `AccessibilityNodeInfo.ACTION_CLICK` over raw coordinate taps — the bottom system-bar region swallows coordinate clicks, and the two system bars (top status, bottom nav) must never be obstructed by tests.
+- On the M2 emulator, prefer short `flakySafely` timeouts (2–3s) and `AccessibilityNodeInfo.ACTION_CLICK` over raw coordinate taps — the bottom system-bar region swallows coordinate clicks, and tests must never obstruct the two system bars (top status, bottom nav).
 ```

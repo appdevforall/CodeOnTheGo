@@ -6,9 +6,9 @@
 
 ## Context
 
-StrictMode is valuable for catching main-thread disk/network I/O and leaked resources early. But Code On The Go is a large app built on inherited and vendored code (the AndroidIDE lineage, the forked toolchain in [ADR 0003](0003-vendored-forked-desktop-toolchain.md), Termux) that trips many StrictMode violations we cannot reasonably fix.
+StrictMode catches main-thread disk/network I/O and leaked resources early. But Code On The Go is a large app built on inherited and vendored code (the AndroidIDE lineage, the forked toolchain in [ADR 0003](0003-vendored-forked-desktop-toolchain.md), Termux) that trips many StrictMode violations we can't reasonably fix.
 
-The two blunt options both fail us: disabling StrictMode hides regressions in **our** code, while enabling it with a death/penalty policy crashes or spams on **third-party** violations we don't control.
+Both blunt options fail us: disabling StrictMode hides regressions in **our** code, while a death/penalty policy crashes or spams on **third-party** violations we don't control.
 
 ## Decision
 

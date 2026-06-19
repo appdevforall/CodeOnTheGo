@@ -6,13 +6,13 @@
 
 ## Context
 
-Compiling Java/Kotlin/Android projects requires desktop developer tools — `javac`, the JDK compiler/`jdeps`, the Eclipse JDT compiler, `layoutlib`, AAPT, JAXP, etc. These assume a desktop JDK environment and are not published in forms that run on Android's ART runtime. To build on-device (see [ADR 0002](0002-on-device-builds-via-gradle-tooling-api.md)), they have to be made to work there.
+Compiling Java/Kotlin/Android projects requires desktop developer tools — `javac`, the JDK compiler/`jdeps`, the Eclipse JDT compiler, `layoutlib`, AAPT, JAXP, etc. These assume a desktop JDK environment and aren't published in forms that run on Android's ART runtime. On-device builds (see [ADR 0002](0002-on-device-builds-via-gradle-tooling-api.md)) require making them work there.
 
 ## Decision
 
 **Fork and vendor** these tools into the repository as composite builds under `composite-builds/build-deps` and `composite-builds/build-deps-common`, and **substitute** them for their `com.itsaky.androidide.build:*` Maven coordinates via `dependencySubstitution` in `settings.gradle.kts`.
 
-Substituted modules include `javac`, `jdk-compiler`, `jdk-jdeps`, `jdt`, `layoutlib-api`, `java-compiler`, `jaxp`, `javapoet`, and `google-java-format`, among others. Any module needing one of these gets the forked, Android-compatible version transparently.
+Substituted modules include `javac`, `jdk-compiler`, `jdk-jdeps`, `jdt`, `layoutlib-api`, `java-compiler`, `jaxp`, `javapoet`, and `google-java-format`, among others. Any consuming module gets the forked, Android-compatible version transparently.
 
 ## Consequences
 
@@ -22,8 +22,8 @@ Substituted modules include `javac`, `jdk-compiler`, `jdk-jdeps`, `jdt`, `layout
 - Consumers reference normal coordinates; the substitution is centralized and invisible to them.
 
 **Negative / costs**
-- A large vendored source subtree and a significant ongoing maintenance burden: tracking upstream changes and JDK/AGP/Gradle updates.
-- The **majority of suppressed scanner findings live in these subtrees** — they are treated as vendored code (suppress-only, never "fixed" to our standards) per [SECURITY.md](../../SECURITY.md).
+- A large vendored source subtree and ongoing maintenance: tracking upstream changes and JDK/AGP/Gradle updates.
+- The **majority of suppressed scanner findings live in these subtrees** — treated as vendored code (suppress-only, never "fixed" to our standards) per [SECURITY.md](../../SECURITY.md).
 - Onboarding cost: contributors must understand the substitution model before touching builds.
 
 ## Alternatives considered
