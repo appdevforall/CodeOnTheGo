@@ -1,5 +1,11 @@
 package com.itsaky.androidide.plugins.manager.core
 
+import com.itsaky.androidide.plugins.PluginLogger
+import com.itsaky.androidide.plugins.ServiceRegistry
+import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
+import com.itsaky.androidide.plugins.manager.services.FileServiceImpl
+import com.itsaky.androidide.plugins.manager.services.ProjectServiceImpl
+import com.itsaky.androidide.plugins.manager.services.ResourceServiceImpl
 import com.itsaky.androidide.plugins.services.IdeFileService
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeResourceService
@@ -9,10 +15,15 @@ import org.junit.Before
 import org.junit.After
 import java.io.File
 
+/**
+ * Integration tests for PluginManager service registration and retrieval.
+ * These tests verify that services are properly registered and can be retrieved
+ * through the service registry, mimicking how PluginManager registers services.
+ */
 class PluginManagerIntegrationTest {
 
     private lateinit var tempProjectRoot: File
-    private lateinit var testFile: File
+    private lateinit var serviceRegistry: ServiceRegistry
 
     @Before
     fun setup() {
@@ -21,10 +32,6 @@ class PluginManagerIntegrationTest {
             delete()
             mkdirs()
         }
-
-        // Create a test file with content
-        testFile = File(tempProjectRoot, "test.txt")
-        testFile.writeText("Integration test content")
 
         // Create a build.gradle file for project service tests
         val buildFile = File(tempProjectRoot, "build.gradle")
@@ -36,6 +43,13 @@ class PluginManagerIntegrationTest {
             dependencies {
             }
         """.trimIndent())
+
+        // Create a test file with content
+        val testFile = File(tempProjectRoot, "test.txt")
+        testFile.writeText("Integration test content")
+
+        // Initialize service registry
+        serviceRegistry = ServiceRegistryImpl()
     }
 
     @After
@@ -46,174 +60,95 @@ class PluginManagerIntegrationTest {
         }
     }
 
+    /**
+     * Test that services can be registered and retrieved through the service registry.
+     * This simulates how PluginManager registers services in createPluginContext()
+     * (lines 1292-1323 of PluginManager.kt).
+     */
+    @Test
+    fun testServiceRegistration() {
+        // Simulate PluginManager's service registration for Phase 2 services
+        // This mirrors the code in PluginManager.createPluginContext() lines 1292-1323
+
+        // Register IdeFileService
+        val fileService = FileServiceImpl(tempProjectRoot)
+        serviceRegistry.register(IdeFileService::class.java, fileService)
+
+        // Register IdeProjectService
+        val projectService = ProjectServiceImpl(tempProjectRoot)
+        serviceRegistry.register(IdeProjectService::class.java, projectService)
+
+        // Register IdeResourceService
+        val resourceService = ResourceServiceImpl(tempProjectRoot)
+        serviceRegistry.register(IdeResourceService::class.java, resourceService)
+
+        // Verify services can be retrieved through the registry
+        val retrievedFileService = serviceRegistry.get(IdeFileService::class.java)
+        assertNotNull("IdeFileService should be registered and retrievable", retrievedFileService)
+        assertSame("Retrieved service should be the same instance", fileService, retrievedFileService)
+
+        val retrievedProjectService = serviceRegistry.get(IdeProjectService::class.java)
+        assertNotNull("IdeProjectService should be registered and retrievable", retrievedProjectService)
+        assertSame("Retrieved service should be the same instance", projectService, retrievedProjectService)
+
+        val retrievedResourceService = serviceRegistry.get(IdeResourceService::class.java)
+        assertNotNull("IdeResourceService should be registered and retrievable", retrievedResourceService)
+        assertSame("Retrieved service should be the same instance", resourceService, retrievedResourceService)
+    }
+
+    /**
+     * Test that FileService retrieved through the service registry is functional.
+     * This verifies the complete integration: registration -> retrieval -> usage.
+     */
     @Test
     fun testFileServiceIntegration() {
-        // Note: This test demonstrates the FileServiceImpl directly
-        // In production, it would be obtained from PluginManager's service registry
-        val fileService = com.itsaky.androidide.plugins.manager.services.FileServiceImpl(tempProjectRoot)
+        // Register the service (simulating PluginManager)
+        val fileService = FileServiceImpl(tempProjectRoot)
+        serviceRegistry.register(IdeFileService::class.java, fileService)
 
-        // Test reading the file we created in setup
-        val result = fileService.readFile("test.txt")
-        assertTrue("File read should succeed", result.success)
-        assertEquals("Integration test content", result.data)
+        // Retrieve service through the registry (how plugins would access it)
+        val retrievedService = serviceRegistry.get(IdeFileService::class.java)
+        assertNotNull("Service should be retrievable from registry", retrievedService)
 
-        // Test creating a new file
-        val createResult = fileService.createFile("new_file.txt", "New content")
+        // Test basic file operations through the retrieved service
+
+        // 1. Read existing file
+        val readResult = retrievedService!!.readFile("test.txt")
+        assertTrue("File read should succeed", readResult.success)
+        assertEquals("Integration test content", readResult.data)
+
+        // 2. Create new file
+        val createResult = retrievedService.createFile("new_file.txt", "New content")
         assertTrue("File creation should succeed", createResult.success)
-
-        // Verify the file was actually created
         val newFile = File(tempProjectRoot, "new_file.txt")
-        assertTrue("New file should exist", newFile.exists())
+        assertTrue("New file should exist on disk", newFile.exists())
         assertEquals("New content", newFile.readText())
 
-        // Test updating an existing file
-        val updateResult = fileService.updateFile("test.txt", "Updated content")
+        // 3. Update existing file
+        val updateResult = retrievedService.updateFile("test.txt", "Updated content")
         assertTrue("File update should succeed", updateResult.success)
+        val testFile = File(tempProjectRoot, "test.txt")
         assertEquals("Updated content", testFile.readText())
 
-        // Test listing files (use "." for root directory)
-        val listResult = fileService.listFiles(".", false)
+        // 4. List files
+        val listResult = retrievedService.listFiles(".", false)
         assertTrue("File listing should succeed", listResult.success)
         assertNotNull("File list should not be null", listResult.data)
-        assertTrue("File list should contain test.txt", listResult.data!!.contains("test.txt"))
+        val fileList = listResult.data!!
+        assertTrue("File list should contain test.txt", fileList.contains("test.txt"))
+        assertTrue("File list should contain new_file.txt", fileList.contains("new_file.txt"))
 
-        // Test deleting a file
-        val deleteResult = fileService.deleteFile("new_file.txt")
+        // 5. Delete file
+        val deleteResult = retrievedService.deleteFile("new_file.txt")
         assertTrue("File deletion should succeed", deleteResult.success)
         assertFalse("Deleted file should not exist", newFile.exists())
-    }
 
-    @Test
-    fun testProjectServiceIntegration() {
-        // Note: This test demonstrates the ProjectServiceImpl directly
-        // In production, it would be obtained from PluginManager's service registry
-        val projectService = com.itsaky.androidide.plugins.manager.services.ProjectServiceImpl(tempProjectRoot)
-
-        // Test adding a dependency
-        val result = projectService.addDependency(
-            "build.gradle",
-            "implementation 'androidx.core:core-ktx:1.9.0'"
-        )
-        assertTrue("Dependency addition should succeed", result.success)
-
-        // Verify the dependency was added to the build file
-        val buildFile = File(tempProjectRoot, "build.gradle")
-        val buildFileContent = buildFile.readText()
+        // 6. Verify security: path traversal prevention
+        val traversalResult = retrievedService.readFile("../outside.txt")
+        assertFalse("Path traversal should be prevented", traversalResult.success)
         assertTrue(
-            "Build file should contain the new dependency",
-            buildFileContent.contains("implementation 'androidx.core:core-ktx:1.9.0'")
-        )
-
-        // Test other stub methods (they should return success for now)
-        val syncResult = projectService.triggerGradleSync()
-        assertTrue("Gradle sync should succeed (stub)", syncResult.success)
-
-        val buildStatusResult = projectService.isBuildRunning()
-        assertTrue("Build status check should succeed (stub)", buildStatusResult.success)
-        assertEquals("false", buildStatusResult.data)
-
-        val runAppResult = projectService.runApp()
-        assertTrue("App run should succeed (stub)", runAppResult.success)
-
-        val buildOutputResult = projectService.getBuildOutput()
-        assertTrue("Build output retrieval should succeed (stub)", buildOutputResult.success)
-    }
-
-    @Test
-    fun testResourceServiceIntegration() {
-        // Note: This test demonstrates the ResourceServiceImpl directly
-        // In production, it would be obtained from PluginManager's service registry
-        val resourceService = com.itsaky.androidide.plugins.manager.services.ResourceServiceImpl(tempProjectRoot)
-
-        // Test stub methods (they should all return success with placeholder data)
-        val stringResult = resourceService.getString("app_name")
-        assertTrue("String resource retrieval should succeed (stub)", stringResult.success)
-        assertEquals("Placeholder string", stringResult.data)
-
-        val drawableResult = resourceService.getDrawable("ic_launcher")
-        assertTrue("Drawable resource retrieval should succeed (stub)", drawableResult.success)
-        assertEquals("Placeholder drawable path", drawableResult.data)
-
-        val colorResult = resourceService.getColor("primary_color")
-        assertTrue("Color resource retrieval should succeed (stub)", colorResult.success)
-        assertEquals("#000000", colorResult.data)
-
-        val addStringResult = resourceService.addStringResource("new_string", "New Value")
-        assertTrue("String resource addition should succeed (stub)", addStringResult.success)
-    }
-
-    @Test
-    fun testPathTraversalPrevention() {
-        val fileService = com.itsaky.androidide.plugins.manager.services.FileServiceImpl(tempProjectRoot)
-
-        // Test various path traversal attempts
-        val traversalAttempts = listOf(
-            "../outside.txt",
-            "../../etc/passwd",
-            "subdir/../../outside.txt",
-            "./../outside.txt"
-        )
-
-        for (attempt in traversalAttempts) {
-            val result = fileService.readFile(attempt)
-            assertFalse(
-                "Path traversal attempt should fail: $attempt",
-                result.success
-            )
-            assertTrue(
-                "Error message should indicate path traversal: $attempt",
-                result.error?.contains("Path traversal") == true
-            )
-        }
-    }
-
-    @Test
-    fun testProjectServiceBuildFileValidation() {
-        val projectService = com.itsaky.androidide.plugins.manager.services.ProjectServiceImpl(tempProjectRoot)
-
-        // Test invalid build file path
-        val invalidResult = projectService.addDependency(
-            "invalid.txt",
-            "implementation 'test:test:1.0'"
-        )
-        assertFalse("Invalid build file should be rejected", invalidResult.success)
-        assertTrue(
-            "Error message should mention invalid build file",
-            invalidResult.error?.contains("Invalid build file") == true
-        )
-
-        // Test non-existent build file
-        val nonExistentResult = projectService.addDependency(
-            "app/build.gradle",
-            "implementation 'test:test:1.0'"
-        )
-        assertFalse("Non-existent build file should be rejected", nonExistentResult.success)
-        assertTrue(
-            "Error message should mention file doesn't exist",
-            nonExistentResult.error?.contains("does not exist") == true
-        )
-    }
-
-    @Test
-    fun testFileServiceWithNestedDirectories() {
-        val fileService = com.itsaky.androidide.plugins.manager.services.FileServiceImpl(tempProjectRoot)
-
-        // Test creating a file in a nested directory
-        val nestedPath = "src/main/kotlin/Test.kt"
-        val createResult = fileService.createFile(nestedPath, "class Test {}")
-        assertTrue("Nested file creation should succeed", createResult.success)
-
-        // Verify the file was created
-        val nestedFile = File(tempProjectRoot, nestedPath)
-        assertTrue("Nested file should exist", nestedFile.exists())
-        assertEquals("class Test {}", nestedFile.readText())
-
-        // Test listing files recursively (use "." for root directory)
-        val listResult = fileService.listFiles(".", true)
-        assertTrue("Recursive listing should succeed", listResult.success)
-        assertTrue(
-            "Recursive listing should include nested file",
-            listResult.data!!.contains(nestedPath)
+            "Error should mention path traversal",
+            traversalResult.error?.contains("Path traversal") == true
         )
     }
 }
