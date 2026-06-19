@@ -39,7 +39,7 @@ data class FilterState(
     val sort: SortCriteria? = null,
     val ascending: Boolean = true
 ) {
-    val hasAny: Boolean get() = sort != null || query.isNotEmpty()
+    val hasAny: Boolean get() = sort != null || !ascending || query.isNotEmpty()
 }
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
