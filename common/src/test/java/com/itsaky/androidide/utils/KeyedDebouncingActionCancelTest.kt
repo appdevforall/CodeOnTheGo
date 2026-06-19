@@ -27,6 +27,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class KeyedDebouncingActionCancelTest {
 
+  /** Cancelling an entry whose worker is parked on receive() must not surface an uncaught exception. */
   @Test
   fun `cancelling a parked worker does not leak a ClosedReceiveChannelException`() = runBlocking {
     val uncaught = AtomicReference<Throwable?>(null)

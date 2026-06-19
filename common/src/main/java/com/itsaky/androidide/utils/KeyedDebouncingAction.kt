@@ -31,6 +31,7 @@ class KeyedDebouncingAction<T: Any>(
 		val channel: Channel<T>,
 		val job: Job,
 	) {
+		/** Cancels this entry's worker job and closes its channel, in that order. */
 		fun cancel() {
 			// Cancel the job FIRST, then close the channel. Closing the channel first
 			// wakes a parked receive() with a ClosedReceiveChannelException before the
@@ -55,6 +56,10 @@ class KeyedDebouncingAction<T: Any>(
 		entry.channel.trySend(key)
 	}
 
+	/**
+	 * Creates a new [ActionEntry]: a CONFLATED channel plus a worker coroutine that debounces
+	 * incoming keys and runs [action] for the latest one, stopping cleanly when the channel is closed.
+	 */
 	@OptIn(ExperimentalCoroutinesApi::class)
 	private fun createEntry(): ActionEntry<T> {
 		val channel = Channel<T>(Channel.CONFLATED)
