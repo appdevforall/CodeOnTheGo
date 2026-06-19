@@ -12,7 +12,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
@@ -204,9 +203,12 @@ internal class KtSymbolIndex(
 		scanningJob?.cancelAndJoin()
 		indexingJob?.join()
 
-		// Cancel the index's own scope so the debounced modifiedFileIndexer (which also reads
-		// from the project) can't fire after the project is disposed. This index owns `scope`.
-		scope.cancel()
+		// Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the
+		// debounced modifiedFileIndexer and queueOnFileChangedAsync coroutines also run
+		// project.read { PsiManager … }. Joining guarantees none survive into the caller's
+		// Disposer.dispose(...), which would otherwise crash with "Project is already disposed"
+		// (APPDEVFORALL-17R). This index owns `scope`.
+		scope.coroutineContext[Job]?.cancelAndJoin()
 	}
 }
 

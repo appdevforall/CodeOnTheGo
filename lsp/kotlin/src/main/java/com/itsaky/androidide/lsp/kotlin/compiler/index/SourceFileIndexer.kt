@@ -74,6 +74,11 @@ internal suspend fun indexSourceFile(
 	symbolsIndex: JvmSymbolIndex,
 	cancelChecker: ICancelChecker,
 ) {
+	// Defensive backstop: this runs on the debounced/async index scope, so a disposal path that
+	// didn't first drain & join the workers could otherwise touch PSI on a disposed project and
+	// throw "Project is already disposed" (APPDEVFORALL-17R). Covers the toMetadata read below.
+	if (project.isDisposed) return
+
 	val newFile = ktFile.toMetadata(project, isIndexed = true)
 	val existingFile = fileIndex.get(newFile.filePath)
 	cancelChecker.abortIfCancelled()
@@ -89,6 +94,9 @@ internal suspend fun indexSourceFile(
 	}
 
 	val symbols = project.read {
+		// Atomic w.r.t. the read lock: bail if the project was disposed before we acquired it.
+		if (project.isDisposed) return@read emptyList()
+
 		val list = mutableListOf<JvmSymbol>()
 		analyzeMaybeDangling(ktFile) {
 			val session = this
