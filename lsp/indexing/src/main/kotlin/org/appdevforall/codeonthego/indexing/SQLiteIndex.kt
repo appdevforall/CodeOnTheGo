@@ -196,6 +196,15 @@ class SQLiteIndex<T : Indexable>(
         ifOpen { db.execSQL("DELETE FROM $tableName WHERE _source_id = ?", arrayOf(sourceId)) }
     }
 
+    /**
+     * Remove every row whose `_source_id` is in [sourceIds] using a single SQLite
+     * transaction. The ids are split into chunks of at most [DELETE_CHUNK_SIZE] so
+     * each `DELETE ... IN (?, ?, ...)` stays within SQLite's bound-parameter limit;
+     * all chunks run inside the one transaction, so the batch commits atomically
+     * (an empty [sourceIds] is a no-op and opens no transaction).
+     *
+     * @param sourceIds Source ids whose rows should be deleted.
+     */
     override suspend fun removeBySources(sourceIds: Collection<String>) =
         withContext(Dispatchers.IO) {
             if (sourceIds.isEmpty()) return@withContext

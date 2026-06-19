@@ -96,6 +96,7 @@ class IndexWorkerBatchRemovalTest {
     private fun removeCmd(path: String) =
         IndexCommand.RemoveFromIndex(Paths.get(path))
 
+    /** A run of consecutive removals issues exactly one batched call and deletes every record. */
     @Test
     fun `N consecutive removals collapse into ONE batched removeBySources`() = runTest {
         val paths = (1..5).map { "/proj/File$it.kt" }
@@ -132,6 +133,7 @@ class IndexWorkerBatchRemovalTest {
         }
     }
 
+    /** A non-removal command ends the batch and is pushed back unconsumed, preserving order. */
     @Test
     fun `a non-removal command stops the batch and is pushed back unconsumed`() = runTest {
         val rmPaths = listOf("/proj/A.kt", "/proj/B.kt")
@@ -161,6 +163,7 @@ class IndexWorkerBatchRemovalTest {
         assertThat(pushedBack).containsExactly(interloper)
     }
 
+    /** Batched removeBySources yields the same result as N individual removeBySource calls. */
     @Test
     fun `InMemory and SQLite-style backings give identical removeBySources results (parity)`() = runTest {
         // Parity at the primitive level: removeBySources must equal N removeBySource.
@@ -182,6 +185,7 @@ class IndexWorkerBatchRemovalTest {
         assertThat(left).containsExactlyElementsIn(right)
     }
 
+    /** removeBySources deletes only the named sources and leaves unnamed ones intact. */
     @Test
     fun `removeBySources only deletes the named sources`() = runTest {
         val backing = InMemoryIndex(JvmSymbolDescriptor)
