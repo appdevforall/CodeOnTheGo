@@ -49,8 +49,13 @@ class JarFsClasspathReader : IClasspathReader {
    * symbols. Reset at the start of every [listClasses] call.
    */
   val unreadableJars: List<File>
-    get() = _unreadableJars
+    get() = _unreadableJars.toList()
 
+  /**
+   * Lists the classes contained in the given JAR files. Any JAR that is corrupt or cannot be read is
+   * skipped (rather than aborting the whole scan) and recorded in [unreadableJars] for reporting.
+   * [unreadableJars] is reset at the start of each call.
+   */
   override fun listClasses(files: Collection<File>): ImmutableSet<ClassInfo> {
     _unreadableJars.clear()
     val builder = ImmutableSet.builder<ClassInfo>()
