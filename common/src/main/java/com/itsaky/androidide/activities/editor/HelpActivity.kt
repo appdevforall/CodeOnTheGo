@@ -31,6 +31,7 @@ import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.app.BaseIDEActivity
+import com.itsaky.androidide.common.R as CommonR
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
 import com.itsaky.androidide.utils.DeviceFormFactorUtils
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -174,19 +175,19 @@ class HelpActivity : BaseIDEActivity() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(com.itsaky.androidide.common.R.menu.menu_help, menu)
+        menuInflater.inflate(CommonR.menu.menu_help, menu)
         return true
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(com.itsaky.androidide.common.R.id.action_close_help)?.isVisible =
+        menu.findItem(CommonR.id.action_close_help)?.isVisible =
             _binding != null && binding.webView.canGoBack()
         return super.onPrepareOptionsMenu(menu)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            com.itsaky.androidide.common.R.id.action_close_help -> {
+            CommonR.id.action_close_help -> {
                 finish()
                 true
             }
