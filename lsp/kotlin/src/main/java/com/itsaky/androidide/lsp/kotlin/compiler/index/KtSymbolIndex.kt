@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
@@ -202,6 +203,10 @@ internal class KtSymbolIndex(
 
 		scanningJob?.cancelAndJoin()
 		indexingJob?.join()
+
+		// Cancel the index's own scope so the debounced modifiedFileIndexer (which also reads
+		// from the project) can't fire after the project is disposed. This index owns `scope`.
+		scope.cancel()
 	}
 }
 

@@ -10,6 +10,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAnnotationsP
 import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
@@ -333,6 +334,14 @@ internal abstract class AbstractCompilationEnvironment(
 		}
 
 	override fun close() {
+		// Stop and join the background index workers *before* the project is disposed.
+		// Otherwise IndexWorker's coroutine keeps calling PsiManager.findFile(project) on a
+		// disposed project and crashes with "AssertionError: Project is already disposed"
+		// (Sentry APPDEVFORALL-17R / ADFA-4384).
+		if (::ktSymbolIndex.isInitialized) {
+			runBlocking { ktSymbolIndex.close() }
+		}
+
 		Disposer.dispose(disposable)
 	}
 }

@@ -17,10 +17,12 @@ import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import io.sentry.Sentry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -298,6 +300,11 @@ internal class CompilationEnvironment(
 
 	override fun close() {
 		ktProject.removeListener(this)
+
+		// fileAnalyzer also reads from the project; cancel its scope before super.close()
+		// stops the index workers and disposes the project (APPDEVFORALL-17R / ADFA-4384).
+		coroutineScope.cancel(CancellationException("CompilationEnvironment closing"))
+
 		super.close()
 	}
 
