@@ -54,8 +54,6 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                 viewModel.loadModelFromUri(uriString, requireContext())
                 flashInfo("Attempting to load selected model...")
 
-                // Keep the bottom sheet expanded after file picker returns
-                // Post with delay to ensure it happens after all lifecycle callbacks
                 view?.postDelayed({
                     (activity as? BaseEditorActivity)?.bottomSheetViewModel?.setSheetState(
                         sheetState = BottomSheetBehavior.STATE_EXPANDED,
@@ -217,8 +215,6 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             if (hasPermission) {
                 viewModel.loadModelFromUri(savedUri, requireContext())
 
-                // Keep the bottom sheet expanded when loading from saved
-                // Post with delay to ensure it happens after all lifecycle callbacks
                 view?.postDelayed({
                     (activity as? BaseEditorActivity)?.bottomSheetViewModel?.setSheetState(
                         sheetState = BottomSheetBehavior.STATE_EXPANDED,

@@ -63,6 +63,29 @@ class LlmInferenceEngine(
         private const val CONTEXT_SIZE_MID_MEM = 2048
         private const val CONTEXT_SIZE_HIGH_MEM = 3072
         private const val CONTEXT_SIZE_MAX = 4096
+
+        private const val EXT_ONNX = ".onnx"
+        private const val EXT_PT = ".pt"
+        private const val EXT_PTH = ".pth"
+        private const val EXT_BIN = ".bin"
+        private const val EXT_SAFETENSORS = ".safetensors"
+        private const val EXT_PB = ".pb"
+        private const val EXT_TFLITE = ".tflite"
+        private const val EXT_GGML = ".ggml"
+        private const val EXT_GGUF = ".gguf"
+
+        private const val KEYWORD_TENSORFLOW = "tensorflow"
+        private const val KEYWORD_ALL_MINI = "all-mini"
+        private const val KEYWORD_ALL_MPNET = "all-mpnet"
+        private const val KEYWORD_E5 = "e5-"
+        private const val KEYWORD_EMBED = "embed"
+        private const val KEYWORD_LLAMA = "llama"
+        private const val KEYWORD_H2O = "h2o"
+        private const val KEYWORD_DANUBE = "danube"
+        private const val KEYWORD_QWEN = "qwen"
+        private const val KEYWORD_GEMMA3 = "gemma3"
+        private const val KEYWORD_GEMMA_3 = "gemma-3"
+        private const val KEYWORD_GEMMA = "gemma"
     }
 
     /**
@@ -488,67 +511,67 @@ class LlmInferenceEngine(
         val lowerName = filename.lowercase()
 
         when {
-            lowerName.endsWith(".onnx") -> {
+            lowerName.endsWith(EXT_ONNX) -> {
                 throw IllegalArgumentException(
-                    "ONNX models (.onnx) are not supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "ONNX models ($EXT_ONNX) are not supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
                     "To use this model:\n" +
                     "1. Convert it to GGUF format using llama.cpp conversion tools\n" +
                     "2. Or download a pre-converted GGUF version from Hugging Face"
                 )
             }
-            lowerName.endsWith(".pt") || lowerName.endsWith(".pth") || lowerName.endsWith(".bin") -> {
+            lowerName.endsWith(EXT_PT) || lowerName.endsWith(EXT_PTH) || lowerName.endsWith(EXT_BIN) -> {
                 throw IllegalArgumentException(
-                    "PyTorch models (.pt, .pth, .bin) are not supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "PyTorch models ($EXT_PT, $EXT_PTH, $EXT_BIN) are not supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
                     "To use this model:\n" +
                     "1. Convert it to GGUF format using convert_hf_to_gguf.py\n" +
                     "2. Or download a pre-converted GGUF version from Hugging Face"
                 )
             }
-            lowerName.endsWith(".safetensors") -> {
+            lowerName.endsWith(EXT_SAFETENSORS) -> {
                 throw IllegalArgumentException(
-                    "SafeTensors models (.safetensors) are not directly supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "SafeTensors models ($EXT_SAFETENSORS) are not directly supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
                     "To use this model:\n" +
                     "1. Convert it to GGUF format using convert_hf_to_gguf.py\n" +
                     "2. Or download a pre-converted GGUF version from Hugging Face"
                 )
             }
-            lowerName.endsWith(".pb") || lowerName.contains("tensorflow") -> {
+            lowerName.endsWith(EXT_PB) || lowerName.contains(KEYWORD_TENSORFLOW) -> {
                 throw IllegalArgumentException(
-                    "TensorFlow models (.pb) are not supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "TensorFlow models ($EXT_PB) are not supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
                     "To use this model:\n" +
                     "1. Convert it to GGUF format using appropriate conversion tools\n" +
                     "2. Or download a pre-converted GGUF version from Hugging Face"
                 )
             }
-            lowerName.endsWith(".tflite") -> {
+            lowerName.endsWith(EXT_TFLITE) -> {
                 throw IllegalArgumentException(
-                    "TensorFlow Lite models (.tflite) are not supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "TensorFlow Lite models ($EXT_TFLITE) are not supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
                     "Please select a GGUF format model."
                 )
             }
-            lowerName.endsWith(".ggml") -> {
+            lowerName.endsWith(EXT_GGML) -> {
                 throw IllegalArgumentException(
-                    "GGML models (.ggml) are deprecated.\n\n" +
-                    "This app uses the newer GGUF format (.gguf).\n\n" +
+                    "GGML models ($EXT_GGML) are deprecated.\n\n" +
+                    "This app uses the newer GGUF format ($EXT_GGUF).\n\n" +
                     "To use this model:\n" +
                     "1. Convert it to GGUF using convert_llama_ggml_to_gguf.py\n" +
                     "2. Or download a GGUF version from Hugging Face"
                 )
             }
-            !lowerName.endsWith(".gguf") -> {
-                log.warn("Model file '{}' doesn't have .gguf extension. May fail to load.", filename)
+            !lowerName.endsWith(EXT_GGUF) -> {
+                log.warn("Model file '{}' doesn't have $EXT_GGUF extension. May fail to load.", filename)
             }
         }
 
-        if (lowerName.contains("all-mini") ||
-            lowerName.contains("all-mpnet") ||
-            lowerName.contains("e5-") ||
-            (lowerName.contains("embed") && !lowerName.contains("llama"))) {
+        if (lowerName.contains(KEYWORD_ALL_MINI) ||
+            lowerName.contains(KEYWORD_ALL_MPNET) ||
+            lowerName.contains(KEYWORD_E5) ||
+            (lowerName.contains(KEYWORD_EMBED) && !lowerName.contains(KEYWORD_LLAMA))) {
             log.warn(
                 "Model '{}' appears to be an embedding model based on filename. " +
                 "This may not work for chat. Will validate during load.", filename
@@ -559,11 +582,11 @@ class LlmInferenceEngine(
     private fun detectModelFamily(path: String): ModelFamily {
         val lowerPath = path.lowercase()
         return when {
-            lowerPath.contains("h2o") || lowerPath.contains("danube") -> ModelFamily.H2O
-            lowerPath.contains("qwen") -> ModelFamily.QWEN
-            lowerPath.contains("gemma-3") || lowerPath.contains("gemma3") -> ModelFamily.GEMMA3
-            lowerPath.contains("gemma") -> ModelFamily.GEMMA2
-            lowerPath.contains("llama") -> ModelFamily.LLAMA3
+            lowerPath.contains(KEYWORD_H2O) || lowerPath.contains(KEYWORD_DANUBE) -> ModelFamily.H2O
+            lowerPath.contains(KEYWORD_QWEN) -> ModelFamily.QWEN
+            lowerPath.contains(KEYWORD_GEMMA_3) || lowerPath.contains(KEYWORD_GEMMA3) -> ModelFamily.GEMMA3
+            lowerPath.contains(KEYWORD_GEMMA) -> ModelFamily.GEMMA2
+            lowerPath.contains(KEYWORD_LLAMA) -> ModelFamily.LLAMA3
             else -> ModelFamily.UNKNOWN
         }
     }
