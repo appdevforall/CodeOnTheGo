@@ -4,6 +4,14 @@ import com.itsaky.androidide.plugins.services.IdeFileService
 import com.itsaky.androidide.plugins.services.IdeFileService.FileOperationResult
 import java.io.File
 
+/**
+ * Implementation of [IdeFileService] for file operations within a project root.
+ *
+ * Security Notes:
+ * - Path traversal prevention is enforced via [validateAndResolvePath]
+ * - Plugin permission checks are delegated to PluginManager integration layer
+ * - All file paths are validated against project root before operations
+ */
 class FileServiceImpl(
     private val projectRoot: File
 ) : IdeFileService {
@@ -113,11 +121,22 @@ class FileServiceImpl(
     override fun getProjectRoot(): File = projectRoot
 
     private fun validateAndResolvePath(relativePath: String): File? {
+        // Validate null/empty paths
+        if (relativePath.isNullOrBlank()) {
+            return null
+        }
+
         val file = File(projectRoot, relativePath)
         val canonicalPath = file.canonicalPath
         val rootCanonicalPath = projectRoot.canonicalPath
 
-        return if (canonicalPath.startsWith(rootCanonicalPath)) {
+        // Security check: Ensure resolved path is within project root
+        // Use path separator boundary check to prevent prefix matching attacks
+        // e.g., /tmp/proj should not match /tmp/project/file.txt
+        val isWithinRoot = canonicalPath == rootCanonicalPath ||
+                (canonicalPath.startsWith(rootCanonicalPath + File.separator))
+
+        return if (isWithinRoot) {
             file
         } else {
             null  // Path traversal attempt
