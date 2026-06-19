@@ -1,8 +1,5 @@
 # IDE Tooltips Module (`idetooltips`)
 
-> **⚠️ This README is partly out of date — refresh tracked by [ADFA-4382](https://appdevforall.atlassian.net/browse/ADFA-4382).**
-> The usage examples below call a `showIDETooltip(...)` function that no longer exists — the real API is `TooltipManager.showTooltip(...)` and the `View.displayTooltipOnLongPress(...)` extension (keyed by `category` + `tag`). The "Database Integration" note citing a Room `IDETooltipDatabase` is also wrong: the store is raw SQLite. Trust the code (`ToolTipManager.kt`, `ViewUtils.kt`) over the examples here until this is reconciled. The design-principle section is current.
-
 ## Overview
 
 The `idetooltips` module is responsible for providing a flexible and reusable system for displaying contextual tooltips in Code On the Go. These tooltips can display short summaries, detailed help content, and external links, all within a floating popup anchored to UI components.
@@ -11,24 +8,6 @@ This module provides functionalities such as:
 *   Displaying tooltips with rich content (HTML).
 *   Fetching tooltip data from a local database.
 *   Handling user interactions within tooltips (e.g., "See More" links).
-
-## Design principle: long-press-for-help is everywhere
-
-Help in Code On The Go is reached the same way no matter where you are: **long-press**. This is a product promise, not a per-screen decision — a user who long-presses to learn what something does should never be met with silence.
-
-Concretely, that means:
-
-*   **Every interactive element provides help** — buttons, icon-only controls, menu items, list rows, editor-toolbar actions. If a view does something when tapped, long-pressing it must surface help.
-*   **Every major screen or panel is covered too.** Even where an individual pixel isn't itself interactive, its containing surface (screen, panel, dialog) must offer at least a top-level help entry, so help is always reachable from anywhere in that surface.
-
-### The three-tier help system
-
-A single long-press opens a progressive, three-tier help experience:
-
-*   **Tier 1 & Tier 2 — tooltips.** Rendered by this module as anchored popups (the `level` argument to `showIDETooltip` selects the depth — a short summary first, then more detailed help). These stay in-context and don't leave the screen.
-*   **Tier 3 — a full help web page.** Reached from a tooltip's "See More" / help link, this opens proper standalone documentation for users who need the complete explanation.
-
-> Tooltip *content* may be incomplete while help is still being authored, but the *affordance* must exist: new UI ships with long-press help wired up. See `REVIEW.md` (Contextual help) for the review-time rule.
 
 ## Features
 
