@@ -21,6 +21,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
@@ -102,6 +104,12 @@ class HelpActivity : BaseIDEActivity() {
 
                 override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    invalidateOptionsMenu()
+                }
+
+                override fun doUpdateVisitedHistory(view: android.webkit.WebView?, url: String?, isReload: Boolean) {
+                    super.doUpdateVisitedHistory(view, url, isReload)
+                    invalidateOptionsMenu()
                 }
 
                 override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
@@ -162,6 +170,27 @@ class HelpActivity : BaseIDEActivity() {
                 true
             }
             else -> false
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(com.itsaky.androidide.common.R.menu.menu_help, menu)
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        menu.findItem(com.itsaky.androidide.common.R.id.action_close_help)?.isVisible =
+            _binding != null && binding.webView.canGoBack()
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            com.itsaky.androidide.common.R.id.action_close_help -> {
+                finish()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
     }
 
