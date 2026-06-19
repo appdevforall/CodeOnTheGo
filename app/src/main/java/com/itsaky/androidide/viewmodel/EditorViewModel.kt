@@ -120,15 +120,7 @@ class EditorViewModel : ViewModel() {
                 // Get LLM engine
                 val engine = LlmInferenceEngineProvider.instance
 
-                // Ensure model is loaded
-                if (!engine.isModelLoaded) {
-                    ILogger.ROOT.warn("Cannot perform semantic search: model not loaded")
-                    _vectorSearchResults.value = emptyMap()
-                    _vectorSearchState.value = VectorSearchState.ERROR
-                    return@launch
-                }
-
-                // Execute vector search command
+                // Execute vector search command (it will auto-load model if needed)
                 val command = VectorSearchCommand(query, engine, limit = 20)
                 val result = withContext(Dispatchers.IO) {
                     command.execute()

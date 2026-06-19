@@ -28,6 +28,7 @@ import com.itsaky.androidide.speech.AudioRecorder
 import com.itsaky.androidide.speech.SpeechToCodePipeline
 import com.itsaky.androidide.speech.VoiceCommandRecognizer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -134,23 +135,30 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
      * Start recording audio.
      */
     fun startRecording() {
-        viewModelScope.launch {
-            try {
-                Log.d(TAG, "Starting recording...")
-                recordingStartTime = System.currentTimeMillis()
+        try {
+            Log.d(TAG, "Starting recording...")
+            recordingStartTime = System.currentTimeMillis()
 
-                val started = audioRecorder?.startRecording() ?: false
-                if (started) {
-                    _recordingState.value = RecordingState.Recording(0L, emptyList())
-                    Log.d(TAG, "Recording started successfully")
-                } else {
-                    Log.e(TAG, "Failed to start recording")
-                    _error.value = VoiceError.Unknown("Failed to start recording")
+            val started = audioRecorder?.startRecording() ?: false
+            if (started) {
+                _recordingState.value = RecordingState.Recording(0L, emptyList())
+                Log.d(TAG, "Recording started successfully")
+
+                // Update duration periodically
+                viewModelScope.launch {
+                    while (_recordingState.value is RecordingState.Recording) {
+                        val duration = System.currentTimeMillis() - recordingStartTime
+                        _recordingState.value = RecordingState.Recording(duration, emptyList())
+                        kotlinx.coroutines.delay(100) // Update every 100ms
+                    }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Recording start error", e)
-                _error.value = VoiceError.Unknown(e.message ?: "Recording failed")
+            } else {
+                Log.e(TAG, "Failed to start recording")
+                _error.value = VoiceError.Unknown("Failed to start recording")
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Recording start error", e)
+            _error.value = VoiceError.Unknown(e.message ?: "Recording failed")
         }
     }
 

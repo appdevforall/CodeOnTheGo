@@ -20,6 +20,9 @@ package com.itsaky.androidide.api.commands
 import android.content.Context
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.repository.LlmInferenceEngine
+import com.itsaky.androidide.agent.repository.ModelPurpose
+import com.itsaky.androidide.agent.repository.ModelPurpose.Companion.getPreferenceKey
+import com.itsaky.androidide.agent.repository.ModelPurpose.Companion.getSha256PreferenceKey
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.Dispatchers
@@ -73,11 +76,18 @@ class VectorSearchCommand(
 
     override fun execute(): ToolResult = runBlocking {
         try {
-            // Validate model is loaded
+            // Auto-load saved embedding model if not already loaded
             if (!llmEngine.isModelLoaded) {
-                return@runBlocking ToolResult.failure(
-                    message = "No model loaded. Please load a model in AI Settings."
-                )
+                log.info("No model loaded, attempting to auto-load saved embedding model...")
+                val autoLoadSuccess = tryAutoLoadEmbeddingModel()
+
+                if (!autoLoadSuccess) {
+                    return@runBlocking ToolResult.failure(
+                        message = "No embedding model loaded or configured. Please select an embedding model in AI Settings."
+                    )
+                }
+
+                log.info("Successfully auto-loaded embedding model")
             }
 
             // Get project directory
@@ -126,6 +136,48 @@ class VectorSearchCommand(
                 message = "Vector search failed: ${e.message}",
                 error_details = e.stackTraceToString()
             )
+        }
+    }
+
+    /**
+     * Attempts to auto-load a saved embedding model from preferences.
+     * Returns true if model was successfully loaded, false otherwise.
+     */
+    private suspend fun tryAutoLoadEmbeddingModel(): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Get saved model path from preferences
+                val prefs = BaseApplication.baseInstance.prefManager
+                val modelPath = prefs.getString(ModelPurpose.EMBEDDINGS.getPreferenceKey(), null)
+                val modelHash = prefs.getString(ModelPurpose.EMBEDDINGS.getSha256PreferenceKey(), null)
+
+                if (modelPath.isNullOrBlank()) {
+                    log.warn("No embedding model configured in preferences")
+                    return@withContext false
+                }
+
+                val modelFile = File(modelPath)
+                if (!modelFile.exists()) {
+                    log.error("Saved embedding model not found at: $modelPath")
+                    return@withContext false
+                }
+
+                log.info("Auto-loading embedding model from: $modelPath")
+
+                // Initialize model
+                val loaded = llmEngine.initModelFromFile(context, modelPath, modelHash)
+
+                if (loaded) {
+                    log.info("Successfully auto-loaded embedding model: ${llmEngine.loadedModelName}")
+                    true
+                } else {
+                    log.error("Failed to auto-load embedding model")
+                    false
+                }
+            } catch (e: Exception) {
+                log.error("Exception during auto-load of embedding model", e)
+                false
+            }
         }
     }
 

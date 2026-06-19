@@ -6,11 +6,9 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "AudioRecorder"
 
@@ -33,8 +31,8 @@ class AudioRecorder(private val context: Context) {
     }
 
     private var audioRecord: AudioRecord? = null
-    private var isRecording = false
-    private var recordingJob: Job? = null
+    private val isRecording = AtomicBoolean(false)
+    private var recordingThread: Thread? = null
     private val audioBuffer = ByteArrayOutputStream()
 
     /**
@@ -43,6 +41,12 @@ class AudioRecorder(private val context: Context) {
     fun initialize(): Boolean {
         return try {
             val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+
+            if (bufferSize == AudioRecord.ERROR || bufferSize == AudioRecord.ERROR_BAD_VALUE) {
+                Log.e(TAG, "Invalid buffer size: $bufferSize")
+                return false
+            }
+
             Log.d(TAG, "Min buffer size: $bufferSize bytes")
 
             audioRecord = AudioRecord(
@@ -53,59 +57,79 @@ class AudioRecorder(private val context: Context) {
                 bufferSize * BUFFER_SIZE_MULTIPLIER
             )
 
-            Log.d(TAG, "AudioRecord initialized (state: ${audioRecord?.state})")
+            val state = audioRecord?.state
+            if (state != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioRecord not initialized properly (state: $state)")
+                audioRecord?.release()
+                audioRecord = null
+                return false
+            }
+
+            Log.d(TAG, "AudioRecord initialized successfully (state: $state)")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize AudioRecord", e)
+            audioRecord?.release()
+            audioRecord = null
             false
         }
     }
 
     /**
      * Start recording audio.
-     * Launches a background coroutine to continuously read audio data.
+     * Launches a background thread to continuously read audio data.
      */
-    suspend fun startRecording(): Boolean {
-        return withContext(Dispatchers.Default) {
-            try {
-                require(audioRecord != null) { "AudioRecord not initialized" }
+    fun startRecording(): Boolean {
+        return try {
+            require(audioRecord != null) { "AudioRecord not initialized" }
 
-                // Clear previous audio data
+            // Stop any existing recording
+            if (isRecording.get()) {
+                Log.w(TAG, "Already recording, ignoring")
+                return false
+            }
+
+            // Clear previous audio data
+            synchronized(audioBuffer) {
                 audioBuffer.reset()
+            }
 
-                // Start AudioRecord
-                audioRecord?.startRecording()
-                isRecording = true
-                Log.d(TAG, "Recording started")
+            // Start AudioRecord
+            audioRecord?.startRecording()
+            isRecording.set(true)
+            Log.d(TAG, "Recording started")
 
-                // Start reading audio data in background
-                recordingJob = launch {
-                    val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
-                    val buffer = ByteArray(bufferSize)
+            // Start reading audio data in background thread
+            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
 
-                    Log.d(TAG, "Started audio capture loop (buffer size: $bufferSize)")
+            recordingThread = Thread({
+                val buffer = ByteArray(bufferSize)
+                Log.d(TAG, "Started audio capture thread (buffer size: $bufferSize)")
 
-                    while (isActive && isRecording) {
-                        val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                while (isRecording.get()) {
+                    val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: -1
 
-                        if (bytesRead > 0) {
-                            synchronized(audioBuffer) {
-                                audioBuffer.write(buffer, 0, bytesRead)
-                            }
-                        } else if (bytesRead < 0) {
-                            Log.w(TAG, "Error reading audio: $bytesRead")
+                    if (bytesRead > 0) {
+                        synchronized(audioBuffer) {
+                            audioBuffer.write(buffer, 0, bytesRead)
                         }
+                    } else if (bytesRead < 0) {
+                        Log.e(TAG, "Error reading audio: $bytesRead")
+                        break
                     }
-
-                    Log.d(TAG, "Audio capture loop ended")
                 }
 
-                true
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to start recording", e)
-                isRecording = false
-                false
+                Log.d(TAG, "Audio capture thread ended")
+            }, "AudioRecorderThread").apply {
+                priority = Thread.MAX_PRIORITY
+                start()
             }
+
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start recording", e)
+            isRecording.set(false)
+            false
         }
     }
 
@@ -115,17 +139,21 @@ class AudioRecorder(private val context: Context) {
      * @return PCM audio bytes (16-bit, 16kHz mono) or empty array on error
      */
     suspend fun stopRecording(): ByteArray {
-        return withContext(Dispatchers.Default) {
+        return withContext(Dispatchers.IO) {
             try {
                 require(audioRecord != null) { "AudioRecord not initialized" }
-                require(isRecording) { "Not recording" }
 
-                // Stop recording flag (stops the capture loop)
-                isRecording = false
+                if (!isRecording.get()) {
+                    Log.w(TAG, "Not recording")
+                    return@withContext byteArrayOf()
+                }
 
-                // Wait for recording job to finish
-                recordingJob?.join()
-                recordingJob = null
+                // Stop recording flag (stops the capture thread)
+                isRecording.set(false)
+
+                // Wait for recording thread to finish (with timeout)
+                recordingThread?.join(1000)
+                recordingThread = null
 
                 // Stop AudioRecord
                 audioRecord?.stop()
@@ -187,10 +215,10 @@ class AudioRecorder(private val context: Context) {
     fun release() {
         try {
             // Stop recording if active
-            if (isRecording) {
-                isRecording = false
-                recordingJob?.cancel()
-                recordingJob = null
+            if (isRecording.get()) {
+                isRecording.set(false)
+                recordingThread?.join(1000)
+                recordingThread = null
                 audioRecord?.stop()
             }
 
@@ -199,7 +227,9 @@ class AudioRecorder(private val context: Context) {
             audioRecord = null
 
             // Clear buffer
-            audioBuffer.reset()
+            synchronized(audioBuffer) {
+                audioBuffer.reset()
+            }
 
             Log.d(TAG, "AudioRecord released")
         } catch (e: Exception) {

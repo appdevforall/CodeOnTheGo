@@ -100,13 +100,21 @@ private fun ProjectHandlerActivity.setupVoiceCodeObservers(viewModel: SpeechToCo
     viewModel.recordingState.observe(this) { state ->
         when (state) {
             is SpeechToCodeViewModel.RecordingState.Idle -> {
-                recordingOverlay?.hide()
+                // Hide and remove overlay
+                recordingOverlay?.let { overlay ->
+                    overlay.hide()
+                    (window.decorView as? android.view.ViewGroup)?.removeView(overlay)
+                }
                 recordingOverlay = null
             }
             is SpeechToCodeViewModel.RecordingState.Recording -> {
                 if (recordingOverlay == null) {
-                    recordingOverlay = VoiceRecordingOverlay(this)
-                    recordingOverlay?.show()
+                    // Create and add overlay to activity's content view
+                    recordingOverlay = VoiceRecordingOverlay(this).also { overlay ->
+                        (window.decorView as? android.view.ViewGroup)?.addView(overlay)
+                        overlay.show()
+                    }
+                    Log.d(TAG, "Voice recording overlay added to view")
                 }
                 recordingOverlay?.updateDuration(state.durationMs)
                 recordingOverlay?.updateWaveform(state.amplitudes.toFloatArray())
@@ -169,20 +177,28 @@ private fun ProjectHandlerActivity.setupVoiceCodeObservers(viewModel: SpeechToCo
 }
 
 /**
- * Start voice recording.
+ * Toggle voice recording (start/stop).
  * This method is called by VoiceCodeAction.
  */
 fun ProjectHandlerActivity.startVoiceRecording() {
     try {
         val viewModel = ViewModelProvider(this)[SpeechToCodeViewModel::class.java]
 
-        // Start recording
-        viewModel.startRecording()
-        Log.d(TAG, "Voice recording started from action")
+        // Check current state and toggle
+        val currentState = viewModel.recordingState.value
+        if (currentState is SpeechToCodeViewModel.RecordingState.Recording) {
+            // Already recording, stop it
+            viewModel.stopRecordingAndProcess()
+            Log.d(TAG, "Voice recording stopped from action")
+        } else {
+            // Not recording, start it
+            viewModel.startRecording()
+            Log.d(TAG, "Voice recording started from action")
+        }
 
     } catch (e: Exception) {
-        Log.e(TAG, "Error starting voice recording", e)
-        Toast.makeText(this, "Failed to start voice recording", Toast.LENGTH_SHORT).show()
+        Log.e(TAG, "Error toggling voice recording", e)
+        Toast.makeText(this, "Failed to toggle voice recording", Toast.LENGTH_SHORT).show()
     }
 }
 

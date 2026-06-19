@@ -311,18 +311,9 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
 
     llama_context_params ctx_params = llama_context_default_params();
 
-    const int configured_ctx = g_n_ctx.load();
-    ctx_params.n_ctx = configured_ctx > 0 ? configured_ctx : 4096;
-    ctx_params.n_threads = n_threads;
-    ctx_params.n_threads_batch = n_threads_batch;
-    // CRITICAL FIX: Set n_batch and n_ubatch to match the batch size we create (2048)
-    // This prevents crashes when encode() is called for encoder/encoder-decoder models
-    // Default n_ubatch is only 512, which causes SIGABRT when batch has 2048 tokens
-    ctx_params.n_batch = 2048;
-    ctx_params.n_ubatch = 2048;
-
     // Enable embeddings extraction for encoder models (for vector search)
     // Read architecture from GGUF metadata (more reliable than llama_model_has_encoder)
+    // CRITICAL: Do this BEFORE setting n_ctx so we can optimize context size for embedding models
     char arch_buf[64] = {0};
     int arch_len = llama_model_meta_val_str(model, "general.architecture", arch_buf, sizeof(arch_buf));
     std::string architecture = (arch_len > 0) ? std::string(arch_buf) : "";
@@ -339,11 +330,27 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
     LOGi("Model type detection: encoder=%s decoder=%s",
          has_encoder ? "YES" : "NO", has_decoder ? "YES" : "NO");
 
+    // Set context size based on model type
+    const int configured_ctx = g_n_ctx.load();
     if (is_encoder_model) {
+        // CRITICAL FIX: Embedding models don't need large context
+        // They do single-pass encoding, not autoregressive generation
+        // 512 tokens is enough for most code chunks and uses much less memory
+        ctx_params.n_ctx = 512;
+        ctx_params.n_batch = 512;
+        ctx_params.n_ubatch = 512;
         ctx_params.embeddings = true;
         ctx_params.pooling_type = LLAMA_POOLING_TYPE_MEAN;  // Use mean pooling for embeddings
-        LOGi("Enabling embeddings mode for encoder model (architecture: %s)", architecture.c_str());
+        LOGi("Enabling embeddings mode for encoder model with optimized context (n_ctx=512, architecture: %s)", architecture.c_str());
+    } else {
+        // Decoder models need larger context for generation
+        ctx_params.n_ctx = configured_ctx > 0 ? configured_ctx : 4096;
+        ctx_params.n_batch = 2048;
+        ctx_params.n_ubatch = 2048;
     }
+
+    ctx_params.n_threads = n_threads;
+    ctx_params.n_threads_batch = n_threads_batch;
 
     llama_context *context = llama_init_from_model(model, ctx_params);
 
