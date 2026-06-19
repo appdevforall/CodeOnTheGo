@@ -7,7 +7,7 @@ import android.content.Context
 import com.itsaky.androidide.plugins.*
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
-import com.itsaky.androidide.plugins.services.IdeProjectService
+import com.itsaky.androidide.plugins.services.IdeProjectServiceLegacy
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
@@ -40,7 +40,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeTemplateServiceImpl
 import com.itsaky.androidide.plugins.services.IdeTemplateService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
-import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeFileServiceLegacy
 import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.IdeEnvironmentService
@@ -1092,7 +1092,7 @@ class PluginManager private constructor(
         // Create services with resource context
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
-            IdeProjectService::class.java,
+            IdeProjectServiceLegacy::class.java,
             pluginId,
             "project"
         ) {
@@ -1153,7 +1153,7 @@ class PluginManager private constructor(
         // File service for editing project files
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
-            IdeFileService::class.java,
+            IdeFileServiceLegacy::class.java,
             pluginId,
             "file"
         ) {
@@ -1310,7 +1310,7 @@ class PluginManager private constructor(
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
-            IdeProjectService::class.java,
+            IdeProjectServiceLegacy::class.java,
             pluginId,
             "project"
         ) {
@@ -1366,7 +1366,7 @@ class PluginManager private constructor(
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
-            IdeFileService::class.java,
+            IdeFileServiceLegacy::class.java,
             pluginId,
             "file"
         ) {

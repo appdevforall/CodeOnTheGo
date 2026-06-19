@@ -1,0 +1,1366 @@
+13:34:56.801  I  call setFrameRateCategory for touch hint category=no preference, reason=boost timeout, vri=VRI[EditorActivityKt]@b287f30
+13:34:57.324  I  Background young concurrent mark compact GC freed 38MB AllocSpace bytes, 0(0B) LOS objects, 23% free, 139MB/181MB, paused 309us,5.159ms total 50.296ms
+13:34:57.909  I  Background young concurrent mark compact GC freed 48MB AllocSpace bytes, 0(0B) LOS objects, 6% free, 164MB/176MB, paused 865us,5.725ms total 57.134ms
+13:34:58.026  I  Background concurrent mark compact GC freed 94MB AllocSpace bytes, 0(0B) LOS objects, 21% free, 177MB/225MB, paused 281us,1.944ms total 116.612ms
+13:34:58.096  D  Analysis in progress, 20% done, working on Finding retained objects
+13:34:58.097  I  com.itsaky.androidide: notify(2131362424, null, Notification(channel=LEAKCANARY_LOW shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=0 color=0x00000000 groupKey=LEAKCANARY_LOW vis=PRIVATE semFlags=0x0 semPriority=0 semMissedCount=0)) as user
+13:34:58.103  D  Analysis in progress, 30% done, working on Finding paths to retained objects
+13:34:58.104  I  com.itsaky.androidide: notify(2131362424, null, Notification(channel=LEAKCANARY_LOW shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=0 color=0x00000000 groupKey=LEAKCANARY_LOW vis=PRIVATE semFlags=0x0 semPriority=0 semMissedCount=0)) as user
+13:34:58.809  I  Background concurrent mark compact GC freed 58MB AllocSpace bytes, 1(260KB) LOS objects, 22% free, 162MB/210MB, paused 443us,1.499ms total 112.212ms
+13:35:01.567  I  ViewPostIme pointer 0
+13:35:01.568  I  obtain mCurrentDownEvent. id: 576987428 caller: com.itsaky.androidide.activities.editor.BaseEditorActivity.dispatchTouchEvent:1618 androidx.appcompat.view.WindowCallbackWrapper.dispatchTouchEvent:69 com.android.internal.policy.DecorView.dispatchTouchEvent:728
+13:35:01.570  I  call setFrameRateCategory for touch hint category=high hint, reason=touch, vri=VRI[EditorActivityKt]@b287f30
+13:35:01.586  I  obtain mCurrentMotionEventRaw. action: 2 id: 654218917
+13:35:01.658  I  ViewPostIme pointer 1
+13:35:01.667  I  com.itsaky.androidide:1592685d: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+13:35:01.667  I  hsifw() - flag : 0
+13:35:01.667  I  hsifw() - mService.hideSoftInput
+13:35:01.668  D  hide(ime(), fromIme=false)
+13:35:01.668  W  sendCancelIfRunning: isInProgress=false callback=android.view.ImeBackAnimationController@a43afd0
+13:35:01.668  D  Setting requestedVisibleTypes to -9 (was -1)
+13:35:01.668  I  setRequestedVisibleTypes: visible=false, mask=ime, host=com.itsaky.androidide/com.itsaky.androidide.activities.editor.EditorActivityKt, from=android.view.InsetsController.controlAnimationUnchecked:1604 android.view.InsetsController.applyAnimation:2416 android.view.InsetsController.applyAnimation:2343 android.view.InsetsController.hide:1540 android.view.inputmethod.InputMethodManager.hideSoftInputFromWindow:2889 android.view.inputmethod.InputMethodManager.hideSoftInputFromWindow:2812 android.view.inputmethod.InputMethodManager.hideSoftInputFromWindow:2773 com.itsaky.androidide.agent.fragments.ChatFragment.setupListeners$lambda$9:304 com.itsaky.androidide.agent.fragments.ChatFragment.$r8$lambda$1IhjNN6VFtX4yNxN8uORdEIZOV0:0 com.itsaky.androidide.agent.fragments.ChatFragment$$ExternalSyntheticLambda14.onFocusChange:0
+13:35:01.671  I  com.itsaky.androidide:37fdd4a2: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+13:35:01.671  I  hsifw() - flag : 0
+13:35:01.671  I  hsifw() - mService.hideSoftInput
+13:35:01.672  D  hide(ime(), fromIme=false)
+13:35:01.672  I  com.itsaky.androidide:37fdd4a2: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+13:35:01.673  I  [main] Starting agent workflow for prompt: "hi"
+13:35:01.673  I  [main] Settings changed or repository not initialized. Creating new instance.
+13:35:01.682  E  getPackageNightMode is not allowed for com.itsaky.androidide
+13:35:01.683  E  Attempt to load writable dex file: /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/classes.dex
+13:35:01.683  E  getPackageNightMode is not allowed for com.itsaky.androidide
+13:35:01.684  I  onStateChanged: host=com.itsaky.androidide/com.itsaky.androidide.activities.editor.EditorActivityKt, from=android.view.ViewRootImpl.onInsetsStateChanged:3026, state=InsetsState: {mDisplayFrame=Rect(0, 0 - 2800, 1752), mDisplayCutout=DisplayCutout{insets=Rect(0, 0 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=0 displayHeight=0 physicalDisplayWidth=0 physicalDisplayHeight=0 density={0.0} cutoutSpec={} rotation={0} scale={0.0} physicalPixelDisplaySizeRatio={0.0}}} sideOverrides=null}, mRoundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=26, center=Point(26, 26)}, RoundedCorner{position=TopRight, radius=26, center=Point(2774, 26)}, RoundedCorner{position=BottomRight, radius=26, center=Point(2774, 1726)}, RoundedCorner{position=BottomLeft, radius=26, center=Point(26, 1726)}]}  mRoundedCornerFrame=Rect(0, 0 - 0, 0), mPrivacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(2712, 0 - 2800, 60) rotation=1}, mDisplayShape=DisplayShape{ spec=-311912193 displayWidth=1752 displayHeight=2800 physicalPixelDisplaySizeRatio=1.0 rotation=1 offsetX=0 offsetY=0 scale=1.0}, mSources= { InsetsSource: {811f0002 mType=captionBar mFrame=[643,289][2157,369] mVisible=true mFlags=FORCE_CONSUMING|FORCE_CONSUMING_OPAQUE_CAPTION_BAR|FLAG_CONSUMING_CAPTION_INSET_BAR mSideHint=TOP mBoundingRects=[Rect(0, 0 - 168, 80), Rect(1106, 0 - 1514, 80)]} }
+13:35:01.684  I  handleResized, frames=ClientWindowFrames{frame=[643,289][2157,1427] display=[643,289][2157,1427] parentFrame=[0,0][0,0]} displayId=0 dragResizing=false compatScale=1.0 frameChanged=false attachedFrameChanged=false configChanged=false displayChanged=false compatScaleChanged=false dragResizingChanged=false
+13:35:01.684  I  [DefaultDispatcher-worker-2] Llama Android class loaded. assignable=true hasInstance=true
+13:35:01.687  I  [DefaultDispatcher-worker-2] Llama Inference Engine initialized successfully.
+13:35:01.695  W  [DefaultDispatcher-worker-2] Model 'all-MiniLM-L6-v2-ggml-model-f16.gguf' appears to be an embedding model based on filename. This may not work for chat. Will validate during load.
+13:35:01.798  I  [DefaultDispatcher-worker-2] Model copied to cache at /data/user/0/com.itsaky.androidide/cache/local_model.gguf
+13:35:01.800  D  [Llm-RunLoop] Dedicated thread for native code: Llm-RunLoop
+13:35:01.800  D  Configuring clns-12 for other apk . target_sdk_version=28, uses_libraries=ALL, library_path=/data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a, permitted_path=/data:/mnt/expand
+13:35:01.800  D  Extending system_exposed_libraries: libhumantracking.arcsoft.so:libface_recognition.arcsoft.so:libpic_best.arcsoft.so:libPortraitDistortionCorrection.arcsoft.so:libPortraitDistortionCorrectionCali.arcsoft.so:libface_landmark.arcsoft.so:libFacialStickerEngine.arcsoft.so:libfrtracking_engine.arcsoft.so:libFaceRecognition.arcsoft.so:libveengine.arcsoft.so:libae_bracket_hdr.arcsoft.so:libhybrid_high_dynamic_range.arcsoft.so:libimage_enhancement.arcsoft.so:liblow_light_hdr.arcsoft.so:libhigh_dynamic_range.arcsoft.so:libFacialAttributeDetection.arcsoft.so:libobjectcapture_jni.arcsoft.so:libobjectcapture.arcsoft.so:libmultisourceseparator.audio.samsung.so:libaudiomirroring_jni.audiomirroring.samsung.so:libBeauty_v4.camera.samsung.so:libexifa.camera.samsung.so:libjpega.camera.samsung.so:libOpenCv.camera.samsung.so:libaifrcInterface.camera.samsung.so:libC2paDps.camera.samsung.so:libVideoClassifier.camera.samsung.so:libImageScreener.camera.samsung.so:libMyFilter.camera.samsung.so:libtflite2.myfilters.camera.samsung.so
+13:35:01.804  D  Load /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a/libllama-android.so using isolated ns clns-12 (caller=/data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/classes.dex): ok
+13:35:01.805  D  [Llm-RunLoop] System Info: CPU : NEON = 1 | ARM_FMA = 1 | OPENMP = 1 | REPACK = 1 |
+13:35:01.805  I  Loading model from /data/user/0/com.itsaky.androidide/cache/local_model.gguf
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: loaded meta data with 23 key-value pairs and 101 tensors from /data/user/0/com.itsaky.androidide/cache/local_model.gguf (version GGUF V3 (latest))
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   0:                       general.architecture str              = bert
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   1:                               general.name str              = all-MiniLM-L6-v2
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   2:                           bert.block_count u32              = 6
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   3:                        bert.context_length u32              = 512
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   4:                      bert.embedding_length u32              = 384
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   5:                   bert.feed_forward_length u32              = 1536
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   6:                  bert.attention.head_count u32              = 12
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   7:          bert.attention.layer_norm_epsilon f32              = 0.000000
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   8:                          general.file_type u32              = 1
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv   9:                      bert.attention.causal bool             = false
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv  10:                          bert.pooling_type u32              = 1
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv  11:            tokenizer.ggml.token_type_count u32              = 2
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv  12:                tokenizer.ggml.bos_token_id u32              = 101
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv  13:                tokenizer.ggml.eos_token_id u32              = 102
+13:35:01.811  E  [Llm-RunLoop] llama_model_loader: - kv  14:                       tokenizer.ggml.model str              = bert
+13:35:01.815  E  [Llm-RunLoop] llama_model_loader: - kv  15:                      tokenizer.ggml.tokens arr[str,30522]   = ["[PAD]", "[unused0]", "[unused1]", "...
+13:35:01.821  E  [Llm-RunLoop] llama_model_loader: - kv  16:                      tokenizer.ggml.scores arr[f32,30522]   = [-1000.000000, -1000.000000, -1000.00...
+13:35:01.822  E  [Llm-RunLoop] llama_model_loader: - kv  17:                  tokenizer.ggml.token_type arr[i32,30522]   = [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...
+13:35:01.822  E  [Llm-RunLoop] llama_model_loader: - kv  18:            tokenizer.ggml.unknown_token_id u32              = 100
+13:35:01.822  E  [Llm-RunLoop] llama_model_loader: - kv  19:          tokenizer.ggml.seperator_token_id u32              = 102
+13:35:01.822  E  [Llm-RunLoop] llama_model_loader: - kv  20:            tokenizer.ggml.padding_token_id u32              = 0
+13:35:01.822  E  [Llm-RunLoop] llama_model_loader: - kv  21:                tokenizer.ggml.cls_token_id u32              = 101
+13:35:01.822  E  [Llm-RunLoop] llama_model_loader: - kv  22:               tokenizer.ggml.mask_token_id u32              = 103
+13:35:01.822  E  [Llm-RunLoop] llama_model_loader: - type  f32:   63 tensors
+13:35:01.822  E  [Llm-RunLoop] llama_model_loader: - type  f16:   38 tensors
+13:35:01.822  E  [Llm-RunLoop] print_info: file format = GGUF V3 (latest)
+13:35:01.822  E  [Llm-RunLoop] print_info: file type   = F16
+13:35:01.822  E  [Llm-RunLoop] print_info: file size   = 43.10 MiB (16.02 BPW)
+13:35:01.828  D  [Llm-RunLoop] init_tokenizer: initializing tokenizer for type 3
+13:35:01.830  D  [Llm-RunLoop] load: control token:    100 '[UNK]' is not marked as EOG
+13:35:01.830  D  [Llm-RunLoop] load: control token:    101 '[CLS]' is not marked as EOG
+13:35:01.831  D  [Llm-RunLoop] load: control token:      0 '[PAD]' is not marked as EOG
+13:35:01.831  D  [Llm-RunLoop] load: control token:    102 '[SEP]' is not marked as EOG
+13:35:01.831  D  [Llm-RunLoop] load: control token:    103 '[MASK]' is not marked as EOG
+13:35:01.831  W  [Llm-RunLoop] load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+13:35:01.831  E  [Llm-RunLoop] load: printing all EOG tokens:
+13:35:01.831  E  [Llm-RunLoop] load:   - 102 ('[SEP]')
+13:35:01.831  E  [Llm-RunLoop] load: special tokens cache size = 5
+13:35:01.833  E  [Llm-RunLoop] load: token to piece cache size = 0.2032 MB
+13:35:01.834  E  [Llm-RunLoop] print_info: arch             = bert
+13:35:01.834  E  [Llm-RunLoop] print_info: vocab_only       = 0
+13:35:01.834  E  [Llm-RunLoop] print_info: n_ctx_train      = 512
+13:35:01.834  E  [Llm-RunLoop] print_info: n_embd           = 384
+13:35:01.834  E  [Llm-RunLoop] print_info: n_layer          = 6
+13:35:01.834  E  [Llm-RunLoop] print_info: n_head           = 12
+13:35:01.834  E  [Llm-RunLoop] print_info: n_head_kv        = 12
+13:35:01.834  E  [Llm-RunLoop] print_info: n_rot            = 32
+13:35:01.834  E  [Llm-RunLoop] print_info: n_swa            = 0
+13:35:01.834  E  [Llm-RunLoop] print_info: is_swa_any       = 0
+13:35:01.834  E  [Llm-RunLoop] print_info: n_embd_head_k    = 32
+13:35:01.834  E  [Llm-RunLoop] print_info: n_embd_head_v    = 32
+13:35:01.834  E  [Llm-RunLoop] print_info: n_gqa            = 1
+13:35:01.834  E  [Llm-RunLoop] print_info: n_embd_k_gqa     = 384
+13:35:01.834  E  [Llm-RunLoop] print_info: n_embd_v_gqa     = 384
+13:35:01.834  E  [Llm-RunLoop] print_info: f_norm_eps       = 1.0e-12
+13:35:01.834  E  [Llm-RunLoop] print_info: f_norm_rms_eps   = 0.0e+00
+13:35:01.834  E  [Llm-RunLoop] print_info: f_clamp_kqv      = 0.0e+00
+13:35:01.834  E  [Llm-RunLoop] print_info: f_max_alibi_bias = 0.0e+00
+13:35:01.834  E  [Llm-RunLoop] print_info: f_logit_scale    = 0.0e+00
+13:35:01.834  E  [Llm-RunLoop] print_info: f_attn_scale     = 0.0e+00
+13:35:01.834  E  [Llm-RunLoop] print_info: n_ff             = 1536
+13:35:01.834  E  [Llm-RunLoop] print_info: n_expert         = 0
+13:35:01.834  E  [Llm-RunLoop] print_info: n_expert_used    = 0
+13:35:01.834  E  [Llm-RunLoop] print_info: causal attn      = 0
+13:35:01.835  E  [Llm-RunLoop] print_info: pooling type     = 1
+13:35:01.835  E  [Llm-RunLoop] print_info: rope type        = 2
+13:35:01.835  E  [Llm-RunLoop] print_info: rope scaling     = linear
+13:35:01.835  E  [Llm-RunLoop] print_info: freq_base_train  = 10000.0
+13:35:01.835  E  [Llm-RunLoop] print_info: freq_scale_train = 1
+13:35:01.835  E  [Llm-RunLoop] print_info: n_ctx_orig_yarn  = 512
+13:35:01.835  E  [Llm-RunLoop] print_info: rope_finetuned   = unknown
+13:35:01.835  E  [Llm-RunLoop] print_info: model type       = 22M
+13:35:01.835  E  [Llm-RunLoop] print_info: model params     = 22.57 M
+13:35:01.835  E  [Llm-RunLoop] print_info: general.name     = all-MiniLM-L6-v2
+13:35:01.835  E  [Llm-RunLoop] print_info: vocab type       = WPM
+13:35:01.835  E  [Llm-RunLoop] print_info: n_vocab          = 30522
+13:35:01.835  E  [Llm-RunLoop] print_info: n_merges         = 0
+13:35:01.835  E  [Llm-RunLoop] print_info: BOS token        = 101 '[CLS]'
+13:35:01.835  E  [Llm-RunLoop] print_info: EOS token        = 102 '[SEP]'
+13:35:01.835  E  [Llm-RunLoop] print_info: UNK token        = 100 '[UNK]'
+13:35:01.835  E  [Llm-RunLoop] print_info: SEP token        = 102 '[SEP]'
+13:35:01.835  E  [Llm-RunLoop] print_info: PAD token        = 0 '[PAD]'
+13:35:01.835  E  [Llm-RunLoop] print_info: MASK token       = 103 '[MASK]'
+13:35:01.835  E  [Llm-RunLoop] print_info: LF token         = 0 '[PAD]'
+13:35:01.835  E  [Llm-RunLoop] print_info: EOG token        = 102 '[SEP]'
+13:35:01.835  E  [Llm-RunLoop] print_info: max token length = 21
+13:35:01.835  E  [Llm-RunLoop] load_tensors: loading model tensors, this can take a while... (mmap = true)
+13:35:01.835  D  [Llm-RunLoop] load_tensors: layer   0 assigned to device CPU, is_swa = 0
+13:35:01.835  D  [Llm-RunLoop] load_tensors: layer   1 assigned to device CPU, is_swa = 0
+13:35:01.835  D  [Llm-RunLoop] load_tensors: layer   2 assigned to device CPU, is_swa = 0
+13:35:01.835  D  [Llm-RunLoop] load_tensors: layer   3 assigned to device CPU, is_swa = 0
+13:35:01.835  D  [Llm-RunLoop] load_tensors: layer   4 assigned to device CPU, is_swa = 0
+13:35:01.835  D  [Llm-RunLoop] load_tensors: layer   5 assigned to device CPU, is_swa = 0
+13:35:01.835  D  [Llm-RunLoop] load_tensors: layer   6 assigned to device CPU, is_swa = 0
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor token_embd.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor token_types.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor position_embd.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor token_embd_norm.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor token_embd_norm.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_q.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_q.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_k.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_k.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_v.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_v.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_output.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_output.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_output_norm.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.attn_output_norm.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.ffn_up.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.ffn_up.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.ffn_down.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.ffn_down.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.layer_output_norm.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.0.layer_output_norm.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_q.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_q.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_k.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_k.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_v.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_v.bias
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_output.weight
+13:35:01.836  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_output.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_output_norm.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.attn_output_norm.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.ffn_up.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.ffn_up.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.ffn_down.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.ffn_down.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.layer_output_norm.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.1.layer_output_norm.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_q.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_q.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_k.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_k.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_v.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_v.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_output.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_output.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_output_norm.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.attn_output_norm.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.ffn_up.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.ffn_up.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.ffn_down.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.ffn_down.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.layer_output_norm.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.2.layer_output_norm.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_q.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_q.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_k.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_k.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_v.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_v.bias
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_output.weight
+13:35:01.837  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_output.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_output_norm.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.attn_output_norm.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.ffn_up.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.ffn_up.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.ffn_down.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.ffn_down.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.layer_output_norm.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.3.layer_output_norm.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_q.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_q.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_k.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_k.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_v.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_v.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_output.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_output.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_output_norm.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.attn_output_norm.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.ffn_up.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.ffn_up.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.ffn_down.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.ffn_down.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.layer_output_norm.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.4.layer_output_norm.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_q.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_q.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_k.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_k.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_v.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_v.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_output.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_output.bias
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_output_norm.weight
+13:35:01.838  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.attn_output_norm.bias
+13:35:01.839  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.ffn_up.weight
+13:35:01.839  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.ffn_up.bias
+13:35:01.839  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.ffn_down.weight
+13:35:01.839  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.ffn_down.bias
+13:35:01.839  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.layer_output_norm.weight
+13:35:01.839  D  [Llm-RunLoop] create_tensor: loading tensor blk.5.layer_output_norm.bias
+13:35:01.839  D  [Llm-RunLoop] load_tensors: tensor 'token_embd.weight' (f16) (and 100 others) cannot be used with preferred buffer type CPU_REPACK, using CPU instead
+13:35:01.841  E  [Llm-RunLoop] load_tensors:   CPU_Mapped model buffer size =    43.10 MiB
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.841  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop] .
+13:35:01.842  D  [Llm-RunLoop]
+13:35:01.842  I  Using 6 threads
+13:35:01.842  E  [Llm-RunLoop] llama_context: constructing llama_context
+13:35:01.842  E  [Llm-RunLoop] llama_context: n_seq_max     = 1
+13:35:01.842  E  [Llm-RunLoop] llama_context: n_ctx         = 4096
+13:35:01.842  E  [Llm-RunLoop] llama_context: n_ctx_per_seq = 4096
+13:35:01.842  E  [Llm-RunLoop] llama_context: n_batch       = 2048
+13:35:01.842  E  [Llm-RunLoop] llama_context: n_ubatch      = 512
+13:35:01.842  E  [Llm-RunLoop] llama_context: causal_attn   = 0
+13:35:01.842  E  [Llm-RunLoop] llama_context: flash_attn    = auto
+13:35:01.842  E  [Llm-RunLoop] llama_context: kv_unified    = false
+13:35:01.842  E  [Llm-RunLoop] llama_context: freq_base     = 10000.0
+13:35:01.842  E  [Llm-RunLoop] llama_context: freq_scale    = 1
+13:35:01.843  W  [Llm-RunLoop] llama_context: n_ctx_per_seq (4096) > n_ctx_train (512) -- possible training context overflow
+13:35:01.843  D  [Llm-RunLoop] set_abort_callback: call
+13:35:01.843  E  [Llm-RunLoop] llama_context:        CPU  output buffer size =     0.12 MiB
+13:35:01.843  D  [Llm-RunLoop] llama_context: enumerating backends
+13:35:01.843  D  [Llm-RunLoop] llama_context: backend_ptrs.size() = 1
+13:35:01.843  D  [Llm-RunLoop] llama_context: max_nodes = 1024
+13:35:01.843  D  [Llm-RunLoop] llama_context: worst-case: n_tokens = 512, n_seqs = 1, n_outputs = 1
+13:35:01.843  D  [Llm-RunLoop] graph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1
+13:35:01.844  E  [Llm-RunLoop] llama_context: Flash Attention was auto, set to enabled
+13:35:01.844  D  [Llm-RunLoop] graph_reserve: reserving a graph for ubatch with n_tokens =  512, n_seqs =  1, n_outputs =  512
+13:35:01.844  D  [Llm-RunLoop] graph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1
+13:35:01.844  D  [Llm-RunLoop] graph_reserve: reserving a graph for ubatch with n_tokens =  512, n_seqs =  1, n_outputs =  512
+13:35:01.844  E  [Llm-RunLoop] llama_context:        CPU compute buffer size =     6.38 MiB
+13:35:01.844  E  [Llm-RunLoop] llama_context: graph nodes  = 203 (with bs=512), 221 (with bs=1)
+13:35:01.844  E  [Llm-RunLoop] llama_context: graph splits = 1
+13:35:01.844  I  [Llm-RunLoop] Loaded model /data/user/0/com.itsaky.androidide/cache/local_model.gguf
+13:35:01.845  I  [DefaultDispatcher-worker-2] Successfully loaded local model: all-MiniLM-L6-v2-ggml-model-f16.gguf
+13:35:01.846  I  [main] Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.
+13:35:01.851  D  [DefaultDispatcher-worker-2] --- AGENT REQUEST ---
+                 Prompt: hi
+                 History Messages: 7
+13:35:01.851  I  [DefaultDispatcher-worker-2] Session start: wall=1781890501851ms cpu=28930ms model=all-MiniLM-L6-v2-ggml-model-f16.gguf
+13:35:01.852  D  [DefaultDispatcher-worker-2] --- [Step 1] ---
+13:35:01.886  I  handleMessage TAP
+13:35:01.897  I  [DefaultDispatcher-worker-2] Step start: turn=1 wall=1781890501852 cpu=28930 mem=pssKb=627188 privateDirtyKb=371299
+13:35:01.898  D  [DefaultDispatcher-worker-2] Final Prompt Sent:
+                 hi
+13:35:01.900  I  n_len = 1000, n_ctx = 4096, n_kv_req = 1003
+13:35:01.900  I  token: `[CLS]`-> 101
+13:35:01.900  I  token: ` hi`-> 7632
+13:35:01.900  I  token: `[SEP]`-> 102
+13:35:01.900  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.901  W  [Llm-RunLoop] init: embeddings required but some input tokens were not marked as outputs -> overriding
+13:35:01.911  I  [Llm-RunLoop] cached: [unused5], new_token_chars: `[unused5]`, id: 6
+13:35:01.911  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.918  I  [Llm-RunLoop] cached: [unused2], new_token_chars: `[unused2]`, id: 3
+13:35:01.918  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.921  I  [Llm-RunLoop] cached: [unused9], new_token_chars: `[unused9]`, id: 10
+13:35:01.921  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.933  I  [Llm-RunLoop] cached: [unused16], new_token_chars: `[unused16]`, id: 17
+13:35:01.933  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.935  I  [Llm-RunLoop] cached: [unused23], new_token_chars: `[unused23]`, id: 24
+13:35:01.935  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.940  I  [Llm-RunLoop] cached: [unused30], new_token_chars: `[unused30]`, id: 31
+13:35:01.941  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.943  I  [Llm-RunLoop] cached: [unused37], new_token_chars: `[unused37]`, id: 38
+13:35:01.943  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.945  I  [Llm-RunLoop] cached: [unused44], new_token_chars: `[unused44]`, id: 45
+13:35:01.945  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.950  I  [Llm-RunLoop] cached: [unused51], new_token_chars: `[unused51]`, id: 52
+13:35:01.950  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.954  I  [Llm-RunLoop] cached: [unused58], new_token_chars: `[unused58]`, id: 59
+13:35:01.956  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.969  I  [Llm-RunLoop] cached: [unused65], new_token_chars: `[unused65]`, id: 66
+13:35:01.969  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:01.994  I  [Llm-RunLoop] cached: [unused72], new_token_chars: `[unused72]`, id: 73
+13:35:01.995  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.001  I  [Llm-RunLoop] cached: [unused79], new_token_chars: `[unused79]`, id: 80
+13:35:02.001  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.012  I  [Llm-RunLoop] cached: [unused86], new_token_chars: `[unused86]`, id: 87
+13:35:02.012  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.028  I  [Llm-RunLoop] cached: [unused93], new_token_chars: `[unused93]`, id: 94
+13:35:02.029  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.034  I  [Llm-RunLoop] cached: [CLS], new_token_chars: `[CLS]`, id: 101
+13:35:02.035  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.041  I  [Llm-RunLoop] cached: [unused103], new_token_chars: `[unused103]`, id: 108
+13:35:02.041  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.044  I  [Llm-RunLoop] cached: [unused110], new_token_chars: `[unused110]`, id: 115
+13:35:02.044  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.050  I  [Llm-RunLoop] cached: [unused117], new_token_chars: `[unused117]`, id: 122
+13:35:02.050  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.052  I  Background young concurrent mark compact GC freed 37MB AllocSpace bytes, 5(100KB) LOS objects, 18% free, 168MB/207MB, paused 377us,2.874ms total 101.054ms
+13:35:02.055  I  [Llm-RunLoop] cached: [unused124], new_token_chars: `[unused124]`, id: 129
+13:35:02.056  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.061  I  [Llm-RunLoop] cached: [unused131], new_token_chars: `[unused131]`, id: 136
+13:35:02.062  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.066  I  [Llm-RunLoop] cached: [unused138], new_token_chars: `[unused138]`, id: 143
+13:35:02.066  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.070  I  [Llm-RunLoop] cached: [unused145], new_token_chars: `[unused145]`, id: 150
+13:35:02.071  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.075  I  [Llm-RunLoop] cached: [unused152], new_token_chars: `[unused152]`, id: 157
+13:35:02.075  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.077  I  [Llm-RunLoop] cached: [unused159], new_token_chars: `[unused159]`, id: 164
+13:35:02.077  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.080  I  [Llm-RunLoop] cached: [unused166], new_token_chars: `[unused166]`, id: 171
+13:35:02.081  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.083  I  [Llm-RunLoop] cached: [unused173], new_token_chars: `[unused173]`, id: 178
+13:35:02.083  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.086  I  [Llm-RunLoop] cached: [unused180], new_token_chars: `[unused180]`, id: 185
+13:35:02.086  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.091  I  [Llm-RunLoop] cached: [unused187], new_token_chars: `[unused187]`, id: 192
+13:35:02.091  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.094  I  [Llm-RunLoop] cached: [unused194], new_token_chars: `[unused194]`, id: 199
+13:35:02.095  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.098  I  [Llm-RunLoop] cached: [unused201], new_token_chars: `[unused201]`, id: 206
+13:35:02.099  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.103  I  [Llm-RunLoop] cached: [unused208], new_token_chars: `[unused208]`, id: 213
+13:35:02.103  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.105  I  [Llm-RunLoop] cached: [unused215], new_token_chars: `[unused215]`, id: 220
+13:35:02.105  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.110  I  [Llm-RunLoop] cached: [unused222], new_token_chars: `[unused222]`, id: 227
+13:35:02.110  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.112  I  [Llm-RunLoop] cached: [unused229], new_token_chars: `[unused229]`, id: 234
+13:35:02.112  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.114  I  [Llm-RunLoop] cached: [unused236], new_token_chars: `[unused236]`, id: 241
+13:35:02.114  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.116  I  [Llm-RunLoop] cached: [unused243], new_token_chars: `[unused243]`, id: 248
+13:35:02.117  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.119  I  [Llm-RunLoop] cached: [unused250], new_token_chars: `[unused250]`, id: 255
+13:35:02.119  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.121  I  [Llm-RunLoop] cached: [unused257], new_token_chars: `[unused257]`, id: 262
+13:35:02.121  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.123  I  [Llm-RunLoop] cached: [unused264], new_token_chars: `[unused264]`, id: 269
+13:35:02.123  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.126  I  [Llm-RunLoop] cached: [unused271], new_token_chars: `[unused271]`, id: 276
+13:35:02.126  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.128  I  handleResized, frames=ClientWindowFrames{frame=[643,289][2157,1427] display=[643,289][2157,1427] parentFrame=[0,0][0,0]} displayId=0 dragResizing=false compatScale=1.0 frameChanged=false attachedFrameChanged=false configChanged=false displayChanged=false compatScaleChanged=false dragResizingChanged=false
+13:35:02.134  I  [Llm-RunLoop] cached: [unused278], new_token_chars: `[unused278]`, id: 283
+13:35:02.134  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.137  I  [Llm-RunLoop] cached: [unused285], new_token_chars: `[unused285]`, id: 290
+13:35:02.137  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.142  I  [Llm-RunLoop] cached: [unused292], new_token_chars: `[unused292]`, id: 297
+13:35:02.142  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.145  I  [Llm-RunLoop] cached: [unused299], new_token_chars: `[unused299]`, id: 304
+13:35:02.145  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.149  I  [Llm-RunLoop] cached: [unused306], new_token_chars: `[unused306]`, id: 311
+13:35:02.149  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.152  I  [Llm-RunLoop] cached: [unused313], new_token_chars: `[unused313]`, id: 318
+13:35:02.152  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.154  I  [Llm-RunLoop] cached: [unused320], new_token_chars: `[unused320]`, id: 325
+13:35:02.154  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.156  I  [Llm-RunLoop] cached: [unused327], new_token_chars: `[unused327]`, id: 332
+13:35:02.156  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.157  I  [Llm-RunLoop] cached: [unused334], new_token_chars: `[unused334]`, id: 339
+13:35:02.157  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.159  I  [Llm-RunLoop] cached: [unused341], new_token_chars: `[unused341]`, id: 346
+13:35:02.159  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.161  I  [Llm-RunLoop] cached: [unused348], new_token_chars: `[unused348]`, id: 353
+13:35:02.161  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.163  I  [Llm-RunLoop] cached: [unused355], new_token_chars: `[unused355]`, id: 360
+13:35:02.164  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.166  I  [Llm-RunLoop] cached: [unused362], new_token_chars: `[unused362]`, id: 367
+13:35:02.166  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.169  I  [Llm-RunLoop] cached: [unused369], new_token_chars: `[unused369]`, id: 374
+13:35:02.169  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.171  I  [Llm-RunLoop] cached: [unused376], new_token_chars: `[unused376]`, id: 381
+13:35:02.172  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.174  I  [Llm-RunLoop] cached: [unused383], new_token_chars: `[unused383]`, id: 388
+13:35:02.174  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.176  I  [Llm-RunLoop] cached: [unused390], new_token_chars: `[unused390]`, id: 395
+13:35:02.176  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.178  I  [Llm-RunLoop] cached: [unused397], new_token_chars: `[unused397]`, id: 402
+13:35:02.178  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.180  I  [Llm-RunLoop] cached: [unused404], new_token_chars: `[unused404]`, id: 409
+13:35:02.180  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.182  I  [Llm-RunLoop] cached: [unused411], new_token_chars: `[unused411]`, id: 416
+13:35:02.182  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.183  I  [Llm-RunLoop] cached: [unused418], new_token_chars: `[unused418]`, id: 423
+13:35:02.183  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.185  I  [Llm-RunLoop] cached: [unused425], new_token_chars: `[unused425]`, id: 430
+13:35:02.185  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.187  I  [Llm-RunLoop] cached: [unused432], new_token_chars: `[unused432]`, id: 437
+13:35:02.187  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.189  I  [Llm-RunLoop] cached: [unused439], new_token_chars: `[unused439]`, id: 444
+13:35:02.190  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.192  I  [Llm-RunLoop] cached: [unused446], new_token_chars: `[unused446]`, id: 451
+13:35:02.192  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.194  I  [Llm-RunLoop] cached: [unused2], new_token_chars: `[unused2]`, id: 3
+13:35:02.194  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.197  I  [Llm-RunLoop] cached: [unused9], new_token_chars: `[unused9]`, id: 10
+13:35:02.197  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.199  I  [Llm-RunLoop] cached: [unused16], new_token_chars: `[unused16]`, id: 17
+13:35:02.199  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.202  I  [Llm-RunLoop] cached: [unused23], new_token_chars: `[unused23]`, id: 24
+13:35:02.202  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.205  I  [Llm-RunLoop] cached: [unused30], new_token_chars: `[unused30]`, id: 31
+13:35:02.206  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.208  I  [Llm-RunLoop] cached: [unused37], new_token_chars: `[unused37]`, id: 38
+13:35:02.208  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.210  I  [Llm-RunLoop] cached: [unused44], new_token_chars: `[unused44]`, id: 45
+13:35:02.210  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.212  I  [Llm-RunLoop] cached: [unused51], new_token_chars: `[unused51]`, id: 52
+13:35:02.212  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.214  I  [Llm-RunLoop] cached: [unused58], new_token_chars: `[unused58]`, id: 59
+13:35:02.214  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.216  I  [Llm-RunLoop] cached: [unused65], new_token_chars: `[unused65]`, id: 66
+13:35:02.216  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.218  I  [Llm-RunLoop] cached: [unused72], new_token_chars: `[unused72]`, id: 73
+13:35:02.218  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.220  I  [Llm-RunLoop] cached: [unused79], new_token_chars: `[unused79]`, id: 80
+13:35:02.220  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.224  I  [Llm-RunLoop] cached: [unused86], new_token_chars: `[unused86]`, id: 87
+13:35:02.224  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.226  I  [Llm-RunLoop] cached: [unused93], new_token_chars: `[unused93]`, id: 94
+13:35:02.226  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.228  I  [Llm-RunLoop] cached: [CLS], new_token_chars: `[CLS]`, id: 101
+13:35:02.228  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.230  I  [Llm-RunLoop] cached: [unused103], new_token_chars: `[unused103]`, id: 108
+13:35:02.230  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.233  I  [Llm-RunLoop] cached: [unused110], new_token_chars: `[unused110]`, id: 115
+13:35:02.234  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.237  I  [Llm-RunLoop] cached: [unused117], new_token_chars: `[unused117]`, id: 122
+13:35:02.237  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.240  I  [Llm-RunLoop] cached: [unused124], new_token_chars: `[unused124]`, id: 129
+13:35:02.240  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.241  I  [Llm-RunLoop] cached: [unused131], new_token_chars: `[unused131]`, id: 136
+13:35:02.241  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.243  I  [Llm-RunLoop] cached: [unused138], new_token_chars: `[unused138]`, id: 143
+13:35:02.243  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.246  I  [Llm-RunLoop] cached: [unused145], new_token_chars: `[unused145]`, id: 150
+13:35:02.246  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.248  I  [Llm-RunLoop] cached: [unused152], new_token_chars: `[unused152]`, id: 157
+13:35:02.248  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.250  I  [Llm-RunLoop] cached: [unused159], new_token_chars: `[unused159]`, id: 164
+13:35:02.250  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.252  I  [Llm-RunLoop] cached: [unused166], new_token_chars: `[unused166]`, id: 171
+13:35:02.252  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.254  I  [Llm-RunLoop] cached: [unused173], new_token_chars: `[unused173]`, id: 178
+13:35:02.254  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.256  I  [Llm-RunLoop] cached: [unused180], new_token_chars: `[unused180]`, id: 185
+13:35:02.256  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.258  I  [Llm-RunLoop] cached: [unused187], new_token_chars: `[unused187]`, id: 192
+13:35:02.258  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.260  I  [Llm-RunLoop] cached: [unused194], new_token_chars: `[unused194]`, id: 199
+13:35:02.260  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.263  I  [Llm-RunLoop] cached: [unused201], new_token_chars: `[unused201]`, id: 206
+13:35:02.263  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.265  I  [Llm-RunLoop] cached: [unused208], new_token_chars: `[unused208]`, id: 213
+13:35:02.265  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.266  I  [Llm-RunLoop] cached: [unused215], new_token_chars: `[unused215]`, id: 220
+13:35:02.266  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.270  I  [Llm-RunLoop] cached: [unused222], new_token_chars: `[unused222]`, id: 227
+13:35:02.270  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.272  I  [Llm-RunLoop] cached: [unused229], new_token_chars: `[unused229]`, id: 234
+13:35:02.273  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.275  I  [Llm-RunLoop] cached: [unused236], new_token_chars: `[unused236]`, id: 241
+13:35:02.275  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.277  I  [Llm-RunLoop] cached: [unused243], new_token_chars: `[unused243]`, id: 248
+13:35:02.277  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.279  I  [Llm-RunLoop] cached: [unused250], new_token_chars: `[unused250]`, id: 255
+13:35:02.279  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.281  I  [Llm-RunLoop] cached: [unused257], new_token_chars: `[unused257]`, id: 262
+13:35:02.281  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.282  I  [Llm-RunLoop] cached: [unused264], new_token_chars: `[unused264]`, id: 269
+13:35:02.282  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.284  I  [Llm-RunLoop] cached: [unused271], new_token_chars: `[unused271]`, id: 276
+13:35:02.284  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.286  I  [Llm-RunLoop] cached: [unused278], new_token_chars: `[unused278]`, id: 283
+13:35:02.287  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.289  I  [Llm-RunLoop] cached: [unused285], new_token_chars: `[unused285]`, id: 290
+13:35:02.289  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.291  I  [Llm-RunLoop] cached: [unused292], new_token_chars: `[unused292]`, id: 297
+13:35:02.291  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.293  I  [Llm-RunLoop] cached: [unused299], new_token_chars: `[unused299]`, id: 304
+13:35:02.293  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.294  I  [Llm-RunLoop] cached: [unused306], new_token_chars: `[unused306]`, id: 311
+13:35:02.294  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.296  I  [Llm-RunLoop] cached: [unused313], new_token_chars: `[unused313]`, id: 318
+13:35:02.296  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.298  I  [Llm-RunLoop] cached: [unused320], new_token_chars: `[unused320]`, id: 325
+13:35:02.298  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.300  I  [Llm-RunLoop] cached: [unused327], new_token_chars: `[unused327]`, id: 332
+13:35:02.300  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.301  I  [Llm-RunLoop] cached: [unused334], new_token_chars: `[unused334]`, id: 339
+13:35:02.301  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.303  I  [Llm-RunLoop] cached: [unused341], new_token_chars: `[unused341]`, id: 346
+13:35:02.303  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.305  I  [Llm-RunLoop] cached: [unused348], new_token_chars: `[unused348]`, id: 353
+13:35:02.305  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.308  I  [Llm-RunLoop] cached: [unused355], new_token_chars: `[unused355]`, id: 360
+13:35:02.308  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.310  I  [Llm-RunLoop] cached: [unused362], new_token_chars: `[unused362]`, id: 367
+13:35:02.310  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.313  I  [Llm-RunLoop] cached: [unused369], new_token_chars: `[unused369]`, id: 374
+13:35:02.313  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.316  I  [Llm-RunLoop] cached: [unused376], new_token_chars: `[unused376]`, id: 381
+13:35:02.316  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.318  I  [Llm-RunLoop] cached: [unused383], new_token_chars: `[unused383]`, id: 388
+13:35:02.318  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.320  I  [Llm-RunLoop] cached: [unused390], new_token_chars: `[unused390]`, id: 395
+13:35:02.320  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.324  I  [Llm-RunLoop] cached: [unused397], new_token_chars: `[unused397]`, id: 402
+13:35:02.324  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.326  I  [Llm-RunLoop] cached: [unused404], new_token_chars: `[unused404]`, id: 409
+13:35:02.326  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.328  I  [Llm-RunLoop] cached: [unused411], new_token_chars: `[unused411]`, id: 416
+13:35:02.328  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.330  I  [Llm-RunLoop] cached: [unused418], new_token_chars: `[unused418]`, id: 423
+13:35:02.330  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.332  I  [Llm-RunLoop] cached: [unused425], new_token_chars: `[unused425]`, id: 430
+13:35:02.332  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.333  I  [Llm-RunLoop] cached: [unused432], new_token_chars: `[unused432]`, id: 437
+13:35:02.333  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.335  I  [Llm-RunLoop] cached: [unused439], new_token_chars: `[unused439]`, id: 444
+13:35:02.335  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.337  I  [Llm-RunLoop] cached: [unused446], new_token_chars: `[unused446]`, id: 451
+13:35:02.337  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.339  I  [Llm-RunLoop] cached: [unused2], new_token_chars: `[unused2]`, id: 3
+13:35:02.339  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.341  I  [Llm-RunLoop] cached: [unused9], new_token_chars: `[unused9]`, id: 10
+13:35:02.341  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.342  I  [Llm-RunLoop] cached: [unused16], new_token_chars: `[unused16]`, id: 17
+13:35:02.342  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.344  I  [Llm-RunLoop] cached: [unused23], new_token_chars: `[unused23]`, id: 24
+13:35:02.344  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.346  I  [Llm-RunLoop] cached: [unused30], new_token_chars: `[unused30]`, id: 31
+13:35:02.346  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.348  I  [Llm-RunLoop] cached: [unused37], new_token_chars: `[unused37]`, id: 38
+13:35:02.348  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.350  I  [Llm-RunLoop] cached: [unused44], new_token_chars: `[unused44]`, id: 45
+13:35:02.350  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.352  I  [Llm-RunLoop] cached: [unused51], new_token_chars: `[unused51]`, id: 52
+13:35:02.352  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.355  I  [Llm-RunLoop] cached: [unused58], new_token_chars: `[unused58]`, id: 59
+13:35:02.356  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.358  I  [Llm-RunLoop] cached: [unused65], new_token_chars: `[unused65]`, id: 66
+13:35:02.359  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.361  I  [Llm-RunLoop] cached: [unused72], new_token_chars: `[unused72]`, id: 73
+13:35:02.361  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.363  I  [Llm-RunLoop] cached: [unused79], new_token_chars: `[unused79]`, id: 80
+13:35:02.363  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.365  I  [Llm-RunLoop] cached: [unused86], new_token_chars: `[unused86]`, id: 87
+13:35:02.365  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.367  I  [Llm-RunLoop] cached: [unused93], new_token_chars: `[unused93]`, id: 94
+13:35:02.367  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.368  I  [Llm-RunLoop] cached: [CLS], new_token_chars: `[CLS]`, id: 101
+13:35:02.368  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.370  I  [Llm-RunLoop] cached: [unused103], new_token_chars: `[unused103]`, id: 108
+13:35:02.370  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.372  I  [Llm-RunLoop] cached: [unused110], new_token_chars: `[unused110]`, id: 115
+13:35:02.372  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.374  I  [Llm-RunLoop] cached: [unused117], new_token_chars: `[unused117]`, id: 122
+13:35:02.374  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.376  I  [Llm-RunLoop] cached: [unused124], new_token_chars: `[unused124]`, id: 129
+13:35:02.377  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.379  I  [Llm-RunLoop] cached: [unused131], new_token_chars: `[unused131]`, id: 136
+13:35:02.379  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.381  I  [Llm-RunLoop] cached: [unused138], new_token_chars: `[unused138]`, id: 143
+13:35:02.381  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.382  I  [Llm-RunLoop] cached: [unused145], new_token_chars: `[unused145]`, id: 150
+13:35:02.383  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.384  I  [Llm-RunLoop] cached: [unused152], new_token_chars: `[unused152]`, id: 157
+13:35:02.384  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.386  I  [Llm-RunLoop] cached: [unused159], new_token_chars: `[unused159]`, id: 164
+13:35:02.386  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.388  I  [Llm-RunLoop] cached: [unused166], new_token_chars: `[unused166]`, id: 171
+13:35:02.389  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.391  I  [Llm-RunLoop] cached: [unused173], new_token_chars: `[unused173]`, id: 178
+13:35:02.391  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.392  I  [Llm-RunLoop] cached: [unused180], new_token_chars: `[unused180]`, id: 185
+13:35:02.393  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.394  I  [Llm-RunLoop] cached: [unused187], new_token_chars: `[unused187]`, id: 192
+13:35:02.394  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.396  I  [Llm-RunLoop] cached: [unused194], new_token_chars: `[unused194]`, id: 199
+13:35:02.396  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.398  I  [Llm-RunLoop] cached: [unused201], new_token_chars: `[unused201]`, id: 206
+13:35:02.399  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.401  I  [Llm-RunLoop] cached: [unused208], new_token_chars: `[unused208]`, id: 213
+13:35:02.401  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.404  I  [Llm-RunLoop] cached: [unused215], new_token_chars: `[unused215]`, id: 220
+13:35:02.405  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.407  I  [Llm-RunLoop] cached: [unused222], new_token_chars: `[unused222]`, id: 227
+13:35:02.407  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.412  I  [Llm-RunLoop] cached: [unused229], new_token_chars: `[unused229]`, id: 234
+13:35:02.413  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.416  I  [Llm-RunLoop] cached: [unused236], new_token_chars: `[unused236]`, id: 241
+13:35:02.416  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.418  I  [Llm-RunLoop] cached: [unused243], new_token_chars: `[unused243]`, id: 248
+13:35:02.419  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.421  I  [Llm-RunLoop] cached: [unused250], new_token_chars: `[unused250]`, id: 255
+13:35:02.421  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.423  I  [Llm-RunLoop] cached: [unused257], new_token_chars: `[unused257]`, id: 262
+13:35:02.423  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.424  I  [Llm-RunLoop] cached: [unused264], new_token_chars: `[unused264]`, id: 269
+13:35:02.424  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.426  I  [Llm-RunLoop] cached: [unused271], new_token_chars: `[unused271]`, id: 276
+13:35:02.426  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.428  I  [Llm-RunLoop] cached: [unused278], new_token_chars: `[unused278]`, id: 283
+13:35:02.428  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.430  I  [Llm-RunLoop] cached: [unused285], new_token_chars: `[unused285]`, id: 290
+13:35:02.430  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.432  I  [Llm-RunLoop] cached: [unused292], new_token_chars: `[unused292]`, id: 297
+13:35:02.432  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.434  I  [Llm-RunLoop] cached: [unused299], new_token_chars: `[unused299]`, id: 304
+13:35:02.434  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.437  I  [Llm-RunLoop] cached: [unused306], new_token_chars: `[unused306]`, id: 311
+13:35:02.437  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.438  I  [Llm-RunLoop] cached: [unused313], new_token_chars: `[unused313]`, id: 318
+13:35:02.438  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.440  I  [Llm-RunLoop] cached: [unused320], new_token_chars: `[unused320]`, id: 325
+13:35:02.441  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.443  I  [Llm-RunLoop] cached: [unused327], new_token_chars: `[unused327]`, id: 332
+13:35:02.443  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.444  I  [Llm-RunLoop] cached: [unused334], new_token_chars: `[unused334]`, id: 339
+13:35:02.445  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.446  I  [Llm-RunLoop] cached: [unused341], new_token_chars: `[unused341]`, id: 346
+13:35:02.446  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.448  I  [Llm-RunLoop] cached: [unused348], new_token_chars: `[unused348]`, id: 353
+13:35:02.448  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.450  I  [Llm-RunLoop] cached: [unused355], new_token_chars: `[unused355]`, id: 360
+13:35:02.450  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.452  I  [Llm-RunLoop] cached: [unused362], new_token_chars: `[unused362]`, id: 367
+13:35:02.452  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.454  I  [Llm-RunLoop] cached: [unused369], new_token_chars: `[unused369]`, id: 374
+13:35:02.454  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.455  I  [Llm-RunLoop] cached: [unused376], new_token_chars: `[unused376]`, id: 381
+13:35:02.455  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.457  I  [Llm-RunLoop] cached: [unused383], new_token_chars: `[unused383]`, id: 388
+13:35:02.457  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.459  I  [Llm-RunLoop] cached: [unused390], new_token_chars: `[unused390]`, id: 395
+13:35:02.459  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.462  I  [Llm-RunLoop] cached: [unused397], new_token_chars: `[unused397]`, id: 402
+13:35:02.463  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.466  I  [Llm-RunLoop] cached: [unused404], new_token_chars: `[unused404]`, id: 409
+13:35:02.467  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.469  I  [Llm-RunLoop] cached: [unused411], new_token_chars: `[unused411]`, id: 416
+13:35:02.470  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.473  I  [Llm-RunLoop] cached: [unused418], new_token_chars: `[unused418]`, id: 423
+13:35:02.473  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.475  I  [Llm-RunLoop] cached: [unused425], new_token_chars: `[unused425]`, id: 430
+13:35:02.475  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.477  I  [Llm-RunLoop] cached: [unused432], new_token_chars: `[unused432]`, id: 437
+13:35:02.477  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.481  I  [Llm-RunLoop] cached: [unused439], new_token_chars: `[unused439]`, id: 444
+13:35:02.481  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.483  I  [Llm-RunLoop] cached: [unused446], new_token_chars: `[unused446]`, id: 451
+13:35:02.484  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.487  I  [Llm-RunLoop] cached: [unused2], new_token_chars: `[unused2]`, id: 3
+13:35:02.488  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.490  I  [Llm-RunLoop] cached: [unused9], new_token_chars: `[unused9]`, id: 10
+13:35:02.491  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.494  I  [Llm-RunLoop] cached: [unused16], new_token_chars: `[unused16]`, id: 17
+13:35:02.495  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.498  I  [Llm-RunLoop] cached: [unused23], new_token_chars: `[unused23]`, id: 24
+13:35:02.498  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.502  I  [Llm-RunLoop] cached: [unused30], new_token_chars: `[unused30]`, id: 31
+13:35:02.502  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.508  I  [Llm-RunLoop] cached: [unused37], new_token_chars: `[unused37]`, id: 38
+13:35:02.509  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.512  I  [Llm-RunLoop] cached: [unused44], new_token_chars: `[unused44]`, id: 45
+13:35:02.512  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.518  I  [Llm-RunLoop] cached: [unused51], new_token_chars: `[unused51]`, id: 52
+13:35:02.518  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.521  I  [Llm-RunLoop] cached: [unused58], new_token_chars: `[unused58]`, id: 59
+13:35:02.522  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.526  I  [Llm-RunLoop] cached: [unused65], new_token_chars: `[unused65]`, id: 66
+13:35:02.526  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.533  I  [Llm-RunLoop] cached: [unused72], new_token_chars: `[unused72]`, id: 73
+13:35:02.533  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.537  I  [Llm-RunLoop] cached: [unused79], new_token_chars: `[unused79]`, id: 80
+13:35:02.537  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.541  I  [Llm-RunLoop] cached: [unused86], new_token_chars: `[unused86]`, id: 87
+13:35:02.541  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.544  I  [Llm-RunLoop] cached: [unused93], new_token_chars: `[unused93]`, id: 94
+13:35:02.544  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.546  I  [Llm-RunLoop] cached: [CLS], new_token_chars: `[CLS]`, id: 101
+13:35:02.547  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.549  I  [Llm-RunLoop] cached: [unused103], new_token_chars: `[unused103]`, id: 108
+13:35:02.549  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.551  I  [Llm-RunLoop] cached: [unused110], new_token_chars: `[unused110]`, id: 115
+13:35:02.551  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.554  I  [Llm-RunLoop] cached: [unused117], new_token_chars: `[unused117]`, id: 122
+13:35:02.554  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.556  I  [Llm-RunLoop] cached: [unused124], new_token_chars: `[unused124]`, id: 129
+13:35:02.556  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.558  I  [Llm-RunLoop] cached: [unused131], new_token_chars: `[unused131]`, id: 136
+13:35:02.558  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.560  I  [Llm-RunLoop] cached: [unused138], new_token_chars: `[unused138]`, id: 143
+13:35:02.560  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.563  I  [Llm-RunLoop] cached: [unused145], new_token_chars: `[unused145]`, id: 150
+13:35:02.563  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.565  I  [Llm-RunLoop] cached: [unused152], new_token_chars: `[unused152]`, id: 157
+13:35:02.565  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.568  I  [Llm-RunLoop] cached: [unused159], new_token_chars: `[unused159]`, id: 164
+13:35:02.568  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.571  I  [Llm-RunLoop] cached: [unused166], new_token_chars: `[unused166]`, id: 171
+13:35:02.571  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.573  I  [Llm-RunLoop] cached: [unused173], new_token_chars: `[unused173]`, id: 178
+13:35:02.573  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.576  I  [Llm-RunLoop] cached: [unused180], new_token_chars: `[unused180]`, id: 185
+13:35:02.576  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.579  I  [Llm-RunLoop] cached: [unused187], new_token_chars: `[unused187]`, id: 192
+13:35:02.580  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.583  I  [Llm-RunLoop] cached: [unused194], new_token_chars: `[unused194]`, id: 199
+13:35:02.583  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.585  I  [Llm-RunLoop] cached: [unused201], new_token_chars: `[unused201]`, id: 206
+13:35:02.585  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.587  I  [Llm-RunLoop] cached: [unused208], new_token_chars: `[unused208]`, id: 213
+13:35:02.587  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.589  I  [Llm-RunLoop] cached: [unused215], new_token_chars: `[unused215]`, id: 220
+13:35:02.589  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.590  I  [Llm-RunLoop] cached: [unused222], new_token_chars: `[unused222]`, id: 227
+13:35:02.590  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.593  I  [Llm-RunLoop] cached: [unused229], new_token_chars: `[unused229]`, id: 234
+13:35:02.593  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.595  I  [Llm-RunLoop] cached: [unused236], new_token_chars: `[unused236]`, id: 241
+13:35:02.595  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.597  I  [Llm-RunLoop] cached: [unused243], new_token_chars: `[unused243]`, id: 248
+13:35:02.597  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.598  I  [Llm-RunLoop] cached: [unused250], new_token_chars: `[unused250]`, id: 255
+13:35:02.598  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.600  I  [Llm-RunLoop] cached: [unused257], new_token_chars: `[unused257]`, id: 262
+13:35:02.600  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.601  I  [Llm-RunLoop] cached: [unused264], new_token_chars: `[unused264]`, id: 269
+13:35:02.601  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.605  I  [Llm-RunLoop] cached: [unused271], new_token_chars: `[unused271]`, id: 276
+13:35:02.605  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.607  I  [Llm-RunLoop] cached: [unused278], new_token_chars: `[unused278]`, id: 283
+13:35:02.608  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.613  I  [Llm-RunLoop] cached: [unused285], new_token_chars: `[unused285]`, id: 290
+13:35:02.613  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.616  I  [Llm-RunLoop] cached: [unused292], new_token_chars: `[unused292]`, id: 297
+13:35:02.616  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.618  I  [Llm-RunLoop] cached: [unused299], new_token_chars: `[unused299]`, id: 304
+13:35:02.618  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.621  I  [Llm-RunLoop] cached: [unused306], new_token_chars: `[unused306]`, id: 311
+13:35:02.621  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.622  I  [Llm-RunLoop] cached: [unused313], new_token_chars: `[unused313]`, id: 318
+13:35:02.623  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.625  I  [Llm-RunLoop] cached: [unused320], new_token_chars: `[unused320]`, id: 325
+13:35:02.625  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.627  I  [Llm-RunLoop] cached: [unused327], new_token_chars: `[unused327]`, id: 332
+13:35:02.627  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.629  I  [Llm-RunLoop] cached: [unused334], new_token_chars: `[unused334]`, id: 339
+13:35:02.629  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.631  I  [Llm-RunLoop] cached: [unused341], new_token_chars: `[unused341]`, id: 346
+13:35:02.631  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.633  I  [Llm-RunLoop] cached: [unused348], new_token_chars: `[unused348]`, id: 353
+13:35:02.633  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.635  I  [Llm-RunLoop] cached: [unused355], new_token_chars: `[unused355]`, id: 360
+13:35:02.635  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.638  I  [Llm-RunLoop] cached: [unused362], new_token_chars: `[unused362]`, id: 367
+13:35:02.638  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.641  I  [Llm-RunLoop] cached: [unused369], new_token_chars: `[unused369]`, id: 374
+13:35:02.641  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.643  I  [Llm-RunLoop] cached: [unused376], new_token_chars: `[unused376]`, id: 381
+13:35:02.643  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.645  I  [Llm-RunLoop] cached: [unused383], new_token_chars: `[unused383]`, id: 388
+13:35:02.645  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.646  I  [Llm-RunLoop] cached: [unused390], new_token_chars: `[unused390]`, id: 395
+13:35:02.646  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.648  I  [Llm-RunLoop] cached: [unused397], new_token_chars: `[unused397]`, id: 402
+13:35:02.648  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.650  I  [Llm-RunLoop] cached: [unused404], new_token_chars: `[unused404]`, id: 409
+13:35:02.650  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.652  I  [Llm-RunLoop] cached: [unused411], new_token_chars: `[unused411]`, id: 416
+13:35:02.652  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.654  I  [Llm-RunLoop] cached: [unused418], new_token_chars: `[unused418]`, id: 423
+13:35:02.654  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.657  I  [Llm-RunLoop] cached: [unused425], new_token_chars: `[unused425]`, id: 430
+13:35:02.657  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.658  I  [Llm-RunLoop] cached: [unused432], new_token_chars: `[unused432]`, id: 437
+13:35:02.658  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.660  I  [Llm-RunLoop] cached: [unused439], new_token_chars: `[unused439]`, id: 444
+13:35:02.660  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.663  I  [Llm-RunLoop] cached: [unused446], new_token_chars: `[unused446]`, id: 451
+13:35:02.663  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.669  I  [Llm-RunLoop] cached: [unused2], new_token_chars: `[unused2]`, id: 3
+13:35:02.669  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.671  I  [Llm-RunLoop] cached: [unused9], new_token_chars: `[unused9]`, id: 10
+13:35:02.671  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.673  I  [Llm-RunLoop] cached: [unused16], new_token_chars: `[unused16]`, id: 17
+13:35:02.673  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.674  I  [Llm-RunLoop] cached: [unused23], new_token_chars: `[unused23]`, id: 24
+13:35:02.674  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.676  I  [Llm-RunLoop] cached: [unused30], new_token_chars: `[unused30]`, id: 31
+13:35:02.676  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.677  I  [Llm-RunLoop] cached: [unused37], new_token_chars: `[unused37]`, id: 38
+13:35:02.677  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.679  I  [Llm-RunLoop] cached: [unused44], new_token_chars: `[unused44]`, id: 45
+13:35:02.679  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.680  I  [Llm-RunLoop] cached: [unused51], new_token_chars: `[unused51]`, id: 52
+13:35:02.680  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.682  I  [Llm-RunLoop] cached: [unused58], new_token_chars: `[unused58]`, id: 59
+13:35:02.682  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.684  I  [Llm-RunLoop] cached: [unused65], new_token_chars: `[unused65]`, id: 66
+13:35:02.684  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.686  I  [Llm-RunLoop] cached: [unused72], new_token_chars: `[unused72]`, id: 73
+13:35:02.686  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.688  I  [Llm-RunLoop] cached: [unused79], new_token_chars: `[unused79]`, id: 80
+13:35:02.688  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.689  I  [Llm-RunLoop] cached: [unused86], new_token_chars: `[unused86]`, id: 87
+13:35:02.689  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.691  I  [Llm-RunLoop] cached: [unused93], new_token_chars: `[unused93]`, id: 94
+13:35:02.691  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.693  I  [Llm-RunLoop] cached: [CLS], new_token_chars: `[CLS]`, id: 101
+13:35:02.693  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.694  I  [Llm-RunLoop] cached: [unused103], new_token_chars: `[unused103]`, id: 108
+13:35:02.694  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.697  I  [Llm-RunLoop] cached: [unused110], new_token_chars: `[unused110]`, id: 115
+13:35:02.697  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.699  I  [Llm-RunLoop] cached: [unused117], new_token_chars: `[unused117]`, id: 122
+13:35:02.700  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.702  I  [Llm-RunLoop] cached: [unused124], new_token_chars: `[unused124]`, id: 129
+13:35:02.702  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.704  I  [Llm-RunLoop] cached: [unused131], new_token_chars: `[unused131]`, id: 136
+13:35:02.705  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.706  I  [Llm-RunLoop] cached: [unused138], new_token_chars: `[unused138]`, id: 143
+13:35:02.706  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.709  I  [Llm-RunLoop] cached: [unused145], new_token_chars: `[unused145]`, id: 150
+13:35:02.709  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.711  I  [Llm-RunLoop] cached: [unused152], new_token_chars: `[unused152]`, id: 157
+13:35:02.711  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.713  I  [Llm-RunLoop] cached: [unused159], new_token_chars: `[unused159]`, id: 164
+13:35:02.713  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.714  I  [Llm-RunLoop] cached: [unused166], new_token_chars: `[unused166]`, id: 171
+13:35:02.715  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.717  I  [Llm-RunLoop] cached: [unused173], new_token_chars: `[unused173]`, id: 178
+13:35:02.717  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.722  I  [Llm-RunLoop] cached: [unused180], new_token_chars: `[unused180]`, id: 185
+13:35:02.722  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.727  I  [Llm-RunLoop] cached: [unused187], new_token_chars: `[unused187]`, id: 192
+13:35:02.727  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.729  I  [Llm-RunLoop] cached: [unused194], new_token_chars: `[unused194]`, id: 199
+13:35:02.729  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.731  I  [Llm-RunLoop] cached: [unused201], new_token_chars: `[unused201]`, id: 206
+13:35:02.731  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.733  I  [Llm-RunLoop] cached: [unused208], new_token_chars: `[unused208]`, id: 213
+13:35:02.733  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.735  I  [Llm-RunLoop] cached: [unused215], new_token_chars: `[unused215]`, id: 220
+13:35:02.735  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.737  I  [Llm-RunLoop] cached: [unused222], new_token_chars: `[unused222]`, id: 227
+13:35:02.737  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.739  I  [Llm-RunLoop] cached: [unused229], new_token_chars: `[unused229]`, id: 234
+13:35:02.739  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.740  I  [Llm-RunLoop] cached: [unused236], new_token_chars: `[unused236]`, id: 241
+13:35:02.740  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.742  I  [Llm-RunLoop] cached: [unused243], new_token_chars: `[unused243]`, id: 248
+13:35:02.742  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.744  I  [Llm-RunLoop] cached: [unused250], new_token_chars: `[unused250]`, id: 255
+13:35:02.744  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.746  I  [Llm-RunLoop] cached: [unused257], new_token_chars: `[unused257]`, id: 262
+13:35:02.747  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.749  I  [Llm-RunLoop] cached: [unused264], new_token_chars: `[unused264]`, id: 269
+13:35:02.749  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.751  I  [Llm-RunLoop] cached: [unused271], new_token_chars: `[unused271]`, id: 276
+13:35:02.751  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.753  I  [Llm-RunLoop] cached: [unused278], new_token_chars: `[unused278]`, id: 283
+13:35:02.753  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.755  I  [Llm-RunLoop] cached: [unused285], new_token_chars: `[unused285]`, id: 290
+13:35:02.755  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.757  I  [Llm-RunLoop] cached: [unused292], new_token_chars: `[unused292]`, id: 297
+13:35:02.757  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.758  I  [Llm-RunLoop] cached: [unused299], new_token_chars: `[unused299]`, id: 304
+13:35:02.758  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.761  I  [Llm-RunLoop] cached: [unused306], new_token_chars: `[unused306]`, id: 311
+13:35:02.761  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.762  I  [Llm-RunLoop] cached: [unused313], new_token_chars: `[unused313]`, id: 318
+13:35:02.762  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.764  I  [Llm-RunLoop] cached: [unused320], new_token_chars: `[unused320]`, id: 325
+13:35:02.764  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.766  I  [Llm-RunLoop] cached: [unused327], new_token_chars: `[unused327]`, id: 332
+13:35:02.767  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.770  I  [Llm-RunLoop] cached: [unused334], new_token_chars: `[unused334]`, id: 339
+13:35:02.770  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.773  I  [Llm-RunLoop] cached: [unused341], new_token_chars: `[unused341]`, id: 346
+13:35:02.773  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.775  I  [Llm-RunLoop] cached: [unused348], new_token_chars: `[unused348]`, id: 353
+13:35:02.775  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.777  I  [Llm-RunLoop] cached: [unused355], new_token_chars: `[unused355]`, id: 360
+13:35:02.777  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.779  I  [Llm-RunLoop] cached: [unused362], new_token_chars: `[unused362]`, id: 367
+13:35:02.779  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.780  I  [Llm-RunLoop] cached: [unused369], new_token_chars: `[unused369]`, id: 374
+13:35:02.780  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.782  I  [Llm-RunLoop] cached: [unused376], new_token_chars: `[unused376]`, id: 381
+13:35:02.782  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.784  I  [Llm-RunLoop] cached: [unused383], new_token_chars: `[unused383]`, id: 388
+13:35:02.784  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.785  I  [Llm-RunLoop] cached: [unused390], new_token_chars: `[unused390]`, id: 395
+13:35:02.786  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.788  I  [Llm-RunLoop] cached: [unused397], new_token_chars: `[unused397]`, id: 402
+13:35:02.788  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.790  I  [Llm-RunLoop] cached: [unused404], new_token_chars: `[unused404]`, id: 409
+13:35:02.790  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.792  I  [Llm-RunLoop] cached: [unused411], new_token_chars: `[unused411]`, id: 416
+13:35:02.792  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.794  I  [Llm-RunLoop] cached: [unused418], new_token_chars: `[unused418]`, id: 423
+13:35:02.794  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.796  I  [Llm-RunLoop] cached: [unused425], new_token_chars: `[unused425]`, id: 430
+13:35:02.796  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.797  I  [Llm-RunLoop] cached: [unused432], new_token_chars: `[unused432]`, id: 437
+13:35:02.797  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.799  I  [Llm-RunLoop] cached: [unused439], new_token_chars: `[unused439]`, id: 444
+13:35:02.799  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.801  I  [Llm-RunLoop] cached: [unused446], new_token_chars: `[unused446]`, id: 451
+13:35:02.801  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.803  I  [Llm-RunLoop] cached: [unused2], new_token_chars: `[unused2]`, id: 3
+13:35:02.803  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.805  I  [Llm-RunLoop] cached: [unused9], new_token_chars: `[unused9]`, id: 10
+13:35:02.805  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.807  I  [Llm-RunLoop] cached: [unused16], new_token_chars: `[unused16]`, id: 17
+13:35:02.807  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.808  I  [Llm-RunLoop] cached: [unused23], new_token_chars: `[unused23]`, id: 24
+13:35:02.808  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.810  I  [Llm-RunLoop] cached: [unused30], new_token_chars: `[unused30]`, id: 31
+13:35:02.810  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.812  I  [Llm-RunLoop] cached: [unused37], new_token_chars: `[unused37]`, id: 38
+13:35:02.813  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.815  I  [Llm-RunLoop] cached: [unused44], new_token_chars: `[unused44]`, id: 45
+13:35:02.815  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.819  I  [Llm-RunLoop] cached: [unused51], new_token_chars: `[unused51]`, id: 52
+13:35:02.819  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.822  I  [Llm-RunLoop] cached: [unused58], new_token_chars: `[unused58]`, id: 59
+13:35:02.823  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.825  I  [Llm-RunLoop] cached: [unused65], new_token_chars: `[unused65]`, id: 66
+13:35:02.826  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.828  I  [Llm-RunLoop] cached: [unused72], new_token_chars: `[unused72]`, id: 73
+13:35:02.828  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.829  I  [Llm-RunLoop] cached: [unused79], new_token_chars: `[unused79]`, id: 80
+13:35:02.830  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.831  I  [Llm-RunLoop] cached: [unused86], new_token_chars: `[unused86]`, id: 87
+13:35:02.831  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.833  I  [Llm-RunLoop] cached: [unused93], new_token_chars: `[unused93]`, id: 94
+13:35:02.833  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.836  I  [Llm-RunLoop] cached: [CLS], new_token_chars: `[CLS]`, id: 101
+13:35:02.836  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.838  I  [Llm-RunLoop] cached: [unused103], new_token_chars: `[unused103]`, id: 108
+13:35:02.838  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.841  I  [Llm-RunLoop] cached: [unused110], new_token_chars: `[unused110]`, id: 115
+13:35:02.841  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.843  I  [Llm-RunLoop] cached: [unused117], new_token_chars: `[unused117]`, id: 122
+13:35:02.843  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.845  I  [Llm-RunLoop] cached: [unused124], new_token_chars: `[unused124]`, id: 129
+13:35:02.846  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.848  I  [Llm-RunLoop] cached: [unused131], new_token_chars: `[unused131]`, id: 136
+13:35:02.848  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.850  I  [Llm-RunLoop] cached: [unused138], new_token_chars: `[unused138]`, id: 143
+13:35:02.850  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.852  I  [Llm-RunLoop] cached: [unused145], new_token_chars: `[unused145]`, id: 150
+13:35:02.853  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.855  I  [Llm-RunLoop] cached: [unused152], new_token_chars: `[unused152]`, id: 157
+13:35:02.856  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.858  I  [Llm-RunLoop] cached: [unused159], new_token_chars: `[unused159]`, id: 164
+13:35:02.858  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.859  I  [Llm-RunLoop] cached: [unused166], new_token_chars: `[unused166]`, id: 171
+13:35:02.859  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.861  I  [Llm-RunLoop] cached: [unused173], new_token_chars: `[unused173]`, id: 178
+13:35:02.861  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.862  I  [Llm-RunLoop] cached: [unused180], new_token_chars: `[unused180]`, id: 185
+13:35:02.862  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.864  I  [Llm-RunLoop] cached: [unused187], new_token_chars: `[unused187]`, id: 192
+13:35:02.864  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.865  I  [Llm-RunLoop] cached: [unused194], new_token_chars: `[unused194]`, id: 199
+13:35:02.865  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.867  I  [Llm-RunLoop] cached: [unused201], new_token_chars: `[unused201]`, id: 206
+13:35:02.868  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.870  I  [Llm-RunLoop] cached: [unused208], new_token_chars: `[unused208]`, id: 213
+13:35:02.870  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.872  I  [Llm-RunLoop] cached: [unused215], new_token_chars: `[unused215]`, id: 220
+13:35:02.872  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.874  I  [Llm-RunLoop] cached: [unused222], new_token_chars: `[unused222]`, id: 227
+13:35:02.874  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.876  I  [Llm-RunLoop] cached: [unused229], new_token_chars: `[unused229]`, id: 234
+13:35:02.876  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.878  I  [Llm-RunLoop] cached: [unused236], new_token_chars: `[unused236]`, id: 241
+13:35:02.878  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.880  I  [Llm-RunLoop] cached: [unused243], new_token_chars: `[unused243]`, id: 248
+13:35:02.880  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.881  I  [Llm-RunLoop] cached: [unused250], new_token_chars: `[unused250]`, id: 255
+13:35:02.881  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.883  I  [Llm-RunLoop] cached: [unused257], new_token_chars: `[unused257]`, id: 262
+13:35:02.883  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.885  I  [Llm-RunLoop] cached: [unused264], new_token_chars: `[unused264]`, id: 269
+13:35:02.885  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.887  I  [Llm-RunLoop] cached: [unused271], new_token_chars: `[unused271]`, id: 276
+13:35:02.888  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.889  I  [Llm-RunLoop] cached: [unused278], new_token_chars: `[unused278]`, id: 283
+13:35:02.889  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.891  I  [Llm-RunLoop] cached: [unused285], new_token_chars: `[unused285]`, id: 290
+13:35:02.891  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.892  I  [Llm-RunLoop] cached: [unused292], new_token_chars: `[unused292]`, id: 297
+13:35:02.892  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.894  I  [Llm-RunLoop] cached: [unused299], new_token_chars: `[unused299]`, id: 304
+13:35:02.894  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.896  I  [Llm-RunLoop] cached: [unused306], new_token_chars: `[unused306]`, id: 311
+13:35:02.896  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.898  I  [Llm-RunLoop] cached: [unused313], new_token_chars: `[unused313]`, id: 318
+13:35:02.898  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.900  I  [Llm-RunLoop] cached: [unused320], new_token_chars: `[unused320]`, id: 325
+13:35:02.901  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.903  I  [Llm-RunLoop] cached: [unused327], new_token_chars: `[unused327]`, id: 332
+13:35:02.903  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.905  I  [Llm-RunLoop] cached: [unused334], new_token_chars: `[unused334]`, id: 339
+13:35:02.905  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.907  I  [Llm-RunLoop] cached: [unused341], new_token_chars: `[unused341]`, id: 346
+13:35:02.907  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.909  I  [Llm-RunLoop] cached: [unused348], new_token_chars: `[unused348]`, id: 353
+13:35:02.909  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.910  I  [Llm-RunLoop] cached: [unused355], new_token_chars: `[unused355]`, id: 360
+13:35:02.910  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.912  I  [Llm-RunLoop] cached: [unused362], new_token_chars: `[unused362]`, id: 367
+13:35:02.913  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.916  I  [Llm-RunLoop] cached: [unused369], new_token_chars: `[unused369]`, id: 374
+13:35:02.917  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.921  I  [Llm-RunLoop] cached: [unused376], new_token_chars: `[unused376]`, id: 381
+13:35:02.921  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.924  I  [Llm-RunLoop] cached: [unused383], new_token_chars: `[unused383]`, id: 388
+13:35:02.924  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.926  I  [Llm-RunLoop] cached: [unused390], new_token_chars: `[unused390]`, id: 395
+13:35:02.926  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.929  I  [Llm-RunLoop] cached: [unused397], new_token_chars: `[unused397]`, id: 402
+13:35:02.929  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.931  I  [Llm-RunLoop] cached: [unused404], new_token_chars: `[unused404]`, id: 409
+13:35:02.931  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.934  I  [Llm-RunLoop] cached: [unused411], new_token_chars: `[unused411]`, id: 416
+13:35:02.934  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.937  I  [Llm-RunLoop] cached: [unused418], new_token_chars: `[unused418]`, id: 423
+13:35:02.937  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.940  I  [Llm-RunLoop] cached: [unused425], new_token_chars: `[unused425]`, id: 430
+13:35:02.940  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.942  I  [Llm-RunLoop] cached: [unused432], new_token_chars: `[unused432]`, id: 437
+13:35:02.942  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.944  I  [Llm-RunLoop] cached: [unused439], new_token_chars: `[unused439]`, id: 444
+13:35:02.944  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.946  I  [Llm-RunLoop] cached: [unused446], new_token_chars: `[unused446]`, id: 451
+13:35:02.946  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.948  I  [Llm-RunLoop] cached: [unused2], new_token_chars: `[unused2]`, id: 3
+13:35:02.948  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.950  I  [Llm-RunLoop] cached: [unused9], new_token_chars: `[unused9]`, id: 10
+13:35:02.950  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.952  I  [Llm-RunLoop] cached: [unused16], new_token_chars: `[unused16]`, id: 17
+13:35:02.952  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.955  I  [Llm-RunLoop] cached: [unused23], new_token_chars: `[unused23]`, id: 24
+13:35:02.955  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.957  I  [Llm-RunLoop] cached: [unused30], new_token_chars: `[unused30]`, id: 31
+13:35:02.957  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.959  I  [Llm-RunLoop] cached: [unused37], new_token_chars: `[unused37]`, id: 38
+13:35:02.959  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.960  I  [Llm-RunLoop] cached: [unused44], new_token_chars: `[unused44]`, id: 45
+13:35:02.960  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.962  I  [Llm-RunLoop] cached: [unused51], new_token_chars: `[unused51]`, id: 52
+13:35:02.962  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.963  I  [Llm-RunLoop] cached: [unused58], new_token_chars: `[unused58]`, id: 59
+13:35:02.964  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.965  I  [Llm-RunLoop] cached: [unused65], new_token_chars: `[unused65]`, id: 66
+13:35:02.965  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.966  I  [Llm-RunLoop] cached: [unused72], new_token_chars: `[unused72]`, id: 73
+13:35:02.966  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.969  I  [Llm-RunLoop] cached: [unused79], new_token_chars: `[unused79]`, id: 80
+13:35:02.969  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.971  I  [Llm-RunLoop] cached: [unused86], new_token_chars: `[unused86]`, id: 87
+13:35:02.972  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.974  I  [Llm-RunLoop] cached: [unused93], new_token_chars: `[unused93]`, id: 94
+13:35:02.974  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.976  I  [Llm-RunLoop] cached: [CLS], new_token_chars: `[CLS]`, id: 101
+13:35:02.976  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.978  I  [Llm-RunLoop] cached: [unused103], new_token_chars: `[unused103]`, id: 108
+13:35:02.978  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.980  I  [Llm-RunLoop] cached: [unused110], new_token_chars: `[unused110]`, id: 115
+13:35:02.980  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.982  I  [Llm-RunLoop] cached: [unused117], new_token_chars: `[unused117]`, id: 122
+13:35:02.982  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.984  I  [Llm-RunLoop] cached: [unused124], new_token_chars: `[unused124]`, id: 129
+13:35:02.984  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.985  I  [Llm-RunLoop] cached: [unused131], new_token_chars: `[unused131]`, id: 136
+13:35:02.985  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.988  I  [Llm-RunLoop] cached: [unused138], new_token_chars: `[unused138]`, id: 143
+13:35:02.988  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.990  I  [Llm-RunLoop] cached: [unused145], new_token_chars: `[unused145]`, id: 150
+13:35:02.990  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.992  I  [Llm-RunLoop] cached: [unused152], new_token_chars: `[unused152]`, id: 157
+13:35:02.992  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.994  I  [Llm-RunLoop] cached: [unused159], new_token_chars: `[unused159]`, id: 164
+13:35:02.994  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.996  I  [Llm-RunLoop] cached: [unused166], new_token_chars: `[unused166]`, id: 171
+13:35:02.996  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:02.998  I  [Llm-RunLoop] cached: [unused173], new_token_chars: `[unused173]`, id: 178
+13:35:02.998  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.000  I  [Llm-RunLoop] cached: [unused180], new_token_chars: `[unused180]`, id: 185
+13:35:03.000  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.002  I  [Llm-RunLoop] cached: [unused187], new_token_chars: `[unused187]`, id: 192
+13:35:03.002  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.005  I  [Llm-RunLoop] cached: [unused194], new_token_chars: `[unused194]`, id: 199
+13:35:03.005  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.006  I  [Llm-RunLoop] cached: [unused201], new_token_chars: `[unused201]`, id: 206
+13:35:03.006  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.008  I  [Llm-RunLoop] cached: [unused208], new_token_chars: `[unused208]`, id: 213
+13:35:03.008  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.010  I  [Llm-RunLoop] cached: [unused215], new_token_chars: `[unused215]`, id: 220
+13:35:03.010  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.012  I  [Llm-RunLoop] cached: [unused222], new_token_chars: `[unused222]`, id: 227
+13:35:03.012  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.014  I  [Llm-RunLoop] cached: [unused229], new_token_chars: `[unused229]`, id: 234
+13:35:03.014  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.016  I  [Llm-RunLoop] cached: [unused236], new_token_chars: `[unused236]`, id: 241
+13:35:03.016  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.017  I  [Llm-RunLoop] cached: [unused243], new_token_chars: `[unused243]`, id: 248
+13:35:03.017  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.021  I  [Llm-RunLoop] cached: [unused250], new_token_chars: `[unused250]`, id: 255
+13:35:03.022  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.025  I  [Llm-RunLoop] cached: [unused257], new_token_chars: `[unused257]`, id: 262
+13:35:03.025  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.027  I  [Llm-RunLoop] cached: [unused264], new_token_chars: `[unused264]`, id: 269
+13:35:03.027  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.029  I  [Llm-RunLoop] cached: [unused271], new_token_chars: `[unused271]`, id: 276
+13:35:03.029  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.031  I  [Llm-RunLoop] cached: [unused278], new_token_chars: `[unused278]`, id: 283
+13:35:03.031  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.033  I  [Llm-RunLoop] cached: [unused285], new_token_chars: `[unused285]`, id: 290
+13:35:03.033  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.034  I  [Llm-RunLoop] cached: [unused292], new_token_chars: `[unused292]`, id: 297
+13:35:03.034  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.037  I  [Llm-RunLoop] cached: [unused299], new_token_chars: `[unused299]`, id: 304
+13:35:03.037  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.039  I  [Llm-RunLoop] cached: [unused306], new_token_chars: `[unused306]`, id: 311
+13:35:03.040  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.042  I  [Llm-RunLoop] cached: [unused313], new_token_chars: `[unused313]`, id: 318
+13:35:03.042  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.045  I  [Llm-RunLoop] cached: [unused320], new_token_chars: `[unused320]`, id: 325
+13:35:03.045  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.047  I  [Llm-RunLoop] cached: [unused327], new_token_chars: `[unused327]`, id: 332
+13:35:03.047  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.049  I  [Llm-RunLoop] cached: [unused334], new_token_chars: `[unused334]`, id: 339
+13:35:03.049  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.053  I  [Llm-RunLoop] cached: [unused341], new_token_chars: `[unused341]`, id: 346
+13:35:03.053  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.056  I  [Llm-RunLoop] cached: [unused348], new_token_chars: `[unused348]`, id: 353
+13:35:03.056  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.058  I  [Llm-RunLoop] cached: [unused355], new_token_chars: `[unused355]`, id: 360
+13:35:03.059  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.062  I  [Llm-RunLoop] cached: [unused362], new_token_chars: `[unused362]`, id: 367
+13:35:03.062  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.065  I  [Llm-RunLoop] cached: [unused369], new_token_chars: `[unused369]`, id: 374
+13:35:03.065  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.068  I  [Llm-RunLoop] cached: [unused376], new_token_chars: `[unused376]`, id: 381
+13:35:03.068  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.070  I  [Llm-RunLoop] cached: [unused383], new_token_chars: `[unused383]`, id: 388
+13:35:03.070  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.072  I  [Llm-RunLoop] cached: [unused390], new_token_chars: `[unused390]`, id: 395
+13:35:03.072  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.074  I  [Llm-RunLoop] cached: [unused397], new_token_chars: `[unused397]`, id: 402
+13:35:03.074  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.076  I  [Llm-RunLoop] cached: [unused404], new_token_chars: `[unused404]`, id: 409
+13:35:03.076  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.079  I  [Llm-RunLoop] cached: [unused411], new_token_chars: `[unused411]`, id: 416
+13:35:03.079  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.081  I  [Llm-RunLoop] cached: [unused418], new_token_chars: `[unused418]`, id: 423
+13:35:03.082  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.084  I  [Llm-RunLoop] cached: [unused425], new_token_chars: `[unused425]`, id: 430
+13:35:03.085  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.088  I  [Llm-RunLoop] cached: [unused432], new_token_chars: `[unused432]`, id: 437
+13:35:03.088  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.090  I  [Llm-RunLoop] cached: [unused439], new_token_chars: `[unused439]`, id: 444
+13:35:03.090  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.092  I  [Llm-RunLoop] cached: [unused446], new_token_chars: `[unused446]`, id: 451
+13:35:03.092  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.094  I  [Llm-RunLoop] cached: [unused2], new_token_chars: `[unused2]`, id: 3
+13:35:03.094  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.096  I  [Llm-RunLoop] cached: [unused9], new_token_chars: `[unused9]`, id: 10
+13:35:03.096  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.099  I  [Llm-RunLoop] cached: [unused16], new_token_chars: `[unused16]`, id: 17
+13:35:03.099  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.101  I  [Llm-RunLoop] cached: [unused23], new_token_chars: `[unused23]`, id: 24
+13:35:03.101  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.105  I  [Llm-RunLoop] cached: [unused30], new_token_chars: `[unused30]`, id: 31
+13:35:03.106  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.109  I  [Llm-RunLoop] cached: [unused37], new_token_chars: `[unused37]`, id: 38
+13:35:03.109  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.110  I  [Llm-RunLoop] cached: [unused44], new_token_chars: `[unused44]`, id: 45
+13:35:03.110  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.112  I  [Llm-RunLoop] cached: [unused51], new_token_chars: `[unused51]`, id: 52
+13:35:03.112  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.114  I  [Llm-RunLoop] cached: [unused58], new_token_chars: `[unused58]`, id: 59
+13:35:03.114  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.116  I  [Llm-RunLoop] cached: [unused65], new_token_chars: `[unused65]`, id: 66
+13:35:03.116  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.117  I  [Llm-RunLoop] cached: [unused72], new_token_chars: `[unused72]`, id: 73
+13:35:03.117  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.122  I  [Llm-RunLoop] cached: [unused79], new_token_chars: `[unused79]`, id: 80
+13:35:03.122  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.125  I  [Llm-RunLoop] cached: [unused86], new_token_chars: `[unused86]`, id: 87
+13:35:03.125  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.127  I  [Llm-RunLoop] cached: [unused93], new_token_chars: `[unused93]`, id: 94
+13:35:03.127  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.130  I  [Llm-RunLoop] cached: [CLS], new_token_chars: `[CLS]`, id: 101
+13:35:03.130  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.131  I  [Llm-RunLoop] cached: [unused103], new_token_chars: `[unused103]`, id: 108
+13:35:03.132  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.133  I  [Llm-RunLoop] cached: [unused110], new_token_chars: `[unused110]`, id: 115
+13:35:03.133  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.135  I  [Llm-RunLoop] cached: [unused117], new_token_chars: `[unused117]`, id: 122
+13:35:03.135  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.137  I  [Llm-RunLoop] cached: [unused124], new_token_chars: `[unused124]`, id: 129
+13:35:03.137  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.138  I  [Llm-RunLoop] cached: [unused131], new_token_chars: `[unused131]`, id: 136
+13:35:03.138  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.140  I  [Llm-RunLoop] cached: [unused138], new_token_chars: `[unused138]`, id: 143
+13:35:03.140  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.143  I  [Llm-RunLoop] cached: [unused145], new_token_chars: `[unused145]`, id: 150
+13:35:03.143  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.146  I  [Llm-RunLoop] cached: [unused152], new_token_chars: `[unused152]`, id: 157
+13:35:03.146  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.148  I  [Llm-RunLoop] cached: [unused159], new_token_chars: `[unused159]`, id: 164
+13:35:03.148  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.150  I  [Llm-RunLoop] cached: [unused166], new_token_chars: `[unused166]`, id: 171
+13:35:03.150  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.152  I  [Llm-RunLoop] cached: [unused173], new_token_chars: `[unused173]`, id: 178
+13:35:03.152  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.155  I  [Llm-RunLoop] cached: [unused180], new_token_chars: `[unused180]`, id: 185
+13:35:03.155  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.156  I  [Llm-RunLoop] cached: [unused187], new_token_chars: `[unused187]`, id: 192
+13:35:03.157  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.158  I  [Llm-RunLoop] cached: [unused194], new_token_chars: `[unused194]`, id: 199
+13:35:03.158  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.160  I  [Llm-RunLoop] cached: [unused201], new_token_chars: `[unused201]`, id: 206
+13:35:03.160  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.163  I  [Llm-RunLoop] cached: [unused208], new_token_chars: `[unused208]`, id: 213
+13:35:03.163  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.165  I  [Llm-RunLoop] cached: [unused215], new_token_chars: `[unused215]`, id: 220
+13:35:03.165  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.166  I  [Llm-RunLoop] cached: [unused222], new_token_chars: `[unused222]`, id: 227
+13:35:03.166  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.168  I  [Llm-RunLoop] cached: [unused229], new_token_chars: `[unused229]`, id: 234
+13:35:03.168  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.169  I  [Llm-RunLoop] cached: [unused236], new_token_chars: `[unused236]`, id: 241
+13:35:03.169  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.172  I  [Llm-RunLoop] cached: [unused243], new_token_chars: `[unused243]`, id: 248
+13:35:03.172  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.174  I  [Llm-RunLoop] cached: [unused250], new_token_chars: `[unused250]`, id: 255
+13:35:03.174  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.176  I  [Llm-RunLoop] cached: [unused257], new_token_chars: `[unused257]`, id: 262
+13:35:03.176  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.178  I  [Llm-RunLoop] cached: [unused264], new_token_chars: `[unused264]`, id: 269
+13:35:03.178  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.180  I  [Llm-RunLoop] cached: [unused271], new_token_chars: `[unused271]`, id: 276
+13:35:03.180  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.182  I  [Llm-RunLoop] cached: [unused278], new_token_chars: `[unused278]`, id: 283
+13:35:03.182  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.184  I  [Llm-RunLoop] cached: [unused285], new_token_chars: `[unused285]`, id: 290
+13:35:03.184  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.186  I  [Llm-RunLoop] cached: [unused292], new_token_chars: `[unused292]`, id: 297
+13:35:03.186  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.189  I  [Llm-RunLoop] cached: [unused299], new_token_chars: `[unused299]`, id: 304
+13:35:03.189  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.191  I  [Llm-RunLoop] cached: [unused306], new_token_chars: `[unused306]`, id: 311
+13:35:03.191  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.192  I  [Llm-RunLoop] cached: [unused313], new_token_chars: `[unused313]`, id: 318
+13:35:03.192  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.194  I  [Llm-RunLoop] cached: [unused320], new_token_chars: `[unused320]`, id: 325
+13:35:03.194  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.196  I  [Llm-RunLoop] cached: [unused327], new_token_chars: `[unused327]`, id: 332
+13:35:03.196  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.198  I  [Llm-RunLoop] cached: [unused334], new_token_chars: `[unused334]`, id: 339
+13:35:03.198  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.199  I  [Llm-RunLoop] cached: [unused341], new_token_chars: `[unused341]`, id: 346
+13:35:03.199  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.201  I  [Llm-RunLoop] cached: [unused348], new_token_chars: `[unused348]`, id: 353
+13:35:03.201  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.203  I  [Llm-RunLoop] cached: [unused355], new_token_chars: `[unused355]`, id: 360
+13:35:03.203  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.205  I  [Llm-RunLoop] cached: [unused362], new_token_chars: `[unused362]`, id: 367
+13:35:03.205  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.207  I  [Llm-RunLoop] cached: [unused369], new_token_chars: `[unused369]`, id: 374
+13:35:03.207  D  [Llm-RunLoop] decode: cannot decode batches with this context (calling encode() instead)
+13:35:03.448  A  Fatal signal 6 (SIGABRT), code -1 (SI_QUEUE) in tid 2915 (Llm-RunLoop), pid 2162 (saky.androidide)
+13:35:03.745  A  Cmdline: com.itsaky.androidide
+13:35:03.745  A  pid: 2162, tid: 2915, name: Llm-RunLoop  >>> com.itsaky.androidide <<<
+13:35:03.745  A    NOTE: Function names and BuildId information is missing for some frames due
+                   NOTE: to unreadable libraries. For unwinds of apps, only shared libraries
+                   NOTE: found under the lib/ directory are readable.
+                   NOTE: On this device, run setenforce 0 to make the libraries readable.
+                   NOTE: Unreadable libraries:
+                   NOTE:   /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a/libggml-base.so
+                   NOTE:   /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a/libggml-cpu.so
+                   NOTE:   /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a/libomp.so
+13:35:03.745  A        #01 pc 00000000000584ac  /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a/libggml-base.so
+13:35:03.745  A        #02 pc 000000000006f90c  /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a/libggml-cpu.so
+13:35:03.745  A        #03 pc 000000000002c468  /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a/libggml-cpu.so
+13:35:03.745  A        #04 pc 00000000000e2e18  /data/user/0/com.itsaky.androidide/app_llama_unzipped/v6/jni/arm64-v8a/libomp.so
+13:35:03.857  E  getPackageNightMode is not allowed for com.itsaky.androidide
+13:35:03.857  E  getPackageNightMode is not allowed for com.itsaky.androidide
+13:35:03.877  E  getPackageNightMode is not allowed for com.itsaky.androidide
+13:35:03.878  E  getPackageNightMode is not allowed for com.itsaky.androidide
+13:35:03.884  I  Using generational CollectorTypeCMC GC.
+13:35:03.889  D  Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+13:35:03.904  D  setConscryptValidator
+13:35:03.904  D  setConscryptValidator - put
+---------------------------- PROCESS STARTED (3036) for package com.itsaky.androidide ----------------------------

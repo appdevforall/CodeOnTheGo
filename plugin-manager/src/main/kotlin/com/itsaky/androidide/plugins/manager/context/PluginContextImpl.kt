@@ -17,7 +17,50 @@ class PluginContextImpl(
     override val logger: PluginLogger,
     override val resources: ResourceManager,
     override val pluginId: String
-) : PluginContext
+) : PluginContext {
+
+    // Phase 1 stub implementations - to be fully implemented in Phase 2
+    override fun <T> getPluginService(pluginId: String, serviceClass: Class<T>): T? {
+        // TODO: Implement plugin-to-plugin service discovery in Phase 2
+        return null
+    }
+
+    override fun isPluginActive(pluginId: String): Boolean {
+        // TODO: Implement plugin state checking in Phase 2
+        return false
+    }
+
+    override fun getPluginVersion(pluginId: String): String? {
+        // TODO: Implement plugin version lookup in Phase 2
+        return null
+    }
+
+    override fun <T> registerService(serviceClass: Class<T>, serviceImpl: T) {
+        // TODO: Implement plugin service registration in Phase 2
+    }
+
+    override fun <T> unregisterService(serviceClass: Class<T>) {
+        // TODO: Implement plugin service unregistration in Phase 2
+    }
+
+    override fun getProvidedServices(): List<String> {
+        // TODO: Implement service listing in Phase 2
+        return emptyList()
+    }
+
+    override fun getPluginDataDir(): File {
+        // Return plugin's data directory (already exists via ResourceManager)
+        return resources.getPluginDirectory()
+    }
+
+    override fun addPluginLifecycleListener(listener: PluginLifecycleListener) {
+        // TODO: Implement lifecycle listener registration in Phase 2
+    }
+
+    override fun removePluginLifecycleListener(listener: PluginLifecycleListener) {
+        // TODO: Implement lifecycle listener removal in Phase 2
+    }
+}
 
 class ServiceRegistryImpl : ServiceRegistry {
     private val services = ConcurrentHashMap<Class<*>, MutableList<Any>>()

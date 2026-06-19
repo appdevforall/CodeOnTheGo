@@ -1,0 +1,300 @@
+06-19 13:31:15.729  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.729  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.737  1109  1158 E HeatmapThread: ECT Thread time in milliseconds: 1781890275
+06-19 13:31:15.739  1109  1158 D HeatmapThread: !@ batteryplugType : 0
+06-19 13:31:15.739  1109  1158 D HeatmapThread: !@ batteryLevel : 34  batteryTemperature : 250 
+06-19 13:31:15.740  1109  1158 D HeatmapThread: !@ Heatmap currtime: 29698171
+06-19 13:31:15.740  1109  1158 D HeatmapThread: !@ Heatmap prevtime: 29698161
+06-19 13:31:15.740  1109  1158 D HeatmapThread: !@ Heatmap plugstarttime: 35791394
+06-19 13:31:15.740  1109  1158 D HeatmapThread: !@ Heatmap prevv_dsoh_update_time: 29696940
+06-19 13:31:15.741  1109  1158 E HeatmapThread: !@ CAM New BSOH: 100
+06-19 13:31:15.752  1116  1201 I VSyncReactor: Current= 120, Period= 120, hwcPeriod= 120
+06-19 13:31:15.769  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.770  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.770  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.786  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.787  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.787  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.803  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.804  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.804  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.818  1344  1437 D agps    : [agps] WARNING: [CP] cp2_fd_1_reconnect_timeout
+06-19 13:31:15.819  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.819  1344  1389 E agps    : [agps] ERR: [CP] get_ccci_uart  open failed node=[/dev/ttyC2] reason=[No such file or directory]
+06-19 13:31:15.820  1344  1389 E agps    : [agps] ERR: [CP] get_eemcs_uart  open failed node=[/dev/eemcs_ipc_uart] reason=[No such file or directory]
+06-19 13:31:15.820  1344  1389 E agps    : [agps] ERR: [CP] ccci_uart_1  open failed
+06-19 13:31:15.820  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.820  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.836  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.837  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.837  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.853  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.854  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.854  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.869  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.870  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.870  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.886  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.887  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.887  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.903  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.904  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.904  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.919  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.920  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.921  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.936  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.937  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.937  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.953  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.954  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.954  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.970  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:15.970  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:15.971  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:15.985  1116  1282 D DisplayModeController: setDesiredMode 4627039422300187648 {mode={fps=30.00 Hz, modePtr={id=2, vsyncRate=30.00 Hz, peakRefreshRate=30.00 Hz}}, emitEvent=false, force=false}
+06-19 13:31:15.986  1116  1282 D Scheduler: MtkOverrideDuration: update vsync 30
+06-19 13:31:15.986  1116  1282 E SurfaceFlinger: MtkDuration override mode is disabled
+06-19 13:31:15.986  1116  1282 D Scheduler: MtkOverrideDuration: reset override duration
+06-19 13:31:15.986  1116  1282 I PowerHalWrapper: updateFps(): 30
+06-19 13:31:15.986  1116  1282 D DisplayModeController: setDesiredMode 4627039422300187648 {mode={fps=120.00 Hz, modePtr={id=1, vsyncRate=120.00 Hz, peakRefreshRate=120.00 Hz}}, emitEvent=true, force=false}
+06-19 13:31:15.989  1116  1116 I BufferQueueProducer: [org.telegram.messenger/org.telegram.ui.LaunchActivity$_11128#14718](this:0xb400007e164397e8,id:-1,api:0,p:-1,c:1116) queueBuffer: fps=4.00 dur=1249.36 max=250.96 min=249.34
+06-19 13:31:15.989  1116  1116 D Scheduler: MtkOverrideDuration: update vsync 120
+06-19 13:31:15.989  1116  1116 E SurfaceFlinger: MtkDuration override mode is disabled
+06-19 13:31:15.989  1116  1116 D Scheduler: MtkOverrideDuration: reset override duration
+06-19 13:31:15.989  1116  1116 I PowerHalWrapper: updateFps(): 120
+06-19 13:31:16.019  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.020  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.020  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.036  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.037  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.037  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.053  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.054  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.054  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.069  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.070  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.070  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.086  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.087  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.087  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.103  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.104  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.104  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.119  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.120  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.120  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.136  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.137  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.137  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.153  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.154  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.154  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.169  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.170  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.170  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.173  4059  4059 I SDHMS:LOAD: type: LoadsFreqs, value: 15:0:0:600000:600000:600000:550000:550000:550000:10:260:0
+06-19 13:31:16.186  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.187  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.187  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.203  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.204  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.204  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.220  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.221  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.221  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.236  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.237  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.237  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.245  1116  1116 I BufferQueueProducer: [FramebufferSurface](this:0xb400007d36254740,id:-1,api:1,p:1116,c:1116) queueBuffer: fps=4.00 dur=1000.59 max=250.93 min=249.36
+06-19 13:31:16.246  1071  1095 I hwcomposer: [HWCDisplay] [Display_0 (type:1, mode:2)] fps:3.997315,dur:1000.67,max:250.81,min:249.34  
+06-19 13:31:16.251  1116  1201 I VSyncReactor: Current= 120, Period= 120, hwcPeriod= 120
+06-19 13:31:16.269  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.270  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.270  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.286  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.287  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.287  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.295  2441 16882 D DhcpClient: Received packet: 3a:e5:fd:22:d9:cf NAK, reason requested address not available
+06-19 13:31:16.303  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.304  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.304  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.316  2271  2273 D WifiHAL : WifiRequest::create vendor command to iface 15, vendor_id=0x1a11, subcmd=0x1200, res=0
+06-19 13:31:16.318  2271  2273 I WifiHAL : LLS RSP: data=0xb40000700474e060, len=3764
+06-19 13:31:16.318  2271  2273 I WifiHAL : LLS check_data_sanity: 1819: current_radio_stat->num_channels=13
+06-19 13:31:16.318  2271  2273 I WifiHAL : LLS check_data_sanity: 1819: current_radio_stat->num_channels=25
+06-19 13:31:16.318  2271  2273 I WifiHAL : LLS check_data_sanity: confirmed_size=3764, len=3764
+06-19 13:31:16.319  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.320  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.320  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.326  1680  3732 D SemWifiUsabilityStatsMonitor: onWifiUsabilityStats - seqNum 25624, isSameBssidAndFreq true
+06-19 13:31:16.329  1680  2208 D InsDataManager: onOutageCountUpdate() - Outage Data: 0, LQ : Y. Outage Triggered: false
+06-19 13:31:16.329  1680  2208 D InsDataManager: Trying to save initial normal data.
+06-19 13:31:16.330  1680  2208 D SensorCollector: syncMappedBuffers: 0, 500, 0
+06-19 13:31:16.330  1680  2208 D InsDataManager: trimBuffers start.
+06-19 13:31:16.330  1680  2208 D InsDataManager: trimBuffers - nsmBuffer size: 26
+06-19 13:31:16.330  1680  2208 D InsDataManager: Too short for collecting additional normal data
+06-19 13:31:16.330  1680  2208 D SemInsManager: {"bssid": "a80fdb752412","rssi": -43.0,"latency": 0.0,"outage_count": 0,"lq_callback_triggered": true,"outage_log": "Unreliable statistics: -43.0 / 0 / 519 / 42 / 0 || a80fdb752412: 0.000 / 0.000 / @ || N N / 0 0 / Y 2.0 / Y X 0 / 132308660 0 || Invalid""Magnetic Sensor Events size": "0""Pressure Sensor Events size": "0"}
+06-19 13:31:16.331  2313  2570 D Tile.WifiTile: handleUpdateState isTransient=false transientEnabling =false cb.isTransient=false state.state = 2 mStateBeforeClick.value =false enabled =true
+06-19 13:31:16.333  2829  2884 I HoneySpace.StatusIconTracker: invokeEvent() called with: event = Wifi(visible=true, resId=2131236023, activityId=2131236053)
+06-19 13:31:16.333  1680  2225 D SGM:GameManager: identifyGamePackage. org.telegram.messenger, mCurrentUserId: 0, callingMethodInfo: com.samsung.android.game.SemGameManager.isGamePackage(SemGameManager.java:106)
+06-19 13:31:16.333  1680  2225 D SGM:SemGameManager: isGamePackage(), pkgName=org.telegram.messenger, ret=false
+06-19 13:31:16.336  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.337  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.337  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.352  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.353  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.354  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.356  1116  1116 I BufferQueueProducer: [StatusBar$_2313#100](this:0xb400007e16430f38,id:-1,api:0,p:-1,c:1116) queueBuffer: fps=0.08 dur=12065.93 max=12065.93 min=12065.93
+06-19 13:31:16.382   618   618 D io_stats: !@   8,32 r 2515182 75014292 w 2785723 105368108 d 226928 99994956 f 97141 202312 iot 708568 0 th 0 0 0 pt 0 inp 0 0 132308.715
+06-19 13:31:16.382   618   618 D io_stats: !@ 179,0 r 2029 126088 w 93 1321 d 0 0 f 1 1 iot 19948 0 th 0 0 0 pt 0 inp 0 0 132308.715
+06-19 13:31:16.383   618   618 D io_stats: !@ Write_top(KB): kworker/u16:2(26175) 20 soft.appmanager(18012) 16 egram.messenger(11128) 8
+06-19 13:31:16.386  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.387  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.387  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.402  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.404  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.404  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.419  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.420  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.420  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.436  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.437  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.437  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.452  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.453  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.454  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.469  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.470  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.470  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.486  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.487  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.487  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.519  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.520  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.520  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.536  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.537  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.537  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.553  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.554  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.554  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.569  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.570  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.570  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.586  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.587  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.587  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.603  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.604  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.604  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.619  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.620  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.620  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.636  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.637  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.637  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.653  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.654  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.654  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.669  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.670  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.670  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.686  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.687  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.687  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.703  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.704  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.704  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.719  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.720  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.720  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.735  1116  1282 D DisplayModeController: setDesiredMode 4627039422300187648 {mode={fps=30.00 Hz, modePtr={id=2, vsyncRate=30.00 Hz, peakRefreshRate=30.00 Hz}}, emitEvent=false, force=false}
+06-19 13:31:16.736  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.736  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.736  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.737  1109  1158 E HeatmapThread: ECT Thread time in milliseconds: 1781890276
+06-19 13:31:16.737  1116  1282 D Scheduler: MtkOverrideDuration: update vsync 30
+06-19 13:31:16.737  1116  1282 E SurfaceFlinger: MtkDuration override mode is disabled
+06-19 13:31:16.737  1116  1282 D Scheduler: MtkOverrideDuration: reset override duration
+06-19 13:31:16.739  1116  1282 I PowerHalWrapper: updateFps(): 30
+06-19 13:31:16.739  1109  1158 D HeatmapThread: !@ batteryplugType : 0
+06-19 13:31:16.739  1116  1282 D DisplayModeController: setDesiredMode 4627039422300187648 {mode={fps=120.00 Hz, modePtr={id=1, vsyncRate=120.00 Hz, peakRefreshRate=120.00 Hz}}, emitEvent=true, force=false}
+06-19 13:31:16.739  1109  1158 D HeatmapThread: !@ batteryLevel : 34  batteryTemperature : 250 
+06-19 13:31:16.739  1109  1158 D HeatmapThread: !@ Heatmap currtime: 29698171
+06-19 13:31:16.739  1109  1158 D HeatmapThread: !@ Heatmap prevtime: 29698161
+06-19 13:31:16.739  1109  1158 D HeatmapThread: !@ Heatmap plugstarttime: 35791394
+06-19 13:31:16.739  1109  1158 D HeatmapThread: !@ Heatmap prevv_dsoh_update_time: 29696940
+06-19 13:31:16.739  1109  1158 E HeatmapThread: !@ CAM New BSOH: 100
+06-19 13:31:16.740  1116  1116 D Scheduler: MtkOverrideDuration: update vsync 120
+06-19 13:31:16.740  1116  1116 E SurfaceFlinger: MtkDuration override mode is disabled
+06-19 13:31:16.740  1116  1116 D Scheduler: MtkOverrideDuration: reset override duration
+06-19 13:31:16.740  1116  1116 I PowerHalWrapper: updateFps(): 120
+06-19 13:31:16.777  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.779  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.779  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.794  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.795  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.795  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.811  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.812  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.812  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.827  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.829  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.829  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.844  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.845  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.845  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.861  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.862  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.862  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.877  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.878  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.879  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.894  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.895  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.895  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.911  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.912  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.912  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.928  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.929  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.929  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.944  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.945  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.945  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.953  1164  1164 I GBE     : GBE_BOOST_UNKNOWN cmd:-1
+06-19 13:31:16.953  1159  1159 I FPSGO   : FPSGO_SET_UNKNOWN cmd:-1
+06-19 13:31:16.961  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.962  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.962  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.977  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:16.978  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:16.978  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:16.989  1116  1116 I BufferQueueProducer: [org.telegram.messenger/org.telegram.ui.LaunchActivity$_11128#14718](this:0xb400007e164397e8,id:-1,api:0,p:-1,c:1116) queueBuffer: fps=4.00 dur=1000.16 max=250.92 min=249.09
+06-19 13:31:17.000  3142  3142 I adbd    : adbd service requested 'shell,v2,TERM=xterm-256color:export ANDROID_LOG_TAGS=''; exec logcat '-d''
+06-19 13:31:17.002  1116  1201 I VSyncReactor: Current= 120, Period= 120, hwcPeriod= 120
+06-19 13:31:17.019  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:17.020  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:17.020  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:17.036  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:17.036  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:17.036  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:17.052  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:17.052  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:17.052  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:17.069  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:17.069  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:17.069  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:17.085  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:17.086  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:17.086  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:17.102  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:17.102  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:17.102  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:17.119  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:17.119  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:17.119  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()
+06-19 13:31:17.135  1116  1272 D libcomposer_ext: ClientImplAidl::kickIdle()
+06-19 13:31:17.135  1071  1095 D libcomposer_ext: DeviceImplAidl::syncPerform(17), client_handle: 0
+06-19 13:31:17.136  1071  1095 D libcomposer_ext: DeviceImplAidl::DeviceClientContextAidl::ParseKickIdle()

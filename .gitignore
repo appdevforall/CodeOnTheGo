@@ -165,3 +165,9 @@ compose-preview/src/main/assets/compose/
 # Generated stdlib index (generated at build time by :lsp:kotlin-stdlib-generator)
 lsp/kotlin/src/main/resources/stdlib-index.json
 
+
+# Llama AAR binaries and build scripts
+app/src/main/assets/dynamic_libs/
+rebuild-llama-aar.sh
+aar-staging/
+aar-backups/
