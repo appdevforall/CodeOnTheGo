@@ -246,6 +246,19 @@ open class AndroidModule(
 		return result
 	}
 
+	/**
+	 * Recursively collect the compile classpath entries contributed by the given dependency-graph
+	 * [libraries] into [result], guarding against cycles.
+	 *
+	 * @param root The workspace used to resolve project dependencies by path.
+	 * @param libraries The dependency-graph nodes to expand at this level.
+	 * @param result The accumulating set of classpath files.
+	 * @param excludeSourceGeneratedClassPath Whether to exclude source-generated classpath entries.
+	 * @param visited Keys of dependency-graph nodes already expanded within this module; each node is
+	 * expanded at most once so a cyclic graph terminates.
+	 * @param moduleVisited Module paths already expanded across modules; threaded into cross-module
+	 * recursion so a cyclic PROJECT graph terminates.
+	 */
 	private fun collectLibraries(
 		root: Workspace,
 		libraries: List<AndroidModels.GraphItem>,

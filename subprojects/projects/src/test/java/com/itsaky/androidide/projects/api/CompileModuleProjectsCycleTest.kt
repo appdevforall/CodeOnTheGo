@@ -100,6 +100,7 @@ class CompileModuleProjectsCycleTest {
     return AndroidModule(gradleProject)
   }
 
+  /** Install a real [Workspace] containing the given [modules] on the production [ProjectManagerImpl]. */
   private fun installWorkspace(vararg modules: ModuleProject) {
     val root = GradleProject(
       GradleModels.GradleProject.newBuilder().setName("root").setPath(":").build(),
@@ -108,6 +109,7 @@ class CompileModuleProjectsCycleTest {
       Workspace(rootProject = root, subProjects = modules.toList(), syncIssues = emptyList())
   }
 
+  /** A two-node cycle (`:a -> :b -> :a`) terminates and expands each module exactly once. */
   @Test(timeout = 30_000)
   fun `terminates on a two-node module dependency cycle`() {
     // a -> b -> a (compile scope, real AndroidModule instances)
@@ -122,6 +124,7 @@ class CompileModuleProjectsCycleTest {
     assertThat(result.map { it.path }).containsExactly(":b", ":a")
   }
 
+  /** A self-dependency (`:a -> :a`) terminates and reports the module once. */
   @Test(timeout = 30_000)
   fun `terminates on a self dependency cycle`() {
     val a = androidModule(":a", listOf(":a"))
@@ -132,6 +135,7 @@ class CompileModuleProjectsCycleTest {
     assertThat(result.map { it.path }).containsExactly(":a")
   }
 
+  /** A longer cycle (`:a -> :b -> :c -> :a`) terminates and expands each module at most once. */
   @Test(timeout = 30_000)
   fun `terminates on a longer cycle and expands each module at most once`() {
     // a -> b -> c -> a
@@ -145,6 +149,7 @@ class CompileModuleProjectsCycleTest {
     assertThat(result.map { it.path }).containsExactly(":b", ":c", ":a")
   }
 
+  /** A diamond (shared dependency reached by two paths) terminates and is not flagged as a cycle. */
   @Test(timeout = 30_000)
   fun `diamond shared dependency terminates and is not treated as a cycle`() {
     // a -> b -> d, a -> c -> d. `d` is a shared dependency reached by two paths, NOT a cycle:
@@ -161,6 +166,7 @@ class CompileModuleProjectsCycleTest {
     assertThat(result.map { it.path }.toSet()).containsExactly(":b", ":c", ":d")
   }
 
+  /** [AndroidModule.getCompileClasspaths] terminates on a cyclic module graph (`:a -> :b -> :a`). */
   @Test(timeout = 30_000)
   fun `getCompileClasspaths terminates on a cyclic module graph`() {
     // a -> b -> a. Pre-fix the sibling classpath traversal had no cross-module guard, so
@@ -176,6 +182,7 @@ class CompileModuleProjectsCycleTest {
     assertThat(result).contains(a.getGeneratedJar())
   }
 
+  /** [AndroidModule.getCompileClasspaths] terminates on a self-dependency cycle (`:a -> :a`). */
   @Test(timeout = 30_000)
   fun `getCompileClasspaths terminates on a self dependency cycle`() {
     val a = androidModule(":a", listOf(":a"))
@@ -186,6 +193,10 @@ class CompileModuleProjectsCycleTest {
     assertThat(result).contains(a.getGeneratedJar())
   }
 
+  /**
+   * [ModuleProject.formatDependencyCycle] renders the loop starting at the first occurrence of the
+   * repeated module, for two-node, self, and longer cycles.
+   */
   @Test
   fun `formatDependencyCycle renders the loop from the first occurrence of the repeated module`() {
     // Two-node, self, and longer cycles render as the chain the user must break.
