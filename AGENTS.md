@@ -10,6 +10,8 @@ Always plan before building. As part of the plan, estimate the projected size of
 
 When you change code, update the docs that describe it in the same change — a module's `README.md`, `ARCHITECTURE.md`, or an ADR — so a doc never outlives the API it documents. See REVIEW.md (Code quality) for the rule. If the doc fix is genuinely out of scope, file a ticket rather than leaving it to drift.
 
+Keep docs, tickets, commit messages, and PR descriptions crisp — say it once, lead with the point, cut hedging and restated context. Brevity is the soul of wit; a reader's attention is the scarce resource.
+
 Always protect the two critical Android interaction locations: (1) the top bar containing the time, notification icons, and status icons, and (2) the bottom bar containing the home button, back button, and app selector. Never put UI elements of our app on top of those Android reserved areas.
 
 ## Official/Public Actions Run in CI, Not Locally
