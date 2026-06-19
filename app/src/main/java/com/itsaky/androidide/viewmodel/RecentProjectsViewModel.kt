@@ -18,7 +18,10 @@ import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -29,6 +32,14 @@ enum class SortCriteria {
     NAME,
     DATE_CREATED,
     DATE_MODIFIED
+}
+
+data class FilterState(
+    val query: String = "",
+    val sort: SortCriteria? = null,
+    val ascending: Boolean = true
+) {
+    val hasAny: Boolean get() = sort != null || query.isNotEmpty()
 }
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
@@ -46,6 +57,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     private var currentQuery: String = ""
     private var currentSort: SortCriteria? = null
     private var isAscending: Boolean = true
+
+    private val _filterState = MutableStateFlow(FilterState())
+    val filterState: StateFlow<FilterState> = _filterState.asStateFlow()
 
     val currentSortCriteria: SortCriteria? get() = currentSort
     val currentSortAscending: Boolean get() = isAscending
@@ -80,6 +94,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     }
 
     private suspend fun applyFilters() {
+        _filterState.value = FilterState(currentQuery, currentSort, isAscending)
         withContext(Dispatchers.Default) {
             var result = allProjects
 

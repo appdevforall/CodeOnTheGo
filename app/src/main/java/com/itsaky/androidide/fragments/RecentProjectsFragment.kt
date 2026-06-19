@@ -1,6 +1,9 @@
 package com.itsaky.androidide.fragments
 
+import android.animation.ValueAnimator
 import android.os.Bundle
+import android.transition.AutoTransition
+import android.transition.TransitionManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.chip.Chip
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -28,6 +32,7 @@ import com.itsaky.androidide.utils.Environment.PROJECTS_DIR
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.viewmodel.FilterState
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.SortCriteria
 import com.itsaky.androidide.ui.ProjectInfoBottomSheet
@@ -80,6 +85,7 @@ class RecentProjectsFragment : BaseFragment() {
 		setupSearchBar()
 		setupObservers()
 		setupClickListeners()
+		setupFilterChips()
         bootstrapFromFixedFolderIfNeeded()
         observeDeletionStatus()
         observeRenameStatus()
@@ -220,6 +226,84 @@ class RecentProjectsFragment : BaseFragment() {
 	private fun toggleSortDirection(button: MaterialButton) {
 		selectedAsc = !selectedAsc
 		setupSortToggle(button, selectedAsc)
+	}
+
+	/**
+	 * Reflects the active sort/search as removable chips and toggles the filter button's
+	 * active dot. Driven by the view model so it stays in sync with the filters sheet,
+	 * the search bar, and clearing.
+	 */
+	private fun setupFilterChips() {
+		viewLifecycleScope.launch {
+			viewModel.filterState.collect { renderActiveFilters(it) }
+		}
+	}
+
+	private fun renderActiveFilters(state: FilterState) {
+		val filters = _binding?.layoutFilters ?: return
+		val group = filters.activeFiltersGroup
+		group.removeAllViews()
+
+		state.sort?.let { criteria ->
+			val labelRes = when (criteria) {
+				SortCriteria.NAME -> R.string.sort_by_name
+				SortCriteria.DATE_CREATED -> R.string.sort_by_created
+				SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
+			}
+			val arrow = if (state.ascending) "↑" else "↓"
+			group.addView(
+				buildFilterChip(
+					text = "${getString(labelRes)} $arrow",
+					removeDescRes = R.string.filter_chip_remove_sort,
+				) {
+					viewLifecycleScope.launch {
+						viewModel.onSortSelected(null)
+						viewModel.onSortDirectionChanged(true)
+					}
+				},
+			)
+		}
+
+		if (state.query.isNotEmpty()) {
+			group.addView(
+				buildFilterChip(
+					text = "“${state.query}”",
+					removeDescRes = R.string.filter_chip_remove_search,
+				) {
+					filters.searchProjectEditText.text?.clear()
+					viewLifecycleScope.launch { viewModel.onSearchQuery("") }
+				},
+			)
+		}
+
+		animateFilterBar(filters.root as? ViewGroup) {
+			filters.activeFiltersScroll.isVisible = group.childCount > 0
+			filters.filtersActiveDot.isVisible = state.hasAny
+		}
+	}
+
+	private fun buildFilterChip(
+		text: String,
+		removeDescRes: Int,
+		onRemove: () -> Unit,
+	): Chip {
+		val chip = layoutInflater.inflate(
+			R.layout.chip_active_filter,
+			binding.layoutFilters.activeFiltersGroup,
+			false,
+		) as Chip
+		chip.text = text
+		chip.closeIconContentDescription = getString(removeDescRes)
+		chip.setOnCloseIconClickListener { onRemove() }
+		chip.setOnClickListener { openFiltersSheet() }
+		return chip
+	}
+
+	private fun animateFilterBar(scene: ViewGroup?, change: () -> Unit) {
+		if (scene != null && ValueAnimator.areAnimatorsEnabled()) {
+			TransitionManager.beginDelayedTransition(scene, AutoTransition().setDuration(180))
+		}
+		change()
 	}
 
 
