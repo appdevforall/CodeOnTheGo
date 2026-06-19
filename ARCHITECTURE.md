@@ -6,7 +6,7 @@
 
 Code On The Go (CoGo) is a full Android IDE that runs **on the device** — it edits, builds, and deploys real Android apps offline, embedding a Termux toolchain and running an actual Gradle build in a separate process via the `tooling-api`. It is the maintained successor to AndroidIDE, so the codebase namespace is still `com.itsaky.androidide`.
 
-There is **no single architectural philosophy** across the whole app. It is a large, layered, View-based application where newer feature surfaces (plugin manager, AI agent, git, project list) follow a deliberate **Unidirectional Data Flow (UDF)** with Koin DI, `ViewModel` + `StateFlow`, sealed UI-state/effect types, and repositories — while older surfaces still use `LiveData` and talk to GreenRobot EventBus directly. New work should follow the UDF pattern documented below.
+There is **no single architectural philosophy** across the whole app. It is a large, layered application that is still **predominantly View-based**, where newer feature surfaces (plugin manager, AI agent, git, project list) follow a deliberate **Unidirectional Data Flow (UDF)** with Koin DI, `ViewModel` + `StateFlow`, sealed UI-state/effect types, and repositories — while older surfaces still use `LiveData` and talk to GreenRobot EventBus directly. New work follows the UDF pattern documented below, and new UI is built in **Jetpack Compose** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)) — Compose replaces the view layer only; the UDF stack (ViewModel + `StateFlow`, Koin, repositories) is unchanged. Existing XML/View screens remain until they're substantially reworked.
 
 ## Core Architecture & Data Flow
 
@@ -88,7 +88,7 @@ These structural facts shape every module. The day-to-day build *commands* live 
 
 | Concern | Library / Approach |
 |---|---|
-| UI | Android Views + Fragments + `RecyclerView` (Material Components). **Not Compose** for the IDE's own UI. |
+| UI | **Jetpack Compose for all new UI** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)). The existing majority is still Android Views + Fragments + `RecyclerView` (Material Components); those legacy screens stay until reworked, but new IDE UI is Compose-only. |
 | Dependency Injection | **Koin** (`org.koin`) — `coreModule`/`pluginModule`, `startKoin` in `IDEApplication`, plus a `ServiceLocator : KoinComponent` for lazy post-startup access. No Hilt/Dagger. |
 | Asynchronous work | **Kotlin Coroutines + Flow** (`StateFlow`/`SharedFlow`, `viewModelScope`, app-scoped `CoroutineScope(SupervisorJob() + Dispatchers.IO)`); **GreenRobot EventBus** for cross-subsystem events. |
 | Networking | Offline-first; no general REST layer. External I/O is **Google GenAI SDK** (Gemini), **on-device llama.cpp**, and **JGit** (git). Retrofit is in the catalog but effectively unused in app code. |

@@ -22,3 +22,4 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0006](0006-koin-dependency-injection.md) | Use Koin for dependency injection, not Hilt/Dagger | Accepted |
 | [0007](0007-strictmode-whitelist-engine.md) | Enforce StrictMode via a custom whitelist engine | Accepted |
 | [0008](0008-retain-androidide-namespace.md) | Retain the `com.itsaky.androidide` namespace after rebrand | Accepted |
+| [0009](0009-jetpack-compose-for-new-ui.md) | Build new UI in Jetpack Compose, not XML Views | Accepted |

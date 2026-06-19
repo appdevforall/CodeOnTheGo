@@ -117,14 +117,20 @@ Keep event names/params stable and low-cardinality; **no PII, file paths with us
 
 ## 8. Accessibility — every actionable view speaks
 
-CoGo serves visually-impaired developers, so screen-reader support (TalkBack) is a correctness requirement for UI work, not a nice-to-have. The pattern below is what ADFA-2667 established — hold new UI to it.
+CoGo serves visually-impaired developers, so screen-reader support (TalkBack) is a correctness requirement for UI work, not a nice-to-have. The pattern below is what ADFA-2667 established — hold new UI to it. New UI is Compose ([§10](#10-architecture-alignment) / [ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)), so each rule below gives both the View and the Compose form; the requirement is identical in either toolkit.
 
-- **Label every actionable view.** Buttons, `ImageButton`s, and icon-only controls need a `contentDescription`. In layouts: `android:contentDescription="@string/cd_…"`. An unlabeled icon button is announced as "unlabeled button" — useless.
-- **Don't forget views built in code.** The easy miss is anything *not* in XML — toolbar action items, RecyclerView rows, dynamically-inflated buttons. Set `contentDescription` programmatically when you create them (see `EditorHandlerActivity.getToolbarContentDescription()`, `MainActionsListAdapter`, `DiagnosticItemAdapter` from ADFA-2667).
-- **Silence decoration.** Purely visual views — separators, background images, an icon sitting next to a label that already says the same thing — get `android:importantForAccessibility="no"` (or `View.IMPORTANT_FOR_ACCESSIBILITY_NO`) so TalkBack skips them instead of reading noise.
-- **Describe the action, not the picture.** Prefer what tapping *does* over what the icon *looks like*: `cd_sync_project`, not "circular arrows icon". When a control toggles state, make the description state-aware — `cd_drawer_open` vs. `cd_drawer_close`, expand vs. collapse — rather than one ambiguous label.
-- **Externalize, with the `cd_` convention.** Content-description strings live in `strings.xml` named `cd_*` (so they're greppable, translatable via Crowdin, and not inline literals). Reuse an existing `cd_` string before adding a near-duplicate.
-- **Bonus: it stabilizes tests.** Our UI tests drive views through accessibility actions (`ACTION_CLICK`), which need these labels — so good a11y and reliable instrumentation tests are the same work.
+- **Label every actionable view.** Buttons, `ImageButton`s, and icon-only controls need a `contentDescription`.
+  - *View:* `android:contentDescription="@string/cd_…"`. An unlabeled icon button is announced as "unlabeled button" — useless.
+  - *Compose:* pass the `contentDescription` argument on `Icon`/`Image`; for a custom clickable or an `IconButton` (whose inner `Icon` is usually `contentDescription = null`), put the label on the control with `Modifier.semantics { contentDescription = … }`.
+- **Don't forget the elements built in code.**
+  - *View:* the easy miss is anything *not* in XML — toolbar action items, RecyclerView rows, dynamically-inflated buttons. Set `contentDescription` programmatically when you create them (see `EditorHandlerActivity.getToolbarContentDescription()`, `MainActionsListAdapter`, `DiagnosticItemAdapter` from ADFA-2667).
+  - *Compose:* `Icon`/`Image` *force* you to pass `contentDescription`, so the miss is supplying a vague one — or `null` on something that's actually actionable. Don't reach for `null` just to satisfy the signature.
+- **Silence decoration.** Purely visual elements — separators, background images, an icon sitting next to a label that already says the same thing — should be skipped by TalkBack, not read as noise.
+  - *View:* `android:importantForAccessibility="no"` (or `View.IMPORTANT_FOR_ACCESSIBILITY_NO`).
+  - *Compose:* pass `contentDescription = null` on the decorative `Icon`/`Image`; to drop a whole subtree from the tree, use `Modifier.clearAndSetSemantics { }`.
+- **Describe the action, not the picture.** Prefer what tapping *does* over what the icon *looks like*: `cd_sync_project`, not "circular arrows icon". When a control toggles state, make the description state-aware — `cd_drawer_open` vs. `cd_drawer_close`, expand vs. collapse — rather than one ambiguous label. (Same in both toolkits; in Compose pull the text with `stringResource(R.string.cd_…)`.)
+- **Externalize, with the `cd_` convention.** Content-description strings live in `strings.xml` named `cd_*` (so they're greppable, translatable via Crowdin, and not inline literals). Reuse an existing `cd_` string before adding a near-duplicate. Note the lint `HardcodedText` check does **not** see Compose literals — a hardcoded `contentDescription = "Sync"` won't be flagged, so reviewers must catch it.
+- **Bonus: it stabilizes tests.** Screen-reader semantics are also what UI tests match on — `ACTION_CLICK` for Views, `onNodeWithContentDescription(…)` for Compose — so good a11y and reliable instrumentation tests are the same work.
 
 ## 9. Contextual help — long-press works everywhere
 
@@ -133,17 +139,27 @@ Help in CoGo is reached by **long-press**, anywhere, and opens a progressive thr
 - **Wire up help on new interactive elements.** Any view that does something when tapped — buttons, icon controls, menu items, list rows, toolbar actions — gets long-press help. A new actionable view with no tooltip affordance is an incomplete change, the same as a missing `contentDescription`.
 - **Cover new screens and panels too.** Even where individual pixels aren't interactive, a new screen/panel/dialog needs at least a top-level help entry so help is reachable from anywhere on that surface.
 - **The affordance is the requirement, not finished copy.** Tooltip *content* may still be getting authored — that's fine — but the long-press must already be wired and route into the tier system. Don't ship UI that can never surface help.
-- **Reuse the system; don't reinvent it.** Use `showIDETooltip` / the `idetooltips` module rather than a one-off popup, so all three tiers and the tooltip store stay consistent.
+- **Reuse the system; don't reinvent it.** Wire help through the `idetooltips` module — today that's the `View.displayTooltipOnLongPress(context, anchorView, category, tag)` extension (`setOnLongClickListener` → `TooltipManager.showTooltip`) — rather than a one-off popup, so all three tiers and the tooltip store stay consistent.
+- **Compose has no native entry point yet.** The helper above is View-based (it needs an `anchorView`). Until `idetooltips` grows a Compose API, a new composable surface wires help via `AndroidView` interop or a thin wrapper that exposes the anchor — flag it in review rather than skipping help, and prefer building the reusable `Modifier`/wrapper once over copy-pasting interop at each call site.
 
 ## 10. Architecture alignment
 
 Hold the change to the patterns in [ARCHITECTURE.md](ARCHITECTURE.md):
-- New screens follow **UDF**: `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, repository for data. Don't put I/O or business logic in Fragments/Activities.
+- **New UI is Jetpack Compose** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)) — a new XML layout / `Fragment`-rendered screen for the IDE's own UI should be sent back. Compose changes only the view layer; the rest of this list still applies. (Existing XML screens are fine until reworked.)
+- New screens follow **UDF**: `ViewModel` + `StateFlow<UiState>`, sealed `UiEvent`/`UiEffect`, repository for data. Composables collect state via `collectAsState()`; keep I/O and business logic out of composables/Activities.
 - DI via **Koin** (constructor injection); register new singletons/viewModels in the module.
 - **Persistence:** raw SQLite or filesystem — **not Room** (Recent Projects is the lone legacy exception).
 - **UI safety:** never place our UI over the two Android system bars — the top status bar and the bottom navigation bar (`AGENTS.md`).
 
-## 11. PR hygiene
+## 11. Offline-first
+
+CoGo is meant to work **without a network** — editing, building, and running an app on-device must not depend on connectivity. Hold new work to that:
+
+- **Degrade gracefully offline.** A feature that needs the network must still launch, explain itself, and leave the rest of the app usable when there's no connection — never block a core flow (edit/build/run) on a request.
+- **Network calls are non-blocking and failure-tolerant.** Analytics, Sentry, and Gemini calls run off the main thread and must tolerate timeouts/failures silently (no crash, no hang, no lost user action). A dropped analytics event is acceptable; a dropped keystroke is not.
+- **No network on the critical path.** Don't introduce a connectivity dependency into startup, the editor, or the build pipeline.
+
+## 12. PR hygiene
 
 - Focused and reviewable: aim for the **~500 LOC / 10-file** ceiling; split larger work into stacked PRs.
 - Title/branch follow `ADFA-####`; description says *what changed, why, how it was verified*, and flags anything intentionally out of scope (e.g. "UI-only, no unit test").
@@ -157,7 +173,6 @@ These aren't established rules yet — flagging them as candidates for the team:
 
 - **Backward compatibility:** `MIN_SDK=28` — review new APIs for guard/desugaring; remember user-built apps target `MIN_SDK_FOR_APPS_BUILT_WITH_COGO=16`.
 - **Performance budget for startup & editor:** watch added work in `Application.onCreate`, `tooling-api` startup, and per-keystroke editor paths; flag synchronous heavy work there.
-- **Offline-first:** CoGo is meant to work without a network. New features should degrade gracefully offline; analytics/Sentry/Gemini calls must be non-blocking and failure-tolerant.
 - **Feature flags / kill switches** for risky surfaces (AI agent, plugins, web server) so we can disable in the field without a release.
 
 Add to or push back on any of these — this doc is meant to evolve with the team.
