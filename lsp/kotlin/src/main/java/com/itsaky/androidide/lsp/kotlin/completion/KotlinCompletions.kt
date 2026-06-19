@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.completion
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.withAnalysisLock
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
@@ -149,41 +150,43 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 		env.project.read {
 			abortIfCancelled()
 
-			analyzeCopy(
-				useSiteElement = completionKtFile,
-				resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
-			) {
-				val ctx =
-					resolveAnalysisContext(
-						env = env,
-						file = params.file,
-						ktFile = completionKtFile,
-						offset = completionOffset,
-						partial = partial
-					)
+			withAnalysisLock {
+				analyzeCopy(
+					useSiteElement = completionKtFile,
+					resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
+				) {
+					val ctx =
+						resolveAnalysisContext(
+							env = env,
+							file = params.file,
+							ktFile = completionKtFile,
+							offset = completionOffset,
+							partial = partial
+						)
 
-				if (ctx == null) {
-					logger.error(
-						"Unable to determine context at offset {} in file {}",
-						completionOffset,
-						params.file
-					)
-					return@analyzeCopy CompletionResult.EMPTY
-				}
-
-				abortIfCancelled()
-				context(ctx) {
-					val items = mutableListOf<CompletionItem>()
-					val completionContext = determineCompletionContext(ctx.psiElement)
-					when (completionContext) {
-						CompletionContext.Scope ->
-							collectScopeCompletions(to = items)
-
-						CompletionContext.Member ->
-							collectMemberCompletions(to = items)
+					if (ctx == null) {
+						logger.error(
+							"Unable to determine context at offset {} in file {}",
+							completionOffset,
+							params.file
+						)
+						return@analyzeCopy CompletionResult.EMPTY
 					}
 
-					CompletionResult(items)
+					abortIfCancelled()
+					context(ctx) {
+						val items = mutableListOf<CompletionItem>()
+						val completionContext = determineCompletionContext(ctx.psiElement)
+						when (completionContext) {
+							CompletionContext.Scope ->
+								collectScopeCompletions(to = items)
+
+							CompletionContext.Member ->
+								collectMemberCompletions(to = items)
+						}
+
+						CompletionResult(items)
+					}
 				}
 			}
 		}
