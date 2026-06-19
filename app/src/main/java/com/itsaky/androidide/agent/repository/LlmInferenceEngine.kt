@@ -291,9 +291,13 @@ class LlmInferenceEngine(
         modelUriString: String,
         expectedSha256: String?
     ): Boolean {
+        val modelUri = modelUriString.toUri()
+        val displayName = resolveModelDisplayName(context, modelUri)
+
         return try {
-            val modelUri = modelUriString.toUri()
-            val displayName = resolveModelDisplayName(context, modelUri)
+            // Validate file format before attempting to load
+            validateModelFormat(displayName)
+
             val destinationFile = File(context.cacheDir, "local_model.gguf")
 
             if (!copyModelToCache(context, modelUri, destinationFile)) {
@@ -313,6 +317,25 @@ class LlmInferenceEngine(
             currentModelFamily = detectModelFamily(displayName)
             log.info("Successfully loaded local model: {}", loadedModelName)
             true
+        } catch (e: IllegalStateException) {
+            // Check if this is an embedding model error
+            if (e.message?.contains("embedding model") == true) {
+                log.error("Cannot use embedding model for chat: {}", displayName, e)
+                throw IllegalArgumentException(
+                    "The selected model '$displayName' is an embedding model designed for semantic " +
+                    "search and similarity tasks. It cannot be used for chat or text generation.\n\n" +
+                    "Please select a chat/instruct model instead (e.g., models with 'chat', 'instruct', " +
+                    "'conversational' in their name).", e
+                )
+            } else {
+                log.error("Failed to load model", e)
+                throw e
+            }
+        } catch (e: IllegalArgumentException) {
+            // Re-throw validation errors (file format, etc.)
+            log.error("Model validation failed: {}", displayName, e)
+            resetLoadedModelState()
+            throw e
         } catch (e: Exception) {
             log.error("Failed to initialize or load model from file", e)
             resetLoadedModelState()
@@ -455,6 +478,87 @@ class LlmInferenceEngine(
             llamaController?.stop()
         } catch (e: Exception) {
             log.error("Error calling stop on the native library", e)
+        }
+    }
+
+    /**
+     * Validates that the model file format is supported.
+     * This app uses llama.cpp which only supports GGUF format.
+     *
+     * @throws IllegalArgumentException if the model format is not supported
+     */
+    private fun validateModelFormat(filename: String) {
+        val lowerName = filename.lowercase()
+
+        // Check for unsupported formats
+        when {
+            lowerName.endsWith(".onnx") -> {
+                throw IllegalArgumentException(
+                    "ONNX models (.onnx) are not supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "To use this model:\n" +
+                    "1. Convert it to GGUF format using llama.cpp conversion tools\n" +
+                    "2. Or download a pre-converted GGUF version from Hugging Face"
+                )
+            }
+            lowerName.endsWith(".pt") || lowerName.endsWith(".pth") || lowerName.endsWith(".bin") -> {
+                throw IllegalArgumentException(
+                    "PyTorch models (.pt, .pth, .bin) are not supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "To use this model:\n" +
+                    "1. Convert it to GGUF format using convert_hf_to_gguf.py\n" +
+                    "2. Or download a pre-converted GGUF version from Hugging Face"
+                )
+            }
+            lowerName.endsWith(".safetensors") -> {
+                throw IllegalArgumentException(
+                    "SafeTensors models (.safetensors) are not directly supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "To use this model:\n" +
+                    "1. Convert it to GGUF format using convert_hf_to_gguf.py\n" +
+                    "2. Or download a pre-converted GGUF version from Hugging Face"
+                )
+            }
+            lowerName.endsWith(".pb") || lowerName.contains("tensorflow") -> {
+                throw IllegalArgumentException(
+                    "TensorFlow models (.pb) are not supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "To use this model:\n" +
+                    "1. Convert it to GGUF format using appropriate conversion tools\n" +
+                    "2. Or download a pre-converted GGUF version from Hugging Face"
+                )
+            }
+            lowerName.endsWith(".tflite") -> {
+                throw IllegalArgumentException(
+                    "TensorFlow Lite models (.tflite) are not supported.\n\n" +
+                    "This app uses llama.cpp which only supports GGUF format (.gguf).\n\n" +
+                    "Please select a GGUF format model."
+                )
+            }
+            lowerName.endsWith(".ggml") -> {
+                throw IllegalArgumentException(
+                    "GGML models (.ggml) are deprecated.\n\n" +
+                    "This app uses the newer GGUF format (.gguf).\n\n" +
+                    "To use this model:\n" +
+                    "1. Convert it to GGUF using convert_llama_ggml_to_gguf.py\n" +
+                    "2. Or download a GGUF version from Hugging Face"
+                )
+            }
+            !lowerName.endsWith(".gguf") -> {
+                log.warn("Model file '{}' doesn't have .gguf extension. May fail to load.", filename)
+                // Don't throw - maybe it's a GGUF file with wrong extension
+            }
+        }
+
+        // Additional check for common embedding model patterns in filename
+        if (lowerName.contains("all-mini") ||
+            lowerName.contains("all-mpnet") ||
+            lowerName.contains("e5-") ||
+            (lowerName.contains("embed") && !lowerName.contains("llama"))) {
+            log.warn(
+                "Model '{}' appears to be an embedding model based on filename. " +
+                "This may not work for chat. Will validate during load.", filename
+            )
         }
     }
 

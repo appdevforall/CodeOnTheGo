@@ -105,14 +105,24 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
 
         viewModelScope.launch {
             _modelLoadingState.value = ModelLoadingState.Loading
-            val expectedHash = getLocalModelSha256()
-            val success = llmInferenceEngine.initModelFromFile(context, path, expectedHash)
-            if (success && llmInferenceEngine.loadedModelName != null) {
-                _modelLoadingState.value = ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
-                // Also save the path on successful load
-                saveLocalModelPath(path)
-            } else {
-                _modelLoadingState.value = ModelLoadingState.Error("Failed to load model file.")
+            try {
+                val expectedHash = getLocalModelSha256()
+                val success = llmInferenceEngine.initModelFromFile(context, path, expectedHash)
+                if (success && llmInferenceEngine.loadedModelName != null) {
+                    _modelLoadingState.value = ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
+                    // Also save the path on successful load
+                    saveLocalModelPath(path)
+                } else {
+                    _modelLoadingState.value = ModelLoadingState.Error("Failed to load model file.")
+                }
+            } catch (e: IllegalArgumentException) {
+                // Handle validation errors (embedding models, unsupported formats, etc.)
+                _modelLoadingState.value = ModelLoadingState.Error(e.message ?: "Model validation failed.")
+                Log.e("ModelLoad", "Model validation error: ${e.message}", e)
+            } catch (e: Exception) {
+                // Handle any other unexpected errors
+                _modelLoadingState.value = ModelLoadingState.Error("Failed to load model: ${e.message}")
+                Log.e("ModelLoad", "Unexpected error loading model", e)
             }
         }
     }

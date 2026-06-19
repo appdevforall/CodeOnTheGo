@@ -238,20 +238,54 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     return JNI_VERSION_1_6;
 }
 
+// Helper function to validate GGUF file format
+static bool is_valid_gguf_file(const char *path) {
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        LOGe("Cannot open file: %s", path);
+        return false;
+    }
+
+    // GGUF magic number: "GGUF" (0x46554747)
+    uint32_t magic = 0;
+    size_t read = fread(&magic, sizeof(uint32_t), 1, file);
+    fclose(file);
+
+    if (read != 1) {
+        LOGe("Failed to read magic number from file");
+        return false;
+    }
+
+    // Check for GGUF magic (little-endian: 0x46554747)
+    const uint32_t GGUF_MAGIC = 0x46554747;
+    return magic == GGUF_MAGIC;
+}
+
 extern "C"
 JNIEXPORT jlong JNICALL
 Java_android_llama_cpp_LLamaAndroid_load_1model(JNIEnv *env, jobject, jstring filename) {
-    llama_model_params model_params = llama_model_default_params();
-
     auto path_to_model = env->GetStringUTFChars(filename, 0);
     LOGi("Loading model from %s", path_to_model);
 
+    // Validate file format before attempting to load
+    if (!is_valid_gguf_file(path_to_model)) {
+        LOGe("Invalid GGUF file format: %s", path_to_model);
+        env->ReleaseStringUTFChars(filename, path_to_model);
+        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                      "Invalid model file format. This app only supports GGUF format models. "
+                      "Please ensure you have selected a valid .gguf model file.");
+        return 0;
+    }
+
+    llama_model_params model_params = llama_model_default_params();
     auto model = llama_model_load_from_file(path_to_model, model_params);
     env->ReleaseStringUTFChars(filename, path_to_model);
 
     if (!model) {
-        LOGe("load_model() failed");
-        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), "load_model() failed");
+        LOGe("load_model() failed - model loading returned null");
+        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                      "Failed to load model. The file may be corrupted, incompatible, or require "
+                      "more memory than available. Please try a smaller model or restart the app.");
         return 0;
     }
 
@@ -286,6 +320,18 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
     }
     LOGi("Using %d threads (batch=%d)", n_threads, n_threads_batch);
 
+    // Validate model parameters before creating context
+    int32_t model_n_ctx_train = llama_model_n_ctx_train(model);
+
+    LOGi("Model info: ctx_train=%d", model_n_ctx_train);
+
+    if (model_n_ctx_train <= 0) {
+        LOGe("Invalid model training context: %d", model_n_ctx_train);
+        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                      "Model has invalid training context. The model file may be corrupted.");
+        return 0;
+    }
+
     llama_context_params ctx_params = llama_context_default_params();
 
     const int configured_ctx = g_n_ctx.load();
@@ -293,15 +339,44 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads_batch;
 
+    // Clamp context size to model's training context
+    if (ctx_params.n_ctx > model_n_ctx_train) {
+        LOGi("Clamping requested context %d to model's training context %d",
+             ctx_params.n_ctx, model_n_ctx_train);
+        ctx_params.n_ctx = model_n_ctx_train;
+    }
+
+    LOGi("Creating context with n_ctx=%d, n_threads=%d, n_threads_batch=%d",
+         ctx_params.n_ctx, ctx_params.n_threads, ctx_params.n_threads_batch);
+
     llama_context *context = llama_init_from_model(model, ctx_params);
 
     if (!context) {
-        LOGe("llama_new_context_with_model() returned null)");
+        LOGe("llama_init_from_model() returned null");
         env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
-                      "llama_new_context_with_model() returned null)");
+                      "Failed to create model context. This may indicate:\n"
+                      "1. Insufficient memory (try freeing memory or using a smaller model)\n"
+                      "2. Incompatible model architecture\n"
+                      "3. Corrupted model file\n"
+                      "Try restarting the app or selecting a different model.");
         return 0;
     }
 
+    // CRITICAL: Verify this is not an embedding model IMMEDIATELY after context creation
+    const auto pooling_type = llama_pooling_type(context);
+    LOGi("Context pooling_type: %d (0=none/generative, 1=mean/embed, 2=cls, 3=last, 4=rank)", pooling_type);
+
+    if (pooling_type != LLAMA_POOLING_TYPE_NONE) {
+        LOGe("REJECTED: Model is configured for embeddings (pooling_type=%d), cannot generate text", pooling_type);
+        llama_free(context);
+        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                      "This model is an embedding model and cannot be used for text generation. "
+                      "Embedding models use 'encode' operations, not 'decode'. "
+                      "Please select a chat/instruct model (Llama, Qwen, Gemma, etc.) for conversation.");
+        return 0;
+    }
+
+    LOGi("Context created successfully - model is suitable for text generation");
     return reinterpret_cast<jlong>(context);
 }
 
@@ -585,6 +660,20 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
         jboolean format_chat,
         jint n_len, jobjectArray stop) {
 
+    const auto context = reinterpret_cast<llama_context *>(context_pointer);
+    const auto batch = reinterpret_cast<llama_batch *>(batch_pointer);
+
+    // Safety check: Verify this is not an embedding model
+    if (context) {
+        const auto pooling_type = llama_pooling_type(context);
+        if (pooling_type != LLAMA_POOLING_TYPE_NONE) {
+            LOGe("completion_init failed: Model has pooling_type=%d, cannot generate text", pooling_type);
+            env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                          "This model is configured for embeddings and cannot generate text. Please use a generative model for chat.");
+            return 0;
+        }
+    }
+
     {
         std::lock_guard<std::mutex> lock(g_globals_mutex);
         cached_token_chars.clear();
@@ -611,21 +700,57 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
         }
     }
 
+    if (!context) {
+        LOGe("completion_init: context is null");
+        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), "Model context is null");
+        return 0;
+    }
+
+    if (!batch) {
+        LOGe("completion_init: batch is null");
+        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), "Batch is null");
+        return 0;
+    }
+
     const auto text = env->GetStringUTFChars(jtext, 0);
-    const auto context = reinterpret_cast<llama_context *>(context_pointer);
-    const auto batch = reinterpret_cast<llama_batch *>(batch_pointer);
+    if (!text) {
+        LOGe("completion_init: failed to get text string");
+        env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "Invalid text input");
+        return 0;
+    }
 
     bool parse_special = (format_chat == JNI_TRUE);
+    LOGi("Tokenizing input (parse_special=%d)...", parse_special);
+
     const auto tokens_list = common_tokenize(context, text, true, parse_special);
+    LOGi("Tokenized %zu tokens", tokens_list.size());
+
+    if (tokens_list.empty()) {
+        LOGe("Tokenization produced no tokens");
+        env->ReleaseStringUTFChars(jtext, text);
+        env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"),
+                      "Failed to tokenize input text. The text may be empty or invalid.");
+        return 0;
+    }
 
     int n_ctx = llama_n_ctx(context);
+    if (n_ctx <= 0) {
+        LOGe("Invalid context size: %d", n_ctx);
+        env->ReleaseStringUTFChars(jtext, text);
+        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                      "Model context size is invalid. Model may be corrupted.");
+        return 0;
+    }
+
     size_t n_kv_req = tokens_list.size() + static_cast<size_t>(n_len);
-    LOGi("n_len = %d, n_ctx = %d, n_kv_req = %zu", n_len, n_ctx, n_kv_req);
+    LOGi("n_len = %d, n_ctx = %d, n_tokens = %zu, n_kv_req = %zu", n_len, n_ctx, tokens_list.size(), n_kv_req);
 
     if (n_kv_req > n_ctx) {
-        LOGe("error: n_kv_req > n_ctx, the required KV cache size is not big enough");
+        LOGe("error: n_kv_req (%zu) > n_ctx (%d), the required KV cache size is not big enough", n_kv_req, n_ctx);
+        env->ReleaseStringUTFChars(jtext, text);
         env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"),
-                      "Prompt is too long for the model's context size.");
+                      "Prompt is too long for the model's context size. "
+                      "Try a shorter message or reduce max output tokens.");
         return 0;
     }
 
@@ -684,11 +809,60 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
     }
 
     if (batch->n_tokens > 0) {
+        LOGi("Processing batch with %d tokens", batch->n_tokens);
+
+        // Validate batch before decode
+        if (batch->n_tokens < 0) {
+            LOGe("Invalid batch token count: %d", batch->n_tokens);
+            env->ReleaseStringUTFChars(jtext, text);
+            env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                          "Batch state corrupted. Token count is negative.");
+            return 0;
+        }
+
         // llama_decode will output logits only for the last token of the prompt
         batch->logits[batch->n_tokens - 1] = true;
-        if (llama_decode(context, *batch) != 0) {
-            LOGe("llama_decode() failed");
+
+        LOGi("Calling llama_decode for initial prompt processing...");
+
+        // Double-check pooling type before decode (belt and suspenders)
+        const auto pooling_check = llama_pooling_type(context);
+        if (pooling_check != LLAMA_POOLING_TYPE_NONE) {
+            LOGe("CRITICAL: Attempted decode on embedding model (pooling=%d)", pooling_check);
+            env->ReleaseStringUTFChars(jtext, text);
+            env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                          "Cannot decode with embedding model. This model only supports 'encode' operations.");
+            return 0;
         }
+
+        int decode_result = llama_decode(context, *batch);
+
+        if (decode_result != 0) {
+            LOGe("llama_decode() failed with error code: %d", decode_result);
+            env->ReleaseStringUTFChars(jtext, text);
+
+            const char* error_msg;
+            switch (decode_result) {
+                case -1:
+                    error_msg = "Model decode failed (error -1). This may indicate:\n"
+                                "1. Insufficient memory for model operations\n"
+                                "2. Incompatible model architecture (possibly an embedding model)\n"
+                                "3. Corrupted model file\n"
+                                "Try: Restart app, use smaller model, or select a chat/instruct model";
+                    break;
+                case -2:
+                    error_msg = "Model decode failed (error -2). Context or batch state is invalid.";
+                    break;
+                default:
+                    error_msg = "Model decode failed with unknown error. Model may be incompatible.";
+            }
+
+            env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), error_msg);
+            return 0;
+        }
+        LOGi("Initial decode completed successfully");
+    } else {
+        LOGi("Batch is empty, skipping decode");
     }
 
     env->ReleaseStringUTFChars(jtext, text);
@@ -816,8 +990,24 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
 
     env->CallVoidMethod(intvar_ncur, la_int_var_inc);
 
-    if (llama_decode(context, *batch) != 0) {
-        LOGe("llama_decode() returned null");
+    // Safety check before decode
+    if (!batch || batch->n_tokens <= 0) {
+        LOGe("Invalid batch state before decode: n_tokens=%d", batch ? batch->n_tokens : -1);
+        return nullptr;
+    }
+
+    // Verify not an embedding model before each decode
+    const auto pooling_check = llama_pooling_type(context);
+    if (pooling_check != LLAMA_POOLING_TYPE_NONE) {
+        LOGe("CRITICAL: Detected embedding model during generation (pooling=%d)", pooling_check);
+        log_info_to_kt("Cannot continue generation: model is for embeddings, not text generation.");
+        return nullptr;
+    }
+
+    int decode_result = llama_decode(context, *batch);
+    if (decode_result != 0) {
+        LOGe("llama_decode() failed during generation with error: %d", decode_result);
+        log_info_to_kt("Generation decode failed with error %d. Stopping generation.", decode_result);
         return nullptr;
     }
 
@@ -849,6 +1039,37 @@ Java_android_llama_cpp_LLamaAndroid_model_1n_1ctx(
         return 0;
     }
     return llama_n_ctx(context);
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_android_llama_cpp_LLamaAndroid_get_1pooling_1type(
+        JNIEnv *env,
+        jobject /* this */,
+        jlong context_ptr) {
+    auto *context = reinterpret_cast<llama_context *>(context_ptr);
+    if (!context) {
+        LOGe("get_pooling_type: context is null");
+        return -1; // LLAMA_POOLING_TYPE_UNSPECIFIED
+    }
+    return static_cast<jint>(llama_pooling_type(context));
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_android_llama_cpp_LLamaAndroid_get_1model_1desc(
+        JNIEnv *env,
+        jobject /* this */,
+        jlong model_ptr) {
+    auto *model = reinterpret_cast<llama_model *>(model_ptr);
+    if (!model) {
+        LOGe("get_model_desc: model is null");
+        return env->NewStringUTF("unknown");
+    }
+
+    char desc[256];
+    llama_model_desc(model, desc, sizeof(desc));
+    return new_jstring_utf8(env, desc);
 }
 
 extern "C" JNIEXPORT jintArray JNICALL
