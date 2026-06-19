@@ -98,6 +98,11 @@ class ProjectManagerImpl :
 	override var androidBuildVariants: Map<String, BuildVariantInfo> = emptyMap()
 		private set
 
+	/**
+	 * The project directory path, or an empty string when [projectPath] has not yet been
+	 * initialized (e.g. the OS recreated EditorActivity after process death without routing
+	 * through MainActivity). Guarding the lateinit access avoids crashing the caller.
+	 */
 	override val projectDirPath: String
 		get() = if (this::projectPath.isInitialized) projectPath else ""
 

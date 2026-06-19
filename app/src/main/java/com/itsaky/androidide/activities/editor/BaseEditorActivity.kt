@@ -633,6 +633,11 @@ abstract class BaseEditorActivity :
 		builder.show()
 	}
 
+	/**
+	 * Restores the project path on recreation (saved state, launch intent, or last opened
+	 * project) and routes back to MainActivity if none is available, rather than crashing while
+	 * building the editor UI.
+	 */
 	override fun onCreate(savedInstanceState: Bundle?) {
 		// The OS can recreate EditorActivity after process death without routing through
 		// MainActivity, leaving the ProjectManagerImpl singleton's lateinit projectPath unset.
