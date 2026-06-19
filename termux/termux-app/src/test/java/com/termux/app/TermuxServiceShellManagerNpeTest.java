@@ -46,6 +46,7 @@ public class TermuxServiceShellManagerNpeTest {
         f.set(null, null);
     }
 
+    /** Service onCreate() with a null shell-manager singleton must not NPE and must expose usable sessions. */
     @Test
     public void onCreateWithNullSingleton_doesNotNpe_andSessionsAreUsable() {
         // Sanity: the auto-restart precondition — singleton is null going in.
