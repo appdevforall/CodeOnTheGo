@@ -147,7 +147,7 @@ constructor(
     // saved state, so the modified indicator can be cleared. The length is compared first
     // as an O(1) guard so the content hash is only computed when the lengths match.
     private var savedContentLength = 0
-    private var savedContentHash = 0
+    private var savedContentHash = 0L
 
     private val selectionChangeHandler = Handler(Looper.getMainLooper())
     private var selectionChangeRunner: Runnable? =
@@ -693,13 +693,22 @@ constructor(
     private fun refreshModifiedState() {
         val content = text
         isModified = content.length != savedContentLength ||
-                content.toString().hashCode() != savedContentHash
+                computeContentHash(content) != savedContentHash
     }
 
     private fun snapshotSavedContent() {
-        val content = text.toString()
+        val content = text
         savedContentLength = content.length
-        savedContentHash = content.hashCode()
+        savedContentHash = computeContentHash(content)
+    }
+
+    private fun computeContentHash(content: CharSequence): Long {
+        var hash = -3750763034362895579L // FNV_offset_basis
+        for (i in 0 until content.length) {
+            hash = hash xor content[i].code.toLong()
+            hash *= 1099511628211L // FNV_prime
+        }
+        return hash
     }
 
     /**
