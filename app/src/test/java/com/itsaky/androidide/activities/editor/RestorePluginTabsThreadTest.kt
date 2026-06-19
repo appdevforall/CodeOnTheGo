@@ -92,6 +92,7 @@ class RestorePluginTabsThreadTest {
     Dispatchers.resetMain()
   }
 
+  /** Asserts the cached-tabs clearing write runs on a background thread, not the main thread. */
   @Test
   fun `restore decodes and writes off the main thread`() {
     val mainThreadName = Thread.currentThread().name
@@ -134,7 +135,6 @@ class RestorePluginTabsThreadTest {
 
       val writeThread = capture.writeThreadName
       assertThat(writeThread).isNotNull()
-      println("PROBE: mainThread='$mainThreadName' writeThread='$writeThread'")
       // The fix requires the IO/decode work to run OFF the main thread.
       assertThat(writeThread).isNotEqualTo(mainThreadName)
     } finally {

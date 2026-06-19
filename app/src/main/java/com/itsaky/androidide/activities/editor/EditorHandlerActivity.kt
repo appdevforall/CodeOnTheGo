@@ -394,6 +394,10 @@ open class EditorHandlerActivity :
 		restoreOpenedPluginTabs()
 	}
 
+	/**
+	 * Restores the plugin tabs cached from the previous session, running the
+	 * SharedPreferences IO and Gson decode off the main thread to avoid a startup UI stall.
+	 */
 	private fun restoreOpenedPluginTabs() {
 		lifecycleScope.launch {
 			try {
