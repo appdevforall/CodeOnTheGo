@@ -160,7 +160,14 @@ CoGo is meant to work **without a network** — editing, building, and running a
 - **Network calls are non-blocking and failure-tolerant.** Analytics, Sentry, and Gemini calls run off the main thread and must tolerate timeouts/failures silently (no crash, no hang, no lost user action). A dropped analytics event is acceptable; a dropped keystroke is not.
 - **No network on the critical path.** Don't introduce a connectivity dependency into startup, the editor, or the build pipeline.
 
-## 12. PR hygiene
+## 12. Experimental features — gate behind the early-access flag
+
+Features that aren't fully stabilized ship behind the **experimental feature flag** — a user-facing opt-in for early access — so the default experience stays stable.
+
+- **Gate not-yet-stable work behind the flag, off by default.** A user who hasn't opted in never sees in-progress behavior.
+- **It's an early-access opt-in, not a kill switch.** The flag is for users who want features early — not a lever for us to disable things in the field.
+
+## 13. PR hygiene
 
 - Focused and reviewable: aim for the **~500 LOC / 10-file** ceiling; split larger work into stacked PRs.
 - Title/branch follow `ADFA-####`; description says *what changed, why, how it was verified*, and flags anything intentionally out of scope (e.g. "UI-only, no unit test").
@@ -173,6 +180,5 @@ CoGo is meant to work **without a network** — editing, building, and running a
 These aren't established rules yet — flagging them as candidates for the team:
 
 - **Backward compatibility:** `MIN_SDK=28` — review new APIs for guard/desugaring; remember user-built apps target `MIN_SDK_FOR_APPS_BUILT_WITH_COGO=16`.
-- **Experimental feature flag** — lets end users opt into not-yet-stabilized features (early access), with stable defaults for everyone else. This is a user-facing early-access toggle, not a kill switch for us to disable features in the field.
 
 Add to or push back on any of these — this doc is meant to evolve with the team.
