@@ -71,8 +71,11 @@ import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.components.Legend
+import com.github.mikephil.charting.components.LegendEntry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
@@ -164,6 +167,20 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+
+/**
+ * Build one explicit [LegendEntry] per dataset (label + line color) for the memory-usage chart.
+ *
+ * Setting these via `chart.legend.setCustom(...)` keeps the legend's entry list exactly in sync
+ * with the current datasets, so MPAndroidChart's `LegendRenderer` never lazily recomputes a stale
+ * list when the dataset count changes (Gradle daemons connecting) — the desync behind the
+ * `IndexOutOfBoundsException` in ADFA-4327. Top-level + `internal` so it is unit-testable without an
+ * Activity instance.
+ */
+internal fun buildMemUsageLegendEntries(datasets: List<ILineDataSet>): List<LegendEntry> =
+	datasets.map { dataset ->
+		LegendEntry(dataset.label, Legend.LegendForm.DEFAULT, Float.NaN, Float.NaN, null, dataset.color)
+	}
 
 /**
  * Base class for EditorActivity which handles most of the view related things.
@@ -284,11 +301,16 @@ abstract class BaseEditorActivity :
 			}
 
 			if (dataChanged) {
-				_binding?.memUsageView?.chart?.apply {
-					data.notifyDataChanged()
-					notifyDataSetChanged()
-					invalidate()
-				}
+				runCatching {
+					_binding?.memUsageView?.chart?.apply {
+						// Refresh explicit legend entries so the live "<name> - <MB>" labels stay
+						// current while keeping the entry list consistent with the datasets.
+						legend.setCustom(buildMemUsageLegendEntries(data.dataSets))
+						data.notifyDataChanged()
+						notifyDataSetChanged()
+						invalidate()
+					}
+				}.onFailure { log.warn("Failed to update memory usage chart", it) }
 			}
 		}
 
@@ -818,6 +840,10 @@ abstract class BaseEditorActivity :
 
 			isDragEnabled = false
 			description.isEnabled = false
+			// Legend stays enabled; its entries are set EXPLICITLY in resetMemUsageChart /
+			// memoryUsageListener (see buildMemUsageLegendEntries) so the upstream LegendRenderer never
+			// auto-recomputes a stale entry list when the dataset count changes as Gradle daemons
+			// connect — that desync was the IndexOutOfBoundsException in ADFA-4327.
 			xAxis.axisLineColor = colorAccent
 			axisRight.axisLineColor = colorAccent
 
@@ -872,18 +898,24 @@ abstract class BaseEditorActivity :
 
 		binding.memUsageView.chart.setBackgroundColor(bgColor)
 
-		binding.memUsageView.chart.apply {
-			data = LineData(*datasets)
-			axisRight.textColor = textColor
-			axisLeft.textColor = textColor
-			legend.textColor = textColor
+		runCatching {
+			binding.memUsageView.chart.apply {
+				data = LineData(*datasets)
+				axisRight.textColor = textColor
+				axisLeft.textColor = textColor
+				legend.textColor = textColor
 
-			data.setValueTextColor(textColor)
-			setBackgroundColor(bgColor)
-			setGridBackgroundColor(bgColor)
-			notifyDataSetChanged()
-			invalidate()
-		}
+				// Set explicit, count-consistent legend entries so the auto-legend never
+				// recomputes a stale list against the new dataset count (ADFA-4327 crash).
+				legend.setCustom(buildMemUsageLegendEntries(datasets.toList()))
+
+				data.setValueTextColor(textColor)
+				setBackgroundColor(bgColor)
+				setGridBackgroundColor(bgColor)
+				notifyDataSetChanged()
+				invalidate()
+			}
+		}.onFailure { log.warn("Failed to reset memory usage chart", it) }
 	}
 
 	private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
