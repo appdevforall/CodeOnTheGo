@@ -1,5 +1,8 @@
 # IDE Tooltips Module (`idetooltips`)
 
+> **⚠️ This README is partly out of date — refresh tracked by [ADFA-4382](https://appdevforall.atlassian.net/browse/ADFA-4382).**
+> The usage examples below call a `showIDETooltip(...)` function that no longer exists — the real API is `TooltipManager.showTooltip(...)` and the `View.displayTooltipOnLongPress(...)` extension (keyed by `category` + `tag`). The "Database Integration" note citing a Room `IDETooltipDatabase` is also wrong: the store is raw SQLite. Trust the code (`ToolTipManager.kt`, `ViewUtils.kt`) over the examples here until this is reconciled. The design-principle section is current.
+
 ## Overview
 
 The `idetooltips` module is responsible for providing a flexible and reusable system for displaying contextual tooltips in Code On the Go. These tooltips can display short summaries, detailed help content, and external links, all within a floating popup anchored to UI components.
