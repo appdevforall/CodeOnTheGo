@@ -8,6 +8,8 @@ Avoid adding dependencies - we probably already have everything loaded that you 
 
 Always plan before building. As part of the plan, estimate the projected size of the change, both number of files and lines of code. When that estimate is greater than 500 lines of code or more than 10 files, you must organize the work into 2 or more smaller change sets, so that the user can help you make 2 or more PRs (Pull Requests).
 
+When you change code, update the docs that describe it in the same change — a module's `README.md`, `ARCHITECTURE.md`, or an ADR — so a doc never outlives the API it documents. See REVIEW.md (Code quality) for the rule. If the doc fix is genuinely out of scope, file a ticket rather than leaving it to drift.
+
 Always protect the two critical Android interaction locations: (1) the top bar containing the time, notification icons, and status icons, and (2) the bottom bar containing the home button, back button, and app selector. Never put UI elements of our app on top of those Android reserved areas.
 
 ## Official/Public Actions Run in CI, Not Locally

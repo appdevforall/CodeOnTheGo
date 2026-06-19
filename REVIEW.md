@@ -16,7 +16,7 @@ How to give a good review on Code On The Go. This is a coaching doc, not a gate 
 - [ ] **Security:** untrusted input (zip entries, URLs, file paths, web-server requests) is validated; no secrets in code, logs, or analytics.
 - [ ] **Tests:** non-UI logic has unit coverage. Where coverage is thin, there's logging to diagnose it in the field.
 - [ ] **No duplication:** the change reuses existing helpers instead of copy-pasting.
-- [ ] **Docs:** public classes/functions have KDoc/Javadoc explaining *why*, not *what*.
+- [ ] **Docs:** public classes/functions have KDoc/Javadoc explaining *why*, not *what*; any module `README`/`ARCHITECTURE.md`/ADR the change affects is updated in the same PR.
 - [ ] **Strings** are in `strings.xml`, not inline literals.
 - [ ] **Accessibility:** every actionable view has a `contentDescription` (XML *or* programmatic); decorative views are marked `importantForAccessibility="no"`.
 - [ ] **Contextual help:** new interactive elements (and any new screen/panel) have long-press help wired to the 3-tier tooltip system.
@@ -112,6 +112,7 @@ Keep event names/params stable and low-cardinality; **no PII, file paths with us
 
 - **No duplication.** If you copy-pasted a block, extract a function/extension into the right `common`/`utils` module. Before adding a helper, grep — we likely already have it. Repeated literals/magic numbers → named constants.
 - **Docstrings.** Public classes, functions, and non-obvious logic get KDoc/Javadoc. Document the *contract and the why* (threading expectations, nullability, side effects, units), not a restatement of the signature.
+- **Keep docs in sync with the code.** If a change alters a module's public API, commands, or behavior that's described in its `README.md` (or `ARCHITECTURE.md` / an ADR), update that doc in the *same* PR. A doc that documents a non-existent API is worse than no doc. If the doc-fix is genuinely out of scope, leave a tracked note (a ticket) rather than silently letting it drift.
 - **Strings in `strings.xml`.** User-facing text must be a string resource, never an inline literal — lint flags `HardcodedText`, and externalized strings feed our Crowdin translation flow. Use plurals/`getQuantityString` and positional args for formatting. Log messages and analytics keys are *not* user-facing and stay in code.
 - **Dependencies:** don't add one without checking `gradle/libs.versions.toml` first — we probably already have it (`AGENTS.md`).
 
