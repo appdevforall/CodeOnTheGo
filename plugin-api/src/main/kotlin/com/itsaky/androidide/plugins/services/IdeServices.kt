@@ -206,8 +206,11 @@ interface IdeBuildService {
  * Service interface that provides file editing capabilities for plugins.
  * This service should be registered by Code On the Go and made available to plugins
  * that have the FILESYSTEM_WRITE permission.
+ *
+ * @deprecated Use the new Java-based IdeFileService interface instead
  */
-interface IdeFileService {
+@Deprecated("Use the new Java-based IdeFileService interface", replaceWith = ReplaceWith("IdeFileService"))
+interface IdeFileServiceLegacy {
     /**
      * Reads the entire content of a file.
      * @param file The file to read
