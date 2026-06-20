@@ -150,6 +150,19 @@ class PluginManager private constructor(
             range: com.itsaky.androidide.plugins.services.SelectionRange,
             newText: String,
         ): Boolean = current()?.replaceRange(file, range, newText) ?: false
+\ASSA                                                                                                                                        override fun showPeerCursor(
+            file: File,
+            line: Int,
+            column: Int,
+            peerId: String,
+            peerName: String,
+            peerColor: Int,
+        ): Boolean = current()?.showPeerCursor(file, line, column, peerId, peerName, peerColor) ?: false
+        override fun hidePeerCursor(file: File, peerId: String): Boolean =
+            current()?.hidePeerCursor(file, peerId) ?: false
+        override fun clearPeerCursors(file: File) {
+            current()?.clearPeerCursors(file)
+        }
         override fun addFileChangeCallback(callback: (File?) -> Unit) {
             pendingFileChangeCallbacks.add(callback)
             current()?.addFileChangeCallback(callback)
@@ -1118,7 +1131,8 @@ class PluginManager private constructor(
                         override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
                         override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
                     }
-                }
+                },
+                activityProvider = activityProvider
             )
         }
 
@@ -1336,7 +1350,8 @@ class PluginManager private constructor(
                         override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
                         override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
                     }
-                }
+                },
+                activityProvider = activityProvider
             )
         }
 

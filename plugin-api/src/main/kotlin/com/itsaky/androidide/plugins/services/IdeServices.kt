@@ -30,6 +30,24 @@ interface IdeProjectService {
      * @return The project at the given path, or null if not found
      */
     fun getProjectByPath(path: File): IProject?
+
+    /**
+     * Requests the IDE to open the project rooted at [projectDir], replacing the project
+     * that is currently open. Dispatches asynchronously: a `true` return means the open was
+     * requested and the editor is being launched, not that the project has finished loading.
+     * Poll [getCurrentProject] to observe completion.
+     *
+     * Requires the FILESYSTEM_READ permission.
+     *
+     * Default-implemented (no-op, returns false) so adding it is a backward-compatible
+     * interface extension: existing implementers and any prebuilt plugin-api lib keep
+     * compiling; the host overrides it.
+     *
+     * @param projectDir The root directory of the project to open
+     * @return true if the open request was dispatched, false if it was rejected or the IDE
+     *   has no foreground activity available to host the editor
+     */
+    fun openProject(projectDir: File): Boolean = false
 }
 
 /**

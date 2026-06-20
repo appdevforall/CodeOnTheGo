@@ -2,9 +2,14 @@
 
 package com.itsaky.androidide.plugins.manager.services
 
+import android.util.Log
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.extensions.IProject
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.services.IdeProjectService
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.utils.Environment
 import java.io.File
 
 /**
@@ -16,7 +21,8 @@ class IdeProjectServiceImpl(
     private val permissions: Set<PluginPermission>,
     private val projectProvider: ProjectProvider,
     private val requiredPermissions: Set<PluginPermission> = setOf(PluginPermission.FILESYSTEM_READ),
-    private val pathValidator: PathValidator? = null
+    private val pathValidator: PathValidator? = null,
+    private val activityProvider: PluginManager.ActivityProvider? = null
 ) : IdeProjectService {
 
     /**
@@ -80,6 +86,55 @@ class IdeProjectServiceImpl(
         }
     }
 
+    override fun openProject(projectDir: File): Boolean {
+        Log.d(TAG, "[HOST] openProject requested: ${projectDir.absolutePath}")
+
+        if (!hasRequiredPermissions()) {
+            Log.w(TAG, "[HOST] openProject denied: missing permissions ${getRequiredPermissionsString()}")
+            throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
+        }
+
+        if (!isUnderProjectsDir(projectDir)) {
+            Log.w(TAG, "[HOST] openProject denied: ${projectDir.absolutePath} is not under projects dir ${Environment.PROJECTS_DIR?.absolutePath}")
+            throw SecurityException("Plugin $pluginId may only open projects under ${Environment.PROJECTS_DIR?.absolutePath}")
+        }
+
+        if (!projectDir.exists() || !projectDir.isDirectory) {
+            Log.w(TAG, "[HOST] openProject aborted: not a directory (exists=${projectDir.exists()}, isDir=${projectDir.isDirectory})")
+            return false
+        }
+
+        val activity = activityProvider?.getCurrentActivity()
+        if (activity == null) {
+            Log.w(TAG, "[HOST] openProject aborted: no foreground activity available")
+            return false
+        }
+
+        return try {
+            ProjectManagerImpl.getInstance().projectPath = projectDir.absolutePath
+            GeneralPreferences.lastOpenedProject = projectDir.absolutePath
+
+            // The editor activity is launchMode=singleTask, so re-launching it only delivers
+            // onNewIntent (no reload). Recreating it re-runs onCreate, which loads the project
+            // from the projectPath we just set — the same effect as the IDE's own project switch.
+            activity.runOnUiThread { activity.recreate() }
+            Log.d(TAG, "[HOST] openProject: set projectPath and recreated ${activity.javaClass.simpleName} for ${projectDir.absolutePath}")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "[HOST] openProject: failed ${e.javaClass.simpleName}: ${e.message}", e)
+            false
+        }
+    }
+
+    private fun isUnderProjectsDir(path: File): Boolean {
+        val projectsDir = runCatching { Environment.PROJECTS_DIR }.getOrNull() ?: return false
+        return runCatching {
+            val base = projectsDir.canonicalFile
+            val target = path.canonicalFile
+            target.path == base.path || target.path.startsWith(base.path + File.separator)
+        }.getOrDefault(false)
+    }
+
     private fun hasRequiredPermissions(): Boolean {
         return requiredPermissions.all { permission ->
             permissions.contains(permission)
@@ -122,5 +177,9 @@ class IdeProjectServiceImpl(
             System.getProperty("user.home", "/") + "/AndroidIDEProjects",
             "/tmp/AndroidIDEProject" // Allow temporary project for demo purposes
         )
+    }
+
+    private companion object {
+        const val TAG = "PairTrace"
     }
 }

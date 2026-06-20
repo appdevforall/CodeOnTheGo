@@ -2,6 +2,7 @@ package com.itsaky.androidide.activities.editor
 
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.widget.TextView
@@ -31,7 +32,14 @@ class EditorDecorationManager(
         peerName: String,
         peerColor: Int,
     ): Boolean {
-        val editor = editorForFile(file) ?: return false
+        val editor = editorForFile(file)
+        if (editor == null) {
+            Log.d(TAG, "[MARKERS-HOST] no open editor for ${file.name} — cannot show $peerName")
+            return false
+        }
+        val content = editor.text
+        if (line !in 0 until content.lineCount) return false
+        val safeColumn = column.coerceIn(0, content.getColumnCount(line))
         val byPeer = markers.getOrPut(file.absolutePath) { HashMap() }
         val existing = byPeer[peerId]
         val window = if (existing != null && existing.boundEditor === editor) {
@@ -40,7 +48,7 @@ class EditorDecorationManager(
             existing?.dismiss()
             PeerCursorWindow(editor).also { byPeer[peerId] = it }
         }
-        window.update(peerName, peerColor, line, column)
+        window.update(peerName, peerColor, line, safeColumn)
         return true
     }
 
@@ -57,6 +65,10 @@ class EditorDecorationManager(
     fun clearAll() {
         markers.values.forEach { byPeer -> byPeer.values.forEach { it.dismiss() } }
         markers.clear()
+    }
+
+    private companion object {
+        const val TAG = "PairTrace"
     }
 }
 
@@ -85,7 +97,14 @@ class PeerCursorWindow(
     }
 
     fun update(peerName: String, peerColor: Int, line: Int, column: Int) {
-        label.text = peerName
+        // getOffset returns the on-screen x. If the caret is past the visible width, add a
+        // direction arrow so the badge (clamped to the edge below) signals where the peer is.
+        val rawX = boundEditor.getOffset(line, column).toInt()
+        label.text = when {
+            rawX > boundEditor.width -> "$peerName  →"
+            rawX < 0 -> "←  $peerName"
+            else -> peerName
+        }
         label.setTextColor(contrastingTextColor(peerColor))
         label.background = GradientDrawable().apply {
             setColor(peerColor)
@@ -100,8 +119,12 @@ class PeerCursorWindow(
         val height = label.measuredHeight
         setSize(width, height)
 
-        val x = boundEditor.getOffset(line, column).toInt()
+        // Clamp into the visible width so a caret scrolled off to the right pins at the edge
+        // instead of vanishing. Only clamp when the editor has a known width.
+        val maxX = boundEditor.width - width
+        val x = if (maxX > 0) rawX.coerceIn(0, maxX) else rawX
         val y = (boundEditor.rowHeight * line) - boundEditor.offsetY - height
+        Log.d(TAG, "[MARKERS-HOST] $peerName editor=${boundEditor.width}x${boundEditor.height} raw=$rawX -> ($x,$y) wasShowing=$isShowing")
         setLocationAbsolutely(x, y)
         if (!isShowing) show()
     }
@@ -112,5 +135,9 @@ class PeerCursorWindow(
         val b = Color.blue(background) / 255.0
         val luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
         return if (luminance > 0.6) Color.parseColor("#0A0A0A") else Color.WHITE
+    }
+
+    private companion object {
+        const val TAG = "PairTrace"
     }
 }
