@@ -3,6 +3,7 @@
 package com.itsaky.androidide.plugins
 
 import android.content.Context
+import android.content.SharedPreferences
 // Note: EventBus and ILogger are referenced but not directly imported to avoid Android dependencies
 import java.io.File
 import java.io.InputStream
@@ -69,6 +70,40 @@ interface PluginContext {
      * @return Plugin data directory
      */
     fun getPluginDataDir(): File
+
+    /**
+     * Get the main application's files directory for data migration
+     * Used to access data from the built-in Agent before migration to plugin
+     *
+     * @return Application files directory
+     */
+    fun getAppFilesDir(): File
+
+    /**
+     * Get the plugin's own files directory for storing migrated data
+     * Used during data migration to copy chat history and settings
+     *
+     * @return Plugin files directory
+     */
+    fun getPluginFilesDir(): File
+
+    /**
+     * Get SharedPreferences from the main application for reading migration data
+     * Used to read settings from built-in Agent preferences
+     *
+     * @param prefsName Name of the preferences file (e.g., "LlamaPrefs")
+     * @return SharedPreferences instance or null if not found
+     */
+    fun getAppSharedPreferences(prefsName: String): android.content.SharedPreferences?
+
+    /**
+     * Get SharedPreferences for the plugin for writing migrated data
+     * Used to write settings to plugin storage during migration
+     *
+     * @param prefsName Name of the preferences file (e.g., "AgentSettings")
+     * @return SharedPreferences instance
+     */
+    fun getPluginSharedPreferences(prefsName: String): android.content.SharedPreferences
 
     /**
      * Listen for plugin lifecycle events
