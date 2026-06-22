@@ -3,6 +3,7 @@
 package com.itsaky.androidide.plugins.manager.context
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.res.AssetManager
 import com.itsaky.androidide.plugins.*
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
@@ -51,6 +52,27 @@ class PluginContextImpl(
     override fun getPluginDataDir(): File {
         // Return plugin's data directory (already exists via ResourceManager)
         return resources.getPluginDirectory()
+    }
+
+    override fun getAppFilesDir(): File {
+        return androidContext.filesDir
+    }
+
+    override fun getPluginFilesDir(): File {
+        return File(androidContext.filesDir, "plugins/$pluginId").apply { mkdirs() }
+    }
+
+    override fun getAppSharedPreferences(prefsName: String): SharedPreferences? {
+        return try {
+            androidContext.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        } catch (e: Exception) {
+            logger.error("Failed to access app SharedPreferences: $prefsName", e)
+            null
+        }
+    }
+
+    override fun getPluginSharedPreferences(prefsName: String): SharedPreferences {
+        return androidContext.getSharedPreferences("plugin_${pluginId}_${prefsName}", Context.MODE_PRIVATE)
     }
 
     override fun addPluginLifecycleListener(listener: PluginLifecycleListener) {
