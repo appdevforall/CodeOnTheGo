@@ -2,12 +2,53 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.itsaky.androidide.plugins.aiassistant">
 
-    <application>
-        <activity
-            android:name=".AiAssistantPlugin"
-            android:exported="true"
-            android:label="AI Assistant"
-            android:launchMode="singleTop" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="AI Assistant Plugin"
+        android:theme="@style/PluginTheme">
+
+        <!-- Plugin metadata -->
+        <meta-data
+            android:name="plugin.id"
+            android:value="com.itsaky.androidide.plugins.aiassistant" />
+
+        <meta-data
+            android:name="plugin.name"
+            android:value="AI Assistant" />
+
+        <meta-data
+            android:name="plugin.version"
+            android:value="${pluginVersion}" />
+
+        <meta-data
+            android:name="plugin.description"
+            android:value="AI Assistant Plugin providing chat interface and code generation" />
+
+        <meta-data
+            android:name="plugin.author"
+            android:value="AndroidIDE" />
+
+        <meta-data
+            android:name="plugin.min_ide_version"
+            android:value="1.0.0" />
+
+        <meta-data
+            android:name="plugin.permissions"
+            android:value="android.permission.INTERNET" />
+
+        <meta-data
+            android:name="plugin.main_class"
+            android:value="com.itsaky.androidide.plugins.aiassistant.AiAssistantPlugin" />
+
+        <meta-data
+            android:name="plugin.icon_day"
+            android:value="assets/icon_day.png" />
+
+        <meta-data
+            android:name="plugin.icon_night"
+            android:value="assets/icon_night.png" />
+
     </application>
 
 </manifest>

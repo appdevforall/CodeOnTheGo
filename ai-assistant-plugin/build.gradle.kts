@@ -14,10 +14,10 @@ android {
 
     defaultConfig {
         applicationId = "com.itsaky.androidide.plugins.aiassistant"
-        minSdk = 26
+        minSdk = 33
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "2.0.0"
     }
 
     buildTypes {
@@ -54,6 +54,8 @@ dependencies {
     implementation("com.google.android.material:material:1.10.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.0")
 
+    // Plugin dependencies are loaded at runtime by the plugin manager
+    // No explicit compile-time dependency on ai-core-plugin needed
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.8")
     testImplementation(project(":plugin-api"))
