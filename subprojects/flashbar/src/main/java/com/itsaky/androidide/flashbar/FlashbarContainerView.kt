@@ -85,6 +85,7 @@ internal class FlashbarContainerView(context: Context)
     private var overlayBlockable: Boolean = false
 
     private var configCallbacks: ComponentCallbacks? = null
+    private var registeredActivity: Activity? = null
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
@@ -354,6 +355,7 @@ internal class FlashbarContainerView(context: Context)
 
     private fun registerConfigurationCallback(activity: Activity) {
         if (configCallbacks != null) return
+        registeredActivity = activity
         configCallbacks =
             object : ComponentCallbacks {
                 override fun onConfigurationChanged(newConfig: Configuration) {
@@ -367,9 +369,10 @@ internal class FlashbarContainerView(context: Context)
     }
 
     private fun unregisterConfigurationCallback() {
-        (context as? Activity)?.let { activity ->
+        registeredActivity?.let { activity ->
             configCallbacks?.let { activity.unregisterComponentCallbacks(it) }
         }
         configCallbacks = null
+        registeredActivity = null
     }
 }

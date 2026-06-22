@@ -108,7 +108,7 @@
     <string name="quick_run_debug">Jalankan cepat</string>
     <string name="msg_sync_needed">File Gradle telah berubah. Sinkronkan proyek untuk memperbarui dependensi dan pengaturan.</string>
     <string name="preparing">Menyiapkan</string>
-    <string name="preparing_first">Inisialisasi proyek mungkin memerlukan beberapa saat.</string>
+    <string name="preparing_first">Inisialisasi proyek memerlukan beberapa saat.</string>
     <string name="msg_installing_gradlew">Gradle wrapper tidak tersedia.\nMenginstal yang default. Gradle v7.4 akan diunduh jika diperlukan.</string>
     <string name="run">Jalankan</string>
     <string name="action_start_debugger">Debug</string>
@@ -117,7 +117,7 @@
     <!-- Project -->
     <string name="title_first_build">Menyiapkan proyek Anda</string>
     <string name="msg_first_build">Code on the Go sedang menginisialisasi proyek Anda. Harap tunggu!\n\nSetelah penyiapan selesai, pesan \"Proyek berhasil diinisialisasi\" akan muncul di bagian bawah layar.</string>
-    <string name="create_project">Buat proyek baru</string>
+    <string name="create_project">Buat proyek</string>
     <string name="minimum_sdk">Minimum SDK</string>
     <string name="new_project">Proyek baru</string>
     <string name="package_name">Nama paket</string>
@@ -213,9 +213,10 @@
     <string name="msg_empty_search_query">Silakan masukkan teks</string>
     <string name="msg_select_search_modules">Pilih module untuk pencarian</string>
     <string name="msg_searching_project">Mencari dalam proyek…</string>
-    <string name="view_search_results">Hasil pencarian</string>
+    <string name="view_search_results">Hasil Pencarian</string>
     <string name="project_created_successfully">Proyek berhasil dibuat!</string>
     <string name="project_creation_failed">Gagal membuat proyek</string>
+    <string name="msg_scroll_to_create_project">Gulir ke bawah untuk membuat proyek</string>
     <string name="msg_folder_creation_failed">Gagal membuat folder</string>
     <string name="msg_file_creation_failed">Gagal membuat file</string>
     <string name="msg_layout_file_creation_failed">Gagal membuat file layout</string>
@@ -241,6 +242,7 @@
     <string name="msg_rename_file">Masukkan nama baru untuk file/folder.</string>
     <string name="renamed">Nama berhasil diubah</string>
     <string name="rename_failed">Tidak dapat mengubah nama file</string>
+    <string name="file_name_too_long">Nama file tidak boleh lebih dari 40 karakter</string>
     <string name="deleted">Berhasil dihapus</string>
     <string name="delete_failed">Tidak dapat menghapus file</string>
     <string name="copy_path">Salin jalur</string>
@@ -341,7 +343,7 @@
     <string name="xml_error_add_child_failed">Tidak dapat menempatkan %1$s di dalam %2$s. Periksa struktur view.</string>
     <string name="xml_validation_error_generic">Tidak dapat membuka layout ini. Perbaiki XML lalu coba lagi.</string>
     <string name="title_generating_xml">Hasilkan kode XML</string>
-    <string name="msg_swipe_up">Geser ke atas untuk menampilkan log, diagnostik, info debug, dan lainnya</string>
+    <string name="msg_swipe_up">Geser ke atas untuk melihat log, diagnostik, info debug, dll.</string>
     <string name="preview_render_error_title">Pratinjau tidak tersedia</string>
     <string name="preview_render_error_message">Tidak dapat membuat tampilan root (root view). XML kosong atau tidak memiliki elemen tingkat atas yang valid.</string>
 
@@ -420,7 +422,7 @@
     <string name="idepref_editor_useSoftTabs_title">Gunakan spasi sebagai pengganti tab</string>
     <string name="idepref_editor_useSoftTabs_summary">Tentukan apakah tombol tab akan memasukkan spasi bukan karakter tab.</string>
     <string name="btn_donate">Donasi</string>
-    <string name="btn_docs">Dokumentasi</string>
+    <string name="btn_docs">Bantuan</string>
     <string name="btn_close">Tutup</string>
     <string name="msg_ignore_case">Abaikan huruf besar/kecil</string>
     <string name="msg_use_regex">Gunakan regex</string>
@@ -674,11 +676,6 @@
     <string name="title_install_location_error">Terjadi kesalahan pada lokasi penginstalan</string>
     <string name="title_unsupported_user">Pengguna tidak didukung</string>
     <string name="title_socials">Sosial</string>
-    <string name="title_contributors">Kontributor</string>
-    <string name="summary_contributors">Kontributor komunitas teratas.</string>
-    <string name="title_github_contributors">Kontributor GitHub</string>
-    <string name="title_crowdin_translators">Penerjemah Crowdin</string>
-    <string name="title_misc">Lainnya</string>
     <string name="title_contribute">Kontribusi</string>
     <string name="summary_contribute">Ini bukan sekadar IDE, ini adalah komunitas. Berkontribusilah dengan kode, ide, dan semangat untuk Code On The Go.</string>
     <string name="msg_app_unavailable_for_intent">Tidak ada aplikasi yang tersedia untuk menangani permintaan ini.</string>
@@ -805,6 +802,15 @@
     <string name="plugin_details">Detail plugin</string>
     <string name="plugin_permissions">Izin</string>
     <string name="plugin_dependencies">Dependensi</string>
+
+    <!-- Plugin crash dialog -->
+    <string name="title_plugin_crashed">Plugin mengalami crash (rusak)</string>
+    <string name="msg_plugin_crash">\"%1$s\" mengalami crash (%2$d dari 3).</string>
+    <string name="msg_plugin_crash_disabled">\"%1$s\" dinonaktifkan setelah mengalami crash berulang kali.</string>
+    <string name="msg_plugin_crash_dev_hint">Jika Anda adalah pengembang plugin, ketuk ikon info untuk menampilkan log crash.</string>
+    <string name="cd_plugin_crash_view_logs">Tampilkan log crash</string>
+    <string name="title_plugin_crash_log">Log crash: %1$s</string>
+    <string name="msg_crash_log_copied">Log crash telah disalin ke papan klip</string>
 
     <!-- Message shown when the bootstrap installer is extract a file from the zip -->
     <!-- The first parameter is the name of the zip entry -->
@@ -1011,6 +1017,9 @@
     <!-- Tooltip Links HTML Template -->
     <string name="title_alert">Kirim masukan</string>
 
+    <!-- Strings from BaseApplication.java -->
+    <string name="support_our_work">Dukung pekerjaan kami</string>
+
     <!-- AI Agent -->
     <string name="ai_setting_saved">💾 Disimpan: %1$s</string>
     <string name="ai_setting_no_model_is_currently_loaded">🤷‍♀️ Tidak ada model yang sedang dimuat</string>
@@ -1114,7 +1123,7 @@
     <string name="idepref_git_user_name_summary">Digunakan sebagai nama penulis dalam commit</string>
     <string name="idepref_git_user_email_title">Email pengguna</string>
     <string name="idepref_git_user_email_summary">Digunakan sebagai email penulis dalam commit</string>
-    <string name="idepref_git_author_missing_warning">Konfigurasikan penulis Git di Preferensi untuk mengaktifkan commit.\nKlik avatar untuk info lebih lanjut.</string>
+    <string name="idepref_git_author_missing_warning">Konfigurasikan penulis Git di Preferensi untuk mengaktifkan commit.\nKetuk avatar untuk info lebih lanjut.</string>
     <string name="git_committing_as">Melakukan commit sebagai %1$s</string>
     <string name="git_committing_email">Email - %1$s</string>
     <string name="git_update_config_in_preferences">Anda dapat memperbarui konfigurasi Git di Preferensi.</string>
@@ -1134,14 +1143,14 @@
     <string name="git_credentials_message">Masukkan kredensial Anda untuk menyinkronkan perubahan dengan repositori remote.</string>
     <string name="git_credentials_clear">Hapus kredensial</string>
     <string name="repo_authorization_error">Autentikasi gagal. Pastikan Token Akses Pribadi Anda memiliki izin \'repo\', atau coba hapus dan masukkan ulang kredensial.</string>
-    <string name="info_merge_conflicts">Pull selesai dengan konflik!\nSilakan pilih file yang konflik dari daftar, selesaikan masalah yang ditandai di editor, simpan file, lalu commit perubahan Anda.</string>
+    <string name="info_merge_conflicts">Pull selesai dengan konflik.\nSilakan pilih file yang konflik dari daftar, selesaikan masalah yang ditandai di editor, simpan file, lalu commit perubahan Anda.</string>
     <string name="merge_conflicts">Gabungkan (Merge) Konflik</string>
     <string name="abort_merge">Batalkan Penggabungan</string>
     <string name="confirm_abort_merge">Apakah Anda yakin ingin membatalkan proses penggabungan saat ini? Semua penyelesaian konflik akan dibatalkan.</string>
     <string name="msg_save_before_git_action">Anda memiliki perubahan yang belum disimpan. Apakah Anda ingin menyimpannya sebelum melanjutkan?</string>
     <string name="no_save_before_git_action">Lanjutkan tanpa menyimpan</string>
     <string name="save_before_git_action">Simpan sebelum melanjutkan</string>
-    <string name="mark_as_resolved">Tandai sebagai Selesai</string>
+    <string name="mark_as_resolved">Tandai sebagai selesai</string>
 
     <!-- Templates -->
     <string name="template_exec_info_basepath">Memulai pembuatan proyek untuk %1$s</string>
