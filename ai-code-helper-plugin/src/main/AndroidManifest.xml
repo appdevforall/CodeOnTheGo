@@ -40,11 +40,11 @@
 
         <meta-data
             android:name="plugin.icon_day"
-            android:value="icon_day.png" />
+            android:value="assets/icon_day.png" />
 
         <meta-data
             android:name="plugin.icon_night"
-            android:value="icon_night.png" />
+            android:value="assets/icon_night.png" />
 
     </application>
 
