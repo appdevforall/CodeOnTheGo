@@ -171,3 +171,15 @@ app/src/main/assets/dynamic_libs/
 rebuild-llama-aar.sh
 aar-staging/
 aar-backups/
+
+# Large asset files (bootstrap, SDK archives, databases, dependencies)
+assets/bootstrap-*.zip
+assets/android-sdk-*.zip
+assets/release/**/data/**/*.zip.br
+assets/release/**/dynamic_libs/
+assets/documentation.db
+assets/localMvnRepository.zip
+assets/gradle-*.zip
+app/src/release/assets/database/documentation.db
+app/src/main/assets/database/documentation
+app/src/main/assets/database/documentation.db
