@@ -266,7 +266,10 @@ class PluginManager private constructor(
             async {
                 try {
                     logger.debug("Loading plugin: ${pluginFile.name}")
-                    loadPlugin(pluginFile)
+                    val result = loadPlugin(pluginFile)
+                    result.onFailure { error ->
+                        logger.error("Failed to load plugin from ${pluginFile.name}: ${error.message}", error)
+                    }
                 } catch (e: Exception) {
                     logger.error("Failed to load plugin from ${pluginFile.name}", e)
                 }
