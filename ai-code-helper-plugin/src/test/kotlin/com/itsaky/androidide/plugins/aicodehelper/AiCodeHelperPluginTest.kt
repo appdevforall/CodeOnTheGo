@@ -3,6 +3,7 @@ package com.itsaky.androidide.plugins.aicodehelper
 import com.itsaky.androidide.plugins.PluginContext
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.ServiceRegistry
+import com.itsaky.androidide.plugins.services.LlmInferenceService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -30,8 +31,12 @@ class AiCodeHelperPluginTest {
     @Test
     fun testPluginActivation() {
         val mockLogger = mockk<PluginLogger>(relaxed = true)
+        val mockLlmService = mockk<LlmInferenceService>(relaxed = true)
         val mockServiceRegistry = mockk<ServiceRegistry>(relaxed = true)
-        val mockContext = mockk<PluginContext> {
+        every { mockServiceRegistry.get(LlmInferenceService::class.java) } returns mockLlmService
+        every { mockLlmService.isBackendAvailable("local") } returns true
+
+        val mockContext = mockk<PluginContext>(relaxed = true) {
             every { logger } returns mockLogger
             every { services } returns mockServiceRegistry
         }
