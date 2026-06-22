@@ -2,6 +2,7 @@ package com.itsaky.androidide.plugins.aicore
 
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
+import com.itsaky.androidide.plugins.services.LlmInferenceService
 
 /**
  * AI Core Plugin providing LLM inference capabilities.
@@ -10,6 +11,8 @@ import com.itsaky.androidide.plugins.PluginContext
 class AiCorePlugin : IPlugin {
 
     private lateinit var context: PluginContext
+    private lateinit var llmService: LlmInferenceServiceImpl
+    private lateinit var localBackend: LocalLlmBackend
 
     companion object {
         const val PLUGIN_ID = "com.itsaky.androidide.plugins.aicore"
@@ -28,15 +31,48 @@ class AiCorePlugin : IPlugin {
 
     override fun activate(): Boolean {
         context.logger.info("AiCorePlugin: Activating plugin")
-        return true
+
+        try {
+            // Create and register LlmInferenceService
+            llmService = LlmInferenceServiceImpl()
+            context.services.register(LlmInferenceService::class.java, llmService)
+            context.logger.info("AiCorePlugin: Registered LlmInferenceService")
+
+            // Create and register local LLM backend
+            localBackend = LocalLlmBackend()
+            llmService.registerBackend(localBackend)
+            context.logger.info("AiCorePlugin: Registered local LLM backend")
+
+            return true
+        } catch (e: Exception) {
+            context.logger.error("AiCorePlugin: Activation failed", e)
+            return false
+        }
     }
 
     override fun deactivate(): Boolean {
         context.logger.info("AiCorePlugin: Deactivating plugin")
-        return true
+
+        try {
+            // Unregister backend
+            if (::llmService.isInitialized) {
+                llmService.unregisterBackend("local")
+                context.logger.info("AiCorePlugin: Unregistered local LLM backend")
+            }
+
+            return true
+        } catch (e: Exception) {
+            context.logger.error("AiCorePlugin: Deactivation failed", e)
+            return false
+        }
     }
 
     override fun dispose() {
         context.logger.info("AiCorePlugin: Disposing plugin")
+
+        // Cancel any ongoing generation
+        if (::llmService.isInitialized) {
+            llmService.cancelGeneration()
+        }
     }
 }

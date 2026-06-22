@@ -56,4 +56,5 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.8")
     testImplementation(project(":plugin-api"))
+    testImplementation(project(":plugin-manager"))
 }
