@@ -192,7 +192,8 @@ include(
 	":llama-api",
 	":llama-impl",
 	":compose-preview",
-	":ai-core-plugin"
+	":ai-core-plugin",
+	":ai-code-helper-plugin"
 )
 
 object FDroidConfig {
