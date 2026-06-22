@@ -45,8 +45,41 @@ class AiCodeHelperPlugin : IPlugin, UIExtension {
 
     // UIExtension - Context menu items
     override fun getContextMenuItems(menuContext: ContextMenuContext): List<MenuItem> {
-        // Stub - will implement in Task 2
-        return emptyList()
+        val selectedText = menuContext.selectedText
+        if (selectedText.isNullOrBlank()) {
+            return emptyList()
+        }
+
+        return listOf(
+            MenuItem(
+                id = "ai_explain_code",
+                title = "Explain Code",
+                isEnabled = true,
+                isVisible = true,
+                action = {
+                    explainCode(selectedText)
+                }
+            ),
+            MenuItem(
+                id = "ai_generate_code",
+                title = "Generate Code",
+                isEnabled = true,
+                isVisible = true,
+                action = {
+                    generateCode(selectedText)
+                }
+            )
+        )
+    }
+
+    private fun explainCode(code: String) {
+        context.logger.info("AiCodeHelperPlugin: Explain code requested for: $code")
+        // Stub - will implement in Task 3
+    }
+
+    private fun generateCode(prompt: String) {
+        context.logger.info("AiCodeHelperPlugin: Generate code requested for: $prompt")
+        // Stub - will implement in Task 3
     }
 
     override fun getMainMenuItems(): List<MenuItem> = emptyList()
