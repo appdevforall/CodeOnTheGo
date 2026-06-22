@@ -30,7 +30,7 @@ class ToolingApiServerImplTest {
 		directory: String = "/does/not/exist",
 		forceSync: Boolean = false,
 	) = InitializeProjectParams(
-		directory = directory, needsGradleSync = forceSync
+		directory = directory, needsGradleSync = forceSync, buildId = com.itsaky.androidide.tooling.api.messages.BuildId.Unknown
 	)
 
 	private data class MockServer(
