@@ -1,10 +1,22 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.kts.
-#
-# For more details, see
-#   https://developer.android.com/guide/topics/security/security
+# AI Core Plugin ProGuard Rules
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep plugin entry point
+-keep public class com.itsaky.androidide.plugins.aicore.AiCorePlugin {
+    public <methods>;
+}
+
+# Keep LlmInferenceService implementation
+-keep public class com.itsaky.androidide.plugins.aicore.LlmInferenceServiceImpl {
+    public <methods>;
+}
+
+# Keep LocalLlmBackend
+-keep public class com.itsaky.androidide.plugins.aicore.LocalLlmBackend {
+    public <methods>;
+}
+
+# Keep plugin-api interfaces
+-keep interface com.itsaky.androidide.plugins.** { *; }
+
+# Keep llama-impl classes (if needed)
+-keep class com.itsaky.llama.** { *; }
