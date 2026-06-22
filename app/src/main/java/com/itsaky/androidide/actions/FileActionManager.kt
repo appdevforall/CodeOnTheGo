@@ -1,28 +1,16 @@
 package com.itsaky.androidide.actions
 
-
 import com.itsaky.androidide.actions.observers.FileActionObserver
-import com.itsaky.androidide.api.commands.CreateFileCommand
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
+/**
+ * DEPRECATED: FileActionManager was used to execute CreateFileCommand, which has been removed.
+ * File operations are now performed directly using FileIOUtils in NewFileAction.
+ * This class is kept for backward compatibility but is no longer actively used.
+ */
+@Deprecated("Use direct file operations with FileIOUtils instead")
 class FileActionManager {
-    private val scope = CoroutineScope(Dispatchers.IO)
-
-    fun execute(command: CreateFileCommand, observer: FileActionObserver? = null) {
-        scope.launch {
-            val result = command.execute()
-            withContext(Dispatchers.Main) {
-                if (result.isSuccess) {
-                    val file = result.getOrNull()
-                    observer?.onActionSuccess("File '${file?.name}' created successfully.", file)
-                } else {
-                    val error = result.exceptionOrNull()?.message ?: "An unknown error occurred."
-                    observer?.onActionFailure("Error: $error")
-                }
-            }
-        }
+    @Deprecated("File commands have been removed. Use FileIOUtils directly.")
+    fun execute(observer: FileActionObserver? = null) {
+        observer?.onActionFailure("File action manager is deprecated and no longer supported")
     }
 }
