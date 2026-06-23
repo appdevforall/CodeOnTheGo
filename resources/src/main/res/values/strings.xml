@@ -628,7 +628,6 @@
 	<string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
 	<string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
 	<string name="title_build_variants">Build variants</string>
-	<string name="title_agent">Agent</string>
 	<string name="build_variants_apply">Apply</string>
 	<string name="build_variants_cancel">Cancel</string>
 	<string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
@@ -1115,15 +1114,6 @@
 	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
 
 	<!-- AI Agent -->
-	<string name="ai_setting_saved">💾 Saved: %1$s</string>
-	<string name="ai_setting_no_model_is_currently_loaded">🤷‍♀️ No model is currently loaded</string>
-	<string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
-	<string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
-	<string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
-	<string name="ai_disclaimer">Disclaimer</string>
-	<string name="ai_disclaimer_message">This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.</string>
-    <string name="ai_api_key_not_found">❌ No Gemini API Key found.\nIf you recently updated or reinstalled the app, your API key may have been reset.\nPlease add your Gemini key again in AI Settings.</string>
-
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
 
@@ -1144,17 +1134,6 @@
 
 
     <string name="retry">Retry</string>
-    <string name="open_ai_settings">Open AI Settings</string>
-    <string name="new_chat">New chat</string>
-    <string name="experimental_ai_use_at_your_own_risk">⚠️ Experimental AI. Use at your own risk.</string>
-    <string name="current_ai_backend">Current AI Backend</string>
-    <string name="stop_generation">Stop Generation</string>
-    <string name="send_message">Send Message</string>
-    <string name="upload_image">Upload Image</string>
-    <string name="add_context_file">Add Context File</string>
-    <string name="type_a_message_or_prompt">Type a message or prompt…</string>
-    <string name="ai_setting_initializing_engine">Initializing engine</string>
-    <string name="ai_setting_engine_ready">Engine is ready.</string>
 	<string name="title_image_to_layout">Image to Layout</string>
 
 	<!-- Compose Preview -->
