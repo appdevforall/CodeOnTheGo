@@ -35,7 +35,7 @@
 
         <meta-data
             android:name="plugin.permissions"
-            android:value="android.permission.INTERNET" />
+            android:value="network.access" />
 
         <meta-data
             android:name="plugin.main_class"
