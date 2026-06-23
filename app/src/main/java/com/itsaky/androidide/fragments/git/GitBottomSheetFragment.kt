@@ -298,6 +298,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     }
 
     private fun validateCommitButton() {
+        // May be invoked from async adapter callbacks; bail if the view is gone.
+        val binding = _binding ?: return
         val hasSummary = !binding.commitSummary.text.isNullOrBlank()
         val hasSelection = fileChangeAdapter.selectedFiles.isNotEmpty()
         val hasAuthor = hasAuthorInfo()
@@ -305,6 +307,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     }
 
     private fun updateCheckAllButton() {
+        // May be invoked from the async submitList commit callback; bail if the view is gone.
+        val binding = _binding ?: return
         binding.btnCheckAll.setText(
             if (fileChangeAdapter.areAllSelected()) R.string.uncheck_all else R.string.check_all
         )

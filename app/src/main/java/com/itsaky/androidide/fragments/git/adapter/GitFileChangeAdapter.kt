@@ -31,15 +31,28 @@ class GitFileChangeAdapter(
     /** Select every non-conflicted file. */
     fun selectAll() {
         selectedFiles.addAll(selectablePaths)
-        notifyDataSetChanged()
+        notifyItemRangeChanged(0, itemCount)
         onSelectionChanged(selectedFiles.size)
     }
 
     /** Clear the entire selection. */
     fun clearSelection() {
         selectedFiles.clear()
-        notifyDataSetChanged()
+        notifyItemRangeChanged(0, itemCount)
         onSelectionChanged(selectedFiles.size)
+    }
+
+    override fun onCurrentListChanged(
+        previousList: List<FileChange>,
+        currentList: List<FileChange>
+    ) {
+        super.onCurrentListChanged(previousList, currentList)
+        // Drop selections for files that are no longer in the change set so they
+        // aren't committed and don't skew areAllSelected()/the commit button.
+        val currentPaths = currentList.mapTo(HashSet()) { it.path }
+        if (selectedFiles.retainAll(currentPaths)) {
+            onSelectionChanged(selectedFiles.size)
+        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
