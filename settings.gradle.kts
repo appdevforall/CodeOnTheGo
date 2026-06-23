@@ -123,6 +123,7 @@ include(
 	":eventbus",
 	":eventbus-android",
 	":eventbus-events",
+	":floating-window",
 	":git-core",
 	":gradle-plugin",
 	":gradle-plugin-config",
