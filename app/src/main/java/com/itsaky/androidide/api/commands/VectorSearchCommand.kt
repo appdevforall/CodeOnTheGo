@@ -76,10 +76,18 @@ class VectorSearchCommand(
 
     override fun execute(): ToolResult = runBlocking {
         try {
-            // Auto-load saved embedding model if not already loaded
-            if (!llmEngine.isModelLoaded) {
-                log.info("No model loaded, attempting to auto-load saved embedding model...")
-                val autoLoadSuccess = tryAutoLoadEmbeddingModel()
+            val embeddingModelPath = getConfiguredEmbeddingModelPath()
+            if (embeddingModelPath.isNullOrBlank()) {
+                return@runBlocking ToolResult.failure(
+                    message = "No embedding model configured. Please select an embedding model in AI Settings."
+                )
+            }
+
+            // The engine is single-model. A loaded chat/code model is not valid for
+            // vector search, so load the configured embedding model when needed.
+            if (!isConfiguredEmbeddingModelLoaded(embeddingModelPath)) {
+                log.info("Embedding model not loaded, attempting to auto-load saved embedding model...")
+                val autoLoadSuccess = tryAutoLoadEmbeddingModel(embeddingModelPath)
 
                 if (!autoLoadSuccess) {
                     return@runBlocking ToolResult.failure(
@@ -143,24 +151,11 @@ class VectorSearchCommand(
      * Attempts to auto-load a saved embedding model from preferences.
      * Returns true if model was successfully loaded, false otherwise.
      */
-    private suspend fun tryAutoLoadEmbeddingModel(): Boolean {
+    private suspend fun tryAutoLoadEmbeddingModel(modelPath: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                // Get saved model path from preferences
                 val prefs = BaseApplication.baseInstance.prefManager
-                val modelPath = prefs.getString(ModelPurpose.EMBEDDINGS.getPreferenceKey(), null)
                 val modelHash = prefs.getString(ModelPurpose.EMBEDDINGS.getSha256PreferenceKey(), null)
-
-                if (modelPath.isNullOrBlank()) {
-                    log.warn("No embedding model configured in preferences")
-                    return@withContext false
-                }
-
-                val modelFile = File(modelPath)
-                if (!modelFile.exists()) {
-                    log.error("Saved embedding model not found at: $modelPath")
-                    return@withContext false
-                }
 
                 log.info("Auto-loading embedding model from: $modelPath")
 
@@ -179,6 +174,17 @@ class VectorSearchCommand(
                 false
             }
         }
+    }
+
+    private fun getConfiguredEmbeddingModelPath(): String? {
+        val prefs = BaseApplication.baseInstance.prefManager
+        return prefs.getString(ModelPurpose.EMBEDDINGS.getPreferenceKey(), null)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun isConfiguredEmbeddingModelLoaded(modelPath: String): Boolean {
+        return llmEngine.isModelLoaded && llmEngine.loadedModelSourceUri == modelPath
     }
 
     private fun getOrCreateIndex(): SQLiteIndex<CodeEmbedding> {

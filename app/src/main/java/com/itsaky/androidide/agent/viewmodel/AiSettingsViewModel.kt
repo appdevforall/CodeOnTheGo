@@ -39,7 +39,7 @@ sealed class EngineState {
 class AiSettingsViewModel(application: Application) : AndroidViewModel(application) {
     // Keep this as is, it correctly gets the singleton instance
     private val llmInferenceEngine: LlmInferenceEngine = LlmInferenceEngineProvider.instance
-    private var pendingModelUri: String? = null
+    private var pendingModelLoad: PendingModelLoad? = null
 
     // --- State LiveData ---
     private val _savedModelPath = MutableLiveData<String?>(null)
@@ -74,9 +74,13 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
                 _engineState.value = EngineState.Initialized
 
                 // Load pending model if any
-                pendingModelUri?.let { queuedPath ->
-                    loadModelFromUri(queuedPath, getApplication())
-                    pendingModelUri = null
+                pendingModelLoad?.let { pendingLoad ->
+                    pendingModelLoad = null
+                    pendingLoad.purpose?.let { purpose ->
+                        loadModelForPurpose(purpose, pendingLoad.path, getApplication())
+                    } ?: loadModelFromUri(pendingLoad.path, getApplication())
+                    Log.d("AiSettingsViewModel", "Queued model load started after engine initialization.")
+                    return@launch
                 }
 
                 // Auto-load saved CHAT model if available and no model is loaded
@@ -114,7 +118,7 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         val currentState = _engineState.value
 
         if (currentState is EngineState.Uninitialized || currentState is EngineState.Initializing) {
-            pendingModelUri = path
+            pendingModelLoad = PendingModelLoad(path)
             _modelLoadingState.value = ModelLoadingState.Loading
             return
         }
@@ -131,7 +135,8 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
             val expectedHash = getLocalModelSha256()
             val success = llmInferenceEngine.initModelFromFile(context, path, expectedHash)
             if (success && llmInferenceEngine.loadedModelName != null) {
-                _modelLoadingState.value = ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
+                val loadedName = llmInferenceEngine.loadedModelName!!
+                _modelLoadingState.value = ModelLoadingState.Loaded(loadedName)
                 // Also save the path on successful load
                 saveLocalModelPath(path)
             } else {
@@ -218,6 +223,11 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         val purpose: ModelPurpose,
         val savedPath: String? = null,
         val loadingState: ModelLoadingState = ModelLoadingState.Idle
+    )
+
+    private data class PendingModelLoad(
+        val path: String,
+        val purpose: ModelPurpose? = null
     )
 
     private val _modelStates = MutableLiveData<Map<ModelPurpose, ModelPurposeState>>(emptyMap())
@@ -328,14 +338,14 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
             initializeLlmEngine()
             updateModelPurposeState(purpose, ModelLoadingState.Loading)
             // Will be loaded after engine initializes
-            pendingModelUri = path
+            pendingModelLoad = PendingModelLoad(path, purpose)
             return
         }
 
         // If still initializing, queue the load
         if (currentState is EngineState.Initializing) {
             updateModelPurposeState(purpose, ModelLoadingState.Loading)
-            pendingModelUri = path
+            pendingModelLoad = PendingModelLoad(path, purpose)
             return
         }
 
@@ -355,12 +365,13 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
             val success = llmInferenceEngine.initModelFromFile(context, path, expectedHash)
 
             if (success && llmInferenceEngine.loadedModelName != null) {
-                updateModelPurposeState(
-                    purpose,
-                    ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
-                )
                 saveModelPath(purpose, path)
+                updateOnlyLoadedPurposeState(
+                    purpose,
+                    llmInferenceEngine.loadedModelName!!
+                )
             } else {
+                clearLoadablePurposeStates()
                 updateModelPurposeState(
                     purpose,
                     ModelLoadingState.Error("Failed to load model")
@@ -376,6 +387,35 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         val currentStates = _modelStates.value.orEmpty().toMutableMap()
         val existing = currentStates[purpose] ?: ModelPurposeState(purpose)
         currentStates[purpose] = existing.copy(loadingState = state)
+        _modelStates.value = currentStates
+    }
+
+    /**
+     * The current engine is a singleton and can hold only one loaded model. Keep the
+     * per-purpose UI honest by marking the loaded purpose and clearing the rest.
+     */
+    private fun updateOnlyLoadedPurposeState(purpose: ModelPurpose, modelName: String) {
+        val currentStates = _modelStates.value.orEmpty().toMutableMap()
+        for (availablePurpose in getAvailableModelPurposes()) {
+            if (availablePurpose == ModelPurpose.SPEECH_TO_TEXT) continue
+            val existing = currentStates[availablePurpose] ?: ModelPurposeState(availablePurpose)
+            val loadingState = if (availablePurpose == purpose) {
+                ModelLoadingState.Loaded(modelName)
+            } else {
+                ModelLoadingState.Idle
+            }
+            currentStates[availablePurpose] = existing.copy(loadingState = loadingState)
+        }
+        _modelStates.value = currentStates
+    }
+
+    private fun clearLoadablePurposeStates() {
+        val currentStates = _modelStates.value.orEmpty().toMutableMap()
+        for (purpose in getAvailableModelPurposes()) {
+            if (purpose == ModelPurpose.SPEECH_TO_TEXT) continue
+            val existing = currentStates[purpose] ?: ModelPurposeState(purpose)
+            currentStates[purpose] = existing.copy(loadingState = ModelLoadingState.Idle)
+        }
         _modelStates.value = currentStates
     }
 }
