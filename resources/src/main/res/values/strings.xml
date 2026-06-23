@@ -957,6 +957,7 @@
 
 	<string name="info_icon_content_description">Info icon</string>
 	<string name="feedback_button_description">Send feedback about this tooltip</string>
+	<string name="sponsor_button_description">Support us on GitHub Sponsors</string>
 	<string name="cd_more_options">More options</string>
 	<string name="cd_expand_collapse">Expand or collapse</string>
 	<string name="cd_file_icon">File icon</string>
