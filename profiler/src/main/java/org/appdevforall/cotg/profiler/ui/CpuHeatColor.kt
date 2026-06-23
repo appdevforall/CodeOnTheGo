@@ -13,14 +13,15 @@ private val Warm = Color(0xFFEF8A2B)
 private val Hot = Color(0xFFD83A2E)
 
 /**
- * Fill color for a frame whose exclusive time is [selfMicros], relative to the hottest frame in the
- * tree ([maxSelfMicros]). Frames with no self time get the cold/neutral anchor so genuine hotspots
- * stand out. A `sqrt` curve keeps moderately-hot frames visibly warm rather than washing out
- * everything but the single peak.
+ * Fill color for a frame whose "self" weight is [self], relative to the hottest frame in the tree
+ * ([max]). Frames with no self weight get the cold/neutral anchor so genuine hotspots stand out. A
+ * `sqrt` curve keeps moderately-hot frames visibly warm rather than washing out everything but the
+ * single peak. Used by both the CPU flamegraph (self = exclusive time) and the heap flamegraph
+ * (self = shallow size).
  */
-fun heatColor(selfMicros: Long, maxSelfMicros: Long, dark: Boolean): Color {
+fun heatColor(self: Long, max: Long, dark: Boolean): Color {
     val cold = if (dark) ColdDark else ColdLight
-    if (maxSelfMicros <= 0L || selfMicros <= 0L) return cold
-    val t = sqrt((selfMicros.toFloat() / maxSelfMicros.toFloat()).coerceIn(0f, 1f))
+    if (max <= 0L || self <= 0L) return cold
+    val t = sqrt((self.toFloat() / max.toFloat()).coerceIn(0f, 1f))
     return if (t <= 0.5f) lerp(cold, Warm, t / 0.5f) else lerp(Warm, Hot, (t - 0.5f) / 0.5f)
 }

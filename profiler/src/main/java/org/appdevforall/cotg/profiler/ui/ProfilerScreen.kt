@@ -46,6 +46,14 @@ import org.appdevforall.cotg.profiler.cpu.maxSelfMicros
 import org.appdevforall.cotg.profiler.cpu.nodeAtPath
 import org.appdevforall.cotg.profiler.cpu.pathLabels
 import org.appdevforall.cotg.profiler.cpu.toFlameNode
+import org.appdevforall.cotg.profiler.heap.HeapMetric
+import org.appdevforall.cotg.profiler.heap.HeapObjectNode
+import org.appdevforall.cotg.profiler.heap.HeapProfile
+import org.appdevforall.cotg.profiler.heap.collapseFrameworkClasses
+import org.appdevforall.cotg.profiler.heap.maxShallowBytes
+import org.appdevforall.cotg.profiler.heap.nodeAtPath as heapNodeAtPath
+import org.appdevforall.cotg.profiler.heap.pathLabels as heapPathLabels
+import org.appdevforall.cotg.profiler.heap.toFlameNode as toHeapFlameNode
 import org.appdevforall.cotg.profiler.ui.components.CellAlignment
 import org.appdevforall.cotg.profiler.ui.components.CpuUsageGraph
 import org.appdevforall.cotg.profiler.ui.components.ProcessPicker
@@ -184,11 +192,7 @@ private fun ProfilerContent(
         is ProfilerUiState.Completed ->
             when (val report = state.report) {
                 is ProfilerReport.HeapDump ->
-                    ProfilerTable(
-                        columns = heapColumns(),
-                        rows = report.rows,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    HeapResultView(profile = report.profile, modifier = Modifier.fillMaxSize())
 
                 is ProfilerReport.CpuSampling ->
                     CpuResultView(profile = report.profile, modifier = Modifier.fillMaxSize())
@@ -329,6 +333,173 @@ private fun CpuDetailStrip(
     }
 }
 
+/**
+ * The heap result: an interactive flamegraph over the object **dominator tree**. A frame's width is
+ * the memory it retains (or the object count it retains, via the metric toggle); frames are
+ * heat-colored by shallow (self) size so the objects that themselves occupy the most memory pop —
+ * mirroring [CpuResultView]'s inclusive-width + self-heat model. Tapping a frame fills the
+ * [HeapDetailStrip]. Toggles: switch the width metric, hide framework/runtime classes (collapsing
+ * them so app objects retained beneath stay visible), flip the graph direction, and drop to the flat
+ * class-list table.
+ */
+@Composable
+private fun HeapResultView(profile: HeapProfile, modifier: Modifier = Modifier) {
+    var metricBytes by rememberSaveable { mutableStateOf(true) }
+    var hideFramework by rememberSaveable { mutableStateOf(false) }
+    var bottomUp by rememberSaveable { mutableStateOf(false) }
+    var showTable by rememberSaveable { mutableStateOf(false) }
+    val flamegraphState = rememberFlamegraphState()
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val metric = if (metricBytes) HeapMetric.RetainedBytes else HeapMetric.InstanceCount
+
+    val displayRoot = remember(profile, hideFramework) {
+        if (hideFramework) profile.root.collapseFrameworkClasses() else profile.root
+    }
+    val maxShallow = remember(displayRoot) { displayRoot.maxShallowBytes() }
+    val flameRoot = remember(displayRoot, metric, maxShallow, dark) {
+        displayRoot.toHeapFlameNode(metric) { heatColor(it.shallowBytes, maxShallow, dark) }
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
+        ) {
+            // Width metric is a two-option selector; it only re-weights the same tree, so the
+            // selection path keys stay valid and the flamegraph selection is preserved.
+            FilterChip(
+                selected = !showTable && metricBytes,
+                onClick = { showTable = false; metricBytes = true },
+                label = { Text(stringResource(R.string.profiler_heap_metric_retained)) },
+            )
+            FilterChip(
+                selected = !showTable && !metricBytes,
+                onClick = { showTable = false; metricBytes = false },
+                label = { Text(stringResource(R.string.profiler_heap_metric_count)) },
+            )
+            FilterChip(
+                selected = showTable,
+                onClick = { showTable = !showTable },
+                label = { Text(stringResource(R.string.profiler_heap_view_table)) },
+            )
+        }
+
+        if (!showTable) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
+            ) {
+                FilterChip(
+                    selected = hideFramework,
+                    onClick = {
+                        hideFramework = !hideFramework
+                        // The path keys index into the (now different) tree — drop the selection.
+                        flamegraphState.reset()
+                    },
+                    label = { Text(stringResource(R.string.profiler_hide_framework_classes)) },
+                )
+                FilterChip(
+                    selected = bottomUp,
+                    onClick = { bottomUp = !bottomUp },
+                    label = { Text(stringResource(R.string.profiler_orientation_toggle)) },
+                )
+            }
+        }
+
+        if (showTable) {
+            ProfilerTable(
+                columns = heapColumns(),
+                rows = profile.rows,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+        } else {
+            Flamegraph(
+                root = flameRoot,
+                state = flamegraphState,
+                orientation = if (bottomUp) FlameOrientation.BottomUp else FlameOrientation.TopDown,
+                rowHeight = 18.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+
+            HeapDetailStrip(
+                node = displayRoot.heapNodeAtPath(flamegraphState.selectedKey),
+                pathLabels = displayRoot.heapPathLabels(flamegraphState.selectedKey),
+                totalRetainedBytes = profile.totalRetainedBytes,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/**
+ * Bottom strip showing the tapped object's shallow (self) size, the memory/objects it retains
+ * (with its share of the whole dump), and its root→object dominator path. Shows a hint when nothing
+ * is selected.
+ */
+@Composable
+private fun HeapDetailStrip(
+    node: HeapObjectNode?,
+    pathLabels: List<String>,
+    totalRetainedBytes: Long,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(Dimens.cornerSm),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Dimens.paddingSm),
+            verticalArrangement = Arrangement.spacedBy(Dimens.paddingXs),
+        ) {
+            if (node == null) {
+                Text(
+                    text = stringResource(R.string.profiler_heap_tap_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                return@Column
+            }
+            Text(
+                text = node.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.profiler_heap_shallow, formatBytes(node.shallowBytes)) +
+                    "  ·  " + stringResource(
+                        R.string.profiler_heap_retained,
+                        formatBytes(node.retainedBytes),
+                        formatPercent(percentOf(node.retainedBytes, totalRetainedBytes)),
+                    ) +
+                    "  ·  " + stringResource(R.string.profiler_heap_objects, formatCount(node.retainedCount)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (pathLabels.size > 1) {
+                Text(
+                    text = pathLabels.joinToString("  ›  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun CenteredMessage(
     message: String,
@@ -382,6 +553,20 @@ private fun formatPercent(percent: Float): String = String.format(Locale.US, "%.
 private fun percentOf(part: Long, total: Long): Float =
     if (total > 0L) (part.toDouble() / total * 100.0).toFloat() else 0f
 
+private fun formatCount(count: Long): String = String.format(Locale.US, "%,d", count)
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val units = arrayOf("KB", "MB", "GB", "TB")
+    var value = bytes.toDouble() / 1024
+    var unitIndex = 0
+    while (value >= 1024 && unitIndex < units.lastIndex) {
+        value /= 1024
+        unitIndex++
+    }
+    return String.format(Locale.US, "%.1f %s", value, units[unitIndex])
+}
+
 @Preview(name = "Idle")
 @Composable
 private fun ProfilerScreenIdlePreview() {
@@ -426,7 +611,7 @@ private fun ProfilerScreenHeapResultPreview() {
         ProfilerScreenView(
             state = ProfilerUiState.Completed(
                 process = SampleProfileTables.SAMPLE_PROCESSES.first(),
-                report = ProfilerReport.HeapDump(SampleProfileTables.HEAP_ROWS),
+                report = ProfilerReport.HeapDump(SampleProfileTables.SAMPLE_HEAP_PROFILE),
             ),
             onIntent = {},
         )

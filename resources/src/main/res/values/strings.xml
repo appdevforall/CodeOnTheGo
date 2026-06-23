@@ -1359,6 +1359,14 @@
     <string name="profiler_cpu_self">Self %1$s (%2$s)</string>
     <string name="profiler_cpu_total">Total %1$s (%2$s)</string>
     <string name="profiler_cpu_tap_hint">Tap a frame for details</string>
+    <string name="profiler_heap_metric_retained">Retained size</string>
+    <string name="profiler_heap_metric_count">Instances</string>
+    <string name="profiler_heap_view_table">Class list</string>
+    <string name="profiler_hide_framework_classes">Hide framework classes</string>
+    <string name="profiler_heap_shallow">Shallow %1$s</string>
+    <string name="profiler_heap_retained">Retained %1$s (%2$s)</string>
+    <string name="profiler_heap_objects">%1$s objects</string>
+    <string name="profiler_heap_tap_hint">Tap a frame for object details</string>
     <string name="profiler_cancel">Cancel</string>
     <string name="profiler_start_another">Start another task</string>
     <string name="profiler_cancelled">Profiling was cancelled.</string>

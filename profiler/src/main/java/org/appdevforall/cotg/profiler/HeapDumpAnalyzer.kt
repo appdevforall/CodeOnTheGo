@@ -1,5 +1,7 @@
 package org.appdevforall.cotg.profiler
 
+import org.appdevforall.cotg.profiler.heap.HeapDominators
+import org.appdevforall.cotg.profiler.heap.HeapProfile
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTableRow
 import shark.HeapObject.HeapInstance
 import shark.HeapObject.HeapObjectArray
@@ -9,11 +11,9 @@ import java.io.File
 import java.util.Locale
 
 /**
- * Parses a `.hprof` heap dump into a per-class histogram (count + shallow size), mirroring the
- * default "Class List" view of Android Studio's memory profiler.
- *
- * Note: shark's per-class *retained* size relies on its `internal` dominator-tree types, so only
- * count and shallow size are reported here.
+ * Parses a `.hprof` heap dump into a [HeapProfile]: the object **dominator tree** (what each object
+ * retains — the flamegraph-ready structure, see [HeapDominators]) plus the per-class histogram
+ * (count + shallow size) kept for the "Class List" table, mirroring Android Studio's memory profiler.
  */
 object HeapDumpAnalyzer {
     private const val MAX_ROWS = 50
@@ -23,8 +23,8 @@ object HeapDumpAnalyzer {
         var shallowBytes: Long = 0
     }
 
-    /** Top [MAX_ROWS] classes by shallow size. Blocking/IO heavy — call off the main thread. */
-    fun analyze(file: File): List<ProfilerTableRow> {
+    /** Builds the dominator tree + top [MAX_ROWS] class histogram. Blocking/IO heavy — call off the main thread. */
+    fun analyze(file: File): HeapProfile {
         val byClass = HashMap<String, ClassStats>()
 
         file.openHeapGraph().use { graph ->
@@ -50,17 +50,25 @@ object HeapDumpAnalyzer {
                 stats.count++
                 stats.shallowBytes += shallow
             }
-        }
 
-        return byClass.entries
-            .sortedByDescending { it.value.shallowBytes }
-            .take(MAX_ROWS)
-            .map { (className, stats) ->
-                ProfilerTableRow(
-                    id = className,
-                    cells = listOf(className, formatCount(stats.count), formatBytes(stats.shallowBytes)),
-                )
-            }
+            val rows = byClass.entries
+                .sortedByDescending { it.value.shallowBytes }
+                .take(MAX_ROWS)
+                .map { (className, stats) ->
+                    ProfilerTableRow(
+                        id = className,
+                        cells = listOf(className, formatCount(stats.count), formatBytes(stats.shallowBytes)),
+                    )
+                }
+
+            val root = HeapDominators.fromHeapGraph(graph)
+            return HeapProfile(
+                root = root,
+                totalRetainedBytes = root.retainedBytes,
+                totalObjects = root.retainedCount,
+                rows = rows,
+            )
+        }
     }
 
     private fun formatCount(count: Long): String = String.format(Locale.US, "%,d", count)
