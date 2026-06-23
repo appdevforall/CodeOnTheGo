@@ -84,9 +84,9 @@ import java.io.Closeable
 import java.io.File
 import kotlin.math.abs
 
-private const val MIN_FONT_SIZE = 6f
-private const val DEFAULT_FONT_SIZE = 14f
-private const val MAX_FONT_SIZE = 32f
+private const val MIN_FONT_SIZE = EditorPreferences.FONT_SIZE_MIN
+private const val DEFAULT_FONT_SIZE = EditorPreferences.FONT_SIZE_DEFAULT
+private const val MAX_FONT_SIZE = EditorPreferences.FONT_SIZE_MAX
 private val ARCHIVE_EXTENSIONS = setOf("apk", "cgp", "zip")
 
 /**
