@@ -1359,6 +1359,7 @@
 	<string name="inline_suggestion_toolbar_button_title">Show toolbar button</string>
 	<string name="inline_suggestion_toolbar_button_summary">Display manual trigger button in editor toolbar</string>
 	<string name="inline_suggestions_settings_summary">Configure AI-powered code suggestions</string>
+	<string name="inline_suggestion_loading">Loading suggestion…</string>
 
 	<!-- AI Settings -->
 	<string name="title_ai_settings">AI &amp; Voice</string>

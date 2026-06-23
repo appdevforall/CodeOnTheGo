@@ -33,6 +33,9 @@ enum class SuggestionState {
     /** LLM request in flight */
     REQUESTING,
 
+    /** LLM request in flight, showing the "Loading suggestion..." placeholder */
+    LOADING,
+
     /** Suggestion visible as ghost text */
     SHOWING,
 

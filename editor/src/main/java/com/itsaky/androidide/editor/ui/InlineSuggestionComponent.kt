@@ -19,6 +19,7 @@ package com.itsaky.androidide.editor.ui
 
 import android.graphics.Canvas
 import android.view.KeyEvent
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.preferences.internal.InlineSuggestionPreferences
 import io.github.rosemoe.sora.event.ContentChangeEvent
@@ -47,8 +48,8 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
 
     private var currentSuggestion: SuggestionData? = null
     private var suggestionState: SuggestionState = SuggestionState.IDLE
-    private var charactersSinceLastRequest: Int = 0
     private var debounceJob: Job? = null
+    private var requestJob: Job? = null
 
     private val renderer = GhostTextRenderer(editor)
     private val provider = SuggestionProvider(editor)
@@ -100,31 +101,24 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
             return
         }
 
-        // If showing suggestion, check if new text compatible
-        if (suggestionState == SuggestionState.SHOWING) {
-            val compatible = isNewTextCompatible(event)
-            if (!compatible) {
-                dismissSuggestion()
-                charactersSinceLastRequest = 0
-            }
+        // Ignore programmatic whole-document changes (file load / set text) so we don't auto-trigger
+        // on open.
+        if (event.action == ContentChangeEvent.ACTION_SET_NEW_TEXT) {
             return
         }
 
-        // Increment character counter
-        charactersSinceLastRequest++
-
-        // If we've typed enough characters, start debounce timer
-        if (charactersSinceLastRequest >= InlineSuggestionPreferences.charThreshold) {
-            scheduleRequest()
-        }
+        // Any user edit invalidates a visible/pending suggestion and (re)starts the idle timer, so
+        // a request fires shortly after the user stops writing.
+        scheduleRequest()
     }
 
     /**
      * Called when editor selection changes (cursor moves).
      */
     fun onSelectionChange(event: SelectionChangeEvent) {
-        if (suggestionState == SuggestionState.SHOWING) {
-            // Dismiss suggestion when cursor moves
+        // Dismiss when the cursor moves so a shown suggestion or in-flight loading placeholder is
+        // never left on a line the cursor has left — it must always belong to the cursor's row.
+        if (suggestionState == SuggestionState.SHOWING || suggestionState == SuggestionState.LOADING) {
             dismissSuggestion()
         }
     }
@@ -183,22 +177,22 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
             dismissSuggestion()
         }
 
-        // Cancel any in-flight request
         debounceJob?.cancel()
-        provider.cancelActiveRequest()
-
-        // Request immediately
-        suggestionState = SuggestionState.REQUESTING
-        scope.launch {
-            requestSuggestion()
-        }
+        launchRequest()
 
         log.info("Manual trigger activated")
     }
 
     private fun scheduleRequest() {
-        // Cancel previous debounce
+        // Restart the idle timer: cancel the pending timer AND any in-flight request, and clear a
+        // visible loading placeholder/suggestion, so typing again restarts the 500ms wait cleanly
+        // and a superseded result can't pop in.
         debounceJob?.cancel()
+        requestJob?.cancel()
+        if (renderer.isVisible()) {
+            renderer.hide()
+            editor.invalidate()
+        }
 
         suggestionState = SuggestionState.WAITING
 
@@ -207,10 +201,45 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
             delay(InlineSuggestionPreferences.debounceMs.toLong())
 
             if (enabled && editor.isEditable) {
-                suggestionState = SuggestionState.REQUESTING
-                requestSuggestion()
+                launchRequest()
             }
         }
+    }
+
+    /**
+     * Cancel any in-flight request and start a fresh one. Cancelling the previous request stops
+     * its (now superseded) generation so it stops occupying the single LLM run-loop thread and
+     * delaying this one — the main cause of suggestions arriving seconds late.
+     */
+    private fun launchRequest() {
+        requestJob?.cancel()
+        provider.cancelActiveRequest()
+        // Show a grey "Loading suggestion..." placeholder at the end of the current line while the
+        // request runs; it is replaced by the real suggestion (or hidden) when the request returns.
+        suggestionState = SuggestionState.LOADING
+        showLoadingPlaceholder()
+        requestJob = scope.launch {
+            requestSuggestion()
+        }
+    }
+
+    /**
+     * Renders a grey "Loading suggestion..." placeholder at the end of the current line, using the
+     * same ghost-text style as real suggestions.
+     */
+    private fun showLoadingPlaceholder() {
+        val cursor = editor.cursor
+        val line = cursor.leftLine
+        val lineEndColumn = editor.text.getColumnCount(line)
+        val placeholder = SuggestionData(
+            text = editor.context.getString(R.string.inline_suggestion_loading),
+            startPosition = com.itsaky.androidide.models.Position(line, lineEndColumn),
+            cursorLine = line,
+            cursorColumn = lineEndColumn,
+            requestTimestamp = System.currentTimeMillis()
+        )
+        renderer.show(placeholder)
+        editor.invalidate()
     }
 
     private suspend fun requestSuggestion() {
@@ -227,6 +256,11 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
 
             val suggestion = provider.requestSuggestion(position, fileContent, language)
 
+            // Ignore a result that arrived after this request was superseded or dismissed.
+            if (suggestionState != SuggestionState.LOADING) {
+                return
+            }
+
             if (suggestion != null) {
                 currentSuggestion = suggestion
                 suggestionState = SuggestionState.SHOWING
@@ -234,9 +268,15 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
                 editor.postInvalidate()
                 log.info("Suggestion shown: ${suggestion.text.take(30)}...")
             } else {
+                // No suggestion — clear the loading placeholder.
+                renderer.hide()
                 suggestionState = SuggestionState.IDLE
+                editor.postInvalidate()
                 log.debug("No suggestion returned")
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Superseded by a newer request — let cancellation propagate so generation stops.
+            throw e
         } catch (e: Exception) {
             log.error("Error requesting suggestion", e)
             suggestionState = SuggestionState.IDLE
@@ -276,15 +316,9 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
         log.info("Suggestion accepted")
     }
 
-    private fun isNewTextCompatible(event: ContentChangeEvent): Boolean {
-        // Simple check: if suggestion still starts with what we have, it's compatible
-        val suggestion = currentSuggestion?.text ?: return false
-        // For now, any change dismisses. We can make this smarter later.
-        return false
-    }
-
     private fun cleanup() {
         debounceJob?.cancel()
+        requestJob?.cancel()
         provider.cancelActiveRequest()
         provider.clearCache()
         scope.cancel()
@@ -298,7 +332,9 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
             return
         }
 
-        if (suggestionState == SuggestionState.SHOWING && renderer.isVisible()) {
+        if ((suggestionState == SuggestionState.SHOWING || suggestionState == SuggestionState.LOADING) &&
+            renderer.isVisible()
+        ) {
             renderer.onDraw(canvas)
         }
     }
@@ -309,9 +345,10 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
     internal fun getState(): SuggestionState = suggestionState
 
     private fun dismissSuggestion() {
+        debounceJob?.cancel()
+        requestJob?.cancel()
         currentSuggestion = null
         suggestionState = SuggestionState.IDLE
-        charactersSinceLastRequest = 0
         renderer.hide()
         editor.invalidate()
     }

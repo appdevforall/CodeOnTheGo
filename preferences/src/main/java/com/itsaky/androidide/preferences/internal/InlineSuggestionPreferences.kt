@@ -35,7 +35,7 @@ object InlineSuggestionPreferences {
     const val DEFAULT_ENABLED = true
     const val DEFAULT_AUTO_TRIGGER = true
     const val DEFAULT_CHAR_THRESHOLD = 3
-    const val DEFAULT_DEBOUNCE_MS = 300
+    const val DEFAULT_DEBOUNCE_MS = 800
     const val DEFAULT_MAX_LINES = 5
     const val DEFAULT_MANUAL_SHORTCUT = "Ctrl+Space"
     const val DEFAULT_SHOW_TOOLBAR_BUTTON = true

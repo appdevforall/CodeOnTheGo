@@ -135,11 +135,12 @@ class SuggestionProvider(
                 }
             }
 
-            // Extract context around cursor
+            // Extract context around cursor. Keep this small: every request re-processes the whole
+            // prompt (clearCache), so fewer context lines = faster prefill = lower latency.
             val (contextBefore, contextAfter) = extractContext(
                 fileContent,
                 cursorPosition,
-                maxContextLines = 30
+                maxContextLines = 15
             )
 
             // Build prompt for code completion
@@ -192,6 +193,10 @@ class SuggestionProvider(
             log.info("Suggestion generated successfully (${limitedSuggestion.lines().size} lines)")
             suggestion
 
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Superseded by a newer request — propagate so the in-flight generation is cancelled
+            // and frees the LLM run-loop thread instead of running to completion.
+            throw e
         } catch (e: Exception) {
             log.error("Failed to get suggestion from LLM", e)
             null

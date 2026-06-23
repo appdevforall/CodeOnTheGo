@@ -81,32 +81,37 @@ class GhostTextRenderer(private val editor: IDEEditor) {
             updatePaintProperties()
 
             val paint = ghostPaint ?: return
-            val lines = suggestion.text.split("\n")
             val maxLines = InlineSuggestionPreferences.maxLines
-            val linesToDraw = lines.take(maxLines)
+            val linesToDraw = suggestion.text.split("\n").take(maxLines)
 
-            // Get text metrics
-            val lineHeight = paint.fontSpacing
-            val charWidth = paint.measureText("M")
+            // Anchor to the LIVE caret rather than the position captured when the request started.
+            // The suggestion is dismissed whenever the cursor moves, so the caret is always where
+            // this suggestion belongs; reading it live keeps the ghost text on the cursor's row even
+            // after the document is restructured (e.g. undo/redo), which a stale captured line could
+            // get wrong. Coerce into range so a transient state can't throw.
+            val cursor = editor.cursor
+            val cursorLine = cursor.leftLine.coerceIn(0, editor.text.lineCount - 1)
+            val cursorColumn = cursor.leftColumn.coerceIn(0, editor.text.getColumnCount(cursorLine))
 
-            // Calculate cursor screen position
-            val cursorLine = suggestion.cursorLine
-            val cursorColumn = suggestion.cursorColumn
+            // Position using the editor's own layout, in view coordinates. getCharOffsetX accounts
+            // for the line-number gutter, real glyph widths, and horizontal scroll. For Y we resolve
+            // the (line, column) to its VISUAL ROW: getRowBaseline takes a row index, not a document
+            // line, and the two diverge (e.g. with word wrap).
+            val rowHeight = editor.rowHeight
+            val charIndex = editor.text.getCharIndex(cursorLine, cursorColumn)
+            val row = editor.layout.getRowIndexForPosition(charIndex)
+            val firstBaseline = editor.getRowBaseline(row).toFloat() - editor.offsetY
+            val firstX = editor.getCharOffsetX(cursorLine, cursorColumn)
+            // Wrapped/continuation lines start at the left edge of the text region.
+            val leftMargin = editor.measureTextRegionOffset() - editor.offsetX
 
-            // Base position - starting from cursor
-            // Y position: approximate based on line height
-            // X position: approximate based on character width
-            val baseY = (cursorLine + 1) * lineHeight
-            val baseX = cursorColumn * charWidth
-
-            // Draw each line of the suggestion
             linesToDraw.forEachIndexed { index, line ->
                 if (line.isNotEmpty()) {
-                    val drawX = if (index == 0) baseX else 0f
-                    val drawY = baseY + (index * lineHeight)
+                    val drawX = if (index == 0) firstX else leftMargin
+                    val drawY = firstBaseline + index * rowHeight
 
                     // Only draw if visible in viewport
-                    if (drawY > 0 && drawY < canvas.height) {
+                    if (drawY > 0 && drawY < canvas.height + rowHeight) {
                         canvas.drawText(line, drawX, drawY, paint)
                     }
                 }
