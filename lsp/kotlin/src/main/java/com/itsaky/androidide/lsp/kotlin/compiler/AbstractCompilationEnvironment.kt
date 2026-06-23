@@ -80,7 +80,7 @@ import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import java.nio.file.Path
 import kotlin.io.path.pathString
-import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Base class shared by [CompilationEnvironment] (production) and the test-only
@@ -101,7 +101,7 @@ internal abstract class AbstractCompilationEnvironment(
 
 	companion object {
 		/** Max time close() will block the (main) thread draining background workers before disposal. */
-		val CLOSE_DRAIN_TIMEOUT = 2.milliseconds
+		val CLOSE_DRAIN_TIMEOUT = 2.seconds
 
 		init {
 			System.setProperty("java.awt.headless", "true")
