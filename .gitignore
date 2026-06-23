@@ -175,3 +175,20 @@ assets/gradle-*.zip
 app/src/release/assets/database/documentation.db
 app/src/main/assets/database/documentation
 app/src/main/assets/database/documentation.db
+
+# AI plugin development artifacts (moved to plugin-examples repo)
+*.cgp
+*-logs.txt
+logs*.txt
+screenshot*.png
+agent-tab*.png
+ai-assistant-plugin.md
+agent-to-plugin-migration.md
+BUILD_*.md
+EMBEDDING_*.md
+LLAMA_*.md
+MACOS_*.md
+NATIVE_*.md
+TEST_*.md
+assets-*.zip
+dynamic_libs/*.aar.br
