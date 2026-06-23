@@ -289,30 +289,11 @@ class SuggestionProvider(
         cursorLine: Int,
         cursorColumn: Int
     ): String {
-        return """Complete the code at the cursor position. Provide ONLY the next few lines that should be inserted at the cursor, without repeating existing code.
-
-Language: $language
-Line ${cursorLine + 1}, Column ${cursorColumn + 1}
-
-Code before cursor:
-```$language
-$contextBefore
-```
-
-Code after cursor (if any):
-```$language
-$contextAfter
-```
-
-Instructions:
-- Provide 1-5 lines of code completion
-- Match the existing code style and indentation
-- DO NOT repeat code that already exists
-- DO NOT include explanations or comments about what you're doing
-- Provide ONLY the code to insert at cursor position
-- Stop after completing the current statement or block
-
-Completion:"""
+        // Raw code continuation: inference runs as plain completion (not chat), so the model
+        // continues whatever the prompt ends with. Ending with the code up to the cursor makes it
+        // continue code; a natural-language instruction here makes instruct models reply with
+        // prose ("2 lines of code. Replace ...") that then gets inserted into the file.
+        return contextBefore
     }
 
     /**
@@ -321,34 +302,39 @@ Completion:"""
     private fun cleanSuggestionText(response: String): String {
         var cleaned = response.trim()
 
-        // Remove common LLM artifacts
+        // Remove common LLM artifacts (code fences and leading labels)
         cleaned = cleaned
             .removePrefix("```" + editor.file?.extension)
             .removePrefix("```")
             .removeSuffix("```")
             .trim()
-
-        // Remove leading "Completion:" or similar labels
-        cleaned = cleaned
             .removePrefix("Completion:")
             .removePrefix("Code:")
             .removePrefix("Here's the completion:")
             .removePrefix("Here is the completion:")
             .trim()
 
-        // If the response starts with explanation text, try to extract just code
-        if (cleaned.lines().any { it.contains("I") || it.contains("The code") || it.contains("This") }) {
-            // Look for a code fence or indented block
-            val codeStart = cleaned.indexOf("```")
-            if (codeStart != -1) {
-                val codeEnd = cleaned.indexOf("```", codeStart + 3)
-                if (codeEnd != -1) {
-                    cleaned = cleaned.substring(codeStart + 3, codeEnd).trim()
-                }
-            }
+        // Safety net: a continuation prompt should yield code, but instruct models sometimes
+        // still reply with prose (e.g. "2 lines of code. Replace ..."). Reject such responses
+        // rather than inserting them into the file.
+        if (looksLikeProse(cleaned)) {
+            return ""
         }
 
         return cleaned
+    }
+
+    /**
+     * Heuristic guard against non-code, assistant-style prose leaking into a suggestion.
+     */
+    private fun looksLikeProse(text: String): Boolean {
+        val firstLine = text.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: return false
+        val proseOpener = Regex(
+            "^(sure|okay|ok|here('?s| is)|i('| a|'ll| will| can)|the (code|following)|" +
+                "to (complete|implement)|this (code|will)|\\d+ lines? of code|replace the)\\b",
+            RegexOption.IGNORE_CASE
+        )
+        return proseOpener.containsMatchIn(firstLine)
     }
 
     /**

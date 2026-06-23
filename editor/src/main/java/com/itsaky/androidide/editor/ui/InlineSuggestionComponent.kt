@@ -248,21 +248,27 @@ class InlineSuggestionComponent(private val editor: IDEEditor) : EditorBuiltinCo
 
         suggestionState = SuggestionState.ACCEPTING
 
-        // Insert text at cursor
+        // Capture the insertion point BEFORE inserting — text.insert advances the live cursor,
+        // so reading cursor.leftLine/Column afterward double-counts and yields an out-of-bounds
+        // selection.
         val text = editor.text
         val cursor = text.cursor
-        text.insert(cursor.leftLine, cursor.leftColumn, suggestion.text)
+        val startLine = cursor.leftLine
+        val startColumn = cursor.leftColumn
 
-        // Move cursor to end of inserted text
+        text.insert(startLine, startColumn, suggestion.text)
+
+        // Move cursor to end of inserted text, clamped to the document so an unexpected
+        // suggestion shape can never crash setSelection.
         val lines = suggestion.text.split("\n")
-        val lastLine = lines.last()
-        val newLine = cursor.leftLine + lines.size - 1
-        val newColumn = if (lines.size == 1) {
-            cursor.leftColumn + lastLine.length
+        val endLine = (startLine + lines.size - 1).coerceIn(0, text.lineCount - 1)
+        val rawEndColumn = if (lines.size == 1) {
+            startColumn + lines.last().length
         } else {
-            lastLine.length
+            lines.last().length
         }
-        editor.setSelection(newLine, newColumn)
+        val endColumn = rawEndColumn.coerceIn(0, text.getColumnCount(endLine))
+        editor.setSelection(endLine, endColumn)
 
         // Clean up
         dismissSuggestion()
