@@ -86,10 +86,13 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
                         loadModelForPurpose(ModelPurpose.CHAT, savedChatPath, getApplication())
                     }
                 } else {
-                    // Update state to reflect already loaded model
+                    // A model already survives in the singleton engine. Attribute it to the
+                    // purpose it was actually loaded for (CHAT, EMBEDDINGS, ...) so its
+                    // "Loaded" badge is restored after the screen/ViewModel is recreated.
                     llmInferenceEngine.loadedModelName?.let { modelName ->
+                        val purpose = purposeOfLoadedModel() ?: ModelPurpose.CHAT
                         updateModelPurposeState(
-                            ModelPurpose.CHAT,
+                            purpose,
                             ModelLoadingState.Loaded(modelName)
                         )
                     }
@@ -239,16 +242,39 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         val prefs = BaseApplication.baseInstance.prefManager
         val states = mutableMapOf<ModelPurpose, ModelPurposeState>()
 
+        // The engine (a process-wide singleton) may still hold a model from a previous
+        // visit to this screen. Reflect that as "Loaded" for the matching purpose so the
+        // status survives ViewModel/screen recreation.
+        val loadedPurpose = purposeOfLoadedModel()
+        val loadedName = llmInferenceEngine.loadedModelName
+
         for (purpose in getAvailableModelPurposes()) {
             val savedPath = prefs.getString(purpose.getPreferenceKey(), null)
+            val loadingState = if (purpose == loadedPurpose && loadedName != null) {
+                ModelLoadingState.Loaded(loadedName)
+            } else {
+                ModelLoadingState.Idle
+            }
             states[purpose] = ModelPurposeState(
                 purpose = purpose,
                 savedPath = savedPath,
-                loadingState = ModelLoadingState.Idle
+                loadingState = loadingState
             )
         }
 
         _modelStates.value = states
+    }
+
+    /**
+     * Resolve which [ModelPurpose] the engine's currently-loaded model belongs to, by
+     * matching the loaded model's source URI against each purpose's saved path.
+     *
+     * Returns null if no model is loaded or none of the saved paths match.
+     */
+    private fun purposeOfLoadedModel(): ModelPurpose? {
+        if (!llmInferenceEngine.isModelLoaded) return null
+        val loadedUri = llmInferenceEngine.loadedModelSourceUri ?: return null
+        return getAvailableModelPurposes().firstOrNull { getModelPath(it) == loadedUri }
     }
 
     /**
