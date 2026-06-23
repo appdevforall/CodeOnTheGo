@@ -225,7 +225,7 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
         activeJob =
             viewModelScope.launch {
                 try {
-                    val rows =
+                    val profile =
                         withContext(Dispatchers.IO) {
                             val file = cacheFile("heap-${process.pid}")
                             try {
@@ -240,7 +240,7 @@ class ProfilerViewModel(application: Application) : AndroidViewModel(application
                         }
                     ensureActive() // the dump is a blocking binder call; bail if cancelled while it ran
                     _state.value =
-                        ProfilerUiState.Completed(process, ProfilerReport.HeapDump(rows))
+                        ProfilerUiState.Completed(process, ProfilerReport.HeapDump(profile))
                 } catch (e: CancellationException) {
                     throw e // cancellation handled by cancelHeapDump()
                 } catch (e: Throwable) {

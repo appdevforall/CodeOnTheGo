@@ -1,5 +1,7 @@
 package org.appdevforall.cotg.profiler.ui
 
+import org.appdevforall.cotg.profiler.heap.HeapObjectNode
+import org.appdevforall.cotg.profiler.heap.HeapProfile
 import org.appdevforall.cotg.profiler.model.ProcessInfo
 import org.appdevforall.cotg.profiler.ui.components.ProfilerTableRow
 
@@ -24,6 +26,28 @@ internal object SampleProfileTables {
             ProfilerTableRow("Class", listOf("java.lang.Class", "3,402", "272 KB", "421 KB")),
             ProfilerTableRow("LinkedHashMap", listOf("java.util.LinkedHashMap", "612", "29 KB", "318 KB")),
             ProfilerTableRow("Drawable", listOf("android.graphics.drawable.VectorDrawable", "88", "11 KB", "204 KB")),
+        )
+
+    // A small, internally-consistent dominator tree (retained >= sum of children) for previews.
+    val SAMPLE_HEAP_PROFILE: HeapProfile =
+        HeapProfile(
+            root = HeapObjectNode(
+                label = "(heap)", shallowBytes = 0, retainedBytes = 8_000_000, retainedCount = 20_000,
+                children = listOf(
+                    HeapObjectNode("byte[]", shallowBytes = 4_200_000, retainedBytes = 4_200_000, retainedCount = 1_284, children = emptyList()),
+                    HeapObjectNode(
+                        "com.example.app.MainActivity", shallowBytes = 120, retainedBytes = 2_400_000, retainedCount = 8_000,
+                        children = listOf(
+                            HeapObjectNode("android.graphics.Bitmap", shallowBytes = 3_900, retainedBytes = 2_000_000, retainedCount = 50, children = emptyList()),
+                            HeapObjectNode("java.util.HashMap\$Node", shallowBytes = 164_000, retainedBytes = 360_000, retainedCount = 5_120, children = emptyList()),
+                        ),
+                    ),
+                    HeapObjectNode("java.lang.String", shallowBytes = 221_000, retainedBytes = 1_100_000, retainedCount = 9_210, children = emptyList()),
+                ),
+            ),
+            totalRetainedBytes = 8_000_000,
+            totalObjects = 20_000,
+            rows = HEAP_ROWS,
         )
 
     val CPU_ROWS: List<ProfilerTableRow> =

@@ -60,4 +60,6 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.androidx.core.ktx)
     debugImplementation(libs.compose.ui.tooling)
+
+    testImplementation(libs.tests.junit)
 }
