@@ -39,7 +39,7 @@ data class FilterState(
     val sort: SortCriteria? = null,
     val ascending: Boolean = true
 ) {
-    val hasAny: Boolean get() = sort != null || !ascending || query.isNotEmpty()
+    val hasAny: Boolean get() = sort != null || query.isNotEmpty()
 }
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
@@ -64,7 +64,7 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     val currentSortCriteria: SortCriteria? get() = currentSort
     val currentSortAscending: Boolean get() = isAscending
     val hasActiveFilters: Boolean
-        get() = currentSort != null || !isAscending || currentQuery.isNotEmpty()
+        get() = _filterState.value.hasAny
 
     private val _deletionStatus = MutableSharedFlow<Boolean>(replay = 1)
     val deletionStatus = _deletionStatus.asSharedFlow()
@@ -102,12 +102,12 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
                 result = result.filter { it.name.contains(currentQuery, ignoreCase = true) }
             }
 
-            currentSort.let { criteria ->
+            val criteria = currentSort
+            if (criteria != null) {
                 result = when (criteria) {
                     SortCriteria.NAME -> result.sortedBy { it.name.lowercase() }
                     SortCriteria.DATE_CREATED -> result.sortedBy { it.createdAt }
                     SortCriteria.DATE_MODIFIED -> result.sortedBy { it.lastModified }
-                    else -> result
                 }
                 if (!isAscending) {
                     result = result.reversed()
@@ -136,6 +136,12 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         currentSort = null
         isAscending = true
         currentQuery = ""
+        applyFilters()
+    }
+
+    suspend fun clearSort() {
+        currentSort = null
+        isAscending = true
         applyFilters()
     }
 

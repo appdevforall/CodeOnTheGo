@@ -7,6 +7,8 @@ import android.transition.TransitionManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
+import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.addTextChangedListener
@@ -61,6 +63,7 @@ class RecentProjectsFragment : BaseFragment() {
 	private var selectedCriteria: SortCriteria? = null
 	private var selectedAsc = true
 	private val searchQuery = MutableStateFlow("")
+	private var filtersDialog: BottomSheetDialog? = null
 
 	data class SortToggleStyle(
 		val iconRes: Int,
@@ -105,10 +108,8 @@ class RecentProjectsFragment : BaseFragment() {
 		dialog.setContentView(sheet)
 		setupFilters(sheet)
 
-		viewLifecycleScope.launch {
-			viewModel.filterEvents.collect { dialog.dismiss() }
-		}
-
+		dialog.setOnDismissListener { filtersDialog = null }
+		filtersDialog = dialog
 		dialog.show()
 	}
 
@@ -185,12 +186,7 @@ class RecentProjectsFragment : BaseFragment() {
 		sortDropdown: MaterialAutoCompleteTextView,
 		sortToggleBtn: MaterialButton
 	) {
-		val labelRes = when (selectedCriteria) {
-			SortCriteria.NAME -> R.string.sort_by_name
-			SortCriteria.DATE_CREATED -> R.string.sort_by_created
-			SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
-			null -> null
-		}
+		val labelRes = selectedCriteria?.labelRes()
 
 		if (labelRes != null) {
 			sortDropdown.setText(getString(labelRes), false)
@@ -237,29 +233,28 @@ class RecentProjectsFragment : BaseFragment() {
 		viewLifecycleScope.launch {
 			viewModel.filterState.collect { renderActiveFilters(it) }
 		}
+		viewLifecycleScope.launch {
+			viewModel.filterEvents.collect { filtersDialog?.dismiss() }
+		}
 	}
 
 	private fun renderActiveFilters(state: FilterState) {
 		val filters = _binding?.layoutFilters ?: return
 		val group = filters.activeFiltersGroup
+
+		beginFilterBarTransition(filters.root as? ViewGroup)
+
 		group.removeAllViews()
 
 		state.sort?.let { criteria ->
-			val labelRes = when (criteria) {
-				SortCriteria.NAME -> R.string.sort_by_name
-				SortCriteria.DATE_CREATED -> R.string.sort_by_created
-				SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
-			}
 			val arrow = if (state.ascending) "↑" else "↓"
 			group.addView(
 				buildFilterChip(
-					text = "${getString(labelRes)} $arrow",
+					text = "${getString(criteria.labelRes())} $arrow",
 					removeDescRes = R.string.filter_chip_remove_sort,
+					onClick = { openFiltersSheet() },
 				) {
-					viewLifecycleScope.launch {
-						viewModel.onSortSelected(null)
-						viewModel.onSortDirectionChanged(true)
-					}
+					viewLifecycleScope.launch { viewModel.clearSort() }
 				},
 			)
 		}
@@ -269,22 +264,33 @@ class RecentProjectsFragment : BaseFragment() {
 				buildFilterChip(
 					text = "“${state.query}”",
 					removeDescRes = R.string.filter_chip_remove_search,
+					onClick = { focusSearchField() },
 				) {
 					filters.searchProjectEditText.text?.clear()
-					viewLifecycleScope.launch { viewModel.onSearchQuery("") }
 				},
 			)
 		}
 
-		animateFilterBar(filters.root as? ViewGroup) {
-			filters.activeFiltersScroll.isVisible = group.childCount > 0
-			filters.filtersActiveDot.isVisible = state.hasAny
+		filters.activeFiltersScroll.isVisible = group.childCount > 0
+		filters.filtersActiveDot.isVisible = state.hasAny
+		filters.openFiltersBtn.contentDescription = if (state.hasAny) {
+			"${getString(R.string.sort_projects_label)}, ${getString(R.string.filters_active)}"
+		} else {
+			getString(R.string.sort_projects_label)
 		}
+	}
+
+	private fun focusSearchField() {
+		val editText = binding.layoutFilters.searchProjectEditText
+		editText.requestFocus()
+		ContextCompat.getSystemService(requireContext(), InputMethodManager::class.java)
+			?.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
 	}
 
 	private fun buildFilterChip(
 		text: String,
 		removeDescRes: Int,
+		onClick: () -> Unit,
 		onRemove: () -> Unit,
 	): Chip {
 		val chip = layoutInflater.inflate(
@@ -295,15 +301,14 @@ class RecentProjectsFragment : BaseFragment() {
 		chip.text = text
 		chip.closeIconContentDescription = getString(removeDescRes)
 		chip.setOnCloseIconClickListener { onRemove() }
-		chip.setOnClickListener { openFiltersSheet() }
+		chip.setOnClickListener { onClick() }
 		return chip
 	}
 
-	private fun animateFilterBar(scene: ViewGroup?, change: () -> Unit) {
+	private fun beginFilterBarTransition(scene: ViewGroup?) {
 		if (scene != null && ValueAnimator.areAnimatorsEnabled()) {
 			TransitionManager.beginDelayedTransition(scene, AutoTransition().setDuration(180))
 		}
-		change()
 	}
 
 
@@ -525,4 +530,11 @@ class RecentProjectsFragment : BaseFragment() {
         }
     }
 
+}
+
+@StringRes
+private fun SortCriteria.labelRes(): Int = when (this) {
+    SortCriteria.NAME -> R.string.sort_by_name
+    SortCriteria.DATE_CREATED -> R.string.sort_by_created
+    SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
 }

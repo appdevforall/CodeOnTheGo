@@ -49,7 +49,7 @@
                 android:layout_height="10dp"
                 android:layout_gravity="top|end"
                 android:layout_margin="4dp"
-                android:contentDescription="@string/filters_active"
+                android:importantForAccessibility="no"
                 android:background="@drawable/bg_filter_active_dot"
                 android:visibility="gone" />
         </FrameLayout>
