@@ -670,6 +670,7 @@ abstract class BaseEditorActivity :
 
 		setupStateObservers()
 		setupFullscreenObserver()
+		setupBottomSheetObserver()
 		setupViews()
 
 		fullscreenManager = FullscreenManager(
@@ -1327,9 +1328,27 @@ abstract class BaseEditorActivity :
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				editorViewModel.uiState.collectLatest { uiState ->
 					fullscreenManager?.render(uiState.isFullscreen, animate = true)
+					updateSwipeRevealDragState()
 				}
 			}
 		}
+	}
+
+	private fun setupBottomSheetObserver() {
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.STARTED) {
+				bottomSheetViewModel.sheetState.collectLatest { _ ->
+					updateSwipeRevealDragState()
+				}
+			}
+		}
+	}
+
+	private fun updateSwipeRevealDragState() {
+		val isFullscreen = editorViewModel.isFullscreen
+		val isBottomSheetOpen = bottomSheetViewModel.sheetBehaviorState != STATE_COLLAPSED &&
+				bottomSheetViewModel.sheetBehaviorState != STATE_HIDDEN
+		binding.swipeReveal.setVerticalDragEnabled(!isFullscreen && !isBottomSheetOpen)
 	}
 
 	private fun setupViews() {
@@ -1583,7 +1602,13 @@ abstract class BaseEditorActivity :
 								hasHorizontalVelocity &&
 								isHorizontalSwipe
 
-						// Fullscreen mode can be dismissed with an inward fling from either vertical edge.
+						val isBottomSheetOpen = bottomSheetViewModel.sheetBehaviorState != STATE_COLLAPSED &&
+								bottomSheetViewModel.sheetBehaviorState != STATE_HIDDEN
+
+						if (isBottomSheetOpen) {
+							return false
+						}
+
 						if (isTopEdgeDismissFling && editorViewModel.isFullscreen) {
 							editorViewModel.exitFullscreen()
 							return true

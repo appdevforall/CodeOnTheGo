@@ -10,6 +10,8 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.util.SLF4JLogger
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
@@ -78,6 +80,7 @@ import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import java.nio.file.Path
 import kotlin.io.path.pathString
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Base class shared by [CompilationEnvironment] (production) and the test-only
@@ -97,6 +100,9 @@ internal abstract class AbstractCompilationEnvironment(
 ) : AutoCloseable {
 
 	companion object {
+		/** Max time close() will block the (main) thread draining background workers before disposal. */
+		val CLOSE_DRAIN_TIMEOUT = 2.milliseconds
+
 		init {
 			System.setProperty("java.awt.headless", "true")
 			setupIdeaStandaloneExecution()
@@ -175,11 +181,16 @@ internal abstract class AbstractCompilationEnvironment(
 			libraryRoots: List<JavaRoot>,
 		) -> KtSymbolIndex,
 	) {
+		val configuration = createCompilerConfiguration()
 		projectEnv = StandaloneProjectFactory.createProjectEnvironment(
 			projectDisposable = disposable,
 			applicationEnvironmentMode = applicationEnvironmentMode,
-			compilerConfiguration = createCompilerConfiguration(),
+			compilerConfiguration = configuration,
 		)
+
+		if (applicationEnvironmentMode == KotlinCoreApplicationEnvironmentMode.Production) {
+			KotlinApplicationEnvironmentPin.ensure(configuration)
+		}
 
 		project.registerRWLock()
 
@@ -200,8 +211,14 @@ internal abstract class AbstractCompilationEnvironment(
 			ClassTypePointerFactory::class.java,
 		)
 
-		appExtArea.getExtensionPoint(ClassTypePointerFactory.EP_NAME)
-			.registerExtension(PsiClassReferenceTypePointerFactory(), application)
+		val classTypePointerFactoryEp =
+			appExtArea.getExtensionPoint(ClassTypePointerFactory.EP_NAME)
+		if (classTypePointerFactoryEp.extensionList.isEmpty()) {
+			classTypePointerFactoryEp.registerExtension(
+				PsiClassReferenceTypePointerFactory(),
+				application,
+			)
+		}
 
 		CoreApplicationEnvironment.registerExtensionPoint(
 			appExtArea,
@@ -325,6 +342,16 @@ internal abstract class AbstractCompilationEnvironment(
 		}
 
 	override fun close() {
+		// Stop and join the background index workers *before* the project is disposed.
+		// Otherwise IndexWorker's coroutine keeps calling PsiManager.findFile(project) on a
+		// disposed project and crashes with "AssertionError: Project is already disposed"
+		// (Sentry APPDEVFORALL-17R / ADFA-4384). close() runs on the main thread during editor
+		// teardown, so the join is bounded by a timeout to avoid an ANR if a read is slow; the
+		// project.isDisposed guards cover the rare case where the timeout fires before draining.
+		if (::ktSymbolIndex.isInitialized) {
+			runBlocking { withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) { ktSymbolIndex.close() } }
+		}
+
 		Disposer.dispose(disposable)
 	}
 }

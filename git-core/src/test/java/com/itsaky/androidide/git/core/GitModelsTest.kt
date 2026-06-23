@@ -50,7 +50,8 @@ class GitModelsTest {
             authorEmail = "author@example.com",
             message = "Commit message",
             timestamp = 1234567890L,
-            parentHashes = emptyList()
+            parentHashes = emptyList(),
+            hasBeenPushed = false
         )
         assertEquals("abcdef1234567890", commit.hash)
         assertEquals("abcdef1", commit.shortHash)
