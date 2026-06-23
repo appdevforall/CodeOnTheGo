@@ -109,10 +109,12 @@ import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.resources.R as ResR
 import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
@@ -1012,10 +1014,18 @@ abstract class BaseEditorActivity :
 		}
 
 		val pluginMenuItems = if (this is EditorHandlerActivity) {
+			val self = this
 			val fileIndex = getFileIndexForTabPosition(position)
 			if (fileIndex >= 0) {
 				val file = editorViewModel.getOpenedFile(fileIndex)
-				IDEApplication.getPluginManager()?.getFileTabMenuItems(file) ?: emptyList()
+				val pluginItems =
+					IDEApplication.getPluginManager()?.getFileTabMenuItems(file) ?: emptyList()
+				listOf(
+					FileTabMenuItem(
+						id = "ide.floating.undock",
+						title = getString(R.string.undock),
+					) { self.undockFileTab(fileIndex) },
+				) + pluginItems
 			} else {
 				emptyList()
 			}
