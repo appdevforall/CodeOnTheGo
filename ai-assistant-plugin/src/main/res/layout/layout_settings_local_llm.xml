@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/engine_status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Initializing engine..."
+        android:textAppearance="?android:attr/textAppearanceSmall"
+        android:layout_marginTop="8dp"
+        android:textColor="?android:attr/textColorSecondary"/>
+
+    <TextView
+        android:id="@+id/model_status_text_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:textAlignment="center"
+        android:layout_marginBottom="8dp"
+        android:layout_marginTop="8dp"
+        tools:text="✅ Model loaded successfully!" />
+
+    <TextView
+        android:id="@+id/selected_model_path"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No model selected"
+        android:textAppearance="?android:attr/textAppearanceSmall"
+        android:textColor="?android:attr/textColorSecondary"
+        android:paddingBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btn_browse_model"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Browse for Model File" />
+
+    <Button
+        android:id="@+id/loadSavedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:enabled="false"
+        android:text="Load from saved"
+        tools:enabled="true" />
+
+    <LinearLayout
+        android:id="@+id/local_model_sha_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Optional SHA-256 (for verification)"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:paddingBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/local_model_sha_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textNoSuggestions"
+            android:hint="SHA-256 hash"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <CheckBox
+        android:id="@+id/switch_simple_local_prompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Use simple local prompt"
+        android:checked="true"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>

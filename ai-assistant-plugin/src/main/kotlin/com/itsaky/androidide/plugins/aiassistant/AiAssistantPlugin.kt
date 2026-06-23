@@ -7,6 +7,7 @@ import com.itsaky.androidide.plugins.extensions.ContextMenuContext
 import com.itsaky.androidide.plugins.extensions.MenuItem
 import com.itsaky.androidide.plugins.extensions.TabItem
 import com.itsaky.androidide.plugins.services.LlmInferenceService
+import com.itsaky.androidide.plugins.services.SharedServices
 import com.itsaky.androidide.plugins.aiassistant.fragments.ChatFragment
 import java.io.File
 
@@ -15,20 +16,33 @@ class AiAssistantPlugin : IPlugin, UIExtension {
     private lateinit var context: PluginContext
     private var llmService: LlmInferenceService? = null
 
+    companion object {
+        @Volatile
+        private var pluginContext: PluginContext? = null
+
+        fun getContext(): PluginContext? = pluginContext
+    }
+
     override fun initialize(context: PluginContext): Boolean {
         this.context = context
+        pluginContext = context  // Store for ChatFragment access
+
+        // Also store in SharedServices so ai-core can access preferences
+        SharedServices.register(PluginContext::class.java, context)
+
         context.logger.info("AI Assistant Plugin initializing...")
         return true
     }
 
     override fun activate(): Boolean {
-        llmService = context.services.get(LlmInferenceService::class.java)
+        // Get LlmInferenceService from SharedServices
+        llmService = SharedServices.get(LlmInferenceService::class.java)
 
         if (llmService == null) {
             context.logger.warn("LlmInferenceService not available - LOCAL_LLM backend disabled")
             context.logger.warn("Install AI Core plugin to enable local LLM support")
         } else {
-            context.logger.info("LlmInferenceService available - both backends enabled")
+            context.logger.info("LlmInferenceService available from SharedServices")
         }
 
         // Migrate chat history and settings on first activation
