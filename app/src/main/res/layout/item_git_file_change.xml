@@ -6,7 +6,7 @@
     android:background="?attr/selectableItemBackground"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingVertical="8dp">
+    android:paddingVertical="4dp">
 
     <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/checkbox"

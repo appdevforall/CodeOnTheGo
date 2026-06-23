@@ -77,6 +77,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
             },
             onSelectionChanged = {
                 validateCommitButton()
+                updateCheckAllButton()
             },
             onResolveConflict = { change ->
                 viewModel.resolveConflict(change.path)
@@ -118,6 +119,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         emptyView.visibility = View.VISIBLE
                         emptyView.text = getString(R.string.not_a_git_repo)
                         recyclerView.visibility = View.GONE
+                        btnCheckAll.visibility = View.GONE
                         commitSection.visibility = View.GONE
                         authorWarning.visibility = View.GONE
                         commitHistoryButton.visibility = View.GONE
@@ -128,6 +130,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         emptyView.visibility = View.VISIBLE
                         emptyView.text = getString(R.string.no_uncommitted_changes)
                         recyclerView.visibility = View.GONE
+                        btnCheckAll.visibility = View.GONE
                         commitSection.visibility = View.GONE
                         authorWarning.visibility = View.GONE
                         commitHistoryButton.visibility = View.VISIBLE
@@ -138,6 +141,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                         binding.apply {
                             emptyView.visibility = View.GONE
                             recyclerView.visibility = View.VISIBLE
+                            btnCheckAll.visibility = View.VISIBLE
                             commitSection.visibility = View.VISIBLE
                             authorWarning.visibility =
                                 if (hasAuthorInfo()) View.GONE else View.VISIBLE
@@ -145,7 +149,9 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             btnAbortMerge.visibility =
                                 if (status.isMerging) View.VISIBLE else View.GONE
                         }
-                        fileChangeAdapter.submitList(allChanges)
+                        fileChangeAdapter.submitList(allChanges) {
+                            updateCheckAllButton()
+                        }
                     }
                 }
             }.collectLatest { }
@@ -185,6 +191,14 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
     private fun setupCommitUI() {
         binding.commitSummary.doAfterTextChanged { validateCommitButton() }
         binding.commitDescription.doAfterTextChanged { validateCommitButton() }
+
+        binding.btnCheckAll.setOnClickListener {
+            if (fileChangeAdapter.areAllSelected()) {
+                fileChangeAdapter.clearSelection()
+            } else {
+                fileChangeAdapter.selectAll()
+            }
+        }
 
         binding.btnAbortMerge.apply {
             setOnClickListener {
@@ -228,6 +242,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                             binding.commitSummary.text?.clear()
                             binding.commitDescription.text?.clear()
                             fileChangeAdapter.selectedFiles.clear()
+                            updateCheckAllButton()
                         }
                     }
                 }
@@ -283,6 +298,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
         val hasSelection = fileChangeAdapter.selectedFiles.isNotEmpty()
         val hasAuthor = hasAuthorInfo()
         binding.commitButton.isEnabled = hasSummary && hasSelection && hasAuthor
+    }
+
+    private fun updateCheckAllButton() {
+        binding.btnCheckAll.setText(
+            if (fileChangeAdapter.areAllSelected()) R.string.uncheck_all else R.string.check_all
+        )
     }
 
     private fun setupPullUI() {
