@@ -3,6 +3,7 @@ package com.itsaky.androidide.plugins.aicore
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
 import com.itsaky.androidide.plugins.services.LlmInferenceService
+import com.itsaky.androidide.plugins.services.SharedServices
 
 /**
  * AI Core Plugin providing LLM inference capabilities.
@@ -33,13 +34,15 @@ class AiCorePlugin : IPlugin {
         context.logger.info("AiCorePlugin: Activating plugin")
 
         try {
-            // Create and register LlmInferenceService
+            // Create LlmInferenceService
             llmService = LlmInferenceServiceImpl()
-            context.services.register(LlmInferenceService::class.java, llmService)
-            context.logger.info("AiCorePlugin: Registered LlmInferenceService")
+
+            // Register in SharedServices (accessible by all plugins)
+            SharedServices.register(LlmInferenceService::class.java, llmService)
+            context.logger.info("AiCorePlugin: Registered LlmInferenceService in SharedServices")
 
             // Create and register local LLM backend
-            localBackend = LocalLlmBackend()
+            localBackend = LocalLlmBackend(context)
             llmService.registerBackend(localBackend)
             context.logger.info("AiCorePlugin: Registered local LLM backend")
 
@@ -59,6 +62,10 @@ class AiCorePlugin : IPlugin {
                 llmService.unregisterBackend("local")
                 context.logger.info("AiCorePlugin: Unregistered local LLM backend")
             }
+
+            // Unregister from SharedServices
+            SharedServices.unregister(LlmInferenceService::class.java)
+            context.logger.info("AiCorePlugin: Unregistered LlmInferenceService from SharedServices")
 
             return true
         } catch (e: Exception) {

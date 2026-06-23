@@ -49,9 +49,11 @@ android {
 dependencies {
     compileOnly(project(":plugin-api"))
     implementation(project(":llama-impl"))
+    implementation(project(":llama-api"))
 
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.8")
