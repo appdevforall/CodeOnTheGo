@@ -13,6 +13,9 @@ object Dimens {
 
     val buttonWidth: Dp = 220.dp
 
+    /** Default floor width for a table column before the table scrolls horizontally. */
+    val tableColMinWidth: Dp = 96.dp
+
     val cornerSm: Dp = 8.dp
     val borderHairline: Dp = 1.dp
 }
