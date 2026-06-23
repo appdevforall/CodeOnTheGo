@@ -20,6 +20,41 @@ class GitFileChangeAdapter(
     // Keep track of which files are selected to be committed
     val selectedFiles = mutableSetOf<String>()
 
+    // Conflicted files can't be staged, so they are excluded from "select all".
+    private val selectablePaths: List<String>
+        get() = currentList.filter { it.type != ChangeType.CONFLICTED }.map { it.path }
+
+    /** True when every selectable (non-conflicted) file is currently selected. */
+    fun areAllSelected(): Boolean =
+        selectablePaths.isNotEmpty() && selectedFiles.containsAll(selectablePaths)
+
+    /** Select every non-conflicted file. */
+    fun selectAll() {
+        selectedFiles.addAll(selectablePaths)
+        notifyItemRangeChanged(0, itemCount)
+        onSelectionChanged(selectedFiles.size)
+    }
+
+    /** Clear the entire selection. */
+    fun clearSelection() {
+        selectedFiles.clear()
+        notifyItemRangeChanged(0, itemCount)
+        onSelectionChanged(selectedFiles.size)
+    }
+
+    override fun onCurrentListChanged(
+        previousList: List<FileChange>,
+        currentList: List<FileChange>
+    ) {
+        super.onCurrentListChanged(previousList, currentList)
+        // Drop selections for files that are no longer in the change set so they
+        // aren't committed and don't skew areAllSelected()/the commit button.
+        val currentPaths = currentList.mapTo(HashSet()) { it.path }
+        if (selectedFiles.retainAll(currentPaths)) {
+            onSelectionChanged(selectedFiles.size)
+        }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = ItemGitFileChangeBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
