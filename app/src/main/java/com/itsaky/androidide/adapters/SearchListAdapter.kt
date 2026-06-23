@@ -80,13 +80,22 @@ class SearchListAdapter(
       val binding = p1.binding
       android.util.Log.d("SearchListAdapter", "ChildAdapter onBindViewHolder: index=$p2, similarity=${match.similarity}, line=${match.line}")
 
-      // Show similarity score if available (vector search results)
+      // Show score + line range for vector results. Keyword results have no score, so
+      // the badge container must be GONE (not just empty), else the match_parent text
+      // collapses against a 0-width anchor in the horizontal scroll parent.
       if (match.similarity != null) {
+        binding.badgeContainer.visibility = android.view.View.VISIBLE
         binding.similarityBadge.visibility = android.view.View.VISIBLE
         val percentage = (match.similarity * 100).toInt()
         binding.similarityBadge.text = "$percentage%"
+
+        binding.lineRange.text = match.line
+        binding.lineRange.visibility =
+          if (match.line.isNullOrBlank()) android.view.View.GONE else android.view.View.VISIBLE
       } else {
+        binding.badgeContainer.visibility = android.view.View.GONE
         binding.similarityBadge.visibility = android.view.View.GONE
+        binding.lineRange.visibility = android.view.View.GONE
       }
 
       CompletableFuture.runAsync {

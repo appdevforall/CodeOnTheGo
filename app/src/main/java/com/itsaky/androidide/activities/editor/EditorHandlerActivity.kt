@@ -604,8 +604,13 @@ open class EditorHandlerActivity :
 						editor.setSelection(0, 0)
 						return@postInLifecycle
 					}
-					editor.validateRange(selection)
-					editor.setSelection(selection)
+					// Copy the range: this can run before content loads, and validateRange would
+					// clamp the shared selection to line 0 against the still-empty editor.
+					val target = Range(selection)
+					editor.validateRange(target)
+					editor.setSelection(target)
+					// Scroll the start into view; setSelection alone may not move the viewport.
+					editor.ensurePositionVisible(target.start.line, target.start.column, false)
 				}
 			}
 		}

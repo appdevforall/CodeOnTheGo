@@ -46,9 +46,11 @@ data class CodeChunk(
  * - Simple text files bypass boundary detection
  */
 object CodeChunker {
-    // Default configuration
-    private const val DEFAULT_MAX_CHUNK_SIZE = 2000
-    private const val DEFAULT_OVERLAP_SIZE = 100
+    // Default configuration.
+    // Chunks are kept small so a match localizes to a single method/block rather than a
+    // whole file, while staying within the embedding model's token budget.
+    private const val DEFAULT_MAX_CHUNK_SIZE = 600
+    private const val DEFAULT_OVERLAP_SIZE = 80
     private const val DEFAULT_MIN_CHUNK_SIZE = 5
 
     // Code file extensions that should use boundary detection
@@ -118,16 +120,91 @@ object CodeChunker {
             return emptyList()
         }
 
-        val lines = content.split("\n")
+        // Strip leading license/comment headers (and XML prolog) so the shared boilerplate
+        // doesn't pollute embeddings or snippets. The removed line count is added back to
+        // each chunk's range so navigation still lands on the right line.
+        val (cleaned, lineOffset) = stripLeadingBoilerplate(content, fileExtension)
+        if (cleaned.isBlank()) {
+            return emptyList()
+        }
+
+        val lines = cleaned.split("\n")
         val isCodeFile = isCodeLanguage(fileExtension)
 
         // For text files or very small files, use simple line-based chunking
-        if (!isCodeFile || lines.size <= 10) {
-            return simpleChunk(lines, maxChunkSize, overlapSize)
+        val chunks = if (!isCodeFile || lines.size <= 10) {
+            simpleChunk(lines, maxChunkSize, overlapSize)
+        } else {
+            // For code files, use boundary-aware chunking
+            semanticChunk(lines, maxChunkSize, overlapSize, minChunkSize)
         }
 
-        // For code files, use boundary-aware chunking
-        return semanticChunk(lines, maxChunkSize, overlapSize, minChunkSize)
+        return if (lineOffset == 0) {
+            chunks
+        } else {
+            chunks.map {
+                it.copy(
+                    startLine = it.startLine + lineOffset,
+                    endLine = it.endLine + lineOffset,
+                )
+            }
+        }
+    }
+
+    /**
+     * Strips a leading license/comment header (for code) or XML prolog/comment (for XML) from
+     * [content]. Returns the cleaned content and the number of leading lines removed, so the
+     * caller can offset chunk line numbers back onto the original file.
+     *
+     * Only contiguous *leading* boilerplate is removed, so the offset is uniform for all
+     * remaining lines. If the file turns out to be nothing but boilerplate, the original
+     * content is kept (offset 0) to avoid dropping it entirely.
+     */
+    private fun stripLeadingBoilerplate(content: String, fileExtension: String): Pair<String, Int> {
+        val lines = content.split("\n")
+        var idx = 0
+
+        fun skipBlankLines() {
+            while (idx < lines.size && lines[idx].isBlank()) idx++
+        }
+
+        skipBlankLines()
+        val firstNonBlank = idx
+
+        when {
+            isCodeLanguage(fileExtension) -> {
+                // Leading block comment (e.g. license header): /* ... */
+                if (idx < lines.size && lines[idx].trimStart().startsWith("/*")) {
+                    while (idx < lines.size && !lines[idx].contains("*/")) idx++
+                    if (idx < lines.size) idx++ // consume the line with the closing */
+                }
+                skipBlankLines()
+                // Leading single-line comments: //
+                while (idx < lines.size && lines[idx].trimStart().startsWith("//")) idx++
+                skipBlankLines()
+            }
+
+            fileExtension.lowercase() == "xml" -> {
+                // XML declaration: <?xml ... ?>
+                if (idx < lines.size && lines[idx].trimStart().startsWith("<?xml")) idx++
+                skipBlankLines()
+                // Leading comment block: <!-- ... -->
+                if (idx < lines.size && lines[idx].trimStart().startsWith("<!--")) {
+                    while (idx < lines.size && !lines[idx].contains("-->")) idx++
+                    if (idx < lines.size) idx++
+                }
+                skipBlankLines()
+            }
+        }
+
+        // Nothing stripped beyond initial blanks, or the whole file was boilerplate:
+        // keep the original content so we never lose everything.
+        if (idx <= firstNonBlank || idx >= lines.size) {
+            return content to 0
+        }
+
+        val cleaned = lines.subList(idx, lines.size).joinToString("\n")
+        return cleaned to idx
     }
 
     /**
@@ -208,7 +285,7 @@ object CodeChunker {
         var currentStart = 0
 
         while (currentStart < lines.size) {
-            val (chunkLines, nextStart) = buildSemanticChunk(
+            val (chunkLines, nextStart, brokeAtDeclaration) = buildSemanticChunk(
                 lines,
                 currentStart,
                 maxChunkSize,
@@ -218,13 +295,17 @@ object CodeChunker {
                 break
             }
 
-            // Check if chunk is too small
-            if (chunkLines.size < minChunkSize && nextStart < lines.size) {
-                // Continue building until we have a reasonable chunk or reach end
+            // Expand a too-small chunk so we don't emit slivers — but never across a declaration
+            // boundary (that would re-absorb the next method into this chunk and undo the
+            // per-method localization). Only meaningful for mid-flow (size-limit) breaks.
+            if (chunkLines.size < minChunkSize && nextStart < lines.size && !brokeAtDeclaration) {
                 val expandedLines = chunkLines.toMutableList()
                 var expandedStart = nextStart
 
-                while (expandedLines.size < minChunkSize && expandedStart < lines.size) {
+                while (expandedLines.size < minChunkSize &&
+                    expandedStart < lines.size &&
+                    !isDeclarationStart(lines[expandedStart])
+                ) {
                     expandedLines.add(lines[expandedStart])
                     expandedStart++
                 }
@@ -249,9 +330,21 @@ object CodeChunker {
                     )
                 )
 
-                // Calculate overlap in lines
-                val overlapLines = calculateOverlapLines(chunkLines, overlapSize)
-                currentStart = maxOf(nextStart - overlapLines, currentStart + 1)
+                // The chunk reached the end of the file: stop, otherwise the overlap step below
+                // would keep re-emitting shrinking fragments of the already-covered tail.
+                if (nextStart >= lines.size) {
+                    break
+                }
+
+                // Overlap only makes sense for a mid-flow (size-limit) break, to carry context
+                // into the next chunk. A clean declaration boundary starts the next chunk exactly
+                // at the declaration; adding overlap there just duplicates this chunk's tail.
+                currentStart = if (brokeAtDeclaration) {
+                    nextStart
+                } else {
+                    val overlapLines = calculateOverlapLines(chunkLines, overlapSize)
+                    maxOf(nextStart - overlapLines, currentStart + 1)
+                }
             }
         }
 
@@ -261,15 +354,23 @@ object CodeChunker {
 
     /**
      * Builds a single semantic chunk starting from a given line.
-     * Prefers to break AFTER closing braces.
      *
-     * @return Pair of (chunk lines, next start line index)
+     * Breaks proactively BEFORE the next top-level declaration (a new method/function/class, or
+     * its leading annotation) so that a semantic match localizes to a single method instead of an
+     * entire class body. Without this, a small class whose body fits inside [maxChunkSize] never
+     * splits and the whole body becomes one coarse chunk. The break only fires once the chunk holds
+     * substantive content that is not merely the declaration's own leading annotation(s) (see
+     * [hasBreakableContentBefore]), so annotations stay attached to what they annotate. Falls back
+     * to breaking AFTER a closing brace when the size limit is hit before any declaration boundary.
+     *
+     * @return Triple of (chunk lines, next start line index, whether the break was at a declaration
+     *   boundary — a clean boundary the caller should not apply overlap across)
      */
     private fun buildSemanticChunk(
         lines: List<String>,
         startLine: Int,
         maxChunkSize: Int,
-    ): Pair<List<String>, Int> {
+    ): Triple<List<String>, Int, Boolean> {
         val chunk = mutableListOf<String>()
         var currentSize = 0
         var currentLine = startLine
@@ -279,19 +380,29 @@ object CodeChunker {
             val line = lines[currentLine]
             val lineSize = line.length + 1 // +1 for newline
 
+            // Start a fresh chunk at the next declaration so each method/function is its own chunk.
+            if (currentLine > startLine &&
+                isDeclarationStart(line) &&
+                hasBreakableContentBefore(lines, startLine, currentLine)
+            ) {
+                return Triple(lines.subList(startLine, currentLine), currentLine, true)
+            }
+
             if (currentSize + lineSize > maxChunkSize && chunk.isNotEmpty()) {
                 // We've exceeded the size limit
                 // Break at the last boundary if we have one
                 if (lastBoundaryLine >= startLine && lastBoundaryLine < currentLine) {
-                    return Pair(
+                    return Triple(
                         lines.subList(startLine, lastBoundaryLine + 1),
                         lastBoundaryLine + 1,
+                        false,
                     )
                 } else {
                     // No boundary found, just break here
-                    return Pair(
+                    return Triple(
                         lines.subList(startLine, currentLine),
                         currentLine,
+                        false,
                     )
                 }
             }
@@ -312,10 +423,29 @@ object CodeChunker {
             currentLine++
         }
 
-        return Pair(
+        return Triple(
             lines.subList(startLine, minOf(currentLine, lines.size)),
             minOf(currentLine, lines.size),
+            false,
         )
+    }
+
+    /**
+     * True if lines `[startLine, currentLine)` contain substantive content beyond the trailing run
+     * of blank and annotation lines that belong to the declaration at [currentLine]. Used so that
+     * we break BEFORE a declaration's leading annotations (keeping them attached) but do not break
+     * when the chunk so far is only those annotations.
+     */
+    private fun hasBreakableContentBefore(
+        lines: List<String>,
+        startLine: Int,
+        currentLine: Int,
+    ): Boolean {
+        var i = currentLine - 1
+        while (i >= startLine && lines[i].isBlank()) i--
+        while (i >= startLine && lines[i].trim().startsWith("@")) i--
+        while (i >= startLine && lines[i].isBlank()) i--
+        return i >= startLine
     }
 
     /**
@@ -329,7 +459,58 @@ object CodeChunker {
         }
 
         // Match Kotlin/Java keywords for declarations
-        return trimmed.matches(Regex("""^\s*(public|private|protected|internal)?\s*(fun|class|object|interface|enum|sealed|data|companion|open|abstract)\b.*"""))
+        return trimmed.matches(KEYWORD_DECLARATION)
+    }
+
+    // Kotlin/Java keyword-led declarations (class/fun/object/...).
+    private val KEYWORD_DECLARATION =
+        Regex("""^(public|private|protected|internal)?\s*(fun|class|object|interface|enum|sealed|data|companion|open|abstract)\b.*""")
+
+    // Java-style method signature: optional modifiers, then `<returnType> <name>(`. Two
+    // whitespace-separated tokens before the paren is what distinguishes a declaration
+    // (`void onCreate(`) from a bare call (`setContentView(`), which has only one.
+    private val JAVA_METHOD_SIGNATURE =
+        Regex(
+            """^(?:(?:public|private|protected|static|final|abstract|synchronized|native|default|strictfp)\s+)*""" +
+                """[A-Za-z_][\w.$]*(?:<[^>]*>)?(?:\[\])*\s+""" + // return type (optional generics / array)
+                """[A-Za-z_]\w*\s*\(.*""", // method name followed by (
+        )
+
+    // Statements that also look like `name(...)` but are NOT declarations.
+    private val STATEMENT_KEYWORDS =
+        setOf("if", "for", "while", "switch", "catch", "synchronized", "else", "do", "try", "when", "return", "throw", "new", "assert", "yield", "case")
+
+    /**
+     * True if [line] begins a new top-level declaration that should start a fresh chunk: a leading
+     * annotation (so it stays attached to the declaration it precedes), a Kotlin/Java keyword
+     * declaration (class/fun/...), or a Java-style method signature. Used to localize a semantic
+     * match to a single method/function rather than an entire class body.
+     */
+    private fun isDeclarationStart(line: String): Boolean {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() ||
+            trimmed.startsWith("//") ||
+            trimmed.startsWith("*") ||
+            trimmed.startsWith("/*")
+        ) {
+            return false
+        }
+
+        // Annotations (@Override, @Composable, ...) precede a declaration.
+        if (trimmed.startsWith("@") && trimmed.getOrNull(1)?.isLetter() == true) {
+            return true
+        }
+
+        if (trimmed.matches(KEYWORD_DECLARATION)) {
+            return true
+        }
+
+        // Java method signature, excluding control-flow/statements that share the `name(...)` shape.
+        val firstToken = trimmed.takeWhile { it.isLetterOrDigit() || it == '_' }
+        if (firstToken in STATEMENT_KEYWORDS) {
+            return false
+        }
+        return trimmed.matches(JAVA_METHOD_SIGNATURE)
     }
 
     /**

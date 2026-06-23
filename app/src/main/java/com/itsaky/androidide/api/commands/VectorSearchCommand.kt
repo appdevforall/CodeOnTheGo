@@ -55,6 +55,13 @@ class VectorSearchCommand(
         private val SUPPORTED_EXTENSIONS = setOf("kt", "java", "xml")
         private const val DEFAULT_SIMILARITY_THRESHOLD = 0.05f // Lowered to capture more results with general-purpose models
 
+        // Relevance cutoff: general-purpose models produce compressed scores, so we keep
+        // matches within RELATIVE_CUTOFF_RATIO of the best AND above MIN_RELEVANCE_FLOOR,
+        // capped at MAX_DISPLAY_RESULTS, to drop the noise tail.
+        private const val RELATIVE_CUTOFF_RATIO = 0.5f
+        private const val MIN_RELEVANCE_FLOOR = 0.1f
+        private const val MAX_DISPLAY_RESULTS = 10
+
         @Volatile
         private var embeddingIndex: SQLiteIndex<CodeEmbedding>? = null
 
@@ -127,16 +134,20 @@ class VectorSearchCommand(
             // Perform search with proper similarity threshold and get scores
             val resultsWithScores = service.searchWithScores(query, limit = limit, threshold = DEFAULT_SIMILARITY_THRESHOLD)
 
-            log.info("Vector search returned ${resultsWithScores.size} results (threshold: $DEFAULT_SIMILARITY_THRESHOLD)")
+            // Trim the long noise tail: keep only matches close to the top score, so the
+            // results the user sees are actually relevant (each retains its own chunk range).
+            val relevant = applyRelevanceCutoff(resultsWithScores)
+
+            log.info("Vector search returned ${resultsWithScores.size} results, ${relevant.size} kept after relevance cutoff")
 
             // Store results for retrieval (both formats)
-            lastSearchResults = resultsWithScores.map { it.codeEmbedding }
-            lastSearchResultsWithScores = resultsWithScores.map { it.codeEmbedding to it.similarity }
+            lastSearchResults = relevant.map { it.codeEmbedding }
+            lastSearchResultsWithScores = relevant.map { it.codeEmbedding to it.similarity }
 
             // Return success with summary
             ToolResult.success(
-                message = "Found ${resultsWithScores.size} semantic matches",
-                data = "Found ${resultsWithScores.size} semantic code matches for query: '$query'"
+                message = "Found ${relevant.size} semantic matches",
+                data = "Found ${relevant.size} semantic code matches for query: '$query'"
             )
         } catch (e: Exception) {
             log.error("Vector search failed", e)
@@ -291,6 +302,24 @@ class VectorSearchCommand(
         }
 
         log.info("Indexing complete: $successfulFiles files, $totalChunks chunks (failed: $failedFiles)")
+    }
+
+    /**
+     * Keeps only meaningfully-relevant matches from the ranked (descending) results: those
+     * within [RELATIVE_CUTOFF_RATIO] of the top score AND above [MIN_RELEVANCE_FLOOR], capped
+     * at [MAX_DISPLAY_RESULTS]. Returns empty when even the best match is below the floor
+     * (i.e. nothing in the project is genuinely related to the query).
+     */
+    private fun applyRelevanceCutoff(
+        results: List<VectorSearchService.SearchResult>
+    ): List<VectorSearchService.SearchResult> {
+        if (results.isEmpty()) return results
+        val topScore = results.first().similarity // results are sorted by similarity, descending
+        val cutoff = maxOf(MIN_RELEVANCE_FLOOR, topScore * RELATIVE_CUTOFF_RATIO)
+        return results.asSequence()
+            .filter { it.similarity >= cutoff }
+            .take(MAX_DISPLAY_RESULTS)
+            .toList()
     }
 
     private fun collectSourceFiles(projectDir: File, limit: Int): List<File> {

@@ -74,6 +74,40 @@ class LLamaAndroid : ILlamaController {
         }
     }
 
+    /**
+     * Truncates [text] so it tokenizes within the model's context limit, preventing the
+     * native embedding encoder from aborting (SIGABRT) on an oversized batch. Iterates
+     * because tokens-per-char varies by content (code tokenizes much denser than prose).
+     *
+     * MUST be called on the [runLoop] thread — it uses the native [context] directly.
+     */
+    private fun truncateToContext(context: Long, text: String): String {
+        if (text.isEmpty()) return text
+
+        // Bound by the model's real context, but never above the encoder's batch ceiling
+        // (llama.cpp default n_ubatch = 512), with a small safety margin.
+        val batchCeiling = 512
+        val safetyMargin = 8
+        val limit = (minOf(model_n_ctx(context), batchCeiling) - safetyMargin).coerceAtLeast(16)
+
+        var candidate = text
+        var nTokens = tokenize(context, candidate, true).size
+        var guard = 0
+        while (nTokens > limit && candidate.length > 1 && guard < 8) {
+            val charsPerToken = candidate.length.toDouble() / nTokens.toDouble()
+            val targetChars = (limit * charsPerToken * 0.9).toInt()
+                .coerceIn(1, candidate.length - 1)
+            candidate = candidate.take(targetChars)
+            nTokens = tokenize(context, candidate, true).size
+            guard++
+        }
+
+        if (candidate.length < text.length) {
+            log.warn("Embedding input truncated: ${text.length} -> ${candidate.length} chars ($nTokens tokens, limit $limit)")
+        }
+        return candidate
+    }
+
     private val threadLocalState: ThreadLocal<State> = ThreadLocal.withInitial { State.Idle }
 
     private val isStopped = AtomicBoolean(false)
@@ -161,16 +195,12 @@ class LLamaAndroid : ILlamaController {
                     return@withContext FloatArray(0)
                 }
 
-                // Limit text length to prevent context overflow (max 512 tokens ~ 2048 chars)
-                val truncatedText = if (text.length > 2048) {
-                    log.warn("Text too long (${text.length} chars), truncating to 2048")
-                    text.take(2048)
-                } else {
-                    text
-                }
-
                 when (val state = threadLocalState.get()) {
                     is State.Loaded -> {
+                        // The encoder aborts (SIGABRT) if tokens exceed the batch/context size. A char
+                        // limit is unreliable (code tokenizes ~2x denser), so truncate by real token count.
+                        val truncatedText = truncateToContext(state.context, text)
+
                         try {
                             generate_embeddings(state.context, state.batch, truncatedText)
                         } catch (e: Exception) {

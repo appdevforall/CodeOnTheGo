@@ -3,7 +3,9 @@ package com.itsaky.androidide.api.commands
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.repository.LlmInferenceEngine
 import com.itsaky.androidide.projects.IProjectManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.vectorsearch.CodeChunker
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.math.sqrt
@@ -22,11 +24,16 @@ class VectorSearchTestCommand(
 
     /**
      * Public data class for search results that can be used by other components.
+     * Each result is a single chunk (like the production search), not a whole file.
      */
     data class VectorSearchResult(
         val file: File,
         val similarity: Float,
-        val snippet: String
+        val snippet: String,
+        /** 1-based first line of the matched chunk. */
+        val startLine: Int,
+        /** 1-based last line of the matched chunk. */
+        val endLine: Int
     )
 
     /**
@@ -68,24 +75,52 @@ class VectorSearchTestCommand(
 
         log.info("Query embedding generated: dimension=${queryEmbedding.size}")
 
-        // Index files and compute similarities
+        // Mirror the production search: chunk each file (CodeChunker also strips boilerplate
+        // and tracks line ranges) and rank per chunk, so a match localizes to one section.
         val results = mutableListOf<VectorSearchResult>()
+        var totalChunks = 0
         for ((index, file) in sourceFiles.withIndex()) {
             try {
-                val content = file.readText()
-                // Take first 500 chars for testing (to keep it fast)
-                val snippet = content.take(500)
-
-                val fileEmbedding = llmEngine.generateEmbeddings(snippet)
-                if (fileEmbedding.isEmpty()) {
-                    log.warn("Failed to generate embedding for file: ${file.name}")
+                val chunks = CodeChunker.chunkFile(file)
+                if (chunks.isEmpty()) {
+                    log.debug("No chunks produced for file: ${file.name}")
                     continue
                 }
 
-                val similarity = cosineSimilarity(queryEmbedding, fileEmbedding)
-                results.add(VectorSearchResult(file, similarity, snippet))
+                var bestSimilarity = Float.NEGATIVE_INFINITY
+                for (chunk in chunks) {
+                    if (chunk.content.isBlank()) continue
 
-                log.info("Indexed [${index + 1}/${sourceFiles.size}]: ${file.name} (similarity: %.3f)".format(similarity))
+                    // Breathing room every 10 chunks, like the production indexer.
+                    if (totalChunks > 0 && totalChunks % 10 == 0) {
+                        delay(100)
+                    }
+
+                    val chunkEmbedding = llmEngine.generateEmbeddings(chunk.content)
+                    if (chunkEmbedding.isEmpty()) {
+                        log.warn("Failed to generate embedding for ${file.name} chunk ${chunk.startLine}-${chunk.endLine}")
+                        continue
+                    }
+                    totalChunks++
+
+                    val similarity = cosineSimilarity(queryEmbedding, chunkEmbedding)
+                    bestSimilarity = maxOf(bestSimilarity, similarity)
+                    results.add(
+                        VectorSearchResult(
+                            file = file,
+                            similarity = similarity,
+                            snippet = chunk.content,
+                            // CodeChunker line numbers are 0-based; display as 1-based.
+                            startLine = chunk.startLine + 1,
+                            endLine = chunk.endLine + 1
+                        )
+                    )
+                }
+
+                log.info(
+                    "Indexed [${index + 1}/${sourceFiles.size}]: ${file.name} (${chunks.size} chunks, best: %.3f)"
+                        .format(if (bestSimilarity.isFinite()) bestSimilarity else 0f)
+                )
             } catch (e: Exception) {
                 log.warn("Failed to process file: ${file.name}", e)
             }
@@ -114,15 +149,18 @@ class VectorSearchTestCommand(
             val output = buildString {
                 appendLine("=== Vector Search Test Results ===")
                 appendLine("Query: $query")
-                appendLine("Indexed ${results.size} files")
+                appendLine("Matched ${results.size} chunks")
                 appendLine()
                 appendLine("Top matches:")
                 results.take(5).forEachIndexed { index, result ->
                     appendLine()
                     appendLine("${index + 1}. ${result.file.name}")
                     appendLine("   Similarity: ${"%.4f".format(result.similarity)}")
+                    appendLine("   Lines: ${formatLineRange(result.startLine, result.endLine)}")
                     appendLine("   Path: ${result.file.relativeTo(projectDir).path}")
-                    appendLine("   Snippet: ${result.snippet.take(100)}...")
+                    // Collapse whitespace so a multi-line chunk reads as a one-line preview.
+                    val preview = result.snippet.replace(Regex("\\s+"), " ").trim().take(100)
+                    appendLine("   Snippet: $preview...")
                 }
             }
 
@@ -140,13 +178,21 @@ class VectorSearchTestCommand(
     }
 
     private fun collectSourceFiles(projectDir: File, limit: Int): List<File> {
-        val extensions = setOf("kt", "java", "xml")
+        val codeExtensions = setOf("kt", "java")
+        val extensions = codeExtensions + "xml"
         return projectDir.walkTopDown()
             .filter { it.isFile && it.extension in extensions }
             .filter { !it.path.contains("/build/") && !it.path.contains("/.") }
+            // Prefer real source code over resource XML so the indexed sample is
+            // representative of code content, instead of whatever the file walk hits first.
+            .sortedByDescending { it.extension in codeExtensions }
             .take(limit)
             .toList()
     }
+
+    /** Formats a 1-based inclusive line range, collapsing single-line ranges. */
+    private fun formatLineRange(startLine: Int, endLine: Int): String =
+        if (endLine > startLine) "lines $startLine-$endLine" else "line $startLine"
 
     private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
         if (a.size != b.size) return 0f

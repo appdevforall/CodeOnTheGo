@@ -472,6 +472,11 @@ class CodeEditorView(
 
 			ideEditor.validateRange(selection)
 			ideEditor.setSelection(selection)
+			// Scroll the matched section into view once content is loaded, so opening at a
+			// result lands there instead of at the top of the file.
+			if (selection != Range.NONE) {
+				ideEditor.ensurePositionVisible(selection.start.line, selection.start.column, false)
+			}
 
 			configureEditorIfNeeded()
 		}

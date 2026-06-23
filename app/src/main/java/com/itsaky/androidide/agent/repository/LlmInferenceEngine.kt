@@ -469,7 +469,9 @@ class LlmInferenceEngine(
 
         return withContext(ioDispatcher) {
             try {
-                // Use atomic encode+extract operation to ensure embeddings aren't cleared
+                // Use atomic encode+extract operation to ensure embeddings aren't cleared.
+                // The native encoder truncates oversized input to the model's context to
+                // avoid a hard abort (see LLamaAndroid.generateEmbedding).
                 controller.generateEmbedding(text)
             } catch (e: Exception) {
                 log.error("Failed to generate embeddings", e)

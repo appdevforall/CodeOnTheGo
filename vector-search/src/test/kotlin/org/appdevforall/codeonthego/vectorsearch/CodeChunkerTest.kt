@@ -180,6 +180,83 @@ class CodeChunkerTest {
     }
 
     @Test
+    fun testJavaMethodsBecomeSeparateChunks() {
+        // Regression for coarse chunking: a small Java class whose body fits within the char
+        // budget previously collapsed into a single ~whole-file chunk because the chunker only
+        // split when oversized. Each method should now localize to its own chunk.
+        val content = """
+            package com.example.myapplication7;
+
+            import android.os.Bundle;
+            import androidx.appcompat.app.AppCompatActivity;
+
+            public class MainActivity extends AppCompatActivity {
+
+                private Object binding;
+
+                @Override
+                protected void onCreate(Bundle savedInstanceState) {
+                    super.onCreate(savedInstanceState);
+                    setContentView(binding.getRoot());
+                }
+
+                @Override
+                protected void onDestroy() {
+                    super.onDestroy();
+                    this.binding = null;
+                }
+            }
+        """.trimIndent()
+
+        val chunks = CodeChunker.chunkText(content, "java")
+
+        // Should produce several chunks, not one whole-file chunk.
+        assertTrue(chunks.size > 1, "Java methods should split into multiple chunks, got ${chunks.size}")
+
+        // No chunk should span almost the entire file.
+        val totalLines = content.split("\n").size
+        chunks.forEach { chunk ->
+            val span = chunk.endLine - chunk.startLine + 1
+            assertTrue(
+                span < totalLines - 2,
+                "Chunk lines ${chunk.startLine}-${chunk.endLine} spans nearly the whole $totalLines-line file"
+            )
+        }
+
+        // onCreate and onDestroy should land in different chunks.
+        val onCreateChunk = chunks.indexOfFirst { it.content.contains("onCreate") }
+        val onDestroyChunk = chunks.indexOfFirst { it.content.contains("onDestroy") }
+        assertTrue(onCreateChunk >= 0 && onDestroyChunk >= 0, "Both methods should be chunked")
+        assertTrue(
+            onCreateChunk != onDestroyChunk,
+            "onCreate and onDestroy should be in separate chunks"
+        )
+    }
+
+    @Test
+    fun testMethodCallsAreNotTreatedAsDeclarations() {
+        // A line like `setContentView(...)` is a call, not a declaration, and must not trigger a
+        // spurious chunk boundary that would split a method body mid-statement.
+        val content = buildString {
+            appendLine("public class Sample {")
+            appendLine("    void run() {")
+            repeat(20) { append("        doSomething(").append(it).appendLine(");") }
+            appendLine("    }")
+            appendLine("}")
+        }
+
+        val chunks = CodeChunker.chunkText(content, "java", maxChunkSize = 10000)
+
+        // The whole method body fits the budget, so its call lines must all land in one chunk
+        // rather than each call triggering a spurious declaration boundary.
+        val bodyChunk = chunks.first { it.content.contains("doSomething(0)") }
+        assertTrue(
+            bodyChunk.content.contains("doSomething(19)"),
+            "Call lines must not be split apart by spurious declaration boundaries"
+        )
+    }
+
+    @Test
     fun testTextFileChunking() {
         val content = """
             This is a text document.

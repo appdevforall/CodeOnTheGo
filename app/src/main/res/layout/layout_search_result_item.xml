@@ -19,28 +19,50 @@
     android:id="@+id/text"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_toStartOf="@+id/similarity_badge"
+    android:layout_toStartOf="@+id/badge_container"
     android:paddingEnd="8dp"
     android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
     android:textSize="16sp"
     tools:text="@string/app_name" />
 
-  <TextView
-    android:id="@+id/similarity_badge"
+  <LinearLayout
+    android:id="@+id/badge_container"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_alignParentEnd="true"
     android:layout_centerVertical="true"
-    android:background="@drawable/bg_rounded_chip"
-    android:paddingStart="8dp"
-    android:paddingTop="4dp"
-    android:paddingEnd="8dp"
-    android:paddingBottom="4dp"
-    android:textColor="?attr/colorOnSecondaryContainer"
-    android:textSize="11sp"
-    android:textStyle="bold"
-    android:visibility="gone"
-    tools:text="87%"
-    tools:visibility="visible" />
+    android:gravity="end"
+    android:orientation="vertical">
+
+    <TextView
+      android:id="@+id/similarity_badge"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_gravity="end"
+      android:background="@drawable/bg_rounded_chip"
+      android:paddingStart="8dp"
+      android:paddingTop="4dp"
+      android:paddingEnd="8dp"
+      android:paddingBottom="4dp"
+      android:textColor="?attr/colorOnSecondaryContainer"
+      android:textSize="11sp"
+      android:textStyle="bold"
+      android:visibility="gone"
+      tools:text="87%"
+      tools:visibility="visible" />
+
+    <TextView
+      android:id="@+id/line_range"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_gravity="end"
+      android:layout_marginTop="2dp"
+      android:textColor="?attr/colorOnSurfaceVariant"
+      android:textSize="11sp"
+      android:visibility="gone"
+      tools:text="lines 12-24"
+      tools:visibility="visible" />
+
+  </LinearLayout>
 
 </RelativeLayout>

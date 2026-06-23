@@ -172,8 +172,17 @@ class EditorViewModel : ViewModel() {
                 val range = Range(startPos, endPos)
 
                 val filePath = File(chunk.filePath)
-                val line = "${chunk.startLine}: ${chunk.chunkText.lines().firstOrNull() ?: ""}"
-                val match = chunk.chunkText.take(100).trim() // Preview text
+                // A match is a multi-line chunk: show the 1-indexed line range, not just the
+                // first line.
+                val displayStart = chunk.startLine + 1
+                val displayEnd = chunk.endLine + 1
+                val line = if (displayEnd > displayStart) {
+                    "lines $displayStart-$displayEnd"
+                } else {
+                    "line $displayStart"
+                }
+                // Collapse whitespace so a multi-line chunk reads as one informative preview.
+                val match = chunk.chunkText.replace(Regex("\\s+"), " ").trim().take(160)
 
                 SearchResult(range, filePath, line, match, similarity)
             }
