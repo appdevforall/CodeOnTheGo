@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AbstractKtModule
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
@@ -166,9 +167,16 @@ internal class CompilationEnvironment(
 			scope = coroutineScope,
 			debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
 		) { path, cancelChecker ->
-			val result = collectDiagnosticsFor(path, cancelChecker)
-			withContext(Dispatchers.Main.immediate) {
-				languageClient?.publishDiagnostics(result)
+			try {
+				val result = collectDiagnosticsFor(path, cancelChecker)
+				withContext(Dispatchers.Main.immediate) {
+					languageClient?.publishDiagnostics(result)
+				}
+			} catch (e: AnalysisPreemptedException) {
+				// A higher-priority analysis (completion) preempted this diagnostics run.
+				// Re-schedule so diagnostics still run once the higher-priority work finishes.
+				logger.debug("diagnostics for {} preempted; rescheduling", path)
+				fileAnalyzer.schedule(path)
 			}
 		}
 	}

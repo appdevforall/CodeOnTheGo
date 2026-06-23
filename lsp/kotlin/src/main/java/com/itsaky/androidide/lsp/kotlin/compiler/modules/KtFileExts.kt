@@ -11,14 +11,12 @@ import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.UserDataProperty
 import java.nio.file.Path
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 private val KT_LSP_COMPLETION_BACKING_FILE = Key<Path>("KT_LSP_COMPLETION_BACKING_FILE")
 var KtFile.backingFilePath by UserDataProperty(KT_LSP_COMPLETION_BACKING_FILE)
 
 /**
- * Serializes all Kotlin Analysis API access (`analyze` / `analyzeCopy`).
+ * Runs [action] while holding the global analysis lock at the given [priority].
  *
  * The Analysis API tracks its `analyze` lifetime context in a per-thread stack and is not safe to
  * drive concurrently from multiple background threads without the platform read-action coordination
@@ -28,8 +26,12 @@ var KtFile.backingFilePath by UserDataProperty(KT_LSP_COMPLETION_BACKING_FILE)
  * lifecycle and surfaced as
  * `KaInaccessibleLifetimeOwnerAccessException: ... Called outside an \`analyze\` context.`
  *
- * Holding this lock around every analysis entry point makes analyses mutually exclusive. It is a
- * [ReentrantLock] so an (indirect) nested analysis on the same thread cannot deadlock.
+ * Serialization is handled by [AnalysisScheduler], which is priority-aware and preemptive: a
+ * higher-priority request preempts a strictly lower-priority one (cooperatively, via [cancelChecker]).
+ * The scheduler is reentrant, so an (indirect) nested analysis on the same thread cannot deadlock.
+ *
+ * **All** Analysis API access must go through this helper (or [analyzeMaybeDangling], which already
+ * does); never call `analyze` / `analyzeCopy` directly, or the serialization guarantee is lost.
  *
  * **Footgun:** analysis runs under the *read* (shared) side of the global
  * [com.itsaky.androidide.lsp.kotlin.compiler.read] lock, and that `ReentrantReadWriteLock` is
@@ -37,17 +39,26 @@ var KtFile.backingFilePath by UserDataProperty(KT_LSP_COMPLETION_BACKING_FILE)
  * call [com.itsaky.androidide.lsp.kotlin.compiler.write] — upgrading read → write on the same thread
  * deadlocks.
  */
-private val analysisLock = ReentrantLock()
+internal inline fun <R> withAnalysisLock(
+	priority: AnalysisPriority,
+	cancelChecker: ScheduledCancelChecker,
+	action: () -> R,
+): R {
+	AnalysisScheduler.acquire(priority, cancelChecker::preempt)
+	try {
+		return action()
+	} finally {
+		AnalysisScheduler.release()
+	}
+}
 
-/**
- * Runs [action] while holding the shared [analysisLock]. **All** Analysis API access must go through
- * this helper (or [analyzeMaybeDangling], which already does); never call `analyze` / `analyzeCopy`
- * directly, or the serialization guarantee is lost.
- */
-internal inline fun <R> withAnalysisLock(action: () -> R): R = analysisLock.withLock(action)
-
-internal inline fun <R> analyzeMaybeDangling(useSiteElement: KtElement, crossinline action: KaSession.() -> R): R =
-	withAnalysisLock {
+internal inline fun <R> analyzeMaybeDangling(
+	useSiteElement: KtElement,
+	priority: AnalysisPriority,
+	cancelChecker: ScheduledCancelChecker,
+	crossinline action: KaSession.() -> R,
+): R =
+	withAnalysisLock(priority, cancelChecker) {
 		if (useSiteElement is KtFile && useSiteElement.isDangling && useSiteElement.copyOrigin != null) {
 			analyzeCopy(useSiteElement, KaDanglingFileResolutionMode.PREFER_SELF, action)
 		} else {

@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
@@ -74,9 +76,15 @@ internal suspend fun indexSourceFile(
 	symbolsIndex: JvmSymbolIndex,
 	cancelChecker: ICancelChecker,
 ) {
+	// Indexing runs at the lowest (INDEXING) priority: it yields to both completion and diagnostics.
+	// Wrapping the checker lets the scheduler preempt an in-progress index pass; the preemption
+	// surfaces as AnalysisPreemptedException at the abortIfCancelled() checkpoints below, which the
+	// IndexWorker catches to re-queue the file.
+	val checker = cancelChecker as? ScheduledCancelChecker ?: ScheduledCancelChecker(cancelChecker)
+
 	val newFile = ktFile.toMetadata(project, isIndexed = true)
 	val existingFile = fileIndex.get(newFile.filePath)
-	cancelChecker.abortIfCancelled()
+	checker.abortIfCancelled()
 
 	if (KtFileMetadata.shouldBeSkipped(existingFile, newFile) && existingFile?.isIndexed == true) {
 		return
@@ -85,18 +93,18 @@ internal suspend fun indexSourceFile(
 	// Remove stale symbols written during the previous indexing pass.
 	if (existingFile?.isIndexed == true) {
 		symbolsIndex.removeBySource(newFile.filePath)
-		cancelChecker.abortIfCancelled()
+		checker.abortIfCancelled()
 	}
 
 	val symbols = project.read {
 		val list = mutableListOf<JvmSymbol>()
-		analyzeMaybeDangling(ktFile) {
+		analyzeMaybeDangling(ktFile, AnalysisPriority.INDEXING, checker) {
 			val session = this
 			ktFile.accept(object : KtTreeVisitorVoid() {
 				override fun visitDeclaration(dcl: KtDeclaration) {
-					cancelChecker.abortIfCancelled()
+					checker.abortIfCancelled()
 					val symbol = with(session) { analyzeDeclaration(newFile.filePath, dcl) }
-					cancelChecker.abortIfCancelled()
+					checker.abortIfCancelled()
 					symbol?.let { list.add(it) }
 					super.visitDeclaration(dcl)
 				}

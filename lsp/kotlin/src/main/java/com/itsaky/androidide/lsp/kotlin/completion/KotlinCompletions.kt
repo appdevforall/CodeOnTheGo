@@ -3,6 +3,8 @@ package com.itsaky.androidide.lsp.kotlin.completion
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
@@ -144,11 +146,17 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 
 	abortIfCancelled()
 
+	// Completion is the highest-priority analysis: it preempts in-progress diagnostics/indexing and
+	// is never itself preempted. The cancel checker is the editor's request-scoped one (from Lookup).
+	val cancelChecker = ScheduledCancelChecker(
+		Lookup.getDefault().lookup(ICancelChecker::class.java) ?: ICancelChecker.NOOP
+	)
+
 	return try {
 		env.project.read {
 			abortIfCancelled()
 
-			analyzeMaybeDangling(completionKtFile) {
+			analyzeMaybeDangling(completionKtFile, AnalysisPriority.COMPLETION, cancelChecker) {
 				val ctx =
 					resolveAnalysisContext(
 						env = env,
