@@ -12,9 +12,43 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
+/**
+ * Static library loader - ensures native library is loaded before any static methods are called.
+ * This object's init block runs when the object is first accessed.
+ */
+private object NativeLibraryLoader {
+    private val log = LoggerFactory.getLogger("llama.cpp.loader")
+
+    @Volatile
+    private var loaded = false
+
+    init {
+        ensureLoaded()
+    }
+
+    @Synchronized
+    fun ensureLoaded() {
+        if (!loaded) {
+            try {
+                System.loadLibrary("llama-android")
+                loaded = true
+                log.info("Successfully loaded llama-android native library")
+            } catch (e: UnsatisfiedLinkError) {
+                log.error("Failed to load llama-android native library", e)
+                throw e
+            }
+        }
+    }
+}
+
 class LLamaAndroid : ILlamaController {
 
     private val log = LoggerFactory.getLogger(LLamaAndroid::class.java)
+
+    init {
+        // Ensure native library is loaded when any instance is created
+        NativeLibraryLoader.ensureLoaded()
+    }
 
     private external fun model_n_ctx(context: Long): Int
 
@@ -58,8 +92,7 @@ class LLamaAndroid : ILlamaController {
         thread(start = false, name = "Llm-RunLoop") {
             log.debug("Dedicated thread for native code: {}", Thread.currentThread().name)
 
-            System.loadLibrary("llama-android")
-
+            // Library is now loaded in static initializer, so we can call native methods directly
             log_to_android()
             backend_init(false)
 
@@ -235,17 +268,43 @@ class LLamaAndroid : ILlamaController {
     companion object {
         private val nativeLog = LoggerFactory.getLogger("llama.cpp")
 
+        // External native methods
         @JvmStatic
-        external fun configureThreads(nThreads: Int, nThreadsBatch: Int)
+        private external fun native_configureThreads(nThreads: Int, nThreadsBatch: Int)
 
         @JvmStatic
-        external fun configureSampling(temperature: Float, topP: Float, topK: Int)
+        private external fun native_configureSampling(temperature: Float, topP: Float, topK: Int)
 
         @JvmStatic
-        external fun configureContext(nCtx: Int)
+        private external fun native_configureContext(nCtx: Int)
 
         @JvmStatic
-        external fun configureKvCacheReuse(enabled: Boolean)
+        private external fun native_configureKvCacheReuse(enabled: Boolean)
+
+        // Public wrapper methods that ensure library is loaded first
+        @JvmStatic
+        fun configureThreads(nThreads: Int, nThreadsBatch: Int) {
+            NativeLibraryLoader.ensureLoaded()
+            native_configureThreads(nThreads, nThreadsBatch)
+        }
+
+        @JvmStatic
+        fun configureSampling(temperature: Float, topP: Float, topK: Int) {
+            NativeLibraryLoader.ensureLoaded()
+            native_configureSampling(temperature, topP, topK)
+        }
+
+        @JvmStatic
+        fun configureContext(nCtx: Int) {
+            NativeLibraryLoader.ensureLoaded()
+            native_configureContext(nCtx)
+        }
+
+        @JvmStatic
+        fun configureKvCacheReuse(enabled: Boolean) {
+            NativeLibraryLoader.ensureLoaded()
+            native_configureKvCacheReuse(enabled)
+        }
 
         @JvmStatic
         fun configureMaxTokens(maxTokens: Int) {

@@ -99,7 +99,7 @@ static jstring new_jstring_utf8(JNIEnv *env, const char *text) {
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_android_llama_cpp_LLamaAndroid_configureThreads(JNIEnv *, jclass, jint n_threads,
+Java_android_llama_cpp_LLamaAndroid_native_1configureThreads(JNIEnv *, jclass, jint n_threads,
                                                      jint n_threads_batch) {
     g_n_threads.store(n_threads);
     g_n_threads_batch.store(n_threads_batch);
@@ -107,7 +107,7 @@ Java_android_llama_cpp_LLamaAndroid_configureThreads(JNIEnv *, jclass, jint n_th
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_android_llama_cpp_LLamaAndroid_configureSampling(JNIEnv *, jclass, jfloat temperature,
+Java_android_llama_cpp_LLamaAndroid_native_1configureSampling(JNIEnv *, jclass, jfloat temperature,
                                                       jfloat top_p, jint top_k) {
     float validated_temperature = temperature;
     if (validated_temperature < 0.0f) {
@@ -132,7 +132,7 @@ Java_android_llama_cpp_LLamaAndroid_configureSampling(JNIEnv *, jclass, jfloat t
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_android_llama_cpp_LLamaAndroid_configureContext(JNIEnv *, jclass, jint n_ctx) {
+Java_android_llama_cpp_LLamaAndroid_native_1configureContext(JNIEnv *, jclass, jint n_ctx) {
     if (n_ctx <= 0) {
         return;
     }
@@ -141,7 +141,7 @@ Java_android_llama_cpp_LLamaAndroid_configureContext(JNIEnv *, jclass, jint n_ct
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_android_llama_cpp_LLamaAndroid_configureKvCacheReuse(JNIEnv *, jclass, jboolean enabled) {
+Java_android_llama_cpp_LLamaAndroid_native_1configureKvCacheReuse(JNIEnv *, jclass, jboolean enabled) {
     g_kv_cache_reuse.store(enabled == JNI_TRUE);
 }
 
