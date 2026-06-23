@@ -152,7 +152,6 @@ gradle-plugin/bin/
 logger/bin/
 lookup/bin/
 shared/bin/
-llama-api/bin/
 subprojects/**/bin/
 testing/**/bin/
 
@@ -164,13 +163,6 @@ compose-preview/src/main/assets/compose/
 
 # Generated stdlib index (generated at build time by :lsp:kotlin-stdlib-generator)
 lsp/kotlin/src/main/resources/stdlib-index.json
-
-
-# Llama AAR binaries and build scripts
-app/src/main/assets/dynamic_libs/
-rebuild-llama-aar.sh
-aar-staging/
-aar-backups/
 
 # Large asset files (bootstrap, SDK archives, databases, dependencies)
 assets/bootstrap-*.zip

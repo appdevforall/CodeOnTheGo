@@ -91,7 +91,7 @@ interface PluginContext {
      * Get SharedPreferences from the main application for reading migration data
      * Used to read settings from built-in Agent preferences
      *
-     * @param prefsName Name of the preferences file (e.g., "LlamaPrefs")
+     * @param prefsName Name of the preferences file (e.g., "AgentPrefs")
      * @return SharedPreferences instance or null if not found
      */
     fun getAppSharedPreferences(prefsName: String): android.content.SharedPreferences?
