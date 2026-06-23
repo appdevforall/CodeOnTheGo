@@ -232,6 +232,7 @@
 	<string name="msg_scroll_to_create_project">Scroll to bottom to create the project</string>
 	<string name="msg_folder_creation_failed">Failed to create folder</string>
 	<string name="msg_file_creation_failed">Failed to create file</string>
+	<string name="msg_file_already_exists">File already exists</string>
 	<string name="msg_layout_file_creation_failed">Failed to create layout file</string>
 	<string name="msg_folder_created">Folder created successfully</string>
 	<string name="msg_file_created">File created successfully</string>
