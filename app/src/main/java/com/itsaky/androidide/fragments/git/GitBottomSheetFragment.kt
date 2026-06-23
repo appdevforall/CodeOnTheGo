@@ -138,10 +138,14 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
                     }
 
                     else -> {
+                        // Only offer "Check All" when there is at least one
+                        // non-conflicted file; conflicted files can't be staged.
+                        val hasSelectable = allChanges.any { it.type != ChangeType.CONFLICTED }
                         binding.apply {
                             emptyView.visibility = View.GONE
                             recyclerView.visibility = View.VISIBLE
-                            btnCheckAll.visibility = View.VISIBLE
+                            btnCheckAll.visibility =
+                                if (hasSelectable) View.VISIBLE else View.GONE
                             commitSection.visibility = View.VISIBLE
                             authorWarning.visibility =
                                 if (hasAuthorInfo()) View.GONE else View.VISIBLE
