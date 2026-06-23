@@ -30,6 +30,12 @@ var KtFile.backingFilePath by UserDataProperty(KT_LSP_COMPLETION_BACKING_FILE)
  *
  * Holding this lock around every analysis entry point makes analyses mutually exclusive. It is a
  * [ReentrantLock] so an (indirect) nested analysis on the same thread cannot deadlock.
+ *
+ * **Footgun:** analysis runs under the *read* (shared) side of the global
+ * [com.itsaky.androidide.lsp.kotlin.compiler.read] lock, and that `ReentrantReadWriteLock` is
+ * non-upgradeable. Code running inside [withAnalysisLock] / an `analyze` block must therefore never
+ * call [com.itsaky.androidide.lsp.kotlin.compiler.write] — upgrading read → write on the same thread
+ * deadlocks.
  */
 private val analysisLock = ReentrantLock()
 

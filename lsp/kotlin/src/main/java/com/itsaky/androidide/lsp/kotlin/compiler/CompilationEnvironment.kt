@@ -208,22 +208,24 @@ internal class CompilationEnvironment(
 	@OptIn(KaImplementationDetail::class)
 	private inline fun notifyElementModifiedForPath(
 		path: Path,
-		typeProvider: (KtFile) -> KaElementModificationType,
+		crossinline typeProvider: (KtFile) -> KaElementModificationType,
 	) {
 		val structureProvider = ProjectStructureProvider.getInstance(project)
 		val ktFile = path.toVirtualFileOrNull()?.let {
 			psiManager.findFile(it) as? KtFile
 		}
 
-		if (ktFile != null) {
-			KaSourceModificationService.getInstance(project)
-				.handleElementModification(ktFile, typeProvider(ktFile))
-		}
-
 		val module = (ktFile?.let { structureProvider.getModule(it, null) }
 			?: structureProvider.findModuleForSourceId(path.pathString)) as? AbstractKtModule
 
 		project.write {
+			// Must run under the write lock so the session mutation can't race a concurrent
+			// `analyze` (which only holds the read lock); see onFileContentChanged.
+			if (ktFile != null) {
+				KaSourceModificationService.getInstance(project)
+					.handleElementModification(ktFile, typeProvider(ktFile))
+			}
+
 			if (module != null) {
 				module.invalidateSearchScope()
 				project.publishModificationEvent(

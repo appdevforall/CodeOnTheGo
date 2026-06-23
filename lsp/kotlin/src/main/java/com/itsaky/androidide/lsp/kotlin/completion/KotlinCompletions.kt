@@ -3,7 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.completion
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.withAnalysisLock
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
@@ -31,8 +31,6 @@ import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
-import org.jetbrains.kotlin.analysis.api.analyzeCopy
-import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileResolutionMode
 import org.jetbrains.kotlin.analysis.api.renderer.types.KaTypeRenderer
 import org.jetbrains.kotlin.analysis.api.renderer.types.impl.KaTypeRendererForSource
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
@@ -150,43 +148,38 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 		env.project.read {
 			abortIfCancelled()
 
-			withAnalysisLock {
-				analyzeCopy(
-					useSiteElement = completionKtFile,
-					resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
-				) {
-					val ctx =
-						resolveAnalysisContext(
-							env = env,
-							file = params.file,
-							ktFile = completionKtFile,
-							offset = completionOffset,
-							partial = partial
-						)
+			analyzeMaybeDangling(completionKtFile) {
+				val ctx =
+					resolveAnalysisContext(
+						env = env,
+						file = params.file,
+						ktFile = completionKtFile,
+						offset = completionOffset,
+						partial = partial
+					)
 
-					if (ctx == null) {
-						logger.error(
-							"Unable to determine context at offset {} in file {}",
-							completionOffset,
-							params.file
-						)
-						return@analyzeCopy CompletionResult.EMPTY
+				if (ctx == null) {
+					logger.error(
+						"Unable to determine context at offset {} in file {}",
+						completionOffset,
+						params.file
+					)
+					return@analyzeMaybeDangling CompletionResult.EMPTY
+				}
+
+				abortIfCancelled()
+				context(ctx) {
+					val items = mutableListOf<CompletionItem>()
+					val completionContext = determineCompletionContext(ctx.psiElement)
+					when (completionContext) {
+						CompletionContext.Scope ->
+							collectScopeCompletions(to = items)
+
+						CompletionContext.Member ->
+							collectMemberCompletions(to = items)
 					}
 
-					abortIfCancelled()
-					context(ctx) {
-						val items = mutableListOf<CompletionItem>()
-						val completionContext = determineCompletionContext(ctx.psiElement)
-						when (completionContext) {
-							CompletionContext.Scope ->
-								collectScopeCompletions(to = items)
-
-							CompletionContext.Member ->
-								collectMemberCompletions(to = items)
-						}
-
-						CompletionResult(items)
-					}
+					CompletionResult(items)
 				}
 			}
 		}
