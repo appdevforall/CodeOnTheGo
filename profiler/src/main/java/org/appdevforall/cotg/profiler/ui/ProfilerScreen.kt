@@ -541,9 +541,11 @@ private fun Loading(message: String) {
 @Composable
 private fun heapColumns(): List<ProfilerTableColumn> =
     listOf(
-        ProfilerTableColumn(stringResource(R.string.profiler_col_class), 3f),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_count), 1f, CellAlignment.End),
-        ProfilerTableColumn(stringResource(R.string.profiler_col_shallow), 1.4f, CellAlignment.End),
+        // Class names are long and fully-qualified, so give the column a wide floor; the table
+        // scrolls horizontally rather than ellipsizing into uselessness when it doesn't fit.
+        ProfilerTableColumn(stringResource(R.string.profiler_col_class), 3f, minWidth = 220.dp),
+        ProfilerTableColumn(stringResource(R.string.profiler_col_count), 1f, CellAlignment.End, minWidth = 100.dp),
+        ProfilerTableColumn(stringResource(R.string.profiler_col_shallow), 1.4f, CellAlignment.End, minWidth = 110.dp),
     )
 
 private fun formatMicros(micros: Long): String = String.format(Locale.US, "%,d", micros)
