@@ -26,6 +26,7 @@ import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.actions.observers.FileActionObserver
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
+import com.itsaky.androidide.api.commands.CreateFileCommand
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -434,22 +435,8 @@ class NewFileAction(val context: Context, override val order: Int) :
       return
     }
     this.currentNode = node
-    try {
-      val filePath = File(directory, name)
-      if (filePath.exists()) {
-        flashError(R.string.msg_file_already_exists)
-        return
-      }
-      if (!FileIOUtils.writeFileFromString(filePath, content)) {
-        flashError(R.string.msg_file_creation_failed)
-        return
-      }
-      notifyFileCreated(filePath, context)
-      onActionSuccess("File created successfully", filePath)
-    } catch (e: Exception) {
-      log.error("Failed to create file", e)
-      flashError(e.message ?: "Unknown error")
-    }
+    val command = CreateFileCommand(directory, name, content)
+    fileActionManager.execute(command, this)
   }
 
   private fun notifyFileCreated(file: File, context: Context) {

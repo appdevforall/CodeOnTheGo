@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/menu_new_chat"
+        android:title="@string/new_chat"
+        android:icon="@drawable/ic_add"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/menu_chat_history"
+        android:title="@string/history"
+        android:icon="@drawable/chat_history"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/menu_ai_settings"
+        android:title="@string/ai_settings"
+        android:icon="@drawable/ic_settings" />
+    <item
+        android:id="@+id/menu_chat_close"
+        android:title="@string/close" />
+</menu>

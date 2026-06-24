@@ -26,16 +26,6 @@ Code on the Go is the successor to [AndroidIDE](https://github.com/AndroidIDEOff
 Download the [Code on the Go APK](https://www.appdevforall.org/code-on-the-go?utm_source=gh&utm_medium=readme) from the [App Dev for All](https://www.appdevforall.org/?utm_source=gh&utm_medium=readme) website.
 
 
-## Plugins
-
-### AI Core Plugin
-Provides LLM inference capabilities through llama.cpp integration.
-
-### AI Assistant Plugin
-AI-powered chat assistant and code helpers. Supports both cloud (Gemini) and local (via AI Core plugin) backends.
-
-For plugin development, see [Plugin API documentation](docs/plugins/plugin-api.md).
-
 ## Contributing
 
 See the [contributing guide](./CONTRIBUTING.md).

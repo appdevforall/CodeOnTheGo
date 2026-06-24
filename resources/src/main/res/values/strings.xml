@@ -32,6 +32,55 @@
     <string name="action_close_app">Close %1$s</string>
     <string name="action_free_up_space">Free Up Space</string>
 
+	<!-- Agent -->
+	<string name="agent_backend_selected">🤖 System: %1$s backend selected.</string>
+	<string name="agent_current_model">Current model: %1$s</string>
+	<string name="agent_no_model_selected_warning">⚠️ Warning: No model file selected.</string>
+	<string name="agent_local_model_not_loaded">Local model is not loaded. Open AI Settings, pick a model, and try again.</string>
+	<string name="agent_backend_not_ready">The AI backend is not ready. Please review your AI settings.</string>
+	<string name="agent_local_model_loaded_success">Local model loaded successfully!</string>
+	<string name="agent_local_model_loaded_failure">Error: Failed to load local model.</string>
+	<string name="agent_operation_cancelled_by_user">Operation cancelled by user.</string>
+	<string name="agent_planner_tool_fallback">The planner could not produce a valid tool invocation after multiple attempts. Provide a direct textual answer without calling any tools.</string>
+	<string name="agent_planner_reject_unexpected_tool">The previous plan was rejected because the model attempted to call a tool even though no tool calls were allowed at that time.</string>
+	<string name="agent_planner_reject_malformed_tool">The previous plan failed because the tool invocation was malformed.</string>
+	<string name="agent_planner_reject_invalid_tool">The previous plan was rejected due to an invalid tool invocation.</string>
+	<string name="agent_planner_tool_blocked_note"> Tool `%1$s` is now blocked until you can explain how to call it safely.</string>
+	<string name="agent_planner_retry_instruction">%1$s%2$s Before attempting another tool call, double-check the required parameters and confirm that calling a tool is necessary. If the request can be answered conceptually, respond with text instead of forcing a tool call.</string>
+	<string name="agent_planner_invalid_output_notice">Planner output was invalid. Asking it to correct the plan...</string>
+	<string name="agent_tool_call_missing_name">A function call without a name was emitted. Provide a valid tool name.</string>
+	<string name="agent_tool_call_unknown_tool">Unknown tool `%1$s` was requested. Use only the supported tools.</string>
+	<string name="agent_tool_call_blocked">Tool `%1$s` is temporarily blocked after a malformed invocation. Choose a different tool or respond with a textual answer.</string>
+	<string name="agent_tool_call_missing_args">Tool `%1$s` is missing required arguments: %2$s.</string>
+	<string name="agent_planner_invalid_tool_usage_header">The previous plan violated tool requirements:\n</string>
+	<string name="agent_planner_invalid_tool_usage_footer">Re-plan with valid tool arguments, or provide a textual response if tools are unnecessary.</string>
+	<string name="agent_planner_invalid_tool_usage_notice">Planner proposed invalid tool usage. Requesting a corrected plan...</string>
+	<string name="agent_approval_deny">Deny</string>
+	<string name="agent_approval_once">Approve Once</string>
+	<string name="agent_approval_session">Approve for Session</string>
+	<string name="agent_approval_title">Approve \'%1$s\'?</string>
+	<string name="agent_dialog_cancel">Cancel</string>
+	<string name="agent_dialog_run">Run</string>
+	<string name="agent_hint_boolean">true or false</string>
+	<string name="agent_hint_file_content">File content...</string>
+	<string name="agent_hint_limit">1000</string>
+	<string name="agent_hint_number">Enter a number</string>
+	<string name="agent_hint_offset">0</string>
+	<string name="agent_hint_param">Enter %1$s</string>
+	<string name="agent_hint_path_example">e.g., app/src/main/AndroidManifest.xml</string>
+	<string name="agent_hint_search_pattern">Search pattern...</string>
+	<string name="agent_images_selected">%1$d images selected.</string>
+	<string name="agent_required_fields_missing">Please fill in all required fields (marked with *).</string>
+	<string name="agent_select_tool_to_test">Select a tool to test</string>
+	<string name="agent_test_tool_title">Test Tool: %1$s</string>
+	<string name="agent_title_ellipsis_suffix">...</string>
+	<string name="agent_tokens_na">Tokens: N/A</string>
+	<string name="agent_tokens_percentage">Tokens: %1$d%%</string>
+	<string name="agent_tool_description_missing">No description</string>
+	<string name="agent_tool_no_params">Description: %1$s\n\nThis tool has no parameters.</string>
+	<string name="agent_tool_not_found">Tool not found: %1$s</string>
+	<string name="agent_run_tool_title">Run %1$s</string>
+
 	<!-- LSP, Diagnostics & Completions -->
 	<string name="get_started">Get started</string>
 	<string name="msg_cannot_perform_fix">Unable to perform quick fix</string>
@@ -183,7 +232,6 @@
 	<string name="msg_scroll_to_create_project">Scroll to bottom to create the project</string>
 	<string name="msg_folder_creation_failed">Failed to create folder</string>
 	<string name="msg_file_creation_failed">Failed to create file</string>
-	<string name="msg_file_already_exists">File already exists</string>
 	<string name="msg_layout_file_creation_failed">Failed to create layout file</string>
 	<string name="msg_folder_created">Folder created successfully</string>
 	<string name="msg_file_created">File created successfully</string>
@@ -628,6 +676,7 @@
 	<string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
 	<string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
 	<string name="title_build_variants">Build variants</string>
+	<string name="title_agent">Agent</string>
 	<string name="build_variants_apply">Apply</string>
 	<string name="build_variants_cancel">Cancel</string>
 	<string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
@@ -908,6 +957,7 @@
 
 	<string name="info_icon_content_description">Info icon</string>
 	<string name="feedback_button_description">Send feedback about this tooltip</string>
+	<string name="sponsor_button_description">Support us on GitHub Sponsors</string>
 	<string name="cd_more_options">More options</string>
 	<string name="cd_expand_collapse">Expand or collapse</string>
 	<string name="cd_file_icon">File icon</string>
@@ -1114,6 +1164,15 @@
 	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
 
 	<!-- AI Agent -->
+	<string name="ai_setting_saved">💾 Saved: %1$s</string>
+	<string name="ai_setting_no_model_is_currently_loaded">🤷‍♀️ No model is currently loaded</string>
+	<string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
+	<string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
+	<string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
+	<string name="ai_disclaimer">Disclaimer</string>
+	<string name="ai_disclaimer_message">This AI agent is experimental and may give incorrect or harmful answers. Always back up your work before you try it, and always double-check its suggestions before using them. We are not responsible for any errors, bugs, or damage caused by its output. Use at your own risk.</string>
+    <string name="ai_api_key_not_found">❌ No Gemini API Key found.\nIf you recently updated or reinstalled the app, your API key may have been reset.\nPlease add your Gemini key again in AI Settings.</string>
+
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
 
@@ -1134,6 +1193,17 @@
 
 
     <string name="retry">Retry</string>
+    <string name="open_ai_settings">Open AI Settings</string>
+    <string name="new_chat">New chat</string>
+    <string name="experimental_ai_use_at_your_own_risk">⚠️ Experimental AI. Use at your own risk.</string>
+    <string name="current_ai_backend">Current AI Backend</string>
+    <string name="stop_generation">Stop Generation</string>
+    <string name="send_message">Send Message</string>
+    <string name="upload_image">Upload Image</string>
+    <string name="add_context_file">Add Context File</string>
+    <string name="type_a_message_or_prompt">Type a message or prompt…</string>
+    <string name="ai_setting_initializing_engine">Initializing engine</string>
+    <string name="ai_setting_engine_ready">Engine is ready.</string>
 	<string name="title_image_to_layout">Image to Layout</string>
 
 	<!-- Compose Preview -->
@@ -1227,6 +1297,8 @@
     <string name="no_save_before_git_action">Proceed without saving</string>
     <string name="save_before_git_action">Save before proceeding</string>
     <string name="mark_as_resolved">Mark resolved</string>
+    <string name="check_all">Check All</string>
+    <string name="uncheck_all">Uncheck All</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>

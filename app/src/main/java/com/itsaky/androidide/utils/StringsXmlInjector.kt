@@ -1,8 +1,8 @@
 package com.itsaky.androidide.utils
 
 import androidx.annotation.StringRes
-import com.blankj.utilcode.util.FileIOUtils
 import com.itsaky.androidide.R
+import com.itsaky.androidide.api.commands.AddStringArrayResourceCommand
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -18,8 +18,8 @@ import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.parsers.ParserConfigurationException
 
 /**
- * Parses generated string-array XML and directly updates strings.xml file.
- * Previously delegated to [AddStringArrayResourceCommand] which has been removed.
+ * Parses generated string-array XML and delegates file updates to
+ * [AddStringArrayResourceCommand].
  */
 object StringsXmlInjector {
     private val log = LoggerFactory.getLogger(StringsXmlInjector::class.java)
@@ -33,11 +33,15 @@ object StringsXmlInjector {
                     )
 
                 parseStringArrays(newStringsXml).forEach { (arrayName, items) ->
-                    try {
-                        addStringArrayToFile(stringsFile, arrayName, items)
-                    } catch (e: Exception) {
+                    val result = AddStringArrayResourceCommand(
+                        stringsFilePath = stringsFile.path,
+                        name = arrayName,
+                        items = items
+                    ).execute()
+
+                    if (!result.success) {
                         return@withContext Result.failure(
-                            IllegalStateException("Failed to add string array: ${e.message}", e)
+                            IllegalStateException(result.error_details ?: result.message)
                         )
                     }
                 }
@@ -48,33 +52,6 @@ object StringsXmlInjector {
                 Result.failure(e.toUserFacingError())
             }
         }
-
-    private fun addStringArrayToFile(file: File, arrayName: String, items: List<String>) {
-        val content = FileIOUtils.readFile2String(file)
-        val builder = newDocumentBuilder()
-        val document = builder.parse(InputSource(StringReader(content)))
-        val root = document.documentElement
-
-        // Create the string-array element
-        val newArrayElement = document.createElement("string-array")
-        newArrayElement.setAttribute("name", arrayName)
-
-        items.forEach { item ->
-            val itemElement = document.createElement("item")
-            itemElement.textContent = item
-            newArrayElement.appendChild(itemElement)
-        }
-
-        root.appendChild(newArrayElement)
-
-        // Convert back to string and write
-        val transformer = javax.xml.transform.TransformerFactory.newInstance().newTransformer()
-        transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, "yes")
-        val stringWriter = java.io.StringWriter()
-        transformer.transform(javax.xml.transform.dom.DOMSource(document), javax.xml.transform.stream.StreamResult(stringWriter))
-
-        FileIOUtils.writeFileFromString(file, stringWriter.toString())
-    }
 
     private suspend fun findProjectStringsFile(): File? {
         val projectRootPath = IProjectManager.getInstance().projectDirPath
