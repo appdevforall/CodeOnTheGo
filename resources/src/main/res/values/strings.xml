@@ -12,7 +12,7 @@
 	<string name="about_footer">Code on the Go %1$s for %2$s</string>
 	<string name="about_subtitle">No computer? No Internet? No problem. Code apps anywhere.</string>
 	<string name="msg_get_package_failed">Failed to extract package name.</string>
-	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android apps, you can join the our Discussions forum and ask for help there.\n\nYou can also send suggestions on our email.</string>
+	<string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android apps, you can join our Discussions forum and ask for help there.\n\nYou can also send suggestions on our email.</string>
 	<string name="download_codeonthego_message">Download Code on the Go from the official website to get the latest features and updates.</string>
 	<string name="download_codeonthego_url">https://appdevforall.org/codeonthego</string>
 	<string name="msg_invalid_url">Invalid URL provided.</string>
