@@ -30,4 +30,21 @@
     <string name="search_vector_no_results">No semantic matches found</string>
     <string name="search_vector_error">Semantic search unavailable. Load an embedding model in AI Settings.</string>
     <string name="search_vector_idle">AI-powered semantic search will appear here</string>
+
+    <!-- AI backend selector -->
+    <string name="ai_backend_title">AI Backend</string>
+    <string name="ai_backend_gemini" translatable="false">Gemini</string>
+    <string name="ai_backend_gemini_summary">Cloud AI using your Gemini API key</string>
+    <string name="ai_backend_gemini_content_description">Use Gemini AI backend</string>
+    <string name="ai_backend_local_llm">Local LLM</string>
+    <string name="ai_backend_local_llm_summary">Run AI models directly on this device</string>
+    <string name="ai_backend_local_llm_content_description">Use Local LLM AI backend</string>
+
+    <!-- Speech recognition selector -->
+    <string name="speech_recognition_cloud">Cloud</string>
+    <string name="speech_recognition_google" translatable="false">Google</string>
+    <string name="speech_recognition_cloud_content_description">Use Google cloud speech recognition</string>
+    <string name="speech_recognition_offline">Offline</string>
+    <string name="speech_recognition_moonshine" translatable="false">Moonshine</string>
+    <string name="speech_recognition_offline_content_description">Use offline Moonshine speech recognition</string>
 </resources>

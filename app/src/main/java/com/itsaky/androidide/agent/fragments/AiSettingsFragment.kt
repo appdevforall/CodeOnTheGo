@@ -16,6 +16,8 @@ import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -112,23 +114,14 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             )
         }
 
-        // Setup STT mode toggle: OFF = Cloud, ON = Offline
         val sttMode = VoicePreferences.getSttMode(requireContext())
-        binding.sttModeToggle.isChecked = (sttMode == VoicePreferences.STT_MODE_MOONSHINE)
-        binding.sttModeStatusText.text = if (sttMode == VoicePreferences.STT_MODE_CLOUD) {
-            "Cloud (Google)"
-        } else {
-            "Offline (Moonshine)"
-        }
+        selectSttMode(sttMode, persistSelection = false)
 
-        binding.sttModeToggle.setOnCheckedChangeListener { _, isChecked ->
-            val newMode = if (isChecked) VoicePreferences.STT_MODE_MOONSHINE else VoicePreferences.STT_MODE_CLOUD
-            VoicePreferences.setSttMode(requireContext(), newMode)
-            binding.sttModeStatusText.text = if (newMode == VoicePreferences.STT_MODE_CLOUD) {
-                "Cloud (Google)"
-            } else {
-                "Offline (Moonshine)"
-            }
+        binding.cloudSttCard.setOnClickListener {
+            selectSttMode(VoicePreferences.STT_MODE_CLOUD)
+        }
+        binding.offlineSttCard.setOnClickListener {
+            selectSttMode(VoicePreferences.STT_MODE_MOONSHINE)
         }
 
         // Setup voice language button
@@ -144,24 +137,67 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
     private fun updateSttModeAvailability(enabled: Boolean) {
         binding.sttModeContainer.alpha = if (enabled) 1.0f else 0.5f
-        binding.sttModeToggle.isEnabled = enabled
+        binding.cloudSttCard.isEnabled = enabled
+        binding.offlineSttCard.isEnabled = enabled
         binding.voiceLanguageButton.isEnabled = enabled
+    }
+
+    private fun selectSttMode(mode: String, persistSelection: Boolean = true) {
+        val cloudSelected = mode == VoicePreferences.STT_MODE_CLOUD
+
+        updateSelectionCard(binding.cloudSttCard, cloudSelected)
+        updateSelectionCard(binding.offlineSttCard, !cloudSelected)
+        binding.cloudSttRadio.isChecked = cloudSelected
+        binding.offlineSttRadio.isChecked = !cloudSelected
+
+        if (persistSelection) {
+            VoicePreferences.setSttMode(requireContext(), mode)
+        }
     }
 
     private fun setupBackendSelector() {
         val currentBackend = getCurrentBackend()
 
-        // Setup toggle: OFF = Local LLM, ON = Gemini
-        binding.backendToggle.isChecked = (currentBackend == AiBackend.GEMINI)
-        binding.backendStatusText.text = currentBackend.name
-        updateBackendSpecificUi(currentBackend)
+        selectBackend(currentBackend, persistSelection = false)
 
-        binding.backendToggle.setOnCheckedChangeListener { _, isChecked ->
-            val selectedBackend = if (isChecked) AiBackend.GEMINI else AiBackend.LOCAL_LLM
-            binding.backendStatusText.text = selectedBackend.name
-            viewModel.saveBackend(selectedBackend)
-            updateBackendSpecificUi(selectedBackend)
+        binding.geminiBackendCard.setOnClickListener {
+            selectBackend(AiBackend.GEMINI)
         }
+        binding.localLlmBackendCard.setOnClickListener {
+            selectBackend(AiBackend.LOCAL_LLM)
+        }
+    }
+
+    private fun selectBackend(backend: AiBackend, persistSelection: Boolean = true) {
+        updateSelectionCard(
+            card = binding.geminiBackendCard,
+            selected = backend == AiBackend.GEMINI
+        )
+        updateSelectionCard(
+            card = binding.localLlmBackendCard,
+            selected = backend == AiBackend.LOCAL_LLM
+        )
+        binding.geminiBackendRadio.isChecked = backend == AiBackend.GEMINI
+        binding.localLlmBackendRadio.isChecked = backend == AiBackend.LOCAL_LLM
+
+        if (persistSelection) {
+            viewModel.saveBackend(backend)
+        }
+        updateBackendSpecificUi(backend)
+    }
+
+    private fun updateSelectionCard(card: MaterialCardView, selected: Boolean) {
+        card.strokeWidth = resources.getDimensionPixelSize(
+            if (selected) R.dimen.ai_backend_selected_stroke_width
+            else R.dimen.ai_backend_default_stroke_width
+        )
+        card.setStrokeColor(
+            MaterialColors.getColor(
+                card,
+                if (selected) com.google.android.material.R.attr.colorPrimary
+                else com.google.android.material.R.attr.colorOutline
+            )
+        )
     }
 
     private fun updateBackendSpecificUi(backend: AiBackend) {
