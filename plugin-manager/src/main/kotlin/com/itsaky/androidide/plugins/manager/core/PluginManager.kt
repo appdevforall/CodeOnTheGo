@@ -7,7 +7,7 @@ import android.content.Context
 import com.itsaky.androidide.plugins.*
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
-import com.itsaky.androidide.plugins.services.IdeProjectService
+import com.itsaky.androidide.plugins.services.IdeProjectServiceLegacy
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
@@ -40,7 +40,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeTemplateServiceImpl
 import com.itsaky.androidide.plugins.services.IdeTemplateService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
-import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeFileServiceLegacy
 import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.IdeEnvironmentService
@@ -50,6 +50,12 @@ import com.itsaky.androidide.plugins.manager.services.IdeEnvironmentServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
+import com.itsaky.androidide.plugins.manager.services.FileServiceImpl
+import com.itsaky.androidide.plugins.manager.services.ProjectServiceImpl
+import com.itsaky.androidide.plugins.manager.services.ResourceServiceImpl
+import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeProjectService
+import com.itsaky.androidide.plugins.services.IdeResourceService
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.services.IdeThemeService
@@ -260,7 +266,10 @@ class PluginManager private constructor(
             async {
                 try {
                     logger.debug("Loading plugin: ${pluginFile.name}")
-                    loadPlugin(pluginFile)
+                    val result = loadPlugin(pluginFile)
+                    result.onFailure { error ->
+                        logger.error("Failed to load plugin from ${pluginFile.name}: ${error.message}", error)
+                    }
                 } catch (e: Exception) {
                     logger.error("Failed to load plugin from ${pluginFile.name}", e)
                 }
@@ -1092,7 +1101,7 @@ class PluginManager private constructor(
         // Create services with resource context
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
-            IdeProjectService::class.java,
+            IdeProjectServiceLegacy::class.java,
             pluginId,
             "project"
         ) {
@@ -1153,7 +1162,7 @@ class PluginManager private constructor(
         // File service for editing project files
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
-            IdeFileService::class.java,
+            IdeFileServiceLegacy::class.java,
             pluginId,
             "file"
         ) {
@@ -1283,6 +1292,39 @@ class PluginManager private constructor(
             )
         }
 
+        // Register new Phase 2 services
+        val projectRoot = projectProvider.getCurrentProject()?.rootDir
+        if (projectRoot != null) {
+            registerServiceWithErrorHandling(
+                pluginServiceRegistry,
+                IdeFileService::class.java,
+                pluginId,
+                "file (new)"
+            ) {
+                FileServiceImpl(projectRoot)
+            }
+
+            registerServiceWithErrorHandling(
+                pluginServiceRegistry,
+                IdeProjectService::class.java,
+                pluginId,
+                "project (new)"
+            ) {
+                ProjectServiceImpl(projectRoot)
+            }
+
+            registerServiceWithErrorHandling(
+                pluginServiceRegistry,
+                IdeResourceService::class.java,
+                pluginId,
+                "resource"
+            ) {
+                ResourceServiceImpl(projectRoot)
+            }
+        } else {
+            logger.warn("Project root not available for plugin $pluginId, new services not registered")
+        }
+
         // Create PluginContext with resource context
         return PluginContextImpl(
             androidContext = resourceContext, // Use the resource context instead of app context
@@ -1310,7 +1352,7 @@ class PluginManager private constructor(
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
-            IdeProjectService::class.java,
+            IdeProjectServiceLegacy::class.java,
             pluginId,
             "project"
         ) {
@@ -1366,7 +1408,7 @@ class PluginManager private constructor(
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
-            IdeFileService::class.java,
+            IdeFileServiceLegacy::class.java,
             pluginId,
             "file"
         ) {

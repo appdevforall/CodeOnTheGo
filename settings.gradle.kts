@@ -187,10 +187,6 @@ include(
 	":plugin-api",
 	":plugin-api:plugin-builder",
 	":plugin-manager",
-	":llama-api",
-	":llama-impl",
-	":llama-api",
-	":llama-impl",
 	":compose-preview"
 )
 
