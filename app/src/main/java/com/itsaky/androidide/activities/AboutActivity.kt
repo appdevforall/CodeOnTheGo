@@ -118,7 +118,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       ACTION_WEBSITE -> UrlManager.openUrl(BuildInfo.PROJECT_SITE, null, this)
       ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
       ACTION_TG_GROUP -> UrlManager.openUrl(getString(R.string.telegram_group_url), "org.telegram.messenger", this)
-      ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
+      ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.support_url), "org.telegram.messenger", this)
     }
   }
 
@@ -147,8 +147,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
           this@AboutActivity,
           ACTION_TG_GROUP,
           R.drawable.ic_telegram,
-          R.string.discussions_on_telegram,
-          getString(R.string.telegram_group_url)
+          R.string.support_and_discussions,
+          getString(R.string.support_url)
         )
       )
       add(
