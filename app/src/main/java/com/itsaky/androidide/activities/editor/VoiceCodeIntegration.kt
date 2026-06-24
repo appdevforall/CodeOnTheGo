@@ -225,10 +225,10 @@ fun ProjectHandlerActivity.stopVoiceRecording() {
  */
 private fun ProjectHandlerActivity.getCurrentEditor(): com.itsaky.androidide.editor.ui.IDEEditor? {
     return try {
-        // Access current editor from activity
-        // This may need adjustment based on actual activity structure
-        val method = this.javaClass.getMethod("getCurrentEditor")
-        method.invoke(this) as? com.itsaky.androidide.editor.ui.IDEEditor
+        // getCurrentEditor() lives on EditorHandlerActivity and returns a CodeEditorView
+        // (a container), so the IDEEditor is reached via its `editor` property. The old
+        // reflection cast `as? IDEEditor` always failed because CodeEditorView != IDEEditor.
+        (this as? EditorHandlerActivity)?.getCurrentEditor()?.editor
     } catch (e: Exception) {
         Log.e(TAG, "Could not get current editor", e)
         null

@@ -31,6 +31,17 @@ import kotlin.coroutines.resume
 private const val TAG = "AndroidSpeechRecognizer"
 
 /**
+ * How long the user may stay silent (e.g. pausing mid-sentence to think) before the
+ * recognizer treats speech as finished. Android's default (~1.5s) cuts users off on
+ * natural pauses, so we use a generous window. Recording is normally ended by the user
+ * tapping the mic/waveform icon, which finalizes immediately regardless of this value.
+ */
+private const val LIVE_SILENCE_TIMEOUT_MS = 8000L
+
+/** Minimum utterance length so the recognizer can't end almost immediately after start. */
+private const val LIVE_MIN_SPEECH_LENGTH_MS = 3000L
+
+/**
  * Wrapper around Android's SpeechRecognizer with language support.
  * Uses cloud-based speech recognition (requires internet).
  */
@@ -213,10 +224,13 @@ class AndroidSpeechRecognizer(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, LIVE_MIN_SPEECH_LENGTH_MS)
 
+            // Generous end-of-speech silence so natural pauses don't cut the user off.
+            // The mic/waveform tap remains the primary, immediate way to stop.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, LIVE_SILENCE_TIMEOUT_MS)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, LIVE_SILENCE_TIMEOUT_MS)
             }
         }
 

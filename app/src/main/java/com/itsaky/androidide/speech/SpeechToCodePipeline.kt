@@ -39,7 +39,9 @@ class SpeechToCodePipeline(
         private const val TRANSCRIPTION_TIMEOUT_CLOUD_MS = 5000L // Cloud STT needs more time
         private const val TRANSCRIPTION_TIMEOUT_MOONSHINE_MS = 1000L
         private const val INTENT_TIMEOUT_MS = 200L
-        private const val GENERATION_TIMEOUT_MS = 2000L
+        // On-device generation includes prompt prefill (~1s+) plus up to n_len tokens
+        // at ~30ms each, so it can take ~10s. 2s killed generation almost immediately.
+        private const val GENERATION_TIMEOUT_MS = 30000L
     }
 
     // Lazy initialization of STT engines
@@ -197,14 +199,17 @@ class SpeechToCodePipeline(
             // Use LLM for generation
             withTimeout(GENERATION_TIMEOUT_MS) {
                 val prompt = buildPrompt(transcription.text, intent)
-                val generatedCode = llamaController.send(
+                val rawOutput = llamaController.send(
                     message = prompt,
                     formatChat = false,
-                    stop = listOf("\n\n", "fun ", "class "),
+                    // Prompt is primed with an opening ```kotlin fence, so stop at the
+                    // closing fence. Also stop if the model starts echoing the prompt.
+                    // (The previous "fun "/"class " stops truncated valid Kotlin instantly.)
+                    stop = listOf("```", "\nRequest:", "\nCommand:", "\nIntent:"),
                     clearCache = true
                 ).collectToString()
 
-                Pair(intent?.name ?: "custom", generatedCode)
+                Pair(intent?.name ?: "custom", cleanGeneratedCode(rawOutput))
             }
         }
         val codeDurationMs = System.currentTimeMillis() - codeStart
@@ -223,16 +228,56 @@ class SpeechToCodePipeline(
     }
 
     /**
-     * Build LLM prompt from transcribed text and intent.
+     * Build LLM prompt from transcribed text.
+     *
+     * The prompt ends with an opening ```kotlin fence so the model continues by writing
+     * code (in raw-completion mode an instruction alone makes the model reply with prose).
+     * Generation is stopped at the closing fence; see the `stop` list at the call site.
      */
     private fun buildPrompt(transcribedText: String, intent: VoiceIntent?): String {
         return """
-            |Generate Kotlin code for the following voice command:
-            |Command: "$transcribedText"
-            |Intent: ${intent?.name ?: "unknown"}
+            |You are a Kotlin coding assistant. Write Kotlin code that fulfills the request.
+            |Output only valid Kotlin code — no explanations, comments, or prose.
             |
-            |Generate only the code, no explanation.
+            |Request: "$transcribedText"
+            |
+            |```kotlin
             |""".trimMargin()
+    }
+
+    /**
+     * Clean up raw model output: keep only the code, dropping any markdown fences and any
+     * echoed-prompt / prose the model appended after the code.
+     */
+    private fun cleanGeneratedCode(raw: String): String {
+        var text = raw.trim()
+
+        // If the model emitted its own fenced block, keep only the first block's contents.
+        val fenceStart = text.indexOf("```")
+        if (fenceStart >= 0) {
+            val afterOpen = text.indexOf('\n', fenceStart)
+            if (afterOpen >= 0) {
+                val body = text.substring(afterOpen + 1)
+                val closeIdx = body.indexOf("```")
+                text = if (closeIdx >= 0) body.substring(0, closeIdx) else body
+            }
+        }
+
+        // Truncate at the first sign the model started echoing the prompt or adding prose.
+        val cutMarkers = listOf(
+            "Request:", "Command:", "Intent:", "Explanation:",
+            "Commands are always", "What I have so far", "Resulting text file"
+        )
+        var cutIndex = text.length
+        for (marker in cutMarkers) {
+            val idx = text.indexOf(marker)
+            if (idx in 0 until cutIndex) {
+                cutIndex = idx
+            }
+        }
+        text = text.substring(0, cutIndex)
+
+        return text.trim()
     }
 
     /**
