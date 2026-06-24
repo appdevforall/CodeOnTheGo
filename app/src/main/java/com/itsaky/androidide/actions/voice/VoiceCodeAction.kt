@@ -20,14 +20,17 @@ package com.itsaky.androidide.actions.voice
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.drawable.Animatable
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.activities.editor.startVoiceRecording
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.speech.VoicePreferences
+import com.itsaky.androidide.viewmodel.SpeechToCodeViewModel
 
 /**
  * Action for voice-to-code functionality.
@@ -57,6 +60,24 @@ class VoiceCodeAction() : EditorActivityAction() {
     override fun prepare(data: ActionData) {
         super.prepare(data)
         val activity = data.getActivity()
+        val recordingState = activity?.let {
+            ViewModelProvider(it)[SpeechToCodeViewModel::class.java].recordingState.value
+        }
+        val isRecording = recordingState is SpeechToCodeViewModel.RecordingState.Recording
+
+        activity?.let {
+            icon = ContextCompat.getDrawable(
+                it,
+                if (isRecording) R.drawable.ic_voice_wave_animated else R.drawable.ic_voice_mic
+            ).also { drawable ->
+                if (isRecording) {
+                    (drawable as? Animatable)?.start()
+                }
+            }
+            label = it.getString(
+                if (isRecording) R.string.voice_code_stop_recording else R.string.voice_code
+            )
+        }
 
         // First check if voice code feature is enabled in settings
         enabled = activity?.let {
@@ -74,6 +95,10 @@ class VoiceCodeAction() : EditorActivityAction() {
         // Disable if no editor open
         if (enabled) {
             enabled = data.get(com.itsaky.androidide.editor.ui.IDEEditor::class.java) != null
+        }
+
+        if (enabled && recordingState is SpeechToCodeViewModel.RecordingState.Processing) {
+            enabled = false
         }
     }
 
@@ -100,6 +125,7 @@ class VoiceCodeAction() : EditorActivityAction() {
 
         // Start voice recording
         activity.startVoiceRecording()
+        activity.invalidateOptionsMenu()
 
         return true
     }

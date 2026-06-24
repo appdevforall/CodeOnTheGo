@@ -27,7 +27,6 @@ import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.speech.VoicePreferences
 import com.itsaky.androidide.ui.voice.VoicePreviewBottomSheet
-import com.itsaky.androidide.ui.voice.VoiceRecordingOverlay
 import com.itsaky.androidide.viewmodel.SpeechToCodeViewModel
 import kotlinx.coroutines.launch
 
@@ -61,67 +60,62 @@ fun ProjectHandlerActivity.setupVoiceCode() {
     }
 
     try {
-        // Get or create ViewModel
         val viewModel = ViewModelProvider(this)[SpeechToCodeViewModel::class.java]
-
-        // Set LLM controller if available
-        val llmEngine = LlmInferenceEngineProvider.instance
-        llmEngine.getLlamaController()?.let { controller ->
-            viewModel.setController(controller)
-            Log.d(TAG, "LLM controller set for voice code")
-        } ?: run {
-            Log.w(TAG, "LLM controller not available for voice code")
-        }
-
-        // Initialize components
         lifecycleScope.launch {
-            val initialized = viewModel.initialize()
-            if (initialized) {
-                Log.d(TAG, "Voice code initialized successfully")
-                setupVoiceCodeObservers(viewModel)
-            } else {
-                Log.e(TAG, "Failed to initialize voice code")
-            }
+            ensureVoiceCodeReady(viewModel)
         }
-
     } catch (e: Exception) {
         Log.e(TAG, "Error setting up voice code", e)
     }
+}
+
+private suspend fun ProjectHandlerActivity.ensureVoiceCodeReady(
+    viewModel: SpeechToCodeViewModel
+): Boolean {
+    if (!viewModel.observersAttached) {
+        setupVoiceCodeObservers(viewModel)
+        viewModel.observersAttached = true
+    }
+
+    val llmEngine = LlmInferenceEngineProvider.instance
+    val controller = llmEngine.getLlamaController()
+    if (controller == null) {
+        Log.w(TAG, "LLM controller not available for voice code")
+        return false
+    }
+
+    viewModel.setController(controller)
+    Log.d(TAG, "LLM controller set for voice code")
+
+    val initialized = viewModel.initialize()
+    if (initialized) {
+        Log.d(TAG, "Voice code initialized successfully")
+    } else {
+        Log.e(TAG, "Failed to initialize voice code")
+    }
+    return initialized
 }
 
 /**
  * Setup observers for voice code ViewModel.
  */
 private fun ProjectHandlerActivity.setupVoiceCodeObservers(viewModel: SpeechToCodeViewModel) {
-    var recordingOverlay: VoiceRecordingOverlay? = null
     var previewSheet: VoicePreviewBottomSheet? = null
+    var lastRecordingStateClass: Class<*>? = null
 
-    // Observe recording state
+    // Observe recording state only to refresh the toolbar mic action, which reflects
+    // the recording state (animated waveform icon + "Stop voice recording" label).
+    // No full-screen overlay is shown.
+    //
+    // The Recording state re-emits a new Recording(duration) every 100ms; we must only
+    // refresh on a state *type* change. invalidateOptionsMenu() is debounced by 150ms,
+    // so invalidating on every 100ms tick would perpetually cancel the pending refresh
+    // and the toolbar would never swap in the animated waveform icon.
     viewModel.recordingState.observe(this) { state ->
-        when (state) {
-            is SpeechToCodeViewModel.RecordingState.Idle -> {
-                // Hide and remove overlay
-                recordingOverlay?.let { overlay ->
-                    overlay.hide()
-                    (window.decorView as? android.view.ViewGroup)?.removeView(overlay)
-                }
-                recordingOverlay = null
-            }
-            is SpeechToCodeViewModel.RecordingState.Recording -> {
-                if (recordingOverlay == null) {
-                    // Create and add overlay to activity's content view
-                    recordingOverlay = VoiceRecordingOverlay(this).also { overlay ->
-                        (window.decorView as? android.view.ViewGroup)?.addView(overlay)
-                        overlay.show()
-                    }
-                    Log.d(TAG, "Voice recording overlay added to view")
-                }
-                recordingOverlay?.updateDuration(state.durationMs)
-                recordingOverlay?.updateWaveform(state.amplitudes.toFloatArray())
-            }
-            is SpeechToCodeViewModel.RecordingState.Processing -> {
-                recordingOverlay?.showProcessing()
-            }
+        val stateClass = state?.javaClass
+        if (stateClass != lastRecordingStateClass) {
+            lastRecordingStateClass = stateClass
+            invalidateOptionsMenu()
         }
     }
 
@@ -191,9 +185,18 @@ fun ProjectHandlerActivity.startVoiceRecording() {
             viewModel.stopRecordingAndProcess()
             Log.d(TAG, "Voice recording stopped from action")
         } else {
-            // Not recording, start it
-            viewModel.startRecording()
-            Log.d(TAG, "Voice recording started from action")
+            lifecycleScope.launch {
+                if (ensureVoiceCodeReady(viewModel)) {
+                    viewModel.startRecording()
+                    Log.d(TAG, "Voice recording started from action")
+                } else {
+                    Toast.makeText(
+                        this@startVoiceRecording,
+                        "Voice code is not ready. Load an AI model first.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
 
     } catch (e: Exception) {

@@ -25,12 +25,13 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.speech.AudioRecorder
+import com.itsaky.androidide.speech.AndroidSpeechRecognizer
 import com.itsaky.androidide.speech.SpeechToCodePipeline
 import com.itsaky.androidide.speech.VoiceCommandRecognizer
+import com.itsaky.androidide.speech.VoicePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 private const val TAG = "SpeechToCodeViewModel"
 
@@ -83,6 +84,8 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
     private var pipeline: SpeechToCodePipeline? = null
     private var llamaController: com.itsaky.androidide.llamacpp.api.ILlamaController? = null
     private var recordingStartTime: Long = 0L
+    private var cloudResultHandled = false
+    var observersAttached: Boolean = false
 
     init {
         Log.d(TAG, "SpeechToCodeViewModel initialized")
@@ -103,27 +106,38 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
      */
     suspend fun initialize(): Boolean {
         return try {
-            audioRecorder = AudioRecorder(getApplication())
-            val initialized = audioRecorder?.initialize() ?: false
-
-            if (initialized) {
-                Log.d(TAG, "AudioRecorder initialized successfully")
-                // Initialize pipeline with STT and LLM
-                pipeline = SpeechToCodePipeline(
-                    context = getApplication(),
-                    llamaController = llamaController ?: run {
-                        Log.w(TAG, "No LLaMA controller available")
-                        return false
-                    },
-                    intentRecognizer = VoiceCommandRecognizer()
-                )
-                pipeline?.initialize() ?: false
-                true
-            } else {
-                Log.e(TAG, "Failed to initialize AudioRecorder")
-                _error.value = VoiceError.Unknown("Failed to initialize audio recorder")
-                false
+            if (pipeline != null) {
+                return true
             }
+
+            if (VoicePreferences.isUsingMoonshineStt(getApplication())) {
+                audioRecorder = AudioRecorder(getApplication())
+                val initialized = audioRecorder?.initialize() ?: false
+                if (!initialized) {
+                    Log.e(TAG, "Failed to initialize AudioRecorder")
+                    _error.value = VoiceError.Unknown("Failed to initialize audio recorder")
+                    return false
+                }
+                Log.d(TAG, "AudioRecorder initialized successfully")
+            }
+
+            pipeline = SpeechToCodePipeline(
+                context = getApplication(),
+                llamaController = llamaController ?: run {
+                    Log.w(TAG, "No LLaMA controller available")
+                    return false
+                },
+                intentRecognizer = VoiceCommandRecognizer()
+            )
+
+            val pipelineInitialized = pipeline?.initialize() ?: false
+            if (!pipelineInitialized) {
+                Log.e(TAG, "Failed to initialize speech pipeline")
+                _error.value = VoiceError.Unknown("Failed to initialize speech pipeline")
+                return false
+            }
+
+            true
         } catch (e: Exception) {
             Log.e(TAG, "Initialization error", e)
             _error.value = VoiceError.Unknown(e.message ?: "Initialization failed")
@@ -138,6 +152,11 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
         try {
             Log.d(TAG, "Starting recording...")
             recordingStartTime = System.currentTimeMillis()
+
+            if (VoicePreferences.isUsingCloudStt(getApplication())) {
+                startCloudRecording()
+                return
+            }
 
             val started = audioRecorder?.startRecording() ?: false
             if (started) {
@@ -162,6 +181,49 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    private fun startCloudRecording() {
+        cloudResultHandled = false
+        val currentPipeline = pipeline
+        if (currentPipeline == null) {
+            Log.e(TAG, "Cannot start cloud speech recognition: pipeline is not initialized")
+            _error.value = VoiceError.Unknown("Voice code is not initialized")
+            return
+        }
+
+        val started = currentPipeline.startCloudTranscription(
+            onResult = { transcription ->
+                processCloudTranscription(transcription)
+            },
+            onError = { message ->
+                if (!cloudResultHandled) {
+                    cloudResultHandled = true
+                    _error.value = when {
+                        message.contains("No speech", ignoreCase = true) ||
+                            message.contains("No speech match", ignoreCase = true) -> VoiceError.NoSpeech
+                        else -> VoiceError.RecognitionFailed
+                    }
+                    _recordingState.value = RecordingState.Idle
+                }
+            }
+        )
+
+        if (started) {
+            _recordingState.value = RecordingState.Recording(0L, emptyList())
+            Log.d(TAG, "Cloud speech recognition started successfully")
+
+            viewModelScope.launch {
+                while (_recordingState.value is RecordingState.Recording) {
+                    val duration = System.currentTimeMillis() - recordingStartTime
+                    _recordingState.value = RecordingState.Recording(duration, emptyList())
+                    delay(100)
+                }
+            }
+        } else {
+            Log.e(TAG, "Failed to start cloud speech recognition")
+            _error.value = VoiceError.Unknown("Failed to start speech recognition")
+        }
+    }
+
     /**
      * Stop recording and process audio through pipeline.
      */
@@ -169,9 +231,21 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             try {
                 Log.d(TAG, "Stopping recording and processing...")
-                val recordingDuration = System.currentTimeMillis() - recordingStartTime
 
                 _recordingState.value = RecordingState.Processing
+
+                if (VoicePreferences.isUsingCloudStt(getApplication())) {
+                    pipeline?.stopCloudTranscription()
+                    launch {
+                        delay(5000)
+                        if (_recordingState.value is RecordingState.Processing && !cloudResultHandled) {
+                            cloudResultHandled = true
+                            _error.value = VoiceError.NoSpeech
+                            _recordingState.value = RecordingState.Idle
+                        }
+                    }
+                    return@launch
+                }
 
                 val audioBytes = audioRecorder?.stopRecording() ?: byteArrayOf()
                 Log.d(TAG, "Audio captured: ${audioBytes.size} bytes")
@@ -187,7 +261,7 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
 
                 if (result != null) {
                     _previewData.value = PreviewData(
-                        transcription = result.command,
+                        transcription = result.transcription,
                         generatedCode = result.code,
                         intent = result.command,
                         confidence = result.confidence,
@@ -207,18 +281,41 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Cancel recording without processing.
-     */
-    fun cancelRecording() {
+    private fun processCloudTranscription(transcription: AndroidSpeechRecognizer.TranscriptionResult) {
+        if (cloudResultHandled) {
+            return
+        }
+
+        cloudResultHandled = true
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Cancelling recording...")
-                audioRecorder?.stopRecording()
+                _recordingState.value = RecordingState.Processing
+
+                if (transcription.text.isBlank()) {
+                    _error.value = VoiceError.NoSpeech
+                    _recordingState.value = RecordingState.Idle
+                    return@launch
+                }
+
+                val result = pipeline?.generateCodeFromTranscription(transcription)
+                if (result != null) {
+                    _previewData.value = PreviewData(
+                        transcription = result.transcription,
+                        generatedCode = result.code,
+                        intent = result.command,
+                        confidence = result.confidence,
+                        latencyMs = result.totalLatencyMs
+                    )
+                    Log.d(TAG, "Cloud processing complete: ${result.transcription}")
+                } else {
+                    _error.value = VoiceError.Unknown("Pipeline not initialized")
+                }
+
                 _recordingState.value = RecordingState.Idle
-                Log.d(TAG, "Recording cancelled")
             } catch (e: Exception) {
-                Log.e(TAG, "Cancel error", e)
+                Log.e(TAG, "Cloud processing error", e)
+                _error.value = VoiceError.Unknown(e.message ?: "Processing failed")
+                _recordingState.value = RecordingState.Idle
             }
         }
     }
@@ -276,6 +373,7 @@ class SpeechToCodeViewModel(application: Application) : AndroidViewModel(applica
      */
     override fun onCleared() {
         super.onCleared()
+        pipeline?.cleanup()
         audioRecorder?.release()
         Log.d(TAG, "SpeechToCodeViewModel cleared")
     }

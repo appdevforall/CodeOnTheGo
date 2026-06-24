@@ -44,6 +44,7 @@ class AndroidSpeechRecognizer(private val context: Context) {
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var currentLanguage: String = "en-US"
+    private var activeRecognition = false
 
     /**
      * Initialize the speech recognizer.
@@ -104,6 +105,8 @@ class AndroidSpeechRecognizer(private val context: Context) {
         }
 
         val recognitionListener = object : RecognitionListener {
+            private var deliveredResult = false
+
             override fun onReadyForSpeech(params: Bundle?) {
                 Log.d(TAG, "Ready for speech (language: $currentLanguage)")
             }
@@ -125,6 +128,11 @@ class AndroidSpeechRecognizer(private val context: Context) {
             }
 
             override fun onError(error: Int) {
+                if (deliveredResult) {
+                    return
+                }
+                deliveredResult = true
+                activeRecognition = false
                 val errorMessage = when (error) {
                     SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
                     SpeechRecognizer.ERROR_CLIENT -> "Client side error"
@@ -143,6 +151,11 @@ class AndroidSpeechRecognizer(private val context: Context) {
             }
 
             override fun onResults(results: Bundle?) {
+                if (deliveredResult) {
+                    return
+                }
+                deliveredResult = true
+                activeRecognition = false
                 val recognizedTexts = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val confidences = results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
 
@@ -164,11 +177,135 @@ class AndroidSpeechRecognizer(private val context: Context) {
         }
 
         speechRecognizer?.setRecognitionListener(recognitionListener)
+        activeRecognition = true
         speechRecognizer?.startListening(intent)
 
         continuation.invokeOnCancellation {
             Log.d(TAG, "Recognition cancelled")
             speechRecognizer?.cancel()
+            activeRecognition = false
+        }
+    }
+
+    /**
+     * Start live cloud recognition. Android's SpeechRecognizer owns microphone capture,
+     * so this must be started when the UI enters recording state, not after PCM capture ends.
+     */
+    fun startListening(
+        onResult: (TranscriptionResult) -> Unit,
+        onError: (String) -> Unit
+    ): Boolean {
+        val recognizer = speechRecognizer
+        if (recognizer == null) {
+            Log.e(TAG, "SpeechRecognizer not initialized")
+            onError("Speech recognizer is not initialized")
+            return false
+        }
+
+        if (activeRecognition) {
+            Log.w(TAG, "Recognition already active")
+            return false
+        }
+
+        val startTime = System.currentTimeMillis()
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            }
+        }
+
+        val recognitionListener = object : RecognitionListener {
+            private var deliveredResult = false
+
+            override fun onReadyForSpeech(params: Bundle?) {
+                Log.d(TAG, "Ready for live speech (language: $currentLanguage)")
+            }
+
+            override fun onBeginningOfSpeech() {
+                Log.d(TAG, "Beginning of live speech detected")
+            }
+
+            override fun onRmsChanged(rmsdB: Float) = Unit
+
+            override fun onBufferReceived(buffer: ByteArray?) {
+                Log.d(TAG, "Live buffer received: ${buffer?.size} bytes")
+            }
+
+            override fun onEndOfSpeech() {
+                Log.d(TAG, "End of live speech")
+            }
+
+            override fun onError(error: Int) {
+                if (deliveredResult) {
+                    return
+                }
+                deliveredResult = true
+                activeRecognition = false
+                val errorMessage = when (error) {
+                    SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                    SpeechRecognizer.ERROR_CLIENT -> "Client side error"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient permissions"
+                    SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech match"
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognition service busy"
+                    SpeechRecognizer.ERROR_SERVER -> "Server error"
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
+                    else -> "Unknown error: $error"
+                }
+                Log.e(TAG, "Live speech recognition error: $errorMessage")
+                onError(errorMessage)
+            }
+
+            override fun onResults(results: Bundle?) {
+                if (deliveredResult) {
+                    return
+                }
+                deliveredResult = true
+                activeRecognition = false
+
+                val recognizedTexts = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val confidences = results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+                val text = recognizedTexts?.firstOrNull().orEmpty()
+                val confidence = confidences?.firstOrNull() ?: 0.9f
+                val latencyMs = System.currentTimeMillis() - startTime
+
+                Log.d(TAG, "Live speech result: '$text' (confidence: $confidence, latency: ${latencyMs}ms)")
+                onResult(TranscriptionResult(text, confidence, latencyMs))
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) = Unit
+
+            override fun onEvent(eventType: Int, params: Bundle?) {
+                Log.d(TAG, "Live recognition event: $eventType")
+            }
+        }
+
+        return try {
+            recognizer.setRecognitionListener(recognitionListener)
+            activeRecognition = true
+            recognizer.startListening(intent)
+            true
+        } catch (e: Exception) {
+            activeRecognition = false
+            Log.e(TAG, "Failed to start live speech recognition", e)
+            onError(e.message ?: "Failed to start speech recognition")
+            false
+        }
+    }
+
+    fun stopListening() {
+        try {
+            speechRecognizer?.stopListening()
+        } catch (e: Exception) {
+            activeRecognition = false
+            Log.e(TAG, "Failed to stop speech recognition", e)
         }
     }
 

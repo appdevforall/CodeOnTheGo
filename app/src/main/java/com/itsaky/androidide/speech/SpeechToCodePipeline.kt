@@ -28,6 +28,7 @@ class SpeechToCodePipeline(
 ) {
 
     data class GenerationResult(
+        val transcription: String,
         val command: String,
         val code: String,
         val confidence: Float,
@@ -53,7 +54,6 @@ class SpeechToCodePipeline(
             VoicePreferences.isUsingCloudStt(context) -> {
                 val language = VoicePreferences.getVoiceLanguage(context)
                 cloudStt.initialize(language)
-                true
             }
             VoicePreferences.isUsingMoonshineStt(context) -> {
                 moonshineStt.initialize()
@@ -107,66 +107,119 @@ class SpeechToCodePipeline(
             val sttDurationMs = System.currentTimeMillis() - sttStart
             Log.d(TAG, "STT: '${transcription.text}' in ${sttDurationMs}ms")
 
-            if (transcription.text.isEmpty()) {
-                return GenerationResult(
-                    command = "",
-                    code = "// Failed to transcribe audio",
-                    confidence = 0f,
-                    totalLatencyMs = System.currentTimeMillis() - pipelineStart
-                )
-            }
-
-            // Step 2: Intent Recognition (50-100ms)
-            Log.d(TAG, "Step 2/3: Intent recognition...")
-            val intentStart = System.currentTimeMillis()
-            val intent = withTimeout(INTENT_TIMEOUT_MS) {
-                intentRecognizer.recognize(transcription.text)
-            }
-            val intentDurationMs = System.currentTimeMillis() - intentStart
-            Log.d(TAG, "Intent: ${intent?.name ?: "UNKNOWN"} in ${intentDurationMs}ms")
-
-            // Step 3: Code Generation or Command Execution (400-800ms)
-            Log.d(TAG, "Step 3/3: Code generation...")
-            val codeStart = System.currentTimeMillis()
-            val (command, code) = if (intent != null && intent.hasQuickAction) {
-                // Use hardcoded command (faster)
-                val cmd = intent.quickActionCommand
-                Pair(cmd, cmd)
-            } else {
-                // Use LLM for generation
-                withTimeout(GENERATION_TIMEOUT_MS) {
-                    val prompt = buildPrompt(transcription.text, intent)
-                    val generatedCode = llamaController.send(
-                        message = prompt,
-                        formatChat = false,
-                        stop = listOf("\n\n", "fun ", "class "),
-                        clearCache = true
-                    ).collectToString()
-
-                    Pair(intent?.name ?: "custom", generatedCode)
-                }
-            }
-            val codeDurationMs = System.currentTimeMillis() - codeStart
-            Log.d(TAG, "Code generation: ${code.take(50)}... in ${codeDurationMs}ms")
-
-            val totalLatencyMs = System.currentTimeMillis() - pipelineStart
-            Log.d(TAG, "Pipeline complete: ${totalLatencyMs}ms total")
-
-            GenerationResult(
-                command = command,
-                code = code,
-                confidence = transcription.confidence,
-                totalLatencyMs = totalLatencyMs
-            )
+            generateCodeFromTranscription(transcription, pipelineStart)
         } catch (e: Exception) {
             Log.e(TAG, "Pipeline error", e)
             GenerationResult(
+                transcription = "",
                 command = "error",
                 code = "// Error: ${e.message}",
                 confidence = 0f,
                 totalLatencyMs = System.currentTimeMillis() - pipelineStart
             )
         }
+    }
+
+    /**
+     * Start live Android SpeechRecognizer capture for cloud mode.
+     */
+    fun startCloudTranscription(
+        onResult: (AndroidSpeechRecognizer.TranscriptionResult) -> Unit,
+        onError: (String) -> Unit
+    ): Boolean {
+        if (!VoicePreferences.isUsingCloudStt(context)) {
+            onError("Cloud STT is not selected")
+            return false
+        }
+
+        return cloudStt.startListening(onResult, onError)
+    }
+
+    /**
+     * Request final cloud recognition results for the active live capture.
+     */
+    fun stopCloudTranscription() {
+        cloudStt.stopListening()
+    }
+
+    /**
+     * Generate code from a transcript that has already been produced by live STT.
+     */
+    suspend fun generateCodeFromTranscription(
+        transcription: AndroidSpeechRecognizer.TranscriptionResult
+    ): GenerationResult {
+        return try {
+            val pipelineStart = System.currentTimeMillis() - transcription.latencyMs
+            generateCodeFromTranscription(transcription, pipelineStart)
+        } catch (e: Exception) {
+            Log.e(TAG, "Generation error", e)
+            GenerationResult(
+                transcription = transcription.text,
+                command = "error",
+                code = "// Error: ${e.message}",
+                confidence = 0f,
+                totalLatencyMs = transcription.latencyMs
+            )
+        }
+    }
+
+    private suspend fun generateCodeFromTranscription(
+        transcription: AndroidSpeechRecognizer.TranscriptionResult,
+        pipelineStart: Long
+    ): GenerationResult {
+        if (transcription.text.isEmpty()) {
+            return GenerationResult(
+                transcription = "",
+                command = "",
+                code = "// Failed to transcribe audio",
+                confidence = 0f,
+                totalLatencyMs = System.currentTimeMillis() - pipelineStart
+            )
+        }
+
+        // Step 2: Intent Recognition (50-100ms)
+        Log.d(TAG, "Step 2/3: Intent recognition...")
+        val intentStart = System.currentTimeMillis()
+        val intent = withTimeout(INTENT_TIMEOUT_MS) {
+            intentRecognizer.recognize(transcription.text)
+        }
+        val intentDurationMs = System.currentTimeMillis() - intentStart
+        Log.d(TAG, "Intent: ${intent?.name ?: "UNKNOWN"} in ${intentDurationMs}ms")
+
+        // Step 3: Code Generation or Command Execution (400-800ms)
+        Log.d(TAG, "Step 3/3: Code generation...")
+        val codeStart = System.currentTimeMillis()
+        val (command, code) = if (intent != null && intent.hasQuickAction) {
+            // Use hardcoded command (faster)
+            val cmd = intent.quickActionCommand
+            Pair(cmd, cmd)
+        } else {
+            // Use LLM for generation
+            withTimeout(GENERATION_TIMEOUT_MS) {
+                val prompt = buildPrompt(transcription.text, intent)
+                val generatedCode = llamaController.send(
+                    message = prompt,
+                    formatChat = false,
+                    stop = listOf("\n\n", "fun ", "class "),
+                    clearCache = true
+                ).collectToString()
+
+                Pair(intent?.name ?: "custom", generatedCode)
+            }
+        }
+        val codeDurationMs = System.currentTimeMillis() - codeStart
+        Log.d(TAG, "Code generation: ${code.take(50)}... in ${codeDurationMs}ms")
+
+        val totalLatencyMs = System.currentTimeMillis() - pipelineStart
+        Log.d(TAG, "Pipeline complete: ${totalLatencyMs}ms total")
+
+        return GenerationResult(
+            transcription = transcription.text,
+            command = command,
+            code = code,
+            confidence = transcription.confidence,
+            totalLatencyMs = totalLatencyMs
+        )
     }
 
     /**

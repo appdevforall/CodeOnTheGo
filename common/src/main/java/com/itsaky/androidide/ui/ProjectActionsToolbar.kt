@@ -1,6 +1,7 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
+import android.graphics.drawable.Animatable
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.util.TypedValue
@@ -52,6 +53,9 @@ class ProjectActionsToolbar @JvmOverloads constructor(
             }
             contentDescription = hint
             setImageDrawable(icon)
+            // Start animation only after the drawable is attached to this view, so
+            // animated icons (e.g. the voice recording waveform) actually play.
+            (icon as? Animatable)?.start()
             addCircleRipple()
             // Set layout params for width and height
             layoutParams = LinearLayout.LayoutParams(

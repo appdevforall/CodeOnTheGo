@@ -1379,5 +1379,6 @@
 	<string name="voice_typing_animation_summary">Animate code insertion</string>
 
 	<string name="voice_code">Voice Code</string>
+	<string name="voice_code_stop_recording">Stop voice recording</string>
 
 </resources>
