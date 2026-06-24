@@ -4,12 +4,12 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
-import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServiceProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAccessibilityChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAnnotationsProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
+import com.itsaky.androidide.lsp.kotlin.compiler.util.SLF4JLogger
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.kotlin.K1Deprecation
@@ -53,6 +53,7 @@ import org.jetbrains.kotlin.com.intellij.core.CorePackageIndex
 import org.jetbrains.kotlin.com.intellij.ide.highlighter.JavaFileType
 import org.jetbrains.kotlin.com.intellij.mock.MockApplication
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
+import org.jetbrains.kotlin.com.intellij.openapi.diagnostic.Logger
 import org.jetbrains.kotlin.com.intellij.openapi.editor.impl.DocumentWriteAccessGuard
 import org.jetbrains.kotlin.com.intellij.openapi.roots.PackageIndex
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
@@ -79,6 +80,7 @@ import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import java.nio.file.Path
 import kotlin.io.path.pathString
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Base class shared by [CompilationEnvironment] (production) and the test-only
@@ -99,11 +101,13 @@ internal abstract class AbstractCompilationEnvironment(
 
 	companion object {
 		/** Max time close() will block the (main) thread draining background workers before disposal. */
-		const val CLOSE_DRAIN_TIMEOUT_MS = 2_000L
+		val CLOSE_DRAIN_TIMEOUT = 2.seconds
 
 		init {
 			System.setProperty("java.awt.headless", "true")
 			setupIdeaStandaloneExecution()
+
+			Logger.setFactory { name -> SLF4JLogger(name) }
 		}
 	}
 
@@ -345,7 +349,7 @@ internal abstract class AbstractCompilationEnvironment(
 		// teardown, so the join is bounded by a timeout to avoid an ANR if a read is slow; the
 		// project.isDisposed guards cover the rare case where the timeout fires before draining.
 		if (::ktSymbolIndex.isInitialized) {
-			runBlocking { withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT_MS) { ktSymbolIndex.close() } }
+			runBlocking { withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) { ktSymbolIndex.close() } }
 		}
 
 		Disposer.dispose(disposable)
