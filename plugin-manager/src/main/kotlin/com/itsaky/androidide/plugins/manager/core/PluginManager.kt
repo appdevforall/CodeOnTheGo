@@ -150,7 +150,7 @@ class PluginManager private constructor(
             range: com.itsaky.androidide.plugins.services.SelectionRange,
             newText: String,
         ): Boolean = current()?.replaceRange(file, range, newText) ?: false
-\ASSA                                                                                                                                        override fun showPeerCursor(
+        override fun showPeerCursor(
             file: File,
             line: Int,
             column: Int,
