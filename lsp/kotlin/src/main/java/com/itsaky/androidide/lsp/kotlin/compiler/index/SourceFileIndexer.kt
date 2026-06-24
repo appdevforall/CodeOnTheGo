@@ -74,7 +74,17 @@ internal suspend fun indexSourceFile(
 	symbolsIndex: JvmSymbolIndex,
 	cancelChecker: ICancelChecker,
 ) {
-	val newFile = ktFile.toMetadata(project, isIndexed = true)
+	// Defensive backstop: this runs on the debounced/async index scope, so a disposal path that
+	// didn't first drain & join the workers could otherwise touch PSI on a disposed project and
+	// throw "Project is already disposed" (APPDEVFORALL-17R). Cheap fast-path before the reads below.
+	if (project.isDisposed) return
+
+	// Re-check disposal *inside* the read lock so it is atomic with toMetadata()'s PSI access:
+	// the fast-path check above can race a concurrent disposal before toMetadata enters its read.
+	val newFile = project.read {
+		if (project.isDisposed) return@read null
+		ktFile.toMetadata(project, isIndexed = true)
+	} ?: return
 	val existingFile = fileIndex.get(newFile.filePath)
 	cancelChecker.abortIfCancelled()
 
@@ -89,6 +99,9 @@ internal suspend fun indexSourceFile(
 	}
 
 	val symbols = project.read {
+		// Atomic w.r.t. the read lock: bail if the project was disposed before we acquired it.
+		if (project.isDisposed) return@read emptyList()
+
 		val list = mutableListOf<JvmSymbol>()
 		analyzeMaybeDangling(ktFile) {
 			val session = this
@@ -204,6 +217,7 @@ private fun KaSession.kaTypeDisplayName(type: KaType): String {
 }
 
 private fun KaSession.analyzeFunction(filePath: String, dcl: KtNamedFunction): JvmSymbol? {
+	if (dcl.isLocal) return null
 	val fnName = dcl.name ?: return null
 	val visibility = dcl.jvmVisibility()
 	if (visibility == JvmVisibility.PRIVATE) return null
@@ -338,6 +352,7 @@ private fun KaSession.analyzeClassOrObject(filePath: String, dcl: KtClassOrObjec
 }
 
 private fun KaSession.analyzeProperty(filePath: String, dcl: KtProperty): JvmSymbol? {
+	if (dcl.isLocal) return null
 	val propName = dcl.name ?: return null
 	val visibility = dcl.jvmVisibility()
 	if (visibility == JvmVisibility.PRIVATE) return null

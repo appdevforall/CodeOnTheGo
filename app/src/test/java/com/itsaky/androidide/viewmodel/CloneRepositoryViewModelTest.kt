@@ -2,13 +2,16 @@ package com.itsaky.androidide.viewmodel
 
 import android.app.Application
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import com.blankj.utilcode.util.NetworkUtils
 import com.itsaky.androidide.R
+import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.GitRepositoryManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -45,11 +48,19 @@ class CloneRepositoryViewModelTest {
 
     private lateinit var viewModel: CloneRepositoryViewModel
     private val context = mockk<Application>(relaxed = true)
+    private val credentialsManager = mockk<GitCredentialsManager>(relaxed = true)
 
     @Before
     fun setup() {
+        // NetworkUtils.isConnected() transitively triggers blankj Utils.init() ->
+        // android.util.Log.e(), which throws "not mocked" under plain JVM tests.
+        // Stub the connectivity check so cloneRepository() proceeds to the
+        // GitRepositoryManager call these tests are actually exercising.
+        mockkStatic(NetworkUtils::class)
+        every { NetworkUtils.isConnected() } returns true
+
         mockkObject(GitRepositoryManager)
-        viewModel = CloneRepositoryViewModel(context)
+        viewModel = CloneRepositoryViewModel(context, credentialsManager)
 
         // Mock the application string responses for error messages
         every { context.getString(any(), *anyVararg()) } answers {

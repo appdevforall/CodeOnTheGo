@@ -193,6 +193,25 @@ interface IdeUIService {
      * @return true if UI operations can be performed, false otherwise
      */
     fun isUIAvailable(): Boolean
+
+    /**
+     * Opens a fullscreen host surface for a plugin-owned Fragment.
+     *
+     * The host app owns only the generic container. The plugin owns the Fragment class and all
+     * feature-specific behavior.
+     */
+    fun openPluginScreen(
+        pluginId: String,
+        fragmentClassName: String,
+        title: String? = null
+    ): Boolean = false
+
+    companion object {
+        const val ACTION_OPEN_PLUGIN_SCREEN = "com.itsaky.androidide.plugins.OPEN_PLUGIN_SCREEN"
+        const val EXTRA_PLUGIN_ID = "com.itsaky.androidide.plugins.extra.PLUGIN_ID"
+        const val EXTRA_FRAGMENT_CLASS_NAME = "com.itsaky.androidide.plugins.extra.FRAGMENT_CLASS_NAME"
+        const val EXTRA_TITLE = "com.itsaky.androidide.plugins.extra.TITLE"
+    }
 }
 
 /**

@@ -79,9 +79,6 @@ class UiMode(
 ) : SingleChoicePreference() {
 
   @IgnoredOnParcel
-  override val dialogCancellable = true
-
-  @IgnoredOnParcel
   override val tooltipTag: String = PREFS_GENERAL
 
   override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {

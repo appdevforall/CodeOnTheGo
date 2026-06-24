@@ -255,6 +255,7 @@
 	<string name="msg_rename_file">Enter a new name for the file/folder.</string>
 	<string name="renamed">Renamed successfully</string>
 	<string name="rename_failed">Unable to rename file</string>
+    <string name="file_name_too_long">File name cannot exceed 40 characters</string>
 	<string name="deleted">Deleted successfully</string>
 	<string name="delete_failed">Unable to delete file</string>
 	<string name="copy_path">Copy path</string>
@@ -956,6 +957,7 @@
 
 	<string name="info_icon_content_description">Info icon</string>
 	<string name="feedback_button_description">Send feedback about this tooltip</string>
+	<string name="sponsor_button_description">Support us on GitHub Sponsors</string>
 	<string name="cd_more_options">More options</string>
 	<string name="cd_expand_collapse">Expand or collapse</string>
 	<string name="cd_file_icon">File icon</string>
@@ -1295,6 +1297,8 @@
     <string name="no_save_before_git_action">Proceed without saving</string>
     <string name="save_before_git_action">Save before proceeding</string>
     <string name="mark_as_resolved">Mark resolved</string>
+    <string name="check_all">Check All</string>
+    <string name="uncheck_all">Uncheck All</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>

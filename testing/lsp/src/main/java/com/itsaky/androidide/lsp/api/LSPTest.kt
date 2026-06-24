@@ -18,6 +18,7 @@
 package com.itsaky.androidide.lsp.api
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.eventbus.events.editor.ChangeType.DELETE
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
@@ -87,7 +88,8 @@ abstract class LSPTest {
 		every { EditorPreferences.tabSize } returns 4
 
 		ToolingApiTestLauncher.launchServer {
-			assertThat(result is InitializeResult.Success).isTrue()
+			assertWithMessage("Tooling API initialize() returned: %s", result)
+				.that(result is InitializeResult.Success).isTrue()
 			this@LSPTest.toolingServer = server
 
 			Environment.ANDROID_JAR = FileProvider.resources().resolve("android.jar").toFile()
@@ -101,7 +103,7 @@ abstract class LSPTest {
 			// We need to manually setup the language server with the project here
 			// ProjectManager.notifyProjectUpdate()
 			ILanguageServerRegistry
-				.getDefault()
+				.default
 				.getServer(getServerId())!!
 				.setupWithProject(projectManager.workspace!!)
 

@@ -2,14 +2,11 @@ package com.itsaky.androidide.lsp.kotlin.compiler.modules
 
 import com.itsaky.androidide.lsp.kotlin.compiler.DEFAULT_JVM_TARGET
 import com.itsaky.androidide.lsp.kotlin.compiler.DEFAULT_LANGUAGE_VERSION
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.projects.api.ModuleProject
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaPlatformInterface
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.config.ApiVersion
 import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.config.LanguageVersion
@@ -18,16 +15,13 @@ import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
-import kotlin.io.path.extension
-import kotlin.io.path.isDirectory
-import kotlin.io.path.walk
 
 @OptIn(KaPlatformInterface::class)
 internal class KtSourceModule(
 	project: Project,
 	val module: ModuleProject,
 	directRegularDependencies: List<KtModule>,
-) : KaSourceModule, AbstractKtModule(project, directRegularDependencies) {
+) : KaSourceModule, AbstractSourceModule(project, directRegularDependencies) {
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(KtSourceModule::class.java)
@@ -82,7 +76,7 @@ internal class KtSourceModule(
 
 	@OptIn(KaExperimentalApi::class)
 	override val moduleDescription: String
-		get() = super<AbstractKtModule>.moduleDescription
+		get() = super<AbstractSourceModule>.moduleDescription
 
 	override val languageVersionSettings: LanguageVersionSettings
 		get() = LanguageVersionSettingsImpl(
@@ -93,16 +87,6 @@ internal class KtSourceModule(
 	override val targetPlatform: TargetPlatform
 		get() = JvmPlatforms.jvmPlatformByTargetVersion(versions.second)
 
-	override fun computeFiles(extended: Boolean): Sequence<VirtualFile> =
-		contentRoots
-			.asSequence()
-			.flatMap { it.walk() }
-			.filter { !it.isDirectory() && (it.extension == "kt" || it.extension == "java") }
-			.mapNotNull {
-				project.read {
-					VirtualFileManager.getInstance().findFileByNioPath(it)
-				}
-			}
 
 }
 
