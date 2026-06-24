@@ -19,7 +19,7 @@
 	<string name="msg_no_browser_found">No browser found to handle the request.</string>
 	<string name="need_help">Need Help?</string>
 	<string name="ide_preferences">IDE preferences</string>
-	<string name="discussions_on_telegram">Discussions on Telegram</string>
+	<string name="support_and_discussions">Support and discussions forum</string>
 	<string name="official_tg_channel">Official Telegram channel</string>
 	<string name="msg_empty_view">No data</string>
 	<string name="title_terminal">Terminal</string>
@@ -1152,7 +1152,7 @@
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
-	<string name="telegram_group_url">https://t.me/CodeOnTheGoDiscussions</string>
+	<string name="support_url">https://t.me/CodeOnTheGoDiscussions</string>
 	<string name="telegram_channel_url">https://t.me/CodeOnTheGoOfficial</string>
 	<string name="sponsor_url">https://m.androidide.com/donate</string>
 	<string name="support_our_work">Support our work</string>
