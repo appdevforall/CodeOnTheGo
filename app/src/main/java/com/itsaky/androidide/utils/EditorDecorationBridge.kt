@@ -26,6 +26,7 @@ import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.syntax.decoration.EditorDecorationRegistry
 import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Bridges editor decoration providers contributed by enabled plugins into the editor's
@@ -43,8 +44,7 @@ object EditorDecorationBridge {
 
     private val log = LoggerFactory.getLogger(EditorDecorationBridge::class.java)
 
-    @Volatile
-    private var registered = false
+    private val registered = AtomicBoolean(false)
 
     /** Last seen UI night-mode bit, so we only react when day/night actually flips. */
     private var lastNightMode = Int.MIN_VALUE
@@ -56,27 +56,27 @@ object EditorDecorationBridge {
      */
     @JvmStatic
     fun init() {
-        if (registered) {
-            refresh()
-            return
-        }
-        registered = true
-        try {
-            val app = BaseApplication.baseInstance
-            lastNightMode = app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-            app.registerComponentCallbacks(object : ComponentCallbacks {
-                override fun onConfigurationChanged(newConfig: Configuration) {
-                    val night = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                    if (night != lastNightMode) {
-                        lastNightMode = night
-                        refresh()
+        // Atomically claim the one-time registration. Only the winning thread registers; if it
+        // fails, reset the flag so a later init() can retry.
+        if (registered.compareAndSet(false, true)) {
+            try {
+                val app = BaseApplication.baseInstance
+                lastNightMode = app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                app.registerComponentCallbacks(object : ComponentCallbacks {
+                    override fun onConfigurationChanged(newConfig: Configuration) {
+                        val night = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                        if (night != lastNightMode) {
+                            lastNightMode = night
+                            refresh()
+                        }
                     }
-                }
 
-                override fun onLowMemory() {}
-            })
-        } catch (t: Throwable) {
-            log.error("Failed to register editor decoration theme listener", t)
+                    override fun onLowMemory() {}
+                })
+            } catch (t: Throwable) {
+                registered.set(false)
+                log.error("Failed to register editor decoration theme listener", t)
+            }
         }
         refresh()
     }
