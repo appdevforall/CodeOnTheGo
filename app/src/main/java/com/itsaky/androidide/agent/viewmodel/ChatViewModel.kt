@@ -101,6 +101,7 @@ class ChatViewModel : ViewModel() {
 	private var lastKnownBackendName: String? = null
 	private var lastKnownModelPath: String? = null
 	private var lastLoadedModelHash: String? = null
+	private var localModelLoadError: String? = null
 
 	companion object {
 		private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
@@ -168,6 +169,7 @@ class ChatViewModel : ViewModel() {
 
         if (expectedModelPath.isBlank()) {
             log.error("Initialization failed: Local LLM model path is not set.")
+            localModelLoadError = null
             return null
         }
 
@@ -181,9 +183,14 @@ class ChatViewModel : ViewModel() {
                 expectedHash = storedHash
             )
 
-            if (!handleLocalModelLoadResult(result)) return null
+            val errorMessage = localModelLoadErrorMessage(result)
+            if (errorMessage != null) {
+                localModelLoadError = errorMessage
+                return null
+            }
         }
 
+        localModelLoadError = null
         lastLoadedModelHash = storedHash
         log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
 
@@ -217,11 +224,14 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    private fun handleLocalModelLoadResult(result: ModelLoadResult): Boolean {
+    /**
+     * Returns the user-facing error message for a failed/rejected load, or null on success.
+     */
+    private fun localModelLoadErrorMessage(result: ModelLoadResult): String? {
         return when (result) {
             is ModelLoadResult.Loaded -> {
                 log.info("Local LLM model loaded successfully: {}", result.modelName)
-                true
+                null
             }
 
             is ModelLoadResult.Rejected -> {
@@ -229,7 +239,7 @@ class ChatViewModel : ViewModel() {
                     "Initialization failed: Local LLM model was rejected: {}",
                     result.message
                 )
-                false
+                result.message
             }
 
             is ModelLoadResult.Failed -> {
@@ -238,7 +248,7 @@ class ChatViewModel : ViewModel() {
                     result.message,
                     result.cause
                 )
-                false
+                result.message
             }
         }
     }
@@ -344,7 +354,8 @@ class ChatViewModel : ViewModel() {
 						val backendName = lastKnownBackendName
 						if (backendName == AiBackend.LOCAL_LLM.name) {
 							postSystemError(
-								context.getString(R.string.agent_local_model_not_loaded),
+								localModelLoadError
+									?: context.getString(R.string.agent_local_model_not_loaded),
 							)
 						} else {
 							postSystemError(context.getString(R.string.agent_backend_not_ready))
