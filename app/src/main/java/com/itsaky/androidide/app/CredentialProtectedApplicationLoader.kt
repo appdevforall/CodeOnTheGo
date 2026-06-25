@@ -329,6 +329,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			GlobalScope.launch {
 				try {
 					pluginManager?.loadPlugins()
+					com.itsaky.androidide.utils.EditorDecorationBridge.init()
 					logger.info("Plugin system initialized successfully")
 				} catch (e: Exception) {
 					logger.error("Failed to load plugins", e)
@@ -380,6 +381,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			}
 		} else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
 			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+			com.itsaky.androidide.utils.EditorDecorationBridge.refresh()
 		} else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
 			// Use empty locale list if the locale has been reset to 'System Default'
 			val selectedLocale = GeneralPreferences.selectedLocale

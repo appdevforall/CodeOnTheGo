@@ -122,6 +122,9 @@ class PluginManagerViewModel(
                     )
                 }
 
+            // Keep the editor decoration providers in sync with the enabled plugin set.
+            com.itsaky.androidide.utils.EditorDecorationBridge.refresh()
+
             _currentOperation.value = PluginOperation.None
         }
     }

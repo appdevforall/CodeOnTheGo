@@ -794,6 +794,16 @@ class PluginManager private constructor(
             .filterIsInstance<FileOpenExtension>()
     }
 
+    /**
+     * Get all enabled plugins that provide editor decorations (additive coloring of editor text).
+     */
+    fun getEnabledEditorDecorationProviders(): List<com.itsaky.androidide.plugins.extensions.EditorDecorationProvider> {
+        return loadedPlugins.values
+            .filter { it.isEnabled }
+            .map { it.plugin }
+            .filterIsInstance<com.itsaky.androidide.plugins.extensions.EditorDecorationProvider>()
+    }
+
     fun notifyFileOpened(file: File) {
         getEnabledFileOpenExtensions().forEach { extension ->
             executeWithErrorHandling("notify file opened") {
