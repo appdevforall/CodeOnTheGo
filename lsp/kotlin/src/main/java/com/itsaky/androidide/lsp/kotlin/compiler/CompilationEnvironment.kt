@@ -210,13 +210,20 @@ internal class CompilationEnvironment(
 		path: Path,
 		crossinline typeProvider: (KtFile) -> KaElementModificationType,
 	) {
-		val structureProvider = ProjectStructureProvider.getInstance(project)
-		val ktFile = path.toVirtualFileOrNull()?.let {
-			psiManager.findFile(it) as? KtFile
-		}
+		// Resolve PSI/module structure under the read lock, mirroring loadKtFile(); driving
+		// psiManager.findFile / structureProvider concurrently with an `analyze` read section
+		// otherwise races.
+		val (ktFile, module) = project.read {
+			val structureProvider = ProjectStructureProvider.getInstance(project)
+			val ktFile = path.toVirtualFileOrNull()?.let {
+				psiManager.findFile(it) as? KtFile
+			}
 
-		val module = (ktFile?.let { structureProvider.getModule(it, null) }
-			?: structureProvider.findModuleForSourceId(path.pathString)) as? AbstractKtModule
+			val module = (ktFile?.let { structureProvider.getModule(it, null) }
+				?: structureProvider.findModuleForSourceId(path.pathString)) as? AbstractKtModule
+
+			ktFile to module
+		}
 
 		project.write {
 			// Must run under the write lock so the session mutation can't race a concurrent
