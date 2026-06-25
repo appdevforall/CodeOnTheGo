@@ -56,25 +56,27 @@ object EditorDecorationBridge {
      */
     @JvmStatic
     fun init() {
-        if (!registered) {
-            registered = true
-            try {
-                val app = BaseApplication.baseInstance
-                lastNightMode = app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                app.registerComponentCallbacks(object : ComponentCallbacks {
-                    override fun onConfigurationChanged(newConfig: Configuration) {
-                        val night = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                        if (night != lastNightMode) {
-                            lastNightMode = night
-                            refresh()
-                        }
+        if (registered) {
+            refresh()
+            return
+        }
+        registered = true
+        try {
+            val app = BaseApplication.baseInstance
+            lastNightMode = app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            app.registerComponentCallbacks(object : ComponentCallbacks {
+                override fun onConfigurationChanged(newConfig: Configuration) {
+                    val night = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                    if (night != lastNightMode) {
+                        lastNightMode = night
+                        refresh()
                     }
+                }
 
-                    override fun onLowMemory() {}
-                })
-            } catch (t: Throwable) {
-                log.error("Failed to register editor decoration theme listener", t)
-            }
+                override fun onLowMemory() {}
+            })
+        } catch (t: Throwable) {
+            log.error("Failed to register editor decoration theme listener", t)
         }
         refresh()
     }
