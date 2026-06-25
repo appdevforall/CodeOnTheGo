@@ -49,6 +49,10 @@ object EditorPreferences {
 	const val COLOR_SCHEME = "idepref_editor_colorScheme"
 	const val DEFAULT_COLOR_SCHEME = "default"
 
+	const val FONT_SIZE_MIN = 6f
+	const val FONT_SIZE_DEFAULT = 14f
+	const val FONT_SIZE_MAX = 32f
+
 	var completionsMatchLower: Boolean
 		get() = prefManager.getBoolean(COMPLETIONS_MATCH_LOWER, false)
 		set(value) {
@@ -86,10 +90,19 @@ object EditorPreferences {
 		}
 
 	var fontSize: Float
-		get() = prefManager.getFloat(FONT_SIZE, 14f)
+		get() = prefManager.getFloat(FONT_SIZE, FONT_SIZE_DEFAULT)
 		set(value) {
 			prefManager.putFloat(FONT_SIZE, value)
 		}
+
+	val effectiveFontSize: Float
+		get() {
+			val size = fontSize
+			return if (size !in FONT_SIZE_MIN..FONT_SIZE_MAX) FONT_SIZE_DEFAULT else size
+		}
+
+	val editorFontScale: Float
+		get() = effectiveFontSize / FONT_SIZE_DEFAULT
 
 	var tabSize: Int
 		get() = prefManager.getInt(TAB_SIZE, 4)
