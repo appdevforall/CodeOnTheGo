@@ -190,10 +190,19 @@ class LLamaAndroid : ILlamaController {
                     }
 
                     val batch = new_batch(2048, 0, 1)
-                    if (batch == 0L) throw IllegalStateException("new_batch() failed")
+                    if (batch == 0L) {
+                        free_context(context)
+                        free_model(model)
+                        throw IllegalStateException("new_batch() failed")
+                    }
 
                     val sampler = new_sampler()
-                    if (sampler == 0L) throw IllegalStateException("new_sampler() failed")
+                    if (sampler == 0L) {
+                        free_batch(batch)
+                        free_context(context)
+                        free_model(model)
+                        throw IllegalStateException("new_sampler() failed")
+                    }
 
                     log.info("Validating model can perform text generation (dry run test)...")
                     try {
@@ -276,15 +285,27 @@ class LLamaAndroid : ILlamaController {
                 try {
                     val contextSize = model_n_ctx(state.context)
                     val tokenCount = tokenize(state.context, message, true).size
-                    log.debug("Context size: {}, message tokens: {}, max output: {}", contextSize, tokenCount, nlen)
+                    log.debug(
+                        "Context size: {}, message tokens: {}, max output: {}",
+                        contextSize,
+                        tokenCount,
+                        nlen
+                    )
 
                     if (tokenCount + nlen > contextSize) {
-                        log.error("Message too long: {} tokens + {} max output > {} context", tokenCount, nlen, contextSize)
+                        log.error(
+                            "Message too long: {} tokens + {} max output > {} context",
+                            tokenCount,
+                            nlen,
+                            contextSize
+                        )
                         throw IllegalStateException(
                             "Message is too long for the model's context window. " +
-                            "Message requires $tokenCount tokens plus $nlen for output, but context is only $contextSize tokens."
+                                "Message requires $tokenCount tokens plus $nlen for output, but context is only $contextSize tokens."
                         )
                     }
+                } catch (e: IllegalStateException) {
+                    throw e
                 } catch (e: Exception) {
                     log.error("Failed to validate context size", e)
                     throw IllegalStateException("Failed to validate message length: ${e.message}", e)

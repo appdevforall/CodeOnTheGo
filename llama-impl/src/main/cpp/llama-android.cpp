@@ -808,24 +808,23 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
         }
     }
 
+    if (batch->n_tokens < 0) {
+        LOGe("Invalid batch token count: %d", batch->n_tokens);
+        env->ReleaseStringUTFChars(jtext, text);
+        env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
+                      "Batch state corrupted. Token count is negative.");
+        return 0;
+    }
+
     if (batch->n_tokens > 0) {
         LOGi("Processing batch with %d tokens", batch->n_tokens);
-
-        // Validate batch before decode
-        if (batch->n_tokens < 0) {
-            LOGe("Invalid batch token count: %d", batch->n_tokens);
-            env->ReleaseStringUTFChars(jtext, text);
-            env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),
-                          "Batch state corrupted. Token count is negative.");
-            return 0;
-        }
 
         // llama_decode will output logits only for the last token of the prompt
         batch->logits[batch->n_tokens - 1] = true;
 
         LOGi("Calling llama_decode for initial prompt processing...");
 
-        // Double-check pooling type before decode (belt and suspenders)
+        // Double-check pooling type before decode
         const auto pooling_check = llama_pooling_type(context);
         if (pooling_check != LLAMA_POOLING_TYPE_NONE) {
             LOGe("CRITICAL: Attempted decode on embedding model (pooling=%d)", pooling_check);
@@ -835,7 +834,7 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
             return 0;
         }
 
-        int decode_result = llama_decode(context, *batch);
+        const int decode_result = llama_decode(context, *batch);
 
         if (decode_result != 0) {
             LOGe("llama_decode() failed with error code: %d", decode_result);
@@ -985,13 +984,18 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
         new_token = new_jstring_utf8(env, "");
     }
 
+    if (!batch) {
+        LOGe("Invalid batch state before generation: batch is null");
+        return nullptr;
+    }
+
     common_batch_clear(*batch);
     common_batch_add(*batch, new_token_id, n_cur, {0}, true);
 
     env->CallVoidMethod(intvar_ncur, la_int_var_inc);
 
     // Safety check before decode
-    if (!batch || batch->n_tokens <= 0) {
+    if (batch->n_tokens <= 0) {
         LOGe("Invalid batch state before decode: n_tokens=%d", batch ? batch->n_tokens : -1);
         return nullptr;
     }

@@ -14,9 +14,11 @@ import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.data.ChatStorageManager
+import com.itsaky.androidide.agent.model.ModelLoadResult
 import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.GeminiRepository
+import com.itsaky.androidide.agent.repository.LlmInferenceEngine
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
@@ -141,43 +143,11 @@ class ChatViewModel : ViewModel() {
 					}
 				}
 
-				AiBackend.LOCAL_LLM -> {
-					// Get the SINGLE, SHARED instance of the engine
-					val engine = LlmInferenceEngineProvider.instance
-
-                    val expectedModelPath = modelPath?.trim().orEmpty()
-                    if (expectedModelPath.isBlank()) {
-                        log.error("Initialization failed: Local LLM model path is not set.")
-                        null
-					} else {
-                        run {
-                            val needsReload =
-                                !engine.isModelLoaded ||
-                                    engine.loadedModelSourceUri != expectedModelPath ||
-                                    storedHash != lastLoadedModelHash
-                            val expectedHash = storedHash
-                            if (needsReload) {
-                                val loaded = withContext(Dispatchers.IO) {
-                                    engine.initModelFromFile(
-                                        context,
-                                        expectedModelPath,
-                                        expectedHash
-                                    )
-                                }
-                                if (!loaded) {
-                                    log.error("Initialization failed: Local LLM model load failed.")
-                                    return@run null
-                                }
-                            }
-
-							lastLoadedModelHash = expectedHash
-                            log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
-                            LocalLlmRepositoryImpl(context, engine).apply {
-                                onStateUpdate = { _agentState.value = it }
-                            }
-						}
-					}
-				}
+				AiBackend.LOCAL_LLM -> createLocalLlmRepositoryOrNull(
+				    context = context,
+				    modelPath = modelPath,
+				    storedHash = storedHash
+                )
 			}
 		val repo = agentRepository
 		val currentHistory = _currentSession.value?.messages
@@ -188,6 +158,90 @@ class ChatViewModel : ViewModel() {
 		observeRepositoryMessages(repo)
 		return agentRepository
 	}
+
+	private suspend fun createLocalLlmRepositoryOrNull(
+        context: Context,
+        modelPath: String?,
+        storedHash: String?
+    ): LocalLlmRepositoryImpl? {
+        val expectedModelPath = modelPath?.trim().orEmpty()
+
+        if (expectedModelPath.isBlank()) {
+            log.error("Initialization failed: Local LLM model path is not set.")
+            return null
+        }
+
+        val engine = LlmInferenceEngineProvider.instance
+
+        if (requiresLocalModelReload(engine, expectedModelPath, storedHash)) {
+            val result = loadLocalModel(
+                engine = engine,
+                context = context,
+                modelPath = expectedModelPath,
+                expectedHash = storedHash
+            )
+
+            if (!handleLocalModelLoadResult(result)) return null
+        }
+
+        lastLoadedModelHash = storedHash
+        log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
+
+        return LocalLlmRepositoryImpl(context, engine).apply {
+            onStateUpdate = { _agentState.value = it }
+        }
+    }
+
+    private fun requiresLocalModelReload(
+        engine: LlmInferenceEngine,
+        expectedModelPath: String,
+        expectedHash: String?
+    ): Boolean {
+        return !engine.isModelLoaded ||
+            engine.loadedModelSourceUri != expectedModelPath ||
+            lastLoadedModelHash != expectedHash
+    }
+
+    private suspend fun loadLocalModel(
+        engine: LlmInferenceEngine,
+        context: Context,
+        modelPath: String,
+        expectedHash: String?
+    ): ModelLoadResult {
+        return withContext(Dispatchers.IO) {
+            engine.initModelFromFile(
+                context = context,
+                modelUriString = modelPath,
+                expectedSha256 = expectedHash
+            )
+        }
+    }
+
+    private fun handleLocalModelLoadResult(result: ModelLoadResult): Boolean {
+        return when (result) {
+            is ModelLoadResult.Loaded -> {
+                log.info("Local LLM model loaded successfully: {}", result.modelName)
+                true
+            }
+
+            is ModelLoadResult.Rejected -> {
+                log.error(
+                    "Initialization failed: Local LLM model was rejected: {}",
+                    result.message
+                )
+                false
+            }
+
+            is ModelLoadResult.Failed -> {
+                log.error(
+                    "Initialization failed: Local LLM model load failed: {}",
+                    result.message,
+                    result.cause
+                )
+                false
+            }
+        }
+    }
 
 	fun checkBackendStatusOnResume(context: Context) {
 		val prefs = BaseApplication.baseInstance.prefManager

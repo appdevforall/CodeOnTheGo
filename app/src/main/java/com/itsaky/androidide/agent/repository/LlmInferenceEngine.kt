@@ -2,7 +2,9 @@ package com.itsaky.androidide.agent.repository
 
 import android.content.Context
 import androidx.core.net.toUri
+import com.itsaky.androidide.agent.model.ModelLoadResult
 import com.itsaky.androidide.llamacpp.api.ILlamaController
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DynamicLibraryLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +16,7 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * A wrapper class for the LLamaAndroid library, loaded dynamically.
@@ -290,10 +293,16 @@ class LlmInferenceEngine(
         context: Context,
         modelUriString: String,
         expectedSha256: String? = null
-    ): Boolean {
+    ): ModelLoadResult {
         return modelLoadMutex.withLock {
-            if (!ensureInitialized(context)) return@withLock false
+            if (!ensureInitialized(context)) {
+                return@withLock ModelLoadResult.Failed(
+                    message = context.getString(R.string.model_error_engine_init)
+                )
+            }
+
             if (isModelLoaded) unloadModel()
+
             withContext(ioDispatcher) {
                 loadModelFromUri(context, modelUriString, expectedSha256)
             }
@@ -313,53 +322,71 @@ class LlmInferenceEngine(
         context: Context,
         modelUriString: String,
         expectedSha256: String?
-    ): Boolean {
+    ): ModelLoadResult {
         val modelUri = modelUriString.toUri()
         val displayName = resolveModelDisplayName(context, modelUri)
 
         return try {
-            validateModelFormat(displayName)
+            validateModelFormat(context, displayName)
 
             val destinationFile = File(context.cacheDir, "local_model.gguf")
 
             if (!copyModelToCache(context, modelUri, destinationFile)) {
-                return false
+                return ModelLoadResult.Failed(
+                    message = context.getString(R.string.model_error_copy_failed)
+                )
             }
-            log.info("Model copied to cache at {}", destinationFile.path)
 
             if (!verifyModelHash(destinationFile, expectedSha256)) {
-                return false
+                return ModelLoadResult.Failed(
+                    message = context.getString(R.string.model_error_verification_failed)
+                )
             }
 
             llamaController?.load(destinationFile.path)
+
             isModelLoaded = true
             loadedModelPath = destinationFile.path
             loadedModelSourceUri = modelUriString
             loadedModelName = displayName
             currentModelFamily = detectModelFamily(displayName)
-            log.info("Successfully loaded local model: {}", loadedModelName)
-            true
+
+            ModelLoadResult.Loaded(displayName)
+        } catch (e: CancellationException) {
+            resetLoadedModelState()
+            throw e
         } catch (e: IllegalStateException) {
-            if (e.message?.contains("embedding model") == true) {
+            resetLoadedModelState()
+
+            if (e.message?.contains("embedding model", ignoreCase = true) == true) {
                 log.error("Cannot use embedding model for chat: {}", displayName, e)
-                throw IllegalArgumentException(
-                    "The selected model '$displayName' is an embedding model designed for semantic " +
-                    "search and similarity tasks. It cannot be used for chat or text generation.\n\n" +
-                    "Please select a chat/instruct model instead (e.g., models with 'chat', 'instruct', " +
-                    "'conversational' in their name).", e
+
+                ModelLoadResult.Rejected(
+                    context.getString(R.string.model_error_embedding, displayName)
                 )
             } else {
-                log.error("Failed to load model", e)
-                throw e
+                log.error("Failed to load model: {}", displayName, e)
+
+                ModelLoadResult.Failed(
+                    message = context.getString(R.string.model_error_load_failed, displayName),
+                    cause = e
+                )
             }
         } catch (e: IllegalArgumentException) {
             log.error("Model validation failed: {}", displayName, e)
             resetLoadedModelState()
-            throw e
+
+            ModelLoadResult.Rejected(
+                e.message ?: context.getString(R.string.model_error_format_unsupported)
+            )
         } catch (e: Exception) {
             log.error("Failed to initialize or load model from file", e)
             resetLoadedModelState()
-            false
+
+            ModelLoadResult.Failed(
+                message = context.getString(R.string.model_error_load_failed, displayName),
+                cause = e
+            )
         }
     }
 
@@ -507,61 +534,27 @@ class LlmInferenceEngine(
      *
      * @throws IllegalArgumentException if the model format is not supported
      */
-    private fun validateModelFormat(filename: String) {
+    private fun validateModelFormat(context: Context, filename: String) {
         val lowerName = filename.lowercase()
 
         when {
             lowerName.endsWith(EXT_ONNX) -> {
-                throw IllegalArgumentException(
-                    "ONNX models ($EXT_ONNX) are not supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
-                    "To use this model:\n" +
-                    "1. Convert it to GGUF format using llama.cpp conversion tools\n" +
-                    "2. Or download a pre-converted GGUF version from Hugging Face"
-                )
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_onnx))
             }
             lowerName.endsWith(EXT_PT) || lowerName.endsWith(EXT_PTH) || lowerName.endsWith(EXT_BIN) -> {
-                throw IllegalArgumentException(
-                    "PyTorch models ($EXT_PT, $EXT_PTH, $EXT_BIN) are not supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
-                    "To use this model:\n" +
-                    "1. Convert it to GGUF format using convert_hf_to_gguf.py\n" +
-                    "2. Or download a pre-converted GGUF version from Hugging Face"
-                )
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_pytorch))
             }
             lowerName.endsWith(EXT_SAFETENSORS) -> {
-                throw IllegalArgumentException(
-                    "SafeTensors models ($EXT_SAFETENSORS) are not directly supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
-                    "To use this model:\n" +
-                    "1. Convert it to GGUF format using convert_hf_to_gguf.py\n" +
-                    "2. Or download a pre-converted GGUF version from Hugging Face"
-                )
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_safetensors))
             }
             lowerName.endsWith(EXT_PB) || lowerName.contains(KEYWORD_TENSORFLOW) -> {
-                throw IllegalArgumentException(
-                    "TensorFlow models ($EXT_PB) are not supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
-                    "To use this model:\n" +
-                    "1. Convert it to GGUF format using appropriate conversion tools\n" +
-                    "2. Or download a pre-converted GGUF version from Hugging Face"
-                )
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_tensorflow))
             }
             lowerName.endsWith(EXT_TFLITE) -> {
-                throw IllegalArgumentException(
-                    "TensorFlow Lite models ($EXT_TFLITE) are not supported.\n\n" +
-                    "This app uses llama.cpp which only supports GGUF format ($EXT_GGUF).\n\n" +
-                    "Please select a GGUF format model."
-                )
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_tflite))
             }
             lowerName.endsWith(EXT_GGML) -> {
-                throw IllegalArgumentException(
-                    "GGML models ($EXT_GGML) are deprecated.\n\n" +
-                    "This app uses the newer GGUF format ($EXT_GGUF).\n\n" +
-                    "To use this model:\n" +
-                    "1. Convert it to GGUF using convert_llama_ggml_to_gguf.py\n" +
-                    "2. Or download a GGUF version from Hugging Face"
-                )
+                throw IllegalArgumentException(context.getString(R.string.model_error_format_ggml))
             }
             !lowerName.endsWith(EXT_GGUF) -> {
                 log.warn("Model file '{}' doesn't have $EXT_GGUF extension. May fail to load.", filename)
@@ -572,9 +565,9 @@ class LlmInferenceEngine(
             lowerName.contains(KEYWORD_ALL_MPNET) ||
             lowerName.contains(KEYWORD_E5) ||
             (lowerName.contains(KEYWORD_EMBED) && !lowerName.contains(KEYWORD_LLAMA))) {
-            log.warn(
-                "Model '{}' appears to be an embedding model based on filename. " +
-                "This may not work for chat. Will validate during load.", filename
+            log.error("Rejecting embedding model based on filename: {}", filename)
+            throw IllegalArgumentException(
+                context.getString(R.string.model_error_embedding, filename)
             )
         }
     }
