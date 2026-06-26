@@ -45,11 +45,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.itsaky.androidide.floating.model.DockAction
+import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -203,13 +205,16 @@ private fun TitleBar(
 			modifier = Modifier.weight(1f),
 		)
 		actions.forEach { action -> ActionButton(action) }
-		ChromeButton(onClick = onMinimize, description = "Minimize") { drawMinimize(it) }
+		ChromeButton(onClick = onMinimize, description = stringResource(R.string.floating_window_action_minimize)) { drawMinimize(it) }
 		ChromeButton(
 			onClick = onToggleMaximize,
-			description = if (maximized) "Restore" else "Maximize",
+			description = stringResource(
+				if (maximized) R.string.floating_window_action_restore
+				else R.string.floating_window_action_maximize
+			),
 		) { if (maximized) drawRestore(it) else drawMaximize(it) }
-		ChromeButton(onClick = onDock, description = "Dock to editor") { drawDock(it) }
-		ChromeButton(onClick = onClose, description = "Close") { drawClose(it) }
+		ChromeButton(onClick = onDock, description = stringResource(R.string.floating_window_action_dock)) { drawDock(it) }
+		ChromeButton(onClick = onClose, description = stringResource(R.string.floating_window_action_close)) { drawClose(it) }
 	}
 }
 

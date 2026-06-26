@@ -1328,4 +1328,11 @@
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
 
+	<!-- Floating window chrome button accessibility labels (announced by screen readers) -->
+	<string name="floating_window_action_minimize">Minimize</string>
+	<string name="floating_window_action_restore">Restore</string>
+	<string name="floating_window_action_maximize">Maximize</string>
+	<string name="floating_window_action_dock">Dock to editor</string>
+	<string name="floating_window_action_close">Close</string>
+
 </resources>
