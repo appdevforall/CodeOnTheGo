@@ -212,12 +212,17 @@ open class EditorHandlerActivity :
 		pluginEditorProvider = null
 	}
 
+	private val floatingTabController by lazy {
+		com.itsaky.androidide.editor.floating.IdeFloatingTabController(this)
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		setupPluginFragmentFactory()
 		mBuildEventListener.setActivity(this)
 		super.onCreate(savedInstanceState)
 
 		supportFragmentManager.registerFragmentLifecycleCallbacks(pluginFontScalingListener, true)
+		floatingTabController.start()
 
 		editorViewModel._displayedFile.observe(
 			this,
@@ -585,6 +590,21 @@ open class EditorHandlerActivity :
 		if (tabPosition < 0) return null
 		val child = _binding?.content?.editorContainer?.getChildAt(tabPosition) ?: return null
 		return if (child is CodeEditorView) child else null
+	}
+
+	/** Undock the file tab at [fileIndex] into a floating window over other apps. */
+	fun undockFileTab(fileIndex: Int) {
+		floatingTabController.undock(fileIndex)
+	}
+
+	/** Undock the plugin tab [tabId] (at [position]) into a floating window over other apps. */
+	fun undockPluginTab(tabId: String, position: Int) {
+		val title =
+			com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+				.getInstance()
+				.getPluginTab(tabId)
+				?.title ?: tabId
+		floatingTabController.floatPluginTab(tabId, title) { closePluginTab(position) }
 	}
 
 	override fun openFileAndSelect(
@@ -1565,6 +1585,27 @@ open class EditorHandlerActivity :
 		}
 
 		binding.root.addView(closeItem)
+
+		val undockItem =
+			FileActionPopupWindowItemBinding
+				.inflate(
+					android.view.LayoutInflater.from(this),
+					null,
+					false,
+				).root
+		undockItem.apply {
+			text = getString(string.undock)
+			setOnClickListener {
+				val pos = tab.position
+				val tabId = getPluginTabId(pos)
+				if (tabId != null) {
+					undockPluginTab(tabId, pos)
+				}
+				popupWindow.dismiss()
+			}
+		}
+		binding.root.addView(undockItem)
+
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 

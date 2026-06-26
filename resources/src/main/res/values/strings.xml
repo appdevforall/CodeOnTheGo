@@ -1338,6 +1338,7 @@
 	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
+    <string name="undock">Undock</string>
 
 	<!-- Floating window chrome button accessibility labels (announced by screen readers) -->
 	<string name="floating_window_action_minimize">Minimize</string>
