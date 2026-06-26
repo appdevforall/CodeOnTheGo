@@ -65,6 +65,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
   private var leftDragProgress = 0f
   private var rightDragProgress = 0f
+  private var isVerticalDragEnabled = true
 
   init {
     leftDragHelper = ViewDragHelper.create(this, 1f, LeftDragCallback())
@@ -73,7 +74,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
   private val dragHelperCallback = object : ViewDragHelper.Callback() {
     override fun tryCaptureView(child: View, pointerId: Int): Boolean {
-      return child === overlappingContent
+      return isVerticalDragEnabled && child === overlappingContent
     }
 
     override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {
@@ -82,7 +83,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     }
 
     override fun getViewVerticalDragRange(child: View): Int {
-      return dragHeightMax
+      return if (isVerticalDragEnabled) dragHeightMax else 0
     }
 
     override fun getOrderedChildIndex(index: Int): Int {
@@ -224,7 +225,8 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     hiddenContent.layout(0, paddingTop, r, paddingTop + hiddenContent.measuredHeight)
 
     val olapTop = paddingTop + (hiddenContent.height * dragProgress).toInt()
-      overlappingContent.layout(0, olapTop, r, olapTop + overlappingContent.measuredHeight)
+    // Ensure overlappingContent extends to bottom to fill available space
+    overlappingContent.layout(0, olapTop, r, b)
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
@@ -232,22 +234,25 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
       leftDragHelper.cancel()
       rightDragHelper.cancel()
+      dragHelper.cancel()
       return false
     }
     val isLeft = leftDragHelper.shouldInterceptTouchEvent(ev)
     val isRight = rightDragHelper.shouldInterceptTouchEvent(ev)
-    return isLeft || isRight
+    val isVertical = dragHelper.shouldInterceptTouchEvent(ev)
+    return isLeft || isRight || isVertical
   }
 
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
     leftDragHelper.processTouchEvent(event)
     rightDragHelper.processTouchEvent(event)
+    dragHelper.processTouchEvent(event)
     return true
   }
 
   override fun computeScroll() {
-    if (leftDragHelper.continueSettling(true) or rightDragHelper.continueSettling(true)) {
+    if (leftDragHelper.continueSettling(true) or rightDragHelper.continueSettling(true) or dragHelper.continueSettling(true)) {
       postInvalidateOnAnimation()
     }
   }
@@ -317,6 +322,13 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     }
 
     smoothSlideTo(0f)
+  }
+
+  fun setVerticalDragEnabled(enabled: Boolean) {
+    this.isVerticalDragEnabled = enabled
+    if (!enabled && isOpen) {
+      close()
+    }
   }
 
   private fun smoothSlideTo(offset: Float) {
