@@ -613,6 +613,10 @@
 	<string name="title_reload_color_schemes">Reload color schemes</string>
 	<string name="msg_dir_picker_failed">Failed to start directory picker : %1$s</string>
 	<string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
+	<!-- Shown when one or more dependency JARs were corrupt/unreadable during classpath indexing. %1$s is a comma-separated list of dependency names (may end with an overflow clause). -->
+	<string name="msg_unreadable_classpath_jars">Some dependencies couldn\'t be read and were skipped, so code completion may be incomplete: %1$s. Sync the project to re-download dependencies.</string>
+	<!-- Appended to the dependency list when more than three dependencies were skipped. %1$s is the first listed dependency names; %2$d is the count of additional ones. -->
+	<string name="msg_unreadable_classpath_jars_overflow">%1$s and %2$d more</string>
 	<string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
 	<string name="idepref_deleteEmptyLines_summary">If a line contains no visible text characters, pressing backspace removes the entire line.</string>
 	<string name="idepref_deleteTabs_title">Smart backspace indent</string>
@@ -722,6 +726,9 @@
 	<string name="permission_desc_overlay_window">Allow Code on the Go to display floating debugger controls to inspect your code while it runs.</string>
 	<string name="permission_overlay_unsupported_hint">Floating debugger is not available on this device.</string>
 	<string name="permission_overlay_restricted_settings_hint">If you can\'t enable this permission, display App info for Code on the Go, tap the three-dot menu, and enable restricted settings.</string>
+	<string name="permission_overlay_restricted_dialog_title">Enable restricted settings</string>
+	<string name="permission_overlay_restricted_dialog_message">Android turned off the “Display over other apps” switch because Code on the Go was installed from outside an app store. To turn it on:</string>
+	<string name="permission_overlay_open_app_info">Open App info</string>
 	<string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to display notifications.</string>
 	<string name="permission_title_accessibility">Accessibility</string>
@@ -1136,6 +1143,11 @@
 	To use the debugger, you must enable developer options. When you’re ready to pair with the debugger:]]></string>
 
 	<!-- Steps shown to the user in an ordered list in the ADB pairing dialog -->
+	<string-array name="overlay_restricted_settings_steps">
+		<item><![CDATA[On the <b>App info</b> screen, tap the three-dot menu (⋮) in the top corner.]]></item>
+		<item><![CDATA[Tap <b>Allow restricted settings</b>.]]></item>
+		<item><![CDATA[Open <b>Display over other apps</b> and turn it on for Code on the Go.]]></item>
+	</string-array>
 	<string-array name="debugger_setup_pairing_steps">
 		<item><![CDATA[Tap <b>Start pairing</b>. Developer options are displayed.]]></item>
 		<item><![CDATA[Enable <b>Wireless debugging</b>.]]></item>
